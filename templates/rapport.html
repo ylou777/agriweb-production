@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport de la zone</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    iframe {
+      width: 100%;
+      height: 400px;
+      border: none;
+      margin-bottom: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+    }
+    .btn {
+      padding: 10px 15px;
+      margin-right: 10px;
+      font-size: 1em;
+    }
+    h2 {
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+    }
+    ul {
+      margin-bottom: 1em;
+    }
+    .feature-block {
+      border: 1px solid #ccc;
+      margin: 10px 0;
+      padding: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Rapport de la zone</h1>
+
+  <!-- ====================== CARTE INTERACTIVE ========================== -->
+  <h2>Carte interactive</h2>
+  <iframe src="/rapport_map.html"></iframe>
+
+  <!-- ====================== Coordonnées & Info de base ================= -->
+  <h2>Coordonnées et informations</h2>
+  <p>
+    <strong>Adresse :</strong> {{ report.address }}<br>
+    <strong>Latitude :</strong> {{ report.lat }}<br>
+    <strong>Longitude :</strong> {{ report.lon }}<br>
+    <a href="{{ report.geoportail_url }}" target="_blank">Voir sur Geoportail</a>
+  </p>
+
+  <!-- ====================== Production Photovoltaïque ================== -->
+  <h2>Production Photovoltaïque estimée</h2>
+  {% if report.kwh_per_kwc != "N/A" %}
+    <p>
+      Estimation de production :
+      <strong>{{ report.kwh_per_kwc }} kWh/kWc/an</strong>
+    </p>
+  {% else %}
+    <p>Pas de calcul d'irradiation disponible.</p>
+  {% endif %}
+
+  <!-- ====================== Section cadastrale ========================= -->
+  {% if report.parcelle %}
+    <h2>Section cadastrale</h2>
+    <ul>
+      {% for key, value in report.parcelle.items() if key != "geometry" %}
+        <li><strong>{{ key }} :</strong> {{ value }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <!-- ====================== Documents PLU ============================== -->
+  <h2>Documents PLU</h2>
+  {% if report.plu_info and report.plu_info|length > 0 %}
+    <ul>
+      {% for item in report.plu_info %}
+        <li>
+          <strong>INSEE :</strong> {{ item.insee or 'N/A' }}<br>
+          <strong>Type :</strong> {{ item.typeref or 'N/A' }}<br>
+          <strong>Archive URL :</strong>
+          {% if item.archive_url %}
+            <a href="{{ item.archive_url }}" target="_blank">Voir l'archive</a>
+          {% else %}
+            N/A
+          {% endif %}<br>
+          <strong>Fichiers :</strong> {{ item.files|join(', ') }}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune information PLU trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== Capacités d'accueil (report.hta) =========== -->
+  {% if report.hta and report.hta|length > 0 %}
+    <h2>Capacités d'accueil HTA</h2>
+    <ul>
+      {% for cap in report.hta %}
+        <li>
+          <!-- Les propriétés du "cap" -->
+          {% for key, val in cap.items() %}
+            <strong>{{ key }}:</strong> {{ val }}<br>
+          {% endfor %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune capacité d'accueil HTA trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== Postes HTA ================================= -->
+  <!-- Filtrage par radius au niveau du template -->
+  <h2>Postes HTA (réels)</h2>
+  {% set rayon_ht_m = (report.ht_radius_km or 1.0) * 1000 %}
+  {% set postes_ht_dans_rayon = [] %}
+
+  {% if report.ht_postes and report.ht_postes|length > 0 %}
+    {# On filtre #}
+    {% for poste in report.ht_postes %}
+      {% if poste.distance <= rayon_ht_m %}
+        {% set _ = postes_ht_dans_rayon.append(poste) %}
+      {% endif %}
+    {% endfor %}
+
+    {% if postes_ht_dans_rayon|length > 0 %}
+      <ul>
+        {% for pht in postes_ht_dans_rayon %}
+          <li>
+            <strong>Distance :</strong> {{ pht.distance }} m<br>
+            {% for key, value in pht.properties.items() %}
+              <strong>{{ key }} :</strong> {{ value }}<br>
+            {% endfor %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Aucun poste HTA dans un rayon de {{ report.ht_radius_km }} km.</p>
+    {% endif %}
+  {% else %}
+    <p>Aucun poste HTA (réel) trouvé.</p>
+  {% endif %}
+
+  <!-- ====================== Postes BT ================================== -->
+  <h2>Postes BT à proximité</h2>
+  {% set rayon_bt_m = (report.bt_radius_km or 1.0) * 1000 %}
+  {% set postes_bt_dans_rayon = [] %}
+
+  {% if report.postes and report.postes|length > 0 %}
+    {# On filtre #}
+    {% for poste in report.postes %}
+      {% if poste.distance <= rayon_bt_m %}
+        {% set _ = postes_bt_dans_rayon.append(poste) %}
+      {% endif %}
+    {% endfor %}
+
+    {% if postes_bt_dans_rayon|length > 0 %}
+      <table>
+        <thead>
+          <tr>
+            <th>Distance (m)</th>
+            <th>Informations</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for poste in postes_bt_dans_rayon %}
+            <tr>
+              <td>{{ poste.distance }}</td>
+              <td>
+                {% for key, value in poste.properties.items() %}
+                  <strong>{{ key }} :</strong> {{ value }}<br>
+                {% endfor %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>Aucun poste BT dans un rayon de {{ report.bt_radius_km }} km.</p>
+    {% endif %}
+  {% else %}
+    <p>Aucun poste BT trouvé.</p>
+  {% endif %}
+
+  <!-- ====================== ZAER ======================================= -->
+  <h2>Informations ZAER</h2>
+  {% if report.zaer and report.zaer|length > 0 %}
+    <ul>
+      {% for feature in report.zaer %}
+        {% set props = feature.get("properties", feature) %}
+        <li>
+          {% for k, v in props.items() %}
+            <strong>{{ k }} :</strong> {{ v }}<br>
+          {% endfor %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune information ZAER trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== RPG ======================================== -->
+  <h2>Informations RPG</h2>
+  {% if report.rpg and report.rpg|length > 0 %}
+    <ul>
+      {% for feat in report.rpg %}
+        {% set props = feat.get("properties", feat) %}
+        <li>
+          <strong>Culture :</strong> {{ props.get("Culture", "Non défini") }}<br>
+          <strong>ID Parcelle :</strong> {{ props.get("ID_PARCEL", "Non défini") }}<br>
+          <strong>Surface (ha) :</strong> {{ props.get("SURF_PARC", "Non défini") }}<br>
+          <strong>Distance au poste :</strong> {{ props.get("distance_au_poste", "N/A") }} m
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune donnée RPG trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== SIRENE ===================================== -->
+  <h2>Informations SIRENE</h2>
+  {% if report.sirene and report.sirene|length > 0 %}
+    <ul>
+      {% for feature in report.sirene %}
+        {% set props = feature.properties %}
+        {% set siret = props.get("siret", "inconnu") %}
+        <li>
+          <strong>SIRET :</strong> {{ siret }}<br>
+          <a href="https://annuaire-entreprises.data.gouv.fr/etablissement/{{ siret }}" target="_blank">
+            Voir la fiche entreprise
+          </a>
+          {% for k, v in props.items() if k != "siret" %}
+            <br><strong>{{ k }} :</strong> {{ v }}
+          {% endfor %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune donnée SIRENE trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== API Cadastre IGN =========================== -->
+  <h2>Informations Cadastre (API Carto IGN)</h2>
+  {% if report.api_cadastre and report.api_cadastre.features %}
+    <ul>
+      {% for feat in report.api_cadastre.features %}
+        <li class="feature-block">
+          <strong>Feature n°{{ loop.index }}</strong><br>
+          {% for k, v in feat.properties.items() %}
+            <strong>{{ k }}:</strong> {{ v }}<br>
+          {% endfor %}
+          {% if feat.geometry %}
+            <em>Type de géométrie :</em> {{ feat.geometry.type }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune information Cadastre trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== API Nature (IGN) =========================== -->
+  <h2>Informations Nature (API Carto)</h2>
+  {% if report.api_nature and report.api_nature.features %}
+    <ul>
+      {% for feat in report.api_nature.features %}
+        <li class="feature-block">
+          <strong>Feature n°{{ loop.index }}</strong><br>
+          {% for key, val in feat.properties.items() %}
+            <strong>{{ key }}:</strong> {{ val }}<br>
+          {% endfor %}
+          {% if feat.geometry %}
+            <em>Type de géométrie :</em> {{ feat.geometry.type }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p>Aucune information Nature trouvée.</p>
+  {% endif %}
+
+  <!-- ====================== API Urbanisme (GPU) ======================== -->
+  <h2>Informations Urbanisme (GPU)</h2>
+  {% if report.api_urbanisme %}
+
+    <!-- Document -->
+    <h3>Document</h3>
+    {% if report.api_urbanisme.document and report.api_urbanisme.document.features %}
+      <ul>
+        {% for feat in report.api_urbanisme.document.features %}
+          {% set props = feat.properties %}
+          <li class="feature-block">
+            <strong>Nom du document :</strong> {{ props.name or 'N/A' }}<br>
+            <strong>Type :</strong> {{ props.du_type or 'N/A' }}<br>
+            <strong>Partition :</strong> {{ props.partition or 'N/A' }}<br>
+            <strong>Grid Title :</strong> {{ props.grid_title or 'N/A' }}<br>
+            <strong>GPU Doc ID :</strong> {{ props.gpu_doc_id or 'N/A' }}<br>
+            <strong>GPU Status :</strong> {{ props.gpu_status or 'N/A' }}<br>
+            <strong>GPU Timestamp :</strong> {{ props.gpu_timestamp or 'N/A' }}<br>
+            {% for key, val in props.items() if key not in [
+              "name","du_type","partition","grid_title","gpu_doc_id","gpu_status","gpu_timestamp"
+            ] %}
+              <strong>{{ key }}:</strong> {{ val }}<br>
+            {% endfor %}
+            {% if feat.geometry %}
+              <em>Type de géométrie :</em> {{ feat.geometry.type }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Aucun document GPU trouvé.</p>
+    {% endif %}
+
+    <!-- Municipality -->
+    <h3>Commune (Municipality)</h3>
+    {% if report.api_urbanisme.municipality and report.api_urbanisme.municipality.features %}
+      <ul>
+        {% for feat in report.api_urbanisme.municipality.features %}
+          {% set mp = feat.properties %}
+          <li class="feature-block">
+            <strong>INSEE :</strong> {{ mp.insee or 'N/A' }}<br>
+            <strong>Nom :</strong> {{ mp.name or 'N/A' }}<br>
+            <strong>Est au RNU :</strong> {{ mp.is_rnu }}<br>
+            <strong>Commune fusionnée ? :</strong> {{ mp.is_deleted }}<br>
+            {% for key, val in mp.items() if key not in ["insee","name","is_rnu","is_deleted"] %}
+              <strong>{{ key }}:</strong> {{ val }}<br>
+            {% endfor %}
+            {% if feat.geometry %}
+              <em>Type de géométrie :</em> {{ feat.geometry.type }}
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Aucune information sur la commune via GPU.</p>
+    {% endif %}
+
+    <!-- Autres endpoints GPU -->
+    <h3>Autres endpoints GPU</h3>
+    {% for endpointName, geojson in report.api_urbanisme.items()
+         if endpointName not in ["document","municipality"] %}
+      <h4>{{ endpointName }}</h4>
+      {% if geojson and geojson.features %}
+        <ul>
+          {% for feat in geojson.features %}
+            <li class="feature-block">
+              <strong>Feature n°{{ loop.index }}</strong><br>
+              {% set props = feat.properties %}
+              {% for key, val in props.items() %}
+                <strong>{{ key }}:</strong> {{ val }}<br>
+              {% endfor %}
+              {% if feat.geometry %}
+                <em>Type de géométrie :</em> {{ feat.geometry.type }}
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p>Aucune donnée pour {{ endpointName }}</p>
+      {% endif %}
+    {% endfor %}
+  {% else %}
+    <p>Aucune information Urbanisme trouvée.</p>
+  {% endif %}
+
+  <!-- ============ BOUTONS IMPRESSION & ENREGISTREMENT ============ -->
+  <div style="margin-top:20px;">
+    <button class="btn" onclick="window.print()">Imprimer</button>
+    <button class="btn" onclick="saveReport()">Enregistrer</button>
+  </div>
+
+  <!-- Script pour sauvegarder le rapport sous forme d'image -->
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+  <script>
+    function saveReport() {
+      html2canvas(document.body).then(function(canvas) {
+        var image = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+        var link = document.createElement('a');
+        link.download = 'rapport.png';
+        link.href = image;
+        link.click();
+      });
+    }
+  </script>
+</body>
+</html>

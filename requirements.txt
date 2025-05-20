@@ -1,0 +1,9 @@
+flask
+folium
+geopy
+shapely
+pyproj
+pandas
+python-docx
+selenium
+webdriver-manager

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Résultats de la Recherche par Commune</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+  <style>
+    #mapFrame {
+      width: 100%;
+      height: 500px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <h1>Résultats de la Recherche par Commune</h1>
+    <div class="mb-3">
+      <p><strong>Commune :</strong> {{ info.commune }}</p>
+      <p><strong>Code Culture :</strong> {{ info.culture }}</p>
+      <p><strong>Rayon HT (km) :</strong> {{ info.ht_radius_km }}</p>
+      <p><strong>Rayon BT (km) :</strong> {{ info.bt_radius_km }}</p>
+      <p><strong>Nombre de parcelles RPG trouvées :</strong> {{ info.rpg_count }}</p>
+      <p><strong>Nombre de postes BT trouvés :</strong> {{ info.posts_bt_count }}</p>
+      <p><strong>Nombre de postes HTA trouvés :</strong> {{ info.posts_hta_count }}</p>
+    </div>
+    <h2>Carte</h2>
+    <iframe id="mapFrame" src="/map.html"></iframe>
+  </div>
+</body>
+</html>
