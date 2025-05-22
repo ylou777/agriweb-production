@@ -1,0 +1,112 @@
+<!-- search_panel.html -->
+<div class="accordion" id="searchAccordion">
+  <!-- Section Adresse / Coordonnées / GeoJSON -->
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#acc-pane-addr">
+        Adresse • Coordonnées • GeoJSON
+      </button>
+    </h2>
+    <div id="acc-pane-addr" class="accordion-collapse collapse show">
+      <div class="accordion-body">
+        <form id="unifiedSearchForm">
+          <label class="form-label">Adresse / coord. / GeoJSON :</label>
+          <input id="search_input" class="form-control mb-2" placeholder='48.85,2.35 ou {"type":"Point",...}'>
+
+          <label class="form-label">Rayon Sirène <span id="sirene_radius_val" class="slider-value"></span></label>
+          <input id="sirene_radius" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
+
+          <label class="form-label mt-2">Rayon HTA <span id="ht_radius_val" class="slider-value"></span></label>
+          <input id="ht_radius" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+
+          <label class="form-label mt-2">Rayon BT <span id="bt_radius_val" class="slider-value"></span></label>
+          <input id="bt_radius" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+
+          <input type="hidden" id="latitude">
+          <input type="hidden" id="longitude">
+          <input type="hidden" id="address">
+
+          <button type="submit" class="btn btn-primary w-100 mt-3">Rechercher</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section Commune & Culture -->
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-commune">
+        Commune & Culture
+      </button>
+    </h2>
+    <div id="acc-pane-commune" class="accordion-collapse collapse">
+      <div class="accordion-body">
+        <form id="communeSearchForm">
+          <label class="form-label">Commune :</label>
+          <input id="commune" class="form-control mb-2" placeholder="Lyon">
+
+          <label class="form-label">Culture :</label>
+          <select id="culture" class="form-select mb-2">
+            <option value="">Toutes</option>
+            {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
+          </select>
+
+          <label class="form-label">Dist. HTA <span id="htMaxVal" class="slider-value"></span></label>
+          <input id="ht_max_distance" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+
+          <label class="form-label">Dist. BT <span id="btMaxVal" class="slider-value"></span></label>
+          <input id="bt_max_distance" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+
+          <label class="form-label">Rayon Sirène <span id="sireneCommVal" class="slider-value"></span></label>
+          <input id="sirene_radius_commune" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
+
+          <button id="communeSearchButton" type="button" class="btn btn-secondary w-100 mt-2">Rechercher commune</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section Département -->
+  <div class="accordion-item">
+    <h2 class="accordion-header">
+      <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-dept">
+        Département (flux SSE)
+      </button>
+    </h2>
+    <div id="acc-pane-dept" class="accordion-collapse collapse">
+      <div class="accordion-body">
+        <label class="form-label">Département :</label>
+        <input id="departmentInput" class="form-control mb-2" placeholder="23">
+
+        <label class="form-label">Type RPG :</label>
+        <select id="rpgType" class="form-select mb-2">
+          <option value="">Tous</option>
+          {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
+        </select>
+
+        <label class="form-label">Surface min/max (ha)</label>
+        <input id="minSurface" type="range" class="form-range" min="0" max="100" value="10">
+        <input id="maxSurface" type="range" class="form-range" min="0" max="100" value="50">
+        <small>min : <span id="minSurfaceVal">10</span> ha – max : <span id="maxSurfaceVal">50</span> ha</small>
+
+        <label class="form-label mt-2">Dist. BT (m) <span id="btRadiusVal" class="slider-value"></span></label>
+        <input id="btRadius" type="range" class="form-range" min="0" max="2000" value="500">
+
+        <label class="form-label">Dist. HTA (m) <span id="htRadiusVal" class="slider-value"></span></label>
+        <input id="htRadius" type="range" class="form-range" min="0" max="5000" value="2000">
+
+        <div class="form-check form-switch mt-2">
+          <input id="excludeBuildings" class="form-check-input" type="checkbox">
+          <label class="form-check-label" for="excludeBuildings">Exclure bâtiments remarquables 500 m</label>
+        </div>
+        <div class="form-check form-switch mb-2">
+          <input id="excludeNature" class="form-check-input" type="checkbox">
+          <label class="form-check-label" for="excludeNature">Exclure zones naturelles</label>
+        </div>
+
+        <button id="deptSearchBtn" type="button" class="btn btn-primary w-100">Lancer recherche département</button>
+        <pre id="deptLog" class="mt-3"></pre>
+      </div>
+    </div>
+  </div>
+</div>
