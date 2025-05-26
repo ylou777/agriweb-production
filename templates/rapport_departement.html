@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport département {{ dept }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2 { border-top: 1px solid #ccc; padding-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Rapport du département {{ dept }}</h1>
+  {% for report in reports %}
+    <h2>Commune : {{ report.commune }}</h2>
+    <ul>
+      <li>Nombre de parcelles RPG : {{ report.rpg|length }}</li>
+      <li>Nombre de postes BT : {{ report.postes_bt|length }}</li>
+      <li>Nombre de postes HTA : {{ report.postes_hta|length }}</li>
+      <li>Nombre d'éleveurs : {{ report.eleveurs|length }}</li>
+    </ul>
+    <div style="margin-bottom:40px;">
+      <strong>Surface :</strong> {{ report.surface }} ha<br>
+      <strong>Population :</strong> {{ report.population or "N/A" }}<br>
+      <strong>Centre :</strong> {{ report.centroid[0] }}, {{ report.centroid[1] }}
+      <h3>Parcelles RPG</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Surface (ha)</th><th>Culture</th><th>Coordonnées</th><th>Distance BT (m)</th><th>Distance HTA (m)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for parcelle in report.rpg_parcelles %}
+          <tr>
+            <td>{{ parcelle.id or parcelle.ID or parcelle.numero or "" }}</td>
+            <td>{{ parcelle.surface }}</td>
+            <td>{{ parcelle.culture or parcelle.Culture or "" }}</td>
+            <td>{{ parcelle.coords[0] }}, {{ parcelle.coords[1] }}</td>
+            <td>{{ parcelle.distance_bt }}</td>
+            <td>{{ parcelle.distance_hta }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h3>Postes BT</h3>
+      <ul>
+        {% for poste in report.postes_bt %}
+          <li>{{ poste.nom }} ({{ poste.distance }} m)</li>
+        {% endfor %}
+      </ul>
+
+      <h3>Postes HTA</h3>
+      <ul>
+        {% for poste in report.postes_hta %}
+          <li>{{ poste.nom }} ({{ poste.distance }} m)</li>
+        {% endfor %}
+      </ul>
+
+      <h3>Éleveurs</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Nom</th><th>Adresse</th><th>SIRET</th><th>Annuaire</th><th>Entreprise</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for eleveur in report.eleveurs %}
+          <tr>
+            <td>{{ eleveur.nom or eleveur.nomUniteLe or "" }}</td>
+            <td>{{ eleveur.adresse or eleveur.adresseEtablissement or "" }}</td>
+            <td>{{ eleveur.siret or "" }}</td>
+            <td>
+              {% if eleveur.lien_annuaire %}
+                <a href="{{ eleveur.lien_annuaire }}" target="_blank">Annuaire</a>
+              {% endif %}
+            </td>
+            <td>
+              {% if eleveur.lien_entreprise %}
+                <a href="{{ eleveur.lien_entreprise }}" target="_blank">Entreprise</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>    
+  {% endfor %}
+</body>
+</html>

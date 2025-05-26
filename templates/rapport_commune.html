@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport de la commune {{ report.nom }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
+    .slider-value { font-weight: bold; }
+    .feature-block { border: 1px solid #ccc; margin: 10px 0; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Rapport de la commune {{ report.nom }} ({{ report.insee }})</h1>
+  <p>
+    <strong>Surface :</strong> {{ report.surface }} ha<br>
+    <strong>Population :</strong> {{ report.population or "N/A" }}<br>
+    <strong>Centre :</strong> {{ report.centroid[0] }}, {{ report.centroid[1] }}
+  </p>
+  <iframe src="/map_commune?commune={{ report.nom | urlencode }}" width="100%" height="400"></iframe>
+
+  <h2>Synthèse</h2>
+  <ul>
+    <li>Nombre de parcelles RPG : {{ report.rpg_parcelles|length }}</li>
+    <li>Surface totale RPG : {{ report.rpg_parcelles | sum(attribute='surface') }} ha</li>
+    <li>Nombre de postes BT : {{ report.postes_bt|length }}</li>
+    <li>Nombre de postes HTA : {{ report.postes_hta|length }}</li>
+    <li>Nombre d'éleveurs : {{ report.eleveurs|length }}</li>
+  </ul>
+
+  <h2>Parcelles RPG</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Surface (ha)</th><th>Culture</th><th>Coordonnées</th><th>Distance BT (m)</th><th>Distance HTA (m)</th><th>Geoportail</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for parcelle in report.rpg_parcelles %}
+      <tr>
+        <td>{{ parcelle.id }}</td>
+        <td>{{ parcelle.surface }}</td>
+        <td>{{ parcelle.culture }}</td>
+        <td>{{ parcelle.coords[0] }}, {{ parcelle.coords[1] }}</td>
+        <td>{{ parcelle.distance_bt }}</td>
+        <td>{{ parcelle.distance_hta }}</td>
+        <td><a href="{{ parcelle.lien_geoportail }}" target="_blank">Voir</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Postes BT</h2>
+  <ul>
+    {% for poste in report.postes_bt %}
+      <li>{{ poste.nom }} ({{ poste.distance }} m)</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Postes HTA</h2>
+  <ul>
+    {% for poste in report.postes_hta %}
+      <li>{{ poste.nom }} ({{ poste.distance }} m)</li>
+    {% endfor %}
+  </ul>
+
+  <h2>Éleveurs</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Nom</th><th>Adresse</th><th>SIRET</th><th>Annuaire</th><th>Entreprise</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for eleveur in report.eleveurs %}
+      <tr>
+        <td>{{ eleveur.nom }}</td>
+        <td>{{ eleveur.adresse }}</td>
+        <td>{{ eleveur.siret }}</td>
+        <td><a href="{{ eleveur.lien_annuaire }}" target="_blank">Annuaire</a></td>
+        <td><a href="{{ eleveur.lien_entreprise }}" target="_blank">Entreprise</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Capacités réseau HTA</h2>
+  <ul>
+    {% for cap in report.hta_capacites %}
+      <li>{{ cap }}</li>
+    {% endfor %}
+  </ul>
+
+  <h2>API Nature (IGN)</h2>
+  <ul>
+    {% for feat in report.api_nature.features %}
+      <li class="feature-block">
+        {% for k, v in feat.properties.items() %}
+          <strong>{{ k }}:</strong> {{ v }}<br>
+        {% endfor %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  <h2>API Cadastre (IGN)</h2>
+  <ul>
+    {% for feat in report.api_cadastre.features %}
+      <li class="feature-block">
+        {% for k, v in feat.properties.items() %}
+          <strong>{{ k }}:</strong> {{ v }}<br>
+        {% endfor %}
+      </li>
+    {% endfor %}
+  </ul>
+</body>
+</html>

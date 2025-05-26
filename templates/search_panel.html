@@ -1,4 +1,3 @@
-<!-- search_panel.html -->
 <div class="accordion" id="searchAccordion">
   <!-- Section Adresse / Coordonnées / GeoJSON -->
   <div class="accordion-item">
@@ -16,12 +15,11 @@
           <label class="form-label">Rayon Sirène <span id="sirene_radius_val" class="slider-value"></span></label>
           <input id="sirene_radius" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
 
-          <label class="form-label mt-2">Rayon HTA <span id="ht_radius_val" class="slider-value"></span></label>
-          <input id="ht_radius" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+          <label class="form-label mt-2">Dist. BT (m) <span id="btMaxValAddr" class="slider-value"></span></label>
+          <input id="bt_max_distance_addr" type="range" class="form-range" min="0" max="2000" step="50" value="500">
 
-          <label class="form-label mt-2">Rayon BT <span id="bt_radius_val" class="slider-value"></span></label>
-          <input id="bt_radius" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
-
+          <label class="form-label">Dist. HTA (m) <span id="htMaxValAddr" class="slider-value"></span></label>
+          <input id="ht_max_distance_addr" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
           <input type="hidden" id="latitude">
           <input type="hidden" id="longitude">
           <input type="hidden" id="address">
@@ -51,11 +49,11 @@
             {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
           </select>
 
-          <label class="form-label">Dist. HTA <span id="htMaxVal" class="slider-value"></span></label>
-          <input id="ht_max_distance" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+          <label class="form-label">Dist. HTA (m) <span id="htMaxVal" class="slider-value"></span></label>
+          <input id="ht_max_distance" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
 
-          <label class="form-label">Dist. BT <span id="btMaxVal" class="slider-value"></span></label>
-          <input id="bt_max_distance" type="range" class="form-range" min="0" max="20" step="0.1" value="1">
+          <label class="form-label">Dist. BT (m) <span id="btMaxVal" class="slider-value"></span></label>
+          <input id="bt_max_distance" type="range" class="form-range" min="0" max="2000" step="50" value="500">
 
           <label class="form-label">Rayon Sirène <span id="sireneCommVal" class="slider-value"></span></label>
           <input id="sirene_radius_commune" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
@@ -89,12 +87,11 @@
         <input id="maxSurface" type="range" class="form-range" min="0" max="100" value="50">
         <small>min : <span id="minSurfaceVal">10</span> ha – max : <span id="maxSurfaceVal">50</span> ha</small>
 
-        <label class="form-label mt-2">Dist. BT (m) <span id="btRadiusVal" class="slider-value"></span></label>
-        <input id="btRadius" type="range" class="form-range" min="0" max="2000" value="500">
+        <label class="form-label mt-2">Dist. BT (m) <span id="btMaxValDept" class="slider-value"></span></label>
+        <input id="bt_max_distance_dept" type="range" class="form-range" min="0" max="2000" step="50" value="500">
 
-        <label class="form-label">Dist. HTA (m) <span id="htRadiusVal" class="slider-value"></span></label>
-        <input id="htRadius" type="range" class="form-range" min="0" max="5000" value="2000">
-
+        <label class="form-label">Dist. HTA (m) <span id="htMaxValDept" class="slider-value"></span></label>
+        <input id="ht_max_distance_dept" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
         <div class="form-check form-switch mt-2">
           <input id="excludeBuildings" class="form-check-input" type="checkbox">
           <label class="form-check-label" for="excludeBuildings">Exclure bâtiments remarquables 500 m</label>

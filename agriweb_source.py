@@ -2,14 +2,15 @@
 # ──────────────────────────────────────────────────────────────
 from flask import (
     Flask, request, render_template, jsonify, send_file,
-    make_response, Response, stream_with_context
+    make_response, Response, stream_with_context, redirect
 )
 import folium
-from folium.plugins import Draw, MeasureControl, Search, MarkerCluster
+from folium.plugins import Draw, MeasureControl, MarkerCluster, Search
 from shapely.geometry import shape, mapping, Point
 from shapely.ops import transform as shp_transform
+from shapely.errors import GEOSException
 from pyproj import Transformer
-from urllib.parse import quote_plus
+from urllib.parse import quote, quote_plus
 import unicodedata, re
 from threading import Timer
 import webbrowser
@@ -21,23 +22,11 @@ import zipfile
 from io import BytesIO
 import pprint
 from functools import lru_cache
-# ─── HTTP / réseaux ───────────────────────────────────────────
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-from urllib.parse import quote, quote_plus
-
-# ─── Cartographie / géo ───────────────────────────────────────
-import folium
-from folium.plugins import Draw, MeasureControl, MarkerCluster, Search
-from shapely.geometry import Point, shape, mapping
-from shapely.ops import transform as shp_transform
-from shapely.errors import GEOSException
-from pyproj import Transformer
 from geopy.geocoders import Nominatim
 from branca.element import Element
-from flask import Flask, redirect
-# ─── Bureautique ──────────────────────────────────────────────
 from docx import Document
 
 # ─── GUI licence (optionnel, protégé) ─────────────────────────
@@ -46,6 +35,7 @@ try:
     from tkinter import filedialog
 except ImportError:
     tk = None  # Environnement headless (pas d’interface X11)
+
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
@@ -438,7 +428,6 @@ hta_mapping = {
     "GRDHTB - 1": "GRDHTB -_1"
 }
 
-
 def on_import_license():
     filename = filedialog.askopenfilename(
         title="Sélectionnez votre fichier licence",
@@ -621,7 +610,11 @@ def fetch_sirene_info(siret):
     except Exception as e:
         print(f"[Sirene] Erreur SIRET {siret} : {e}")
         return None
-        
+def save_map_to_cache(map_obj):
+    html = map_obj._repr_html_()
+    print("Carte sauvegardée dans le cache, taille HTML :", len(html))
+    last_map_params["html"] = html
+
 def fetch_wfs_data(layer_name, bbox, srsname="EPSG:4326"):
     # On encode uniquement les espaces (%20) mais on laisse les ":"
     layer_q = quote(layer_name, safe=':')            # « : » n’est plus codé
@@ -676,43 +669,37 @@ def get_all_parcelles(lat, lon, radius=0.03):
         print(f"[get_all_parcelles] Erreur : {e}")
         return {"features": []}
 
-def get_nearest_postes(lat, lon, radius_deg=0.1):
-    bbox    = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
+def get_all_postes(lat, lon, radius_deg=0.1):
+    bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
     features = fetch_wfs_data(POSTE_LAYER, bbox)
-    point   = Point(lon, lat)
-
+    point = Point(lon, lat)
     postes = []
     for feature in features:
         geom_shp = shape(feature["geometry"])
-        dist     = geom_shp.distance(point) * 111000
-
+        dist = geom_shp.distance(point) * 111000
         postes.append({
-          "properties": feature["properties"],
-          "distance":   round(dist, 2),
-          # ici je ne stocke **jamais** l’objet Point Shapely, 
-          # mais son équivalent dict GeoJSON :
-          "geometry":  mapping(geom_shp)
+            "properties": feature["properties"],
+            "distance": round(dist, 2),
+            "geometry": mapping(geom_shp)
         })
+    return postes  # Pas de slicing ici
 
-    return sorted(postes, key=lambda x: x["distance"])[:3]
-
-def get_nearest_ht_postes(lat, lon, layer=HT_POSTE_LAYER, radius_deg=0.5):
+def get_all_ht_postes(lat, lon, radius_deg=0.5):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
-    features = fetch_wfs_data(layer, bbox)
-    postes = []
+    features = fetch_wfs_data(HT_POSTE_LAYER, bbox)
     point = Point(lon, lat)
+    postes = []
     for feature in features:
         geom = shape(feature["geometry"])
         distance = geom.distance(point) * 111000
         postes.append({
             "properties": feature["properties"],
             "distance": round(distance, 2),
-            # on renvoie un dict GeoJSON, pas l’objet Shapely
             "geometry": mapping(geom)
         })
-    return sorted(postes, key=lambda x: x["distance"])[:3]
+    return postes  # Pas de slicing ici])[:3]
 
-def get_nearest_capacites_reseau(lat, lon, count=3, radius_deg=0.1):
+def get_all_capacites_reseau(lat, lon, radius_deg=0.1):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
     features = fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox)
     capacites = []
@@ -725,7 +712,7 @@ def get_nearest_capacites_reseau(lat, lon, count=3, radius_deg=0.1):
             "distance": round(distance, 2),
             "geometry": mapping(geom)
         })
-    return sorted(capacites, key=lambda x: x["distance"])[:count]
+    return sorted(capacites, key=lambda x: x["distance"])
 
 
 def get_plu_info(lat, lon, radius=0.03):
@@ -833,6 +820,113 @@ def get_elevation_profile(points):
         print("Erreur Elevation API:", e)
     return None
 
+def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9, ht_max_km=5.0, bt_max_km=5.0, sirene_km=5.0):
+    # 1) Récupère infos de la commune (nom, insee, centre, contour, population)
+    commune_infos = requests.get(
+        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune_name)}&fields=centre,contour,code,population,surface"
+    ).json()
+    if not commune_infos or not commune_infos[0].get("contour"):
+        return None
+    info = commune_infos[0]
+    contour = info["contour"]
+    centre = info["centre"]
+    insee = info.get("code")
+    population = info.get("population")
+    surface = round(info.get("surface", 0) / 100, 2)  # m² → ha
+    centroid = [centre["coordinates"][1], centre["coordinates"][0]]
+
+    # 2) Emprise bbox pour limiter les requêtes WFS
+    from shapely.geometry import shape
+    commune_poly = shape(contour)
+    minx, miny, maxx, maxy = commune_poly.bounds
+    bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+
+    # 3) Récupère toutes les entités dans le bbox puis filtre par intersection
+    def filter_in_commune(features):
+        return [
+            f for f in features
+            if "geometry" in f and shape(f["geometry"]).intersects(commune_poly)
+        ]
+
+    rpg_raw         = filter_in_commune(get_rpg_info(centroid[0], centroid[1], radius=0.1))
+    postes_bt_data  = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
+    postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+    eleveurs_data   = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox))
+    sirene_data     = filter_in_commune(get_sirene_info(centroid[0], centroid[1], radius=sirene_km / 111.0))
+    hta_capacites   = filter_in_commune(fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox))
+    api_nature      = get_api_nature_data(contour)
+    api_cadastre    = get_api_cadastre_data(contour)
+
+    # 4) RPG filtré (culture, surface, distances)
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+
+    rpg_parcelles = []
+    for feat in (rpg_raw or []):
+        dec   = decode_rpg_feature(feat)
+        poly  = shape(dec["geometry"])
+        props = dec["properties"]
+
+        # a) culture
+        if culture and culture.lower() not in props.get("Culture", "").lower():
+            continue
+
+        # b) surface (ha)
+        ha = shp_transform(to_l93, poly).area / 10_000.0
+        if ha < min_area_ha or ha > max_area_ha:
+            continue
+
+        # c) distances réseaux (m)
+        cent   = poly.centroid.coords[0]
+        d_bt   = calculate_min_distance(cent, postes_bt_data)
+        d_hta  = calculate_min_distance(cent, postes_hta_data)
+
+        props.update({
+            "surface": round(ha, 3),
+            "coords": [cent[1], cent[0]],
+            "distance_bt": round(d_bt, 2) if d_bt is not None else None,
+            "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+            "lien_geoportail": f"https://www.geoportail.gouv.fr/carte?c={cent[0]},{cent[1]}&z=18"
+        })
+        rpg_parcelles.append(props)
+
+    # 5) Prépare les éleveurs (liens annuaire/entreprise)
+    for eleveur in eleveurs_data:
+        props = eleveur.get("properties", {})
+        nom_url = (props.get("nomUniteLe", "") + " " + props.get("denominati", "")).strip().replace(" ", "+")
+        ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
+        props["lien_annuaire"] = f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}"
+        siret = props.get("siret", "")
+        props["lien_entreprise"] = f"https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}" if siret else "#"
+
+    # 6) Prépare les postes BT/HTA (distance, nom)
+    def poste_label(poste):
+        props = poste.get("properties", {})
+        nom = props.get("Nom") or props.get("nom") or props.get("NOM") or "Poste"
+        dist = poste.get("distance", "")
+        return {"nom": nom, "distance": dist}
+
+    postes_bt = [poste_label(p) for p in postes_bt_data]
+    postes_hta = [poste_label(p) for p in postes_hta_data]
+
+    # 7) Rapport final
+    return {
+        "nom": commune_name,
+        "insee": insee,
+        "surface": surface,
+        "population": population,
+        "centroid": centroid,
+        "rpg_parcelles": rpg_parcelles,
+        "postes_bt": postes_bt,
+        "postes_hta": postes_hta,
+        "eleveurs": [e.get("properties", {}) for e in eleveurs_data],
+        "hta_capacites": hta_capacites,
+        "api_nature": api_nature,
+        "api_cadastre": api_cadastre,
+        "sirene": [s.get("properties", {}) for s in sirene_data]
+    }
+
 def fetch_gpu_data(endpoint, geom, partition=None, categorie=None, limit=1000):
     base_url = "https://apicarto.ign.fr/api/gpu"
     url = f"{base_url}/{endpoint}"
@@ -937,7 +1031,17 @@ def bbox_to_polygon(lon, lat, delta):
             [lon - delta, lat - delta]
         ]]
     }
+def get_nearest_postes(lat, lon, count=3, radius_deg=0.1):
+    postes = get_all_postes(lat, lon, radius_deg=radius_deg)
+    return sorted(postes, key=lambda x: x["distance"])[:count]
 
+def get_nearest_ht_postes(lat, lon, count=3, radius_deg=0.5):
+    postes = get_all_ht_postes(lat, lon, radius_deg=radius_deg)
+    return sorted(postes, key=lambda x: x["distance"])[:count]
+
+def get_nearest_capacites_reseau(lat, lon, count=3, radius_deg=0.1):
+    capacites = get_all_capacites_reseau(lat, lon, radius_deg=radius_deg)
+    return sorted(capacites, key=lambda x: x["distance"])[:count]
 ##############################
 # Profil d'élévation
 ##############################
@@ -976,6 +1080,7 @@ def elevation_profile_route():
     if profile is None:
         return jsonify({"error": "Erreur API Elevation"}), 500
     return jsonify(profile)
+from shapely.geometry import shape, MultiPolygon
 
 def build_map(
     lat, lon, address,
@@ -989,12 +1094,12 @@ def build_map(
 ):
     import folium
     from folium.plugins import Draw, MeasureControl, MarkerCluster
-    from shapely.geometry import shape, mapping
-    from shapely.ops import transform as shp_transform
     from pyproj import Transformer
-    from utils import decode_rpg_feature, bbox_to_polygon, get_all_gpu_data, get_nearest_capacites_reseau, get_api_cadastre_data, get_api_nature_data
-    
-    map_obj = folium.Map(location=[lat, lon], zoom_start=17, tiles=None)
+    from utils import decode_rpg_feature, bbox_to_polygon
+
+    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+    # ... (ajout de toutes tes couches comme avant) ...
+    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
 
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -1002,16 +1107,15 @@ def build_map(
         name="Satellite",
         overlay=False, control=True, show=True
     ).add_to(map_obj)
-
     folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
     Draw(export=True).add_to(map_obj)
     MeasureControl(position="topright").add_to(map_obj)
 
+    # Cadastre
     cadastre_group = folium.FeatureGroup(name="Cadastre (WFS)", show=True)
     if parcelle_props and parcelle_props.get("geometry"):
         tooltip = "<br>".join(f"{k}: {v}" for k, v in parcelle_props.items() if k != "geometry")
         folium.GeoJson(parcelle_props["geometry"], style_function=lambda _: {"color": "blue", "weight": 2}, tooltip=tooltip).add_to(cadastre_group)
-
     if parcelles_data.get("features"):
         to_wgs84 = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True).transform
         for feat in parcelles_data["features"]:
@@ -1027,54 +1131,118 @@ def build_map(
             folium.GeoJson(feat["geometry"], style_function=lambda _: {"color": "#FF6600", "weight": 2, "fillColor": "#FFFF00", "fillOpacity": 0.4}, tooltip="<br>".join(f"{k}: {v}" for k, v in feat.get("properties", {}).items())).add_to(cad_api_group)
         map_obj.add_child(cad_api_group)
 
-    bt_group = folium.FeatureGroup(name=f"Postes BT (\u2264 {ht_radius_deg*111:.1f} km)", show=True)
+    # --- Postes BT (filtrage doublons par coordonnées) ---
+    def poste_key(poste):
+        geom = poste.get("geometry")
+        if geom and "coordinates" in geom:
+            coords = tuple(geom["coordinates"])
+        else:
+            coords = ()
+        return coords
+
+    seen_bt = set()
+    filtered_bt = []
     for poste in postes_data:
-        props = poste["properties"]
+        key = poste_key(poste)
+        if key in seen_bt or not poste.get("geometry"):
+            continue
+        seen_bt.add(key)
+        filtered_bt.append(poste)
+
+    bt_group = folium.FeatureGroup(name="Postes BT", show=True)
+    for poste in filtered_bt:
+        props = poste.get("properties", {})
         dist_m = poste.get("distance")
-        lon_p, lat_p = shape(poste["geometry"]).centroid.coords[0]
+        try:
+            # Pour un Point, coordinates = (lon, lat)
+            coords = poste["geometry"]["coordinates"]
+            lat_p, lon_p = coords[1], coords[0]
+        except Exception:
+            continue
         popup = "<b>Poste BT</b><br>" + "<br>".join(f"{k}: {v}" for k, v in props.items())
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
+        streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
+        popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="darkgreen", icon="flash", prefix="fa")).add_to(bt_group)
         folium.Circle([lat_p, lon_p], radius=25, color="darkgreen", fill=True, fill_opacity=0.2).add_to(bt_group)
     map_obj.add_child(bt_group)
 
-    hta_group = folium.FeatureGroup(name="Postes HTA (capacit\u00e9)", show=True)
+    # --- Postes HTA (filtrage doublons par coordonnées) ---
+    seen_hta = set()
+    filtered_hta = []
     for poste in ht_postes_data:
+        key = poste_key(poste)
+        if key in seen_hta or not poste.get("geometry"):
+            continue
+        seen_hta.add(key)
+        filtered_hta.append(poste)
+
+    hta_group = folium.FeatureGroup(name="Postes HTA (capacité)", show=True)
+    for poste in filtered_hta:
         props = poste.get("properties", {})
         dist_m = poste.get("distance")
         try:
-            lon_p, lat_p = shape(poste["geometry"]).centroid.coords[0]
-        except Exception as e:
-            print("❌ Erreur géométrie HTA:", e)
+            coords = poste["geometry"]["coordinates"]
+            lat_p, lon_p = coords[1], coords[0]
+        except Exception:
             continue
         capa = props.get("Capacité") or props.get("CapacitÃƒÂ©") or "N/A"
         popup = "<b>Poste HTA</b><br>" + "<br>".join(f"{k}: {v}" for k, v in props.items())
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         popup += f"<br><b>Capacité dispo</b>: {capa}"
+        streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
+        popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="orange", icon="bolt", prefix="fa")).add_to(hta_group)
     map_obj.add_child(hta_group)
 
+    # PLU
     plu_group = folium.FeatureGroup(name="PLU", show=True)
     for item in plu_info:
-        folium.GeoJson(item.get("geometry"), style_function=lambda _: {"color": "red", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in item.items())).add_to(plu_group)
+        if item.get("geometry"):
+            folium.GeoJson(item.get("geometry"), style_function=lambda _: {"color": "red", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in item.items())).add_to(plu_group)
     map_obj.add_child(plu_group)
 
+    # Autres couches simples
     for name, data, color in [("Parkings", parkings_data, "darkgreen"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
         group = folium.FeatureGroup(name=name, show=True)
         for f in data:
-            folium.GeoJson(f.get("geometry"), style_function=lambda _: {"color": color, "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in f.get("properties", {}).items())).add_to(group)
+            if f.get("geometry"):
+                folium.GeoJson(f.get("geometry"), style_function=lambda _: {"color": color, "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in f.get("properties", {}).items())).add_to(group)
         map_obj.add_child(group)
 
+    # RPG
     rpg_group = folium.FeatureGroup(name="RPG", show=True)
     for feat in rpg_data:
         dec = decode_rpg_feature(feat)
         geom, props = dec['geometry'], dec['properties']
-        popup = "<br>".join(f"{k}: {v}" for k, v in props.items())
-        folium.GeoJson(geom, style_function=lambda _: {"color": "darkblue", "weight": 2, "fillOpacity": 0.3}, popup=popup).add_to(rpg_group)
+        id_parcel = props.get("ID_PARCEL", "N/A")
+        surf_ha = props.get("SURF_PARC", props.get("SURF_HA", "N/A"))
+        try:
+            surf_ha = f"{float(surf_ha):.2f} ha"
+        except Exception:
+            surf_ha = str(surf_ha)
+        code_cultu = props.get("CODE_CULTU", "N/A")
+        culture_label = props.get("Culture", code_cultu)
+        dist_bt = props.get("min_bt_distance_m", "N/A")
+        dist_hta = props.get("min_ht_distance_m", "N/A")
+        popup_html = (
+            f"<b>ID Parcelle :</b> {id_parcel}<br>"
+            f"<b>Surface :</b> {surf_ha}<br>"
+            f"<b>Code culture :</b> {code_cultu}<br>"
+            f"<b>Culture :</b> {culture_label}<br>"
+            f"<b>Distance au poste BT :</b> {dist_bt} m<br>"
+            f"<b>Distance au poste HTA :</b> {dist_hta} m"
+        )
+        folium.GeoJson(
+            geom,
+            style_function=lambda _: {"color": "darkblue", "weight": 2, "fillOpacity": 0.3},
+            tooltip=folium.Tooltip(popup_html)
+        ).add_to(rpg_group)
     map_obj.add_child(rpg_group)
 
+    # Capacités réseau HTA
     caps = get_nearest_capacites_reseau(lat, lon, count=3, radius_deg=ht_radius_deg)
     caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=True)
     for item in caps:
@@ -1083,14 +1251,15 @@ def build_map(
         folium.Marker([lat_c, lon_c], popup=popup, icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
     map_obj.add_child(caps_group)
 
+    # Sirene
     sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=True)
     for feat in sirene_data:
         if feat.get('geometry', {}).get('type') == 'Point':
             lon_s, lat_s = feat['geometry']['coordinates']
-            popup = "<br>".join(f"{k}: {v}" for k, v in feat['properties'].items())
-            folium.Marker([lat_s, lon_s], popup=popup, icon=folium.Icon(color="darkred", icon="building")).add_to(sir_group)
+            folium.Marker([lat_s, lon_s], popup="<br>".join(f"{k}: {v}" for k, v in feat['properties'].items()), icon=folium.Icon(color="darkred", icon="building")).add_to(sir_group)
     map_obj.add_child(sir_group)
 
+    # GPU urbanisme
     delta = 5.0 / 111.0
     bbox_poly = bbox_to_polygon(lon, lat, delta)
     gpu = api_urbanisme or get_all_gpu_data(bbox_poly)
@@ -1098,39 +1267,101 @@ def build_map(
         feats = gpu.get(ep,{}).get('features',[])
         group = folium.FeatureGroup(name=title, show=False)
         for f in feats:
-            folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#FFAA00", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k,v in f.get('properties',{}).items())).add_to(group)
+            if f.get('geometry'):
+                folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#FFAA00", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k,v in f.get('properties',{}).items())).add_to(group)
         map_obj.add_child(group)
 
     gpu_group = folium.FeatureGroup(name="Urbanisme (GPU 5km)", show=False)
     for ep, data in gpu.items():
         if data and 'features' in data:
             for f in data['features']:
-                folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#0000FF", "weight": 1}, tooltip=f"Type: {ep}").add_to(gpu_group)
+                if f.get('geometry'):
+                    folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#0000FF", "weight": 1}, tooltip=f"Type: {ep}").add_to(gpu_group)
     map_obj.add_child(gpu_group)
 
+    # Éleveurs
+    
     if eleveurs_data:
-        to_wgs = Transformer.from_crs("EPSG:2154","EPSG:4326",always_xy=True).transform
         el_group = folium.FeatureGroup(name="Éleveurs", show=True)
         cluster = MarkerCluster().add_to(el_group)
         for feat in eleveurs_data:
-            x, y = shape(feat['geometry']).coords[0]
-            lon_e, lat_e = to_wgs(x, y)
+            try:
+                coords = shape(feat['geometry']).coords[0]
+                if abs(coords[0]) > 180 or abs(coords[1]) > 90:
+                    to_wgs = Transformer.from_crs("EPSG:2154","EPSG:4326",always_xy=True).transform
+                    lon_e, lat_e = to_wgs(*coords)
+                else:
+                    lon_e, lat_e = coords
+            except Exception:
+                continue
             props = feat['properties']
-            popup = "<br>".join(f"{k}: {v}" for k,v in props.items())
-            if props.get('siret'):
-                popup += f"<br><a href='https://annuaire-entreprises.data.gouv.fr/etablissement/{props['siret']}' target='_blank'>Fiche entreprise</a>"
-            folium.Marker([lat_e, lon_e], popup=popup, icon=folium.Icon(color="cadetblue", icon="paw", prefix="fa")).add_to(cluster)
+            nom = props.get("nomUniteLe", "") or ""
+            prenom = props.get("prenom1Uni", "") or ""
+            denomination = props.get("denominati", "") or ""
+            adresse = (
+                f"{props.get('numeroVoie','') or ''} "
+                f"{props.get('typeVoieEt','') or ''} "
+                f"{props.get('libelleVoi','') or ''}, "
+                f"{props.get('codePostal','') or ''} "
+                f"{props.get('libelleCom','') or ''}"
+            ).replace(" ,", "").strip()
+            siret = props.get("siret", "")
+            # Construction du popup
+            popup = (
+                f"<b>Nom :</b> {nom}<br>"
+                f"<b>Prénom :</b> {prenom}<br>"
+                f"<b>Dénomination :</b> {denomination}<br>"
+                f"<b>Adresse :</b> {adresse}<br>"
+                f"<b>SIRET :</b> {siret}<br>"
+            )
+            # Lien Sirene
+            if siret:
+                popup += (
+                    f"<a href='https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}' "
+                    f"target='_blank'>Fiche Sirene</a><br>"
+                )
+            # Lien PagesJaunes/Blanches (recherche sur nom + ville)
+            nom_url = f"{nom} {denomination}".strip().replace(" ", "+")
+            ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
+            pj_url = f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}"
+            pb_url = f"https://www.pagesblanches.fr/pagesblanches/recherche?quoiqui={nom_url}&ou={ville_url}"
+            popup += (
+                f"<a href='{pj_url}' target='_blank'>Voir sur PagesJaunes</a><br>"
+                f"<a href='{pb_url}' target='_blank'>Voir sur PagesBlanches</a>"
+            )
+            folium.Marker(
+                [lat_e, lon_e],
+                popup=popup,
+                icon=folium.Icon(color="cadetblue", icon="paw", prefix="fa")
+            ).add_to(cluster)
         map_obj.add_child(el_group)
-
+    # API Cadastre/Nature IGN (5km)
     cad5 = api_cadastre or get_api_cadastre_data(bbox_poly)
     nat5 = api_nature or get_api_nature_data(bbox_poly)
     for name, data, show in [("API Cadastre IGN (5km)", cad5, False), ("API Nature IGN (5km)", nat5, False)]:
         grp = folium.FeatureGroup(name=name, show=show)
         for f in data.get('features', []):
-            folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#FF5500" if 'Cadastre' in name else "#22AA22", "weight":2}, tooltip="<br>".join(f"{k}: {v}" for k,v in f.get('properties',{}).items())).add_to(grp)
+            if f.get('geometry'):
+                folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#FF5500" if 'Cadastre' in name else "#22AA22", "weight":2}, tooltip="<br>".join(f"{k}: {v}" for k,v in f.get('properties',{}).items())).add_to(grp)
         map_obj.add_child(grp)
 
     folium.LayerControl().add_to(map_obj)
+    bounds = None
+    # 1. Si tu as des parcelles, centre sur leur emprise
+    if parcelles_data and parcelles_data.get("features"):
+        polys = [shape(f["geometry"]) for f in parcelles_data["features"] if "geometry" in f]
+        if polys:
+            try:
+                multi = MultiPolygon([p for p in polys if p.geom_type == "Polygon"] + [p for p in polys if p.geom_type == "MultiPolygon"])
+                minx, miny, maxx, maxy = multi.bounds
+                bounds = [[miny, minx], [maxy, maxx]]
+            except Exception:
+                pass
+    # 2. Sinon, petit carré autour du point
+    if not bounds:
+        delta = 0.01
+        bounds = [[lat - delta, lon - delta], [lat + delta, lon + delta]]
+
     from folium import Element
     helper_js = """
     <script>
@@ -1157,13 +1388,21 @@ def build_map(
         }
         mapInstance.fitBounds(dynLayer.getBounds(), {maxZoom: 18});
     };
+    // AJOUTE CETTE FONCTION :
+    window.clearMap = function () {
+        try { dynLayer.clearLayers(); } catch(e) {}
+    };
     window.fetchAndDisplayGeoJson = function () {/* rien ici */};
     })();
     </script>
     """
+    
     map_obj.get_root().html.add_child(Element(helper_js))
-    return map_obj
 
+    # === Applique le zoom sur l'emprise calculée ===
+    map_obj.fit_bounds(bounds)
+    folium.Marker([lat, lon], popup="Test marker").add_to(map_obj)
+    return map_obj
 
 def save_map_to_cache(map_obj):
     last_map_params["html"] = map_obj._repr_html_()
@@ -1306,12 +1545,11 @@ def generated_map():
     return resp
 from flask import Flask, Response
 
-app = Flask(__name__)
 
 
 @app.route("/search_by_commune", methods=["GET", "POST"])
 def search_by_commune():
-    # ───────────────────────── 1) paramètres ──────────────────────────
+    # 1) Paramètres
     commune = request.values.get("commune", "").strip()
     culture = request.values.get("culture", "")
     ht_max_km = float(request.values.get("ht_max_distance", 1.0))
@@ -1323,42 +1561,50 @@ def search_by_commune():
     if not commune:
         return jsonify({"error": "Veuillez fournir une commune."}), 400
 
-    coords = geocode_address(commune)
-    if not coords:
-        return jsonify({"error": "Commune non trouvée."}), 404
-    lat, lon = coords
+    # 2) Récupère le contour de la commune via Geo API Gouv
+    commune_infos = requests.get(
+        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour"
+    ).json()
+    if not commune_infos or not commune_infos[0].get("contour"):
+        return jsonify({"error": "Contour de la commune introuvable."}), 404
+    contour = commune_infos[0]["contour"]
+    centre = commune_infos[0]["centre"]
+    lat, lon = centre["coordinates"][1], centre["coordinates"][0]
 
-    # ───────────────────────── 2) emprise 5 km ────────────────────────
-    r_deg = 5.0 / 111.0
-    bbox  = f"{lon-r_deg},{lat-r_deg},{lon+r_deg},{lat+r_deg},EPSG:4326"
+    # 3) Emprise bbox englobant le polygone (pour limiter la requête WFS)
+    from shapely.geometry import shape
+    commune_poly = shape(contour)
+    minx, miny, maxx, maxy = commune_poly.bounds
+    bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
 
-    # ───────────────────────── 3) couches sources ─────────────────────
-    parcelles_data   = get_all_parcelles(lat, lon, radius=r_deg)
-    rpg_raw          = get_rpg_info(lat, lon, radius=r_deg)
+    # 4) Récupère toutes les features dans le bbox puis filtre par intersection avec le polygone
+    def filter_in_commune(features):
+        return [
+            f for f in features
+            if "geometry" in f and shape(f["geometry"]).intersects(commune_poly)
+        ]
 
-    # → on récupère **tous** les postes BT / HTA de l’emprise
-    postes_bt_data   = fetch_wfs_data(POSTE_LAYER,    bbox)
-    postes_hta_data  = fetch_wfs_data(HT_POSTE_LAYER, bbox)
-
-    eleveurs_data = fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326")
-    plu_info      = get_plu_info(lat, lon, radius=r_deg)
-    zaer_data     = get_zaer_info(lat, lon, radius=r_deg)
-    parkings_data = get_parkings_info(lat, lon, radius=r_deg)
-    friches_data  = get_friches_info(lat, lon, radius=r_deg)
-    solaire_data  = get_potentiel_solaire_info(lat, lon, radius=r_deg)
-    sirene_data   = get_sirene_info(lat, lon, radius=sir_km / 111.0)
+    parcelles_data   = get_all_parcelles(lat, lon, radius=0.1)  # ou adapte si besoin
+    rpg_raw          = filter_in_commune(get_rpg_info(lat, lon, radius=0.1))
+    postes_bt_data   = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
+    postes_hta_data  = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+    eleveurs_data    = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
+    plu_info         = filter_in_commune(get_plu_info(lat, lon, radius=0.1))
+    zaer_data        = filter_in_commune(get_zaer_info(lat, lon, radius=0.1))
+    parkings_data    = filter_in_commune(get_parkings_info(lat, lon, radius=0.1))
+    friches_data     = filter_in_commune(get_friches_info(lat, lon, radius=0.1))
+    solaire_data     = filter_in_commune(get_potentiel_solaire_info(lat, lon, radius=0.1))
+    sirene_data      = filter_in_commune(get_sirene_info(lat, lon, radius=sir_km / 111.0))
 
     point          = {"type": "Point", "coordinates": [lon, lat]}
     api_cadastre   = get_api_cadastre_data(point)
     api_nature     = get_api_nature_data(point)
     api_urbanisme  = get_all_gpu_data(point)
 
-    # ───────────────────────── 4) filtrage RPG ────────────────────────
-    from shapely.geometry import shape
-    from shapely.ops       import transform as shp_transform
-    from pyproj            import Transformer
-    to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154",
-                                  always_xy=True).transform
+    # 5) Filtrage RPG (culture, surface, distances)
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
     final_rpg = []
     for feat in (rpg_raw or []):
@@ -1377,15 +1623,13 @@ def search_by_commune():
 
         # c) distances réseaux (m) : on cherche le **minimum** dans CHAQUE liste
         cent   = poly.centroid.coords[0]
-        d_bt   = calculate_min_distance(cent, postes_bt_data)    # m ou None
-        d_hta  = calculate_min_distance(cent, postes_hta_data)   # m ou None
+        d_bt   = calculate_min_distance(cent, postes_bt_data)
+        d_hta  = calculate_min_distance(cent, postes_hta_data)
 
-        # si les deux sont hors seuils : on oublie la parcelle
         if ((d_bt  or 1e12) / 1000.0) > bt_max_km \
         and ((d_hta or 1e12) / 1000.0) > ht_max_km:
             continue
 
-        # enrichissement des propriétés
         props.update({
             "SURF_HA":            round(ha, 3),
             "min_bt_distance_m":  round(d_bt,  2) if d_bt  is not None else None,
@@ -1397,12 +1641,12 @@ def search_by_commune():
             "properties": props
         })
 
-    # ───────────────────────── 5) carte interactive ───────────────────
+    # 6) Carte interactive
     map_obj = build_map(
         lat, lon, commune,
         parcelle_props={}, parcelles_data=parcelles_data,
-        postes_data=postes_bt_data,          # tous les BT
-        ht_postes_data=postes_hta_data,      # tous les HTA
+        postes_data=postes_bt_data,
+        ht_postes_data=postes_hta_data,
         plu_info=plu_info,
         parkings_data=parkings_data,
         friches_data=friches_data,
@@ -1410,7 +1654,7 @@ def search_by_commune():
         zaer_data=zaer_data,
         rpg_data=final_rpg,
         sirene_data=sirene_data,
-        search_radius=r_deg,
+        search_radius=0.1,
         ht_radius_deg=ht_max_km/111.0,
         api_cadastre=api_cadastre,
         api_nature=api_nature,
@@ -1418,10 +1662,8 @@ def search_by_commune():
         eleveurs_data=eleveurs_data
     )
     save_map_to_cache(map_obj)
-   
-    
 
-    # ───────────────────────── 6) réponse JSON ────────────────────────
+    # 7) Réponse JSON
     return jsonify({
         "lat": lat, "lon": lon,
         "rpg": final_rpg,
@@ -1439,6 +1681,7 @@ def search_by_commune():
         "zaer": zaer_data,
         "sirene": sirene_data
     })
+
 @app.route("/generate_report_docx", methods=["POST"])
 def generate_report_docx():
     lat = request.form.get("lat")
@@ -1708,8 +1951,8 @@ def generate_reports():
 
     # 4) Charger les données
     rpg_data      = get_rpg_info(lat, lon, radius=delta_deg)
-    postes_bt     = get_nearest_postes(lat, lon, radius_deg=criteria.get("max_bt_dist_m",500)/111000)
-    postes_hta    = get_nearest_ht_postes(lat, lon, radius_deg=criteria.get("max_ht_dist_m",2000)/111000)
+    postes_bt     = get_nearest_postes(lat, lon, radius_deg=criteria.get("bt_max_distance",500)/111000)
+    postes_hta    = get_nearest_ht_postes(lat, lon, radius_deg=criteria.get("ht_max_distance",2000)/111000)
     eleveurs_data = fetch_wfs_data(
         ELEVEURS_LAYER,
         f"{lon-delta_deg},{lat-delta_deg},{lon+delta_deg},{lat+delta_deg},EPSG:4326"
@@ -1742,7 +1985,7 @@ def generate_reports():
 
     # 6) Filtrer parcelles
     filtered_parcelles = []
-    min_area_m2 = criteria.get("min_parcelle_area_ha", 10.0) * 10000
+    min_area_m2 = criteria.get("min_area_ha", 10.0) * 10000
     proj_metric = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
 
     # Ensure bt_max_km and ht_max_km are defined from criteria or set defaults
@@ -1799,7 +2042,7 @@ def generate_reports():
 
     # 7) Filtrer éleveurs
     filtered_eleveurs = []
-    if criteria.get("has_eleveurs"):
+    if criteria.get("want_eleveurs"):
         filtered_eleveurs = [e.get("properties", {}) for e in eleveurs_data]
 
     # 8) Retour JSON
@@ -1839,34 +2082,36 @@ def compute_commune_report(
     sirene_km: float  = 5.0,
     want_eleveurs: bool = False
 ) -> dict:
-    # 1) ─── Géocodage
+    # 1) Géocodage
     coords = geocode_address(commune_name)
-    if not coords:                       # si la commune est introuvable
-        return {k: [] for k in [
-            "commune", "rpg", "eleveurs", "postes_bt", "postes_hta",
-            "parcelles", "api_cadastre", "api_nature", "api_urbanisme",
-            "plu", "parkings", "friches", "solaire", "zaer",
-            "ppr_lin", "ppr_surf", "ppr_pct"
-        ]}
+    if not coords:
+        return {}
 
     lat, lon = coords
     point_geojson = {"type": "Point", "coordinates": [lon, lat]}
+    r_deg = 5.0 / 111.0
 
-    # 2) ─── Emprise de travail : cercle ~5 km
-    r_km  = 5.0
-    r_deg = r_km / 111.0
-
-    # 3) ─── RPG dans le cercle + proj. métrique pour calcul surface
+    # 2) Récupération des données brutes
     raw_rpg     = get_rpg_info(lat, lon, radius=r_deg) or []
-    proj_metric = Transformer.from_crs("EPSG:4326", "EPSG:2154",
-                                       always_xy=True).transform
+    postes_bt   = get_all_postes(lat, lon, radius_deg=r_deg)
+    postes_hta  = get_all_ht_postes(lat, lon, radius_deg=r_deg)
+    parcelles   = get_all_parcelles(lat, lon, radius=sirene_km/111.0)
+    api_cadastre  = get_api_cadastre_data(point_geojson)
+    api_nature    = get_api_nature_data(point_geojson)
+    api_urbanisme = get_all_gpu_data(point_geojson)
+    plu           = get_plu_info(lat, lon, radius=sirene_km/111.0)
+    parkings      = get_parkings_info(lat, lon, radius=sirene_km/111.0)
+    friches       = get_friches_info(lat, lon, radius=sirene_km/111.0)
+    solaire       = get_potentiel_solaire_info(lat, lon, radius=sirene_km/111.0)
+    zaer          = get_zaer_info(lat, lon, radius=sirene_km/111.0)
 
-    # 4) ─── Postes BT / HTA dans l’emprise
-    postes_bt  = get_nearest_postes(lat, lon, radius_deg=r_deg)
-    postes_hta = get_nearest_ht_postes(lat, lon, radius_deg=r_deg)
+    # 3) RPG filtré et aplati
+    from shapely.geometry import shape
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    proj_metric = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
-    # 5) ─── Filtrage des RPG
-    filtered_rpg = []
+    rpg_parcelles = []
     for feat in raw_rpg:
         dec   = decode_rpg_feature(feat)
         poly  = shape(dec["geometry"])
@@ -1883,126 +2128,151 @@ def compute_commune_report(
 
         # c) distances réseaux
         cent = poly.centroid.coords[0]
-        d_bt  = calculate_min_distance(cent, postes_bt)   # => m ou None
-        d_hta = calculate_min_distance(cent, postes_hta)  # => m ou None
-
-        # remplacer None par très grand pour les comparaisons
-        d_bt_km  = (d_bt  or 1e12) / 1000.0
-        d_hta_km = (d_hta or 1e12) / 1000.0
-
-        # on exclut uniquement si les DEUX dépassent leur seuil
-        if d_bt_km > bt_max_km and d_hta_km > ht_max_km:
-            continue
-
-        # helper d’arrondi qui accepte None
-        _r2 = lambda x: round(x, 2) if x is not None else None
+        d_bt  = calculate_min_distance(cent, postes_bt)
+        d_hta = calculate_min_distance(cent, postes_hta)
 
         props.update({
-            "SURF_HA":           round(ha, 3),
-            "min_bt_distance_m": _r2(d_bt),
-            "min_ht_distance_m": _r2(d_hta),
+            "surface": round(ha, 3),
+            "coords": [cent[1], cent[0]],
+            "distance_bt": round(d_bt, 2) if d_bt is not None else None,
+            "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+            "lien_geoportail": f"https://www.geoportail.gouv.fr/carte?c={cent[0]},{cent[1]}&z=18"
         })
-        filtered_rpg.append({
-            "type":       "Feature",
-            "geometry":   dec["geometry"],
-            "properties": props
+        rpg_parcelles.append({
+            "id": props.get("ID_PARCEL") or props.get("idu") or "",
+            "surface": props.get("surface"),
+            "culture": props.get("Culture") or "",
+            "coords": props.get("coords"),
+            "distance_bt": props.get("distance_bt"),
+            "distance_hta": props.get("distance_hta"),
+            "lien_geoportail": props.get("lien_geoportail")
         })
 
-    # 6) ─── Éleveurs éventuels
-    eleveurs = []
+    # 4) Postes BT/HTA aplatis
+    postes_bt_list = []
+    for p in postes_bt:
+        props = p.get("properties", {})
+        postes_bt_list.append({
+            "nom": props.get("Nom") or props.get("nom") or props.get("NOM") or "Poste",
+            "distance": props.get("distance") or p.get("distance") or ""
+        })
+    postes_hta_list = []
+    for p in postes_hta:
+        props = p.get("properties", {})
+        postes_hta_list.append({
+            "nom": props.get("Nom") or props.get("nom") or props.get("NOM") or "Poste",
+            "distance": props.get("distance") or p.get("distance") or ""
+        })
+
+    # 5) Éleveurs aplatis
+    eleveurs_list = []
     if want_eleveurs:
-        bbox = f"{lon-r_deg},{lat-r_deg},{lon+r_deg},{lat+r_deg},EPSG:4326"
+        bbox = f"{lon-0.05},{lat-0.05},{lon+0.05},{lat+0.05},EPSG:4326"
         for e in fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326") or []:
-            eleveurs.append({
-                "type":       "Feature",
-                "geometry":   e["geometry"],
-                "properties": e["properties"]
+            props = e.get("properties", {})
+            nom_url = (props.get("nomUniteLe", "") + " " + props.get("denominati", "")).strip().replace(" ", "+")
+            ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
+            props["lien_annuaire"] = f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}"
+            siret = props.get("siret", "")
+            props["lien_entreprise"] = f"https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}" if siret else "#"
+            eleveurs_list.append({
+                "nom": props.get("nomUniteLe") or props.get("denominati") or "",
+                "adresse": (
+                    f"{props.get('numeroVoie','') or ''} "
+                    f"{props.get('typeVoieEt','') or ''} "
+                    f"{props.get('libelleVoi','') or ''}, "
+                    f"{props.get('codePostal','') or ''} "
+                    f"{props.get('libelleCom','') or ''}"
+                ).replace(" ,", "").strip(),
+                "siret": props.get("siret") or "",
+                "lien_annuaire": props.get("lien_annuaire"),
+                "lien_entreprise": props.get("lien_entreprise")
             })
 
-    # 7) ─── Simplification des postes (on garde la distance dans properties)
-    bt_simple  = [{"type":"Feature","geometry":p["geometry"],
-                   "properties":{**p["properties"],"distance":p["distance"]}}
-                  for p in postes_bt]
-    hta_simple = [{"type":"Feature","geometry":p["geometry"],
-                   "properties":{**p["properties"],"distance":p["distance"]}}
-                  for p in postes_hta]
+    # 6) Infos générales
+    # Récupère infos de la commune (nom, insee, centre, surface, population)
+    try:
+        resp = requests.get(
+            f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune_name)}&fields=centre,contour,code,population,surface"
+        )
+        if resp.status_code != 200:
+            return {}
+        commune_infos = resp.json()
+    except Exception as e:
+        print(f"[compute_commune_report] Erreur API Gouv: {e}")
+        return {}
 
-    # 8) ─── Couche « sirène_km » pour API et autres jeux
-    sirene_deg = sirene_km / 111.0
+    if commune_infos and commune_infos[0].get("centre"):
+        info = commune_infos[0]
+        insee = info.get("code")
+        surface = round(info.get("surface", 0) / 100, 2)
+        population = info.get("population")
+        centroid = [info["centre"]["coordinates"][1], info["centre"]["coordinates"][0]]
+    else:
+        insee = ""
+        surface = ""
+        population = ""
+        centroid = [lat, lon]
 
-    parcelles     = get_all_parcelles(lat, lon, radius=sirene_deg)
-    api_cadastre  = get_api_cadastre_data(point_geojson)
-    api_nature    = get_api_nature_data(point_geojson)
-    api_urbanisme = get_all_gpu_data(point_geojson)
-    plu           = get_plu_info(lat, lon, radius=sirene_deg)
-    parkings      = get_parkings_info(lat, lon, radius=sirene_deg)
-    friches       = get_friches_info(lat, lon, radius=sirene_deg)
-    solaire       = get_potentiel_solaire_info(lat, lon, radius=sirene_deg)
-    zaer          = get_zaer_info(lat, lon, radius=sirene_deg)
-
-    bbox_poly = {
-        "type": "Polygon",
-        "coordinates": [[
-            [lon - sirene_deg, lat - sirene_deg],
-            [lon + sirene_deg, lat - sirene_deg],
-            [lon + sirene_deg, lat + sirene_deg],
-            [lon - sirene_deg, lat + sirene_deg],
-            [lon - sirene_deg, lat - sirene_deg]
-        ]]
-    }
-    ppr_lin  = fetch_gpu_data("prescription-lin",  bbox_poly) or {}
-    ppr_surf = fetch_gpu_data("prescription-surf", bbox_poly) or {}
-    ppr_pct  = fetch_gpu_data("prescription-pct",  bbox_poly) or {}
-
-    # 9) ─── Retour
+    # 7) Retour
     return {
-        "commune":    commune_name,
-        "rpg":        filtered_rpg,
-        "eleveurs":   eleveurs,
-        "postes_bt":  bt_simple,
-        "postes_hta": hta_simple,
-
-        "parcelles":     parcelles,
-        "api_cadastre":  api_cadastre,
-        "api_nature":    api_nature,
+        "nom": commune_name,
+        "insee": insee,
+        "surface": surface,
+        "population": population,
+        "centroid": centroid,
+        "rpg_parcelles": rpg_parcelles,
+        "postes_bt": postes_bt_list,
+        "postes_hta": postes_hta_list,
+        "eleveurs": eleveurs_list,
+        "parcelles": parcelles,
+        "api_cadastre": api_cadastre,
+        "api_nature": api_nature,
         "api_urbanisme": api_urbanisme,
-        "plu":           plu,
-        "parkings":      parkings,
-        "friches":       friches,
-        "solaire":       solaire,
-        "zaer":          zaer,
-        "ppr_lin":       ppr_lin.get("features", []),
-        "ppr_surf":      ppr_surf.get("features", []),
-        "ppr_pct":       ppr_pct.get("features", []),
+        "plu": plu,
+        "parkings": parkings,
+        "friches": friches,
+        "solaire": solaire,
+        "zaer": zaer
     }
 
 # 2) Route SSE “Recherche par département”
 # ——————————————————————————————————————————————————————————————
 from flask import Response, stream_with_context
-
 @app.route("/generate_reports_by_dept_sse")
 def generate_reports_by_dept_sse():
     def event_stream():
-        department   = request.args.get("department")
+        department = request.args.get("department")
         if not department:
             yield "event: error\ndata: " + json.dumps({"error": "Paramètre 'department' manquant"}) + "\n\n"
             return
 
-        # 1) on lit tous les paramètres y compris sirene_radius
+        # Lecture des paramètres
         culture     = request.args.get("culture", "")
         min_area    = float(request.args.get("min_area_ha", 0))
         max_area    = float(request.args.get("max_area_ha", 99999))
         ht_max_km   = float(request.args.get("ht_max_distance", 10))
         bt_max_km   = float(request.args.get("bt_max_distance", 10))
-        sirene_km   = float(request.args.get("sirene_radius", 5))       # ← bien lu
+        sirene_km   = float(request.args.get("sirene_radius", 5))
         want_elev   = request.args.get("want_eleveurs", "false").lower() == "true"
 
         communes = get_communes_for_dept(department)
         total = len(communes)
 
+        # CUMULATEURS pour toutes les couches
+        all_rpg = []
+        all_postes_bt = []
+        all_postes_hta = []
+        all_eleveurs = []
+        all_parcelles = []
+        all_plu = []
+        all_parkings = []
+        all_friches = []
+        all_solaire = []
+        all_zaer = []
+
         for idx, feat in enumerate(communes, start=1):
             nom = feat["properties"]["nom"]
-            # 2) on passe sirene_km en param
             rpt = compute_commune_report(
                 commune_name=nom,
                 culture=culture,
@@ -2013,118 +2283,138 @@ def generate_reports_by_dept_sse():
                 sirene_km=sirene_km,
                 want_eleveurs=want_elev
             )
+            # CUMULER les couches
+            all_rpg.extend(rpt.get("rpg_parcelles", []))
+            all_postes_bt.extend(rpt.get("postes_bt", []))
+            all_postes_hta.extend(rpt.get("postes_hta", []))
+            all_eleveurs.extend(rpt.get("eleveurs", []))
+            parcelles = rpt.get("parcelles", {})
+            if parcelles and "features" in parcelles:
+                all_parcelles.extend(parcelles["features"])
+            all_plu.extend([p for p in rpt.get("plu", []) if p.get("geometry")])
+            all_parkings.extend([p for p in rpt.get("parkings", []) if p.get("geometry")])
+            all_friches.extend([p for p in rpt.get("friches", []) if p.get("geometry")])
+            all_solaire.extend([p for p in rpt.get("solaire", []) if p.get("geometry")])
+            all_zaer.extend([p for p in rpt.get("zaer", []) if p.get("geometry")])
+
+            # GÉNÈRE ET STOCKE LA CARTE FOLIUM AVEC TOUTES LES COUCHES CUMULÉES
+            if "lat" in rpt and "lon" in rpt:
+                map_obj = build_map(
+                    rpt["lat"], rpt["lon"], nom,
+                    parcelle_props={}, parcelles_data={"features": all_parcelles},
+                    postes_data=all_postes_bt, ht_postes_data=all_postes_hta,
+                    plu_info=all_plu, parkings_data=all_parkings,
+                    friches_data=all_friches, potentiel_solaire_data=all_solaire,
+                    zaer_data=all_zaer, rpg_data=all_rpg, sirene_data=[],
+                    search_radius=5.0/111.0, ht_radius_deg=ht_max_km/111.0,
+                    api_cadastre=rpt.get("api_cadastre"), api_nature=rpt.get("api_nature"),
+                    api_urbanisme=rpt.get("api_urbanisme"), eleveurs_data=all_eleveurs
+                )
+                save_map_to_cache(map_obj)
             yield f"event: progress\ndata: [{idx}/{total}] {nom}\n\n"
             yield f"event: result\ndata: {json.dumps(rpt, ensure_ascii=False)}\n\n"
 
-        yield "event: end\ndata: ✅ Terminé\n\n"
-
-    return Response(
-        stream_with_context(event_stream()),
-        mimetype="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
-    )
-
-
-
-
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 # ------------------------------------------------------------------
 # CSV generation for departmental reports
 # ------------------------------------------------------------------
 @app.route("/generate_reports_by_dept_csv")
 def generate_reports_by_dept_csv():
-    department = request.args.get("department")
-    if not department:
-        return jsonify({"error": "Paramètre 'department' manquant"}), 400
+    def event_stream():
+        department = request.args.get("department")
+        if not department:
+            yield "event: error\ndata: " + json.dumps({"error": "Paramètre 'department' manquant"}) + "\n\n"
+            return
 
-    culture    = request.args.get("culture", "")
-    min_area   = float(request.args.get("min_area_ha", 0))
-    max_area   = float(request.args.get("max_area_ha", 99999))
-    ht_max_km  = float(request.args.get("ht_max_distance", 10))
-    bt_max_km  = float(request.args.get("bt_max_distance", 10))
-    sirene_km  = float(request.args.get("sirene_radius", 5))
-    want_elev  = request.args.get("want_eleveurs", "false").lower() == "true"
+        # Lecture des paramètres
+        culture     = request.args.get("culture", "")
+        min_area    = float(request.args.get("min_area_ha", 0))
+        max_area    = float(request.args.get("max_area_ha", 99999))
+        ht_max_km   = float(request.args.get("ht_max_distance", 10))
+        bt_max_km   = float(request.args.get("bt_max_distance", 10))
+        sirene_km   = float(request.args.get("sirene_radius", 5))
+        want_elev   = request.args.get("want_eleveurs", "false").lower() == "true"
 
-    communes = get_communes_for_dept(department)
+        communes = get_communes_for_dept(department)
+        total = len(communes)
 
-    rpg_rows = []
-    rpg_keys = set()
-    elev_rows = []
-    elev_keys = set()
+        for idx, feat in enumerate(communes, start=1):
+            nom = feat["properties"]["nom"]
+            rpt = compute_commune_report(
+                commune_name=nom,
+                culture=culture,
+                min_area_ha=min_area,
+                max_area_ha=max_area,
+                ht_max_km=ht_max_km,
+                bt_max_km=bt_max_km,
+                sirene_km=sirene_km,
+                want_eleveurs=want_elev
+            )
+            # GÉNÈRE ET STOCKE LA CARTE FOLIUM À CHAQUE COMMUNE
+            if "lat" in rpt and "lon" in rpt:
+                map_obj = build_map(
+                    rpt["lat"], rpt["lon"], nom,
+                    parcelle_props={}, parcelles_data=rpt.get("parcelles", {}),
+                    postes_data=rpt.get("postes_bt", []), ht_postes_data=rpt.get("postes_hta", []),
+                    plu_info=rpt.get("plu", []), parkings_data=rpt.get("parkings", []),
+                    friches_data=rpt.get("friches", []), potentiel_solaire_data=rpt.get("solaire", []),
+                    zaer_data=rpt.get("zaer", []), rpg_data=rpt.get("rpg", []), sirene_data=[],
+                    search_radius=5.0/111.0, ht_radius_deg=ht_max_km/111.0,
+                    api_cadastre=rpt.get("api_cadastre"), api_nature=rpt.get("api_nature"),
+                    api_urbanisme=rpt.get("api_urbanisme"), eleveurs_data=rpt.get("eleveurs", [])
+                )
+                save_map_to_cache(map_obj)
+            yield f"event: progress\ndata: [{idx}/{total}] {nom}\n\n"
+            yield f"event: result\ndata: {json.dumps(rpt, ensure_ascii=False)}\n\n"
 
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+from flask import request, render_template
+
+@app.route("/rapport_commune")
+def rapport_commune():
+    commune = request.args.get("commune")
+    if not commune:
+        return "Commune requise", 400
+
+    # Utilise la fonction générique déjà définie
+    report = compute_commune_report(
+        commune_name=commune,
+        culture=request.args.get("culture", ""),
+        min_area_ha=float(request.args.get("min_area_ha", 0)),
+        max_area_ha=float(request.args.get("max_area_ha", 1e9)),
+        ht_max_km=float(request.args.get("ht_max_distance", 5.0)),
+        bt_max_km=float(request.args.get("bt_max_distance", 5.0)),
+        sirene_km=float(request.args.get("sirene_radius", 5.0)),
+        want_eleveurs=True
+    )
+    if not report:
+        return "Aucune donnée pour cette commune", 404
+
+    return render_template("rapport_commune.html", report=report)
+# filepath: [agriweb_source.py](http://_vscodecontentref_/2)
+@app.route("/rapport_departement")
+def rapport_departement():
+    dept = request.args.get("dept")
+    if not dept:
+        return "Département requis", 400
+
+    # Récupère la liste des communes du département
+    communes = get_communes_for_dept(dept)
+    reports = []
     for feat in communes:
-        nom = feat["properties"].get("nom")
+        nom = feat["properties"]["nom"]
         rpt = compute_commune_report(
             commune_name=nom,
-            culture=culture,
-            min_area_ha=min_area,
-            max_area_ha=max_area,
-            ht_max_km=ht_max_km,
-            bt_max_km=bt_max_km,
-            sirene_km=sirene_km,
-            want_eleveurs=want_elev
+            culture=request.args.get("culture", ""),
+            min_area_ha=float(request.args.get("min_area_ha", 0)),
+            max_area_ha=float(request.args.get("max_area_ha", 1e9)),
+            ht_max_km=float(request.args.get("ht_max_distance", 5.0)),
+            bt_max_km=float(request.args.get("bt_max_distance", 5.0)),
+            sirene_km=float(request.args.get("sirene_radius", 5.0)),
+            want_eleveurs=True
         )
-
-        # RPG parcels
-        for parc in rpt.get("rpg", []):
-            props = dict(parc.get("properties", {}))
-            geom = parc.get("geometry")
-            if geom:
-                cent = shape(geom).centroid
-                caps = get_nearest_capacites_reseau(cent.y, cent.x, count=1,
-                                                   radius_deg=sirene_km/111.0)
-                cap_props = {}
-                if caps:
-                    cp = caps[0]["properties"]
-                    cap_props = {
-                        f"cap_{k}": cp.get(v) for k, v in hta_mapping.items()
-                    }
-                props.update(cap_props)
-            props["Commune"] = nom
-            rpg_rows.append(props)
-            rpg_keys.update(props.keys())
-
-        # Eleveurs
-        if want_elev:
-            for el in rpt.get("eleveurs", []):
-                eprops = dict(el.get("properties", {}))
-                eprops["Commune"] = nom
-                elev_rows.append(eprops)
-                elev_keys.update(eprops.keys())
-
-    # Build CSV contents
-    rpg_headers = sorted(rpg_keys)
-    rpg_buf = io.StringIO()
-    w = csv.DictWriter(rpg_buf, fieldnames=rpg_headers)
-    w.writeheader()
-    for row in rpg_rows:
-        w.writerow({h: row.get(h, "") for h in rpg_headers})
-    rpg_content = rpg_buf.getvalue()
-
-    elev_content = ""
-    if elev_rows:
-        elev_headers = sorted(elev_keys)
-        e_buf = io.StringIO()
-        ew = csv.DictWriter(e_buf, fieldnames=elev_headers)
-        ew.writeheader()
-        for row in elev_rows:
-            ew.writerow({h: row.get(h, "") for h in elev_headers})
-        elev_content = e_buf.getvalue()
-
-    zip_buf = io.BytesIO()
-    with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("rpg.csv", rpg_content)
-        if elev_content:
-            zf.writestr("eleveurs.csv", elev_content)
-    zip_buf.seek(0)
-
-    return Response(
-        zip_buf.getvalue(),
-        mimetype="application/zip",
-        headers={"Content-Disposition": f"attachment; filename=rapport_{department}.zip"}
-    )
-
-
-
+        if rpt:
+            reports.append(rpt)
 
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5000")
@@ -2366,13 +2656,11 @@ def search_by_address_route():
 
     return jsonify(info_response)
 
-
 @app.route("/map.html")
 def map_view():
     html = last_map_params.get("html")
-
     if not html:
-        # Carte de secours
+        # Carte par défaut si aucune recherche n'a été faite
         map_obj = folium.Map(
             location=[46.603354, 1.888334],   # centre France
             zoom_start=6,
@@ -2386,53 +2674,21 @@ def map_view():
             control=True,
             show=True
         ).add_to(map_obj)
-
-        folium.TileLayer("OpenStreetMap", name="OSM", overlay=False, show=False).add_to(map_obj)
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="Fond OSM",
+            overlay=False,
+            control=True,
+            show=False
+        ).add_to(map_obj)
         folium.LayerControl().add_to(map_obj)
-
-        # Injecte le JS manquant
-        from folium import Element
-        helper_js = """
-        <script>
-        (function () {
-            var mapInstance = (function () {
-                for (var k in window) {
-                    if (window[k] instanceof L.Map) { return window[k]; }
-                }
-                return null;
-            })();
-
-            if (!mapInstance) { console.error('❌ Map instance not found'); return; }
-
-            var dynLayer = L.geoJSON(null).addTo(mapInstance);
-
-            window.addGeoJsonToMap = function (feature, style) {
-                if (!feature) { return; }
-                if (style) {
-                    L.geoJSON(feature, {
-                        style: function () { return style; },
-                        pointToLayer: function (f, latlng) {
-                            return L.circleMarker(latlng, style);
-                        }
-                    }).addTo(mapInstance);
-                } else {
-                    dynLayer.addData(feature);
-                }
-                mapInstance.fitBounds(dynLayer.getBounds(), {maxZoom: 18});
-            };
-
-            window.fetchAndDisplayGeoJson = function () {/* rien ici */};
-        })();
-        </script>
-        """
-        map_obj.get_root().html.add_child(Element(helper_js))
-
-        html = map_obj.get_root().render()
-        # 🔧 ENREGISTRE la version générée
-        last_map_params["html"] = html
-
-    print("🗺️ map_view called, sending map HTML...")
-    return Response(html, mimetype='text/html')
+        html = map_obj._repr_html_()
+    if not html.lstrip().lower().startswith("<!doctype"):
+        html = "<!DOCTYPE html>\n" + html
+    resp = make_response(html)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()

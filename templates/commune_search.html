@@ -665,10 +665,15 @@ def build_map(lat, lon, address, parcelle_props, parcelles_data, postes_data, ht
     map_obj.add_child(folium.ClickForMarker(popup=None))
     click_js = """
     <script>
-    function(e) {
-        var coord = e.latlng;
-        alert("Clicked coordinates: " + coord.lat + ", " + coord.lng);
-    }
+    // Wait for the map to be initialized
+    document.addEventListener("DOMContentLoaded", function() {
+        if (window.map) {
+            window.map.on('click', function(e) {
+                var coord = e.latlng;
+                alert("Clicked coordinates: " + coord.lat + ", " + coord.lng);
+            });
+        }
+    });
     </script>
     """
     map_obj.get_root().html.add_child(folium.Element(click_js))

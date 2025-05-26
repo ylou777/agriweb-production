@@ -12,7 +12,11 @@ resp = requests.post(
     headers={"Accept": "text/event-stream"},
     stream=True
 )
+from agriweb_source import app
 
+with app.test_request_context():
+    print(app.url_map)
+    
 for line in resp.iter_lines(decode_unicode=True):
     if line:
         print(line)
