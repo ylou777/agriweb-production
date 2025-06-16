@@ -1,0 +1,22 @@
+2025-06-09 12:16:18,584 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.107:5001
+2025-06-09 12:16:18,587 - INFO - [33mPress CTRL+C to quit[0m
+2025-06-09 12:16:18,673 - INFO -  * Restarting with watchdog (windowsapi)
+2025-06-09 12:16:22,993 - WARNING -  * Debugger is active!
+2025-06-09 12:16:23,019 - INFO -  * Debugger PIN: 394-989-611
+2025-06-09 12:17:07,174 - INFO -  * Detected change in 'c:\\Users\\Utilisateur\\Desktop\\AG32.1\\ag3reprise\\AgW3b\\test grok.py', reloading
+2025-06-09 12:17:07,175 - INFO -  * Detected change in 'c:\\Users\\Utilisateur\\Desktop\\AG32.1\\ag3reprise\\AgW3b\\test grok.py', reloading
+2025-06-09 12:17:07,177 - INFO -  * Detected change in 'c:\\Users\\Utilisateur\\Desktop\\AG32.1\\ag3reprise\\AgW3b\\test grok.py', reloading
+2025-06-09 12:17:08,353 - INFO -  * Restarting with watchdog (windowsapi)
+2025-06-09 12:17:11,492 - WARNING -  * Debugger is active!
+2025-06-09 12:17:11,499 - INFO -  * Debugger PIN: 394-989-611
+2025-06-09 12:17:45,612 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.107:5001
+2025-06-09 12:17:45,612 - INFO - [33mPress CTRL+C to quit[0m
+2025-06-09 12:17:45,630 - INFO -  * Restarting with watchdog (windowsapi)
+2025-06-09 12:17:47,814 - WARNING -  * Debugger is active!
+2025-06-09 12:17:47,822 - INFO -  * Debugger PIN: 394-989-611

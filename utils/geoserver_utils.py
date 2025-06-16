@@ -24,7 +24,7 @@ def get_coordinates(lat, lon, from_crs="EPSG:4326", to_crs="EPSG:2154"):
 
 # Configuration GeoServer
 GEOSERVER_URL = "http://localhost:8080/geoserver"
-CADASTRE_LAYER = "gpu:cadastre france"
+CADASTRE_LAYER = "gpu:prefixes_sections"
 PARCELLE_LAYER = "gpu:PARCELLE2024"
 POSTE_LAYER = "gpu:poste_elec_shapefile"
 def get_coordinates(lat, lon, from_crs="EPSG:4326", to_crs="EPSG:2154"):
@@ -56,35 +56,36 @@ def fetch_wfs_data(layer, bbox, srsname="EPSG:4326"):
 
 def get_parcelle_info(lat, lon):
     """
-    Récupère les informations cadastrales pour une position donnée.
+    Récupère toutes les parcelles contenant le point (lat, lon).
     """
     bbox = f"{lon-0.001},{lat-0.001},{lon+0.001},{lat+0.001},EPSG:4326"
     features = fetch_wfs_data(CADASTRE_LAYER, bbox)
     point = Point(lon, lat)
+    parcelles = []
     for feature in features:
         geom = shape(feature["geometry"])
         if geom.contains(point):
-            parcelle_info = feature["properties"]
-            parcelle_info["geometry"] = feature["geometry"]
-            return parcelle_info
-    return None
+            # On renvoie le GeoJSON complet (geometry et properties)
+            parcelles.append({
+                "type": "Feature",
+                "geometry": feature["geometry"],
+                "properties": feature["properties"]
+            })
+    return parcelles  # retourne une liste (tu peux faire {type:FeatureCollection} côté JS)
+
 
 def get_plu_info(lat, lon, radius=0.05):
-    """
-    Récupère les informations PLU dans un rayon donné autour d'une position.
-    """
     bbox = f"{lon-radius},{lat-radius},{lon+radius},{lat+radius},EPSG:4326"
     features = fetch_wfs_data("gpu:gpu1", bbox)
-    plu_info = []
+    plu_features = []
     for feature in features:
-        properties = feature["properties"]
-        plu_info.append({
-            "insee": properties.get("insee"),
-            "typeref": properties.get("typeref"),
-            "archive_url": properties.get("archiveUrl"),
-            "files": properties.get("files", "").split(", "),
+        plu_features.append({
+            "type": "Feature",
+            "geometry": feature["geometry"],
+            "properties": feature["properties"]
         })
-    return plu_info
+    return plu_features
+
 
 def get_all_parcelles(lat, lon, radius=0.01):
     """
@@ -97,22 +98,22 @@ def get_all_parcelles(lat, lon, radius=0.01):
     return {"features": features}  # Retourne les parcelles au format GeoJSON
 
 def get_nearest_postes(lat, lon, radius=0.1):
-    """
-    Récupère les postes électriques les plus proches dans un rayon donné.
-    """
     bbox = f"{lon-radius},{lat-radius},{lon+radius},{lat+radius},EPSG:4326"
     features = fetch_wfs_data(POSTE_LAYER, bbox)
     postes = []
     point = Point(lon, lat)
     for feature in features:
         geom = shape(feature["geometry"])
-        distance = geom.distance(point) * 111000  # Convertir les degrés en mètres
-        postes.append({
-            "properties": feature["properties"],
-            "distance": round(distance, 2),
-            "geometry": geom
-        })
-    return sorted(postes, key=lambda x: x["distance"])[:3]
+        distance = geom.distance(point) * 111000
+        f = {
+            "type": "Feature",
+            "geometry": feature["geometry"],
+            "properties": {**feature["properties"], "distance": round(distance, 2)}
+        }
+        postes.append(f)
+    # Retourne les 3 plus proches (Feature)
+    return sorted(postes, key=lambda x: x["properties"]["distance"])[:3]
+
 
 def add_wms_layer(map_obj, layer_name):
     """

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Carte interactive (map.html)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    html, body, #map { height:100%; margin:0; padding:0; }
+    .custom-popup { font-family: 'Poppins', Arial, sans-serif; font-size: 15px; min-width: 250px; max-width: 355px;}
+    .custom-popup th { text-align: left; color: #28616a; font-weight: 500; min-width: 95px;}
+    .custom-popup td { color: #2d2d2d; max-width:200px; word-break: break-word;}
+    .popup-title { font-weight: 700; font-size: 18px; margin-bottom: 4px; letter-spacing: 0.3px; }
+    .popup-link { color: #1474fa; text-decoration: underline; }
+    .popup-link:hover { color: #0e4a92; }
+    .leaflet-popup-content { padding: 6px 10px 4px 10px !important; }
+    .summary-bar {
+      position:absolute;top:8px;left:55px;z-index:1001;background:#fff5;
+      padding:6px 18px;font-size:16px;font-family:Poppins,Arial,sans-serif;border-radius:8px;
+      box-shadow:0 2px 10px #0002;min-width:200px;pointer-events:none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="summary-bar" id="summaryBar" style="display:none"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Icônes personnalisées
+    const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
+    const iconHta = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><polygon points='28,4 8,28 24,28 20,44 40,20 24,20' fill='#D12322' stroke='#b61a13' stroke-width='2'/></svg>`),iconSize:[38,38],iconAnchor:[19,38],popupAnchor:[0,-28]});
+    const iconFeuille = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 4 Q29 13 18 29 Q7 22 16 4 Z' fill='#34ad41' stroke='#258633' stroke-width='2'/></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-18]});
+    const iconParking = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x="4" y="8" width="24" height="16" rx="6" fill="#2ecc71" stroke="#166838" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial" font-weight="bold">P</text></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-12]});
+    const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
+
+    // Carte Leaflet avec fond satellite par défaut
+    var map = L.map('map').setView([46.8, 2], 8);
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
+    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
+    sat.addTo(map);
+
+    var baseMaps = { "Satellite": sat, "OSM": osm };
+    L.control.layers(baseMaps).addTo(map);
+
+    window._layers = [];
+
+    // Résumé dynamique (ex : nb objets)
+    function updateSummaryBar() {
+      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0);
+      let communes = new Set();
+      window._layers.forEach(l => l.eachLayer?.(lyr => {
+        if(lyr.feature?.properties?.commune) communes.add(lyr.feature.properties.commune);
+        if(lyr.feature?.properties?.libelleCom) communes.add(lyr.feature.properties.libelleCom);
+      }));
+      let bar = document.getElementById('summaryBar');
+      bar.innerHTML = `<b>Objets affichés :</b> ${n}${communes.size>0?` &nbsp;|&nbsp; <b>Communes :</b> ${communes.size}`:""}`;
+      bar.style.display = n>0 ? "" : "none";
+    }
+
+    window.clearMap = function() {
+      window._layers.forEach(l => map.removeLayer(l));
+      window._layers = [];
+      updateSummaryBar();
+    };
+
+    // Popups riches & dynamiques
+    function makePopupContent(props, typeLayer) {
+      function row(label, val) { return val ? `<tr><th>${label}</th><td>${val}</td></tr>` : ""; }
+      // --- Parcelles cadastrales / API cadastre / RPG
+      if (typeLayer === "parcelles" || typeLayer === "api_cadastre" || typeLayer==="rpg" || typeLayer==="rpg_parcelles") {
+        let html = `<div class='custom-popup'><div class='popup-title' style="color:#FF6600">Parcelle cadastrale</div><table>`;
+        html+=row("Section",props.section); html+=row("Numéro",props.numero);
+        html+=row("Surface (ha)",props.surface_ha); html+=row("Surface (m²)",props.surface);
+        html+=row("Adresse",props.adresse); html+=row("Commune",props.commune||props.nomcommune);
+        html+=row("Propriétaire",props.proprietaire||props.nomproprietaire);
+        html+=row("Nature culture",props.culture);
+        html+=`</table></div>`;
+        return html;
+      }
+      // --- Nature & Urbanisme (API IGN)
+      if (typeLayer === "api_nature" || typeLayer === "api_urbanisme") {
+        return `<div class='custom-popup'><div class='popup-title' style="color:${typeLayer==="api_nature"?"#22AA22":"#0000FF"}">
+          ${typeLayer==="api_nature"?"Zone Naturelle":"Zone Urbanisme"}</div>
+        <table>
+          ${row("Type",props.type||props.nature||props.nom)}
+          ${row("Description",props.description)}
+          ${row("Lien",props.url?`<a href="${props.url}" class="popup-link" target="_blank">Voir fiche</a>`:"")}
+        </table></div>`;
+      }
+      // --- Postes HTA
+      if (typeLayer === "postes_hta") {
+        let html = `<div class='custom-popup'><div class='popup-title' style="color:#d12322">Poste HTA</div><table>`;
+        ["Nom","Code","Puissance","Tension av","S3REnR","Taux d'aff","Capacité"].forEach(f=> html+=row(f,props[f]||props[f.replace(/ /g,"_")]));
+        html+=`</table></div>`;
+        return html;
+      }
+      // --- Postes BT
+      if (typeLayer === "postes_bt") {
+        let nom = props.NOM || props.nom || props.Nom || "Poste";
+        let c = props.coords || (props.geometry && props.geometry.coordinates) || [];
+        let lat, lon;
+        if (Array.isArray(c) && c.length === 2) { lat=c[0]; lon=c[1]; }
+        if ((!lat || !lon) && props.geometry && props.geometry.type === "Point") {
+          lat = props.geometry.coordinates[1];
+          lon = props.geometry.coordinates[0];
+        }
+        let gmap = (lat && lon) ? `https://www.google.com/maps/@${lat},${lon},18z` : null;
+        let street = (lat && lon) ? `https://www.google.com/maps?q=&layer=c&cbll=${lat},${lon}` : null;
+        let html = `<div class='custom-popup'><div class='popup-title' style="color:#b6a800">Poste BT</div><table>`;
+        html+=row("Nom",nom); html+=row("Capacité",props.CAPACITE||props.capacite);
+        html+=row("Tension",props.TENSION||props.tension);
+        if(gmap) html+=row("Google Maps", `<a href="${gmap}" target="_blank" class="popup-link">Voir la carte</a>`);
+        if(street) html+=row("Street View", `<a href="${street}" target="_blank" class="popup-link">Voir la rue</a>`);
+        html+=`</table></div>`;
+        return html;
+      }
+      // --- Friches
+      if (typeLayer === "friches") {
+        return `<div class='custom-popup'><div class='popup-title' style="color:brown">Friche</div>
+        <table>
+          ${row("Nom",props.nom)}
+          ${row("Surface (ha)",props.surface_ha)}
+          ${row("Type",props.type_friche)}
+          ${row("Statut",props.statut)}
+        </table></div>`;
+      }
+      // --- Parkings
+      if (typeLayer === "parkings") {
+        return `<div class='custom-popup'><div class='popup-title' style="color:darkgreen">Parking</div>
+        <table>
+          ${row("Nom",props.nom||props.nom_parking)}
+          ${row("Surface (m²)",props.surface)}
+          ${row("Nombre de places",props.places)}
+        </table></div>`;
+      }
+      // --- Potentiel Solaire
+      if (typeLayer === "solaire") {
+        return `<div class='custom-popup'><div class='popup-title' style="color:gold">Potentiel solaire</div>
+        <table>
+          ${row("Nom",props.nom)}
+          ${row("Surface (ha)",props.surface_ha)}
+          ${row("Puissance (MWc)",props.puissance)}
+          ${row("Exposition",props.exposition)}
+          ${row("Inclinaison",props.inclinaison)}
+        </table></div>`;
+      }
+      // --- ZAER
+      if (typeLayer === "zaer") {
+        return `<div class='custom-popup'><div class='popup-title' style="color:cyan">ZAER</div>
+        <table>
+          ${row("Libellé",props.libelle)}
+          ${row("Surface (ha)",props.surface_ha)}
+          ${row("Statut",props.statut)}
+        </table></div>`;
+      }
+      // --- Sirene
+      if (typeLayer === "sirene") {
+        return `<div class='custom-popup'><div class='popup-title' style="color:darkred">Établissement Sirene</div>
+        <table>
+          ${row("Nom",props.nom)}
+          ${row("Activité",props.activite)}
+          ${row("Adresse",props.adresse)}
+          ${row("SIRET",props.siret)}
+          ${row("Effectif",props.effectif)}
+        </table></div>`;
+      }
+      // --- Fallback générique
+      let html = `<div class="custom-popup"><table>`;
+      for(const [k,v] of Object.entries(props)) {
+        if (typeof v === "string" && v.startsWith("http")) {
+          html += `<tr><th>${k}</th><td><a href="${v}" class="popup-link" target="_blank">${v.replace(/^https?:\/\//,'')}</a></td></tr>`;
+        } else if (typeof v === "string" || typeof v === "number") {
+          html += `<tr><th>${k}</th><td>${v}</td></tr>`;
+        }
+      }
+      html += "</table></div>";
+      return html;
+    }
+
+    // Détection automatique du type de couche
+    function detectTypeLayer(f, s) {
+      if(f.properties && f.properties._layer) return f.properties._layer;
+      if(s && s.color === "orange") return "postes_bt";
+      if(s && s.color === "red") return "postes_hta";
+      if(s && s.color === "purple") return "eleveurs";
+      if(s && s.color === "#FF6600") return "api_cadastre";
+      if(s && s.color === "#22AA22") return "api_nature";
+      if(s && s.color === "#0000FF") return "api_urbanisme";
+      if(s && s.color === "darkgreen") return "parkings";
+      if(s && s.color === "gold") return "solaire";
+      if(s && s.color === "cyan") return "zaer";
+      if(s && s.color === "darkred") return "sirene";
+      if(f.properties && (f.properties.nomUniteLe || f.properties.denomination)) return "eleveurs";
+      if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
+        let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
+        if (name.includes('hta')) return "postes_hta";
+        if (name.includes('bt')) return "postes_bt";
+      }
+      return "";
+    }
+
+    // Ajout sur la carte + popups enrichies + icônes
+    window.addGeoJsonToMap = function(feature, style) {
+      if(!feature) return;
+      var gj = L.geoJSON(feature, {
+        style: style || {},
+        pointToLayer: function (f, latlng) {
+          let typeLayer = detectTypeLayer(f, style);
+          if(typeLayer === "postes_bt") return L.marker(latlng, {icon: iconBt});
+          if(typeLayer === "postes_hta") return L.marker(latlng, {icon: iconHta});
+          if(typeLayer === "eleveurs") return L.marker(latlng, {icon: iconFeuille});
+          if(typeLayer === "parkings") return L.marker(latlng, {icon: iconParking});
+          if(typeLayer === "solaire") return L.marker(latlng, {icon: iconSolaire});
+          // Default : point bleu élégant
+          return L.circleMarker(latlng, { radius: 8, color: style?.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
+        },
+        onEachFeature: function (feat, layer) {
+          let typeLayer = detectTypeLayer(feat, style);
+          layer.bindPopup(makePopupContent(feat.properties, typeLayer), {maxWidth: 340});
+        }
+      }).addTo(map);
+      window._layers.push(gj);
+      updateSummaryBar();
+    };
+
+    window.setView = function(lat, lon, zoom) {
+      map.setView([lat, lon], zoom || 10);
+    };
+    window._leaflet_ready = true;
+  </script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 GEOSERVER_URL = "http://localhost:8080/geoserver"
 
 # Couches GeoServer (à adapter à votre configuration réelle)
-CADASTRE_LAYER = "gpu:cadastre_france"
+CADASTRE_LAYER = "gpu:prefixes_sections"
 POSTE_LAYER = "gpu:poste_elec_shapefile"
 PLU_LAYER = "gpu:gpu1"
 PARCELLE_LAYER = "gpu:PARCELLE2024"

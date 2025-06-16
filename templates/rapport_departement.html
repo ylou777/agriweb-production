@@ -2,89 +2,169 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Rapport département {{ dept }}</title>
+  <title>Rapport département {{ dept or '' }}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
-    h2 { border-top: 1px solid #ccc; padding-top: 20px; }
+    body { font-family: Arial, sans-serif; margin: 24px; background: #f6f8fa;}
+    h1, h2 { color: #183871; }
+    h2 { border-top: 1px solid #ccc; padding-top: 20px; margin-top: 40px;}
+    table { border-collapse: collapse; width: 100%; margin-bottom: 22px;}
+    th, td { border: 1px solid #ccd; padding: 6px 9px; }
+    th { background: #e8eefa; color: #224488; text-align: left;}
+    tr:nth-child(even) { background: #f5f8fc;}
+    ul { margin: 0 0 1em 1em; }
+    .label { font-weight: bold; color: #224; }
+    .small { font-size: 0.95em; color: #777; }
+    a { color: #275dab; text-decoration: none;}
+    a:hover { text-decoration: underline;}
+    .section { margin-bottom: 44px; }
   </style>
 </head>
 <body>
-  <h1>Rapport du département {{ dept }}</h1>
+  <h1>Rapport du département {{ dept or '' }}</h1>
   {% for report in reports %}
-    <h2>Commune : {{ report.commune }}</h2>
-    <ul>
-      <li>Nombre de parcelles RPG : {{ report.rpg|length }}</li>
-      <li>Nombre de postes BT : {{ report.postes_bt|length }}</li>
-      <li>Nombre de postes HTA : {{ report.postes_hta|length }}</li>
-      <li>Nombre d'éleveurs : {{ report.eleveurs|length }}</li>
-    </ul>
-    <div style="margin-bottom:40px;">
-      <strong>Surface :</strong> {{ report.surface }} ha<br>
-      <strong>Population :</strong> {{ report.population or "N/A" }}<br>
-      <strong>Centre :</strong> {{ report.centroid[0] }}, {{ report.centroid[1] }}
+    <div class="section">
+      <h2>Commune : {{ report.nom or report.commune or 'N/A' }}</h2>
+      <ul>
+        <li>
+          Nombre de parcelles RPG :
+          {{ report.rpg_parcelles.features|length if report.rpg_parcelles and report.rpg_parcelles.features else '0' }}
+        </li>
+        <li>
+          Nombre de postes BT :
+          {{ report.postes_bt.features|length if report.postes_bt and report.postes_bt.features else '0' }}
+        </li>
+        <li>
+          Nombre de postes HTA :
+          {{ report.postes_hta.features|length if report.postes_hta and report.postes_hta.features else '0' }}
+        </li>
+        <li>
+          Nombre d'éleveurs :
+          {{ report.eleveurs.features|length if report.eleveurs and report.eleveurs.features else '0' }}
+        </li>
+      </ul>
+      <div class="small">
+        <span class="label">Surface :</span> {{ report.surface or 'N/A' }} ha &nbsp; 
+        <span class="label">Population :</span> {{ report.population or 'N/A' }}
+      </div>
+
       <h3>Parcelles RPG</h3>
       <table>
         <thead>
           <tr>
-            <th>ID</th><th>Surface (ha)</th><th>Culture</th><th>Coordonnées</th><th>Distance BT (m)</th><th>Distance HTA (m)</th>
+            <th>ID</th>
+            <th>Surface (ha)</th>
+            <th>Culture</th>
+            <th>Coordonnées</th>
+            <th>Distance BT (m)</th>
+            <th>Distance HTA (m)</th>
+            <th>Lien Géoportail</th>
           </tr>
         </thead>
         <tbody>
-          {% for parcelle in report.rpg_parcelles %}
-          <tr>
-            <td>{{ parcelle.id or parcelle.ID or parcelle.numero or "" }}</td>
-            <td>{{ parcelle.surface }}</td>
-            <td>{{ parcelle.culture or parcelle.Culture or "" }}</td>
-            <td>{{ parcelle.coords[0] }}, {{ parcelle.coords[1] }}</td>
-            <td>{{ parcelle.distance_bt }}</td>
-            <td>{{ parcelle.distance_hta }}</td>
-          </tr>
+        {% if report.rpg_parcelles and report.rpg_parcelles.features and report.rpg_parcelles.features|length > 0 %}
+          {% for p in report.rpg_parcelles.features %}
+            <tr>
+              <td>{{ p.properties.ID_PARCEL or p.properties.id or 'N/A' }}</td>
+              <td>{{ p.properties.SURF_PARC or p.properties.surface or 'N/A' }}</td>
+              <td>{{ p.properties.CODE_CULTU or p.properties.Culture or 'N/A' }}</td>
+              <td>
+                {% if p.properties.coords %}
+                  <a href="/static/map.html?search_input={{ p.properties.coords[1] }},{{ p.properties.coords[0] }}" target="_blank">
+                    {{ p.properties.coords[1] }}, {{ p.properties.coords[0] }}
+                  </a>
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
+              <td>{{ p.properties.distance_bt or 'N/A' }}</td>
+              <td>{{ p.properties.distance_hta or 'N/A' }}</td>
+              <td>
+                {% if p.properties.lien_geoportail %}
+                  <a href="{{ p.properties.lien_geoportail }}" target="_blank">Géoportail</a>
+                {% else %}
+                  N/A
+                {% endif %}
+              </td>
+            </tr>
           {% endfor %}
+        {% else %}
+          <tr><td colspan="7" style="text-align:center;">Aucune parcelle</td></tr>
+        {% endif %}
         </tbody>
       </table>
 
       <h3>Postes BT</h3>
-      <ul>
-        {% for poste in report.postes_bt %}
-          <li>{{ poste.nom }} ({{ poste.distance }} m)</li>
-        {% endfor %}
-      </ul>
+      {% if report.postes_bt and report.postes_bt.features and report.postes_bt.features|length > 0 %}
+        <ul>
+          {% for poste in report.postes_bt.features %}
+            <li>{{ poste.properties.nom or poste.properties.nom_poste or 'N/A' }} ({{ poste.properties.distance or 'N/A' }} m)</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <em>Aucun poste BT.</em>
+      {% endif %}
 
       <h3>Postes HTA</h3>
-      <ul>
-        {% for poste in report.postes_hta %}
-          <li>{{ poste.nom }} ({{ poste.distance }} m)</li>
-        {% endfor %}
-      </ul>
+      {% if report.postes_hta and report.postes_hta.features and report.postes_hta.features|length > 0 %}
+        <ul>
+          {% for poste in report.postes_hta.features %}
+            <li>{{ poste.properties.nom or poste.properties.nom_poste or 'N/A' }} ({{ poste.properties.distance or 'N/A' }} m)</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <em>Aucun poste HTA.</em>
+      {% endif %}
 
       <h3>Éleveurs</h3>
       <table>
         <thead>
           <tr>
-            <th>Nom</th><th>Adresse</th><th>SIRET</th><th>Annuaire</th><th>Entreprise</th>
+            <th>Nom</th>
+            <th>Prénom</th>
+            <th>Adresse</th>
+            <th>SIRET</th>
+            <th>Annuaire</th>
+            <th>Entreprise</th>
+            <th>Pages Blanches</th>
           </tr>
         </thead>
         <tbody>
-          {% for eleveur in report.eleveurs %}
-          <tr>
-            <td>{{ eleveur.nom or eleveur.nomUniteLe or "" }}</td>
-            <td>{{ eleveur.adresse or eleveur.adresseEtablissement or "" }}</td>
-            <td>{{ eleveur.siret or "" }}</td>
-            <td>
-              {% if eleveur.lien_annuaire %}
-                <a href="{{ eleveur.lien_annuaire }}" target="_blank">Annuaire</a>
-              {% endif %}
-            </td>
-            <td>
-              {% if eleveur.lien_entreprise %}
-                <a href="{{ eleveur.lien_entreprise }}" target="_blank">Entreprise</a>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
+          {% if report.eleveurs and report.eleveurs.features and report.eleveurs.features|length > 0 %}
+            {% for e in report.eleveurs.features %}
+              <tr>
+                <td>{{ e.properties.nom or e.properties.nomUniteLe or 'N/A' }}</td>
+                <td>{{ e.properties.prenom or e.properties.prenom1Uni or 'N/A' }}</td>
+                <td>{{ e.properties.adresse or e.properties.adresseEtablissement or 'N/A' }}</td>
+                <td>{{ e.properties.siret or 'N/A' }}</td>
+                <td>
+                  {% if e.properties.lien_annuaire %}
+                    <a href="{{ e.properties.lien_annuaire }}" target="_blank">Annuaire</a>
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </td>
+                <td>
+                  {% if e.properties.lien_entreprise %}
+                    <a href="{{ e.properties.lien_entreprise }}" target="_blank">Entreprise</a>
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </td>
+                <td>
+                  {% if e.properties.lien_pages_blanches %}
+                    <a href="{{ e.properties.lien_pages_blanches }}" target="_blank">Pages Blanches</a>
+                  {% else %}
+                    N/A
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="7" style="text-align:center;">Aucun éleveur</td></tr>
+          {% endif %}
         </tbody>
       </table>
-    </div>    
+    </div>
   {% endfor %}
 </body>
 </html>

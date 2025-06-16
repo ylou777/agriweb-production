@@ -17,6 +17,11 @@ def bbox_to_polygon(lon: float, lat: float, delta: float) -> Dict[str, Any]:
             [lon - delta, lat - delta]  # Fermeture du polygone
         ]]
     }
+import shapely.ops
+
+def shp_transform(transform, geom):
+    """Transforme une géométrie shapely selon une fonction de transformation"""
+    return shapely.ops.transform(transform, geom)
 
 def decode_rpg_feature(feature: Dict[str, Any]) -> Dict[str, Any]:
     """
