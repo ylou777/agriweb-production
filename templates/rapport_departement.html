@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Rapport département {{ dept or '' }}</title>
+  <title>Rapport département {{ dept }}</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 24px; background: #f6f8fa;}
     h1, h2 { color: #183871; }
@@ -17,13 +17,97 @@
     a { color: #275dab; text-decoration: none;}
     a:hover { text-decoration: underline;}
     .section { margin-bottom: 44px; }
+    .synth-section { background: #e8eefa; padding: 15px 24px 22px 24px; margin-bottom: 44px; border-radius: 10px; }
+    .top50 { margin-top: 18px; }
+    .top50 th, .top50 td { font-size: 1em; }
+    .mairie-box { margin: 10px 0 25px 0; background: #f2f7ff; border-radius: 8px; padding: 12px 22px; }
+    .mairie-box h4 { margin: 0 0 7px 0; color: #275dab; }
+    .mairie-box span { display: block; }
+    .carte-iframe { width: 100%; height: 600px; border: 1px solid #888; border-radius: 8px; margin-bottom: 32px; }
   </style>
 </head>
 <body>
+  <title>Rapport département {{ dept or '' }}</title>
   <h1>Rapport du département {{ dept or '' }}</h1>
+
+  {% if carte_url %}
+    <h3>Carte interactive</h3>
+    <iframe class="carte-iframe" src="/{{ carte_url }}" allowfullscreen></iframe>
+  {% endif %}
+
+  {% if synthese %}
+  <div class="synth-section">
+    <h2>Synthèse départementale</h2>
+    <ul>
+      <li>Nombre total d’agriculteurs : <b>{{ synthese.nb_agriculteurs }}</b></li>
+      <li>Nombre total de parcelles RPG : <b>{{ synthese.nb_parcelles }}</b></li>
+    </ul>
+    <h3>Top 50 parcelles les plus proches d’un poste d’injection</h3>
+    <table class="top50">
+      <thead>
+        <tr>
+          <th>ID RPG</th>
+          <th>Section</th>
+          <th>N° Parcelle</th>
+          <th>ID Commune</th>
+          <th>Code Abs</th>
+          <th>Surface (ha)</th>
+          <th>Culture</th>
+          <th>Coordonnées (lon, lat)</th>
+          <th>Distance au poste (m)</th>
+          <th>Lien Cadastre</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p in synthese.top50 %}
+        <tr>
+          <td>{{ p.properties.ID_PARCEL or p.properties.id or 'N/A' }}</td>
+          <td>{{ p.properties.section or p.properties.cadastre_section or 'N/A' }}</td>
+          <td>{{ p.properties.numero_parcelle or p.properties.cadastre_numero or 'N/A' }}</td>
+          <td>{{ p.properties.code_com or 'N/A' }}</td>
+          <td>{{ p.properties.com_abs or 'N/A' }}</td>
+          <td>{{ p.properties.SURF_PARC or p.properties.surface or 'N/A' }}</td>
+          <td>{{ p.properties.CODE_CULTU or p.properties.Culture or 'N/A' }}</td>
+          <td>
+            {% if p.properties.coords %}
+              {{ p.properties.coords[0] }}, {{ p.properties.coords[1] }}
+            {% else %}N/A{% endif %}
+          </td>
+          <td>
+            {{ p.properties.distance_bt or p.properties.distance_au_poste or p.properties.distance_hta or p.properties.min_bt_distance_m or p.properties.min_ht_distance_m or 'N/A' }}
+          </td>
+          <td>
+            {% set nomcommune = (p.properties.nom_com or p.properties.nom_commune or 'commune') | lower | replace(' ', '-') %}
+            {% set code_com = p.properties.code_com or '' %}
+            {% set com_abs = p.properties.com_abs or '000' %}
+            {% set section = p.properties.section or '' %}
+            {% set numero = p.properties.numero or '' %}
+            {% set idu = code_com ~ com_abs ~ section ~ numero %}
+            {% if code_com and section and numero and nomcommune and idu|length >= 10 %}
+              <a href="https://france-cadastre.fr/cadastre/{{ nomcommune }}&id={{ idu }}" target="_blank">Cadastre</a>
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
   {% for report in reports %}
     <div class="section">
       <h2>Commune : {{ report.nom or report.commune or 'N/A' }}</h2>
+      {% if report.mairie %}
+      <div class="mairie-box">
+        <h4>Mairie</h4>
+        <span><b>Adresse :</b> {{ report.mairie.adresse or report.mairie.adresse_complete or 'N/A' }}</span>
+        <span><b>Téléphone :</b> {{ report.mairie.telephone or 'N/A' }}</span>
+        {% if report.mairie.email %}<span><b>Email :</b> {{ report.mairie.email }}</span>{% endif %}
+        {% if report.mairie.site %}<span><b>Site web :</b> <a href="{{ report.mairie.site }}" target="_blank">{{ report.mairie.site }}</a></span>{% endif %}
+      </div>
+      {% endif %}
       <ul>
         <li>
           Nombre de parcelles RPG :
@@ -52,12 +136,14 @@
         <thead>
           <tr>
             <th>ID</th>
+            <th>Section</th>
+            <th>N° Parcelle</th>
             <th>Surface (ha)</th>
             <th>Culture</th>
-            <th>Coordonnées</th>
+            <th>Coordonnées (lon, lat)</th>
             <th>Distance BT (m)</th>
             <th>Distance HTA (m)</th>
-            <th>Lien Géoportail</th>
+            <th>Lien Cadastre</th>
           </tr>
         </thead>
         <tbody>
@@ -65,22 +151,28 @@
           {% for p in report.rpg_parcelles.features %}
             <tr>
               <td>{{ p.properties.ID_PARCEL or p.properties.id or 'N/A' }}</td>
+              <td>{{ p.properties.section or p.properties.cadastre_section or 'N/A' }}</td>
+              <td>{{ p.properties.numero_parcelle or p.properties.cadastre_numero or 'N/A' }}</td>
               <td>{{ p.properties.SURF_PARC or p.properties.surface or 'N/A' }}</td>
               <td>{{ p.properties.CODE_CULTU or p.properties.Culture or 'N/A' }}</td>
               <td>
                 {% if p.properties.coords %}
-                  <a href="/static/map.html?search_input={{ p.properties.coords[1] }},{{ p.properties.coords[0] }}" target="_blank">
-                    {{ p.properties.coords[1] }}, {{ p.properties.coords[0] }}
-                  </a>
+                  {{ p.properties.coords[0] }}, {{ p.properties.coords[1] }}
                 {% else %}
                   N/A
                 {% endif %}
               </td>
-              <td>{{ p.properties.distance_bt or 'N/A' }}</td>
-              <td>{{ p.properties.distance_hta or 'N/A' }}</td>
+              <td>{{ p.properties.distance_bt or p.properties.distance_au_poste or p.properties.min_bt_distance_m or 'N/A' }}</td>
+              <td>{{ p.properties.distance_hta or p.properties.min_ht_distance_m or 'N/A' }}</td>
               <td>
-                {% if p.properties.lien_geoportail %}
-                  <a href="{{ p.properties.lien_geoportail }}" target="_blank">Géoportail</a>
+                {% set nomcommune = (p.properties.nom_com or p.properties.nom_commune or 'commune') | lower | replace(' ', '-') %}
+                {% set code_com = p.properties.code_com or '' %}
+                {% set com_abs = p.properties.com_abs or '000' %}
+                {% set section = p.properties.section or '' %}
+                {% set numero = p.properties.numero or '' %}
+                {% set idu = code_com ~ com_abs ~ section ~ numero %}
+                {% if code_com and section and numero and nomcommune and idu|length >= 10 %}
+                  <a href="https://france-cadastre.fr/cadastre/{{ nomcommune }}&id={{ idu }}" target="_blank">Cadastre</a>
                 {% else %}
                   N/A
                 {% endif %}
@@ -88,7 +180,7 @@
             </tr>
           {% endfor %}
         {% else %}
-          <tr><td colspan="7" style="text-align:center;">Aucune parcelle</td></tr>
+          <tr><td colspan="9" style="text-align:center;">Aucune parcelle</td></tr>
         {% endif %}
         </tbody>
       </table>
@@ -113,6 +205,33 @@
         </ul>
       {% else %}
         <em>Aucun poste HTA.</em>
+      {% endif %}
+
+      <!-- Capacités d'accueil HTA -->
+      <h3>Capacités d'accueil réseau HTA</h3>
+      {% if report.hta_capacites and report.hta_capacites.features and report.hta_capacites.features|length > 0 %}
+        <table>
+          <thead>
+            <tr>
+              <th>Nom Poste</th>
+              <th>Capacité (MW)</th>
+              <th>Statut</th>
+              <th>Commentaire</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in report.hta_capacites.features %}
+              <tr>
+                <td>{{ c.properties.nom_poste or c.properties.nom or 'N/A' }}</td>
+                <td>{{ c.properties.capacite or c.properties.capacite_dispo or 'N/A' }}</td>
+                <td>{{ c.properties.statut or 'N/A' }}</td>
+                <td>{{ c.properties.commentaire or 'N/A' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <em>Pas de données de capacités HTA pour cette commune.</em>
       {% endif %}
 
       <h3>Éleveurs</h3>

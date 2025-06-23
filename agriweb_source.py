@@ -41,6 +41,8 @@ app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 
+os.makedirs("static/cartes", exist_ok=True)
+
 # Session HTTP avec retry exponentiel
 session = requests.Session()
 session.mount(
@@ -849,6 +851,15 @@ def flatten_gpu_dict_to_featurecollection(gpu_dict):
             features += value.get("features", [])
     return {"type": "FeatureCollection", "features": features}
 
+def save_map_html(m, filename):
+    # S'assure que le dossier existe
+    os.makedirs("static/cartes", exist_ok=True)
+    # Nettoyage du nom
+    filename = filename.replace(" ", "_")
+    path = os.path.join("static", "cartes", filename)
+    m.save(path)
+    # Chemin relatif pour l'URL Flask
+    return f"static/cartes/{filename}"
 ########################################
 # Appels API (cadastre, nature, GPU)
 ########################################
@@ -1119,6 +1130,70 @@ def to_geojson_feature(obj, layer_name=None):
     # Si tu as des coordonnées
     if "coordinates" in obj and "type" in obj:
         return {"type": "Feature", "geometry": obj, "properties": {}}
+    return None
+def enrich_rpg_with_cadastre_num(rpg_features):
+    """
+    Pour chaque parcelle RPG (Feature), récupère le numéro cadastral via l'API Cadastre IGN.
+    Ajoute le numéro à properties["numero_parcelle"].
+    """
+    enriched = []
+    for feat in rpg_features:
+        # Utilise le centroïde pour l'API, ou la géométrie entière
+        geom = feat.get("geometry")
+        if not geom:
+            enriched.append(feat)
+            continue
+        props = feat.get("properties", {})
+        # Préfère un polygone précis
+        api_resp = get_api_cadastre_data(geom)
+        num_parcelle = None
+        # L’API IGN retourne une FeatureCollection, va chercher le numéro
+        if api_resp and "features" in api_resp and len(api_resp["features"]) > 0:
+            # On prend le premier, mais tu peux faire mieux si plusieurs results
+            num_parcelle = api_resp["features"][0]["properties"].get("numero", None)
+        props["numero_parcelle"] = num_parcelle or "N/A"
+        feat["properties"] = props
+        enriched.append(feat)
+    return enriched
+def synthese_departement(reports):
+    # Fusionne toutes les parcelles rpg
+    all_rpg = []
+    all_eleveurs = []
+    for rpt in reports:
+        fc = rpt.get("rpg_parcelles", {})
+        if fc and isinstance(fc, dict):
+            all_rpg.extend(fc.get("features", []))
+        fc_e = rpt.get("eleveurs", {})
+        if fc_e and isinstance(fc_e, dict):
+            all_eleveurs.extend(fc_e.get("features", []))
+
+    # Classement top 50 (distance au poste BT ou HTA)
+    def get_dist(feat):
+        # Préfère BT, sinon HTA, sinon grand nombre
+        props = feat.get("properties", {})
+        for key in ["distance_bt", "distance_au_poste", "distance_hta"]:
+            v = props.get(key)
+            if v is not None and isinstance(v, (int, float)):
+                return v
+        return 999999
+    all_rpg_sorted = sorted(all_rpg, key=get_dist)
+    top50 = all_rpg_sorted[:50]
+
+    # Croisement avec cadastre
+    top50 = enrich_rpg_with_cadastre_num(top50)
+
+    return {
+        "total_eleveurs": len(all_eleveurs),
+        "total_parcelles": len(all_rpg),
+        "top50_parcelles": top50
+    }
+def get_commune_mairie(nom_commune):
+    url = f"https://geo.api.gouv.fr/communes?nom={quote_plus(nom_commune)}&fields=mairie"
+    resp = requests.get(url, timeout=10)
+    if resp.status_code == 200:
+        info = resp.json()
+        if info and "mairie" in info[0]:
+            return info[0]["mairie"]  # Peut contenir adresse, nom, etc.
     return None
 
 ##############################
@@ -1539,7 +1614,7 @@ def build_map(
 
     map_obj.fit_bounds(bounds)
     folium.Marker([lat, lon], popup="Test marker").add_to(map_obj)
-
+    save_map_html(map_obj, "static/cartes.html")
     return map_obj
 
 def save_map_to_cache(map_obj):
@@ -2119,14 +2194,23 @@ from pyproj import Transformer
 # ——————————————————————————————————————————————————————————————
 # 1) Fonction qui construit le rapport pour une commune donnée
 # ——————————————————————————————————————————————————————————————
-# ──────────────────────────────────────────────────────────────────────────────
-# compute_commune_report
-# ──────────────────────────────────────────────────────────────────────────────
 from shapely.geometry import shape, mapping
 from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 import requests
 from urllib.parse import quote_plus
+
+def get_commune_mairie(nom_commune):
+    url = f"https://geo.api.gouv.fr/communes?nom={quote_plus(nom_commune)}&fields=mairie"
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            info = resp.json()
+            if info and "mairie" in info[0]:
+                return info[0]["mairie"]  # Peut contenir adresse, nom, téléphone, etc.
+    except Exception:
+        pass
+    return None
 
 def compute_commune_report(
     commune_name: str,
@@ -2153,7 +2237,6 @@ def compute_commune_report(
     postes_bt   = get_all_postes(lat, lon, radius_deg=r_deg) if "BT" in reseau_types else []
     postes_hta  = get_all_ht_postes(lat, lon, radius_deg=r_deg) if "HTA" in reseau_types else []
     parcelles   = get_all_parcelles(lat, lon, radius=sirene_km/111.0)
-
 
     # 3) Parcelles RPG filtrées
     proj_metric = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
@@ -2185,16 +2268,41 @@ def compute_commune_report(
         elif "BT" in reseau_types and "HTA" in reseau_types:
             if (d_bt is not None and d_bt <= bt_max_km * 1000) or (d_hta is not None and d_hta <= ht_max_km * 1000):
                 ok = True
-        # Si aucun type sélectionné, ne rien retourner
         if not reseau_types or not ok:
             continue
+
+        # Croisement API Cadastre
+        centroid = poly.centroid
+        geom_query = {
+            "type": "Point",
+            "coordinates": [centroid.x, centroid.y]
+        }
+        cadastre_data = get_api_cadastre_data(geom_query)
+        if cadastre_data and "features" in cadastre_data and cadastre_data["features"]:
+            cad = cadastre_data["features"][0]["properties"]
+            code_com = cad.get("code_com", "")
+            com_abs = cad.get("com_abs", "000")
+            section = cad.get("section", "")
+            numero  = cad.get("numero", "")
+            nom_commune = cad.get("nom_com", "") or cad.get("nom_commune", commune_name)
+        else:
+            code_com = ""
+            com_abs = "000"
+            section = ""
+            numero = ""
+            nom_commune = commune_name
+
+        props["code_com"] = code_com
+        props["com_abs"] = com_abs
+        props["section"] = section
+        props["numero"] = numero
+        props["nom_com"] = nom_commune
 
         props.update({
             "surface": round(ha, 3),
             "coords": [cent[1], cent[0]],
             "distance_bt": round(d_bt, 2) if d_bt is not None else None,
             "distance_hta": round(d_hta, 2) if d_hta is not None else None,
-            "lien_geoportail": f"https://www.geoportail.gouv.fr/carte?c={cent[0]},{cent[1]}&z=18"
         })
         rpg_features.append({
             "type": "Feature",
@@ -2210,12 +2318,11 @@ def compute_commune_report(
             "geometry": poste.get("geometry"),
             "properties": poste.get("properties", {})
         }
-    # On ne retourne QUE si le réseau est demandé
     result = {
         "nom": commune_name,
     }
 
-    # Infos générales
+    # Infos générales (surface, population, etc.)
     try:
         resp = requests.get(
             f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune_name)}&fields=centre,contour,code,population,surface"
@@ -2243,6 +2350,9 @@ def compute_commune_report(
         result["surface"] = ""
         result["population"] = ""
         result["centroid"] = [lat, lon]
+
+    # Ajout mairie
+    result["mairie"] = get_commune_mairie(commune_name)
 
     # Ajoute les couches réseau SEULEMENT si demandées
     if "BT" in reseau_types:
@@ -2294,13 +2404,50 @@ def compute_commune_report(
             })
     result["eleveurs"] = eleveurs_fc
 
-    # 6) Autres couches systématiquement présentes
-    result.update({
-        "rpg_parcelles": rpg_fc,
-    })
+    # 6) Capacités réseau HTA via WFS
+    try:
+        folium.GeoJson(result["hta_capacites"], name="Capacités HTA").add_to(m)
+        bbox = f"{lon-0.05},{lat-0.05},{lon+0.05},{lat+0.05},EPSG:4326"
+        capa_fc = fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox, srsname="EPSG:4326")
+        result["hta_capacites"] = capa_fc or {"type": "FeatureCollection", "features": []}
+    except Exception:
+        result["hta_capacites"] = {"type": "FeatureCollection", "features": []}
 
+    # 7) RPG
+    result["rpg_parcelles"] = rpg_fc
+
+    # 8) Génération de la carte Folium (à la toute fin de compute_commune_report)
+
+    import folium
+
+    # Point central pour centrer la carte
+    lat_centre, lon_centre = result["centroid"]
+
+    m = folium.Map(location=[lat_centre, lon_centre], zoom_start=12, tiles="OpenStreetMap")
+
+    # Ajoute les couches principales
+    folium.GeoJson(result["rpg_parcelles"], name="RPG Parcelles").add_to(m)
+
+    if "postes_bt" in result:
+        folium.GeoJson(result["postes_bt"], name="Postes BT").add_to(m)
+    if "postes_hta" in result:
+        folium.GeoJson(result["postes_hta"], name="Postes HTA").add_to(m)
+    if "hta_capacites" in result:
+        folium.GeoJson(result["hta_capacites"], name="Capacités HTA").add_to(m)
+    if result["eleveurs"]["features"]:
+        folium.GeoJson(result["eleveurs"], name="Éleveurs").add_to(m)
+
+    folium.LayerControl().add_to(m)
+
+    # Enregistre la carte dans static/cartes/
+    from datetime import datetime
+      # adapte selon ton import réel
+
+    carte_filename = f"carte_{commune_name.replace(' ','_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+    carte_path = save_map_html(m, carte_filename)
+    result["carte_path"] = carte_path    # <--- Ajoute ce chemin au résultat
     return result
-
+    
 
 @app.route("/generate_reports_by_dept_sse")
 def generate_reports_by_dept_sse():
@@ -2415,8 +2562,57 @@ def rapport_commune():
     if not report:
         return "Aucune donnée pour cette commune", 404
 
-    return render_template("rapport_commune.html", report=report)
-# filepath: [agriweb_source.py](http://_vscodecontentref_/2)
+    # === Génération de la carte interactive ===
+    centroid = report.get("centroid", [48.858, 2.294])
+    import folium
+    m = folium.Map(location=centroid, zoom_start=13)
+
+    # Parcelles RPG (polygones)
+    if report.get("rpg_parcelles", {}).get("features"):
+        folium.GeoJson(
+            report["rpg_parcelles"],
+            name="Parcelles RPG",
+            tooltip=folium.GeoJsonTooltip(fields=[
+                "cadastre_section", "cadastre_numero", "surface", "Culture"
+            ])
+        ).add_to(m)
+
+    # Postes BT (orange)
+    for poste in report.get("postes_bt", {}).get("features", []):
+        coords = poste["geometry"]["coordinates"]
+        folium.Marker(
+            location=[coords[1], coords[0]],
+            icon=folium.Icon(color="orange", icon="bolt", prefix="fa"),
+            tooltip=poste["properties"].get("nom", "Poste BT")
+        ).add_to(m)
+
+    # Postes HTA (violet)
+    for poste in report.get("postes_hta", {}).get("features", []):
+        coords = poste["geometry"]["coordinates"]
+        folium.Marker(
+            location=[coords[1], coords[0]],
+            icon=folium.Icon(color="purple", icon="bolt", prefix="fa"),
+            tooltip=poste["properties"].get("nom", "Poste HTA")
+        ).add_to(m)
+
+    # Éleveurs (vert)
+    for eleveur in report.get("eleveurs", {}).get("features", []):
+        geom = eleveur.get("geometry", {})
+        if geom.get("type") == "Point":
+            coords = geom["coordinates"]
+            folium.Marker(
+                location=[coords[1], coords[0]],
+                icon=folium.Icon(color="green", icon="leaf", prefix="fa"),
+                tooltip=eleveur["properties"].get("nom", "Éleveur")
+            ).add_to(m)
+
+    # Sauvegarde et URL de la carte
+    carte_path = save_map_html(m, f"carte_{commune}.html")
+    carte_url = "/" + carte_path if carte_path.startswith("static/") else carte_path
+
+    # Passage au template (n'oublie pas carte_url dans rapport_commune.html)
+    return render_template("rapport_commune.html", report=report, carte_url=carte_url)
+
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -2690,23 +2886,115 @@ def search_by_address_route():
 
     return jsonify(info_response)
 
-
 @app.route('/rapport_departement_post', methods=['POST'])
 def rapport_departement_post():
-    data = request.get_json()
-    # "data" peut déjà contenir des rapports structurés (par commune, etc.)
-    # Tu dois le mettre sous la forme "reports", exemple :
-    # [
-    #   {"commune": "xxx", "rpg_parcelles": [...], "postes_bt": [...], "postes_hta": [...], "eleveurs": [...], ...}
-    # ]
-    reports = data.get("data", [])
-    dept = reports[0].get('dept') if reports and 'dept' in reports[0] else "?"
-    print(">> PREMIER RAPPORT :", reports[0].keys())
-    print(">> Structure RPG PARCELLES : ", type(reports[0].get("rpg_parcelles")))
-    if "rpg_parcelles" in reports[0]:
-        print(reports[0]["rpg_parcelles"])
-    return render_template("rapport_departement.html", reports=reports, dept=dept)
+    import time
 
+    data = request.get_json()
+    reports = data.get("data", [])
+    dept = None
+    for rpt in reports:
+        if "dept" in rpt and rpt["dept"]:
+            dept = rpt["dept"]
+            break
+    if not dept:
+        dept = None
+
+
+    # 1. Fusionne tous les RPG et agriculteurs pour la synthèse
+    all_rpg = []
+    all_eleveurs = []
+    for rpt in reports:
+        fc_rpg = rpt.get("rpg_parcelles", {})
+        if fc_rpg and isinstance(fc_rpg, dict):
+            all_rpg.extend(fc_rpg.get("features", []))
+        fc_e = rpt.get("eleveurs", {})
+        if fc_e and isinstance(fc_e, dict):
+            all_eleveurs.extend(fc_e.get("features", []))
+
+    # --- Fonctions locales ---
+    def get_dist(feat):
+        props = feat.get("properties", {})
+        for key in ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]:
+            v = props.get(key)
+            if v is not None and isinstance(v, (int, float)):
+                return v
+        return 999999
+
+    def unique_parcelles(features):
+        """Supprime les doublons sur ID parcelle + section + numero + commune"""
+        seen = set()
+        unique = []
+        for p in features:
+            props = p.get("properties", {})
+            key = (
+                props.get("ID_PARCEL") or props.get("id"),
+                props.get("section") or props.get("cadastre_section"),
+                props.get("numero") or props.get("cadastre_numero"),
+                props.get("code_com"),
+                props.get("com_abs"),
+            )
+            if key not in seen:
+                seen.add(key)
+                unique.append(p)
+        return unique
+
+    # 2. Trie, dédoublonnage et TOP 50
+    all_rpg_sorted = sorted(all_rpg, key=get_dist)
+    top50_unique = unique_parcelles(all_rpg_sorted)
+    top50 = top50_unique[:50]
+
+    # 3. Ajoute le numéro de parcelle Cadastre API (avec respect du rate-limit)
+    def enrich_rpg_with_cadastre_num(rpg_features, delay=0.3):
+        enriched = []
+        for feat in rpg_features:
+            geom = feat.get("geometry")
+            props = feat.get("properties", {})
+            try:
+                api_resp = get_api_cadastre_data(geom)
+                num_parcelle = None
+                if api_resp and "features" in api_resp and len(api_resp["features"]) > 0:
+                    num_parcelle = api_resp["features"][0]["properties"].get("numero", None)
+                props["numero_parcelle"] = num_parcelle or "N/A"
+            except Exception:
+                props["numero_parcelle"] = "N/A"
+            feat["properties"] = props
+            enriched.append(feat)
+            time.sleep(delay)
+        return enriched
+
+    top50 = enrich_rpg_with_cadastre_num(top50)
+
+    # 4. Synthèse globale
+    synthese = {
+        "nb_agriculteurs": len(all_eleveurs),
+        "nb_parcelles": len(all_rpg),
+        "top50": top50
+    }
+
+    return render_template(
+        "rapport_departement.html",
+        reports=reports,
+        dept=dept,
+        synthese=synthese
+    )
+
+def save_map_html(m, filename):
+    """
+    Sauvegarde la carte Folium dans static/cartes/ et retourne le chemin relatif utilisable pour Flask.
+    """
+    # S'assurer que le dossier existe (même si déjà fait au démarrage, sécurité)
+    os.makedirs("static/cartes", exist_ok=True)
+
+    # Nettoyage du nom pour éviter les soucis
+    filename = filename.replace(" ", "_")
+    path = os.path.join("static", "cartes", filename)
+
+    # Sauvegarde la carte
+    m.save(path)
+
+    # Pour usage dans l’HTML (URL relative)
+    return f"static/cartes/{filename}"
 
 @app.route("/map.html")
 def map_view():
@@ -2742,6 +3030,12 @@ def map_view():
     resp.headers["Pragma"] = "no-cache"
     
     return resp
+@app.route("/export_map")
+def export_map():
+    # Supposons que last_map_params["html"] ou map_obj existent
+    map_obj = ...  # Génère ou récupère la carte courante
+    save_map_html(map_obj, "cartes.html")
+    return send_file("static/cartes.html")
 
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:5001")
