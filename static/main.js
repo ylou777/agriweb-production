@@ -1,7 +1,8 @@
 // ============================================================================
-// main.js – version avancée avec calques Urbanisme séparés dans LayerControl
+// main.js – version avancée (corrections : contexte, rapports, et save map)
 // ============================================================================
 
+// ----------------- LAYER CONFIG -----------------
 const LAYER_CONFIG = {
   rpg:            { label: "RPG Parcelles", color: "green" },
   postes_bt:      { label: "Postes BT", color: "orange" },
@@ -17,9 +18,11 @@ const LAYER_CONFIG = {
   solaire:        { label: "Potentiel Solaire", color: "gold" },
   zaer:           { label: "ZAER", color: "cyan" },
   sirene:         { label: "Entreprises Sirene", color: "darkred" }
-  // ! Ne mets pas ici les sous-couches urbanisme, elles sont dynamiques !
+  // Ne pas mettre ici les sous-couches urbanisme (dynamiques)
 };
 window.lastDeptResults = [];
+window.lastSearchData = null;
+window.lastCommuneSearch = null;
 let overlaysControl = null;
 let dynamicLayers = {};
 
@@ -61,7 +64,6 @@ function buildPopup (properties, extra = {}) {
     out += `<b>${k}:</b> ${v}<br>`;
   return out;
 }
-
 
 function getMapFrame() {
   return document.getElementById("mapFrame")?.contentWindow;
@@ -141,7 +143,6 @@ function displayAllLayers(data) {
           if (feature.properties) {
             for (const [k, v] of Object.entries(feature.properties)) {
               popup += `<b>${k}:</b> ${htmlifyField(k, v)}<br>`;
-
             }
           }
           if (popup) layer.bindPopup(popup);
@@ -170,7 +171,6 @@ function displayAllLayers(data) {
           if (feature.properties) {
             for (const [k, v] of Object.entries(feature.properties)) {
               popup += `<b>${k}:</b> ${htmlifyField(k, v)}<br>`;
-
             }
           }
           if (popup) layer.bindPopup(popup);
@@ -189,7 +189,6 @@ function displayAllLayers(data) {
         if (feature.properties) {
           for (const [k, v] of Object.entries(feature.properties)) {
             popup += `<b>${k}:</b> ${htmlifyField(k, v)}<br>`;
-
           }
         }
         if (popup) layer.bindPopup(popup);
@@ -244,7 +243,6 @@ function mergeResults(arr) {
 // --------- RECHERCHE UNIFIÉE (ADRESSE / COORDONNÉES) ---------
 async function handleUnifiedSearch(e) {
   e.preventDefault();
-
   switchMap("/map.html", async () => {
     const v = document.getElementById("search_input").value.trim();
     if (!v) {
@@ -295,7 +293,12 @@ async function handleUnifiedSearch(e) {
         alert(data.error);
         return;
       }
-      console.log("[Unifiée] Données reçues:", data);
+      // Mémorise le contexte pour rapport "point courant"
+      window.lastSearchData = data;
+      // Recharge la carte générée dans l'iframe
+      if (data.carte_url) {
+        document.getElementById("mapFrame").src = data.carte_url;
+      }
       displayAllLayers(data);
       updateInfoPanel([data]);
       const m = getMapFrame();
@@ -312,7 +315,8 @@ async function handleUnifiedSearch(e) {
 }
 
 // --------- RECHERCHE PAR COMMUNE ---------
-async function handleCommuneSearch() {
+async function handleCommuneSearch(e) {
+  e?.preventDefault?.();
   switchMap("/map.html", async () => {
     const commune = document.getElementById("commune")?.value.trim();
     if (!commune) return alert("Commune requise.");
@@ -329,6 +333,8 @@ async function handleCommuneSearch() {
       const res = await fetch("/search_by_commune?" + ps.toString());
       const data = await res.json();
       if (data.error) return alert(data.error);
+      // Mémorise le contexte pour rapport commune
+      window.lastCommuneSearch = { commune: commune };
       displayAllLayers(data);
       updateInfoPanel([data]);
       const m = getMapFrame();
@@ -398,30 +404,150 @@ function handleDeptSearch() {
 }
 
 // --------- RAPPORTS ---------
+// Rapport "point courant" - VERSION ENRICHIE COMPLÈTE
 function generateReport() {
-  const lat = document.getElementById("latitude")?.value;
-  const lon = document.getElementById("longitude")?.value;
-  const address = document.getElementById("address")?.value;
-  if (!lat || !lon) return alert("Recherchez d’abord.");
-  const fd = new FormData();
-  fd.append("lat", lat); fd.append("lon", lon); fd.append("address", address || "");
-  fetch("/rapport", { method: "POST", body: fd })
-    .then(r => r.text()).then(html => { const w = window.open(); w.document.write(html); w.document.close(); });
+    const data = window.lastSearchData;
+    if (!data || !data.lat || !data.lon) return alert("Recherchez d'abord.");
+    
+    // 🔄 ENRICHISSEMENT COMPLET : Transmission de TOUTES les données collectées
+    const params = new URLSearchParams({
+        lat: data.lat,
+        lon: data.lon,
+        address: data.address || "",
+        
+        // === DONNÉES SUMMARY ===
+        parcelle_numero: data.summary?.parcelle_numero || "",
+        distance_poste_proche: data.summary?.distance_poste_proche || "",
+        zone_plu: data.summary?.zone_plu || "",
+        
+        // === DONNÉES ÉNERGÉTIQUES ET TOPOGRAPHIQUES ===
+        // Irradiation solaire (PVGIS)
+        irradiation_solaire: data.pvgis_data?.yearly_pv_energy_production || 
+                            data.kwh_per_kwc || 
+                            data.irradiation || "",
+        
+        // Altitude
+        altitude: data.altitude || data.altitude_m || "",
+        
+        // Potentiel solaire (zones)
+        potentiel_solaire_count: data.solaire?.features?.length || 0,
+        potentiel_solaire_zones: data.solaire?.features?.map(f => 
+            f.properties?.nom || f.properties?.libelle || f.properties?.type
+        ).filter(Boolean).join(",") || "",
+        
+        // === DONNÉES APIs EXTERNES ===
+        // Cadastre
+        api_cadastre_success: data.api_cadastre?.features?.length > 0 ? "true" : "false",
+        api_cadastre_commune: data.api_cadastre?.features?.[0]?.properties?.nom_com || 
+                             data.api_cadastre?.features?.[0]?.properties?.commune || "",
+        api_cadastre_section: data.api_cadastre?.features?.[0]?.properties?.section || "",
+        api_cadastre_numero: data.api_cadastre?.features?.[0]?.properties?.numero || "",
+        
+        // Urbanisme GPU
+        api_urbanisme_layers: data.api_urbanisme ? Object.keys(data.api_urbanisme).length : 0,
+        api_urbanisme_features: data.api_urbanisme ? 
+            Object.values(data.api_urbanisme).reduce((sum, layer) => 
+                sum + (layer?.features?.length || 0), 0) : 0,
+        api_urbanisme_zones: data.api_urbanisme ? 
+            Object.keys(data.api_urbanisme).join(",") : "",
+        
+        // Nature/Codes postaux
+        api_nature_success: data.api_nature?.features?.length > 0 ? "true" : "false",
+        api_nature_commune: data.api_nature?.features?.[0]?.properties?.nom_commune || "",
+        api_nature_dept: data.api_nature?.features?.[0]?.properties?.nom_departement || "",
+        api_nature_postal: data.api_nature?.features?.[0]?.properties?.code_postal || "",
+        
+        // === DONNÉES GÉOGRAPHIQUES AU POINT ===
+        // Parcelles
+        rpg_count: data.rpg?.features?.length || 0,
+        rpg_cultures: data.rpg?.features?.map(f => 
+            f.properties?.Culture || f.properties?.culture
+        ).filter(Boolean).join(",") || "",
+        rpg_surfaces: data.rpg?.features?.map(f => 
+            f.properties?.SURF_PARC || f.properties?.surface_ha
+        ).filter(Boolean).join(",") || "",
+        
+        parcelles_count: data.parcelles?.features?.length || 0,
+        parcelles_sections: data.parcelles?.features?.map(f =>
+            f.properties?.section
+        ).filter(Boolean).join(",") || "",
+        
+        // PLU
+        plu_count: data.plu?.features?.length || 0,
+        plu_zones: data.plu?.features?.map(f => 
+            f.properties?.typezone || f.properties?.libelle
+        ).filter(Boolean).join(",") || "",
+        plu_destdomi: data.plu?.features?.map(f =>
+            f.properties?.destdomi
+        ).filter(Boolean).join(",") || "",
+        
+        // ZAER
+        zaer_count: data.zaer?.features?.length || 0,
+        zaer_zones: data.zaer?.features?.map(f => 
+            f.properties?.nom || f.properties?.filiere
+        ).filter(Boolean).join(",") || "",
+        zaer_filieres: data.zaer?.features?.map(f =>
+            f.properties?.detail_fil
+        ).filter(Boolean).join(",") || "",
+        
+        // === INFRASTRUCTURES ÉLECTRIQUES ===
+        // Postes BT
+        postes_bt_count: data.postes_bt?.features?.length || 0,
+        postes_bt_distances: data.postes_bt?.features?.map(f =>
+            f.distance || f.properties?.distance
+        ).filter(Boolean).join(",") || "",
+        
+        // Postes HTA  
+        postes_hta_count: data.postes_hta?.features?.length || 0,
+        postes_hta_distances: data.postes_hta?.features?.map(f =>
+            f.distance || f.properties?.distance
+        ).filter(Boolean).join(",") || "",
+        postes_hta_capacites: data.postes_hta?.features?.map(f =>
+            f.properties?.Capacité || f.properties?.capacite
+        ).filter(Boolean).join(",") || "",
+        
+        // Capacités réseau
+        capacites_reseau_count: data.capacites_reseau?.features?.length || 0,
+        
+        // === CONTEXTE ÉCONOMIQUE ET ENVIRONNEMENTAL ===
+        // Sirene (entreprises)
+        sirene_count: data.sirene?.features?.length || 0,
+        sirene_activites: data.sirene?.features?.map(f =>
+            f.properties?.activitePrincipaleEtablissement || f.properties?.libelle_apet
+        ).filter(Boolean).slice(0, 5).join(",") || "",
+        
+        // Éleveurs
+        eleveurs_count: data.eleveurs?.features?.length || 0,
+        
+        // Parkings
+        parkings_count: data.parkings?.features?.length || 0,
+        
+        // Friches
+        friches_count: data.friches?.features?.length || 0,
+        friches_types: data.friches?.features?.map(f =>
+            f.properties?.type || f.properties?.libelle
+        ).filter(Boolean).join(",") || "",
+        
+        // === MÉTADONNÉES ===
+        search_timestamp: Date.now(),
+        data_source: "search_by_address",
+        search_radius: document.getElementById("sirene_radius")?.value || "0.05",
+        interface_version: "3.2.1"
+    });
+    
+    window.open(`/rapport_point?${params.toString()}`, "_blank");
 }
+// Rapport par commune
 function generateCommuneReport() {
-  const commune = document.getElementById("commune")?.value.trim();
-  if (!commune) return alert("Commune requise !");
-  const params = new URLSearchParams({
-    commune,
-    culture: document.getElementById("culture")?.value || "",
-    min_area_ha: document.getElementById("minSurface")?.value || 0,
-    max_area_ha: document.getElementById("maxSurface")?.value || 1e9,
-    ht_max_distance: document.getElementById("ht_max_distance")?.value || 5000,
-    bt_max_distance: document.getElementById("bt_max_distance")?.value || 2000,
-    sirene_radius: document.getElementById("sirene_radius_commune")?.value || 0.05
-  });
-  window.open(`/rapport_commune?${params.toString()}`, "_blank");
+    const search = window.lastCommuneSearch;
+    if (!search || !search.commune) return alert("Faites d’abord une recherche de commune !");
+    const params = new URLSearchParams({
+        commune: search.commune
+    });
+    window.open(`/rapport_commune?${params.toString()}`, "_blank");
 }
+
+// Rapport par département
 function generateDeptReport() {
   if (!window.lastDeptResults || window.lastDeptResults.length === 0) {
     alert("Faites d'abord une recherche départementale !");
@@ -449,6 +575,34 @@ function generateDeptReport() {
     });
 }
 
+// --------- ENREGISTRER LA CARTE (AJAX) ---------
+// À brancher à un bouton ou à appeler après une modif de la carte pour sauvegarder côté backend (Flask doit avoir la route save_map_html !)
+function saveCurrentMap(filename="carte_utilisateur.html") {
+  const m = getMapFrame();
+  if (!m || !m.getMapState) {
+    alert("Carte non accessible ou non exportable !");
+    return;
+  }
+  // Exemple d'appel AJAX à un endpoint Flask à implémenter :
+  fetch('/save_map_html', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      filename,
+      state: m.getMapState ? m.getMapState() : null // à adapter à ta méthode
+    })
+  })
+    .then(r => r.json())
+    .then(res => {
+      if(res.success && res.path){
+        alert("Carte enregistrée sous : " + res.path);
+      } else {
+        alert("Erreur à l'enregistrement : " + (res.error || "inconnue"));
+      }
+    })
+    .catch(err => alert("Erreur de sauvegarde : " + err));
+}
+
 // --------- SWITCH MAP ---------
 function switchMap(target = "/map.html", onReady) {
   const iframe = document.getElementById("mapFrame");
@@ -461,13 +615,19 @@ function switchMap(target = "/map.html", onReady) {
   }
 }
 
-// --------- DOM READY ---------
-window.addEventListener("DOMContentLoaded", () => {
-  setupSliders();
-  document.getElementById("unifiedSearchForm")?.addEventListener("submit", handleUnifiedSearch);
-  document.getElementById("communeSearchButton")?.addEventListener("click", handleCommuneSearch);
-  document.getElementById("deptSearchBtn")?.addEventListener("click", handleDeptSearch);
-  document.getElementById("communeReportBtn")?.addEventListener("click", generateCommuneReport);
-  document.getElementById("deptReportBtn")?.addEventListener("click", generateDeptReport);
-  document.getElementById("deptReportCarteBtn")?.addEventListener("click", generateDeptReport);
+document.addEventListener('DOMContentLoaded', function() {
+    // Branche sliders si tu utilises
+    setupSliders();
+    // Branche formulaires
+    document.getElementById("unifiedSearchForm")?.addEventListener("submit", handleUnifiedSearch);
+    document.getElementById("communeSearchForm")?.addEventListener("submit", handleCommuneSearch);
+    // Branche recherche départementale si tu as un bouton
+    document.getElementById("deptSearchBtn")?.addEventListener("click", handleDeptSearch);
+    // Branche boutons de rapport
+    document.getElementById("reportButton")?.addEventListener("click", generateReport);
+    document.getElementById("communeReportBtn")?.addEventListener("click", generateCommuneReport);
+    document.getElementById("deptReportBtn")?.addEventListener("click", generateDeptReport);
+    document.getElementById("deptReportCarteBtn")?.addEventListener("click", generateDeptReport);
+    // Branche bouton save map si besoin
+    // document.getElementById("saveMapBtn")?.addEventListener("click", () => saveCurrentMap("mon_export.html"));
 });
