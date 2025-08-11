@@ -1,0 +1,129 @@
+<!-- search_panel.html : UNIQUEMENT les accordion-items, pas de <div class="accordion"> ici ! -->
+
+<!-- Section Adresse / Coordonnées / GeoJSON -->
+<div class="accordion-item">
+  <h2 class="accordion-header">
+    <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#acc-pane-addr" aria-expanded="true" aria-controls="acc-pane-addr">
+      <span class="me-2"><i class="bi bi-geo-alt-fill"></i></span> Adresse • Coordonnées • GeoJSON
+    </button>
+  </h2>
+  <div id="acc-pane-addr" class="accordion-collapse collapse show">
+    <div class="accordion-body">
+      <form id="unifiedSearchForm" autocomplete="off">
+        <label class="form-label" for="search_input">Adresse, coordonnées ou GeoJSON :</label>
+        <input id="search_input" class="form-control mb-2" placeholder='48.85,2.35 ou {"type":"Point",...}'>
+
+        <div class="mb-2">
+          <label class="form-label" for="sirene_radius">Rayon Sirène <span id="sirene_radius_val" class="slider-value"></span></label>
+          <input id="sirene_radius" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="bt_max_distance">Distance BT (m) <span id="btMaxValAddr" class="slider-value"></span></label>
+          <input id="bt_max_distance" type="range" class="form-range" min="0" max="2000" step="50" value="500">
+        </div>
+        <div>
+          <label class="form-label" for="ht_max_distance">Distance HTA (m) <span id="htMaxValAddr" class="slider-value"></span></label>
+          <input id="ht_max_distance" type="range" class="form-range" min="0" max="5000" step="50" value="3500">
+        </div>
+        <input type="hidden" id="latitude">
+        <input type="hidden" id="longitude">
+        <input type="hidden" id="address">
+        <button type="submit" class="btn btn-primary w-100 mt-3">Rechercher</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Section Commune & Culture -->
+<div class="accordion-item">
+  <h2 class="accordion-header">
+    <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-commune" aria-expanded="false" aria-controls="acc-pane-commune">
+      <span class="me-2"><i class="bi bi-building"></i></span> Commune & Culture
+    </button>
+  </h2>
+  <div id="acc-pane-commune" class="accordion-collapse collapse">
+    <div class="accordion-body">
+      <form id="communeSearchForm" autocomplete="off">
+        <label class="form-label" for="commune">Commune :</label>
+        <input id="commune" class="form-control mb-2" placeholder="Lyon">
+        <label class="form-label" for="culture">Culture :</label>
+        <select id="culture" class="form-select mb-2">
+          <option value="">Toutes</option>
+          {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
+        </select>
+        <div class="mb-2">
+          <label class="form-label" for="ht_max_distance_commune">Distance HTA (m) <span id="htMaxValCommune" class="slider-value"></span></label>
+          <input id="ht_max_distance_commune" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="bt_max_distance_commune">Distance BT (m) <span id="btMaxValCommune" class="slider-value"></span></label>
+          <input id="bt_max_distance_commune" type="range" class="form-range" min="0" max="2000" step="50" value="500">
+        </div>
+        <div>
+          <label class="form-label" for="sirene_radius_commune">Rayon Sirène <span id="sireneCommVal" class="slider-value"></span></label>
+          <input id="sirene_radius_commune" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
+        </div>
+        <button id="communeSearchButton" type="button" class="btn btn-secondary w-100 mt-2">Rechercher commune</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Section Département -->
+<div class="accordion-item">
+  <h2 class="accordion-header">
+    <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-dept" aria-expanded="false" aria-controls="acc-pane-dept">
+      <span class="me-2"><i class="bi bi-globe-europe-africa"></i></span> Département (SSE)
+    </button>
+  </h2>
+  <div id="acc-pane-dept" class="accordion-collapse collapse">
+    <div class="accordion-body">
+      <label class="form-label" for="departmentInput">Département :</label>
+      <input id="departmentInput" class="form-control mb-2" placeholder="23">
+      <label class="form-label" for="rpgType">Type RPG :</label>
+      <select id="rpgType" class="form-select mb-2">
+        <option value="">Tous</option>
+        {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
+      </select>
+      <div class="mb-2">
+        <label class="form-label" for="minSurface">Surface min/max (ha)</label>
+        <input id="minSurface" type="range" class="form-range" min="0" max="100" value="10">
+        <input id="maxSurface" type="range" class="form-range" min="0" max="100" value="50">
+        <small>min : <span id="minSurfaceVal">10</span> ha – max : <span id="maxSurfaceVal">50</span> ha</small>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="bt_max_distance_dept">Distance BT (m) <span id="btMaxValDept" class="slider-value"></span></label>
+        <input id="bt_max_distance_dept" type="range" class="form-range" min="0" max="2000" step="50" value="500">
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="ht_max_distance_dept">Distance HTA (m) <span id="htMaxValDept" class="slider-value"></span></label>
+        <input id="ht_max_distance_dept" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
+      </div>
+      <!-- Filtrage dynamique HTA/BT -->
+      <div class="mb-2">
+        <label class="form-label">Types de réseaux à filtrer :</label>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="filterHTA" checked>
+          <label class="form-check-label" for="filterHTA">HTA + distance</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="filterBT" checked>
+          <label class="form-check-label" for="filterBT">BT + distance</label>
+        </div>
+        <small class="text-muted">
+          Décoche pour ignorer un type de réseau dans la recherche (au moins un doit être sélectionné).
+        </small>
+      </div>
+      <div class="form-check form-switch mt-2">
+        <input id="excludeBuildings" class="form-check-input" type="checkbox">
+        <label class="form-check-label" for="excludeBuildings">Exclure bâtiments remarquables 500 m</label>
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input id="excludeNature" class="form-check-input" type="checkbox">
+        <label class="form-check-label" for="excludeNature">Exclure zones naturelles</label>
+      </div>
+      <button id="deptSearchBtn" type="button" class="btn btn-primary w-100">Lancer recherche département</button>
+      <pre id="deptLog" class="mt-3"></pre>
+    </div>
+  </div>
+</div>

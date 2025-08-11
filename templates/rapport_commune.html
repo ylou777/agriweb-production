@@ -18,7 +18,7 @@
     <strong>Population :</strong> {{ report.population or "N/A" }}<br>
     <strong>Centre :</strong> {{ report.centroid[0] }}, {{ report.centroid[1] }}
   </p>
-  <iframe src="/map_commune?commune={{ report.nom | urlencode }}" width="100%" height="400"></iframe>
+  <iframe src="{{ carte_url or ('/map_commune?commune=' ~ (report.nom | urlencode)) }}" width="100%" height="400"></iframe>
 
   <h2>Synthèse</h2>
   <ul>
@@ -139,32 +139,53 @@
   </table>
 
   <h2>Capacités réseau HTA</h2>
-  <ul>
-    {% for cap in report.hta_capacites %}
-      <li>{{ cap }}</li>
-    {% endfor %}
-  </ul>
+  {% set hta_caps = report.get('hta_capacites') %}
+  {% if hta_caps %}
+    {% if hta_caps.get('features') %}
+      <p>Nombre d'objets: {{ hta_caps.features|length }}</p>
+    {% elif hta_caps is sequence %}
+      <ul>
+        {%- for cap in hta_caps -%}
+          <li>{{ cap }}</li>
+        {%- endfor -%}
+      </ul>
+    {% else %}
+      <p>Données disponibles.</p>
+    {% endif %}
+  {% else %}
+    <p>Aucune donnée.</p>
+  {% endif %}
 
   <h2>API Nature (IGN)</h2>
+  {% set api_nature = report.get('api_nature') %}
+  {% if api_nature and api_nature.get('features') %}
   <ul>
-    {% for feat in report.api_nature.features %}
+    {%- for feat in api_nature.features -%}
       <li class="feature-block">
-        {% for k, v in feat.properties.items() %}
+        {%- for k, v in feat.properties.items() -%}
           <strong>{{ k }}:</strong> {{ v }}<br>
-        {% endfor %}
+        {%- endfor -%}
       </li>
-    {% endfor %}
+    {%- endfor -%}
   </ul>
+  {% else %}
+  <p>Aucune donnée.</p>
+  {% endif %}
 
   <h2>API Cadastre (IGN)</h2>
+  {% set api_cadastre = report.get('api_cadastre') %}
+  {% if api_cadastre and api_cadastre.get('features') %}
   <ul>
-    {% for feat in report.api_cadastre.features %}
+    {%- for feat in api_cadastre.features -%}
       <li class="feature-block">
-        {% for k, v in feat.properties.items() %}
+        {%- for k, v in feat.properties.items() -%}
           <strong>{{ k }}:</strong> {{ v }}<br>
-        {% endfor %}
+        {%- endfor -%}
       </li>
-    {% endfor %}
+    {%- endfor -%}
   </ul>
+  {% else %}
+  <p>Aucune donnée.</p>
+  {% endif %}
 </body>
 </html>

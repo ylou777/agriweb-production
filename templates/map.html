@@ -64,8 +64,52 @@
     };
 
     // Popups riches & dynamiques
-    function makePopupContent(props, typeLayer) {
+    function makePopupContent(props, typeLayer, geometry) {
       function row(label, val) { return val ? `<tr><th>${label}</th><td>${val}</td></tr>` : ""; }
+      
+      // Fonction pour calculer le centroïde d'une géométrie
+      function getCentroid(geom) {
+        if (!geom || !geom.coordinates) return null;
+        
+        let lat = 0, lon = 0, count = 0;
+        
+        if (geom.type === 'Point') {
+          return { lat: geom.coordinates[1], lon: geom.coordinates[0] };
+        } else if (geom.type === 'Polygon' && geom.coordinates.length > 0) {
+          // Pour un polygone, on calcule la moyenne des coordonnées du premier ring
+          const ring = geom.coordinates[0];
+          ring.forEach(coord => {
+            lon += coord[0];
+            lat += coord[1];
+            count++;
+          });
+          return count > 0 ? { lat: lat/count, lon: lon/count } : null;
+        } else if (geom.type === 'MultiPolygon' && geom.coordinates.length > 0) {
+          // Pour un multi-polygone, on prend le premier polygone
+          const firstPolygon = geom.coordinates[0];
+          if (firstPolygon.length > 0) {
+            const ring = firstPolygon[0];
+            ring.forEach(coord => {
+              lon += coord[0];
+              lat += coord[1];
+              count++;
+            });
+            return count > 0 ? { lat: lat/count, lon: lon/count } : null;
+          }
+        }
+        return null;
+      }
+      
+      // Fonction pour créer le lien Google Street View
+      function createStreetViewLink(geom) {
+        const centroid = getCentroid(geom);
+        if (!centroid) return "";
+        
+        const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${centroid.lat},${centroid.lon}`;
+        return `<a href="${streetViewUrl}" target="_blank" class="popup-link" style="color: #1474fa; text-decoration: none; padding: 4px 8px; background: #f0f8ff; border-radius: 4px; display: inline-block; margin-top: 4px;">
+          📍 Voir sur Google Street View
+        </a>`;
+      }
       // --- Parcelles cadastrales / API cadastre / RPG
       if (typeLayer === "parcelles" || typeLayer === "api_cadastre" || typeLayer==="rpg" || typeLayer==="rpg_parcelles") {
         let html = `<div class='custom-popup'><div class='popup-title' style="color:#FF6600">Parcelle cadastrale</div><table>`;
@@ -126,23 +170,87 @@
       }
       // --- Parkings
       if (typeLayer === "parkings") {
+        // Fonction pour formater les parcelles cadastrales
+        function formatParcelleCadastrale(parcelles) {
+          if (!Array.isArray(parcelles) || parcelles.length === 0) return "Aucune";
+          return parcelles.map(parcelle => {
+            if (parcelle && typeof parcelle === 'object' && parcelle.reference_complete) {
+              return parcelle.reference_complete;
+            }
+            if (parcelle && typeof parcelle === 'object') {
+              const commune = parcelle.commune || '';
+              const prefixe = parcelle.prefixe || '';
+              const section = parcelle.section || '';
+              const numero = parcelle.numero || '';
+              return `${commune}${prefixe}${section}${numero}`.trim();
+            }
+            return String(parcelle);
+          }).join(', ');
+        }
+        
+        const streetViewLink = createStreetViewLink(geometry);
+        
         return `<div class='custom-popup'><div class='popup-title' style="color:darkgreen">Parking</div>
         <table>
           ${row("Nom",props.nom||props.nom_parking)}
           ${row("Surface (m²)",props.surface)}
           ${row("Nombre de places",props.places)}
-        </table></div>`;
+          ${row("Parcelles cadastrales", formatParcelleCadastrale(props.parcelles_cadastrales))}
+          ${row("Nb parcelles cadastrales", props.nb_parcelles_cadastrales)}
+          ${row("Distance poste BT (m)", props.min_poste_distance_m ? Math.round(props.min_poste_distance_m * 100) / 100 : '')}
+        </table>
+        ${streetViewLink}
+        </div>`;
       }
-      // --- Potentiel Solaire
+      // --- Potentiel Solaire / Toitures
       if (typeLayer === "solaire") {
-        return `<div class='custom-popup'><div class='popup-title' style="color:gold">Potentiel solaire</div>
-        <table>
-          ${row("Nom",props.nom)}
-          ${row("Surface (ha)",props.surface_ha)}
-          ${row("Puissance (MWc)",props.puissance)}
-          ${row("Exposition",props.exposition)}
-          ${row("Inclinaison",props.inclinaison)}
-        </table></div>`;
+        // Fonction pour formater les parcelles cadastrales (identique aux parkings)
+        function formatParcelleCadastrale(parcelles) {
+          if (!Array.isArray(parcelles) || parcelles.length === 0) return "Aucune";
+          return parcelles.map(parcelle => {
+            if (parcelle && typeof parcelle === 'object' && parcelle.reference_complete) {
+              return parcelle.reference_complete;
+            }
+            if (parcelle && typeof parcelle === 'object') {
+              const commune = parcelle.commune || '';
+              const prefixe = parcelle.prefixe || '';
+              const section = parcelle.section || '';
+              const numero = parcelle.numero || '';
+              return `${commune}${prefixe}${section}${numero}`.trim();
+            }
+            return String(parcelle);
+          }).join(', ');
+        }
+        
+        const streetViewLink = createStreetViewLink(geometry);
+        
+        // Détecter s'il s'agit de toitures ou de vraies données solaires
+        if (props.surface_toiture_m2 || props.search_method || props.min_distance_bt_m !== undefined) {
+          // C'est une toiture enrichie
+          return `<div class='custom-popup'><div class='popup-title' style="color:gold">🏠 Toiture sélectionnée</div>
+          <table>
+            ${row("Surface toiture (m²)", props.surface_toiture_m2)}
+            ${row("Distance poste BT (m)", props.min_distance_bt_m)}
+            ${row("Distance poste HTA (m)", props.min_distance_hta_m)}
+            ${row("Commune", props.commune)}
+            ${row("Code INSEE", props.insee)}
+            ${row("Parcelles cadastrales", formatParcelleCadastrale(props.parcelles_cadastrales))}
+            ${row("Nb parcelles cadastrales", props.nb_parcelles_cadastrales)}
+            ${row("Source", props.source || "Bâtiment IGN")}
+          </table>
+          ${streetViewLink}
+          </div>`;
+        } else {
+          // Vraies données de potentiel solaire
+          return `<div class='custom-popup'><div class='popup-title' style="color:gold">☀️ Potentiel solaire</div>
+          <table>
+            ${row("Nom",props.nom)}
+            ${row("Surface (ha)",props.surface_ha)}
+            ${row("Puissance (MWc)",props.puissance)}
+            ${row("Exposition",props.exposition)}
+            ${row("Inclinaison",props.inclinaison)}
+          </table></div>`;
+        }
       }
       // --- ZAER
       if (typeLayer === "zaer") {
@@ -216,7 +324,7 @@
         },
         onEachFeature: function (feat, layer) {
           let typeLayer = detectTypeLayer(feat, style);
-          layer.bindPopup(makePopupContent(feat.properties, typeLayer), {maxWidth: 340});
+          layer.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 340});
         }
       }).addTo(map);
       window._layers.push(gj);

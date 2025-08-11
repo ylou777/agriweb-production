@@ -1,0 +1,945 @@
+<pre style="max-height:300px;overflow:auto;background:#222;color:#fff;font-size:12px;">
+{{ report.api_details | tojson(indent=2) }}
+</pre>
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Géospatial Exhaustif - AgriWeb</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        /* CSS intégré pour éviter les dépendances externes */
+        .main-header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 1.5rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .coordinates {
+            font-size: 1.1rem;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .metric-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        
+        .header-carte { background: linear-gradient(135deg, #28a745, #20c997); color: white; }
+        .header-admin { background: linear-gradient(135deg, #6f42c1, #e83e8c); color: white; }
+        .header-api { background: linear-gradient(135deg, #17a2b8, #20c997); color: white; }
+        .header-parcelle { background: linear-gradient(135deg, #fd7e14, #ffc107); color: white; }
+        .header-bt { background: linear-gradient(135deg, #dc3545, #fd7e14); color: white; }
+        .header-hta { background: linear-gradient(135deg, #6610f2, #dc3545); color: white; }
+        .header-eleveurs { background: linear-gradient(135deg, #198754, #20c997); color: white; }
+        .header-pvgis { background: linear-gradient(135deg, #ffc107, #fd7e14); color: white; }
+        .header-soil { background: linear-gradient(135deg, #795548, #8d6e63); color: white; }
+        .header-topographie { background: linear-gradient(135deg, #607d8b, #90a4ae); color: white; }
+        .header-contraintes { background: linear-gradient(135deg, #ff5722, #ff9800); color: white; }
+        .header-dark { background: linear-gradient(135deg, #343a40, #6c757d); color: white; }
+        
+        .carte-container {
+            width: 100%;
+            height: 500px;
+            border: none;
+            border-radius: 8px;
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .distance-badge {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .status-good { background: #d4edda; color: #155724; }
+        .status-warning { background: #fff3cd; color: #856404; }
+        .status-danger { background: #f8d7da; color: #721c24; }
+        
+        .api-status-success {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+        
+        .api-status-error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+        
+        .api-details-item {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .layer-badge {
+            display: inline-block;
+            background: #007bff;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            margin: 0.1rem;
+        }
+        
+        .elevation-chart {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        @media print {
+            .main-header { background: #007bff !important; }
+            .metric-card { break-inside: avoid; }
+            .card { break-inside: avoid; margin-bottom: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- En-tête principal -->
+    <div class="main-header">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="h3 mb-1">
+                        <i class="bi bi-geo-alt-fill"></i> Rapport Géospatial Exhaustif
+                    </h1>
+                    <p class="mb-0 opacity-75">Analyse complète du point sélectionné - AgriWeb Professional v{{ report.version or '3.2.1' }}</p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <div class="coordinates">
+                        <strong>{{ "%.6f"|format(report.lat) }}, {{ "%.6f"|format(report.lon) }}</strong>
+                    </div>
+                    <small class="opacity-75">WGS84 - EPSG:4326</small>
+                    <div class="mt-1">
+                        <small><i class="bi bi-clock"></i> {{ report.timestamp or 'N/A' }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid">
+        <!-- Métriques rapides enrichies -->
+        <div class="row mb-4">
+            <div class="col-lg-2 col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value">{{ report.postes_bt|length if report.postes_bt else 0 }}</div>
+                    <div class="text-muted">Postes BT</div>
+                    {% if report.postes_bt and report.postes_bt|selectattr('distance')|map(attribute='distance')|list %}
+                    <small class="text-success">Min: {{ (report.postes_bt|selectattr('distance')|map(attribute='distance')|min)|round }}m</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value">{{ report.postes_hta|length if report.postes_hta else 0 }}</div>
+                    <div class="text-muted">Postes HTA</div>
+                    {% if report.postes_hta and report.postes_hta|selectattr('distance')|map(attribute='distance')|list %}
+                    <small class="text-success">Min: {{ (report.postes_hta|selectattr('distance')|map(attribute='distance')|min)|round }}m</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value">{{ report.eleveurs|length if report.eleveurs else 0 }}</div>
+                    <div class="text-muted">Éleveurs</div>
+                    <small class="text-info">Zone 3km</small>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value">{{ "%.1f"|format(report.surface_parcelle) if report.surface_parcelle else 'N/A' }}</div>
+                    <div class="text-muted">Ha parcelle</div>
+                    <small class="text-info">RPG</small>
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value">{{ report.altitude|round if report.altitude else 'N/A' }}</div>
+                    <div class="text-muted">Altitude (m)</div>
+                    {% if report.pvgis_data and report.pvgis_data.yearly_pv_energy_production %}
+                    <small class="text-warning">PV: {{ report.pvgis_data.yearly_pv_energy_production|round }} kWh/kWc</small>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-lg-2 col-md-4 mb-3">
+                <div class="metric-card">
+                    <div class="metric-value">{{ report.commune_name or 'N/A' }}</div>
+                    <div class="text-muted">Commune</div>
+                    {% if report.code_postal %}
+                    <small class="text-info">{{ report.code_postal }}</small>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Colonne gauche -->
+            <div class="col-xl-8">
+                <!-- Carte interactive -->
+                {% if report.carte_url %}
+                <div class="card mb-3">
+                    <div class="card-header header-carte">
+                        <i class="bi bi-map-fill"></i> Carte interactive avec couches thématiques
+                    </div>
+                    <div class="card-body p-2">
+                        <iframe src="{{ report.carte_url }}" class="carte-container" frameborder="0" title="Carte interactive avec couches thématiques"></iframe>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- APIs Externes - Section intégrée -->
+                {% if report.api_details %}
+                <div class="card mb-3">
+                    <div class="card-header header-api">
+                        <i class="bi bi-cloud-download"></i> APIs Externes - Données collectées en temps réel
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- API Cadastre IGN -->
+                            <div class="col-lg-4 mb-3">
+                                <div class="h6"><i class="bi bi-map"></i> API Cadastre IGN</div>
+                                {% if report.api_details.cadastre.success %}
+                                    <div class="api-status-success">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                            <strong>Données récupérées</strong>
+                                        </div>
+                                        <div class="api-details-item">
+                                            <small><strong>Parcelle:</strong> {{ report.api_details.cadastre.details.section }}{{ report.api_details.cadastre.details.parcelle_numero }}</small><br>
+                                            <small><strong>Commune:</strong> {{ report.api_details.cadastre.details.commune }}</small><br>
+                                            <small><strong>INSEE:</strong> {{ report.api_details.cadastre.details.code_insee }}</small><br>
+                                            <small><strong>Contenance:</strong> {{ report.api_details.cadastre.details.contenance }}</small><br>
+                                            <small><strong>IDU:</strong> {{ report.api_details.cadastre.details.idu }}</small>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="api-status-error">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+                                            <strong>Échec de récupération</strong>
+                                        </div>
+                                        <small>{{ report.api_details.cadastre.error or "Aucune donnée disponible" }}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- API GPU Urbanisme -->
+                            <div class="col-lg-4 mb-3">
+                                <div class="h6"><i class="bi bi-building"></i> API GPU Urbanisme</div>
+                                {% if report.api_details.gpu.success %}
+                                    <div class="api-status-success">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                            <strong>{{ report.api_details.gpu.layers_count }} couches trouvées</strong>
+                                        </div>
+                                        <div class="api-details-item">
+                                            <small><strong>Features totales:</strong> {{ report.api_details.gpu.features_count }}</small><br>
+                                            <div class="mt-1">
+                                                {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
+                                                <span class="layer-badge">{{ layer_info.name_fr }}: {{ layer_info.count }}</span>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="api-status-error">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+                                            <strong>Échec de récupération</strong>
+                                        </div>
+                                        <small>{{ report.api_details.gpu.error or "Aucune donnée d'urbanisme" }}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- API Codes Postaux -->
+                            <div class="col-lg-4 mb-3">
+                                <div class="h6"><i class="bi bi-mailbox"></i> API Codes Postaux</div>
+                                {% if report.api_details.codes_postaux.success %}
+                                    <div class="api-status-success">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                            <strong>Données récupérées</strong>
+                                        </div>
+                                        <div class="api-details-item">
+                                            <small><strong>Commune:</strong> {{ report.api_details.codes_postaux.details.commune }}</small><br>
+                                            <small><strong>Code postal:</strong> {{ report.api_details.codes_postaux.details.code_postal }}</small><br>
+                                            <small><strong>Département:</strong> {{ report.api_details.codes_postaux.details.departement }}</small><br>
+                                            <small><strong>INSEE:</strong> {{ report.api_details.codes_postaux.details.code_insee }}</small>
+                                        </div>
+                                    </div>
+                                {% else %}
+                                    <div class="api-status-error">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-exclamation-triangle-fill text-warning me-2"></i>
+                                            <strong>Données non disponibles</strong>
+                                        </div>
+                                        <small>{{ report.api_details.codes_postaux.error or "Erreur 404 - Service temporairement indisponible" }}</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <!-- API Nature -->
+                            <div class="col-lg-4 mb-3">
+                                <div class="h6"><i class="bi bi-tree-fill"></i> API Nature</div>
+                                {% if report.api_details.nature and report.api_details.nature.data and report.api_details.nature.count > 0 %}
+                                    <div class="api-status-success">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-check-circle-fill text-success me-2"></i>
+                                            <strong>{{ report.api_details.nature.count }} espace(s) naturel(s)</strong>
+                                        </div>
+                                        <div class="api-details-item">
+                                            {% for feature in report.api_details.nature.data.features %}
+                                                {% if feature.properties %}
+                                                    <small>
+                                                        <strong>{{ feature.properties.get('NOM', 'Espace naturel') }}</strong><br>
+                                                        {% if feature.properties.get('TYPE') %}
+                                                            Type: {{ feature.properties.TYPE }}<br>
+                                                        {% endif %}
+                                                        {% if feature.properties.get('STATUT') %}
+                                                            Statut: {{ feature.properties.STATUT }}<br>
+                                                        {% endif %}
+                                                        {% if feature.properties.get('SUPERFICIE') %}
+                                                            Superficie: {{ feature.properties.SUPERFICIE }} ha<br>
+                                                        {% endif %}
+                                                    </small>
+                                                    {% if not loop.last %}<hr class="my-2">{% endif %}
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% elif report.api_details.nature and report.api_details.nature.error %}
+                                    <div class="api-status-error">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>
+                                            <strong>Erreur de récupération</strong>
+                                        </div>
+                                        <small>{{ report.api_details.nature.error }}</small>
+                                    </div>
+                                {% else %}
+                                    <div class="api-status-info">
+                                        <div class="d-flex align-items-center mb-2">
+                                            <i class="bi bi-info-circle-fill text-info me-2"></i>
+                                            <strong>Aucun espace naturel protégé</strong>
+                                        </div>
+                                        <small>Aucun espace naturel protégé identifié dans cette zone</small>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Détails GPU par couche (accordéon) -->
+                        {% if report.api_details.gpu.success and report.api_details.gpu.details %}
+                        <hr>
+                        <h6 class="mb-3">Détails des couches urbanisme par type</h6>
+                        <div class="accordion" id="gpuDetailsAccordion">
+                            {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{ layer_name|replace('-', '')|replace('_', '') }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ layer_name|replace('-', '')|replace('_', '') }}" aria-expanded="false">
+                                        <i class="bi bi-layers me-2"></i>
+                                        {{ layer_info.name_fr }} 
+                                        <span class="badge bg-primary ms-2">{{ layer_info.count }} feature{{ 's' if layer_info.count > 1 else '' }}</span>
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ layer_name|replace('-', '')|replace('_', '') }}" class="accordion-collapse collapse" data-bs-parent="#gpuDetailsAccordion">
+                                    <div class="accordion-body">
+                                        {% for feature in layer_info.features %}
+                                        <div class="border rounded p-2 mb-2 bg-light">
+                                            {% for key, value in feature.items() %}
+                                            <div class="row">
+                                                <div class="col-4"><small><strong>{{ key|replace('_', ' ')|title }}:</strong></small></div>
+                                                <div class="col-8"><small>{{ value }}</small></div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endfor %}
+                                        {% if layer_info.count > layer_info.features|length %}
+                                        <small class="text-muted">... et {{ layer_info.count - layer_info.features|length }} autres feature(s)</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Informations administratives enrichies -->
+                <div class="card mb-3">
+                    <div class="card-header header-admin">
+                        <i class="bi bi-building"></i> Informations administratives et géographiques
+                    </div>
+                    <div class="card-body">
+                        <div class="data-grid">
+                            <div>
+                                <h6><i class="bi bi-geo-alt"></i> Localisation</h6>
+                                <p><strong>Adresse :</strong> {{ report.address or 'Non spécifiée' }}</p>
+                                <p><strong>Commune :</strong> {{ report.commune_name or 'Non identifiée' }}
+                                    {% if report.api_details and report.api_details.cadastre.success %}
+                                    <small class="text-success">(Cadastre IGN)</small>
+                                    {% endif %}
+                                </p>
+                                <p><strong>Département :</strong> {{ report.departement or 'Non identifié' }}</p>
+                                <p><strong>Code postal :</strong> {{ report.code_postal or 'Non identifié' }}
+                                    {% if report.api_details and report.api_details.codes_postaux.success %}
+                                    <small class="text-success">(API Codes postaux)</small>
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div>
+                                <h6><i class="bi bi-compass"></i> Coordonnées techniques</h6>
+                                <p><strong>Latitude :</strong> {{ "%.6f"|format(report.lat) }}°</p>
+                                <p><strong>Longitude :</strong> {{ "%.6f"|format(report.lon) }}°</p>
+                                <p><strong>Altitude :</strong> {{ report.altitude|round if report.altitude else 'Non disponible' }} m</p>
+                                <p><strong>Système :</strong> WGS84 (EPSG:4326)</p>
+                            </div>
+                            <div>
+                                <h6><i class="bi bi-clock-history"></i> Informations temporelles</h6>
+                                <p><strong>Date de génération :</strong> {{ report.timestamp or 'Non spécifiée' }}</p>
+                                <p><strong>Dernière MAJ données :</strong> {{ report.data_update or 'Inconnue' }}</p>
+                                <p><strong>Version AgriWeb :</strong> {{ report.version or '3.2.1' }}</p>
+                                <p><strong>Méthode :</strong> 
+                                    {% if report.api_details %}
+                                    <span class="badge bg-success">APIs temps réel</span>
+                                    {% else %}
+                                    <span class="badge bg-info">Données locales</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analyse parcellaire (identique mais avec informations API si disponible) -->
+                {% if report.parcelle %}
+                <div class="card mb-3">
+                    <div class="card-header header-parcelle">
+                        <i class="bi bi-square-fill"></i> Analyse parcellaire 
+                        {% if report.api_details and report.api_details.cadastre.success %}
+                        <span class="badge bg-light text-dark ms-2">Cadastre IGN</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark ms-2">RPG</span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Identification parcelle</h6>
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr><td><strong>ID Parcelle</strong></td><td>{{ report.parcelle.get('properties', {}).get('ID_PARCEL', 'N/A') }}</td></tr>
+                                        <tr><td><strong>Numéro</strong></td><td>
+                                            {% if report.api_details and report.api_details.cadastre.success %}
+                                                {{ report.api_details.cadastre.details.parcelle_numero }}
+                                                <small class="text-success">(IGN)</small>
+                                            {% else %}
+                                                {{ report.parcelle.get('properties', {}).get('numero', 'N/A') }}
+                                            {% endif %}
+                                        </td></tr>
+                                        <tr><td><strong>Section</strong></td><td>
+                                            {% if report.api_details and report.api_details.cadastre.success %}
+                                                {{ report.api_details.cadastre.details.section }}
+                                                <small class="text-success">(IGN)</small>
+                                            {% else %}
+                                                {{ report.parcelle.get('properties', {}).get('section', 'N/A') }}
+                                            {% endif %}
+                                        </td></tr>
+                                        <tr><td><strong>Surface (ha)</strong></td><td>{{ report.parcelle.get('properties', {}).get('surface', 'N/A') }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Caractéristiques agricoles</h6>
+                                <table class="table table-sm">
+                                    <tbody>
+                                        <tr><td><strong>Culture principale</strong></td><td>{{ report.parcelle.get('properties', {}).get('Culture', 'Non spécifiée') }}</td></tr>
+                                        <tr><td><strong>Code culture</strong></td><td>{{ report.parcelle.get('properties', {}).get('CODE_CULTU', 'N/A') }}</td></tr>
+                                        <tr><td><strong>Groupe culture</strong></td><td>{{ report.parcelle.get('properties', {}).get('CODE_GROUP', 'N/A') }}</td></tr>
+                                        <tr><td><strong>Surface déclarée</strong></td><td>{{ report.parcelle.get('properties', {}).get('SURF_PARC', 'N/A') }} ha</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Données complémentaires parcelle -->
+                        {% if report.parcelle.get('properties') %}
+                        <hr>
+                        <h6>Données complémentaires</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <tbody>
+                                    {% for key, value in report.parcelle.get('properties', {}).items() %}
+                                    {% if key not in ['ID_PARCEL', 'numero', 'section', 'surface', 'Culture', 'CODE_CULTU', 'CODE_GROUP', 'SURF_PARC'] %}
+                                    <tr>
+                                        <td><strong>{{ key|replace('_', ' ')|title }}</strong></td>
+                                        <td>{{ value if value != '' else 'Non renseigné' }}</td>
+                                    </tr>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Infrastructure électrique détaillée (identique) -->
+                <div class="row">
+                    <!-- Postes BT -->
+                    {% if report.postes_bt %}
+                    <div class="col-lg-6">
+                        <div class="card mb-3">
+                            <div class="card-header header-bt">
+                                <i class="bi bi-lightning-fill"></i> Postes BT - Analyse de proximité
+                                <span class="badge bg-light text-dark ms-2">{{ report.postes_bt|length }}</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Nom du poste</th>
+                                                <th>Distance</th>
+                                                <th>Statut</th>
+                                                <th>Puissance</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for poste in report.postes_bt %}
+                                            <tr>
+                                                <td>{{ poste.get('properties', {}).get('nom', 'Poste BT') }}</td>
+                                                <td>
+                                                    {% if poste.get('distance') is not none %}
+                                                        <span class="distance-badge">{{ "%.0f"|format(poste.get('distance', 0)) }} m</span>
+                                                    {% else %}
+                                                        <span class="text-muted">N/A</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="status-badge status-good">
+                                                        {{ poste.get('properties', {}).get('etat', 'Actif') }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ poste.get('properties', {}).get('puissance', 'N/A') }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Analyse des distances BT -->
+                                {% if report.postes_bt %}
+                                <div class="mt-3 p-2 bg-light rounded">
+                                    <small><strong>Analyse :</strong> 
+                                    {% set distances_bt = report.postes_bt|selectattr('distance')|map(attribute='distance')|list %}
+                                    {% if distances_bt %}
+                                        Distance minimale: {{ (distances_bt|min)|round }} m, 
+                                        Distance moyenne: {{ ((distances_bt|sum) / (distances_bt|length))|round }} m
+                                    {% endif %}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Postes HTA -->
+                    {% if report.postes_hta %}
+                    <div class="col-lg-6">
+                        <div class="card mb-3">
+                            <div class="card-header header-hta">
+                                <i class="bi bi-lightning-charge-fill"></i> Postes HTA - Analyse de proximité
+                                <span class="badge bg-light text-dark ms-2">{{ report.postes_hta|length }}</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Nom du poste</th>
+                                                <th>Distance</th>
+                                                <th>Tension</th>
+                                                <th>Fonction</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for poste in report.postes_hta %}
+                                            <tr>
+                                                <td>{{ poste.get('properties', {}).get('nom_poste', poste.get('properties', {}).get('nom', 'Poste HTA')) }}</td>
+                                                <td>
+                                                    {% if poste.get('distance') is not none %}
+                                                        <span class="distance-badge">{{ "%.0f"|format(poste.get('distance', 0)) }} m</span>
+                                                    {% else %}
+                                                        <span class="text-muted">N/A</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>{{ poste.get('properties', {}).get('tension', 'N/A') }}</td>
+                                                <td>{{ poste.get('properties', {}).get('fonction', 'N/A') }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Analyse des distances HTA -->
+                                {% if report.postes_hta %}
+                                <div class="mt-3 p-2 bg-light rounded">
+                                    <small><strong>Analyse :</strong> 
+                                    {% set distances_hta = report.postes_hta|selectattr('distance')|map(attribute='distance')|list %}
+                                    {% if distances_hta %}
+                                        Distance minimale: {{ (distances_hta|min)|round }} m, 
+                                        Distance moyenne: {{ ((distances_hta|sum) / (distances_hta|length))|round }} m
+                                    {% endif %}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Analyse des éleveurs/exploitants (identique) -->
+                {% if report.eleveurs %}
+                <div class="card mb-3">
+                    <div class="card-header header-eleveurs">
+                        <i class="bi bi-people-fill"></i> Éleveurs et exploitants agricoles
+                        <span class="badge bg-light text-dark ms-2">{{ report.eleveurs|length }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Nom/Dénomination</th>
+                                        <th>Activité</th>
+                                        <th>Adresse</th>
+                                        <th>Distance</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for eleveur in report.eleveurs %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ eleveur.get('properties', {}).get('denomination', '') or (eleveur.get('properties', {}).get('nom', '') + ' ' + eleveur.get('properties', {}).get('prenom', '')) }}</strong>
+                                        </td>
+                                        <td>{{ eleveur.get('properties', {}).get('activite', 'N/A') }}</td>
+                                        <td>{{ eleveur.get('properties', {}).get('adresse', 'N/A') }}</td>
+                                        <td>
+                                            {% if eleveur.get('distance') is not none %}
+                                                <span class="distance-badge">{{ "%.0f"|format(eleveur.get('distance', 0)) }} m</span>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if eleveur.get('properties', {}).get('lien_entreprise') %}
+                                                <a href="{{ eleveur.get('properties', {}).get('lien_entreprise') }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Voir les détails de l'entreprise" aria-label="Voir les détails de l'entreprise">
+                                                    <i class="bi bi-box-arrow-up-right"></i>
+                                                </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Colonne droite - Informations complémentaires enrichies -->
+            <div class="col-xl-4">
+                <!-- Données PVGIS enrichies -->
+                {% if report.pvgis_data %}
+                <div class="card mb-3">
+                    <div class="card-header header-pvgis">
+                        <i class="bi bi-sun"></i> Potentiel solaire (PVGIS)
+                    </div>
+                    <div class="card-body">
+                        <div class="elevation-chart text-center">
+                            <h4 class="text-warning">{{ report.pvgis_data.yearly_pv_energy_production|round if report.pvgis_data.yearly_pv_energy_production else 'N/A' }}</h4>
+                            <div class="text-muted">kWh/kWc/an</div>
+                            <small class="text-muted">Production annuelle estimée par kWc installé</small>
+                        </div>
+                        {% if report.pvgis_data.yearly_pv_energy_production %}
+                        <hr>
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <strong>{{ (report.pvgis_data.yearly_pv_energy_production * 100)|round|int }}</strong><br>
+                                <small class="text-muted">kWh pour 100kWc</small>
+                            </div>
+                            <div class="col-6">
+                                <strong>{{ (report.pvgis_data.yearly_pv_energy_production / 365)|round(1) }}</strong><br>
+                                <small class="text-muted">kWh/jour/kWc</small>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Informations topographiques enrichies -->
+                <div class="card mb-3">
+                    <div class="card-header header-topographie">
+                        <i class="bi bi-triangle"></i> Données topographiques
+                    </div>
+                    <div class="card-body">
+                        <div class="elevation-chart">
+                            <div class="text-center">
+                                <h4>{{ report.altitude|round if report.altitude else 'N/A' }} m</h4>
+                                <small class="text-muted">
+                                    Altitude 
+                                    {% if report.api_details and report.api_details.cadastre.success %}
+                                    <span class="badge bg-success">IGN</span>
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        {% if report.slope %}
+                        <div class="mt-2">
+                            <small><strong>Pente :</strong> {{ report.slope }}%</small><br>
+                            <small><strong>Exposition :</strong> {{ report.aspect or 'N/A' }}</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Accessibilité et contraintes -->
+                <div class="card mb-3">
+                    <div class="card-header header-contraintes">
+                        <i class="bi bi-exclamation-triangle"></i> Contraintes et accessibilité
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <span class="status-badge {{ 'status-good' if report.road_access else 'status-warning' }}">
+                                <i class="bi bi-{{ 'check-circle' if report.road_access else 'exclamation-triangle' }}"></i>
+                                {{ 'Accès routier favorable' if report.road_access else 'Accès routier difficile' }}
+                            </span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="status-badge {{ 'status-good' if not report.flood_risk else 'status-danger' }}">
+                                <i class="bi bi-{{ 'shield-check' if not report.flood_risk else 'exclamation-triangle' }}"></i>
+                                {{ 'Pas de risque inondation' if not report.flood_risk else 'Risque inondation identifié' }}
+                            </span>
+                        </div>
+                        {% if report.protected_area %}
+                        <div class="mb-2">
+                            <span class="status-badge status-warning">
+                                <i class="bi bi-shield-exclamation"></i>
+                                Zone protégée
+                            </span>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Contraintes urbanisme depuis API GPU -->
+                        {% if report.api_details and report.api_details.gpu.success %}
+                        <hr>
+                        <small class="text-muted"><strong>Contraintes urbanisme identifiées :</strong></small>
+                        <div class="mt-1">
+                            {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
+                            {% if layer_info.count > 0 %}
+                            <div class="mb-1">
+                                <span class="badge bg-info">{{ layer_info.name_fr }}</span>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Synthèse technique enrichie -->
+                <div class="card mb-3">
+                    <div class="card-header header-dark">
+                        <i class="bi bi-clipboard-data"></i> Synthèse technique
+                    </div>
+                    <div class="card-body">
+                        <h6><i class="bi bi-check2-square"></i> Recommandations :</h6>
+                        <ul class="list-unstyled">{% if report.postes_bt and report.postes_bt|selectattr('distance')|map(attribute='distance')|min < 500 %}<li><i class="bi bi-check-circle text-success"></i> Raccordement BT favorable ({{ (report.postes_bt|selectattr('distance')|map(attribute='distance')|min)|round }}m)</li>{% endif %}{% if report.pvgis_data and report.pvgis_data.yearly_pv_energy_production > 1000 %}<li><i class="bi bi-check-circle text-success"></i> Excellent potentiel solaire ({{ report.pvgis_data.yearly_pv_energy_production|round }} kWh/kWc)</li>{% endif %}{% if report.parcelle and report.parcelle.get('properties', {}).get('surface', 0)|float > 5 %}<li><i class="bi bi-check-circle text-success"></i> Surface suffisante ({{ report.parcelle.get('properties', {}).get('surface', 0) }} ha)</li>{% endif %}{% if not report.flood_risk %}<li><i class="bi bi-check-circle text-success"></i> Aucun risque naturel identifié</li>{% endif %}{% if report.road_access %}<li><i class="bi bi-check-circle text-success"></i> Accès routier disponible</li>{% endif %}{% if report.eleveurs and report.eleveurs|length > 0 %}<li><i class="bi bi-check-circle text-success"></i> {{ report.eleveurs|length }} éleveur(s) dans la zone</li>{% endif %}{% if report.api_details and report.api_details.cadastre.success %}<li><i class="bi bi-check-circle text-success"></i> Données cadastrales officielles (IGN)</li>{% endif %}</ul>
+                        
+                        <!-- Alertes si nécessaire -->
+                        {% if report.flood_risk or not report.road_access or report.protected_area or (report.api_details and report.api_details.gpu.success and report.api_details.gpu.features_count > 0) %}
+                        <h6 class="mt-3 text-warning"><i class="bi bi-exclamation-triangle"></i> Points d'attention :</h6>
+                        <ul class="list-unstyled">
+                            {% if report.flood_risk %}
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> Risque d'inondation à évaluer</li>
+                            {% endif %}
+                            {% if not report.road_access %}
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> Accès routier limité</li>
+                            {% endif %}
+                            {% if report.protected_area %}
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> Zone protégée - réglementation à vérifier</li>
+                            {% endif %}
+                            {% if report.api_details and report.api_details.gpu.success and report.api_details.gpu.features_count > 0 %}
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> {{ report.api_details.gpu.features_count }} contrainte(s) urbanisme à étudier</li>
+                            {% endif %}
+                        </ul>
+                        {% endif %}
+                        
+                        <!-- Score global -->
+                        {% set score = 0 %}
+                        {% if report.postes_bt and report.postes_bt|selectattr('distance')|map(attribute='distance')|min < 500 %}{% set score = score + 1 %}{% endif %}
+                        {% if report.pvgis_data and report.pvgis_data.yearly_pv_energy_production > 1000 %}{% set score = score + 1 %}{% endif %}
+                        {% if report.parcelle and report.parcelle.get('properties', {}).get('surface', 0)|float > 5 %}{% set score = score + 1 %}{% endif %}
+                        <h6 class="mt-3 text-warning"><i class="bi bi-exclamation-triangle"></i> Points d'attention :</h6>
+                        <ul class="list-unstyled">
+                            {% if report.flood_risk %}<li><i class="bi bi-exclamation-triangle text-warning"></i> Risque d'inondation à évaluer</li>{% endif %}
+                            {% if not report.road_access %}<li><i class="bi bi-exclamation-triangle text-warning"></i> Accès routier limité</li>{% endif %}
+                            {% if report.protected_area %}<li><i class="bi bi-exclamation-triangle text-warning"></i> Zone protégée - réglementation à vérifier</li>{% endif %}
+                            {% if report.api_details and report.api_details.gpu.success and report.api_details.gpu.features_count > 0 %}<li><i class="bi bi-exclamation-triangle text-warning"></i> {{ report.api_details.gpu.features_count }} contrainte(s) urbanisme à étudier</li>{% endif %}
+                        </ul>
+                            </div>
+                            <small class="text-muted">
+                                {% if score >= 4 %}Site très favorable
+                                {% elif score >= 2 %}Site avec potentiel
+                                {% else %}Site nécessitant des études approfondies
+                                {% endif %}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Boutons d'action -->
+        <div class="row mt-4">
+            <div class="col-12 text-center">
+                <button class="btn btn-primary me-2" onclick="window.print()">
+                    <i class="bi bi-printer"></i> Imprimer le rapport
+                </button>
+                <button class="btn btn-outline-secondary me-2" onclick="history.back()">
+                    <i class="bi bi-arrow-left"></i> Retour
+                </button>
+                <button class="btn btn-outline-info me-2" onclick="generatePDF()">
+                    <i class="bi bi-file-pdf"></i> Exporter PDF
+                </button>
+                <button class="btn btn-outline-success" onclick="window.open('{{ report.carte_url }}', '_blank')">
+                    <i class="bi bi-map"></i> Carte plein écran
+                </button>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <footer class="mt-5 pt-4 border-top text-center text-muted">
+            <p>
+                <strong>AgriWeb Professional v{{ report.version or '3.2.1' }}</strong><br>
+                Rapport généré le {{ report.timestamp or 'N/A' }} - 
+                Données en temps réel via APIs IGN
+                {% if report.api_details %}
+                <br><small>
+                    APIs utilisées : 
+                    {% if report.api_details.cadastre.success %}<span class="badge bg-success">Cadastre IGN</span>{% endif %}
+                    {% if report.api_details.gpu.success %}<span class="badge bg-success">GPU Urbanisme</span>{% endif %}
+                    {% if report.api_details.codes_postaux.success %}<span class="badge bg-success">Codes Postaux</span>{% else %}<span class="badge bg-warning">Codes Postaux (indisponible)</span>{% endif %}
+                </small>
+                {% endif %}
+            </p>
+        </footer>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Fonction pour générer un PDF (placeholder)
+        function generatePDF() {
+            alert('Fonctionnalité d\'export PDF en développement');
+        }
+
+        // Amélioration de l'affichage des métriques avec animations
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animation des cartes métriques
+            const metricCards = document.querySelectorAll('.metric-card');
+            metricCards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.6s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+            
+            // Animation des status badges
+            const statusBadges = document.querySelectorAll('.status-badge, .api-status-success, .api-status-error');
+            statusBadges.forEach((badge, index) => {
+                setTimeout(() => {
+                    badge.style.animation = 'fadeIn 0.5s ease';
+                }, 500 + index * 50);
+            });
+            
+            // Highlight des sections avec données API
+            if (document.querySelector('[data-api-success]')) {
+                console.log('✅ Données API intégrées dans le rapport');
+            }
+        });
+        
+        // CSS animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: scale(0.95); }
+                to { opacity: 1; transform: scale(1); }
+            }
+            .api-status-success, .api-status-error {
+                animation: fadeIn 0.5s ease;
+            }
+            .layer-badge:hover {
+                transform: scale(1.05);
+                transition: transform 0.2s ease;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

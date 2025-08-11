@@ -1,12 +1,21 @@
 # --- GeoRisques API: fetch risks for a point ---
 import requests
+
+# Fonction utilitaire pour logging sécurisé (évite les erreurs WinError 233)
+def safe_print(*args, **kwargs):
+    """Print sécurisé qui ignore les erreurs de canal fermé"""
+    try:
+        print(*args, **kwargs)
+    except OSError:
+        # Ignorer les erreurs de canal fermé (WinError 233)
+        pass
 def fetch_georisques_risks(lat, lon):
     """
     Appelle l'API GeoRisques pour obtenir les risques naturels et technologiques pour un point.
     Utilise tous les endpoints disponibles dans l'API v1.
     Voir doc: https://www.georisques.gouv.fr/doc-api
     """
-    print(f"🔍 [GEORISQUES] === DÉBUT APPEL GEORISQUES pour point {lat}, {lon} ===")
+    safe_print(f"🔍 [GEORISQUES] === DÉBUT APPEL GEORISQUES pour point {lat}, {lon} ===")
     risques = {}
     latlon = f"{lon},{lat}"  # Format longitude,latitude pour l'API
     print(f"🔍 [GEORISQUES] Format latlon: {latlon}")
@@ -24,109 +33,7 @@ def fetch_georisques_risks(lat, lon):
             risques["sismique"] = []
     except Exception as e:
         print(f"[GeoRisques Sismique] Exception: {e}")
-        risques["sismique"] = []
-    
-    # 2. TRI - Territoires à Risques importants d'Inondation (zonage réglementaire)
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/tri_zonage"
-        params = {"latlon": latlon}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["tri_zonage"] = data.get("data", [])
-        elif resp.status_code == 404:
-            risques["tri_zonage"] = []
-        else:
-            print(f"[GeoRisques TRI Zonage] Erreur: {resp.status_code}")
-            risques["tri_zonage"] = []
-    except Exception as e:
-        print(f"[GeoRisques TRI Zonage] Exception: {e}")
-        risques["tri_zonage"] = []
-
-    # 3. TRI - Territoires à Risques importants d'Inondation (GASPAR)
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/gaspar/tri"
-        params = {"latlon": latlon, "rayon": 1000}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["tri_gaspar"] = data.get("data", [])
-        else:
-            print(f"[GeoRisques TRI GASPAR] Erreur: {resp.status_code}")
-            risques["tri_gaspar"] = []
-    except Exception as e:
-        print(f"[GeoRisques TRI GASPAR] Exception: {e}")
-        risques["tri_gaspar"] = []
-    
-    # 4. Sites et sols pollués - données complètes
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/ssp"
-        params = {"latlon": latlon, "rayon": 1000}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            # L'API retourne plusieurs types dans un seul objet
-            risques["ssp_casias"] = data.get("casias", {}).get("data", [])
-            risques["ssp_instructions"] = data.get("instructions", {}).get("data", [])
-            risques["ssp_conclusions_sis"] = data.get("conclusions_sis", {}).get("data", [])
-            risques["ssp_conclusions_sup"] = data.get("conclusions_sup", {}).get("data", [])
-        else:
-            print(f"[GeoRisques SSP] Erreur: {resp.status_code}")
-            risques["ssp_casias"] = []
-            risques["ssp_instructions"] = []
-            risques["ssp_conclusions_sis"] = []
-            risques["ssp_conclusions_sup"] = []
-    except Exception as e:
-        print(f"[GeoRisques SSP] Exception: {e}")
-        risques["ssp_casias"] = []
-        risques["ssp_instructions"] = []
-        risques["ssp_conclusions_sis"] = []
-        risques["ssp_conclusions_sup"] = []
-
-    # 5. CASIAS - Cartes des Anciens Sites Industriels (endpoint dédié)
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/ssp/casias"
-        params = {"latlon": latlon, "rayon": 1000}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["casias_detaille"] = data.get("data", [])
-        else:
-            print(f"[GeoRisques CASIAS] Erreur: {resp.status_code}")
-            risques["casias_detaille"] = []
-    except Exception as e:
-        print(f"[GeoRisques CASIAS] Exception: {e}")
-        risques["casias_detaille"] = []
-
-    # 6. TIM - Transmissions d'Informations au Maire
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/gaspar/tim"
-        params = {"latlon": latlon, "rayon": 1000}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["tim"] = data.get("data", [])
-        else:
-            print(f"[GeoRisques TIM] Erreur: {resp.status_code}")
-            risques["tim"] = []
-    except Exception as e:
-        print(f"[GeoRisques TIM] Exception: {e}")
-        risques["tim"] = []
-
-    # 7. AZI - Atlas des Zones Inondables
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/gaspar/azi"
-        params = {"latlon": latlon, "rayon": 1000}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["azi"] = data.get("data", [])
-        else:
-            print(f"[GeoRisques AZI] Erreur: {resp.status_code}")
-            risques["azi"] = []
-    except Exception as e:
-        print(f"[GeoRisques AZI] Exception: {e}")
-        risques["azi"] = []
+                    # cleaned corrupted pasted text block removed
 
     # 8. CATNAT - Catastrophes naturelles
     try:
@@ -294,6 +201,15 @@ from urllib3.util.retry import Retry
 from geopy.geocoders import Nominatim
 from branca.element import Element
 from docx import Document
+
+# Import du module de rapport complet
+try:
+    from rapport_commune_complet import generate_comprehensive_commune_report
+    RAPPORT_COMPLET_AVAILABLE = True
+    print("📊 [RAPPORT] Module de rapport complet importé avec succès")
+except ImportError as e:
+    print(f"⚠️ [RAPPORT] Module de rapport complet non disponible: {e}")
+    RAPPORT_COMPLET_AVAILABLE = False
 
 # --- Utility: Save Folium map to static/cartes/ and return relative path ---
 def save_map_html(map_obj, filename):
@@ -685,16 +601,16 @@ hta_mapping = {
     "Puissance": "Puissance",
     "Puissance projets": "Puissanc_1",
     "Puissance EnR connectée": "Puissanc_2",
-    "Capacité": "CapacitÃƒÂ©",  # Vérifiez l'encodage
-    "Capacité suppl.": "CapacitÃƒ_1",
+    "Capacité": "CapacitÃ©",  # Corrigé selon les données réelles
+    "Capacité suppl.": "CapacitÃ©_1",
     "Attention": "Attention_",
     "Quote-Part unitaire": "Quote-Part",
     "Convention signée": "dont la co",
-    "Capacité RT": "CapacitÃƒ_2",
+    "Capacité RT": "CapacitÃ©_2",
     "Travaux RT": "Travaux RT",
     "RTE Capacité": "RTE - Capa",
     "RTE Capacité 1": "RTE - Ca_1",
-    "Capacité suppl. 2": "CapacitÃƒ_3",
+    "Capacité suppl. 2": "CapacitÃ©_3",
     "Puissance 2": "Puissanc_4",
     "Nombre": "Nombre de",
     "Nombre suppl.": "Nombre d_1",
@@ -704,8 +620,8 @@ hta_mapping = {
     "Travaux GR": "Travaux GR",
     "Puissance 3": "Puissanc_5",
     "Puissance EnR projets": "Puissanc_6",
-    "Capacité suppl. 3": "CapacitÃƒ_4",
-    "Capacité suppl. 4": "CapacitÃƒ_5",
+    "Capacité suppl. 3": "CapacitÃ©_4",
+    "Capacité suppl. 4": "CapacitÃ©_5",
     "Puissance 4": "Puissanc_7",
     "Nombre suppl. 2": "Nombre d_2",
     "Nombre suppl. 3": "Nombre d_3",
@@ -715,9 +631,9 @@ hta_mapping = {
     "Travaux suppl.": "Travaux _1",
     "Puissance 5": "Puissanc_8",
     "Puissance 6": "Puissanc_9",
-    "Capacité suppl. 5": "CapacitÃƒ_6",
+    "Capacité suppl. 5": "CapacitÃ©_6",
     "Travaux in": "Travaux in",
-    "Capacité suppl. 6": "CapacitÃƒ_7",
+    "Capacité suppl. 6": "CapacitÃ©_7",
     "GRDHTB - C": "GRDHTB - C",
     "GRDHTB - 1": "GRDHTB -_1"
 }
@@ -819,17 +735,7 @@ def get_all_gpu_data(geom):
         results[ep] = data
     return results
 
-def main_server():
-    def open_browser():
-        webbrowser.open_new("http://127.0.0.1:5000")
-    print("Démarrage du serveur Flask...")
-    try:
-        Timer(1, open_browser).start()
-        app.run(host="127.0.0.1", port=5000, debug=False)  # Debug False pour éviter les reloads
-    except Exception as e:
-        print(f"Erreur serveur: {e}")
-        import traceback
-        traceback.print_exc()
+# Fonction supprimée - conservé seulement main() à la fin du fichier
 def get_api_cadastre_data(point_geojson):
     url = "https://apicarto.ign.fr/api/cadastre/parcelle"
     params = {
@@ -886,7 +792,7 @@ def build_report_data(lat, lon, address=None, ht_radius_km=1.0, sirene_radius_km
     search_radius = 0.03
     geom = {"type": "Point", "coordinates": [lon, lat]}
     api_cadastre = get_api_cadastre_data(geom)
-    api_nature = get_api_nature_data(geom)
+    api_nature = get_all_api_nature_data(geom)
     api_urbanisme = get_all_gpu_data(geom)
 
     geoportail_url = (
@@ -964,6 +870,57 @@ def geocode_address(address):
     if location:
         return location.latitude, location.longitude
     return None
+
+def get_address_from_coordinates(lat, lon):
+    """
+    Géocodage inverse avec l'API IGN Géoplateforme
+    Récupère l'adresse la plus proche à partir de coordonnées lat/lon
+    API sans clé, limite 50 req/s
+    """
+    try:
+        url = "https://data.geopf.fr/geocodage/reverse"
+        params = {
+            'lat': lat,
+            'lon': lon,
+            'limit': 1,
+            'index': 'address'  # Focus sur les adresses
+        }
+        
+        response = http_session.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            features = data.get('features', [])
+            if features:
+                props = features[0].get('properties', {})
+                # Construire l'adresse complète
+                parts = []
+                if props.get('housenumber'):
+                    parts.append(props['housenumber'])
+                if props.get('street'):
+                    parts.append(props['street'])
+                elif props.get('name'):
+                    parts.append(props['name'])
+                if props.get('postcode'):
+                    parts.append(props['postcode'])
+                if props.get('city'):
+                    parts.append(props['city'])
+                
+                address = ' '.join(parts) if parts else None
+                distance = props.get('distance', 0)
+                
+                return {
+                    'address': address,
+                    'distance': distance,
+                    'postcode': props.get('postcode'),
+                    'city': props.get('city'),
+                    'citycode': props.get('citycode'),
+                    'context': props.get('context'),
+                    'score': props.get('score', 0)
+                }
+        return None
+    except Exception as e:
+        safe_print(f"🔴 [ADRESSE IGN] Erreur géocodage inverse: {e}")
+        return None
     
 def fetch_sirene_info(siret):
     try:
@@ -1066,17 +1023,31 @@ def get_all_ht_postes(lat, lon, radius_deg=0.5):
 
 def get_all_capacites_reseau(lat, lon, radius_deg=0.1):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
+    print(f"[DEBUG CAPACITES] bbox: {bbox}")
+    print(f"[DEBUG CAPACITES] layer: {CAPACITES_RESEAU_LAYER}")
+    
     features = fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox)
+    print(f"[DEBUG CAPACITES] features brutes trouvées: {len(features) if features else 0}")
+    
+    if features and len(features) > 0:
+        print(f"[DEBUG CAPACITES] Premier exemple: {list(features[0].get('properties', {}).keys())[:10]}")
+    
     capacites = []
     point = Point(lon, lat)
     for feature in features:
-        geom = shape(feature["geometry"])
-        distance = geom.distance(point) * 111000
-        capacites.append({
-            "properties": feature["properties"],
-            "distance": round(distance, 2),
-            "geometry": mapping(geom)
-        })
+        try:
+            geom = shape(feature["geometry"])
+            distance = geom.distance(point) * 111000
+            capacites.append({
+                "properties": feature["properties"],
+                "distance": round(distance, 2),
+                "geometry": mapping(geom)
+            })
+        except Exception as e:
+            print(f"[DEBUG CAPACITES] Erreur traitement feature: {e}")
+            continue
+    
+    print(f"[DEBUG CAPACITES] capacités finales: {len(capacites)}")
     return sorted(capacites, key=lambda x: x["distance"])
 
 
@@ -1127,6 +1098,247 @@ def get_zaer_info(lat, lon, radius=0.03):
     bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
     return fetch_wfs_data(ZAER_LAYER, bbox)
 
+# ===== NOUVELLES FONCTIONS POUR RECHERCHE PAR POLYGONE COMMUNE =====
+def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
+    """
+    Récupère des données en utilisant directement le polygone de la commune
+    via l'API Carto selon la documentation officielle
+    """
+    import json
+    import requests
+    
+    try:
+        if layer_name:
+            # Pour les données WFS (parkings, friches, etc.)
+            # On utilise une approche hybride : bbox + filtrage géométrique
+            if isinstance(geom_geojson, dict):
+                from shapely.geometry import shape
+                commune_poly = shape(geom_geojson)
+                minx, miny, maxx, maxy = commune_poly.bounds
+                bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+                
+                print(f"🔍 [POLYGON_SEARCH] {layer_name}: bbox {bbox}")
+                features = fetch_wfs_data(layer_name, bbox)
+                
+                # Filtrage géométrique précis
+                if features:
+                    filtered = []
+                    for f in features:
+                        if "geometry" not in f:
+                            continue
+                        try:
+                            geom = shape(f["geometry"])
+                            if not geom.is_valid:
+                                geom = geom.buffer(0)
+                            if geom.intersects(commune_poly):
+                                filtered.append(f)
+                        except Exception as e:
+                            continue
+                    print(f"✅ [POLYGON_SEARCH] {layer_name}: {len(filtered)}/{len(features)} features dans la commune")
+                    return filtered
+                return features
+        else:
+            # Pour l'API Carto directe (cadastre, etc.)
+            params = {
+                "geom": json.dumps(geom_geojson) if isinstance(geom_geojson, dict) else geom_geojson,
+                "_limit": 1000
+            }
+            
+            print(f"🔍 [API_CARTO] {api_endpoint} avec géométrie commune")
+            resp = requests.get(api_endpoint, params=params, timeout=30)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                features = data.get('features', [])
+                print(f"✅ [API_CARTO] {api_endpoint}: {len(features)} features trouvées")
+                return features
+            else:
+                print(f"⚠️ [API_CARTO] {api_endpoint}: erreur {resp.status_code}")
+                return []
+                
+    except Exception as e:
+        print(f"❌ [POLYGON_SEARCH] Erreur {api_endpoint}: {e}")
+        return []
+
+def get_rpg_info_by_polygon(commune_geom):
+    """Récupère les données RPG en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, "https://apicarto.ign.fr/api/rpg/parcelles", PARCELLES_GRAPHIQUES_LAYER)
+
+def get_parkings_info_by_polygon(commune_geom):
+    """Récupère les données parkings en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, None, PARKINGS_LAYER)
+
+def get_friches_info_by_polygon(commune_geom):
+    """Récupère les données friches en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, None, FRICHES_LAYER)
+
+def get_solaire_info_by_polygon(commune_geom):
+    """Récupère les données solaires en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, None, POTENTIEL_SOLAIRE_LAYER)
+
+def get_zaer_info_by_polygon(commune_geom):
+    """Récupère les données ZAER en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, None, ZAER_LAYER)
+
+def get_plu_info_by_polygon(commune_geom):
+    """Récupère les données PLU en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, None, PLU_LAYER)
+
+def get_sirene_info_by_polygon(commune_geom):
+    """Récupère les données Sirene en utilisant le polygone exact de la commune"""
+    return get_data_by_commune_polygon(commune_geom, None, SIRENE_LAYER)
+
+def get_batiments_info_by_polygon(commune_geom):
+    """
+    Récupère TOUS les bâtiments d'une commune en utilisant OpenStreetMap via l'API Overpass
+    
+    Cette fonction utilise la même méthodologie robuste que les parkings :
+    - API Cadastre pour les contours de commune ✅
+    - OpenStreetMap pour les bâtiments ✅
+    """
+    import json
+    import requests
+    from shapely.geometry import shape, Polygon
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    
+    print(f"🏠 [BATIMENTS_OSM] Récupération via OpenStreetMap (Overpass API)")
+    
+    try:
+        commune_poly = shape(commune_geom)
+        bounds = commune_poly.bounds
+        minx, miny, maxx, maxy = bounds
+        
+        # Calculer la taille de la commune
+        total_area = (maxx - minx) * (maxy - miny)
+        print(f"📐 [BATIMENTS] Superficie bbox: {total_area:.6f}° (~{total_area*12100:.0f}km²)")
+        
+        # Centroïde pour les requêtes par rayon si nécessaire
+        centroid = commune_poly.centroid
+        center_lat, center_lon = centroid.y, centroid.x
+        
+        # Calculer un rayon approximatif pour couvrir toute la commune
+        # Distance du centre au coin le plus éloigné
+        import math
+        max_distance = max(
+            math.sqrt((maxx - center_lon)**2 + (maxy - center_lat)**2),
+            math.sqrt((minx - center_lon)**2 + (miny - center_lat)**2)
+        )
+        radius_meters = int(max_distance * 111000)  # Conversion degrés -> mètres
+        
+        print(f"🎯 [BATIMENTS] Centre: ({center_lat:.4f}, {center_lon:.4f}), Rayon: {radius_meters}m")
+        
+        # Requête Overpass pour récupérer tous les bâtiments dans la zone
+        overpass_query = f"""
+        [out:json][timeout:60];
+        (
+          way["building"](around:{radius_meters},{center_lat},{center_lon});
+          relation["building"](around:{radius_meters},{center_lat},{center_lon});
+        );
+        out geom;
+        """
+        
+        print(f"🌐 [BATIMENTS] Envoi requête Overpass...")
+        
+        response = requests.post(
+            "https://overpass-api.de/api/interpreter",
+            data=overpass_query,
+            timeout=120  # Timeout plus long pour les grandes communes
+        )
+        
+        if response.status_code != 200:
+            print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")
+            return {"type": "FeatureCollection", "features": []}
+        
+        data = response.json()
+        elements = data.get("elements", [])
+        print(f"📊 [BATIMENTS] {len(elements)} éléments OSM bruts récupérés")
+        
+        # Convertir les éléments OSM en GeoJSON
+        all_features = []
+        
+        for elem in elements:
+            try:
+                if elem.get("type") == "way" and elem.get("geometry"):
+                    # Construire le polygone du bâtiment
+                    coords = [[node["lon"], node["lat"]] for node in elem["geometry"]]
+                    
+                    if len(coords) >= 3:
+                        # Fermer le polygone si nécessaire
+                        if coords[0] != coords[-1]:
+                            coords.append(coords[0])
+                        
+                        # Créer la géométrie Shapely pour test d'intersection
+                        building_poly = Polygon(coords)
+                        
+                        # Vérifier que le bâtiment est vraiment dans la commune
+                        if commune_poly.contains(building_poly) or commune_poly.intersects(building_poly):
+                            # Propriétés du bâtiment OSM
+                            props = elem.get("tags", {}).copy()
+                            props.update({
+                                "osm_id": elem.get("id"),
+                                "osm_type": elem.get("type"),
+                                "source": "OpenStreetMap"
+                            })
+                            
+                            feature = {
+                                "type": "Feature",
+                                "geometry": {
+                                    "type": "Polygon",
+                                    "coordinates": [coords]
+                                },
+                                "properties": props
+                            }
+                            all_features.append(feature)
+                            
+                elif elem.get("type") == "relation" and elem.get("members"):
+                    # Relations plus complexes (bâtiments multipolygones)
+                    # Pour l'instant on les ignore, mais on pourrait les traiter
+                    continue
+                    
+            except Exception as e:
+                print(f"⚠️ [BATIMENTS] Erreur conversion élément OSM: {e}")
+                continue
+        
+        print(f"✅ [BATIMENTS_OSM] {len(all_features)} bâtiments filtrés dans la commune")
+        
+        # Calcul des surfaces pour statistiques
+        to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+        surfaces = []
+        
+        for feat in all_features[:100]:  # Échantillon pour stats
+            try:
+                geom = shape(feat["geometry"])
+                surface_m2 = shp_transform(to_l93, geom).area
+                surfaces.append(surface_m2)
+            except:
+                continue
+        
+        if surfaces:
+            avg_surface = sum(surfaces) / len(surfaces)
+            surfaces_100m2_plus = [s for s in surfaces if s >= 100]
+            ratio_100m2 = len(surfaces_100m2_plus) / len(surfaces) if surfaces else 0
+            estimated_100m2 = int(len(all_features) * ratio_100m2)
+            
+            print(f"📊 [STATS] Surface moyenne: {avg_surface:.1f}m² (échantillon)")
+            print(f"📊 [STATS] Estimation bâtiments >100m²: {estimated_100m2}/{len(all_features)} ({100*ratio_100m2:.1f}%)")
+        
+        return {
+            "type": "FeatureCollection",
+            "features": all_features,
+            "metadata": {
+                "method": "openstreetmap_overpass",
+                "radius_meters": radius_meters,
+                "center": [center_lat, center_lon],
+                "osm_elements_raw": len(elements),
+                "buildings_filtered": len(all_features)
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [BATIMENTS_OSM] Erreur globale: {e}")
+        return {"type": "FeatureCollection", "features": []}
+
 def decode_rpg_feature(feature):
     props = feature.get("properties", {})
     code = props.get("CODE_CULTU", "").strip()
@@ -1159,8 +1371,204 @@ def get_api_cadastre_data(geom, endpoint="/cadastre/parcelle", source_ign="PCI")
     response = requests.get(url, params=params)
     if response.status_code == 200:
         return response.json()
-    print(f"Erreur API Cadastre: {response.status_code} - {response.text}")
+    elif response.status_code == 414:
+        print(f"⚠️ API Cadastre: 414 URI Too Large - polygone trop grand pour une requête directe")
+    else:
+        print(f"⚠️ API Cadastre: {response.status_code} - {response.text}")
     return None
+
+def get_batiments_data(geom):
+    """
+    Récupère les empreintes de bâtiments via OpenStreetMap Overpass API.
+    L'API Cadastre bâtiment n'existant pas, nous utilisons directement OSM.
+    
+    Args:
+        geom: Géométrie GeoJSON (Point, Polygon, etc.)
+    
+    Returns:
+        dict: FeatureCollection des bâtiments ou None si erreur
+    """
+    # Méthode 1: OpenStreetMap Overpass API (source principale pour les bâtiments)
+    try:
+        from shapely.geometry import shape
+        
+        if geom.get("type") == "Point":
+            lon, lat = geom["coordinates"]
+            # Requête Overpass pour les bâtiments dans un rayon de 500m
+            overpass_query = f"""
+            [out:json][timeout:25];
+            (
+              way["building"](around:500,{lat},{lon});
+              relation["building"](around:500,{lat},{lon});
+            );
+            out geom;
+            """
+        else:
+            # CORRECTION: Pour un polygone, utiliser le polygone complet avec la syntaxe poly
+            try:
+                print("🔄 [BATIMENTS] Utilisation du polygone complet pour OSM Overpass")
+                
+                # Convertir le polygone en coordonnées pour Overpass
+                # Overpass utilise la syntaxe poly:"lat1 lon1 lat2 lon2 ..."
+                if geom.get("type") == "Polygon":
+                    polygon_coords = geom["coordinates"][0]  # Premier ring du polygone
+                elif geom.get("type") == "MultiPolygon":
+                    # Pour MultiPolygon, prendre le premier polygone
+                    polygon_coords = geom["coordinates"][0][0]
+                else:
+                    raise ValueError(f"Type de géométrie non supporté: {geom.get('type')}")
+                
+                # Limiter le nombre de points pour éviter les URLs trop longues
+                max_points = 100
+                if len(polygon_coords) > max_points:
+                    step = len(polygon_coords) // max_points
+                    polygon_coords = polygon_coords[::step]
+                
+                # Convertir en format Overpass: "lat lon lat lon ..."
+                poly_string = " ".join([f"{coord[1]} {coord[0]}" for coord in polygon_coords])
+                
+                print(f"🔍 [BATIMENTS] Requête OSM avec polygone de {len(polygon_coords)} points")
+                
+                overpass_query = f"""
+                [out:json][timeout:30];
+                (
+                  way["building"](poly:"{poly_string}");
+                  relation["building"](poly:"{poly_string}");
+                );
+                out geom;
+                """
+            except Exception as e:
+                print(f"⚠️ [BATIMENTS] Erreur construction requête polygone: {e}")
+                print("🔄 [BATIMENTS] Fallback vers méthode centroïde")
+                # Fallback vers la méthode centroïde en cas d'erreur
+                try:
+                    centroid = shape(geom).centroid
+                    lat, lon = centroid.y, centroid.x
+                    overpass_query = f"""
+                    [out:json][timeout:25];
+                    (
+                      way["building"](around:1000,{lat},{lon});
+                      relation["building"](around:1000,{lat},{lon});
+                    );
+                    out geom;
+                    """
+                except:
+                    print("⚠️ [BATIMENTS] Impossible de calculer le centroïde")
+                    return None
+        
+        overpass_url = "https://overpass-api.de/api/interpreter"
+        response = requests.post(overpass_url, data=overpass_query, timeout=30)
+        
+        if response.status_code == 200:
+            osm_data = response.json()
+            # Convertir les données OSM en GeoJSON
+            features = []
+            for element in osm_data.get("elements", []):
+                if element.get("type") == "way" and element.get("geometry"):
+                    coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
+                    if len(coords) > 2:
+                        # Fermer le polygone si nécessaire
+                        if coords[0] != coords[-1]:
+                            coords.append(coords[0])
+                        
+                        feature = {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Polygon",
+                                "coordinates": [coords]
+                            },
+                            "properties": {
+                                "source": "OpenStreetMap",
+                                "building": element.get("tags", {}).get("building", "yes"),
+                                "osm_id": element.get("id")
+                            }
+                        }
+                        features.append(feature)
+            
+            if features:
+                print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
+                return {"type": "FeatureCollection", "features": features}
+        else:
+            print(f"⚠️ [BATIMENTS] Overpass API: {response.status_code}")
+    except Exception as e:
+        print(f"⚠️ [BATIMENTS] Erreur OpenStreetMap: {e}")
+    
+    print("❌ [BATIMENTS] Aucune source de données bâtiments disponible")
+    return None
+
+def calculate_surface_libre_parcelle(parcelle_geom, batiments_data):
+    """
+    Calcule la surface libre d'une parcelle en soustrayant les surfaces bâties.
+    
+    Args:
+        parcelle_geom: Géométrie GeoJSON de la parcelle
+        batiments_data: FeatureCollection des bâtiments
+    
+    Returns:
+        dict: {"surface_totale_m2": float, "surface_batie_m2": float, "surface_libre_m2": float, "surface_libre_pct": float}
+    """
+    try:
+        from shapely.geometry import shape
+        from shapely.ops import transform as shp_transform
+        from pyproj import Transformer
+        
+        # Transformer vers Lambert 93 pour calculs de surface précis
+        to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+        
+        # Géométrie de la parcelle en Lambert 93
+        parcelle_shp = shape(parcelle_geom)
+        parcelle_l93 = shp_transform(to_l93, parcelle_shp)
+        surface_totale_m2 = parcelle_l93.area
+        
+        # Calculer la surface bâtie
+        surface_batie_m2 = 0.0
+        batiments_count = 0
+        
+        if batiments_data and batiments_data.get("features"):
+            for batiment in batiments_data["features"]:
+                batiment_geom = batiment.get("geometry")
+                if not batiment_geom:
+                    continue
+                
+                try:
+                    batiment_shp = shape(batiment_geom)
+                    batiment_l93 = shp_transform(to_l93, batiment_shp)
+                    
+                    # Intersection entre la parcelle et le bâtiment
+                    intersection = parcelle_l93.intersection(batiment_l93)
+                    if intersection.area > 0:
+                        surface_batie_m2 += intersection.area
+                        batiments_count += 1
+                except Exception as e:
+                    print(f"⚠️ [SURFACE_LIBRE] Erreur intersection bâtiment: {e}")
+                    continue
+        
+        # Calculs finaux
+        surface_libre_m2 = max(0, surface_totale_m2 - surface_batie_m2)
+        surface_libre_pct = (surface_libre_m2 / surface_totale_m2 * 100) if surface_totale_m2 > 0 else 0
+        
+        result = {
+            "surface_totale_m2": round(surface_totale_m2, 2),
+            "surface_batie_m2": round(surface_batie_m2, 2),
+            "surface_libre_m2": round(surface_libre_m2, 2),
+            "surface_libre_pct": round(surface_libre_pct, 1),
+            "batiments_count": batiments_count
+        }
+        
+        print(f"📊 [SURFACE_LIBRE] Parcelle: {result['surface_totale_m2']}m² total, {result['surface_batie_m2']}m² bâti ({batiments_count} bât.), {result['surface_libre_m2']}m² libre ({result['surface_libre_pct']}%)")
+        
+        return result
+        
+    except Exception as e:
+        print(f"❌ [SURFACE_LIBRE] Erreur calcul surface libre: {e}")
+        return {
+            "surface_totale_m2": 0,
+            "surface_batie_m2": 0,
+            "surface_libre_m2": 0,
+            "surface_libre_pct": 0,
+            "batiments_count": 0,
+            "error": str(e)
+        }
 
 def get_api_nature_data(geom, endpoint="/nature/natura-habitat"):
     url = f"https://apicarto.ign.fr/api{endpoint}"
@@ -1170,6 +1578,60 @@ def get_api_nature_data(geom, endpoint="/nature/natura-habitat"):
         return response.json()
     print(f"Erreur API Nature: {response.status_code} - {response.text}")
     return None
+
+def get_all_api_nature_data(geom):
+    """
+    Interroge tous les endpoints nature disponibles selon la documentation officielle API Nature v2.9.0
+    """
+    endpoints = [
+        # Natura 2000
+        ("/nature/natura-habitat", "Natura 2000 Directive Habitat"),
+        ("/nature/natura-oiseaux", "Natura 2000 Directive Oiseaux"),
+        
+        # ZNIEFF
+        ("/nature/znieff1", "ZNIEFF Type 1"),
+        ("/nature/znieff2", "ZNIEFF Type 2"),
+        
+        # Parcs
+        ("/nature/pn", "Parcs Nationaux"),
+        ("/nature/pnr", "Parcs Naturels Régionaux"),
+        
+        # Réserves naturelles
+        ("/nature/rnn", "Réserves Naturelles Nationales"),
+        ("/nature/rnc", "Réserves Naturelles de Corse"),
+        
+        # Chasse et faune sauvage
+        ("/nature/rncf", "Réserves Nationales de Chasse et Faune Sauvage")
+    ]
+    
+    all_features = []
+    
+    for endpoint, type_name in endpoints:
+        try:
+            data = get_api_nature_data(geom, endpoint)
+            if data and data.get("features"):
+                # Ajouter le type de protection aux propriétés
+                for feature in data["features"]:
+                    if "properties" not in feature:
+                        feature["properties"] = {}
+                    feature["properties"]["TYPE_PROTECTION"] = type_name
+                
+                all_features.extend(data["features"])
+                print(f"🌿 [API NATURE] {type_name}: {len(data['features'])} zones trouvées")
+            else:
+                print(f"🌿 [API NATURE] {type_name}: 0 zones trouvées")
+        except Exception as e:
+            print(f"🌿 [API NATURE] Erreur {endpoint}: {e}")
+    
+    if all_features:
+        print(f"🌿 [API NATURE] Total: {len(all_features)} zones naturelles protégées")
+        return {
+            "type": "FeatureCollection",
+            "features": all_features
+        }
+    else:
+        print(f"🌿 [API NATURE] Aucune zone naturelle trouvée")
+        return {"type": "FeatureCollection", "features": []}
 
 def flatten_feature_collections(fc):
     """
@@ -1352,25 +1814,72 @@ def get_pvgis_production(lat, lon, tilt, azimuth, peakpower=1.0):
         print("Erreur PVGIS:", e)
         return None
 def get_elevation_at_point(lat, lon):
-    geojson = {
-        "type": "Point",
-        "coordinates": [lon, lat]
-    }
-    payload = {"points": geojson, "dataSetName": "SRTM_GL3"}
-    url = f"{ELEVATION_API_URL}/points"
-    headers = {"Content-Type": "application/json"}
+    """
+    Récupère l'altitude d'un point en utilisant l'API Open-Elevation (gratuite).
+    Fallback sur l'API IGN si disponible.
+    """
+    # Méthode 1: Open-Elevation (API gratuite et fiable)
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        url = "https://api.open-elevation.com/api/v1/lookup"
+        params = {
+            "locations": f"{lat},{lon}"
+        }
+        response = requests.get(url, params=params, timeout=15)
         if response.status_code == 200:
-            result = response.json()
-            values = result.get("data", [])
-            if values and len(values) > 0:
-                elevation = values[0].get("elevation")
+            data = response.json()
+            results = data.get("results", [])
+            if results and len(results) > 0:
+                elevation = results[0].get("elevation")
                 if elevation is not None:
-                    return round(elevation, 2)
+                    print(f"✅ Altitude Open-Elevation: {elevation}m pour {lat}, {lon}")
+                    return round(float(elevation), 2)
     except Exception as e:
-        print("Erreur get_elevation_at_point:", e)
-    return 0  # Retourner 0 au lieu de None
+        print(f"❌ Erreur Open-Elevation: {e}")
+    
+    # Méthode 2: API IGN (France uniquement)
+    try:
+        if 41.0 <= lat <= 51.5 and -5.5 <= lon <= 10.0:  # Approximativement la France
+            url = "https://wxs.ign.fr/calcul/alti/rest/elevation.json"
+            params = {
+                "lon": lon,
+                "lat": lat,
+                "zonly": True
+            }
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                data = response.json()
+                elevations = data.get("elevations", [])
+                if elevations and len(elevations) > 0:
+                    elevation = elevations[0].get("z")
+                    if elevation is not None:
+                        print(f"✅ Altitude IGN: {elevation}m pour {lat}, {lon}")
+                        return round(float(elevation), 2)
+    except Exception as e:
+        print(f"❌ Erreur API IGN altitude: {e}")
+    
+    # Méthode 3: USGS Elevation Point Query Service (backup)
+    try:
+        url = "https://nationalmap.gov/epqs/pqs.php"
+        params = {
+            "x": lon,
+            "y": lat,
+            "units": "Meters",
+            "output": "json"
+        }
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            result = data.get("USGS_Elevation_Point_Query_Service", {})
+            result_data = result.get("Elevation_Query", {})
+            elevation = result_data.get("Elevation")
+            if elevation is not None and elevation != -1000000:  # -1000000 = pas de données
+                print(f"✅ Altitude USGS: {elevation}m pour {lat}, {lon}")
+                return round(float(elevation), 2)
+    except Exception as e:
+        print(f"❌ Erreur USGS: {e}")
+    
+    print(f"⚠️ Aucune API altitude n'a fonctionné pour {lat}, {lon}")
+    return None  # Retourner None pour permettre le fallback à 150m
 
 def bbox_to_polygon(lon, lat, delta):
     """
@@ -1568,6 +2077,7 @@ def build_simple_map(
     folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
     
     # Outils
+    from folium.plugins import Draw
     Draw(export=True).add_to(map_obj)
     MeasureControl(position="topright").add_to(map_obj)
     
@@ -1780,6 +2290,19 @@ def build_map(
         capacites_reseau = []
     if ppri_data is None or not isinstance(ppri_data, dict):
         ppri_data = {"type": "FeatureCollection", "features": []}
+    
+    # === CRÉATION DE LA CARTE (doit être fait avant toute utilisation) ===
+    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+    
+    # Ajouter les couches de base
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery",
+        name="Satellite",
+        overlay=False, control=True, show=True
+    ).add_to(map_obj)
+    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
+    
     # --- PPRI ---
     if ppri_data.get("features"):
         ppri_group = folium.FeatureGroup(name="PPRI", show=True)
@@ -1807,16 +2330,9 @@ def build_map(
 
     # Option: mode léger (pas de LayerControl, pas de Marker inutile)
     mode_light = False  # Désactivé par défaut
-    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
-
-    folium.TileLayer(
-        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        attr="Esri World Imagery",
-        name="Satellite",
-        overlay=False, control=True, show=True
-    ).add_to(map_obj)
-    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
+    
     if not mode_light:
+        from folium.plugins import Draw
         Draw(export=True).add_to(map_obj)
         MeasureControl(position="topright").add_to(map_obj)
 
@@ -1944,8 +2460,10 @@ def build_map(
     map_obj.add_child(plu_group)
 
     # Autres couches simples
-    for name, data, color in [("Parkings", parkings_data, "darkgreen"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
+    for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
+        print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")
         group = folium.FeatureGroup(name=name, show=True)
+        
         for f in data:
             geom = f.get("geometry")
             valid_geom = False
@@ -1957,12 +2475,223 @@ def build_map(
                         valid_geom = True
             if valid_geom:
                 try:
-                    folium.GeoJson(geom, style_function=lambda _: {"color": color, "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in f.get("properties", {}).items())).add_to(group)
+                    # Création d'un tooltip enrichi pour parkings, friches et toitures avec références cadastrales
+                    props = f.get("properties", {})
+                    tooltip_lines = []
+                    
+                    # Calculer le centroïde pour le lien Google Street View (pour parkings, friches et toitures)
+                    street_view_link = ""
+                    pages_jaunes_link = ""
+                    
+                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
+                        try:
+                            from shapely.geometry import shape
+                            geom_shape = shape(geom)
+                            centroid = geom_shape.centroid
+                            lat_center = centroid.y
+                            lon_center = centroid.x
+                            
+                            street_view_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_center},{lon_center}"
+                            
+                            # Emoji différent selon le type
+                            if name == "Potentiel Solaire":  # Toitures
+                                icon = "🏠"
+                                text = "Voir la toiture"
+                                
+                                # Lien Pages Jaunes spécifique pour les toitures
+                                adresse = props.get("adresse")
+                                if adresse and adresse != "Adresse non trouvée" and adresse != "Erreur géocodage":
+                                    from urllib.parse import quote_plus
+                                    adresse_encoded = quote_plus(adresse)
+                                    pages_jaunes_url = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={adresse_encoded}&univers=pagesjaunes&idOu="
+                                    pages_jaunes_link = f"<br><a href='{pages_jaunes_url}' target='_blank' style='color: #ff8c00; text-decoration: none; padding: 4px 8px; background: #fff8dc; border-radius: 4px; display: inline-block;'>📞 Pages Jaunes</a>"
+                                
+                            elif name == "Parkings":
+                                icon = "🅿️"
+                                text = "Voir le parking"
+                            else:  # Friches
+                                icon = "🌾"
+                                text = "Voir la friche"
+                                
+                            street_view_link = f"<br><br><a href='{street_view_url}' target='_blank' style='color: #1474fa; text-decoration: none; padding: 4px 8px; background: #f0f8ff; border-radius: 4px; display: inline-block;'>{icon} {text}</a>"
+                        except Exception as e:
+                            print(f"[DEBUG] Impossible de calculer le centroïde pour {name}: {e}")
+                    
+                    # Debug : Vérifier si on a des références cadastrales
+                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
+                        cadastre_refs = props.get("parcelles_cadastrales", [])
+                        print(f"🏛️ [DEBUG {name}] Feature avec {len(cadastre_refs)} références cadastrales")
+                    
+                    # Traitement spécial pour les toitures (Potentiel Solaire)
+                    if name == "Potentiel Solaire":
+                        # Affichage prioritaire de l'adresse pour les toitures
+                        adresse = props.get("adresse")
+                        if adresse and adresse != "Adresse non trouvée" and adresse != "Erreur géocodage":
+                            tooltip_lines.append(f"<b>📍 Adresse:</b> {adresse}")
+                            
+                            # Informations complémentaires sur l'adresse
+                            distance = props.get("adresse_distance")
+                            score = props.get("adresse_score")
+                            if distance is not None:
+                                tooltip_lines.append(f"<b>Distance adresse:</b> {distance}m")
+                            if score:
+                                tooltip_lines.append(f"<b>Précision:</b> {score:.1f}")
+                        
+                        # Surface de la toiture
+                        surface = props.get("area", props.get("surface"))
+                        if surface:
+                            tooltip_lines.append(f"<b>🏠 Surface toiture:</b> {surface:.0f} m²")
+                        
+                        # Références cadastrales
+                        refs_cadastrales = props.get("parcelles_cadastrales", [])
+                        if refs_cadastrales:
+                            tooltip_lines.append(f"<b>🏛️ Parcelles cadastrales ({len(refs_cadastrales)}):</b>")
+                            for ref in refs_cadastrales[:3]:  # Limite à 3 pour les toitures
+                                if isinstance(ref, dict):
+                                    ref_complete = ref.get('reference_complete', 'N/A')
+                                    tooltip_lines.append(f"  • {ref_complete}")
+                            if len(refs_cadastrales) > 3:
+                                tooltip_lines.append(f"  ... et {len(refs_cadastrales) - 3} autres")
+                        
+                        # Autres propriétés importantes pour les toitures
+                        for k, v in props.items():
+                            if k not in ["adresse", "adresse_distance", "adresse_score", "code_postal", "ville", "code_commune", 
+                                       "parcelles_cadastrales", "nb_parcelles_cadastrales", "area", "surface"]:
+                                if k in ["distance_poste_bt", "distance_poste_hta"]:
+                                    tooltip_lines.append(f"<b>⚡ {k}:</b> {v:.0f}m" if isinstance(v, (int, float)) else f"<b>{k}:</b> {v}")
+                                else:
+                                    tooltip_lines.append(f"<b>{k}:</b> {v}")
+                    
+                    else:
+                        # Traitement standard pour parkings et friches
+                        for k, v in props.items():
+                            if k == "parcelles_cadastrales" and isinstance(v, list) and v:
+                                # Affichage formaté des références cadastrales
+                                tooltip_lines.append(f"<b>Références cadastrales ({len(v)}):</b>")
+                                for ref in v[:5]:  # Limite à 5 références pour la lisibilité
+                                    if isinstance(ref, dict):
+                                        ref_complete = ref.get('reference_complete', 'N/A')
+                                        tooltip_lines.append(f"  • {ref_complete}")
+                                    else:
+                                        tooltip_lines.append(f"  • {str(ref)}")
+                                if len(v) > 5:
+                                    tooltip_lines.append(f"  ... et {len(v) - 5} autres")
+                            elif k == "nb_parcelles_cadastrales":
+                                tooltip_lines.append(f"<b>{k}:</b> {v}")
+                            elif k not in ["parcelles_cadastrales"]:  # Exclure la liste brute
+                                tooltip_lines.append(f"<b>{k}:</b> {v}")
+                    
+                    tooltip_text = "<br>".join(tooltip_lines)
+                    
+                    # Créer le popup avec les liens Street View et Pages Jaunes si disponibles
+                    popup_content = tooltip_text + street_view_link + pages_jaunes_link
+                    
+                    # SOLUTION: Créer la style_function directement sans closure
+                    if name == "Parkings":
+                        style_func = lambda feature: {
+                            "color": "orange", 
+                            "weight": 3, 
+                            "fillColor": "orange", 
+                            "fillOpacity": 0.4,
+                            "opacity": 0.8
+                        }
+                    elif name == "Friches":
+                        style_func = lambda feature: {
+                            "color": "brown", 
+                            "weight": 3, 
+                            "fillColor": "brown", 
+                            "fillOpacity": 0.4,
+                            "opacity": 0.8
+                        }
+                    elif name == "Potentiel Solaire":
+                        style_func = lambda feature: {
+                            "color": "gold", 
+                            "weight": 3, 
+                            "fillColor": "gold", 
+                            "fillOpacity": 0.4,
+                            "opacity": 0.8
+                        }
+                    else:  # ZAER
+                        style_func = lambda feature: {
+                            "color": "cyan", 
+                            "weight": 3, 
+                            "fillColor": "cyan", 
+                            "fillOpacity": 0.4,
+                            "opacity": 0.8
+                        }
+                    
+                    folium.GeoJson(
+                        geom, 
+                        style_function=style_func,
+                        tooltip=tooltip_text,
+                        popup=folium.Popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
+                    ).add_to(group)
                 except Exception as e:
                     print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
             else:
                 print(f"[DEBUG] Invalid {name} geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
         map_obj.add_child(group)
+
+    # Couche cadastre des parkings/friches sélectionnés
+    parking_friches_cadastre = []
+    
+    # Collecter toutes les références cadastrales des parkings
+    for parking in parkings_data:
+        parcelles = parking.get("properties", {}).get("parcelles_cadastrales", [])
+        for parcelle in parcelles:
+            if parcelle.get("reference_complete"):
+                parking_friches_cadastre.append({
+                    "reference": parcelle.get("reference_complete"),
+                    "type": "parking",
+                    "source_surface": parking.get("properties", {}).get("surface_m2", "N/A"),
+                    "source_distance": parking.get("properties", {}).get("min_poste_distance_m", "N/A")
+                })
+    
+    # Collecter toutes les références cadastrales des friches
+    for friche in friches_data:
+        parcelles = friche.get("properties", {}).get("parcelles_cadastrales", [])
+        for parcelle in parcelles:
+            if parcelle.get("reference_complete"):
+                parking_friches_cadastre.append({
+                    "reference": parcelle.get("reference_complete"),
+                    "type": "friche", 
+                    "source_surface": friche.get("properties", {}).get("surface_m2", "N/A"),
+                    "source_distance": friche.get("properties", {}).get("min_poste_distance_m", "N/A")
+                })
+    
+    if parking_friches_cadastre:
+        cadastre_filtered_group = folium.FeatureGroup(name="🏛️ Cadastre Parkings/Friches", show=True)
+        
+        # Compter les références par type
+        parking_refs = [r for r in parking_friches_cadastre if r["type"] == "parking"]
+        friche_refs = [r for r in parking_friches_cadastre if r["type"] == "friche"]
+        
+        # Créer un marker informatif
+        info_popup = f"""
+        <b>📊 Références Cadastrales Collectées</b><br>
+        🅿️ Parkings: {len(parking_refs)} références<br>
+        🏭 Friches: {len(friche_refs)} références<br>
+        📋 Total: {len(parking_friches_cadastre)} références<br><br>
+        
+        <b>Exemples de références:</b><br>
+        """
+        
+        for i, ref_info in enumerate(parking_friches_cadastre[:5]):
+            icon = "🅿️" if ref_info["type"] == "parking" else "🏭"
+            info_popup += f"{icon} {ref_info['reference']}<br>"
+        
+        if len(parking_friches_cadastre) > 5:
+            info_popup += f"... et {len(parking_friches_cadastre) - 5} autres"
+        
+        # Ajouter un marker central avec la liste
+        folium.Marker(
+            [lat, lon],
+            popup=folium.Popup(info_popup, max_width=400),
+            icon=folium.Icon(color="purple", icon="list", prefix="fa")
+        ).add_to(cadastre_filtered_group)
+        
+        map_obj.add_child(cadastre_filtered_group)
+        print(f"✅ [CARTE] Couche cadastre: {len(parking_friches_cadastre)} références affichées")
 
     # RPG
     rpg_group = folium.FeatureGroup(name="RPG", show=True)
@@ -2160,12 +2889,64 @@ def build_map(
     # API Cadastre/Nature IGN (5km)
     cad5 = api_cadastre or {"type": "FeatureCollection", "features": []}
     nat5 = api_nature or {"type": "FeatureCollection", "features": []}
-    for name, data, show in [("API Cadastre IGN (5km)", cad5, False), ("API Nature IGN (5km)", nat5, False)]:
-        grp = folium.FeatureGroup(name=name, show=show)
-        for f in data.get('features', []):
+    
+    # Cadastre (masqué par défaut)
+    cad_grp = folium.FeatureGroup(name="API Cadastre IGN (5km)", show=False)
+    for f in cad5.get('features', []):
+        if f.get('geometry'):
+            folium.GeoJson(
+                f['geometry'], 
+                style_function=lambda _: {"color": "#FF5500", "weight": 2, "fillOpacity": 0.3}, 
+                tooltip="<br>".join(f"{k}: {v}" for k, v in f.get('properties', {}).items())
+            ).add_to(cad_grp)
+    map_obj.add_child(cad_grp)
+    
+    # Zones naturelles protégées (affichées par défaut)
+    if nat5.get('features'):
+        nat_grp = folium.FeatureGroup(name="🌿 Zones Naturelles Protégées", show=True)
+        
+        # Couleurs par type de protection
+        protection_colors = {
+            "Parcs Nationaux": "#2E8B57",  # Vert foncé
+            "Parcs Naturels Régionaux": "#228B22",  # Vert forêt
+            "Natura 2000 Directive Habitat": "#4682B4",  # Bleu acier
+            "Natura 2000 Directive Oiseaux": "#87CEEB",  # Bleu ciel
+            "ZNIEFF Type 1": "#FFB347",  # Orange
+            "ZNIEFF Type 2": "#FFA500",  # Orange foncé
+            "Réserves Naturelles Nationales": "#8B0000",  # Rouge foncé
+            "Réserves Naturelles de Corse": "#DC143C",  # Rouge cramoisi
+            "Réserves Nationales de Chasse et Faune Sauvage": "#8B4513"  # Brun
+        }
+        
+        for f in nat5.get('features', []):
             if f.get('geometry'):
-                folium.GeoJson(f['geometry'], style_function=lambda _: {"color": "#FF5500" if 'Cadastre' in name else "#22AA22", "weight":2}, tooltip="<br>".join(f"{k}: {v}" for k, v in f.get('properties', {}).items())).add_to(grp)
-        map_obj.add_child(grp)
+                props = f.get('properties', {})
+                type_protection = props.get('TYPE_PROTECTION', 'Zone naturelle')
+                color = protection_colors.get(type_protection, "#22AA22")
+                
+                # Popup avec informations détaillées
+                popup_content = f"<div style='max-width: 300px;'>"
+                popup_content += f"<h5 style='color: {color};'>{props.get('NOM', 'Zone naturelle')}</h5>"
+                popup_content += f"<span class='badge' style='background-color: {color}; color: white; margin-bottom: 10px;'>{type_protection}</span><br><br>"
+                
+                for k, v in props.items():
+                    if k not in ['TYPE_PROTECTION'] and v:
+                        popup_content += f"<b>{k}:</b> {v}<br>"
+                popup_content += "</div>"
+                
+                folium.GeoJson(
+                    f['geometry'], 
+                    style_function=lambda _, c=color: {
+                        "color": c, 
+                        "weight": 3, 
+                        "fillOpacity": 0.4,
+                        "fillColor": c
+                    },
+                    popup=folium.Popup(popup_content, max_width=400),
+                    tooltip=f"🌿 {props.get('NOM', 'Zone naturelle')} ({type_protection})"
+                ).add_to(nat_grp)
+        
+        map_obj.add_child(nat_grp)
 
     if not mode_light:
         folium.LayerControl().add_to(map_obj)
@@ -2227,7 +3008,10 @@ def build_map(
     if getattr(map_obj, '_no_save', False):
         print("💡 Carte non sauvegardée sur disque (mode _no_save)")
     else:
-        save_map_html(map_obj, "cartes.html")
+        # Ajouter timestamp pour éviter le cache
+        import time
+        timestamp = int(time.time())
+        save_map_html(map_obj, f"cartes_{timestamp}.html")
     return map_obj
 # Endpoint d'administration pour purger toutes les cartes
 @app.route("/purge_cartes", methods=["POST"])
@@ -2304,19 +3088,202 @@ from flask import Flask, Response
 
 from flask import url_for, redirect
 
+@app.route("/commune_search_sse")
+def commune_search_sse():
+    """
+    Diffuse en temps réel des logs de progression lors d'une recherche par commune,
+    via Server-Sent Events (SSE). À la fin, envoie un évènement 'redirect' vers le
+    rapport complet HTML afin de ne pas dupliquer la génération.
+
+    Utilisation côté client: EventSource('/commune_search_sse?...')
+    """
+    from flask import request as flask_request
+    from urllib.parse import quote_plus
+    import json as _json
+
+    def sse_format(event: str | None, data: str):
+        chunks = []
+        if event:
+            chunks.append(f"event: {event}")
+        for line in data.splitlines() or [""]:
+            chunks.append(f"data: {line}")
+        return "\n".join(chunks) + "\n\n"
+
+    @stream_with_context
+    def event_stream():
+        # Récupération des paramètres minimaux
+        commune = flask_request.args.get("commune", "").strip()
+        if not commune:
+            yield sse_format("error", "Veuillez fournir une commune.")
+            return
+
+        # Transmettre quelques filtres utiles (optionnels)
+        filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
+        filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
+        filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
+        filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
+        filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
+
+        try:
+            yield sse_format(None, f"🔎 Démarrage analyse pour: {commune}")
+            yield sse_format(None, "⏳ Récupération du contour de la commune…")
+
+            # Vérifie accès au contour pour feedback utilisateur
+            resp = requests.get(
+                f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour",
+                timeout=12
+            )
+            if resp.status_code != 200:
+                yield sse_format("error", f"Erreur Geo API Gouv: {resp.status_code}")
+                return
+            infos = resp.json() or []
+            if not infos or not infos[0].get("contour"):
+                yield sse_format("error", "Contour de la commune introuvable.")
+                return
+            centre = infos[0].get("centre", {}).get("coordinates", [None, None])
+            yield sse_format(None, f"✅ Contour récupéré (centre: lat={centre[1]}, lon={centre[0]})")
+
+            # Feedback sur filtres sélectionnés
+            selected = []
+            if filter_rpg:      selected.append("RPG")
+            if filter_parkings: selected.append("Parkings")
+            if filter_friches:  selected.append("Friches")
+            if filter_toitures: selected.append("Toitures")
+            if selected:
+                yield sse_format(None, "🧰 Couches activées: " + ", ".join(selected))
+            if filter_by_dist:
+                yield sse_format(None, "📏 Filtrage par distance aux postes activé")
+
+            # Étapes principales (indicatives, la génération réelle est faite sur l'URL de rapport)
+            yield sse_format(None, "📡 Préparation de la génération du rapport complet…")
+            yield sse_format(None, "🗺️ La carte et les analyses détaillées seront générées…")
+
+            # Fin: ne pas rediriger automatiquement. Le rapport sera généré
+            # uniquement via le bouton "Générer rapport commune".
+            yield sse_format(None, "✅ Analyse terminée. Utilisez le bouton 'Générer rapport commune' pour créer le rapport.")
+            yield sse_format("done", "done")
+        except Exception as e:
+            safe_print(f"❌ [SSE COMMUNE] Erreur: {e}")
+            yield sse_format("error", f"Erreur inattendue: {e}")
+
+    headers = {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Connection": "keep-alive",
+        # Autorise le SSE depuis même origine
+        "X-Accel-Buffering": "no",
+    }
+    return Response(event_stream(), headers=headers)
+
 @app.route("/search_by_commune", methods=["GET", "POST"])
 def search_by_commune():
-    # 1) Paramètres
-    commune = request.values.get("commune", "").strip()
-    culture = request.values.get("culture", "")
-    ht_max_km = float(request.values.get("ht_max_distance", 1.0))
-    bt_max_km = float(request.values.get("bt_max_distance", 1.0))
-    sir_km    = float(request.values.get("sirene_radius", 0.05))
-    min_ha    = float(request.values.get("min_area_ha", 0))
-    max_ha    = float(request.values.get("max_area_ha", 1e9))
+    import requests
+    import json
+    from urllib.parse import quote_plus
+    from flask import request as flask_request
+    from shapely.geometry import shape, Point
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    
+    # 1) Paramètres - Récupération sécurisée pour éviter les erreurs OSError
+    try:
+        commune = flask_request.values.get("commune", "").strip()
+        culture = flask_request.values.get("culture", "")
+        ht_max_km = float(flask_request.values.get("ht_max_distance", 1.0))
+        bt_max_km = float(flask_request.values.get("bt_max_distance", 1.0))
+        sir_km    = float(flask_request.values.get("sirene_radius", 0.05))
+        min_ha    = float(flask_request.values.get("min_area_ha", 0))
+        max_ha    = float(flask_request.values.get("max_area_ha", 1e9))
+
+        # Nouveaux filtres par type de données
+        filter_rpg = flask_request.values.get("filter_rpg", "false").lower() == "true"
+        rpg_min_area = float(flask_request.values.get("rpg_min_area", 1.0))
+        rpg_max_area = float(flask_request.values.get("rpg_max_area", 1000.0))
+
+        filter_parkings = flask_request.values.get("filter_parkings", "false").lower() == "true"
+        parking_min_area = float(flask_request.values.get("parking_min_area", 1500.0))
+
+        filter_friches = flask_request.values.get("filter_friches", "false").lower() == "true"
+        friches_min_area = float(flask_request.values.get("friches_min_area", 1000.0))
+
+        filter_zones = flask_request.values.get("filter_zones", "false").lower() == "true"
+        zones_min_area = float(flask_request.values.get("zones_min_area", 1000.0))
+        zones_type_filter = flask_request.values.get("zones_type_filter", "")
+
+        # Filtres toitures
+        filter_toitures = flask_request.values.get("filter_toitures", "false").lower() == "true"
+        toitures_min_surface = float(flask_request.values.get("toitures_min_surface", 100.0))
+
+        # Filtres de distance UNIFIÉS pour tous les filtres (hors zones)
+        filter_by_distance = flask_request.values.get("filter_by_distance", "false").lower() == "true"
+        max_distance_bt = float(flask_request.values.get("max_distance_bt", 500.0))  # mètres
+        max_distance_hta = float(flask_request.values.get("max_distance_hta", 2000.0))  # mètres
+        distance_logic = flask_request.values.get("distance_logic", "OR").upper()  # OR/AND ou ET/OU
+        # Normaliser les valeurs françaises ET/OU vers AND/OR
+        if distance_logic in ("ET", "AND"):
+            distance_logic = "AND"
+        elif distance_logic in ("OU", "OR"):
+            distance_logic = "OR"
+        else:
+            distance_logic = "OR"
+        poste_type_filter = flask_request.values.get("poste_type_filter", "ALL").upper()  # ALL, BT, HTA
+
+        # Nouveau filtre pour calculer la surface non bâtie
+        calculate_surface_libre = flask_request.values.get("calculate_surface_libre", "false").lower() == "true"
+        
+    except OSError as e:
+        # Erreur de canal fermé (WinError 233) - utiliser des valeurs par défaut
+        safe_print(f"⚠️ [PARAMÈTRES] Erreur lecture paramètres: {e}, utilisation valeurs par défaut")
+        commune = ""
+        culture = ""
+        ht_max_km = 1.0
+        bt_max_km = 1.0
+        sir_km = 0.05
+        min_ha = 0
+        max_ha = 1e9
+        filter_rpg = False
+        rpg_min_area = 1.0
+        rpg_max_area = 1000.0
+        filter_parkings = False
+        parking_min_area = 1500.0
+        filter_friches = False
+        friches_min_area = 1000.0
+        filter_zones = False
+        zones_min_area = 1000.0
+        zones_type_filter = ""
+        filter_toitures = False
+        toitures_min_surface = 100.0
+        filter_by_distance = False
+        max_distance_bt = 500.0
+        max_distance_hta = 2000.0
+        distance_logic = "OR"
+        poste_type_filter = "ALL"
+        calculate_surface_libre = False
 
     if not commune:
         return jsonify({"error": "Veuillez fournir une commune."}), 400
+
+    # Logging sécurisé pour éviter les erreurs de canal fermé
+    try:
+        safe_print(f"🔍 [COMMUNE] Recherche filtrée pour {commune}")
+        if filter_rpg:
+            safe_print(f"    RPG: {rpg_min_area}-{rpg_max_area} ha")
+        if filter_parkings:
+            safe_print(f"    Parkings: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        if filter_friches:
+            safe_print(f"    Friches: >{friches_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        if filter_zones:
+            safe_print(f"    Zones: >{zones_min_area}m², type: {zones_type_filter or 'toutes'}")
+        if filter_toitures:
+            safe_print(f"    Toitures: >{toitures_min_surface}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        if filter_by_distance:
+            safe_print(f"    Distance postes: BT<{max_distance_bt}m, HTA<{max_distance_hta}m, type: {poste_type_filter}")
+        if calculate_surface_libre:
+            safe_print(f"🏠 [SURFACE_LIBRE] Calcul de surface libre activé - soustraction des empreintes bâties")
+    except OSError:
+        # Ignorer les erreurs de canal fermé (WinError 233)
+        pass
 
     # 2) Récupère le contour de la commune via Geo API Gouv
     commune_infos = requests.get(
@@ -2329,38 +3296,109 @@ def search_by_commune():
     lat, lon = centre["coordinates"][1], centre["coordinates"][0]
 
     # 3) Emprise bbox englobant le polygone (pour limiter la requête WFS)
-    from shapely.geometry import shape
     commune_poly = shape(contour)
     minx, miny, maxx, maxy = commune_poly.bounds
     bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
 
     # 4) Récupère toutes les features dans le bbox puis filtre par intersection avec le polygone
     def filter_in_commune(features):
-        return [
-            f for f in features
-            if "geometry" in f and shape(f["geometry"]).intersects(commune_poly)
-        ]
+        filtered = []
+        for f in features:
+            if "geometry" not in f:
+                continue
+            try:
+                # Créer la géométrie et la valider
+                geom = shape(f["geometry"])
+                if not geom.is_valid:
+                    # Tenter de corriger la géométrie invalide
+                    geom = geom.buffer(0)
+                    if not geom.is_valid:
+                        continue
+                
+                # Vérifier l'intersection
+                if geom.intersects(commune_poly):
+                    filtered.append(f)
+            except Exception as e:
+                # Ignorer les géométries qui causent des erreurs
+                print(f"⚠️ Géométrie ignorée à cause d'une erreur: {e}")
+                continue
+        return filtered
 
-    parcelles_data   = get_all_parcelles(lat, lon, radius=0.1)  # ou adapte si besoin
-    rpg_raw          = filter_in_commune(get_rpg_info(lat, lon, radius=0.1))
+    # NOUVELLE APPROCHE: Utilisation du polygone exact de la commune selon la doc API Carto
+    print(f"🆕 [NOUVELLE_APPROCHE] Utilisation du polygone exact de la commune (API Carto)")
+    print(f"🆕 [COMMUNE_POLYGON] Récupération exhaustive sur toute la commune: {commune}")
+    
+    # Utilisation des nouvelles fonctions qui exploitent le polygone complet de la commune
+    rpg_raw          = get_rpg_info_by_polygon(contour) if filter_rpg else []
     postes_bt_data   = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
     postes_hta_data  = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
     eleveurs_data    = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
-    plu_info         = filter_in_commune(get_plu_info(lat, lon, radius=0.1))
-    zaer_data        = filter_in_commune(get_zaer_info(lat, lon, radius=0.1))
-    parkings_data    = filter_in_commune(get_parkings_info(lat, lon, radius=0.1))
-    friches_data     = filter_in_commune(get_friches_info(lat, lon, radius=0.1))
-    solaire_data     = filter_in_commune(get_potentiel_solaire_info(lat, lon, radius=0.1))
-    sirene_data      = filter_in_commune(get_sirene_info(lat, lon, radius=sir_km / 111.0))
+    plu_info         = get_plu_info_by_polygon(contour)
+    zaer_data        = get_zaer_info_by_polygon(contour)
+    
+    # Récupération conditionnelle des données avec filtrage - NOUVELLE MÉTHODE POLYGONE
+    parkings_data    = get_parkings_info_by_polygon(contour) if filter_parkings else []
+    friches_data     = get_friches_info_by_polygon(contour) if filter_friches else []
+    
+    # Données toujours récupérées pour les calculs de distance - NOUVELLE MÉTHODE POLYGONE
+    solaire_data     = get_solaire_info_by_polygon(contour)
+    sirene_data      = get_sirene_info_by_polygon(contour)
 
     point          = {"type": "Point", "coordinates": [lon, lat]}
-    api_cadastre   = get_api_cadastre_data(geom)
-    api_nature     = get_api_nature_data(geom)
-    api_urbanisme  = get_all_gpu_data(geom)
+    
+    # Fonction d'optimisation pour éviter les erreurs 414 "Request-URI Too Large"
+    def optimize_geometry_for_api(geom):
+        """
+        Optimise une géométrie pour éviter les erreurs 414 en la simplifiant si nécessaire
+        """
+        from shapely.geometry import shape
+        try:
+            # Vérifier la taille du JSON de la géométrie
+            geom_json = json.dumps(geom)
+            # Réduire le seuil pour déclencher l'optimisation plus tôt
+            if len(geom_json) > 4000:  # Seuil réduit pour éviter les erreurs 414
+                print(f"🔧 [OPTIMISATION] Géométrie trop complexe ({len(geom_json)} chars), simplification en bbox")
+                # Convertir en bounding box simple
+                shp_geom = shape(geom)
+                minx, miny, maxx, maxy = shp_geom.bounds
+                bbox_geom = {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy], [minx, miny]
+                    ]]
+                }
+                return bbox_geom
+            else:
+                print(f"🔧 [OPTIMISATION] Géométrie OK ({len(geom_json)} chars)")
+                return geom
+        except Exception as e:
+            print(f"⚠️ [OPTIMISATION] Erreur, utilisation géométrie originale: {e}")
+            return geom
+    
+    # Récupération enrichie des données API avec optimisation géométrique
+    print(f"🔍 [COMMUNE] Utilisation du polygone pour les APIs avec optimisation anti-414")
+    contour_optimise = optimize_geometry_for_api(contour)
+    
+    api_cadastre   = get_api_cadastre_data(contour_optimise)  # Utilise le polygone optimisé
+    api_nature     = get_all_api_nature_data(contour_optimise)  # Utilise le polygone optimisé
+    api_urbanisme  = get_all_gpu_data(contour_optimise)  # Utilise le polygone optimisé
+    
+    # Enrichissement des données si l'option zones est activée
+    if filter_zones and api_urbanisme.get("success"):
+        print(f"🔍 [COMMUNE] Enrichissement des détails de zones GPU pour {commune}")
+        # Ajouter des informations détaillées sur les zones trouvées
+        zones_summary = {}
+        if api_urbanisme.get("details"):
+            for zone_key, zone_data in api_urbanisme["details"].items():
+                if zone_data.get("features"):
+                    zones_summary[zone_key] = {
+                        "count": zone_data.get("count", 0),
+                        "name_fr": zone_data.get("name_fr", zone_key),
+                        "features_sample": zone_data["features"][:3] if len(zone_data["features"]) > 3 else zone_data["features"]
+                    }
+        api_urbanisme["zones_summary"] = zones_summary
 
     # 5) Filtrage RPG (culture, surface, distances)
-    from shapely.ops import transform as shp_transform
-    from pyproj import Transformer
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
     final_rpg = []
@@ -2398,29 +3436,765 @@ def search_by_commune():
             "properties": props
         })
 
+    # Filtrage avancé pour les nouvelles couches
+    
+    # Initialisation des listes filtrées
+    filtered_parkings = []
+    filtered_friches = []
+    filtered_zones = []
+    filtered_parcelles_in_zones = []
+    
+    # 5b) Filtrage des parkings selon les critères (utilise les sliders unifiés)
+    if filter_parkings and parkings_data:
+        print(f"🔍 [PARKINGS] Filtrage: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        print(f"🔍 [PARKINGS] Parkings bruts récupérés: {len(parkings_data)}")
+        for feat in parkings_data:
+            if "geometry" not in feat:
+                continue
+            try:
+                poly = shape(feat["geometry"])
+                props = feat.get("properties", {})
+
+                # Calcul de la surface en m²
+                area_m2 = shp_transform(to_l93, poly).area
+                if area_m2 < parking_min_area:
+                    continue
+
+                # Calcul de la distance aux postes BT/HTA
+                cent = poly.centroid.coords[0]
+                d_bt = calculate_min_distance(cent, postes_bt_data)
+                d_hta = calculate_min_distance(cent, postes_hta_data)
+
+                # Logique de filtrage portée par le type de poste sélectionné (Tous/BT/HTA)
+                bt_ok = (d_bt is not None and d_bt <= max_distance_bt) if d_bt is not None else False
+                hta_ok = (d_hta is not None and d_hta <= max_distance_hta) if d_hta is not None else False
+                if filter_by_distance:
+                    if poste_type_filter == "BT":
+                        distance_ok = bt_ok
+                    elif poste_type_filter == "HTA":
+                        distance_ok = hta_ok
+                    else:  # ALL
+                        distance_ok = bt_ok or hta_ok
+                else:
+                    # Pas de filtrage par distance lorsque l'option n'est pas cochée
+                    distance_ok = True
+                if not distance_ok:
+                    continue
+
+                # Enrichissement des propriétés
+                props.update({
+                    "surface_m2": round(area_m2, 2),
+                    "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
+                    "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None
+                })
+
+                # Calcul de la surface libre si demandé
+                if calculate_surface_libre:
+                    try:
+                        print(f"🏠 [SURFACE_LIBRE] Calcul pour parking...")
+                        batiments_data = get_batiments_data(feat["geometry"])
+                        surface_libre_result = calculate_surface_libre_parcelle(feat["geometry"], batiments_data)
+                        props.update({
+                            'surface_batie_m2': surface_libre_result.get('surface_batie_m2', 0),
+                            'surface_libre_m2': surface_libre_result.get('surface_libre_m2', 0),
+                            'surface_libre_pct': surface_libre_result.get('surface_libre_pct', 0),
+                            'batiments_count': surface_libre_result.get('batiments_count', 0)
+                        })
+                    except Exception as e:
+                        print(f"❌ [SURFACE_LIBRE] Erreur parking: {e}")
+                        props['surface_libre_error'] = str(e)
+
+                filtered_parkings.append({
+                    "type": "Feature",
+                    "geometry": feat["geometry"],
+                    "properties": props
+                })
+            except Exception as e:
+                print(f"⚠️ Erreur filtrage parking: {e}")
+                continue
+        print(f"✅ [PARKINGS] {len(filtered_parkings)} parkings trouvés après filtrage")
+        
+        # 5b-bis) Récupération optimisée des références cadastrales pour les parkings sélectionnés
+        if filtered_parkings:
+            print(f"🏛️ [CADASTRE-PARKINGS] Récupération des références cadastrales pour {len(filtered_parkings)} parkings...")
+            
+            def get_parcelles_for_parking(parking_geometry):
+                """Récupère les parcelles cadastrales intersectant un parking spécifique"""
+                try:
+                    api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+                    params = {
+                        "geom": json.dumps(parking_geometry),
+                        "_limit": 50  # Limite raisonnable pour un parking
+                    }
+                    
+                    resp = requests.get(api_url, params=params, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data.get('features', [])
+                    else:
+                        print(f"    ⚠️ Erreur API cadastre: {resp.status_code}")
+                        return []
+                except Exception as e:
+                    print(f"    ⚠️ Exception cadastre parking: {e}")
+                    return []
+            
+            # Enrichir chaque parking avec ses références cadastrales
+            for i, parking in enumerate(filtered_parkings):
+                print(f"    📍 Parking {i+1}/{len(filtered_parkings)}: recherche cadastre...")
+                parcelles_parking = get_parcelles_for_parking(parking["geometry"])
+                
+                if parcelles_parking:
+                    print(f"      🔍 [DEBUG] Structure API cadastre - première parcelle: {parcelles_parking[0] if parcelles_parking else 'Aucune'}")
+                    
+                    # Extraire les références cadastrales
+                    refs_cadastrales = []
+                    for parcelle in parcelles_parking:
+                        props = parcelle.get('properties', {})
+                        print(f"      🔍 [DEBUG] Propriétés parcelle: {props}")
+                        
+                        # Tester différents noms d'attributs possibles selon l'API
+                        numero = props.get('numero') or props.get('numero_parcelle') or props.get('num_parc') or ''
+                        section = props.get('section') or props.get('code_section') or ''
+                        commune = props.get('commune') or props.get('code_commune') or props.get('insee') or ''
+                        prefixe = props.get('prefixe') or props.get('code_arr') or ''
+                        
+                        ref = {
+                            'numero': numero,
+                            'section': section,
+                            'commune': commune,
+                            'prefixe': prefixe,
+                            'reference_complete': f"{commune}{prefixe}{section}{numero}".strip()
+                        }
+                        
+                        print(f"      🏛️ [DEBUG] Référence créée: {ref}")
+                        refs_cadastrales.append(ref)
+                    
+                    # Ajouter aux propriétés du parking
+                    parking["properties"]["parcelles_cadastrales"] = refs_cadastrales
+                    parking["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
+                    print(f"      ✅ {len(refs_cadastrales)} parcelles cadastrales trouvées")
+                else:
+                    parking["properties"]["parcelles_cadastrales"] = []
+                    parking["properties"]["nb_parcelles_cadastrales"] = 0
+                    print(f"      ❌ Aucune parcelle cadastrale trouvée")
+            
+            print(f"✅ [CADASTRE-PARKINGS] Enrichissement terminé pour tous les parkings")
+    else:
+        print(f"⚠️ [PARKINGS] Filtre parkings non activé ou aucune donnée: filter_parkings={filter_parkings}, parkings_data={len(parkings_data) if parkings_data else 0}")
+    
+    # 5c) Filtrage des friches selon les critères (utilise les sliders unifiés)
+    if filter_friches and friches_data:
+        print(f"🔍 [FRICHES] Filtrage: >{friches_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        for feat in friches_data:
+            if "geometry" not in feat:
+                continue
+            try:
+                poly = shape(feat["geometry"])
+                props = feat.get("properties", {})
+
+                # Calcul de la surface en m²
+                area_m2 = shp_transform(to_l93, poly).area
+                if area_m2 < friches_min_area:
+                    continue
+
+                # Calcul de la distance aux postes BT/HTA
+                cent = poly.centroid.coords[0]
+                d_bt = calculate_min_distance(cent, postes_bt_data)
+                d_hta = calculate_min_distance(cent, postes_hta_data)
+
+                # Logique de filtrage portée par le type de poste sélectionné (Tous/BT/HTA)
+                bt_ok = (d_bt is not None and d_bt <= max_distance_bt) if d_bt is not None else False
+                hta_ok = (d_hta is not None and d_hta <= max_distance_hta) if d_hta is not None else False
+                if filter_by_distance:
+                    if poste_type_filter == "BT":
+                        distance_ok = bt_ok
+                    elif poste_type_filter == "HTA":
+                        distance_ok = hta_ok
+                    else:  # ALL
+                        distance_ok = bt_ok or hta_ok
+                else:
+                    # Pas de filtrage par distance lorsque l'option n'est pas cochée
+                    distance_ok = True
+                if not distance_ok:
+                    continue
+
+                # Enrichissement des propriétés
+                props.update({
+                    "surface_m2": round(area_m2, 2),
+                    "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
+                    "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None
+                })
+
+                # Calcul de la surface libre si demandé
+                if calculate_surface_libre:
+                    try:
+                        print(f"🏠 [SURFACE_LIBRE] Calcul pour friche...")
+                        batiments_data = get_batiments_data(feat["geometry"])
+                        surface_libre_result = calculate_surface_libre_parcelle(feat["geometry"], batiments_data)
+                        props.update({
+                            'surface_batie_m2': surface_libre_result.get('surface_batie_m2', 0),
+                            'surface_libre_m2': surface_libre_result.get('surface_libre_m2', 0),
+                            'surface_libre_pct': surface_libre_result.get('surface_libre_pct', 0),
+                            'batiments_count': surface_libre_result.get('batiments_count', 0)
+                        })
+                    except Exception as e:
+                        print(f"❌ [SURFACE_LIBRE] Erreur friche: {e}")
+                        props['surface_libre_error'] = str(e)
+
+                filtered_friches.append({
+                    "type": "Feature",
+                    "geometry": feat["geometry"],
+                    "properties": props
+                })
+            except Exception as e:
+                print(f"⚠️ Erreur filtrage friche: {e}")
+                continue
+        print(f"✅ [FRICHES] {len(filtered_friches)} friches trouvées après filtrage")
+        
+        # 5c-bis) Récupération optimisée des références cadastrales pour les friches sélectionnées
+        if filtered_friches:
+            print(f"🏛️ [CADASTRE-FRICHES] Récupération des références cadastrales pour {len(filtered_friches)} friches...")
+            
+            def get_parcelles_for_friche(friche_geometry):
+                """Récupère les parcelles cadastrales intersectant une friche spécifique"""
+                try:
+                    api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+                    params = {
+                        "geom": json.dumps(friche_geometry),
+                        "_limit": 100  # Limite raisonnable pour une friche
+                    }
+                    
+                    resp = requests.get(api_url, params=params, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data.get('features', [])
+                    else:
+                        print(f"    ⚠️ Erreur API cadastre: {resp.status_code}")
+                        return []
+                except Exception as e:
+                    print(f"    ⚠️ Exception cadastre friche: {e}")
+                    return []
+            
+            # Enrichir chaque friche avec ses références cadastrales
+            for i, friche in enumerate(filtered_friches):
+                print(f"    📍 Friche {i+1}/{len(filtered_friches)}: recherche cadastre...")
+                parcelles_friche = get_parcelles_for_friche(friche["geometry"])
+                
+                if parcelles_friche:
+                    # Extraire les références cadastrales
+                    refs_cadastrales = []
+                    for parcelle in parcelles_friche:
+                        props = parcelle.get('properties', {})
+                        ref = {
+                            'numero': props.get('numero', ''),
+                            'section': props.get('section', ''),
+                            'commune': props.get('commune', ''),
+                            'prefixe': props.get('prefixe', ''),
+                            'reference_complete': f"{props.get('commune', '')}{props.get('prefixe', '')}{props.get('section', '')}{props.get('numero', '')}"
+                        }
+                        refs_cadastrales.append(ref)
+                    
+                    # Ajouter aux propriétés de la friche
+                    friche["properties"]["parcelles_cadastrales"] = refs_cadastrales
+                    friche["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
+                    print(f"      ✅ {len(refs_cadastrales)} parcelles cadastrales trouvées")
+                else:
+                    friche["properties"]["parcelles_cadastrales"] = []
+                    friche["properties"]["nb_parcelles_cadastrales"] = 0
+                    print(f"      ❌ Aucune parcelle cadastrale trouvée")
+            
+            print(f"✅ [CADASTRE-FRICHES] Enrichissement terminé pour toutes les friches")
+    
+    # 5d) Filtrage optimisé des zones avec croisement parcelles
+    filtered_zones = []
+    filtered_parcelles_in_zones = []
+    
+    if filter_zones:
+        print(f"🔍 [ZONES OPTIMISÉ] Recherche zones {zones_type_filter or 'toutes'} + parcelles >{zones_min_area}m²")
+        
+        # Utiliser l'API GPU pour récupérer les zones autour du centre de la commune
+        def get_zones_around_commune(lat, lon, radius_km=2.0):
+            api_url = "https://apicarto.ign.fr/api/gpu/zone-urba"
+            
+            # Créer un polygone autour du centre de commune
+            delta = radius_km / 111.0  # Conversion km -> degrés
+            bbox_geojson = {
+                "type": "Polygon",
+                "coordinates": [[
+                    [lon - delta, lat - delta],
+                    [lon + delta, lat - delta],
+                    [lon + delta, lat + delta],
+                    [lon - delta, lat + delta],
+                    [lon - delta, lat - delta]
+                ]]
+            }
+            
+            params = {
+                "geom": json.dumps(bbox_geojson),
+                "_limit": 1000
+            }
+            
+            try:
+                resp = requests.get(api_url, params=params, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get('features', [])
+                else:
+                    print(f"⚠️ Erreur API GPU zones: {resp.status_code}")
+                    return []
+            except Exception as e:
+                print(f"⚠️ Exception API GPU zones: {e}")
+                return []
+        
+        # Récupérer les parcelles dans une zone donnée - OPTIMISÉ
+        def get_parcelles_in_zone(zone_feature):
+            api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+            zone_geom = zone_feature.get('geometry')
+            
+            if not zone_geom:
+                return []
+            
+            params = {
+                "geom": json.dumps(zone_geom)
+                # Limite retirée pour analyse complète de la commune
+            }
+            
+            try:
+                resp = requests.get(api_url, params=params, timeout=60)  # Timeout augmenté pour traitement complet
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get('features', [])
+                else:
+                    # 414 = URI trop longue, zone trop grande
+                    if resp.status_code == 414:
+                        print(f"    ⚠️ Zone trop grande (414), passage au suivant")
+                    return []
+            except Exception as e:
+                print(f"    ⚠️ Exception parcelles: {e}")
+                return []
+        
+        # 1. Récupérer toutes les zones autour de la commune
+        all_zones = get_zones_around_commune(lat, lon, radius_km=3.0)
+        print(f"    📍 {len(all_zones)} zones trouvées autour de la commune")
+        
+        # 2. Filtrer par type de zone
+        target_zones = []
+        for zone in all_zones:
+            props = zone.get('properties', {})
+            zone_type = props.get('typezone', '')
+            
+            # Filtrage par type si spécifié
+            if zones_type_filter and not zone_type.upper().startswith(zones_type_filter.upper()):
+                continue
+            
+            target_zones.append(zone)
+        
+        print(f"    🎯 {len(target_zones)} zones de type '{zones_type_filter or 'toutes'}' sélectionnées")
+        
+        # 3. Pour chaque zone cible, récupérer et filtrer les parcelles
+        total_parcelles_trouvees = 0
+        
+        for i, zone in enumerate(target_zones):
+            props = zone.get('properties', {})
+            zone_libelle = props.get('libelle', f"Zone_{i}")
+            
+            print(f"    🔍 Zone {i+1}/{len(target_zones)}: {props.get('typezone', 'N/A')} - {zone_libelle}")
+            
+            # Récupérer les parcelles de cette zone
+            parcelles = get_parcelles_in_zone(zone)
+            
+            if not parcelles:
+                continue
+            
+            print(f"        📦 {len(parcelles)} parcelles trouvées")
+            
+            # Filtrer par surface
+            parcelles_grandes = []
+            for parcelle in parcelles:
+                geometry = parcelle.get('geometry')
+                if not geometry:
+                    continue
+                
+                # Calcul surface en m²
+                try:
+                    area_m2 = shp_transform(to_l93, shape(geometry)).area
+                except Exception:
+                    continue
+                
+                if area_m2 >= zones_min_area:
+                    parcelle_props = parcelle.get('properties', {})
+                    
+                    # Calculer systématiquement les distances aux postes et la superficie
+                    min_distance_bt = None
+                    min_distance_hta = None
+                    min_distance_total = None
+                    
+                    try:
+                        # Calculer le centroïde de la parcelle
+                        centroid = shape(geometry).centroid.coords[0]
+                        
+                        # Calculer les distances minimales aux postes
+                        min_distance_bt = calculate_min_distance(centroid, postes_bt_data)
+                        min_distance_hta = calculate_min_distance(centroid, postes_hta_data)
+                        
+                        # Distance minimale globale (le poste le plus proche, qu'il soit BT ou HTA)
+                        distances = [d for d in [min_distance_bt, min_distance_hta] if d is not None]
+                        min_distance_total = min(distances) if distances else None
+                        
+                    except Exception as e:
+                        print(f"        ⚠️ Erreur calcul distances: {e}")
+                    
+                    # Calcul des distances aux postes si le filtrage par distance est activé
+                    distance_ok = True
+                    
+                    if filter_by_distance:
+                        try:
+                            # Appliquer la logique de filtrage selon le type de poste
+                            if poste_type_filter == "BT":
+                                # Seulement les postes BT
+                                distance_ok = (min_distance_bt is not None and min_distance_bt <= max_distance_bt)
+                            elif poste_type_filter == "HTA":
+                                # Seulement les postes HTA
+                                distance_ok = (min_distance_hta is not None and min_distance_hta <= max_distance_hta)
+                            else:  # ALL (par défaut)
+                                # Considérer les deux types de postes
+                                bt_ok = (min_distance_bt is not None and min_distance_bt <= max_distance_bt)
+                                hta_ok = (min_distance_hta is not None and min_distance_hta <= max_distance_hta)
+                                
+                                # Par défaut, en mode "Tous", on accepte si BT OU HTA est proche
+                                distance_ok = bt_ok or hta_ok
+                                
+                        except Exception as e:
+                            print(f"        ⚠️ Erreur calcul distance: {e}")
+                            distance_ok = True  # En cas d'erreur, on garde la parcelle
+                    
+                    if not distance_ok:
+                        continue
+                    
+                    # Enrichir les propriétés avec les informations systématiques
+                    parcelle_props.update({
+                        'surface_m2': round(area_m2, 2),
+                        'surface_ha': round(area_m2 / 10000, 4),
+                        'zone_typezone': props.get('typezone', 'N/A'),
+                        'zone_libelle': zone_libelle,
+                        'zone_filter_applied': zones_type_filter or 'toutes',
+                        # Distances systématiques
+                        'min_distance_bt_m': round(min_distance_bt, 2) if min_distance_bt is not None else None,
+                        'min_distance_hta_m': round(min_distance_hta, 2) if min_distance_hta is not None else None,
+                        'min_distance_total_m': round(min_distance_total, 2) if min_distance_total is not None else None
+                    })
+                    
+                    # Calcul de la surface libre si demandé
+                    if calculate_surface_libre:
+                        try:
+                            print(f"🏠 [SURFACE_LIBRE] Calcul pour parcelle {parcelle_props.get('numero', 'N/A')}...")
+                            
+                            # Récupérer les bâtiments sur cette parcelle
+                            batiments_data = get_batiments_data(geometry)
+                            
+                            # Calculer la surface libre
+                            surface_libre_result = calculate_surface_libre_parcelle(geometry, batiments_data)
+                            
+                            # Ajouter les résultats aux propriétés
+                            parcelle_props.update({
+                                'surface_totale_calculee_m2': surface_libre_result.get('surface_totale_m2', 0),
+                                'surface_batie_m2': surface_libre_result.get('surface_batie_m2', 0),
+                                'surface_libre_m2': surface_libre_result.get('surface_libre_m2', 0),
+                                'surface_libre_pct': surface_libre_result.get('surface_libre_pct', 0),
+                                'batiments_count': surface_libre_result.get('batiments_count', 0),
+                                'surface_libre_calculee': True
+                            })
+                            
+                            if surface_libre_result.get('error'):
+                                parcelle_props['surface_libre_error'] = surface_libre_result['error']
+                                
+                        except Exception as e:
+                            print(f"❌ [SURFACE_LIBRE] Erreur calcul pour parcelle: {e}")
+                            parcelle_props.update({
+                                'surface_libre_calculee': False,
+                                'surface_libre_error': str(e)
+                            })
+                    
+                    # Ajouter les distances si calculées
+                    if filter_by_distance:
+                        distance_filter_desc = f"Type: {poste_type_filter}"
+                        if poste_type_filter == "BT":
+                            distance_filter_desc += f", BT<{max_distance_bt}m"
+                            parcelle_props.update({
+                                'min_distance_bt_m': round(min_distance_bt, 2) if min_distance_bt is not None else None,
+                                'distance_filter_applied': distance_filter_desc
+                            })
+                        elif poste_type_filter == "HTA":
+                            distance_filter_desc += f", HTA<{max_distance_hta}m"
+                            parcelle_props.update({
+                                'min_distance_hta_m': round(min_distance_hta, 2) if min_distance_hta is not None else None,
+                                'distance_filter_applied': distance_filter_desc
+                            })
+                        else:  # ALL
+                            distance_filter_desc += f", BT<{max_distance_bt}m OU HTA<{max_distance_hta}m"
+                            parcelle_props.update({
+                                'min_distance_bt_m': round(min_distance_bt, 2) if min_distance_bt is not None else None,
+                                'min_distance_hta_m': round(min_distance_hta, 2) if min_distance_hta is not None else None,
+                                'distance_filter_applied': distance_filter_desc
+                            })
+                    
+                    parcelles_grandes.append({
+                        "type": "Feature",
+                        "geometry": geometry,
+                        "properties": parcelle_props
+                    })
+            
+            print(f"        ✅ {len(parcelles_grandes)} parcelles >{zones_min_area}m²")
+            total_parcelles_trouvees += len(parcelles_grandes)
+            filtered_parcelles_in_zones.extend(parcelles_grandes)
+            
+            # Ajouter la zone aux zones filtrées (pour affichage)
+            try:
+                zone_area_m2 = shp_transform(to_l93, shape(zone.get('geometry'))).area
+                zone_props_enriched = props.copy()
+                zone_props_enriched.update({
+                    'surface_m2': round(zone_area_m2, 2),
+                    'surface_ha': round(zone_area_m2 / 10000, 4),
+                    'parcelles_count': len(parcelles_grandes)
+                })
+                
+                filtered_zones.append({
+                    "type": "Feature",
+                    "geometry": zone.get('geometry'),
+                    "properties": zone_props_enriched
+                })
+            except Exception:
+                pass
+        
+        print(f"✅ [ZONES OPTIMISÉ] {len(target_zones)} zones analysées, {total_parcelles_trouvees} parcelles trouvées")
+
     # 6) Carte interactive
     # PPRI récupération via la nouvelle fonction GeoRisques unifiée
-    import requests
     def fetch_ppri_georisques(lat, lon, rayon_km=1.0):
         # Utilise maintenant la nouvelle fonction unifiée
         print(f"🔍 [PPRI] Utilisation des données GeoRisques unifiées")
         return {"type": "FeatureCollection", "features": []}
 
     # On ne garde que les polygones qui contiennent le point exact
-    from shapely.geometry import shape, Point
     raw_ppri = fetch_ppri_georisques(lat, lon, rayon_km=1.0)
     pt = Point(lon, lat)
     filtered_features = [f for f in raw_ppri.get("features", []) if f.get("geometry") and shape(f["geometry"]).contains(pt)]
     ppri_data = {"type": "FeatureCollection", "features": filtered_features}
+    
+    # Initialisation parcelles_data pour la carte (pas utilisé avec la nouvelle logique optimisée)
+    parcelles_data = {"type": "FeatureCollection", "features": []}
+    
+    # 6b) Traitement des toitures si demandé - Nouvelle méthode basée sur le polygone de la commune (utilise sliders unifiés)
+    toitures_data = []
+    if filter_toitures:
+        print(f"🏠 [TOITURES] Recherche activée - utilisation du polygone de la commune")
+        print(f"🏠 [TOITURES] Postes disponibles - BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
+        try:
+            from shapely.geometry import mapping, Point
+            from shapely.ops import transform as shp_transform
+            from pyproj import Transformer
+
+            # Définir la transformation vers Lambert 93 pour le calcul des surfaces
+            to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+
+            # Utiliser le contour exact de la commune au lieu d'un rayon
+            search_geom_geojson = contour
+
+            # Utiliser la fonction existante get_batiments_data avec le polygone de la commune
+            batiments_features = get_batiments_data(search_geom_geojson)
+            batiments_data = batiments_features.get("features", []) if batiments_features else []
+            print(f"🏠 [TOITURES] {len(batiments_data)} bâtiments récupérés dans la commune")
+
+            # ANALYSE COMPLÈTE: Traitement de tous les bâtiments de la commune
+            print(f"🔍 [TOITURES] Analyse complète de tous les {len(batiments_data)} bâtiments")
+            print(f"💡 [TOITURES] Traitement complet activé pour une analyse exhaustive")
+
+            # Filtrer et enrichir les toitures avec intersection géométrique précise
+            for idx, batiment in enumerate(batiments_data):
+                try:
+                    geom = shape(batiment["geometry"])
+                    if not geom.is_valid:
+                        geom = geom.buffer(0)
+                        if not geom.is_valid:
+                            continue
+
+                    # Vérifier que le bâtiment est bien dans la commune (double filtrage)
+                    if not (commune_poly.contains(geom) or commune_poly.intersects(geom)):
+                        continue
+
+                    # Calculer la surface
+                    surface_m2 = shp_transform(to_l93, geom).area
+                    if surface_m2 < toitures_min_surface:
+                        continue
+
+                    # Calculer les distances aux postes
+                    centroid = geom.centroid.coords[0]
+                    d_bt = calculate_min_distance(centroid, postes_bt_data) if postes_bt_data else None
+                    d_hta = calculate_min_distance(centroid, postes_hta_data) if postes_hta_data else None
+
+                    # Logique de filtrage portée par le type de poste sélectionné (Tous/BT/HTA)
+                    bt_ok = (d_bt is not None and d_bt <= max_distance_bt) if d_bt is not None else False
+                    hta_ok = (d_hta is not None and d_hta <= max_distance_hta) if d_hta is not None else False
+                    if filter_by_distance:
+                        if poste_type_filter == "BT":
+                            distance_ok = bt_ok
+                        elif poste_type_filter == "HTA":
+                            distance_ok = hta_ok
+                        else:  # ALL
+                            distance_ok = bt_ok or hta_ok
+                    else:
+                        # Pas de filtrage par distance lorsque l'option n'est pas cochée
+                        distance_ok = True
+                    if not distance_ok:
+                        continue
+
+                    # Ajouter à la liste filtrée (enrichissement cadastral sera fait après)
+                    toitures_data.append({
+                        "type": "Feature",
+                        "geometry": batiment["geometry"],
+                        "properties": {
+                            "surface_toiture_m2": round(surface_m2, 2),
+                            "min_distance_bt_m": round(d_bt, 2) if d_bt else None,
+                            "min_distance_hta_m": round(d_hta, 2) if d_hta else None,
+                            "commune": commune,
+                            "search_method": "polygon_commune",
+                            "source": "OpenStreetMap",
+                            "building": batiment.get("properties", {}).get("building", "yes"),
+                            "osm_id": batiment.get("properties", {}).get("osm_id"),
+                            # Liens utiles
+                            "lien_streetview": f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={centroid[1]},{centroid[0]}",
+                            "lien_annuaire": f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(commune)}&univers=pagesjaunes&idOu="
+                        }
+                    })
+
+                except Exception as e:
+                    print(f"⚠️ [TOITURES] Erreur traitement bâtiment {idx}: {e}")
+                    continue
+
+            print(f"✅ [TOITURES] {len(toitures_data)} toitures filtrées trouvées (méthode polygone)")
+            
+            # Enrichissement cadastral OPTIMISÉ avec limite
+            if toitures_data:
+                # ENRICHISSEMENT COMPLET: Traitement de toutes les toitures de la commune
+                toitures_a_enrichir = toitures_data  # Traitement complet sans limitation
+                
+                print(f"🏛️ [CADASTRE-TOITURES] Enrichissement complet : {len(toitures_a_enrichir)} toitures")
+                print(f"🔍 [CADASTRE-TOITURES] Traitement individuel optimisé avec limite 1000")
+                
+                def get_parcelles_for_toiture(toiture_geometry):
+                    """Récupère les parcelles cadastrales intersectant une toiture spécifique avec limite optimisée"""
+                    try:
+                        api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+                        params = {
+                            "geom": json.dumps(toiture_geometry),
+                            "_limit": 1000  # Limite maximale au lieu de 3
+                        }
+                        
+                        resp = requests.get(api_url, params=params, timeout=10)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            return data.get('features', [])
+                        else:
+                            return []
+                    except Exception:
+                        return []
+                
+                # Traitement individuel mais optimisé
+                total_enrichies = 0
+                total_erreurs = 0
+                
+                for i, toiture in enumerate(toitures_a_enrichir):
+                    # Log de progression moins verbeux
+                    if (i + 1) % 50 == 0 or i == 0:
+                        print(f"    📍 Progression: {i+1}/{len(toitures_a_enrichir)} toitures traitées...")
+                    
+                    # 1. Enrichissement cadastral
+                    parcelles_toiture = get_parcelles_for_toiture(toiture["geometry"])
+                    
+                    if parcelles_toiture:
+                        # Extraire les références cadastrales
+                        refs_cadastrales = []
+                        for parcelle in parcelles_toiture:
+                            props = parcelle.get('properties', {})
+                            
+                            numero = props.get('numero', '')
+                            section = props.get('section', '')
+                            commune_code = props.get('commune', '')
+                            prefixe = props.get('prefixe', '')
+                            
+                            if section and numero:
+                                ref = {
+                                    'numero': numero,
+                                    'section': section,
+                                    'commune': commune_code,
+                                    'prefixe': prefixe,
+                                    'reference_complete': f"{commune_code}{prefixe}{section}{numero}".strip()
+                                }
+                                refs_cadastrales.append(ref)
+                        
+                        toiture["properties"]["parcelles_cadastrales"] = refs_cadastrales
+                        toiture["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
+                        total_enrichies += 1
+                    else:
+                        toiture["properties"]["parcelles_cadastrales"] = []
+                        toiture["properties"]["nb_parcelles_cadastrales"] = 0
+                        total_erreurs += 1
+                    
+                    # 2. Enrichissement avec l'adresse IGN (géocodage inverse)
+                    geom = toiture.get("geometry", {})
+                    if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
+                        try:
+                            # Calculer le centroïde de la toiture pour obtenir lat/lon
+                            from shapely.geometry import shape
+                            shp_geom = shape(geom)
+                            centroid = shp_geom.centroid
+                            
+                            # Géocodage inverse IGN
+                            adresse_info = get_address_from_coordinates(centroid.y, centroid.x)
+                            
+                            if adresse_info and adresse_info.get('address'):
+                                toiture["properties"]["adresse"] = adresse_info['address']
+                                toiture["properties"]["adresse_distance"] = adresse_info.get('distance', 0)
+                                toiture["properties"]["adresse_score"] = adresse_info.get('score', 0)
+                                toiture["properties"]["code_postal"] = adresse_info.get('postcode', '')
+                                toiture["properties"]["ville"] = adresse_info.get('city', '')
+                                toiture["properties"]["code_commune"] = adresse_info.get('citycode', '')
+                                # Mettre à jour le lien annuaire avec la ville si disponible
+                                try:
+                                    ville = adresse_info.get('city', '') or commune
+                                    toiture["properties"]["lien_annuaire"] = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(ville)}&univers=pagesjaunes&idOu="
+                                except Exception:
+                                    pass
+                            else:
+                                toiture["properties"]["adresse"] = "Adresse non trouvée"
+                                toiture["properties"]["adresse_distance"] = None
+                                toiture["properties"]["adresse_score"] = 0
+                        except Exception as e:
+                            safe_print(f"🔴 [ADRESSE] Erreur enrichissement toiture {i}: {e}")
+                            toiture["properties"]["adresse"] = "Erreur géocodage"
+                
+                print(f"✅ [CADASTRE-TOITURES] Enrichissement individuel optimisé terminé:")
+                print(f"    📊 {total_enrichies} toitures enrichies avec succès")
+                print(f"    ⚠️ {total_erreurs} toitures sans données cadastrales")
+                print(f"    🎯 {len(toitures_data)} toitures disponibles au total sur la carte")
+            
+        except Exception as e:
+            print(f"❌ [TOITURES] Erreur recherche: {e}")
+            import traceback
+            traceback.print_exc()
+            toitures_data = []
+    
+    print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
+    
     map_obj = build_map(
         lat, lon, commune,
         parcelle_props={}, parcelles_data=parcelles_data,
         postes_data=postes_bt_data,
         ht_postes_data=postes_hta_data,
         plu_info=plu_info,
-        parkings_data=parkings_data,
-        friches_data=friches_data,
-        potentiel_solaire_data=solaire_data,
+        parkings_data=filtered_parkings,
+        friches_data=filtered_friches,
+        potentiel_solaire_data=toitures_data if filter_toitures else solaire_data,  # Remplacer temporairement par les toitures
         zaer_data=zaer_data,
         rpg_data=final_rpg,
         sirene_data=sirene_data,
@@ -2433,11 +4207,14 @@ def search_by_commune():
         ppri_data=ppri_data
     )
     save_map_to_cache(map_obj)
+    
+    # Récupérer le HTML de la carte pour l'ajouter à la réponse
+    carte_html = map_obj._repr_html_() if map_obj else ""
 
-    # 7) Réponse JSON
-    return jsonify({
+    # 7) Réponse JSON avec données filtrées
+    response_data = {
         "lat": lat, "lon": lon,
-        "rpg": final_rpg,
+        "rpg": final_rpg if filter_rpg else [],
         "eleveurs": eleveurs_data,
         "postes_bt": postes_bt_data,
         "postes_hta": postes_hta_data,
@@ -2445,13 +4222,718 @@ def search_by_commune():
         "api_cadastre": api_cadastre,
         "api_nature": api_nature,
         "api_urbanisme": api_urbanisme,
-        "plu": plu_info,
-        "parkings": parkings_data,
-        "friches": friches_data,
-        "solaire": solaire_data,
+        "plu": filtered_zones if filter_zones else plu_info,
+        "parkings": {"type": "FeatureCollection", "features": filtered_parkings} if filter_parkings else {"type": "FeatureCollection", "features": []},
+        "friches": {"type": "FeatureCollection", "features": filtered_friches} if filter_friches else {"type": "FeatureCollection", "features": []},
+        "toitures": {"type": "FeatureCollection", "features": toitures_data} if filter_toitures else {"type": "FeatureCollection", "features": []},
+        "parcelles_in_zones": {"type": "FeatureCollection", "features": filtered_parcelles_in_zones},
+        "solaire": toitures_data if filter_toitures else solaire_data,
         "zaer": zaer_data,
-        "sirene": sirene_data
-    })
+        "sirene": sirene_data,
+        "carte_html": carte_html,  # HTML de la carte avec les popups
+        # Métadonnées de filtrage
+        "filters_applied": {
+            "rpg": {"active": filter_rpg, "count": len(final_rpg) if filter_rpg else 0},
+            "parkings": {"active": filter_parkings, "count": len(filtered_parkings) if filter_parkings else 0},
+            "friches": {"active": filter_friches, "count": len(filtered_friches) if filter_friches else 0},
+            "toitures": {"active": filter_toitures, "count": len(toitures_data) if filter_toitures else 0},
+            "zones": {"active": filter_zones, "count": len(filtered_zones) if filter_zones else 0},
+            "parcelles_in_zones": {"active": filter_zones, "count": len(filtered_parcelles_in_zones)},
+            "distance_filter": {
+                "active": filter_by_distance,
+                "max_distance_bt": max_distance_bt if filter_by_distance else None,
+                "max_distance_hta": max_distance_hta if filter_by_distance else None,
+                "poste_type": poste_type_filter if filter_by_distance else None
+            }
+        }
+    }
+    
+    return jsonify(response_data)
+
+@app.route("/search_toitures_commune_polygon", methods=["GET", "POST"])
+def search_toitures_commune_polygon():
+    """
+    Recherche de toitures utilisant le polygone exact de la commune
+    au lieu d'un rayon fixe pour une couverture complète
+    """
+    from urllib.parse import quote_plus
+    from flask import request as flask_request
+    from shapely.geometry import shape, Point
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    
+    print("🏠 [TOITURES POLYGON] === DÉBUT RECHERCHE PAR POLYGONE COMMUNE ===")
+    
+    # 1) Paramètres de la requête
+    commune = flask_request.values.get("commune", "").strip()
+    min_surface_toiture = float(flask_request.values.get("min_surface_toiture", 100.0))
+    max_distance_bt = float(flask_request.values.get("max_distance_bt", 500.0))
+    max_distance_hta = float(flask_request.values.get("max_distance_hta", 1000.0))
+    max_results = int(flask_request.values.get("max_results", 100))  # Augmenté pour polygon complet
+    
+    if not commune:
+        return jsonify({"error": "Veuillez fournir une commune."}), 400
+
+    print(f"🏠 [TOITURES POLYGON] Commune: {commune}")
+    print(f"    Surface mini: {min_surface_toiture}m², max résultats: {max_results}")
+
+    try:
+        # 2) Récupération du contour exact de la commune
+        commune_infos = requests.get(
+            f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour,code,surface",
+            timeout=15
+        ).json()
+        
+        if not commune_infos or not commune_infos[0].get("contour"):
+            return jsonify({"error": "Commune introuvable ou contour non disponible."}), 404
+            
+        info = commune_infos[0]
+        contour = info["contour"]
+        centre = info["centre"]
+        insee = info.get("code")
+        surface_commune_ha = round(info.get("surface", 0) / 10000, 2)  # m² → ha
+        
+        lat, lon = centre["coordinates"][1], centre["coordinates"][0]
+        
+        print(f"🏠 [TOITURES POLYGON] Centre: {lat:.4f}, {lon:.4f}")
+        print(f"    Surface commune: {surface_commune_ha} ha, Code INSEE: {insee}")
+        print(f"    Contour type: {contour['type']}")
+        
+        # 3) Utiliser le polygone exact de la commune
+        search_polygon = contour
+        
+        # Calculer la bbox pour les requêtes WFS
+        commune_shape = shape(contour)
+        minx, miny, maxx, maxy = commune_shape.bounds
+        bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+        
+        print(f"🏠 [TOITURES POLYGON] Bbox commune: {minx:.4f},{miny:.4f},{maxx:.4f},{maxy:.4f}")
+        
+        # 4) Récupération des postes dans la commune
+        try:
+            postes_bt_raw = fetch_wfs_data(POSTE_LAYER, bbox)
+            postes_hta_raw = fetch_wfs_data(HT_POSTE_LAYER, bbox)
+            
+            # Filtrer les postes qui sont réellement dans la commune
+            postes_bt_data = []
+            postes_hta_data = []
+            
+            for poste in postes_bt_raw:
+                if poste.get("geometry"):
+                    poste_point = shape(poste["geometry"])
+                    if commune_shape.contains(poste_point) or commune_shape.intersects(poste_point):
+                        postes_bt_data.append(poste)
+            
+            for poste in postes_hta_raw:
+                if poste.get("geometry"):
+                    poste_point = shape(poste["geometry"])
+                    if commune_shape.contains(poste_point) or commune_shape.intersects(poste_point):
+                        postes_hta_data.append(poste)
+            
+            print(f"    📍 {len(postes_bt_data)} postes BT, {len(postes_hta_data)} postes HTA dans la commune")
+        except Exception as e:
+            print(f"⚠️ [TOITURES POLYGON] Erreur récupération postes: {e}")
+            postes_bt_data = []
+            postes_hta_data = []
+        
+        # 5) Récupération des bâtiments dans le polygone de la commune
+        print(f"🏠 [TOITURES POLYGON] Récupération bâtiments dans polygone commune...")
+        batiments_data = get_batiments_data(search_polygon)
+        
+        if not batiments_data or not batiments_data.get("features"):
+            return jsonify({
+                "error": f"Aucun bâtiment trouvé dans la commune de {commune}",
+                "commune": commune,
+                "insee": insee,
+                "lat": lat,
+                "lon": lon,
+                "surface_commune_ha": surface_commune_ha
+            }), 404
+
+        print(f"📍 [TOITURES POLYGON] {len(batiments_data['features'])} bâtiments trouvés")
+
+        # 6) Filtrage et enrichissement des toitures avec intersection commune
+        to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+        toitures_filtrees = []
+        
+        for i, batiment in enumerate(batiments_data["features"]):
+            if "geometry" not in batiment:
+                continue
+                
+            try:
+                # Vérifier que le bâtiment est bien dans la commune
+                bat_geom = shape(batiment["geometry"])
+                if not bat_geom.is_valid:
+                    bat_geom = bat_geom.buffer(0)
+                    if not bat_geom.is_valid:
+                        continue
+                
+                # Filtrage géographique : le bâtiment doit être dans la commune
+                if not (commune_shape.contains(bat_geom) or commune_shape.intersects(bat_geom)):
+                    continue
+                
+                # Surface en m²
+                surface_m2 = shp_transform(to_l93, bat_geom).area
+                
+                # Filtrage par surface minimale
+                if surface_m2 < min_surface_toiture:
+                    continue
+                
+                # Calcul des distances aux postes
+                centroid = bat_geom.centroid.coords[0]
+                min_distance_bt = calculate_min_distance(centroid, postes_bt_data) if postes_bt_data else None
+                min_distance_hta = calculate_min_distance(centroid, postes_hta_data) if postes_hta_data else None
+                
+                # Filtrage par distance (optionnel, car on a déjà le filtrage par commune)
+                if min_distance_bt is not None and min_distance_bt > max_distance_bt and \
+                   min_distance_hta is not None and min_distance_hta > max_distance_hta:
+                    continue
+                
+                # Enrichissement des propriétés
+                props = batiment.get("properties", {}).copy()
+                props.update({
+                    "surface_toiture_m2": round(surface_m2, 2),
+                    "min_distance_bt_m": round(min_distance_bt, 2) if min_distance_bt is not None else None,
+                    "min_distance_hta_m": round(min_distance_hta, 2) if min_distance_hta is not None else None,
+                    "commune": commune,
+                    "insee": insee,
+                    "search_method": "polygon_commune"
+                })
+                
+                toitures_filtrees.append({
+                    "type": "Feature",
+                    "geometry": batiment["geometry"],
+                    "properties": props
+                })
+                
+                # Limitation pendant le traitement
+                if len(toitures_filtrees) >= max_results:
+                    break
+                    
+            except Exception as e:
+                continue
+
+        print(f"✅ [TOITURES POLYGON] {len(toitures_filtrees)} toitures filtrées dans la commune")
+
+        # Ajouter liens hypertextes utiles aux toitures (Street View et Annuaire)
+        try:
+            for f in toitures_filtrees:
+                try:
+                    geom = f.get("geometry")
+                    from shapely.geometry import shape as _shape
+                    c = _shape(geom).centroid
+                    f.setdefault("properties", {})
+                    f["properties"]["lien_streetview"] = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={c.y},{c.x}"
+                    f["properties"]["lien_annuaire"] = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(commune)}&univers=pagesjaunes&idOu="
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # 7) Récupération des parcelles pour les toitures trouvées
+        print(f"🏠 [TOITURES POLYGON] Récupération des parcelles pour les toitures...")
+        parcelles_toitures = []
+        
+        if toitures_filtrees:
+            try:
+                # Récupérer les parcelles dans le polygone de la commune
+                parcelles_data = get_api_cadastre_data(search_polygon, endpoint="/cadastre/parcelle", source_ign="PCI")
+                
+                if parcelles_data and parcelles_data.get("features"):
+                    print(f"    📦 {len(parcelles_data['features'])} parcelles récupérées dans la commune")
+                    
+                    # Pour chaque toiture, trouver la parcelle correspondante
+                    for toiture in toitures_filtrees:
+                        toiture_geom = shape(toiture["geometry"])
+                        toiture_centroid = toiture_geom.centroid
+                        
+                        # Chercher la parcelle qui contient cette toiture
+                        for parcelle in parcelles_data["features"]:
+                            if "geometry" in parcelle:
+                                try:
+                                    parcelle_geom = shape(parcelle["geometry"])
+                                    if parcelle_geom.contains(toiture_centroid):
+                                        # Enrichir la parcelle avec les informations de la toiture
+                                        parcelle_props = parcelle.get("properties", {}).copy()
+                                        parcelle_props.update({
+                                            "toiture_surface_m2": toiture["properties"]["surface_toiture_m2"],
+                                            "toiture_distance_bt_m": toiture["properties"]["min_distance_bt_m"],
+                                            "toiture_distance_hta_m": toiture["properties"]["min_distance_hta_m"],
+                                            "has_toiture": True,
+                                            "commune_recherche": commune,
+                                            "insee": insee
+                                        })
+                                        
+                                        parcelle_enrichie = {
+                                            "type": "Feature",
+                                            "geometry": parcelle["geometry"],
+                                            "properties": parcelle_props
+                                        }
+                                        
+                                        # Éviter les doublons de parcelles
+                                        parcelle_id = parcelle_props.get("numero", f"parcelle_{len(parcelles_toitures)}")
+                                        if not any(p["properties"].get("numero") == parcelle_id for p in parcelles_toitures):
+                                            parcelles_toitures.append(parcelle_enrichie)
+                                        break
+                                except Exception as e:
+                                    continue
+                    
+                    print(f"    ✅ {len(parcelles_toitures)} parcelles associées aux toitures")
+                
+            except Exception as e:
+                print(f"⚠️ [TOITURES POLYGON] Erreur récupération parcelles: {e}")
+
+        # 8) Statistiques
+        if toitures_filtrees:
+            surfaces = [t["properties"]["surface_toiture_m2"] for t in toitures_filtrees]
+            stats = {
+                "count": len(toitures_filtrees),
+                "surface_totale_m2": round(sum(surfaces), 2),
+                "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2),
+                "surface_max_m2": round(max(surfaces), 2),
+                "surface_min_m2": round(min(surfaces), 2)
+            }
+        else:
+            stats = {
+                "count": 0,
+                "surface_totale_m2": 0,
+                "surface_moyenne_m2": 0,
+                "surface_max_m2": 0,
+                "surface_min_m2": 0
+            }
+
+        # 9) Réponse finale
+        return jsonify({
+            "success": True,
+            "commune": commune,
+            "insee": insee,
+            "surface_commune_ha": surface_commune_ha,
+            "search_method": "polygon_commune",
+            "filters": {
+                "min_surface_toiture_m2": min_surface_toiture,
+                "max_distance_bt_m": max_distance_bt,
+                "max_distance_hta_m": max_distance_hta,
+                "max_results": max_results
+            },
+            "statistics": stats,
+            "toitures": toitures_filtrees[:5],  # Exemples
+            "all_toitures": toitures_filtrees,
+            "parcelles": parcelles_toitures,
+            "postes_info": {
+                "postes_bt_count": len(postes_bt_data),
+                "postes_hta_count": len(postes_hta_data)
+            }
+        })
+
+    except Exception as e:
+        print(f"❌ [TOITURES POLYGON] Erreur: {e}")
+        return jsonify({"error": f"Erreur lors de la recherche: {str(e)}"}), 500
+
+        print(f"✅ [TOITURES SIMPLE] {len(toitures_filtrees)} toitures filtrées")
+
+        # 6.5) Récupération des parcelles pour les toitures trouvées
+        print(f"🏠 [TOITURES SIMPLE] Récupération des parcelles pour les toitures...")
+        parcelles_toitures = []
+        
+        if toitures_filtrees:
+            try:
+                # Récupérer les parcelles dans la même zone de recherche
+                parcelles_data = get_api_cadastre_data(search_bbox, endpoint="/cadastre/parcelle", source_ign="PCI")
+                
+                if parcelles_data and parcelles_data.get("features"):
+                    print(f"    📦 {len(parcelles_data['features'])} parcelles récupérées dans la zone")
+                    
+                    # Pour chaque toiture, trouver la parcelle correspondante
+                    for toiture in toitures_filtrees:
+                        toiture_geom = shape(toiture["geometry"])
+                        toiture_centroid = toiture_geom.centroid
+                        
+                        # Chercher la parcelle qui contient cette toiture
+                        for parcelle in parcelles_data["features"]:
+                            if "geometry" in parcelle:
+                                try:
+                                    parcelle_geom = shape(parcelle["geometry"])
+                                    if parcelle_geom.contains(toiture_centroid):
+                                        # Enrichir la parcelle avec les informations de la toiture
+                                        parcelle_props = parcelle.get("properties", {}).copy()
+                                        parcelle_props.update({
+                                            "toiture_surface_m2": toiture["properties"]["surface_toiture_m2"],
+                                            "toiture_distance_bt_m": toiture["properties"]["min_distance_bt_m"],
+                                            "toiture_distance_hta_m": toiture["properties"]["min_distance_hta_m"],
+                                            "has_toiture": True,
+                                            "commune_recherche": commune
+                                        })
+                                        
+                                        parcelle_enrichie = {
+                                            "type": "Feature",
+                                            "geometry": parcelle["geometry"],
+                                            "properties": parcelle_props
+                                        }
+                                        
+                                        # Éviter les doublons de parcelles
+                                        parcelle_id = parcelle_props.get("numero", f"parcelle_{len(parcelles_toitures)}")
+                                        if not any(p["properties"].get("numero") == parcelle_id for p in parcelles_toitures):
+                                            parcelles_toitures.append(parcelle_enrichie)
+                                        break
+                                except Exception as e:
+                                    continue
+                    
+                    print(f"    ✅ {len(parcelles_toitures)} parcelles associées aux toitures")
+                
+            except Exception as e:
+                print(f"⚠️ [TOITURES SIMPLE] Erreur récupération parcelles: {e}")
+
+        # 7) Statistiques
+        if toitures_filtrees:
+            surfaces = [t["properties"]["surface_toiture_m2"] for t in toitures_filtrees]
+            stats = {
+                "count": len(toitures_filtrees),
+                "surface_totale_m2": round(sum(surfaces), 2),
+                "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2),
+                "surface_max_m2": round(max(surfaces), 2),
+                "surface_min_m2": round(min(surfaces), 2)
+            }
+        else:
+            stats = {"count": 0}
+
+        # 8) Tri par surface décroissante
+        toitures_filtrees.sort(key=lambda x: x["properties"].get("surface_toiture_m2", 0), reverse=True)
+
+        # 9) Réponse JSON
+        response_data = {
+            "commune": commune,
+            "lat": lat,
+            "lon": lon,
+            "search_radius_km": radius_km,
+            "toitures": {
+                "type": "FeatureCollection",
+                "features": toitures_filtrees
+            },
+            "parcelles_toitures": {
+                "type": "FeatureCollection",
+                "features": parcelles_toitures
+            },
+            "postes_bt": {
+                "type": "FeatureCollection", 
+                "features": postes_bt_data
+            },
+            "postes_hta": {
+                "type": "FeatureCollection",
+                "features": postes_hta_data
+            },
+            "statistics": stats,
+            "filters_applied": {
+                "min_surface_toiture_m2": min_surface_toiture,
+                "max_distance_bt_m": max_distance_bt,
+                "max_distance_hta_m": max_distance_hta,
+                "max_results": max_results
+            },
+            "metadata": {
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "method": "simplified_radius_search",
+                "total_batiments_analyses": len(batiments_data.get("features", [])),
+                "parcelles_trouvees": len(parcelles_toitures)
+            },
+            # Données pour l'affichage sur la carte
+            "map_data": {
+                "center": [lat, lon],
+                "zoom": 15,
+                "layers": {
+                    "toitures": {
+                        "name": "Toitures trouvées",
+                        "color": "#ff4444",
+                        "features": toitures_filtrees
+                    },
+                    "parcelles": {
+                        "name": "Parcelles avec toitures", 
+                        "color": "#44ff44",
+                        "features": parcelles_toitures
+                    },
+                    "postes_bt": {
+                        "name": "Postes BT",
+                        "color": "#4444ff",
+                        "features": postes_bt_data
+                    },
+                    "postes_hta": {
+                        "name": "Postes HTA", 
+                        "color": "#ff44ff",
+                        "features": postes_hta_data
+                    }
+                }
+            }
+        }
+        
+        print(f"🏠 [TOITURES SIMPLE] === FIN RECHERCHE - {len(toitures_filtrees)} toitures ===")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"❌ [TOITURES SIMPLE] Erreur: {e}")
+        return jsonify({"error": f"Erreur lors de la recherche: {str(e)}"}), 500
+
+@app.route("/search_toitures_commune", methods=["GET", "POST"])
+def search_toitures_commune():
+    """
+    Recherche spécialisée pour les toitures dans une commune avec filtres:
+    - Surface minimale des toitures (m²)
+    - Distance maximale aux postes BT/HTA (mètres)
+    - Logique de filtrage par distance (OR/AND)
+    - Type de poste (BT/HTA/ALL)
+    """
+    from urllib.parse import quote_plus
+    from flask import request as flask_request
+    from shapely.geometry import shape
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    
+    print("🏠 [TOITURES] === DÉBUT RECHERCHE TOITURES COMMUNE ===")
+    
+    # 1) Paramètres de la requête
+    commune = flask_request.values.get("commune", "").strip()
+    
+    # Filtres spécifiques aux toitures
+    min_surface_toiture = float(flask_request.values.get("min_surface_toiture", 50.0))  # m²
+    max_distance_bt = float(flask_request.values.get("max_distance_bt", 300.0))  # mètres
+    max_distance_hta = float(flask_request.values.get("max_distance_hta", 1000.0))  # mètres
+    distance_logic = flask_request.values.get("distance_logic", "OR").upper()  # OR ou AND
+    poste_type_filter = flask_request.values.get("poste_type_filter", "ALL").upper()  # ALL, BT, HTA
+    
+    # Filtres optionnels
+    max_results = int(flask_request.values.get("max_results", 1000000))  # Limite de résultats augmentée
+    sort_by = flask_request.values.get("sort_by", "surface").lower()  # surface, distance
+    
+    if not commune:
+        return jsonify({"error": "Veuillez fournir une commune."}), 400
+
+    print(f"🏠 [TOITURES] Commune: {commune}")
+    print(f"    Surface mini toiture: {min_surface_toiture}m²")
+    print(f"    Distance max BT: {max_distance_bt}m, HTA: {max_distance_hta}m")
+    print(f"    Logique distance: {distance_logic}, Type poste: {poste_type_filter}")
+    print(f"    Max résultats: {max_results}, Tri: {sort_by}")
+
+    # 2) Récupération du contour de la commune
+    try:
+        commune_infos = requests.get(
+            f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour",
+            timeout=15
+        ).json()
+        
+        if not commune_infos or not commune_infos[0].get("contour"):
+            return jsonify({"error": "Contour de la commune introuvable."}), 404
+            
+        contour = commune_infos[0]["contour"]
+        centre = commune_infos[0]["centre"]
+        lat, lon = centre["coordinates"][1], centre["coordinates"][0]
+        
+    except Exception as e:
+        print(f"❌ [TOITURES] Erreur récupération commune: {e}")
+        return jsonify({"error": "Erreur lors de la récupération des données de la commune."}), 500
+
+    # 3) Création du polygone de la commune et bbox
+    from shapely.geometry import shape
+    commune_poly = shape(contour)
+    minx, miny, maxx, maxy = commune_poly.bounds
+    bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+    
+    print(f"🏠 [TOITURES] Bbox commune: {bbox}")
+
+    # 4) Récupération des postes pour calculs de distance
+    def filter_in_commune(features):
+        """Filtre les features qui intersectent avec la commune"""
+        filtered = []
+        for f in features:
+            if "geometry" not in f:
+                continue
+            try:
+                geom = shape(f["geometry"])
+                if not geom.is_valid:
+                    geom = geom.buffer(0)
+                    if not geom.is_valid:
+                        continue
+                if geom.intersects(commune_poly):
+                    filtered.append(f)
+            except Exception as e:
+                print(f"⚠️ [TOITURES] Géométrie ignorée: {e}")
+                continue
+        return filtered
+
+    print(f"🏠 [TOITURES] Récupération des postes...")
+    postes_bt_data = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
+    postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+    
+    print(f"    📍 {len(postes_bt_data)} postes BT trouvés")
+    print(f"    📍 {len(postes_hta_data)} postes HTA trouvés")
+
+    # 5) Récupération des bâtiments de toute la commune - NOUVELLE MÉTHODE OPTIMISÉE PAR CHUNKS
+    print(f"🏠 [TOITURES] Récupération optimisée des bâtiments par chunks...")
+    print(f"🏠 [TOITURES] Application de la méthode chunk comme les parkings (contournement erreur 414)")
+    
+    # Utiliser la nouvelle fonction optimisée par chunks
+    batiments_data = get_batiments_info_by_polygon(contour)
+    
+    if not batiments_data or not batiments_data.get("features"):
+        return jsonify({
+            "error": "Aucun bâtiment trouvé dans cette commune",
+            "commune": commune,
+            "lat": lat,
+            "lon": lon,
+            "method": "openstreetmap_overpass"
+        }), 404
+
+    print(f"📍 [TOITURES] {len(batiments_data['features'])} bâtiments trouvés via méthode chunk optimisée")
+
+    # 6) Filtrage et enrichissement des toitures avec intersection géométrique précise
+    to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+    toitures_filtrees = []
+    
+    for i, batiment in enumerate(batiments_data["features"]):
+        if "geometry" not in batiment:
+            continue
+            
+        try:
+            # Vérifier que le bâtiment est bien dans la commune (filtrage géométrique précis)
+            bat_geom = shape(batiment["geometry"])
+            if not bat_geom.is_valid:
+                bat_geom = bat_geom.buffer(0)
+                if not bat_geom.is_valid:
+                    continue
+            
+            # Filtrage géographique : le bâtiment doit être dans la commune
+            if not (commune_poly.contains(bat_geom) or commune_poly.intersects(bat_geom)):
+                continue
+            
+            # Calculer la surface de la toiture (= surface du bâtiment)
+            surface_m2 = shp_transform(to_l93, bat_geom).area
+            
+            # Filtrage par surface minimale
+            if surface_m2 < min_surface_toiture:
+                continue
+            
+            # Calcul des distances aux postes
+            centroid = bat_geom.centroid.coords[0]
+            min_distance_bt = calculate_min_distance(centroid, postes_bt_data)
+            min_distance_hta = calculate_min_distance(centroid, postes_hta_data)
+            
+            # Application du filtre de distance
+            distance_ok = True
+            
+            if poste_type_filter == "BT":
+                distance_ok = (min_distance_bt is not None and min_distance_bt <= max_distance_bt)
+            elif poste_type_filter == "HTA":
+                distance_ok = (min_distance_hta is not None and min_distance_hta <= max_distance_hta)
+            else:  # ALL
+                bt_ok = (min_distance_bt is not None and min_distance_bt <= max_distance_bt)
+                hta_ok = (min_distance_hta is not None and min_distance_hta <= max_distance_hta)
+                
+                if distance_logic == "AND":
+                    distance_ok = bt_ok and hta_ok
+                else:  # OR
+                    distance_ok = bt_ok or hta_ok
+            
+            if not distance_ok:
+                continue
+            
+            # Enrichissement des propriétés
+            props = batiment.get("properties", {}).copy()
+            props.update({
+                "surface_toiture_m2": round(surface_m2, 2),
+                "surface_toiture_ha": round(surface_m2 / 10000, 4),
+                "min_distance_bt_m": round(min_distance_bt, 2) if min_distance_bt is not None else None,
+                "min_distance_hta_m": round(min_distance_hta, 2) if min_distance_hta is not None else None,
+                "min_distance_total_m": round(min(min_distance_bt or 1e12, min_distance_hta or 1e12), 2),
+                "commune": commune,
+                "search_method": "openstreetmap_overpass",
+                "filter_applied": {
+                    "min_surface_m2": min_surface_toiture,
+                    "distance_logic": distance_logic,
+                    "poste_type": poste_type_filter
+                }
+            })
+            
+            toitures_filtrees.append({
+                "type": "Feature",
+                "geometry": batiment["geometry"],
+                "properties": props
+            })
+            
+            # Affichage progression pour grandes communes
+            if (i + 1) % 500 == 0:
+                print(f"    🔄 Analysé {i + 1}/{len(batiments_data['features'])} bâtiments, {len(toitures_filtrees)} toitures validées")
+                
+        except Exception as e:
+            print(f"⚠️ [TOITURES] Erreur analyse bâtiment {i}: {e}")
+            continue
+
+    print(f"✅ [TOITURES] {len(toitures_filtrees)} toitures après filtrage (méthode polygone complète)")
+
+    # 7) Tri des résultats
+    if sort_by == "surface":
+        toitures_filtrees.sort(key=lambda x: x["properties"].get("surface_toiture_m2", 0), reverse=True)
+    elif sort_by == "distance":
+        toitures_filtrees.sort(key=lambda x: x["properties"].get("min_distance_total_m", 1e12))
+    
+    # Limitation du nombre de résultats
+    if len(toitures_filtrees) > max_results:
+        toitures_filtrees = toitures_filtrees[:max_results]
+        print(f"🔄 [TOITURES] Résultats limités à {max_results}")
+
+    # 9) Statistiques
+    if toitures_filtrees:
+        surfaces = [t["properties"]["surface_toiture_m2"] for t in toitures_filtrees]
+        distances_bt = [t["properties"]["min_distance_bt_m"] for t in toitures_filtrees if t["properties"]["min_distance_bt_m"] is not None]
+        distances_hta = [t["properties"]["min_distance_hta_m"] for t in toitures_filtrees if t["properties"]["min_distance_hta_m"] is not None]
+        
+        stats = {
+            "count": len(toitures_filtrees),
+            "surface_totale_m2": round(sum(surfaces), 2),
+            "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2),
+            "surface_max_m2": round(max(surfaces), 2),
+            "surface_min_m2": round(min(surfaces), 2),
+            "distance_bt_moyenne_m": round(sum(distances_bt) / len(distances_bt), 2) if distances_bt else None,
+            "distance_hta_moyenne_m": round(sum(distances_hta) / len(distances_hta), 2) if distances_hta else None
+        }
+    else:
+        stats = {"count": 0}
+
+    # 10) Réponse JSON
+    response_data = {
+        "commune": commune,
+        "lat": lat,
+        "lon": lon,
+        "toitures": {
+            "type": "FeatureCollection",
+            "features": toitures_filtrees
+        },
+        "postes_bt": {
+            "type": "FeatureCollection", 
+            "features": postes_bt_data
+        },
+        "postes_hta": {
+            "type": "FeatureCollection",
+            "features": postes_hta_data
+        },
+        "statistics": stats,
+        "filters_applied": {
+            "min_surface_toiture_m2": min_surface_toiture,
+            "max_distance_bt_m": max_distance_bt,
+            "max_distance_hta_m": max_distance_hta,
+            "distance_logic": distance_logic,
+            "poste_type_filter": poste_type_filter,
+            "max_results": max_results,
+            "sort_by": sort_by
+        },
+        "metadata": {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "method": "polygon_complet_comme_parkings",
+            "total_batiments_analyses": len(batiments_data.get("features", [])),
+            "toitures_apres_filtrage": len(toitures_filtrees)
+        }
+    }
+    
+    print(f"🏠 [TOITURES] === FIN RECHERCHE - {len(toitures_filtrees)} toitures trouvées ===")
+    
+    return jsonify(response_data)
+
 @app.route("/rapport_map")
 def rapport_map_point():
     print("🚨🚨🚨 FONCTION RAPPORT_MAP_POINT CORRIGÉE EN COURS D'EXÉCUTION 🚨🚨🚨")
@@ -2503,7 +4985,6 @@ def rapport_map_point():
     from datetime import datetime
     import json
     import os
-    import requests
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     report_data = {
@@ -2773,6 +5254,85 @@ def rapport_map_point():
         except Exception as e:
             log_step("CONTEXT", f"Erreur postes électriques: {e}", "ERROR")
         
+        # CAPACITÉS RÉSEAU HTA - COLLECTE AVEC MAPPING COMPLET
+        try:
+            log_step("CONTEXT", "Collecte capacités réseau HTA...")
+            
+            # Essayons avec plusieurs rayons de recherche
+            rayons_test = [0.05, 0.1, 0.2, 0.5]  # 5, 11, 22, 55 km
+            capacites_reseau = []
+            
+            for rayon in rayons_test:
+                log_step("CONTEXT", f"Test rayon {rayon}° (~{int(rayon*111)}km)...")
+                capacites_test = get_nearest_capacites_reseau(lat_float, lon_float, count=10, radius_deg=rayon) or []
+                if capacites_test:
+                    capacites_reseau = capacites_test
+                    log_step("CONTEXT", f"✅ Capacités trouvées avec rayon {rayon}°: {len(capacites_test)}", "SUCCESS")
+                    break
+                else:
+                    log_step("CONTEXT", f"⚠️ Aucune capacité avec rayon {rayon}°", "WARNING")
+            
+            # Test direct de la couche
+            if not capacites_reseau:
+                log_step("CONTEXT", "Test direct de la couche CAPACITES_RESEAU_LAYER...")
+                bbox_large = f"{lon_float-1},{lat_float-1},{lon_float+1},{lat_float+1},EPSG:4326"
+                capacites_raw = fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox_large) or []
+                log_step("CONTEXT", f"Test couche directe: {len(capacites_raw)} features trouvées", "INFO")
+            
+            if capacites_reseau:
+                # Application du mapping HTA pour chaque capacité
+                hta_enriched = []
+                for item in capacites_reseau:
+                    if isinstance(item, dict) and 'properties' in item:
+                        props = item['properties']
+                        
+                        # Application du mapping avec gestion distance
+                        ht_item = {display_name: props.get(field_name, "Non défini") 
+                                  for display_name, field_name in hta_mapping.items()}
+                        
+                        # Ajout des données géométriques et de distance si disponibles
+                        if 'geometry' in item:
+                            ht_item['geometry'] = item['geometry']
+                        if 'distance' in item:
+                            ht_item['distance'] = round(item['distance'], 1)
+                        
+                        # Calcul distance si pas déjà présente
+                        if 'distance' not in ht_item and item.get('geometry', {}).get('coordinates'):
+                            try:
+                                from geopy.distance import geodesic
+                                coords = item['geometry']['coordinates']
+                                if len(coords) >= 2:
+                                    capacity_lon, capacity_lat = coords[0], coords[1]
+                                    distance = geodesic((lat_float, lon_float), (capacity_lat, capacity_lon)).meters
+                                    ht_item['distance'] = round(distance, 1)
+                            except Exception as e:
+                                log_step("CONTEXT", f"Erreur calcul distance capacité: {e}", "WARNING")
+                        
+                        # Log des propriétés trouvées pour débogage
+                        non_empty_props = {k: v for k, v in props.items() if v and str(v).strip()}
+                        log_step("CONTEXT", f"Capacité trouvée: {len(non_empty_props)} propriétés non-vides", "INFO")
+                        
+                        hta_enriched.append(ht_item)
+                
+                # Tri par distance si disponible
+                hta_enriched.sort(key=lambda x: x.get('distance', 999999))
+                
+                report_data["hta"] = hta_enriched
+                log_step("CONTEXT", f"✅ Capacités HTA enrichies: {len(hta_enriched)}", "SUCCESS")
+                
+                # Debug: affichage des capacités enrichies
+                print(f"🔍 [DEBUG HTA] Capacités HTA enrichies pour le rapport:")
+                for i, cap in enumerate(hta_enriched[:3]):  # Afficher les 3 premières
+                    print(f"🔍 [DEBUG HTA] Capacité {i+1}: {cap.get('Nom', 'N/A')} - Distance: {cap.get('distance', 'N/A')}m")
+                    print(f"🔍 [DEBUG HTA] - Capacité: {cap.get('Capacité', 'N/A')} - S3REnR: {cap.get('S3REnR', 'N/A')}")
+            else:
+                report_data["hta"] = []
+                log_step("CONTEXT", "⚠️ Aucune capacité HTA trouvée après tous les tests", "WARNING")
+                
+        except Exception as e:
+            report_data["hta"] = []
+            log_step("CONTEXT", f"❌ Erreur capacités HTA: {e}", "ERROR")
+        
         # ÉLEVEURS - ENRICHISSEMENT AVEC DISTANCES (avec gestion d'erreur robuste)
         try:
             eleveurs_bbox = f"{lon_float-0.03},{lat_float-0.03},{lon_float+0.03},{lat_float+0.03},EPSG:4326"
@@ -2869,7 +5429,8 @@ def rapport_map_point():
         api_details = {
             "cadastre": {"success": False, "data": None, "details": {}, "error": None},
             "gpu": {"success": False, "data": None, "details": {}, "layers_count": 0, "features_count": 0, "error": None},
-            "codes_postaux": {"success": False, "data": None, "details": {}, "error": None}
+            "codes_postaux": {"success": False, "data": None, "details": {}, "error": None},
+            "nature": {"success": False, "data": None, "details": {}, "count": 0, "error": None}
         }
         
         try:
@@ -2931,7 +5492,7 @@ def rapport_map_point():
                             }
                             
                             # Extraction des propriétés importantes
-                            for feature in layer_data['features'][:3]:
+                            for feature in layer_data['features']:  # Affichage de toutes les features au lieu de [:3]
                                 props = feature.get('properties', {})
                                 if props:
                                     important_props = {k: v for k, v in props.items() 
@@ -2954,49 +5515,181 @@ def rapport_map_point():
                 api_details["gpu"]["error"] = str(e)
                 log_step("CONTEXT", f"❌ Erreur API GPU: {e}", "ERROR")
             
-            # API Codes postaux
-            log_step("CONTEXT", "Appel API Codes postaux...")
+            # API Annuaire de l'Administration et des Services Publics
+            log_step("CONTEXT", "🏛️ Appel API Annuaire Administration...")
             try:
                 import json
-                communes_url = "https://apicarto.ign.fr/api/codes-postaux/communes"
-                communes_params = {'geom': json.dumps(point_geojson), '_limit': 1000}
+                from urllib.parse import quote
                 
-                communes_response = requests.get(communes_url, params=communes_params, timeout=15)
+                # Rechercher les services publics dans la commune
+                # Utiliser le code INSEE si disponible via l'API Cadastre, sinon le nom de commune
+                code_insee = None
+                if api_details.get("cadastre", {}).get("success") and api_details["cadastre"]["details"].get("code_insee") != "N/A":
+                    code_insee = api_details["cadastre"]["details"]["code_insee"]
                 
-                if communes_response.status_code == 200:
-                    communes_json = communes_response.json()
-                    if communes_json.get('features'):
-                        communes_props = communes_json['features'][0].get('properties', {})
-                        report_data["api_nature"] = communes_json
-                        report_data["api_externe"]["nature"] = communes_props
-                        
-                        api_details["codes_postaux"]["success"] = True
-                        api_details["codes_postaux"]["data"] = communes_props
-                        api_details["codes_postaux"]["details"] = {
-                            "commune": communes_props.get('nom_commune', 'N/A'),
-                            "code_postal": communes_props.get('code_postal', 'N/A'),
-                            "departement": communes_props.get('nom_departement', 'N/A'),
-                            "code_insee": communes_props.get('code_insee', 'N/A')
+                commune_name = report_data.get("commune_name", "")
+                
+                if code_insee or commune_name:
+                    # URL de l'API Annuaire Administration
+                    admin_url = "https://api-lannuaire.service-public.fr/api/explore/v2.1/catalog/datasets/api-lannuaire-administration/records"
+                    
+                    # Paramètres de recherche : priorité au code INSEE, sinon nom de commune
+                    if code_insee:
+                        admin_params = {
+                            'where': f'code_insee_commune="{code_insee}"',
+                            'limit': 20,
+                            'order_by': 'nom'
                         }
-                        
-                        # Enrichir données administratives si manquantes
-                        if not report_data.get("commune_name"):
-                            report_data["commune_name"] = communes_props.get('nom_commune')
-                        if not report_data.get("code_postal"):
-                            report_data["code_postal"] = communes_props.get('code_postal')
-                        if not report_data.get("departement"):
-                            report_data["departement"] = communes_props.get('nom_departement')
-                        
-                        log_step("CONTEXT", "✅ API Codes postaux: Données récupérées", "SUCCESS")
+                        log_step("CONTEXT", f"Recherche services publics par code INSEE: {code_insee}", "INFO")
                     else:
-                        api_details["codes_postaux"]["error"] = "Aucune donnée de codes postaux trouvée"
-                        log_step("CONTEXT", "⚠️ API Codes postaux: Aucune donnée", "WARNING")
+                        # Fallback: recherche par nom dans l'adresse (format JSON)
+                        admin_params = {
+                            'where': f'adresse like "*{commune_name}*"',
+                            'limit': 20,
+                            'order_by': 'nom'
+                        }
+                        log_step("CONTEXT", f"Recherche services publics par nom commune: {commune_name}", "INFO")
+                    
+                    admin_response = requests.get(admin_url, params=admin_params, timeout=15)
+                    
+                    if admin_response.status_code == 200:
+                        admin_json = admin_response.json()
+                        services = admin_json.get('results', [])
+                        
+                        if services:
+                            # Traitement des services publics trouvés
+                            services_list = []
+                            for service in services:
+                                # Parser l'adresse (qui est un JSON string)
+                                adresse_raw = service.get('adresse', '[]')
+                                if isinstance(adresse_raw, str):
+                                    try:
+                                        adresses = json.loads(adresse_raw)
+                                        adresse_principale = adresses[0] if adresses else {}
+                                    except:
+                                        adresse_principale = {}
+                                else:
+                                    adresse_principale = adresse_raw[0] if isinstance(adresse_raw, list) and adresse_raw else {}
+                                
+                                # Parser téléphone
+                                telephone_raw = service.get('telephone', '[]')
+                                if isinstance(telephone_raw, str):
+                                    try:
+                                        telephones = json.loads(telephone_raw)
+                                        telephone = telephones[0]['valeur'] if telephones and telephones[0].get('valeur') else None
+                                    except:
+                                        telephone = None
+                                else:
+                                    telephone = telephone_raw[0]['valeur'] if isinstance(telephone_raw, list) and telephone_raw and telephone_raw[0].get('valeur') else None
+                                
+                                # Parser site internet
+                                site_raw = service.get('site_internet', '[]')
+                                if isinstance(site_raw, str):
+                                    try:
+                                        sites = json.loads(site_raw)
+                                        site_web = sites[0]['valeur'] if sites and sites[0].get('valeur') else None
+                                    except:
+                                        site_web = None
+                                else:
+                                    site_web = site_raw[0]['valeur'] if isinstance(site_raw, list) and site_raw and site_raw[0].get('valeur') else None
+                                
+                                service_info = {
+                                    'nom': service.get('nom', 'N/A'),
+                                    'type_organisme': service.get('type_organisme', 'N/A'),
+                                    'categorie': service.get('categorie', 'N/A'),
+                                    'mission': service.get('mission', '')[:300] + '...' if service.get('mission', '') and len(service.get('mission', '')) > 300 else service.get('mission', ''),
+                                    'telephone': telephone,
+                                    'email': service.get('adresse_courriel'),
+                                    'site_web': site_web,
+                                    'adresse': {
+                                        'numero_voie': adresse_principale.get('numero_voie', ''),
+                                        'code_postal': adresse_principale.get('code_postal', ''),
+                                        'commune': adresse_principale.get('nom_commune', ''),
+                                        'longitude': adresse_principale.get('longitude', ''),
+                                        'latitude': adresse_principale.get('latitude', '')
+                                    },
+                                    'url_service_public': service.get('url_service_public'),
+                                    'horaires': service.get('plage_ouverture')
+                                }
+                                services_list.append(service_info)
+                            
+                            # Stocker les données
+                            report_data["api_externe"]["services_publics"] = services_list
+                            
+                            api_details["codes_postaux"]["success"] = True
+                            api_details["codes_postaux"]["data"] = services_list
+                            api_details["codes_postaux"]["details"] = {
+                                "total_services": len(services_list),
+                                "types_organismes": list(set([s['type_organisme'] for s in services_list if s['type_organisme'] != 'N/A'])),
+                                "services_avec_telephone": len([s for s in services_list if s['telephone']]),
+                                "services_avec_site_web": len([s for s in services_list if s['site_web']]),
+                                "commune": commune_name
+                            }
+                            
+                            log_step("CONTEXT", f"✅ API Administration: {len(services_list)} services publics trouvés", "SUCCESS")
+                        else:
+                            api_details["codes_postaux"]["error"] = "Aucun service public trouvé dans cette commune"
+                            log_step("CONTEXT", "⚠️ API Administration: Aucun service trouvé", "WARNING")
+                    else:
+                        api_details["codes_postaux"]["error"] = f"Erreur HTTP {admin_response.status_code}"
+                        log_step("CONTEXT", f"❌ API Administration erreur {admin_response.status_code}", "ERROR")
                 else:
-                    api_details["codes_postaux"]["error"] = f"Erreur HTTP {communes_response.status_code}"
-                    log_step("CONTEXT", f"❌ API Codes postaux erreur {communes_response.status_code}", "ERROR")
+                    api_details["codes_postaux"]["error"] = "Code INSEE et nom de commune non disponibles pour la recherche"
+                    log_step("CONTEXT", "⚠️ API Administration: Identifiants commune manquants", "WARNING")
+                    
             except Exception as e:
                 api_details["codes_postaux"]["error"] = str(e)
-                log_step("CONTEXT", f"❌ Erreur API Codes postaux: {e}", "ERROR")
+                log_step("CONTEXT", f"❌ Erreur API Administration: {e}", "ERROR")
+                
+            # API Nature (Espaces naturels protégés)
+            try:
+                log_step("CONTEXT", "🌿 Collecte données API Nature...", "INFO")
+                # Debug: afficher les coordonnées utilisées
+                print(f"🔍 [DEBUG RAPPORT] Coordonnées pour API Nature: lat={lat_float}, lon={lon_float}")
+                
+                # Créer une géométrie point pour l'API Nature - CORRECTION: utiliser float au lieu de string
+                geom = {"type": "Point", "coordinates": [lon_float, lat_float]}
+                print(f"🔍 [DEBUG RAPPORT] Géométrie API Nature: {geom}")
+                
+                nature_data = get_all_api_nature_data(geom)
+                print(f"🔍 [DEBUG RAPPORT] Résultat get_all_api_nature_data: {type(nature_data)}")
+                
+                if nature_data and "features" in nature_data and nature_data["features"]:
+                    print(f"🔍 [DEBUG RAPPORT] API Nature SUCCESS: {len(nature_data['features'])} features trouvées")
+                    api_details["nature"]["success"] = True
+                    api_details["nature"]["data"] = nature_data
+                    api_details["nature"]["count"] = len(nature_data["features"])
+                    
+                    # AJOUT: Remplir report_data["api_nature"] pour le template
+                    report_data["api_nature"] = nature_data
+                    report_data["api_externe"]["nature"] = nature_data
+                    
+                    log_step("CONTEXT", f"✅ API Nature: {len(nature_data['features'])} espaces naturels trouvés", "SUCCESS")
+                    
+                    # Debug: afficher les noms des zones trouvées
+                    for i, feature in enumerate(nature_data["features"][:3]):
+                        props = feature.get("properties", {})
+                        nom = props.get("NOM") or props.get("nom") or "Sans nom"
+                        type_prot = props.get("TYPE_PROTECTION", "Non défini")
+                        print(f"🔍 [DEBUG RAPPORT] Zone {i+1}: {nom} ({type_prot})")
+                else:
+                    print(f"🔍 [DEBUG RAPPORT] API Nature AUCUNE: nature_data={bool(nature_data)}")
+                    if nature_data:
+                        print(f"🔍 [DEBUG RAPPORT] features in nature_data: {'features' in nature_data}")
+                        if 'features' in nature_data:
+                            print(f"🔍 [DEBUG RAPPORT] len(features): {len(nature_data['features'])}")
+                    
+                    api_details["nature"]["success"] = False
+                    api_details["nature"]["data"] = {"type": "FeatureCollection", "features": []}
+                    api_details["nature"]["count"] = 0
+                    log_step("CONTEXT", "ℹ️ API Nature: Aucun espace naturel trouvé", "INFO")
+            except Exception as e:
+                print(f"🔍 [DEBUG RAPPORT] API Nature EXCEPTION: {e}")
+                import traceback
+                traceback.print_exc()
+                api_details["nature"]["success"] = False
+                api_details["nature"]["error"] = str(e)
+                log_step("CONTEXT", f"❌ Erreur API Nature: {e}", "ERROR")
                 
         except Exception as e:
             log_step("CONTEXT", f"❌ Erreur APIs globale: {e}", "ERROR")
@@ -3237,6 +5930,50 @@ def rapport_map_point():
         traceback.print_exc()
         return jsonify({"error": f"Erreur génération rapport au point exact: {str(e)}"}), 500
     
+@app.route("/test_capacites_hta")
+def test_capacites_hta():
+    """Route de test pour déboguer les capacités HTA"""
+    lat, lon = 48.636, -1.511  # Mont-Saint-Michel
+    
+    print(f"🔍 [TEST CAPACITES] === TEST DIRECT CAPACITÉS HTA ===")
+    print(f"🔍 [TEST CAPACITES] Coordonnées: {lat}, {lon}")
+    
+    # Test avec différents rayons
+    rayons = [0.05, 0.1, 0.2, 0.5]
+    capacites = None
+    rayon_utilise = None
+    
+    for rayon in rayons:
+        print(f"🔍 [TEST CAPACITES] Test rayon {rayon}° (~{int(rayon*111)}km)...")
+        capacites = get_all_capacites_reseau(lat, lon, radius_deg=rayon)
+        print(f"🔍 [TEST CAPACITES] Résultat: {len(capacites)} capacités trouvées")
+        if capacites:
+            rayon_utilise = rayon
+            break
+    
+    # Test de mapping si on a des données
+    non_empty = {}
+    if capacites:
+        print(f"🔍 [TEST CAPACITES] Exemple première capacité:")
+        first_cap = capacites[0]
+        props = first_cap.get('properties', {})
+        print(f"🔍 [TEST CAPACITES] Properties keys: {list(props.keys())[:10]}")
+        
+        # Test mapping
+        mapped = {display_name: props.get(field_name, "Non défini") 
+                 for display_name, field_name in hta_mapping.items()}
+        non_empty = {k: v for k, v in mapped.items() if v != "Non défini"}
+        print(f"🔍 [TEST CAPACITES] Mapping non-vide: {len(non_empty)} champs")
+        print(f"🔍 [TEST CAPACITES] Exemples: {list(non_empty.items())[:5]}")
+    
+    return jsonify({
+        "success": True,
+        "total_capacites": len(capacites) if capacites else 0,
+        "rayon_utilise": rayon_utilise,
+        "mapping_fields": len(non_empty),
+        "sample_data": list(non_empty.items())[:10]
+    })
+
 @app.route("/rapport_point")
 def rapport_point():
     """Route de compatibilité qui redirige vers rapport_map"""
@@ -3577,6 +6314,2691 @@ def generate_reports_by_dept_sse():
 
     return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
+""" CORRUPTED BLOCK START — IGNORE BELOW UNTIL CORRUPTED BLOCK END
+18	162	N/A	BT
+72 m
+46.17023, 1.87838	HTA
+1907 m
+46.18289, 1.89020	46.16990, 1.87894	 
+19	214	N/A	BT
+147 m
+46.16963, 1.86758	HTA
+2785 m
+46.18289, 1.89020	46.16962, 1.86891	 
+20	136	
+000BC0105
+BT
+181 m
+46.17063, 1.86653	HTA
+2951 m
+46.18289, 1.89020	46.17212, 1.86588	 
+21	101	N/A	BT
+59 m
+46.17038, 1.87328	HTA
+2354 m
+46.18289, 1.89020	46.17069, 1.87285	 
+22	112	N/A	BT
+285 m
+46.19532, 1.87453	HTA
+2161 m
+46.18289, 1.89020	46.19683, 1.87661	 
+23	121	N/A	BT
+137 m
+46.17274, 1.86070	HTA
+3460 m
+46.18289, 1.89020	46.17159, 1.86114	 
+24	171	N/A	BT
+81 m
+46.17486, 1.87338	HTA
+2024 m
+46.18289, 1.89020	46.17558, 1.87349	 
+25	103	N/A	BT
+229 m
+46.16230, 1.87769	HTA
+2528 m
+46.18289, 1.89020	46.16427, 1.87707	 
+26	145	N/A	BT
+52 m
+46.16483, 1.88120	HTA
+2196 m
+46.18289, 1.89020	46.16530, 1.88114	 
+27	107	N/A	BT
+257 m
+46.15997, 1.88399	HTA
+2437 m
+46.18289, 1.89020	46.16137, 1.88584	 
+28	100	N/A	BT
+51 m
+46.15920, 1.87444	HTA
+3150 m
+46.18289, 1.89020	46.15901, 1.87486	 
+29	110	N/A	BT
+201 m
+46.17097, 1.87451	HTA
+2152 m
+46.18289, 1.89020	46.16980, 1.87589	 
+30	286	N/A	BT
+117 m
+46.19270, 1.87471	HTA
+1980 m
+46.18289, 1.89020	46.19319, 1.87564	 
+31	474	N/A	BT
+178 m
+46.17819, 1.87485	HTA
+1851 m
+46.18289, 1.89020	46.17659, 1.87476	 
+32	111	N/A	BT
+197 m
+46.17724, 1.88441	HTA
+800 m
+46.18289, 1.89020	46.17693, 1.88615	 
+33	749	N/A	BT
+151 m
+46.17924, 1.87028	HTA
+2393 m
+46.18289, 1.89020	46.17864, 1.86906	 
+34	126	N/A	BT
+216 m
+46.15992, 1.87248	HTA
+3402 m
+46.18289, 1.89020	46.15929, 1.87064	 
+35	126	
+000AY0526
+BT
+215 m
+46.17486, 1.87338	HTA
+1878 m
+46.18289, 1.89020	46.17482, 1.87533	 
+36	156	N/A	BT
+60 m
+46.16519, 1.87330	HTA
+2769 m
+46.18289, 1.89020	46.16501, 1.87280	 
+37	138	N/A	BT
+105 m
+46.17917, 1.88265	HTA
+932 m
+46.18289, 1.89020	46.18005, 1.88229	 
+38	111	N/A	BT
+170 m
+46.17549, 1.88781	HTA
+793 m
+46.18289, 1.89020	46.17580, 1.88931	 
+39	338	N/A	BT
+35 m
+46.17092, 1.86945	HTA
+2690 m
+46.18289, 1.89020	46.17066, 1.86927	 
+40	415	N/A	BT
+152 m
+46.19432, 1.87825	HTA
+1897 m
+46.18289, 1.89020	46.19375, 1.87700	 
+41	100	N/A	BT
+61 m
+46.17976, 1.88473	HTA
+651 m
+46.18289, 1.89020	46.18026, 1.88495	 
+42	123	N/A	BT
+111 m
+46.17358, 1.88593	HTA
+1204 m
+46.18289, 1.89020	46.17339, 1.88495	 
+43	105	N/A	BT
+79 m
+46.17764, 1.86259	HTA
+3086 m
+46.18289, 1.89020	46.17706, 1.86301	 
+44	245	N/A	BT
+228 m
+46.16627, 1.85287	HTA
+4677 m
+46.18289, 1.89020	46.16725, 1.85107	 
+45	1263	N/A	BT
+47 m
+46.19452, 1.87207	HTA
+2394 m
+46.18289, 1.89020	46.19418, 1.87182	 
+46	421	
+000AH0100
+BT
+105 m
+46.18192, 1.89756	HTA
+752 m
+46.18289, 1.89020	46.18266, 1.89697	 
+47	120	N/A	BT
+129 m
+46.17202, 1.87593	HTA
+1962 m
+46.18289, 1.89020	46.17131, 1.87685	 
+48	173	N/A	BT
+117 m
+46.17084, 1.87046	HTA
+2643 m
+46.18289, 1.89020	46.16980, 1.87030	 
+49	197	N/A	BT
+100 m
+46.17024, 1.85948	HTA
+3766 m
+46.18289, 1.89020	46.16946, 1.85904	 
+50	355	N/A	BT
+67 m
+46.17202, 1.86851	HTA
+2650 m
+46.18289, 1.89020	46.17179, 1.86906	 
+51	102	N/A	BT
+80 m
+46.17063, 1.86653	HTA
+2878 m
+46.18289, 1.89020	46.17102, 1.86714	 
+52	1381	N/A	BT
+131 m
+46.17330, 1.87393	HTA
+2215 m
+46.18289, 1.89020	46.17232, 1.87327	 
+53	106	N/A	BT
+33 m
+46.17024, 1.85948	HTA
+3692 m
+46.18289, 1.89020	46.17050, 1.85933	 
+54	105	
+000BH0010
+BT
+144 m
+46.16961, 1.87173	HTA
+2419 m
+46.18289, 1.89020	46.17089, 1.87201	 
+55	102	N/A	BT
+117 m
+46.15997, 1.88399	HTA
+2580 m
+46.18289, 1.89020	46.16022, 1.88502	 
+56	104	N/A	BT
+135 m
+46.17997, 1.86506	HTA
+2941 m
+46.18289, 1.89020	46.18011, 1.86385	 
+57	227	N/A	BT
+228 m
+46.16199, 1.87483	HTA
+2906 m
+46.18289, 1.89020	46.16307, 1.87308	 
+58	139	N/A	BT
+105 m
+46.17897, 1.86133	HTA
+3330 m
+46.18289, 1.89020	46.17847, 1.86052	 
+59	106	
+000AV0109
+BT
+169 m
+46.17549, 1.88781	HTA
+783 m
+46.18289, 1.89020	46.17668, 1.88685	 
+60	164	N/A	BT
+34 m
+46.15920, 1.87444	HTA
+3160 m
+46.18289, 1.89020	46.15936, 1.87417	 
+61	106	N/A	BT
+103 m
+46.17202, 1.87593	HTA
+1994 m
+46.18289, 1.89020	46.17275, 1.87536	 
+62	143	N/A	BT
+223 m
+46.17904, 1.88677	HTA
+540 m
+46.18289, 1.89020	46.17828, 1.88863	 
+63	163	N/A	BT
+158 m
+46.16483, 1.88120	HTA
+2319 m
+46.18289, 1.89020	46.16478, 1.87978	 
+64	1179	N/A	BT
+134 m
+46.16199, 1.87483	HTA
+2854 m
+46.18289, 1.89020	46.16289, 1.87404	 
+65	108	N/A	BT
+126 m
+46.14389, 1.86632	HTA
+4952 m
+46.18289, 1.89020	46.14496, 1.86671	 
+66	372	N/A	BT
+196 m
+46.19270, 1.87471	HTA
+1932 m
+46.18289, 1.89020	46.19341, 1.87633	 
+67	142	
+000BD0010
+BT
+81 m
+46.17202, 1.86851	HTA
+2774 m
+46.18289, 1.89020	46.17167, 1.86786	 
+68	233	N/A	BT
+192 m
+46.16611, 1.86963	HTA
+3137 m
+46.18289, 1.89020	46.16517, 1.86817	 
+69	159	N/A	BT
+36 m
+46.19532, 1.87453	HTA
+2231 m
+46.18289, 1.89020	46.19513, 1.87426	 
+70	122	N/A	BT
+72 m
+46.17976, 1.88473	HTA
+706 m
+46.18289, 1.89020	46.17918, 1.88502	 
+71	226	N/A	BT
+57 m
+46.17202, 1.87593	HTA
+1969 m
+46.18289, 1.89020	46.17177, 1.87638	 
+72	194	N/A	BT
+161 m
+46.17360, 1.87049	HTA
+2260 m
+46.18289, 1.89020	46.17398, 1.87189	 
+73	131	N/A	BT
+105 m
+46.16851, 1.86368	HTA
+3365 m
+46.18289, 1.89020	46.16927, 1.86312	 
+74	114	N/A	BT
+586 m
+46.16627, 1.85287	HTA
+4913 m
+46.18289, 1.89020	46.16878, 1.84824	 
+75	475	N/A	BT
+112 m
+46.16804, 1.86915	HTA
+2839 m
+46.18289, 1.89020	46.16734, 1.86988	 
+76	117	N/A	BT
+249 m
+46.17360, 1.87049	HTA
+2564 m
+46.18289, 1.89020	46.17477, 1.86857	 
+77	274	N/A	BT
+17 m
+46.16790, 1.87186	HTA
+2631 m
+46.18289, 1.89020	46.16777, 1.87194	 
+78	100	N/A	BT
+234 m
+46.17627, 1.86120	HTA
+3528 m
+46.18289, 1.89020	46.17636, 1.85909	 
+79	148	N/A	BT
+180 m
+46.18318, 1.88167	HTA
+812 m
+46.18289, 1.89020	46.18412, 1.88299	 
+80	128	N/A	BT
+138 m
+46.17549, 1.88781	HTA
+730 m
+46.18289, 1.89020	46.17654, 1.88847	 
+81	107	N/A	BT
+76 m
+46.16841, 1.87248	HTA
+2576 m
+46.18289, 1.89020	46.16774, 1.87262	 
+82	160	N/A	BT
+215 m
+46.17888, 1.86670	HTA
+2495 m
+46.18289, 1.89020	46.17779, 1.86830	 
+83	133	N/A	BT
+120 m
+46.17904, 1.88677	HTA
+455 m
+46.18289, 1.89020	46.17970, 1.88762	 
+84	115	N/A	BT
+46 m
+46.17198, 1.88152	HTA
+1582 m
+46.18289, 1.89020	46.17190, 1.88111	 
+85	307	N/A	BT
+104 m
+46.17141, 1.86365	HTA
+3197 m
+46.18289, 1.89020	46.17062, 1.86414	 
+86	101	N/A	BT
+257 m
+46.18192, 1.89756	HTA
+1023 m
+46.18289, 1.89020	46.18333, 1.89941	 
+87	103	N/A	BT
+132 m
+46.16961, 1.87399	HTA
+2302 m
+46.18289, 1.89020	46.16886, 1.87492	 
+88	102	N/A	BT
+85 m
+46.16622, 1.86626	HTA
+3168 m
+46.18289, 1.89020	46.16624, 1.86702	 
+89	159	N/A	BT
+95 m
+46.17372, 1.87927	HTA
+1606 m
+46.18289, 1.89020	46.17296, 1.87967	 
+90	189	N/A	BT
+64 m
+46.16963, 1.86758	HTA
+2879 m
+46.18289, 1.89020	46.17020, 1.86758	 
+91	114	N/A	BT
+49 m
+46.15997, 1.88399	HTA
+2681 m
+46.18289, 1.89020	46.15962, 1.88372	 
+92	106	N/A	BT
+245 m
+46.16258, 1.88255	HTA
+2169 m
+46.18289, 1.89020	46.16444, 1.88375	 
+93	402	N/A	BT
+70 m
+46.16804, 1.86915	HTA
+2844 m
+46.18289, 1.89020	46.16762, 1.86962	 
+94	115	N/A	BT
+40 m
+46.17861, 1.87967	HTA
+1300 m
+46.18289, 1.89020	46.17856, 1.87931	 
+95	187	N/A	BT
+154 m
+46.17724, 1.88441	HTA
+1042 m
+46.18289, 1.89020	46.17671, 1.88313	 
+96	135	N/A	BT
+86 m
+46.16963, 1.86758	HTA
+2826 m
+46.18289, 1.89020	46.16984, 1.86833	 
+97	150	N/A	BT
+514 m
+46.16273, 1.86622	HTA
+3982 m
+46.18289, 1.89020	46.16053, 1.86214	 
+98	352	N/A	BT
+106 m
+46.16840, 1.86982	HTA
+2712 m
+46.18289, 1.89020	46.16812, 1.87073	 
+99	128	N/A	BT
+276 m
+46.16833, 1.88609	HTA
+1905 m
+46.18289, 1.89020	46.16685, 1.88409	 
+100	200	N/A	BT
+213 m
+46.17024, 1.85948	HTA
+3499 m
+46.18289, 1.89020	46.17008, 1.86139	 
+101	103	N/A	BT
+48 m
+46.17657, 1.86601	HTA
+2822 m
+46.18289, 1.89020	46.17648, 1.86559	 
+102	108	N/A	BT
+60 m
+46.16581, 1.88667	HTA
+1993 m
+46.18289, 1.89020	46.16534, 1.88639	 
+103	749	N/A	BT
+198 m
+46.18635, 1.86933	HTA
+2337 m
+46.18289, 1.89020	46.18807, 1.86979	 
+104	415	N/A	BT
+116 m
+46.17358, 1.88593	HTA
+1027 m
+46.18289, 1.89020	46.17435, 1.88664	 
+105	176	N/A	BT
+105 m
+46.16199, 1.87483	HTA
+2920 m
+46.18289, 1.89020	46.16118, 1.87533	 
+106	134	N/A	BT
+229 m
+46.19452, 1.87207	HTA
+2610 m
+46.18289, 1.89020	46.19504, 1.87007	 
+107	124	N/A	BT
+171 m
+46.17531, 1.88196	HTA
+1351 m
+46.18289, 1.89020	46.17560, 1.88044	 
+108	231	N/A	BT
+64 m
+46.17198, 1.88152	HTA
+1517 m
+46.18289, 1.89020	46.17251, 1.88129	 
+109	100	N/A	BT
+67 m
+46.18035, 1.88096	HTA
+997 m
+46.18289, 1.89020	46.18058, 1.88151	 
+110	150	N/A	BT
+93 m
+46.16782, 1.87797	HTA
+2123 m
+46.18289, 1.89020	46.16755, 1.87876	 
+111	112	N/A	BT
+102 m
+46.17141, 1.86365	HTA
+3261 m
+46.18289, 1.89020	46.17049, 1.86356	 
+112	203	N/A	BT
+140 m
+46.18318, 1.88167	HTA
+1066 m
+46.18289, 1.89020	46.18394, 1.88065	 
+113	103	N/A	BT
+58 m
+46.17202, 1.86851	HTA
+2714 m
+46.18289, 1.89020	46.17150, 1.86856	 
+114	288	N/A	BT
+103 m
+46.17063, 1.86653	HTA
+3061 m
+46.18289, 1.89020	46.17012, 1.86576	 
+115	100	N/A	BT
+111 m
+46.16611, 1.86963	HTA
+2957 m
+46.18289, 1.89020	46.16683, 1.86895	 
+116	109	N/A	BT
+162 m
+46.17549, 1.88781	HTA
+918 m
+46.18289, 1.89020	46.17557, 1.88635	 
+117	128	
+000BH0100
+BT
+71 m
+46.16918, 1.87246	HTA
+2423 m
+46.18289, 1.89020	46.16975, 1.87276	 
+118	115	N/A	BT
+172 m
+46.16650, 1.88156	HTA
+1925 m
+46.18289, 1.89020	46.16711, 1.88298	 
+119	468	N/A	BT
+167 m
+46.17330, 1.87393	HTA
+1941 m
+46.18289, 1.89020	46.17449, 1.87486	 
+120	118	
+000BM0033
+BT
+283 m
+46.16650, 1.88156	HTA
+1944 m
+46.18289, 1.89020	46.16646, 1.88411	 
+121	117	N/A	BT
+23 m
+46.15920, 1.87444	HTA
+3167 m
+46.18289, 1.89020	46.15903, 1.87455	 
+122	140	N/A	BT
+74 m
+46.16790, 1.87186	HTA
+2624 m
+46.18289, 1.89020	46.16742, 1.87232	 
+123	1617	N/A	BT
+45 m
+46.19296, 1.87207	HTA
+2331 m
+46.18289, 1.89020	46.19281, 1.87169	 
+124	104	N/A	BT
+179 m
+46.16519, 1.87330	HTA
+2894 m
+46.18289, 1.89020	46.16388, 1.87236	 
+125	107	
+000AO0105
+BT
+75 m
+46.17997, 1.86506	HTA
+2775 m
+46.18289, 1.89020	46.18060, 1.86530	 
+126	102	N/A	BT
+167 m
+46.16258, 1.88255	HTA
+2496 m
+46.18289, 1.89020	46.16234, 1.88107	 
+127	220	N/A	BT
+70 m
+46.17549, 1.88781	HTA
+849 m
+46.18289, 1.89020	46.17544, 1.88844	 
+128	174	N/A	BT
+145 m
+46.17198, 1.88152	HTA
+1678 m
+46.18289, 1.89020	46.17144, 1.88033	 
+129	153	N/A	BT
+173 m
+46.19426, 1.86738	HTA
+2663 m
+46.18289, 1.89020	46.19396, 1.86892	 
+130	116	N/A	BT
+59 m
+46.18035, 1.88096	HTA
+1024 m
+46.18289, 1.89020	46.18008, 1.88141	 
+131	104	N/A	BT
+69 m
+46.16970, 1.88149	HTA
+1796 m
+46.18289, 1.89020	46.16967, 1.88086	 
+132	330	N/A	BT
+94 m
+46.16627, 1.85287	HTA
+4445 m
+46.18289, 1.89020	46.16638, 1.85372	 
+133	373	N/A	BT
+154 m
+46.17202, 1.87593	HTA
+1953 m
+46.18289, 1.89020	46.17120, 1.87705	 
+134	187	N/A	BT
+114 m
+46.15567, 1.85750	HTA
+4762 m
+46.18289, 1.89020	46.15619, 1.85661	 
+135	342	N/A	BT
+121 m
+46.17360, 1.87049	HTA
+2304 m
+46.18289, 1.89020	46.17371, 1.87157	 
+136	1473	N/A	BT
+55 m
+46.18208, 1.88396	HTA
+666 m
+46.18289, 1.89020	46.18172, 1.88431	 
+137	385	N/A	BT
+158 m
+46.17372, 1.87927	HTA
+1741 m
+46.18289, 1.89020	46.17278, 1.87821	 
+138	112	N/A	BT
+241 m
+46.15908, 1.87264	HTA
+3452 m
+46.18289, 1.89020	46.15884, 1.87048	 
+139	143	N/A	BT
+151 m
+46.17486, 1.87338	HTA
+2213 m
+46.18289, 1.89020	46.17396, 1.87236	 
+140	184	N/A	BT
+148 m
+46.16956, 1.88390	HTA
+1766 m
+46.18289, 1.89020	46.16823, 1.88401	 
+141	120	N/A	BT
+223 m
+46.19426, 1.86738	HTA
+2741 m
+46.18289, 1.89020	46.19226, 1.86735	 
+142	120	N/A	BT
+45 m
+46.17724, 1.88441	HTA
+900 m
+46.18289, 1.89020	46.17694, 1.88468	 
+143	103	N/A	BT
+135 m
+46.16650, 1.88156	HTA
+2090 m
+46.18289, 1.89020	46.16571, 1.88248	 
+144	147	N/A	BT
+138 m
+46.17486, 1.87338	HTA
+1930 m
+46.18289, 1.89020	46.17543, 1.87449	 
+145	101	N/A	BT
+207 m
+46.16782, 1.87797	HTA
+2182 m
+46.18289, 1.89020	46.16652, 1.87931	 
+146	130	N/A	BT
+178 m
+46.15674, 1.87201	HTA
+3393 m
+46.18289, 1.89020	46.15727, 1.87352	 
+147	734	N/A	BT
+102 m
+46.17202, 1.87593	HTA
+2087 m
+46.18289, 1.89020	46.17124, 1.87544	 
+148	175	N/A	BT
+213 m
+46.18635, 1.89336	HTA
+675 m
+46.18289, 1.89020	46.18624, 1.89527	 
+149	100	N/A	BT
+110 m
+46.14813, 1.86658	HTA
+4770 m
+46.18289, 1.89020	46.14750, 1.86582	 
+150	112	N/A	BT
+72 m
+46.19038, 1.88172	HTA
+1298 m
+46.18289, 1.89020	46.19022, 1.88109	 
+151	151	N/A	BT
+94 m
+46.17092, 1.86945	HTA
+2742 m
+46.18289, 1.89020	46.17020, 1.86900	 
+152	535	N/A	BT
+221 m
+46.19270, 1.87471	HTA
+1849 m
+46.18289, 1.89020	46.19265, 1.87669	 
+153	113	N/A	BT
+235 m
+46.17358, 1.88593	HTA
+1126 m
+46.18289, 1.89020	46.17473, 1.88415	 
+154	152	N/A	BT
+124 m
+46.17141, 1.86365	HTA
+3089 m
+46.18289, 1.89020	46.17164, 1.86474	 
+155	108	N/A	BT
+239 m
+46.16627, 1.85287	HTA
+4773 m
+46.18289, 1.89020	46.16545, 1.85088	 
+156	380	N/A	BT
+52 m
+46.19452, 1.87207	HTA
+2356 m
+46.18289, 1.89020	46.19464, 1.87252	 
+157	169	N/A	BT
+119 m
+46.18035, 1.88096	HTA
+984 m
+46.18289, 1.89020	46.18130, 1.88147	 
+158	109	N/A	BT
+184 m
+46.17202, 1.87593	HTA
+2038 m
+46.18289, 1.89020	46.17052, 1.87663	 
+159	175	N/A	BT
+77 m
+46.17063, 1.86653	HTA
+2984 m
+46.18289, 1.89020	46.17110, 1.86603	 
+160	115	N/A	BT
+96 m
+46.16199, 1.87483	HTA
+2885 m
+46.18289, 1.89020	46.16144, 1.87550	 
+161	103	N/A	BT
+187 m
+46.16581, 1.88667	HTA
+2084 m
+46.18289, 1.89020	46.16474, 1.88536	 
+162	106	N/A	BT
+96 m
+46.16611, 1.86963	HTA
+2927 m
+46.18289, 1.89020	46.16688, 1.86924	 
+163	106	N/A	BT
+117 m
+46.17202, 1.86851	HTA
+2748 m
+46.18289, 1.89020	46.17264, 1.86766	 
+164	326	N/A	BT
+95 m
+46.16963, 1.86758	HTA
+2840 m
+46.18289, 1.89020	46.16946, 1.86842	 
+165	134	N/A	BT
+185 m
+46.15614, 1.86872	HTA
+3979 m
+46.18289, 1.89020	46.15534, 1.86726	 
+166	112	N/A	BT
+129 m
+46.17406, 1.86552	HTA
+2994 m
+46.18289, 1.89020	46.17465, 1.86451	 
+167	422	N/A	BT
+42 m
+46.17058, 1.87406	HTA
+2294 m
+46.18289, 1.89020	46.17034, 1.87377	 
+168	156	N/A	BT
+114 m
+46.16155, 1.87164	HTA
+3067 m
+46.18289, 1.89020	46.16256, 1.87149	 
+169	108	N/A	BT
+29 m
+46.17819, 1.87485	HTA
+1768 m
+46.18289, 1.89020	46.17800, 1.87503	 
+170	123	N/A	BT
+168 m
+46.17888, 1.86670	HTA
+2517 m
+46.18289, 1.89020	46.17815, 1.86802	 
+171	311	N/A	BT
+136 m
+46.17084, 1.87046	HTA
+2543 m
+46.18289, 1.89020	46.17200, 1.87004	 
+172	148	N/A	BT
+125 m
+46.16832, 1.87341	HTA
+2364 m
+46.18289, 1.89020	46.16847, 1.87452	 
+173	214	N/A	BT
+237 m
+46.19051, 1.87229	HTA
+2261 m
+46.18289, 1.89020	46.18901, 1.87077	 
+174	138	N/A	BT
+108 m
+46.17904, 1.88677	HTA
+569 m
+46.18289, 1.89020	46.17849, 1.88757	 
+175	330	N/A	BT
+131 m
+46.18067, 1.87530	HTA
+1659 m
+46.18289, 1.89020	46.17953, 1.87564	 
+176	311	N/A	BT
+116 m
+46.17092, 1.86945	HTA
+2775 m
+46.18289, 1.89020	46.17040, 1.86854	 
+177	122	N/A	BT
+177 m
+46.16217, 1.86863	HTA
+3271 m
+46.18289, 1.89020	46.16140, 1.87003	 
+178	255	N/A	BT
+103 m
+46.17372, 1.87927	HTA
+1628 m
+46.18289, 1.89020	46.17283, 1.87953	 
+179	107	N/A	BT
+191 m
+46.17063, 1.86653	HTA
+2872 m
+46.18289, 1.89020	46.17235, 1.86656	 
+180	125	N/A	BT
+159 m
+46.15997, 1.88399	HTA
+2772 m
+46.18289, 1.89020	46.15899, 1.88294	 
+181	1872	N/A	BT
+127 m
+46.17861, 1.87967	HTA
+1317 m
+46.18289, 1.89020	46.17941, 1.87885	 
+182	161	N/A	BT
+139 m
+46.17724, 1.88441	HTA
+1008 m
+46.18289, 1.89020	46.17599, 1.88429	 
+183	114	N/A	BT
+87 m
+46.17202, 1.86851	HTA
+2646 m
+46.18289, 1.89020	46.17280, 1.86860	 
+184	270	N/A	BT
+141 m
+46.17360, 1.87049	HTA
+2298 m
+46.18289, 1.89020	46.17347, 1.87175	 
+185	107	N/A	BT
+236 m
+46.17718, 1.87696	HTA
+1821 m
+46.18289, 1.89020	46.17567, 1.87547	 
+186	130	N/A	BT
+72 m
+46.16782, 1.87797	HTA
+2171 m
+46.18289, 1.89020	46.16810, 1.87739	 
+187	128	N/A	BT
+216 m
+46.16519, 1.87330	HTA
+2931 m
+46.18289, 1.89020	46.16365, 1.87211	 
+188	112	N/A	BT
+211 m
+46.17861, 1.87967	HTA
+1413 m
+46.18289, 1.89020	46.17682, 1.87900	 
+189	192	
+000AP0270
+BT
+142 m
+46.17565, 1.87072	HTA
+2392 m
+46.18289, 1.89020	46.17637, 1.86966	 
+190	2771	N/A	BT
+168 m
+46.18635, 1.86933	HTA
+2440 m
+46.18289, 1.89020	46.18775, 1.86875	 
+191	172	N/A	BT
+119 m
+46.16840, 1.86982	HTA
+2702 m
+46.18289, 1.89020	46.16947, 1.86988	 
+192	140	N/A	BT
+114 m
+46.16199, 1.87483	HTA
+2954 m
+46.18289, 1.89020	46.16099, 1.87507	 
+193	113	
+000AO0106
+BT
+57 m
+46.17997, 1.86506	HTA
+2776 m
+46.18289, 1.89020	46.18041, 1.86531	 
+194	273	N/A	BT
+161 m
+46.17531, 1.88196	HTA
+1157 m
+46.18289, 1.89020	46.17676, 1.88177	 
+195	161	N/A	BT
+79 m
+46.16970, 1.88149	HTA
+1675 m
+46.18289, 1.89020	46.17028, 1.88190	 
+196	122	N/A	BT
+50 m
+46.17531, 1.88196	HTA
+1219 m
+46.18289, 1.89020	46.17575, 1.88185	 
+197	178	N/A	BT
+143 m
+46.16503, 1.85993	HTA
+4044 m
+46.18289, 1.89020	46.16439, 1.85880	 
+198	189	N/A	BT
+152 m
+46.19426, 1.86738	HTA
+2843 m
+46.18289, 1.89020	46.19552, 1.86792	 
+199	101	N/A	BT
+43 m
+46.19532, 1.87453	HTA
+2248 m
+46.18289, 1.89020	46.19570, 1.87452	 
+200	218	N/A	BT
+216 m
+46.17372, 1.87927	HTA
+1773 m
+46.18289, 1.89020	46.17340, 1.87735	 
+ Analyse Environnementale
+Biodiversité:
+Zones Natura 2000: 0
+ZNIEFF Type I: 0
+ZNIEFF Type II: 0
+
+Espaces protégés:
+Parcs Nationaux: 0
+Parcs Naturels Régionaux: 0
+Réserves: 0
+
+ Synthèse et Recommandations
+Scores de potentiel:
+Score Potentiel Energetique:
+100/100
+Score Potentiel Economique:
+100/100
+            # cleaned corrupted pasted text block removed
+Cultures principales:
+PPH: 440.8 ha
+PTR: 53.4 ha
+TTH: 20.2 ha
+BTH: 18.5 ha
+ORP: 18.4 ha
+Statistiques:
+Surface moyenne: 3.4 ha
+Diversité cultures: 5 types
+
+ Analyse Parkings
+Potentiel photovoltaïque:
+Puissance installable: 38.43 MWc
+Production annuelle: 46116 MWh/an
+Surface totale: 256171 m²
+
+Détails des parkings (114)
+#	Surface (m²)	Parcelles	BT le plus proche	HTA le plus proche	Position	Liens
+1	932	N/A	BT
+31 m
+46.16961, 1.87173	HTA
+2542 m
+46.18289, 1.89020	46.16970, 1.87147	
+2	2830	N/A	BT
+1670 m
+46.14389, 1.86632	HTA
+6737 m
+46.18289, 1.89020	46.13028, 1.85993	
+3	2070	N/A	BT
+622 m
+46.14813, 1.86658	HTA
+5159 m
+46.18289, 1.89020	46.14656, 1.86120	
+4	713	N/A	BT
+440 m
+46.15325, 1.87327	HTA
+3921 m
+46.18289, 1.89020	46.15049, 1.87611	
+5	859	
+000BY0105
+BT
+38 m
+46.15614, 1.86872	HTA
+3790 m
+46.18289, 1.89020	46.15607, 1.86906	
+6	1666	N/A	BT
+55 m
+46.15781, 1.86779	HTA
+3731 m
+46.18289, 1.89020	46.15749, 1.86817	
+7	582	
+000BY0353
+BT
+64 m
+46.15908, 1.87264	HTA
+3347 m
+46.18289, 1.89020	46.15859, 1.87235	
+8	2850	N/A	BT
+106 m
+46.15781, 1.86779	HTA
+3746 m
+46.18289, 1.89020	46.15836, 1.86701	
+9	9130	N/A	BT
+189 m
+46.15997, 1.88399	HTA
+2738 m
+46.18289, 1.89020	46.15950, 1.88235	
+10	914	N/A	BT
+114 m
+46.16774, 1.88744	HTA
+1823 m
+46.18289, 1.89020	46.16672, 1.88727	
+11	4467	N/A	BT
+100 m
+46.15992, 1.87248	HTA
+3120 m
+46.18289, 1.89020	46.16061, 1.87307	
+12	1568	N/A	BT
+135 m
+46.16199, 1.87483	HTA
+2816 m
+46.18289, 1.89020	46.16309, 1.87432	
+13	5701	N/A	BT
+158 m
+46.16519, 1.87330	HTA
+2860 m
+46.18289, 1.89020	46.16383, 1.87286	
+14	503	N/A	BT
+33 m
+46.16483, 1.88120	HTA
+2228 m
+46.18289, 1.89020	46.16480, 1.88150	
+15	1142	N/A	BT
+9 m
+46.16478, 1.86996	HTA
+3023 m
+46.18289, 1.89020	46.16471, 1.86992	
+16	2606	N/A	BT
+88 m
+46.16478, 1.86996	HTA
+2925 m
+46.18289, 1.89020	46.16526, 1.87060	
+17	766	N/A	BT
+87 m
+46.16613, 1.87070	HTA
+2831 m
+46.18289, 1.89020	46.16570, 1.87136	
+18	1014	N/A	BT
+164 m
+46.16581, 1.88667	HTA
+1886 m
+46.18289, 1.89020	46.16602, 1.88813	
+19	920	N/A	BT
+107 m
+46.16581, 1.88667	HTA
+1888 m
+46.18289, 1.89020	46.16608, 1.88759	
+20	1321	N/A	BT
+94 m
+46.16519, 1.87330	HTA
+2623 m
+46.18289, 1.89020	46.16586, 1.87382	
+21	709	N/A	BT
+140 m
+46.16581, 1.88667	HTA
+1862 m
+46.18289, 1.89020	46.16628, 1.88783	
+22	703	N/A	BT
+120 m
+46.16581, 1.88667	HTA
+1874 m
+46.18289, 1.89020	46.16656, 1.88589	
+23	684	
+000BP0007
+BT
+170 m
+46.16790, 1.87186	HTA
+2690 m
+46.18289, 1.89020	46.16646, 1.87238	
+24	10374	N/A	BT
+87 m
+46.16627, 1.85287	HTA
+4621 m
+46.18289, 1.89020	46.16588, 1.85219	
+25	628	N/A	BT
+42 m
+46.16622, 1.86626	HTA
+3197 m
+46.18289, 1.89020	46.16651, 1.86650	
+26	591	N/A	BT
+123 m
+46.16622, 1.86626	HTA
+3300 m
+46.18289, 1.89020	46.16670, 1.86526	
+27	582	N/A	BT
+47 m
+46.16718, 1.87493	HTA
+2478 m
+46.18289, 1.89020	46.16682, 1.87470	
+28	2177	N/A	BT
+172 m
+46.16519, 1.87330	HTA
+2637 m
+46.18289, 1.89020	46.16667, 1.87284	
+29	1405	N/A	BT
+153 m
+46.16718, 1.87493	HTA
+2572 m
+46.18289, 1.89020	46.16667, 1.87365	
+30	583	N/A	BT
+91 m
+46.16611, 1.86963	HTA
+2885 m
+46.18289, 1.89020	46.16693, 1.86968	
+31	2284	N/A	BT
+158 m
+46.16832, 1.87341	HTA
+2591 m
+46.18289, 1.89020	46.16691, 1.87318	
+32	517	N/A	BT
+218 m
+46.16833, 1.88609	HTA
+1821 m
+46.18289, 1.89020	46.16759, 1.88427	
+33	512	N/A	BT
+26 m
+46.16774, 1.88744	HTA
+1685 m
+46.18289, 1.89020	46.16793, 1.88757	
+34	10660	N/A	BT
+130 m
+46.16833, 1.88609	HTA
+1791 m
+46.18289, 1.89020	46.16754, 1.88523	
+35	4061	N/A	BT
+54 m
+46.16790, 1.87186	HTA
+2682 m
+46.18289, 1.89020	46.16763, 1.87146	
+36	1187	N/A	BT
+33 m
+46.16841, 1.87248	HTA
+2559 m
+46.18289, 1.89020	46.16811, 1.87250	
+37	582	N/A	BT
+41 m
+46.16832, 1.87341	HTA
+2432 m
+46.18289, 1.89020	46.16839, 1.87377	
+38	1060	N/A	BT
+112 m
+46.16956, 1.88390	HTA
+1726 m
+46.18289, 1.89020	46.16858, 1.88411	
+39	5135	N/A	BT
+60 m
+46.16803, 1.88730	HTA
+1641 m
+46.18289, 1.89020	46.16831, 1.88777	
+40	1476	N/A	BT
+90 m
+46.16956, 1.88390	HTA
+1722 m
+46.18289, 1.89020	46.16876, 1.88379	
+41	1662	N/A	BT
+74 m
+46.16901, 1.85756	HTA
+4002 m
+46.18289, 1.89020	46.16849, 1.85714	
+42	7569	N/A	BT
+108 m
+46.16790, 1.87186	HTA
+2629 m
+46.18289, 1.89020	46.16867, 1.87126	
+43	876	N/A	BT
+56 m
+46.16961, 1.87173	HTA
+2571 m
+46.18289, 1.89020	46.16914, 1.87155	
+44	880	N/A	BT
+88 m
+46.16876, 1.88636	HTA
+1541 m
+46.18289, 1.89020	46.16954, 1.88635	
+45	1230	N/A	BT
+29 m
+46.16963, 1.86758	HTA
+2936 m
+46.18289, 1.89020	46.16959, 1.86733	
+46	767	N/A	BT
+23 m
+46.16961, 1.87399	HTA
+2308 m
+46.18289, 1.89020	46.16961, 1.87420	
+47	1642	N/A	BT
+66 m
+46.17084, 1.87046	HTA
+2579 m
+46.18289, 1.89020	46.17029, 1.87067	
+48	706	N/A	BT
+40 m
+46.17058, 1.87406	HTA
+2258 m
+46.18289, 1.89020	46.17027, 1.87424	
+49	7287	N/A	BT
+68 m
+46.16956, 1.88390	HTA
+1568 m
+46.18289, 1.89020	46.17011, 1.88417	
+50	637	N/A	BT
+167 m
+46.16956, 1.88390	HTA
+1485 m
+46.18289, 1.89020	46.17053, 1.88505	
+51	12931	N/A	BT
+32 m
+46.17010, 1.88292	HTA
+1607 m
+46.18289, 1.89020	46.17023, 1.88317	
+52	671	N/A	BT
+70 m
+46.17063, 1.86653	HTA
+2889 m
+46.18289, 1.89020	46.17079, 1.86715	
+53	1705	N/A	BT
+194 m
+46.17198, 1.88152	HTA
+1737 m
+46.18289, 1.89020	46.17089, 1.88015	
+54	737	N/A	BT
+142 m
+46.16963, 1.86758	HTA
+2793 m
+46.18289, 1.89020	46.17078, 1.86814	
+55	2619	N/A	BT
+72 m
+46.17058, 1.87406	HTA
+2260 m
+46.18289, 1.89020	46.17106, 1.87363	
+56	1063	N/A	BT
+122 m
+46.17219, 1.87207	HTA
+2371 m
+46.18289, 1.89020	46.17113, 1.87236	
+57	724	N/A	BT
+99 m
+46.17198, 1.88152	HTA
+1645 m
+46.18289, 1.89020	46.17135, 1.88089	
+58	970	N/A	BT
+97 m
+46.17063, 1.86653	HTA
+2938 m
+46.18289, 1.89020	46.17148, 1.86631	
+59	644	N/A	BT
+196 m
+46.17198, 1.88152	HTA
+1434 m
+46.18289, 1.89020	46.17198, 1.88328	
+60	560	N/A	BT
+128 m
+46.17097, 1.87451	HTA
+2144 m
+46.18289, 1.89020	46.17208, 1.87419	
+61	915	N/A	BT
+20 m
+46.17202, 1.86851	HTA
+2704 m
+46.18289, 1.89020	46.17211, 1.86835	
+62	2180	N/A	BT
+67 m
+46.17198, 1.88152	HTA
+1486 m
+46.18289, 1.89020	46.17225, 1.88206	
+63	885	N/A	BT
+34 m
+46.17330, 1.87393	HTA
+2076 m
+46.18289, 1.89020	46.17318, 1.87421	
+64	4496	N/A	BT
+142 m
+46.17198, 1.88152	HTA
+1476 m
+46.18289, 1.89020	46.17319, 1.88110	
+65	2608	N/A	BT
+83 m
+46.17330, 1.87393	HTA
+2095 m
+46.18289, 1.89020	46.17396, 1.87357	
+66	1301	N/A	BT
+79 m
+46.17360, 1.87049	HTA
+2371 m
+46.18289, 1.89020	46.17430, 1.87064	
+67	1366	N/A	BT
+174 m
+46.17486, 1.87338	HTA
+2241 m
+46.18289, 1.89020	46.17436, 1.87190	
+68	1815	N/A	BT
+122 m
+46.17565, 1.87072	HTA
+2296 m
+46.18289, 1.89020	46.17467, 1.87121	
+69	699	N/A	BT
+216 m
+46.17627, 1.86120	HTA
+3202 m
+46.18289, 1.89020	46.17482, 1.86250	
+70	2171	N/A	BT
+74 m
+46.17565, 1.87072	HTA
+2258 m
+46.18289, 1.89020	46.17533, 1.87131	
+71	672	N/A	BT
+50 m
+46.17579, 1.89285	HTA
+840 m
+46.18289, 1.89020	46.17597, 1.89326	
+72	512	N/A	BT
+36 m
+46.17942, 1.86630	HTA
+2647 m
+46.18289, 1.89020	46.17934, 1.86662	
+73	1537	N/A	BT
+207 m
+46.17486, 1.87338	HTA
+1869 m
+46.18289, 1.89020	46.17607, 1.87481	
+74	1445	N/A	BT
+77 m
+46.17565, 1.87072	HTA
+2343 m
+46.18289, 1.89020	46.17612, 1.87020	
+75	612	N/A	BT
+94 m
+46.17611, 1.87161	HTA
+2251 m
+46.18289, 1.89020	46.17659, 1.87092	
+76	2820	N/A	BT
+10 m
+46.17611, 1.87161	HTA
+2192 m
+46.18289, 1.89020	46.17605, 1.87167	
+77	2556	N/A	BT
+91 m
+46.17611, 1.87161	HTA
+2107 m
+46.18289, 1.89020	46.17625, 1.87241	
+78	2070	N/A	BT
+84 m
+46.17718, 1.87696	HTA
+1677 m
+46.18289, 1.89020	46.17719, 1.87620	
+79	689	N/A	BT
+127 m
+46.17718, 1.87696	HTA
+1477 m
+46.18289, 1.89020	46.17737, 1.87809	
+80	7810	N/A	BT
+56 m
+46.17763, 1.87146	HTA
+2216 m
+46.18289, 1.89020	46.17752, 1.87096	
+81	688	N/A	BT
+89 m
+46.17764, 1.86259	HTA
+3036 m
+46.18289, 1.89020	46.17804, 1.86328	
+82	1081	N/A	BT
+191 m
+46.17764, 1.86259	HTA
+2929 m
+46.18289, 1.89020	46.17778, 1.86431	
+83	895	N/A	BT
+121 m
+46.17806, 1.89176	HTA
+499 m
+46.18289, 1.89020	46.17842, 1.89073	
+84	1199	N/A	BT
+71 m
+46.17764, 1.86259	HTA
+3153 m
+46.18289, 1.89020	46.17813, 1.86219	
+85	600	N/A	BT
+127 m
+46.17953, 1.87761	HTA
+1395 m
+46.18289, 1.89020	46.17867, 1.87836	
+86	528	N/A	BT
+112 m
+46.17861, 1.87967	HTA
+1149 m
+46.18289, 1.89020	46.17897, 1.88061	
+87	725	N/A	BT
+48 m
+46.17888, 1.86670	HTA
+2599 m
+46.18289, 1.89020	46.17887, 1.86713	
+88	1034	N/A	BT
+33 m
+46.17924, 1.87028	HTA
+2259 m
+46.18289, 1.89020	46.17895, 1.87023	
+89	1062	N/A	BT
+69 m
+46.17953, 1.87761	HTA
+1409 m
+46.18289, 1.89020	46.17912, 1.87807	
+90	708	N/A	BT
+52 m
+46.17942, 1.86630	HTA
+2730 m
+46.18289, 1.89020	46.17918, 1.86589	
+91	683	N/A	BT
+91 m
+46.17861, 1.87967	HTA
+1195 m
+46.18289, 1.89020	46.17934, 1.88003	
+92	15763	N/A	BT
+111 m
+46.17953, 1.87761	HTA
+1527 m
+46.18289, 1.89020	46.17868, 1.87710	
+93	1160	N/A	BT
+155 m
+46.18057, 1.87354	HTA
+1973 m
+46.18289, 1.89020	46.17941, 1.87276	
+94	3111	N/A	BT
+139 m
+46.17953, 1.87761	HTA
+1308 m
+46.18289, 1.89020	46.17971, 1.87885	
+95	1679	N/A	BT
+96 m
+46.17942, 1.86630	HTA
+2591 m
+46.18289, 1.89020	46.17984, 1.86706	
+96	4034	N/A	BT
+54 m
+46.17953, 1.87761	HTA
+1438 m
+46.18289, 1.89020	46.18001, 1.87756	
+97	2645	N/A	BT
+66 m
+46.18067, 1.87530	HTA
+1632 m
+46.18289, 1.89020	46.18026, 1.87573	
+98	2424	N/A	BT
+149 m
+46.17976, 1.88473	HTA
+750 m
+46.18289, 1.89020	46.18072, 1.88380	
+99	640	N/A	BT
+116 m
+46.17984, 1.87705	HTA
+1544 m
+46.18289, 1.89020	46.18070, 1.87646	
+100	2304	N/A	BT
+59 m
+46.18067, 1.87530	HTA
+1728 m
+46.18289, 1.89020	46.18075, 1.87477	
+101	1734	N/A	BT
+63 m
+46.18067, 1.87530	HTA
+1654 m
+46.18289, 1.89020	46.18123, 1.87539	
+102	1680	N/A	BT
+197 m
+46.18035, 1.88096	HTA
+1186 m
+46.18289, 1.89020	46.18151, 1.87960	
+103	1579	N/A	BT
+52 m
+46.18208, 1.88396	HTA
+698 m
+46.18289, 1.89020	46.18162, 1.88403	
+104	1512	N/A	BT
+150 m
+46.18208, 1.88396	HTA
+848 m
+46.18289, 1.89020	46.18191, 1.88262	
+105	2950	N/A	BT
+194 m
+46.18208, 1.88396	HTA
+511 m
+46.18289, 1.89020	46.18190, 1.88570	
+106	3641	N/A	BT
+89 m
+46.18208, 1.88396	HTA
+781 m
+46.18289, 1.89020	46.18230, 1.88319	
+107	2738	N/A	BT
+29 m
+46.18208, 1.88396	HTA
+693 m
+46.18289, 1.89020	46.18234, 1.88398	
+108	1083	N/A	BT
+74 m
+46.18326, 1.88718	HTA
+311 m
+46.18289, 1.89020	46.18263, 1.88741	
+109	4656	N/A	BT
+171 m
+46.18326, 1.88718	HTA
+493 m
+46.18289, 1.89020	46.18266, 1.88576	
+110	11621	
+000ZA0108
+BT
+138 m
+46.18247, 1.88940	HTA
+201 m
+46.18289, 1.89020	46.18322, 1.88842	
+111	1121	N/A	BT
+275 m
+46.18592, 1.87445	HTA
+1599 m
+46.18289, 1.89020	46.18386, 1.87583	
+112	1182	N/A	BT
+154 m
+46.18869, 1.87337	HTA
+2036 m
+46.18289, 1.89020	46.18762, 1.87248	
+113	670	N/A	BT
+37 m
+46.18862, 1.87973	HTA
+1343 m
+46.18289, 1.89020	46.18844, 1.87944	
+114	3539	N/A	BT
+181 m
+46.18967, 1.89674	HTA
+1222 m
+46.18289, 1.89020	46.19052, 1.89814	
+ Analyse Friches
+8 friches identifiées
+Surface totale: 0.0 ha
+Potentiel de reconversion: 0.0 ha
+
+Détails des friches (8)
+#	Surface (ha)	Parcelles	BT le plus proche	HTA le plus proche	Position	Liens
+1	0.00	N/A	BT
+230 m
+46.19919, 1.88951	HTA
+1584 m
+46.18289, 1.89020	46.19715, 1.88987	
+2	0.00	N/A	BT
+197 m
+46.19432, 1.87825	HTA
+2022 m
+46.18289, 1.89020	46.19503, 1.87662	
+3	0.00	N/A	BT
+7 m
+46.17024, 1.85948	HTA
+3694 m
+46.18289, 1.89020	46.17024, 1.85941	
+4	0.00	N/A	BT
+121 m
+46.19534, 1.88075	HTA
+1678 m
+46.18289, 1.89020	46.19433, 1.88032	
+5	0.00	N/A	BT
+500 m
+46.14813, 1.86658	HTA
+4988 m
+46.18289, 1.89020	46.14783, 1.86209	
+6	0.00	N/A	BT
+197 m
+46.19432, 1.87825	HTA
+2022 m
+46.18289, 1.89020	46.19503, 1.87662	
+7	0.00	N/A	BT
+79 m
+46.16840, 1.86982	HTA
+2729 m
+46.18289, 1.89020	46.16911, 1.86983	
+8	0.00	N/A	BT
+79 m
+46.16840, 1.86982	HTA
+2729 m
+46.18289, 1.89020	46.16911, 1.86983	
+ Analyse Toitures
+Potentiel global:
+Bâtiments: 3214
+Surface exploitable: 665058 m²
+
+Capacité installable:
+Puissance: 133.0 MWc
+Production: 159614 MWh/an
+
+Typologie:
+Détails des toitures (200)
+#	Surface (m²)	Parcelles	BT le plus proche	HTA le plus proche	Position	Liens
+1	658	N/A	BT
+44 m
+46.17372, 1.87927	HTA
+1558 m
+46.18289, 1.89020	46.17411, 1.87924	 
+2	120	N/A	BT
+162 m
+46.17565, 1.87072	HTA
+2458 m
+46.18289, 1.89020	46.17566, 1.86926	 
+3	637	N/A	BT
+205 m
+46.17372, 1.87927	HTA
+1703 m
+46.18289, 1.89020	46.17425, 1.87751	 
+4	109	N/A	BT
+45 m
+46.16613, 1.87070	HTA
+2897 m
+46.18289, 1.89020	46.16578, 1.87049	 
+5	126	N/A	BT
+314 m
+46.17942, 1.86630	HTA
+2462 m
+46.18289, 1.89020	46.18163, 1.86805	 
+6	113	N/A	BT
+142 m
+46.17861, 1.87967	HTA
+1404 m
+46.18289, 1.89020	46.17815, 1.87847	 
+7	116	N/A	BT
+120 m
+46.17549, 1.88781	HTA
+962 m
+46.18289, 1.89020	46.17486, 1.88693	 
+8	112	N/A	BT
+110 m
+46.18869, 1.87337	HTA
+1972 m
+46.18289, 1.89020	46.18960, 1.87375	 
+9	155	N/A	BT
+146 m
+46.17198, 1.88152	HTA
+1693 m
+46.18289, 1.89020	46.17090, 1.88077	 
+10	140	N/A	BT
+229 m
+46.17358, 1.88593	HTA
+1365 m
+46.18289, 1.89020	46.17177, 1.88494	 
+11	139	N/A	BT
+29 m
+46.17084, 1.87046	HTA
+2594 m
+46.18289, 1.89020	46.17079, 1.87021	 
+12	269	N/A	BT
+111 m
+46.16718, 1.87493	HTA
+2512 m
+46.18289, 1.89020	46.16715, 1.87393	 
+13	864	N/A	BT
+159 m
+46.18592, 1.87445	HTA
+1625 m
+46.18289, 1.89020	46.18534, 1.87576	 
+14	145	N/A	BT
+78 m
+46.16970, 1.88149	HTA
+1763 m
+46.18289, 1.89020	46.17003, 1.88087	 
+15	172	N/A	BT
+43 m
+46.18640, 1.87816	HTA
+1384 m
+46.18289, 1.89020	46.18674, 1.87834	 
+16	214	N/A	BT
+240 m
+46.18318, 1.88167	HTA
+1157 m
+46.18289, 1.89020	46.18440, 1.87988	 
+17	105	N/A	BT
+132 m
+46.17202, 1.86851	HTA
+2798 m
+46.18289, 1.89020	46.17093, 1.86801	 
+18	162	N/A	BT
+72 m
+46.17023, 1.87838	HTA
+1907 m
+46.18289, 1.89020	46.16990, 1.87894	 
+19	214	N/A	BT
+147 m
+46.16963, 1.86758	HTA
+2785 m
+46.18289, 1.89020	46.16962, 1.86891	 
+20	136	
+000BC0105
+BT
+181 m
+46.17063, 1.86653	HTA
+2951 m
+46.18289, 1.89020	46.17212, 1.86588	 
+21	101	N/A	BT
+59 m
+46.17038, 1.87328	HTA
+2354 m
+46.18289, 1.89020	46.17069, 1.87285	 
+22	112	N/A	BT
+285 m
+46.19532, 1.87453	HTA
+2161 m
+46.18289, 1.89020	46.19683, 1.87661	 
+23	121	N/A	BT
+137 m
+46.17274, 1.86070	HTA
+3460 m
+46.18289, 1.89020	46.17159, 1.86114	 
+24	171	N/A	BT
+81 m
+46.17486, 1.87338	HTA
+2024 m
+46.18289, 1.89020	46.17558, 1.87349	 
+25	103	N/A	BT
+229 m
+46.16230, 1.87769	HTA
+2528 m
+46.18289, 1.89020	46.16427, 1.87707	 
+26	145	N/A	BT
+52 m
+46.16483, 1.88120	HTA
+2196 m
+46.18289, 1.89020	46.16530, 1.88114	 
+27	107	N/A	BT
+257 m
+46.15997, 1.88399	HTA
+2437 m
+46.18289, 1.89020	46.16137, 1.88584	 
+28	100	N/A	BT
+51 m
+46.15920, 1.87444	HTA
+3150 m
+46.18289, 1.89020	46.15901, 1.87486	 
+29	110	N/A	BT
+201 m
+46.17097, 1.87451	HTA
+2152 m
+46.18289, 1.89020	46.16980, 1.87589	 
+30	286	N/A	BT
+117 m
+46.19270, 1.87471	HTA
+1980 m
+46.18289, 1.89020	46.19319, 1.87564	 
+31	474	N/A	BT
+178 m
+46.17819, 1.87485	HTA
+1851 m
+46.18289, 1.89020	46.17659, 1.87476	 
+32	111	N/A	BT
+197 m
+46.17724, 1.88441	HTA
+800 m
+46.18289, 1.89020	46.17693, 1.88615	 
+33	749	N/A	BT
+151 m
+46.17924, 1.87028	HTA
+2393 m
+46.18289, 1.89020	46.17864, 1.86906	 
+34	126	N/A	BT
+216 m
+46.15992, 1.87248	HTA
+3402 m
+46.18289, 1.89020	46.15929, 1.87064	 
+35	126	
+000AY0526
+BT
+215 m
+46.17486, 1.87338	HTA
+1878 m
+46.18289, 1.89020	46.17482, 1.87533	 
+36	156	N/A	BT
+60 m
+46.16519, 1.87330	HTA
+2769 m
+46.18289, 1.89020	46.16501, 1.87280	 
+37	138	N/A	BT
+105 m
+46.17917, 1.88265	HTA
+932 m
+46.18289, 1.89020	46.18005, 1.88229	 
+38	111	N/A	BT
+170 m
+46.17549, 1.88781	HTA
+793 m
+46.18289, 1.89020	46.17580, 1.88931	 
+39	338	N/A	BT
+35 m
+46.17092, 1.86945	HTA
+2690 m
+46.18289, 1.89020	46.17066, 1.86927	 
+40	415	N/A	BT
+152 m
+46.19432, 1.87825	HTA
+1897 m
+46.18289, 1.89020	46.19375, 1.87700	 
+41	100	N/A	BT
+61 m
+46.17976, 1.88473	HTA
+651 m
+46.18289, 1.89020	46.18026, 1.88495	 
+42	123	N/A	BT
+111 m
+46.17358, 1.88593	HTA
+1204 m
+46.18289, 1.89020	46.17339, 1.88495	 
+43	105	N/A	BT
+79 m
+46.17764, 1.86259	HTA
+3086 m
+46.18289, 1.89020	46.17706, 1.86301	 
+44	245	N/A	BT
+228 m
+46.16627, 1.85287	HTA
+4677 m
+46.18289, 1.89020	46.16725, 1.85107	 
+45	1263	N/A	BT
+47 m
+46.19452, 1.87207	HTA
+2394 m
+46.18289, 1.89020	46.19418, 1.87182	 
+46	421	
+000AH0100
+BT
+105 m
+46.18192, 1.89756	HTA
+752 m
+46.18289, 1.89020	46.18266, 1.89697	 
+47	120	N/A	BT
+129 m
+46.17202, 1.87593	HTA
+1962 m
+46.18289, 1.89020	46.17131, 1.87685	 
+48	173	N/A	BT
+117 m
+46.17084, 1.87046	HTA
+2643 m
+46.18289, 1.89020	46.16980, 1.87030	 
+49	197	N/A	BT
+100 m
+46.17024, 1.85948	HTA
+3766 m
+46.18289, 1.89020	46.16946, 1.85904	 
+50	355	N/A	BT
+67 m
+46.17202, 1.86851	HTA
+2650 m
+46.18289, 1.89020	46.17179, 1.86906	 
+51	102	N/A	BT
+80 m
+46.17063, 1.86653	HTA
+2878 m
+46.18289, 1.89020	46.17102, 1.86714	 
+52	1381	N/A	BT
+131 m
+46.17330, 1.87393	HTA
+2215 m
+46.18289, 1.89020	46.17232, 1.87327	 
+53	106	N/A	BT
+33 m
+46.17024, 1.85948	HTA
+3692 m
+46.18289, 1.89020	46.17050, 1.85933	 
+54	105	
+000BH0010
+BT
+144 m
+46.16961, 1.87173	HTA
+2419 m
+46.18289, 1.89020	46.17089, 1.87201	 
+55	102	N/A	BT
+117 m
+46.15997, 1.88399	HTA
+2580 m
+46.18289, 1.89020	46.16022, 1.88502	 
+56	104	N/A	BT
+135 m
+46.17997, 1.86506	HTA
+2941 m
+46.18289, 1.89020	46.18011, 1.86385	 
+57	227	N/A	BT
+228 m
+46.16199, 1.87483	HTA
+2906 m
+46.18289, 1.89020	46.16307, 1.87308	 
+58	139	N/A	BT
+105 m
+46.17897, 1.86133	HTA
+3330 m
+46.18289, 1.89020	46.17847, 1.86052	 
+59	106	
+000AV0109
+BT
+169 m
+46.17549, 1.88781	HTA
+783 m
+46.18289, 1.89020	46.17668, 1.88685	 
+60	164	N/A	BT
+34 m
+46.15920, 1.87444	HTA
+3160 m
+46.18289, 1.89020	46.15936, 1.87417	 
+61	106	N/A	BT
+103 m
+46.17202, 1.87593	HTA
+1994 m
+46.18289, 1.89020	46.17275, 1.87536	 
+62	143	N/A	BT
+223 m
+46.17904, 1.88677	HTA
+540 m
+46.18289, 1.89020	46.17828, 1.88863	 
+63	163	N/A	BT
+158 m
+46.16483, 1.88120	HTA
+2319 m
+46.18289, 1.89020	46.16478, 1.87978	 
+64	1179	N/A	BT
+134 m
+46.16199, 1.87483	HTA
+2854 m
+46.18289, 1.89020	46.16289, 1.87404	 
+65	108	N/A	BT
+126 m
+46.14389, 1.86632	HTA
+4952 m
+46.18289, 1.89020	46.14496, 1.86671	 
+66	372	N/A	BT
+196 m
+46.19270, 1.87471	HTA
+1932 m
+46.18289, 1.89020	46.19341, 1.87633	 
+67	142	
+000BD0010
+BT
+81 m
+46.17202, 1.86851	HTA
+2774 m
+46.18289, 1.89020	46.17167, 1.86786	 
+68	233	N/A	BT
+192 m
+46.16611, 1.86963	HTA
+3137 m
+46.18289, 1.89020	46.16517, 1.86817	 
+69	159	N/A	BT
+36 m
+46.19532, 1.87453	HTA
+2231 m
+46.18289, 1.89020	46.19513, 1.87426	 
+70	122	N/A	BT
+72 m
+46.17976, 1.88473	HTA
+706 m
+46.18289, 1.89020	46.17918, 1.88502	 
+71	226	N/A	BT
+57 m
+46.17202, 1.87593	HTA
+1969 m
+46.18289, 1.89020	46.17177, 1.87638	 
+72	194	N/A	BT
+161 m
+46.17360, 1.87049	HTA
+2260 m
+46.18289, 1.89020	46.17398, 1.87189	 
+73	131	N/A	BT
+105 m
+46.16851, 1.86368	HTA
+3365 m
+46.18289, 1.89020	46.16927, 1.86312	 
+74	114	N/A	BT
+586 m
+46.16627, 1.85287	HTA
+4913 m
+46.18289, 1.89020	46.16878, 1.84824	 
+75	475	N/A	BT
+112 m
+46.16804, 1.86915	HTA
+2839 m
+46.18289, 1.89020	46.16734, 1.86988	 
+76	117	N/A	BT
+249 m
+46.17360, 1.87049	HTA
+2564 m
+46.18289, 1.89020	46.17477, 1.86857	 
+77	274	N/A	BT
+17 m
+46.16790, 1.87186	HTA
+2631 m
+46.18289, 1.89020	46.16777, 1.87194	 
+78	100	N/A	BT
+234 m
+46.17627, 1.86120	HTA
+3528 m
+46.18289, 1.89020	46.17636, 1.85909	 
+79	148	N/A	BT
+180 m
+46.18318, 1.88167	HTA
+812 m
+46.18289, 1.89020	46.18412, 1.88299	 
+80	128	N/A	BT
+138 m
+46.17549, 1.88781	HTA
+730 m
+46.18289, 1.89020	46.17654, 1.88847	 
+81	107	N/A	BT
+76 m
+46.16841, 1.87248	HTA
+2576 m
+46.18289, 1.89020	46.16774, 1.87262	 
+82	160	N/A	BT
+215 m
+46.17888, 1.86670	HTA
+2495 m
+46.18289, 1.89020	46.17779, 1.86830	 
+83	133	N/A	BT
+120 m
+46.17904, 1.88677	HTA
+455 m
+46.18289, 1.89020	46.17970, 1.88762	 
+84	115	N/A	BT
+46 m
+46.17198, 1.88152	HTA
+1582 m
+46.18289, 1.89020	46.17190, 1.88111	 
+85	307	N/A	BT
+104 m
+46.17141, 1.86365	HTA
+3197 m
+46.18289, 1.89020	46.17062, 1.86414	 
+86	101	N/A	BT
+257 m
+46.18192, 1.89756	HTA
+1023 m
+46.18289, 1.89020	46.18333, 1.89941	 
+87	103	N/A	BT
+132 m
+46.16961, 1.87399	HTA
+2302 m
+46.18289, 1.89020	46.16886, 1.87492	 
+88	102	N/A	BT
+85 m
+46.16622, 1.86626	HTA
+3168 m
+46.18289, 1.89020	46.16624, 1.86702	 
+89	159	N/A	BT
+95 m
+46.17372, 1.87927	HTA
+1606 m
+46.18289, 1.89020	46.17296, 1.87967	 
+90	189	N/A	BT
+64 m
+46.16963, 1.86758	HTA
+2879 m
+46.18289, 1.89020	46.17020, 1.86758	 
+91	114	N/A	BT
+49 m
+46.15997, 1.88399	HTA
+2681 m
+46.18289, 1.89020	46.15962, 1.88372	 
+92	106	N/A	BT
+245 m
+46.16258, 1.88255	HTA
+2169 m
+46.18289, 1.89020	46.16444, 1.88375	 
+93	402	N/A	BT
+70 m
+46.16804, 1.86915	HTA
+2844 m
+46.18289, 1.89020	46.16762, 1.86962	 
+94	115	N/A	BT
+40 m
+46.17861, 1.87967	HTA
+1300 m
+46.18289, 1.89020	46.17856, 1.87931	 
+95	187	N/A	BT
+154 m
+46.17724, 1.88441	HTA
+1042 m
+46.18289, 1.89020	46.17671, 1.88313	 
+96	135	N/A	BT
+86 m
+46.16963, 1.86758	HTA
+2826 m
+46.18289, 1.89020	46.16984, 1.86833	 
+97	150	N/A	BT
+514 m
+46.16273, 1.86622	HTA
+3982 m
+46.18289, 1.89020	46.16053, 1.86214	 
+98	352	N/A	BT
+106 m
+46.16840, 1.86982	HTA
+2712 m
+46.18289, 1.89020	46.16812, 1.87073	 
+99	128	N/A	BT
+276 m
+46.16833, 1.88609	HTA
+1905 m
+46.18289, 1.89020	46.16685, 1.88409	 
+100	200	N/A	BT
+213 m
+46.17024, 1.85948	HTA
+3499 m
+46.18289, 1.89020	46.17008, 1.86139	 
+101	103	N/A	BT
+48 m
+46.17657, 1.86601	HTA
+2822 m
+46.18289, 1.89020	46.17648, 1.86559	 
+102	108	N/A	BT
+60 m
+46.16581, 1.88667	HTA
+1993 m
+46.18289, 1.89020	46.16534, 1.88639	 
+103	749	N/A	BT
+198 m
+46.18635, 1.86933	HTA
+2337 m
+46.18289, 1.89020	46.18807, 1.86979	 
+104	415	N/A	BT
+116 m
+46.17358, 1.88593	HTA
+1027 m
+46.18289, 1.89020	46.17435, 1.88664	 
+105	176	N/A	BT
+105 m
+46.16199, 1.87483	HTA
+2920 m
+46.18289, 1.89020	46.16118, 1.87533	 
+106	134	N/A	BT
+229 m
+46.19452, 1.87207	HTA
+2610 m
+46.18289, 1.89020	46.19504, 1.87007	 
+107	124	N/A	BT
+171 m
+46.17531, 1.88196	HTA
+1351 m
+46.18289, 1.89020	46.17560, 1.88044	 
+108	231	N/A	BT
+64 m
+46.17198, 1.88152	HTA
+1517 m
+46.18289, 1.89020	46.17251, 1.88129	 
+109	100	N/A	BT
+67 m
+46.18035, 1.88096	HTA
+997 m
+46.18289, 1.89020	46.18058, 1.88151	 
+110	150	N/A	BT
+93 m
+46.16782, 1.87797	HTA
+2123 m
+46.18289, 1.89020	46.16755, 1.87876	 
+111	112	N/A	BT
+102 m
+46.17141, 1.86365	HTA
+3261 m
+46.18289, 1.89020	46.17049, 1.86356	 
+112	203	N/A	BT
+140 m
+46.18318, 1.88167	HTA
+1066 m
+46.18289, 1.89020	46.18394, 1.88065	 
+113	103	N/A	BT
+58 m
+46.17202, 1.86851	HTA
+2714 m
+46.18289, 1.89020	46.17150, 1.86856	 
+114	288	N/A	BT
+103 m
+46.17063, 1.86653	HTA
+3061 m
+46.18289, 1.89020	46.17012, 1.86576	 
+115	100	N/A	BT
+111 m
+46.16611, 1.86963	HTA
+2957 m
+46.18289, 1.89020	46.16683, 1.86895	 
+116	109	N/A	BT
+162 m
+46.17549, 1.88781	HTA
+918 m
+46.18289, 1.89020	46.17557, 1.88635	 
+117	128	
+000BH0100
+BT
+71 m
+46.16918, 1.87246	HTA
+2423 m
+46.18289, 1.89020	46.16975, 1.87276	 
+118	115	N/A	BT
+172 m
+46.16650, 1.88156	HTA
+1925 m
+46.18289, 1.89020	46.16711, 1.88298	 
+119	468	N/A	BT
+167 m
+46.17330, 1.87393	HTA
+1941 m
+46.18289, 1.89020	46.17449, 1.87486	 
+120	118	
+000BM0033
+BT
+283 m
+46.16650, 1.88156	HTA
+1944 m
+46.18289, 1.89020	46.16646, 1.88411	 
+121	117	N/A	BT
+23 m
+46.15920, 1.87444	HTA
+3167 m
+46.18289, 1.89020	46.15903, 1.87455	 
+122	140	N/A	BT
+74 m
+46.16790, 1.87186	HTA
+2624 m
+46.18289, 1.89020	46.16742, 1.87232	 
+123	1617	N/A	BT
+45 m
+46.19296, 1.87207	HTA
+2331 m
+46.18289, 1.89020	46.19281, 1.87169	 
+124	104	N/A	BT
+179 m
+46.16519, 1.87330	HTA
+2894 m
+46.18289, 1.89020	46.16388, 1.87236	 
+125	107	
+000AO0105
+BT
+75 m
+46.17997, 1.86506	HTA
+2775 m
+46.18289, 1.89020	46.18060, 1.86530	 
+126	102	N/A	BT
+167 m
+46.16258, 1.88255	HTA
+2496 m
+46.18289, 1.89020	46.16234, 1.88107	 
+127	220	N/A	BT
+70 m
+46.17549, 1.88781	HTA
+849 m
+46.18289, 1.89020	46.17544, 1.88844	 
+128	174	N/A	BT
+145 m
+46.17198, 1.88152	HTA
+1678 m
+46.18289, 1.89020	46.17144, 1.88033	 
+129	153	N/A	BT
+173 m
+46.19426, 1.86738	HTA
+2663 m
+46.18289, 1.89020	46.19396, 1.86892	 
+130	116	N/A	BT
+59 m
+46.18035, 1.88096	HTA
+1024 m
+46.18289, 1.89020	46.18008, 1.88141	 
+131	104	N/A	BT
+69 m
+46.16970, 1.88149	HTA
+1796 m
+46.18289, 1.89020	46.16967, 1.88086	 
+132	330	N/A	BT
+94 m
+46.16627, 1.85287	HTA
+4445 m
+46.18289, 1.89020	46.16638, 1.85372	 
+133	373	N/A	BT
+154 m
+46.17202, 1.87593	HTA
+1953 m
+46.18289, 1.89020	46.17120, 1.87705	 
+134	187	N/A	BT
+114 m
+46.15567, 1.85750	HTA
+4762 m
+46.18289, 1.89020	46.15619, 1.85661	 
+135	342	N/A	BT
+121 m
+46.17360, 1.87049	HTA
+2304 m
+46.18289, 1.89020	46.17371, 1.87157	 
+136	1473	N/A	BT
+55 m
+46.18208, 1.88396	HTA
+666 m
+46.18289, 1.89020	46.18172, 1.88431	 
+137	385	N/A	BT
+158 m
+46.17372, 1.87927	HTA
+1741 m
+46.18289, 1.89020	46.17278, 1.87821	 
+138	112	N/A	BT
+241 m
+46.15908, 1.87264	HTA
+3452 m
+46.18289, 1.89020	46.15884, 1.87048	 
+139	143	N/A	BT
+151 m
+46.17486, 1.87338	HTA
+2213 m
+46.18289, 1.89020	46.17396, 1.87236	 
+140	184	N/A	BT
+148 m
+46.16956, 1.88390	HTA
+1766 m
+46.18289, 1.89020	46.16823, 1.88401	 
+141	120	N/A	BT
+223 m
+46.19426, 1.86738	HTA
+2741 m
+46.18289, 1.89020	46.19226, 1.86735	 
+142	120	N/A	BT
+45 m
+46.17724, 1.88441	HTA
+900 m
+46.18289, 1.89020	46.17694, 1.88468	 
+143	103	N/A	BT
+135 m
+46.16650, 1.88156	HTA
+2090 m
+46.18289, 1.89020	46.16571, 1.88248	 
+144	147	N/A	BT
+138 m
+46.17486, 1.87338	HTA
+1930 m
+46.18289, 1.89020	46.17543, 1.87449	 
+145	101	N/A	BT
+207 m
+46.16782, 1.87797	HTA
+2182 m
+46.18289, 1.89020	46.16652, 1.87931	 
+146	130	N/A	BT
+178 m
+46.15674, 1.87201	HTA
+3393 m
+46.18289, 1.89020	46.15727, 1.87352	 
+147	734	N/A	BT
+102 m
+46.17202, 1.87593	HTA
+2087 m
+46.18289, 1.89020	46.17124, 1.87544	 
+148	175	N/A	BT
+213 m
+46.18635, 1.89336	HTA
+675 m
+46.18289, 1.89020	46.18624, 1.89527	 
+149	100	N/A	BT
+110 m
+46.14813, 1.86658	HTA
+4770 m
+46.18289, 1.89020	46.14750, 1.86582	 
+150	112	N/A	BT
+72 m
+46.19038, 1.88172	HTA
+1298 m
+46.18289, 1.89020	46.19022, 1.88109	 
+151	151	N/A	BT
+94 m
+46.17092, 1.86945	HTA
+2742 m
+46.18289, 1.89020	46.17020, 1.86900	 
+152	535	N/A	BT
+221 m
+46.19270, 1.87471	HTA
+1849 m
+46.18289, 1.89020	46.19265, 1.87669	 
+153	113	N/A	BT
+235 m
+46.17358, 1.88593	HTA
+1126 m
+46.18289, 1.89020	46.17473, 1.88415	 
+154	152	N/A	BT
+124 m
+46.17141, 1.86365	HTA
+3089 m
+46.18289, 1.89020	46.17164, 1.86474	 
+155	108	N/A	BT
+239 m
+46.16627, 1.85287	HTA
+4773 m
+46.18289, 1.89020	46.16545, 1.85088	 
+156	380	N/A	BT
+52 m
+46.19452, 1.87207	HTA
+2356 m
+46.18289, 1.89020	46.19464, 1.87252	 
+157	169	N/A	BT
+119 m
+46.18035, 1.88096	HTA
+984 m
+46.18289, 1.89020	46.18130, 1.88147	 
+158	109	N/A	BT
+184 m
+46.17202, 1.87593	HTA
+2038 m
+46.18289, 1.89020	46.17052, 1.87663	 
+159	175	N/A	BT
+77 m
+46.17063, 1.86653	HTA
+2984 m
+46.18289, 1.89020	46.17110, 1.86603	 
+160	115	N/A	BT
+96 m
+46.16199, 1.87483	HTA
+2885 m
+46.18289, 1.89020	46.16144, 1.87550	 
+161	103	N/A	BT
+187 m
+46.16581, 1.88667	HTA
+2084 m
+46.18289, 1.89020	46.16474, 1.88536	 
+162	106	N/A	BT
+96 m
+46.16611, 1.86963	HTA
+2927 m
+46.18289, 1.89020	46.16688, 1.86924	 
+163	106	N/A	BT
+117 m
+46.17202, 1.86851	HTA
+2748 m
+46.18289, 1.89020	46.17264, 1.86766	 
+164	326	N/A	BT
+95 m
+46.16963, 1.86758	HTA
+2840 m
+46.18289, 1.89020	46.16946, 1.86842	 
+165	134	N/A	BT
+185 m
+46.15614, 1.86872	HTA
+3979 m
+46.18289, 1.89020	46.15534, 1.86726	 
+166	112	N/A	BT
+129 m
+46.17406, 1.86552	HTA
+2994 m
+46.18289, 1.89020	46.17465, 1.86451	 
+167	422	N/A	BT
+42 m
+46.17058, 1.87406	HTA
+2294 m
+46.18289, 1.89020	46.17034, 1.87377	 
+168	156	N/A	BT
+114 m
+46.16155, 1.87164	HTA
+3067 m
+46.18289, 1.89020	46.16256, 1.87149	 
+169	108	N/A	BT
+29 m
+46.17819, 1.87485	HTA
+1768 m
+46.18289, 1.89020	46.17800, 1.87503	 
+170	123	N/A	BT
+168 m
+46.17888, 1.86670	HTA
+2517 m
+46.18289, 1.89020	46.17815, 1.86802	 
+171	311	N/A	BT
+136 m
+46.17084, 1.87046	HTA
+2543 m
+46.18289, 1.89020	46.17200, 1.87004	 
+172	148	N/A	BT
+125 m
+46.16832, 1.87341	HTA
+2364 m
+46.18289, 1.89020	46.16847, 1.87452	 
+173	214	N/A	BT
+237 m
+46.19051, 1.87229	HTA
+2261 m
+46.18289, 1.89020	46.18901, 1.87077	 
+174	138	N/A	BT
+108 m
+46.17904, 1.88677	HTA
+569 m
+46.18289, 1.89020	46.17849, 1.88757	 
+175	330	N/A	BT
+131 m
+46.18067, 1.87530	HTA
+1659 m
+46.18289, 1.89020	46.17953, 1.87564	 
+176	311	N/A	BT
+116 m
+46.17092, 1.86945	HTA
+2775 m
+46.18289, 1.89020	46.17040, 1.86854	 
+177	122	N/A	BT
+177 m
+46.16217, 1.86863	HTA
+3271 m
+46.18289, 1.89020	46.16140, 1.87003	 
+178	255	N/A	BT
+103 m
+46.17372, 1.87927	HTA
+1628 m
+46.18289, 1.89020	46.17283, 1.87953	 
+179	107	N/A	BT
+191 m
+46.17063, 1.86653	HTA
+2872 m
+46.18289, 1.89020	46.17235, 1.86656	 
+180	125	N/A	BT
+159 m
+46.15997, 1.88399	HTA
+2772 m
+46.18289, 1.89020	46.15899, 1.88294	 
+181	1872	N/A	BT
+127 m
+46.17861, 1.87967	HTA
+1317 m
+46.18289, 1.89020	46.17941, 1.87885	 
+182	161	N/A	BT
+139 m
+46.17724, 1.88441	HTA
+1008 m
+46.18289, 1.89020	46.17599, 1.88429	 
+183	114	N/A	BT
+87 m
+46.17202, 1.86851	HTA
+2646 m
+46.18289, 1.89020	46.17280, 1.86860	 
+184	270	N/A	BT
+141 m
+46.17360, 1.87049	HTA
+2298 m
+46.18289, 1.89020	46.17347, 1.87175	 
+185	107	N/A	BT
+236 m
+46.17718, 1.87696	HTA
+1821 m
+46.18289, 1.89020	46.17567, 1.87547	 
+186	130	N/A	BT
+72 m
+46.16782, 1.87797	HTA
+2171 m
+46.18289, 1.89020	46.16810, 1.87739	 
+187	128	N/A	BT
+216 m
+46.16519, 1.87330	HTA
+2931 m
+46.18289, 1.89020	46.16365, 1.87211	 
+188	112	N/A	BT
+211 m
+46.17861, 1.87967	HTA
+1413 m
+46.18289, 1.89020	46.17682, 1.87900	 
+189	192	
+000AP0270
+BT
+142 m
+46.17565, 1.87072	HTA
+2392 m
+46.18289, 1.89020	46.17637, 1.86966	 
+190	2771	N/A	BT
+168 m
+46.18635, 1.86933	HTA
+2440 m
+46.18289, 1.89020	46.18775, 1.86875	 
+191	172	N/A	BT
+119 m
+46.16840, 1.86982	HTA
+2702 m
+46.18289, 1.89020	46.16947, 1.86988	 
+192	140	N/A	BT
+114 m
+46.16199, 1.87483	HTA
+2954 m
+46.18289, 1.89020	46.16099, 1.87507	 
+193	113	
+000AO0106
+BT
+57 m
+46.17997, 1.86506	HTA
+2776 m
+46.18289, 1.89020	46.18041, 1.86531	 
+194	273	N/A	BT
+161 m
+46.17531, 1.88196	HTA
+1157 m
+46.18289, 1.89020	46.17676, 1.88177	 
+195	161	N/A	BT
+79 m
+46.16970, 1.88149	HTA
+1675 m
+46.18289, 1.89020	46.17028, 1.88190	 
+196	122	N/A	BT
+50 m
+46.17531, 1.88196	HTA
+1219 m
+46.18289, 1.89020	46.17575, 1.88185	 
+197	178	N/A	BT
+143 m
+46.16503, 1.85993	HTA
+4044 m
+46.18289, 1.89020	46.16439, 1.85880	 
+198	189	N/A	BT
+152 m
+46.19426, 1.86738	HTA
+2843 m
+46.18289, 1.89020	46.19552, 1.86792	 
+199	101	N/A	BT
+43 m
+46.19532, 1.87453	HTA
+2248 m
+46.18289, 1.89020	46.19570, 1.87452	 
+200	218	N/A	BT
+216 m
+46.17372, 1.87927	HTA
+1773 m
+46.18289, 1.89020	46.17340, 1.87735	 
+ Analyse Environnementale
+Biodiversité:
+Zones Natura 2000: 0
+ZNIEFF Type I: 0
+ZNIEFF Type II: 0
+
+Espaces protégés:
+Parcs Nationaux: 0
+Parcs Naturels Régionaux: 0
+Réserves: 0
+
+ Synthèse et Recommandations
+Scores de potentiel:
+Score Potentiel Energetique:
+100/100
+Score Potentiel Economique:
+100/100
+ Informations Techniques
+Version du rapport: 2.1_integre
+Date de génération: 2025-08-11 07:27:19
+Optimisation géométrique: Oui
+Durée de génération: sec
+Sources de données:
+IGN, OSM, Cadastre, RPG, GeoRisques, SIRENEmmune_name=nom,
+                culture=culture,
+                min_area_ha=min_area,
+                max_area_ha=max_area,
+                ht_max_km=ht_max_km,
+                bt_max_km=bt_max_km,
+                sirene_km=sirene_km,
+                want_eleveurs=want_elev,
+                reseau_types=reseau_types   # <-- Le nouveau paramètre
+            )
+            # CUMULER les couches
+            for fc_key, fc_var in [
+                ("rpg_parcelles", all_rpg),
+                ("postes_bt", all_postes_bt),
+                ("postes_hta", all_postes_hta),
+                ("eleveurs", all_eleveurs),
+
+            ]:
+                layer = rpt.get(fc_key)
+                if layer and isinstance(layer, dict) and layer.get("features"):
+                    fc_var["features"].extend(layer["features"])
+
+            yield f"event: progress\ndata: [{idx}/{total}] {nom}\n\n"
+            yield f"event: result\ndata: {json.dumps(rpt, ensure_ascii=False)}\n\n"
+
+    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+
+CORRUPTED BLOCK END """
+
 @app.route("/rapport_departement")
 def rapport_departement():
     dept = request.args.get("dept")
@@ -3636,13 +9058,28 @@ def rapport_commune():
 
     # Parcelles RPG (polygones)
     if report.get("rpg_parcelles", {}).get("features"):
-        folium.GeoJson(
-            report["rpg_parcelles"],
-            name="Parcelles RPG",
-            tooltip=folium.GeoJsonTooltip(fields=[
-                "cadastre_section", "cadastre_numero", "surface", "Culture"
-            ])
-        ).add_to(m)
+        # Choisir dynamiquement des champs existants pour éviter l'AssertionError de Folium
+        try:
+            first_props = (report["rpg_parcelles"]["features"][0] or {}).get("properties", {})
+            available_keys = set(first_props.keys())
+        except Exception:
+            available_keys = set()
+
+        desired_fields = ["section", "numero", "surface", "SURF_PARC", "Culture"]
+        tooltip_fields = [f for f in desired_fields if f in available_keys]
+
+        if tooltip_fields:
+            folium.GeoJson(
+                report["rpg_parcelles"],
+                name="Parcelles RPG",
+                tooltip=folium.GeoJsonTooltip(fields=tooltip_fields)
+            ).add_to(m)
+        else:
+            # Aucun champ attendu disponible, ajouter sans tooltip
+            folium.GeoJson(
+                report["rpg_parcelles"],
+                name="Parcelles RPG"
+            ).add_to(m)
 
     # Postes BT (orange)
     for poste in report.get("postes_bt", {}).get("features", []):
@@ -3681,6 +9118,11 @@ def rapport_commune():
     return render_template("rapport_commune.html", report=report, carte_url=carte_url)
 
 
+
+@app.route("/toitures")
+def recherche_toitures():
+    """Interface de recherche de toitures par commune"""
+    return render_template("recherche_toitures.html")
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -3815,14 +9257,7 @@ def index():
 def search_by_address_route():
     # Debug prints moved after parcelle assignment to avoid UnboundLocalError
     # Utility to ensure a list of valid GeoJSON Feature dicts
-    def ensure_feature_list(features):
-        if not features:
-            return []
-        if isinstance(features, dict) and features.get("type") == "FeatureCollection":
-            features = features.get("features", [])
-        if isinstance(features, list):
-            return [f for f in features if isinstance(f, dict) and "geometry" in f and "properties" in f]
-        return []
+    # Fonctions utilitaires locales supprimées - utilisation des fonctions globales
     from shapely.geometry import shape, Point
     import time
 
@@ -4015,44 +9450,11 @@ def search_by_address_route():
                 info_response["summary"]["documents_plu"].extend(files)
         info_response["summary"]["documents_plu"] = list(set(info_response["summary"]["documents_plu"]))
 
-    # 10. Diagnostics
-    print("[DIAG build_map] lat:", lat, type(lat))
-    print("[DIAG build_map] lon:", lon, type(lon))
-    print("[DIAG build_map] address:", address, type(address))
-    print("[DIAG build_map] parcelle:", type(parcelle), repr(parcelle)[:200])
-    print("[DIAG build_map] parcelles_data:", type(parcelles_data), repr(parcelles_data)[:200])
-    print("[DIAG build_map] postes_bt_raw:", type(postes_bt_raw), repr(postes_bt_raw)[:200])
-    print("[DIAG build_map] postes_hta_raw:", type(postes_hta_raw), repr(postes_hta_raw)[:200])
-    print("[DIAG build_map] plu_info:", type(plu_info), repr(plu_info)[:200])
-    print("[DIAG build_map] parkings:", type(parkings), repr(parkings)[:200])
-    print("[DIAG build_map] friches:", type(friches), repr(friches)[:200])
-    print("[DIAG build_map] solaire:", type(solaire), repr(solaire)[:200])
-    print("[DIAG build_map] zaer:", type(zaer), repr(zaer)[:200])
-    print("[DIAG build_map] rpg_data:", type(rpg_data), repr(rpg_data)[:200])
-    print("[DIAG build_map] sirene_data:", type(sirene_data), repr(sirene_data)[:200])
-    print("[DIAG build_map] search_radius:", search_radius, type(search_radius))
-    print("[DIAG build_map] ht_radius_deg:", ht_radius_deg, type(ht_radius_deg))
-    print("[DIAG build_map] api_cadastre:", type(api_cadastre), repr(api_cadastre)[:200])
-    print("[DIAG build_map] api_nature:", type(api_nature), repr(api_nature)[:200])
-    print("[DIAG build_map] api_urbanisme:", type(api_urbanisme), repr(api_urbanisme)[:200])
-    print("[DIAG build_map] eleveurs_data:", type(None))
-
-    # 11. Carte Folium complète avec tous les calques métiers
+    # 10. Carte Folium complète avec tous les calques métiers
     carte_url = None
     try:
-        # Debug: print types and samples of all build_map arguments (after parcelle assignment)
-        print("[DEBUG build_map args] parcelle:", type(parcelle or {}), (parcelle or {}) if isinstance(parcelle or {}, dict) else str(parcelle or {})[:200])
-        print("[DEBUG build_map args] parcelles_data:", type(parcelles_data), ensure_feature_list(parcelles_data)[:1])
-        print("[DEBUG build_map args] postes_bt:", type(postes_bt), ensure_feature_list(postes_bt)[:1])
-        print("[DEBUG build_map args] postes_hta:", type(postes_hta), ensure_feature_list(postes_hta)[:1])
-        print("[DEBUG build_map args] plu_info:", type(plu_info), ensure_feature_list(plu_info)[:1])
-        print("[DEBUG build_map args] parkings:", type(parkings), ensure_feature_list(parkings)[:1])
-        print("[DEBUG build_map args] friches:", type(friches), ensure_feature_list(friches)[:1])
-        print("[DEBUG build_map args] solaire:", type(solaire), ensure_feature_list(solaire)[:1])
-        print("[DEBUG build_map args] zaer:", type(zaer), ensure_feature_list(zaer)[:1])
-        print("[DEBUG build_map args] rpg_data:", type(rpg_data), ensure_feature_list(rpg_data)[:1])
-        print("[DEBUG build_map args] sirene_data:", type(sirene_data), ensure_feature_list(sirene_data)[:1])
-        print("[DEBUG build_map args] capacites_reseau:", type(capacites_reseau), ensure_feature_list(capacites_reseau)[:1])
+        print(f"[DEBUG] Génération carte pour {address} - Lat: {lat}, Lon: {lon}")
+        
         map_obj = build_map(
             lat, lon, address,
             parcelle or {},
@@ -4074,7 +9476,11 @@ def search_by_address_route():
             capacites_reseau=ensure_feature_list(capacites_reseau)
         )
         carte_filename = f"map_{int(time.time())}_{abs(hash((lat, lon, address)))}.html"
-        carte_url = save_map_html(map_obj, carte_filename)
+        try:
+            carte_url = save_map_html(map_obj, carte_filename)
+        except Exception as save_error:
+            logging.error(f"[search_by_address] Erreur save_map_html: {save_error}")
+            carte_url = None
         save_map_to_cache(map_obj)
     except Exception as e:
         import traceback
@@ -4082,6 +9488,14 @@ def search_by_address_route():
         print("[search_by_address] Erreur build_map :", e)
         logging.error(f"[search_by_address] Erreur build_map: {e}\nTraceback:\n{tb}")
         return jsonify({"error": f"Erreur build_map: {e}", "traceback": tb}), 500
+
+    # Validation JSON avant retour pour éviter les erreurs de sérialisation
+    try:
+        import json
+        json.dumps(info_response)
+    except (TypeError, ValueError) as json_error:
+        logging.error(f"[search_by_address] Erreur JSON serialization: {json_error}")
+        return jsonify({"error": "Erreur de sérialisation des données", "details": str(json_error)}), 500
 
     info_response["carte_url"] = f"/static/{carte_url}" if carte_url else "/map.html"
     return jsonify(info_response)
@@ -4219,7 +9633,7 @@ def rapport_departement_post():
         synthese=synthese
     )
 
-app.route("/export_map")
+@app.route("/export_map")
 def export_map():
     # Supposons que last_map_params["html"] ou map_obj existent
     map_obj = ...  # Génère ou récupère la carte courante
@@ -4238,20 +9652,6 @@ def carte_risques():
     try:
         # Récupérer les risques GeoRisques
         georisques_risks = fetch_georisques_risks(lat, lon)
-        
-        # Créer la carte centrée sur le point
-        carte = folium.Map(
-            location=[lat, lon],
-            zoom_start=14,
-            tiles='OpenStreetMap'
-        )
-        
-        # Ajouter le point de référence
-        folium.Marker(
-            [lat, lon],
-            popup=f"Point de référence<br>Lat: {lat}<br>Lon: {lon}",
-            icon=folium.Icon(color='red', icon='crosshairs', prefix='fa')
-        ).add_to(carte)
         
         # Couleurs par catégorie de risque
         risk_colors = {
@@ -4377,7 +9777,311 @@ def carte_risques():
         print(f"Erreur création carte risques: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route("/test_api_nature")
+def test_api_nature():
+    """Route de test pour l'API Nature IGN"""
+    try:
+        lat = float(request.args.get("lat", 43.00))
+        lon = float(request.args.get("lon", 6.39))
+        
+        # Créer une géométrie point
+        geom = {
+            "type": "Point", 
+            "coordinates": [lon, lat]
+        }
+        
+        print(f"🔍 [TEST API NATURE] === TEST API NATURE IGN ===")
+        print(f"🔍 [TEST API NATURE] Coordonnées: {lat}, {lon}")
+        
+        # Test des différents endpoints nature selon la documentation officielle
+        endpoints = [
+            "/nature/natura-habitat",
+            "/nature/natura-oiseaux", 
+            "/nature/znieff1",
+            "/nature/znieff2",
+            "/nature/pn",
+            "/nature/pnr",
+            "/nature/rnn",
+            "/nature/rnc",
+            "/nature/rncf"
+        ]
+        
+        results = {}
+        for endpoint in endpoints:
+            print(f"🔍 [TEST API NATURE] Test endpoint: {endpoint}")
+            data = get_api_nature_data(geom, endpoint)
+            if data and data.get("features"):
+                results[endpoint] = {
+                    "count": len(data["features"]),
+                    "features": data["features"][:3]  # Premiers résultats seulement
+                }
+                print(f"🔍 [TEST API NATURE] {endpoint}: {len(data['features'])} résultats")
+            else:
+                results[endpoint] = {"count": 0, "features": []}
+                print(f"🔍 [TEST API NATURE] {endpoint}: aucun résultat")
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        print(f"🔍 [TEST API NATURE] Erreur: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/test_rapport_nature")
+def test_rapport_nature():
+    """Route de test pour vérifier l'affichage des données nature dans le rapport"""
+    
+    # Simuler des données API Nature telles qu'elles devraient être dans api_details
+    test_api_details = {
+        "nature": {
+            "success": True,
+            "data": {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {
+                            "NOM": "ÎLE DE PORT-CROS ET DE BAGAUD",
+                            "TYPE_PROTECTION": "ZNIEFF Type 1",
+                            "TYPE": "Zone naturelle d'intérêt écologique",
+                            "STATUT": "Protégée",
+                            "SUPERFICIE": "650 ha"
+                        },
+                        "geometry": {"type": "Point", "coordinates": [6.396759, 43.006497]}
+                    },
+                    {
+                        "type": "Feature", 
+                        "properties": {
+                            "NOM": "Port-Cros",
+                            "TYPE_PROTECTION": "Parcs Nationaux",
+                            "TYPE": "Parc National",
+                            "STATUT": "Protégé",
+                            "SUPERFICIE": "1700 ha"
+                        },
+                        "geometry": {"type": "Point", "coordinates": [6.396759, 43.006497]}
+                    }
+                ]
+            },
+            "count": 2,
+            "error": None
+        }
+    }
+    
+    # Créer un rapport minimal pour tester le template
+    test_report = {
+        "lat": 43.006497,
+        "lon": 6.396759,
+        "address": "Test Hyères API Nature",
+        "api_details": test_api_details
+    }
+    
+    return render_template("rapport_point.html", report=test_report)
+
+@app.route("/debug_api_nature")
+def debug_api_nature():
+    """Route de debug pour tester les API Nature avec plusieurs coordonnées test"""
+    
+    # Points de test avec des zones naturelles connues
+    test_points = [
+        (43.006497, 6.396759, "Hyères - Point utilisateur"),
+        (44.12, 7.24, "Parc National du Mercantour"),
+        (43.93, 4.75, "Camargue - Réserve de Biosphère"),
+        (46.34, 6.03, "Réserve Naturelle du Bout du Lac"),
+        (43.95, 6.95, "Parc National des Écrins - Zone Sud"),
+    ]
+    
+    results = {}
+    
+    for lat, lon, location_name in test_points:
+        print(f"🔍 [DEBUG API NATURE] === TEST {location_name} ===")
+        print(f"🔍 [DEBUG API NATURE] Coordonnées: {lat}, {lon}")
+        
+        geom = {"type": "Point", "coordinates": [lon, lat]}
+        point_results = {}
+        all_features = []
+        
+        # Test de quelques endpoints clés
+        key_endpoints = [
+            ("/nature/pn", "Parcs Nationaux"),
+            ("/nature/pnr", "Parcs Naturels Régionaux"),
+            ("/nature/natura-habitat", "Natura 2000 Directive Habitat"),
+            ("/nature/znieff1", "ZNIEFF Type 1"),
+            ("/nature/rnn", "Réserves Naturelles Nationales")
+        ]
+        
+        for endpoint, type_name in key_endpoints:
+            try:
+                url = f"https://apicarto.ign.fr/api{endpoint}"
+                params = {"geom": json.dumps(geom), "_limit": 100}
+                
+                import requests
+                response = requests.get(url, params=params, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    feature_count = len(data.get("features", []))
+                    point_results[endpoint] = {
+                        "status": "success",
+                        "count": feature_count
+                    }
+                    
+                    if feature_count > 0:
+                        print(f"🔍 [DEBUG API NATURE] {location_name} - {endpoint}: {feature_count} zones trouvées")
+                        for feature in data["features"]:
+                            if "properties" not in feature:
+                                feature["properties"] = {}
+                            feature["properties"]["TYPE_PROTECTION"] = type_name
+                        all_features.extend(data["features"])
+                    else:
+                        print(f"🔍 [DEBUG API NATURE] {location_name} - {endpoint}: 0 zones")
+                else:
+                    point_results[endpoint] = {
+                        "status": "error",
+                        "code": response.status_code
+                    }
+                    print(f"🔍 [DEBUG API NATURE] {location_name} - {endpoint}: Erreur {response.status_code}")
+                    
+            except Exception as e:
+                point_results[endpoint] = {
+                    "status": "exception",
+                    "error": str(e)
+                }
+                print(f"🔍 [DEBUG API NATURE] {location_name} - {endpoint}: Exception {e}")
+        
+        # Test de la fonction complète pour ce point
+        try:
+            print(f"🔍 [DEBUG API NATURE] Test get_all_api_nature_data pour {location_name}...")
+            nature_data = get_all_api_nature_data(geom)
+            final_count = len(nature_data.get('features', [])) if nature_data else 0
+            print(f"🔍 [DEBUG API NATURE] {location_name} - get_all_api_nature_data: {final_count} features totales")
+            
+            point_results["total_from_function"] = final_count
+        except Exception as e:
+            print(f"🔍 [DEBUG API NATURE] {location_name} - get_all_api_nature_data: Erreur {e}")
+            point_results["total_from_function"] = 0
+            
+        results[location_name] = {
+            "coordinates": [lat, lon],
+            "endpoints": point_results,
+            "total_features_manual": len(all_features)
+        }
+    
+    return jsonify({
+        "status": "multi_point_debug_complete",
+        "test_results": results
+    })
+
+@app.route("/debug_capacites_fields")
+def debug_capacites_fields():
+    """Route de debug pour voir tous les champs disponibles dans les capacités HTA"""
+    try:
+        lat = float(request.args.get("lat", 43.13))
+        lon = float(request.args.get("lon", 6.37))
+        
+        print(f"🔍 [DEBUG FIELDS] === DEBUG CHAMPS CAPACITÉS HTA ===")
+        print(f"🔍 [DEBUG FIELDS] Coordonnées: {lat}, {lon}")
+        
+        # Récupération des capacités brutes
+        capacites_raw = get_all_capacites_reseau(lat, lon, radius_deg=0.5)
+        
+        if capacites_raw:
+            print(f"🔍 [DEBUG FIELDS] {len(capacites_raw)} capacités trouvées")
+            
+            # Analyse du premier élément pour voir tous les champs
+            first_capacity = capacites_raw[0]
+            props = first_capacity.get('properties', {})
+            
+            print(f"🔍 [DEBUG FIELDS] Tous les champs disponibles:")
+            fields_info = {}
+            for key, value in props.items():
+                print(f"🔍 [DEBUG FIELDS] - {key}: {value}")
+                fields_info[key] = str(value)
+            
+            # Recherche de champs liés aux coûts
+            cost_fields = {}
+            for key, value in props.items():
+                key_lower = key.lower()
+                if any(cost_word in key_lower for cost_word in ['cout', 'cost', 'prix', 'price', 'euro', '€', 'quote', 'tarif']):
+                    cost_fields[key] = str(value)
+                    print(f"💰 [DEBUG FIELDS] Champ coût potentiel: {key} = {value}")
+            
+            return jsonify({
+                "total_capacities": len(capacites_raw),
+                "all_fields": fields_info,
+                "potential_cost_fields": cost_fields,
+                "hta_mapping_keys": list(hta_mapping.keys())
+            })
+        else:
+            return jsonify({"error": "Aucune capacité trouvée"})
+        
+    except Exception as e:
+        print(f"🔍 [DEBUG FIELDS] Erreur: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/debug_cout_hta")
+def debug_cout_hta():
+    """Route de debug spécifique pour analyser les coûts HTA"""
+    try:
+        lat = float(request.args.get("lat", 43.13))
+        lon = float(request.args.get("lon", 6.37))
+        
+        print(f"💰 [DEBUG COUT] === ANALYSE COÛTS HTA ===")
+        print(f"💰 [DEBUG COUT] Coordonnées: {lat}, {lon}")
+        
+        # Récupération des capacités brutes
+        capacites_raw = get_all_capacites_reseau(lat, lon, radius_deg=0.5)
+        
+        if capacites_raw:
+            print(f"💰 [DEBUG COUT] {len(capacites_raw)} capacités trouvées")
+            
+            cost_analysis = []
+            for i, capacity in enumerate(capacites_raw[:3]):  # Analyser les 3 premières
+                props = capacity.get('properties', {})
+                
+                # Recherche de tous les champs potentiellement liés aux coûts
+                cost_info = {
+                    "capacity_index": i + 1,
+                    "nom": props.get('Nom', 'N/A'),
+                    "code": props.get('Code', 'N/A')
+                }
+                
+                # Champs de coût potentiels
+                cost_fields = [
+                    'Quote-Part', 'Quote_Part', 'QuotePart',
+                    'Cout', 'Cost', 'Prix', 'Price', 
+                    'Tarif', 'Euro', '€'
+                ]
+                
+                for field in props.keys():
+                    if any(cost_word.lower() in field.lower() for cost_word in cost_fields):
+                        cost_info[f"field_{field}"] = props[field]
+                        print(f"💰 [DEBUG COUT] Capacité {i+1} - {field}: {props[field]}")
+                
+                # Champs spécifiques du mapping
+                for display_name, db_field in hta_mapping.items():
+                    if 'quote' in display_name.lower() or 'cout' in display_name.lower() or 'prix' in display_name.lower():
+                        value = props.get(db_field, 'N/A')
+                        cost_info[f"mapping_{display_name}"] = value
+                        print(f"💰 [DEBUG COUT] Mapping {display_name} ({db_field}): {value}")
+                
+                cost_analysis.append(cost_info)
+            
+            return jsonify({
+                "total_capacities": len(capacites_raw),
+                "cost_analysis": cost_analysis,
+                "hta_mapping_cost_fields": {k: v for k, v in hta_mapping.items() if 'quote' in k.lower() or 'cout' in k.lower()}
+            })
+        else:
+            return jsonify({"error": "Aucune capacité trouvée"})
+        
+    except Exception as e:
+        print(f"💰 [DEBUG COUT] Erreur: {e}")
+        return jsonify({"error": str(e)}), 500
+
 def open_browser():
+    # Protection contre l'ouverture multiple de navigateurs
+    if hasattr(open_browser, '_opened'):
+        return
+    open_browser._opened = True
     webbrowser.open_new("http://127.0.0.1:5000")
 
 def main():
@@ -4385,12 +10089,1132 @@ def main():
         print("Routes disponibles:")
         pprint.pprint(list(app.url_map.iter_rules()))
         Timer(1, open_browser).start()
-        app.run(host="127.0.0.1", port=5000, debug=True)
+        app.run(host="127.0.0.1", port=5000, debug=False)  # Debug False pour éviter les reloads multiples
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
         print("[main] Startup error:", e)
         logging.error(f"[main] Startup error: {e}\nTraceback:\n{tb}")
+
+@app.route("/debug_toitures_ui")
+def debug_toitures_ui():
+    """Interface de debug pour la recherche de toitures"""
+    try:
+        with open("debug_toitures_ui.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        return f"<h1>Erreur</h1><p>Impossible de charger l'interface de debug: {e}</p>", 500
+
+@app.route("/test_toitures_debug")
+def test_toitures_debug():
+    """Interface de test détaillé pour diagnostiquer les problèmes de toitures"""
+    try:
+        with open("test_toitures_debug.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        return f"<h1>Erreur</h1><p>Impossible de charger l'interface de test: {e}</p>", 500
+
+@app.route("/test_sliders_toitures")
+def test_sliders_toitures():
+    """Interface de test spécifique pour les sliders de toitures"""
+    try:
+        with open("test_sliders_toitures.html", "r", encoding="utf-8") as f:
+            content = f.read()
+        return content
+    except Exception as e:
+        return f"<h1>Erreur</h1><p>Impossible de charger l'interface de test sliders: {e}</p>", 500
+
+def generate_integrated_commune_report(commune_name, filters=None):
+    """
+    Génère un rapport complet intégré utilisant les fonctions existantes d'agriweb_source.py
+    Cette version fallback fonctionne même si rapport_commune_complet.py n'est pas disponible
+    """
+    from datetime import datetime
+    import json
+    import time
+    import re
+    from urllib.parse import quote_plus
+    from shapely.geometry import shape, Point
+    from shapely.ops import transform as shp_transform
+    from pyproj import Transformer
+    import folium
+    
+    if filters is None:
+        filters = {}
+    
+    print(f"📊 [RAPPORT_INTÉGRÉ] Génération du rapport pour {commune_name}")
+    
+    try:
+        start_ts = time.time()
+        # 1. Récupération des informations de base de la commune
+        commune_infos = requests.get(
+            f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune_name)}&fields=centre,contour,population,codesPostaux,departement"
+        ).json()
+        
+        if not commune_infos:
+            return {"error": f"Commune '{commune_name}' introuvable"}
+        
+        commune_info = commune_infos[0]
+        contour = commune_info.get("contour")
+        centre = commune_info.get("centre")
+        
+        if not contour or not centre:
+            return {"error": f"Données géographiques manquantes pour {commune_name}"}
+        
+        lat, lon = centre["coordinates"][1], centre["coordinates"][0]
+        commune_poly = shape(contour)
+        
+        # Transformer pour calculer la superficie
+        to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+        superficie_ha = shp_transform(to_l93, commune_poly).area / 10000.0
+        
+        # 2. Optimisation géométrique pour éviter les erreurs 414
+        def optimize_geometry_for_api(geom):
+            geom_json = json.dumps(geom)
+            if len(geom_json) > 4000:
+                print(f"🔧 [RAPPORT_INTÉGRÉ] Géométrie optimisée ({len(geom_json)} chars)")
+                shp_geom = shape(geom)
+                minx, miny, maxx, maxy = shp_geom.bounds
+                return {
+                    "type": "Polygon",
+                    "coordinates": [[
+                        [minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy], [minx, miny]
+                    ]]
+                }
+            return geom
+        
+        contour_optimise = optimize_geometry_for_api(contour)
+        
+    # 3. Collecte des données avec les fonctions existantes
+        print(f"📊 [RAPPORT_INTÉGRÉ] Collecte des données...")
+        
+        # Données de base
+        minx, miny, maxx, maxy = commune_poly.bounds
+        bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+        
+        def filter_in_commune(features):
+            filtered = []
+            for f in features:
+                if "geometry" not in f:
+                    continue
+                try:
+                    geom = shape(f["geometry"])
+                    if not geom.is_valid:
+                        geom = geom.buffer(0)
+                    if geom.intersects(commune_poly):
+                        filtered.append(f)
+                except Exception:
+                    continue
+            return filtered
+        
+        # Récupération des données
+        rpg_data = get_rpg_info_by_polygon(contour) if filters.get("filter_rpg", True) else []
+        postes_bt_data = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
+        postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+        parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", True) else []
+        friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", True) else []
+        # Toitures: utiliser OSM bâtiments + filtres surface/distance au lieu du WFS "POTENTIEL_SOLAIRE"
+        toitures_data = []
+        if filters.get("filter_toitures", True):
+            try:
+                # Paramètres de filtre
+                min_surface = float(filters.get("toitures_min_surface", 100.0))
+                filter_by_distance = bool(filters.get("filter_by_distance", False))
+                max_distance_bt = float(filters.get("max_distance_bt", 500.0))
+                max_distance_hta = float(filters.get("max_distance_hta", 2000.0))
+                poste_type_filter = str(filters.get("poste_type_filter", "ALL")).upper()
+
+                # Bâtiments via OSM (Overpass) sur le polygone communal
+                batiments_fc = get_batiments_data(contour) or {"type": "FeatureCollection", "features": []}
+                batiments = batiments_fc.get("features", [])
+                print(f"    🏠 Bâtiments OSM bruts: {len(batiments)}")
+
+                for b in batiments:
+                    try:
+                        geom = shape(b.get("geometry"))
+                        if not geom.is_valid:
+                            geom = geom.buffer(0)
+                            if not geom.is_valid:
+                                continue
+                        # Double garde: doit intersecter la commune
+                        if not (commune_poly.contains(geom) or commune_poly.intersects(geom)):
+                            continue
+
+                        # Surface en m²
+                        surface_m2 = shp_transform(to_l93, geom).area
+                        if surface_m2 < min_surface:
+                            continue
+
+                        # Distances aux postes
+                        centroid = geom.centroid.coords[0]
+                        d_bt = calculate_min_distance(centroid, postes_bt_data) if postes_bt_data else None
+                        d_hta = calculate_min_distance(centroid, postes_hta_data) if postes_hta_data else None
+
+                        # Filtrage distance suivant le type de poste sélectionné
+                        if filter_by_distance:
+                            bt_ok = (d_bt is not None and d_bt <= max_distance_bt)
+                            hta_ok = (d_hta is not None and d_hta <= max_distance_hta)
+                            if poste_type_filter == "BT":
+                                distance_ok = bt_ok
+                            elif poste_type_filter == "HTA":
+                                distance_ok = hta_ok
+                            else:
+                                distance_ok = bt_ok or hta_ok
+                            if not distance_ok:
+                                continue
+                        # Sinon, pas de filtre distance
+
+                        props_src = (b.get("properties") or {}).copy()
+                        props = {
+                            "surface_toiture_m2": round(surface_m2, 2),
+                            "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
+                            "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None,
+                            "source": props_src.get("source", "OpenStreetMap"),
+                            "building": props_src.get("building", "yes"),
+                            "osm_id": props_src.get("osm_id"),
+                        }
+
+                        toitures_data.append({
+                            "type": "Feature",
+                            "geometry": b.get("geometry"),
+                            "properties": props
+                        })
+                    except Exception as _e:
+                        continue
+                print(f"    ✅ Toitures retenues après filtres: {len(toitures_data)}")
+            except Exception as e:
+                print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur génération toitures: {e}")
+                toitures_data = []
+
+        # Appliquer filtres de surface et de distance sur parkings/friches si demandé
+        filter_by_distance = bool(filters.get("filter_by_distance", False))
+        max_distance_bt = float(filters.get("max_distance_bt", 500.0))
+        max_distance_hta = float(filters.get("max_distance_hta", 2000.0))
+        poste_type_filter = str(filters.get("poste_type_filter", "ALL")).upper()
+
+        def _distance_ok(d_bt, d_hta):
+            if not filter_by_distance:
+                return True
+            bt_ok = (d_bt is not None and d_bt <= max_distance_bt)
+            hta_ok = (d_hta is not None and d_hta <= max_distance_hta)
+            if poste_type_filter == "BT":
+                return bt_ok
+            if poste_type_filter == "HTA":
+                return hta_ok
+            return bt_ok or hta_ok
+
+        # Parkings: surface minimale et distance
+        if parkings_data:
+            parking_min_area = float(filters.get("parking_min_area", 1500.0))
+            filtered_pk = []
+            for feat in parkings_data:
+                try:
+                    geom = feat.get("geometry")
+                    if not geom:
+                        continue
+                    shp = shape(geom)
+                    if not shp.is_valid:
+                        shp = shp.buffer(0)
+                        if not shp.is_valid:
+                            continue
+                    area_m2 = shp_transform(to_l93, shp).area
+                    if area_m2 < parking_min_area:
+                        continue
+                    c = shp.centroid
+                    lat_c, lon_c = c.y, c.x
+                    d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                    d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                    if not _distance_ok(d_bt, d_hta):
+                        continue
+                    # Annoter pour réutiliser ensuite
+                    props = (feat.get('properties') or {}).copy()
+                    props.update({
+                        'surface_m2': round(area_m2, 2),
+                        'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                        'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    })
+                    feat = {**feat, 'properties': props}
+                    filtered_pk.append(feat)
+                except Exception:
+                    continue
+            parkings_data = filtered_pk
+
+        # Friches: surface minimale et distance
+        if friches_data:
+            friches_min_area = float(filters.get("friches_min_area", 1000.0))
+            filtered_fr = []
+            for feat in friches_data:
+                try:
+                    geom = feat.get("geometry")
+                    if not geom:
+                        continue
+                    shp = shape(geom)
+                    if not shp.is_valid:
+                        shp = shp.buffer(0)
+                        if not shp.is_valid:
+                            continue
+                    area_m2 = shp_transform(to_l93, shp).area
+                    # NB: friches_min_area est exprimé côté UI en m² (par cohérence avec parkings/toitures)
+                    if area_m2 < friches_min_area:
+                        continue
+                    c = shp.centroid
+                    lat_c, lon_c = c.y, c.x
+                    d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                    d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                    if not _distance_ok(d_bt, d_hta):
+                        continue
+                    props = (feat.get('properties') or {}).copy()
+                    props.update({
+                        'surface_m2': round(area_m2, 2),
+                        'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                        'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    })
+                    feat = {**feat, 'properties': props}
+                    filtered_fr.append(feat)
+                except Exception:
+                    continue
+            friches_data = filtered_fr
+
+        sirene_data = get_sirene_info_by_polygon(contour)
+
+        # Calcul rapide d'une valeur d'irradiation (kWh/kWc/an) via PVGIS au centre de la commune
+        pvgis_kwh_per_kwc = None
+        try:
+            pvgis_kwh_per_kwc = get_pvgis_production(lat, lon, 30, 180, peakpower=1.0)
+        except Exception:
+            pvgis_kwh_per_kwc = None
+        
+        # APIs enrichies
+        api_cadastre = get_api_cadastre_data(contour_optimise)
+        api_nature = get_all_api_nature_data(contour_optimise)
+        api_urbanisme = get_all_gpu_data(contour_optimise)
+
+        # Préparation des listes de détails par rubrique (position, surface, parcelles, postes proches, liens)
+        def _format_parcelles_refs(props: dict) -> dict:
+            try:
+                numero = props.get('numero') or props.get('numero_parcelle') or props.get('num_parc') or ''
+                section = props.get('section') or props.get('code_section') or ''
+                commune_code = props.get('commune') or props.get('code_commune') or props.get('insee') or ''
+                prefixe = props.get('prefixe') or props.get('code_arr') or ''
+                return {
+                    'numero': numero,
+                    'section': section,
+                    'commune': commune_code,
+                    'prefixe': prefixe,
+                    'reference_complete': f"{commune_code}{prefixe}{section}{numero}".strip()
+                }
+            except Exception:
+                return {}
+
+        def _find_nearest_poste(pt_lon: float, pt_lat: float, postes: list) -> dict:
+            try:
+                p = Point(pt_lon, pt_lat)
+                best = None
+                best_d = None
+                for poste in (postes or []):
+                    try:
+                        g = poste.get('geometry')
+                        if not g:
+                            continue
+                        d = shape(g).distance(p) * 111000
+                        if best_d is None or (d < best_d):
+                            best = poste
+                            best_d = d
+                    except Exception:
+                        continue
+                if best is None:
+                    return {}
+                coords = best.get('geometry', {}).get('coordinates', [None, None])
+                pr = best.get('properties', {})
+                return {
+                    'distance_m': round(best_d, 2) if best_d is not None else None,
+                    'lon': coords[0],
+                    'lat': coords[1],
+                    'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
+                    'nom': pr.get('nom') or pr.get('libelle') or ''
+                }
+            except Exception:
+                return {}
+
+        # Préparer un index simple des parcelles de la commune si disponible, pour associer par centroïde
+        cadastre_features = []
+        if isinstance(api_cadastre, dict):
+            cadastre_features = (api_cadastre or {}).get('features', []) or []
+
+        def _parcelles_for_point(lon: float, lat: float, max_match: int = 3) -> list:
+            out = []
+            try:
+                p = Point(lon, lat)
+                for parc in cadastre_features:
+                    try:
+                        g = parc.get('geometry')
+                        if not g:
+                            continue
+                        # intersects is more tolerant than contains for points on borders
+                        if shape(g).intersects(p):
+                            out.append(_format_parcelles_refs(parc.get('properties', {})))
+                            if len(out) >= max_match:
+                                break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            return out
+
+        def _parcelles_for_geom(feature_geom: dict, max_match: int = 3) -> list:
+            """Retourne les références de parcelles cadastrales qui intersectent la géométrie complète.
+            Utilisé de préférence au centroïde pour éviter les faux négatifs en bordure.
+            """
+            out = []
+            try:
+                if not feature_geom:
+                    return out
+                shp_feat = shape(feature_geom)
+                for parc in cadastre_features:
+                    try:
+                        g = parc.get('geometry')
+                        if not g:
+                            continue
+                        if shape(g).intersects(shp_feat):
+                            out.append(_format_parcelles_refs(parc.get('properties', {})))
+                            if len(out) >= max_match:
+                                break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            return out
+
+        def _parcelles_from_api_near(lon: float, lat: float, tol: float = 0.0006, max_match: int = 3) -> list:
+            """Fallback: interroge l'API Cadastre autour d'un point (petit carré ~60m) pour récupérer des parcelles."""
+            try:
+                ring = [
+                    [lon - tol, lat - tol],
+                    [lon + tol, lat - tol],
+                    [lon + tol, lat + tol],
+                    [lon - tol, lat + tol],
+                    [lon - tol, lat - tol],
+                ]
+                geom_query = {"type": "Polygon", "coordinates": [ring]}
+                resp = get_api_cadastre_data(geom_query, endpoint="/cadastre/parcelle", source_ign="PCI")
+                feats = (resp or {}).get('features', [])
+                out = []
+                for parc in feats:
+                    try:
+                        out.append(_format_parcelles_refs((parc.get('properties') or {})))
+                        if len(out) >= max_match:
+                            break
+                    except Exception:
+                        continue
+                return out
+            except Exception:
+                return []
+
+        # Reverse géocodage rapide et lien PagesJaunes à partir de l'adresse exacte
+        _rev_cache = {}
+        def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
+            try:
+                if lon_f is None or lat_f is None:
+                    return ""
+                key = (round(lon_f, 5), round(lat_f, 5))
+                if key in _rev_cache:
+                    return _rev_cache[key]
+                url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
+                r = requests.get(url, timeout=0.9)
+                if r.ok:
+                    js = r.json() or {}
+                    feats = js.get("features") or []
+                    if feats:
+                        label = (feats[0].get("properties") or {}).get("label") or ""
+                        _rev_cache[key] = label
+                        return label
+            except Exception:
+                pass
+            return ""
+
+        def _build_annuaire_link(address: str) -> str:
+            addr = (address or "").strip()
+            if not addr:
+                return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(commune_name)}&univers=pagesjaunes&idOu="
+            return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(addr)}&univers=pagesjaunes&idOu="
+
+        # Limiter le volume des détails pour préserver les perfs sur très grandes communes
+        max_details = int((filters or {}).get('max_details', 200))
+
+        # Détails Parkings
+        parkings_details = []
+        for feat in (parkings_data or [])[:max_details]:
+            try:
+                geom = feat.get('geometry')
+                if not geom:
+                    continue
+                shp = shape(geom)
+                c = shp.centroid
+                lat_c, lon_c = c.y, c.x
+                area_m2 = shp_transform(to_l93, shp).area
+                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                details = {
+                    'lat': lat_c,
+                    'lon': lon_c,
+                    'surface_m2': round(area_m2, 2),
+                    'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                    'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
+                    'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'parcelles': (
+                        feat.get('properties', {}).get('parcelles_cadastrales')
+                        or _parcelles_for_geom(geom)
+                        or _parcelles_for_point(lon_c, lat_c)
+                        or _parcelles_from_api_near(lon_c, lat_c)
+                    ),
+                    'adresse': addr_txt,
+                    'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
+                }
+                details['lien_annuaire'] = _build_annuaire_link(addr_txt)
+                parkings_details.append(details)
+            except Exception:
+                continue
+
+        # Détails Friches
+        friches_details = []
+        for feat in (friches_data or [])[:max_details]:
+            try:
+                geom = feat.get('geometry')
+                if not geom:
+                    continue
+                shp = shape(geom)
+                c = shp.centroid
+                lat_c, lon_c = c.y, c.x
+                area_m2 = shp_transform(to_l93, shp).area
+                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                details = {
+                    'lat': lat_c,
+                    'lon': lon_c,
+                    'surface_m2': round(area_m2, 2),
+                    'surface_ha': round(area_m2 / 10000.0, 4),
+                    'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                    'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
+                    'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'parcelles': (
+                        feat.get('properties', {}).get('parcelles_cadastrales')
+                        or _parcelles_for_geom(geom)
+                        or _parcelles_for_point(lon_c, lat_c)
+                        or _parcelles_from_api_near(lon_c, lat_c)
+                    ),
+                    'adresse': addr_txt,
+                    'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
+                }
+                details['lien_annuaire'] = _build_annuaire_link(addr_txt)
+                friches_details.append(details)
+            except Exception:
+                continue
+
+        # Détails Toitures
+        toitures_details = []
+        for feat in (toitures_data or [])[:max_details]:
+            try:
+                geom = feat.get('geometry')
+                if not geom:
+                    continue
+                shp = shape(geom)
+                c = shp.centroid
+                lat_c, lon_c = c.y, c.x
+                area_m2 = shp_transform(to_l93, shp).area
+                props = feat.get('properties', {})
+                d_bt = props.get('min_distance_bt_m')
+                d_hta = props.get('min_distance_hta_m')
+                if d_bt is None:
+                    d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                if d_hta is None:
+                    d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                pv = {
+                    'lat': lat_c,
+                    'lon': lon_c,
+                    'surface_m2': round(area_m2, 2),
+                    'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                    'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
+                    'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'parcelles': (
+                        props.get('parcelles_cadastrales')
+                        or _parcelles_for_geom(geom)
+                        or _parcelles_for_point(lon_c, lat_c)
+                        or _parcelles_from_api_near(lon_c, lat_c)
+                    ),
+                    'lien_streetview': props.get('lien_streetview') or f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}",
+                    'lien_annuaire': _build_annuaire_link(addr_txt),
+                    'osm_id': props.get('osm_id'),
+                    'building': props.get('building', 'yes')
+                }
+                if addr_txt:
+                    pv['adresse'] = addr_txt
+                toitures_details.append(pv)
+            except Exception:
+                continue
+
+        print(f"📊 [RAPPORT_INTÉGRÉ] Données collectées:")
+        print(f"    🌾 RPG: {len(rpg_data)} parcelles")
+        print(f"    🅿️ Parkings: {len(parkings_data)} emplacements")
+        print(f"    🏚️ Friches: {len(friches_data)} sites")
+        print(f"    🏠 Toitures: {len(toitures_data)} bâtiments")
+        print(f"    ⚡ Postes BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
+        print(f"    🏢 SIRENE: {len(sirene_data)} établissements")
+
+        # 4. Analyses statistiques
+        
+        # Analyse RPG
+        rpg_analysis = {"resume_executif": {"total_parcelles": 0, "surface_totale_ha": 0}}
+        if rpg_data:
+            total_surface_rpg = 0
+            cultures = {}
+            
+            for parcelle in rpg_data:
+                try:
+                    geom = shape(parcelle["geometry"])
+                    surface_ha = shp_transform(to_l93, geom).area / 10000.0
+                    total_surface_rpg += surface_ha
+                    
+                    culture = parcelle.get("properties", {}).get("CODE_CULTU", "Inconnue")
+                    cultures[culture] = cultures.get(culture, 0) + surface_ha
+                except Exception:
+                    continue
+            
+            rpg_analysis = {
+                "resume_executif": {
+                    "total_parcelles": len(rpg_data),
+                    "surface_totale_ha": round(total_surface_rpg, 2),
+                    "surface_moyenne_parcelle_ha": round(total_surface_rpg / len(rpg_data), 2) if rpg_data else 0,
+                    "cultures_principales": sorted(cultures.items(), key=lambda x: x[1], reverse=True)[:5]
+                }
+            }
+        
+        # Analyse parkings
+        # Valeurs par défaut robustes pour éviter les clés manquantes côté template
+        parkings_analysis = {
+            "resume_executif": {
+                "total_parkings": 0,
+                "surface_totale_m2": 0,
+                "surface_moyenne_m2": 0,
+                "potentiel_photovoltaique_mwc": 0,
+                "production_annuelle_mwh": 0,
+            }
+        }
+        if parkings_data:
+            total_surface_parkings = 0
+            
+            for parking in parkings_data:
+                try:
+                    geom = shape(parking["geometry"])
+                    surface_m2 = shp_transform(to_l93, geom).area
+                    total_surface_parkings += surface_m2
+                except Exception:
+                    continue
+            
+            potentiel_mwc = round(total_surface_parkings * 0.15 / 1000, 2)  # Estimation 150W/m²
+            production_mwh = round(potentiel_mwc * 1200)  # ~1200 MWh/an par MWc
+            parkings_analysis = {
+                "resume_executif": {
+                    "total_parkings": len(parkings_data),
+                    "surface_totale_m2": round(total_surface_parkings, 2),
+                    "surface_moyenne_m2": round(total_surface_parkings / len(parkings_data), 2) if parkings_data else 0,
+                    "potentiel_photovoltaique_mwc": potentiel_mwc,
+                    "production_annuelle_mwh": production_mwh
+                },
+                "details": parkings_details
+            }
+        
+        # Analyse friches
+        friches_analysis = {
+            "resume_executif": {
+                "total_friches": 0,
+                "surface_totale_ha": 0
+            }
+        }
+        if friches_data:
+            total_surface_friches = 0
+            for friche in friches_data:
+                try:
+                    geom = shape(friche["geometry"])
+                    surface_ha = shp_transform(to_l93, geom).area / 10000.0
+                    total_surface_friches += surface_ha
+                except Exception:
+                    continue
+            friches_analysis = {
+                "resume_executif": {
+                    "total_friches": len(friches_data),
+                    "surface_totale_ha": round(total_surface_friches, 2),
+                    "surface_moyenne_ha": round(total_surface_friches / len(friches_data), 2) if friches_data else 0,
+                    "potentiel_reconversion_ha": round(total_surface_friches * 0.8, 2)
+                },
+                "details": friches_details
+            }
+
+        # Analyse toitures
+        toitures_analysis = {
+            "resume_executif": {
+                "total_toitures": 0,
+                "surface_totale_m2": 0,
+                "surface_exploitable_pv_m2": 0,
+                "potentiel_total_mwc": 0,
+                "production_annuelle_mwh": 0
+            }
+        }
+        if toitures_data:
+            total_surface_toitures = 0
+            for toiture in toitures_data:
+                try:
+                    geom = shape(toiture["geometry"])
+                    surface_m2 = shp_transform(to_l93, geom).area
+                    total_surface_toitures += surface_m2
+                except Exception:
+                    continue
+            toitures_analysis = {
+                "resume_executif": {
+                    "total_toitures": len(toitures_data),
+                    "surface_totale_m2": round(total_surface_toitures, 2),
+                    "surface_exploitable_pv_m2": round(total_surface_toitures * 0.7, 2),
+                    "potentiel_total_mwc": round(total_surface_toitures * 0.7 * 0.2 / 1000, 2),
+                    "production_annuelle_mwh": round(total_surface_toitures * 0.7 * 0.2 * 1.2, 2)
+                },
+                "details": toitures_details
+            }
+        
+        # 5. Assemblage du rapport final
+        rapport = {
+            "metadata": {
+                "commune_nom": commune_name,
+                "date_generation": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "version_rapport": "2.1_integre",
+                "methodes_analyse": ["polygon_intersection", "api_integration", "statistical_analysis"],
+                "sources_donnees": ["IGN", "OSM", "Cadastre", "RPG", "GeoRisques", "SIRENE"],
+                "optimisation_geometrique": True,
+                "pvgis_kwh_per_kwc": round(pvgis_kwh_per_kwc, 1) if isinstance(pvgis_kwh_per_kwc, (int, float)) else None
+            },
+            
+            "commune_info": {
+                "caracteristiques_generales": {
+                    "nom": commune_info.get("nom", commune_name),
+                    "code_insee": commune_info.get("code", ""),
+                    "codes_postaux": commune_info.get("codesPostaux", []),
+                    "departement": commune_info.get("departement", {})
+                },
+                "superficie_total_ha": round(superficie_ha, 2),
+                "population": commune_info.get("population", 0),
+                "densite_habitants_km2": round((commune_info.get("population", 0) / superficie_ha * 100), 2) if superficie_ha > 0 else 0,
+                "centroid_lat": lat,
+                "centroid_lon": lon
+            },
+            
+            "rpg_analysis": rpg_analysis,
+            "parkings_analysis": parkings_analysis,
+            "friches_analysis": friches_analysis,
+            "toitures_analysis": toitures_analysis,
+            
+            "infrastructures_analysis": {
+                "energie": {
+                    "postes_electriques": {
+                        "postes_bt": {"count": len(postes_bt_data)},
+                        "postes_hta": {"count": len(postes_hta_data)}
+                    }
+                }
+            },
+            
+            "environnement_analysis": {
+                "zones_protegees": api_nature.get("summary", {}),
+                "biodiversite": {
+                    "zones_natura2000": api_nature.get("details", {}).get("natura2000_directive_habitat", {}).get("count", 0) + 
+                                       api_nature.get("details", {}).get("natura2000_directive_oiseaux", {}).get("count", 0),
+                    "znieff": api_nature.get("details", {}).get("znieff_type1", {}).get("count", 0) + 
+                             api_nature.get("details", {}).get("znieff_type2", {}).get("count", 0)
+                }
+            },
+            
+            "socioeconomique_analysis": {
+                "economie": {
+                    "entreprises": {"total": len(sirene_data)}
+                }
+            },
+            
+            "synthese_recommandations": {
+                "points_forts": [],
+                "recommandations_strategiques": {
+                    "court_terme": ["Analyser le potentiel photovoltaïque des toitures"],
+                    "moyen_terme": ["Développer la valorisation des friches"],
+                    "long_terme": ["Optimiser l'usage des terres agricoles"]
+                },
+                "potentiel_global": {
+                    "score_potentiel_energetique": min(100, (toitures_analysis["resume_executif"]["total_toitures"] * 2)),
+                    "score_potentiel_economique": min(100, (len(sirene_data) / 10)),
+                    "score_qualite_environnementale": min(100, (api_nature.get("summary", {}).get("total_zones", 0) * 10))
+                }
+            },
+            
+            "api_data": {
+                "cadastre": api_cadastre,
+                "nature": api_nature,
+                "urbanisme": api_urbanisme
+            }
+        }
+
+        # Génération d'une carte Folium dédiée au rapport (parkings, friches, toitures, postes)
+        # MAIS si une carte de recherche vient d'être générée et est en cache, on l'utilise en priorité
+        try:
+            # Si une carte existe déjà en cache (issue de la recherche), on l'intègre directement
+            if (last_map_params or {}).get("html"):
+                # Utilise l'endpoint /generated_map qui renvoie le HTML en mémoire
+                rapport["carte_url"] = "/generated_map"
+                try:
+                    rapport["carte_static_url"] = (
+                        f"https://staticmap.openstreetmap.de/staticmap.php?center={lat},{lon}&zoom=13&size=800x500&maptype=mapnik"
+                    )
+                except Exception:
+                    pass
+                # On saute la (re)génération d'une autre carte
+                raise StopIteration()
+
+            m = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+            folium.TileLayer(
+                tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                attr="Esri World Imagery",
+                name="Satellite",
+                overlay=False, control=True, show=True
+            ).add_to(m)
+            folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(m)
+
+            # Lightweight reverse geocode using BAN for nicer popups (guarded + timeout)
+            import requests as _rq
+            def _reverse_address(lon_f: float, lat_f: float) -> str:
+                try:
+                    url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
+                    r = _rq.get(url, timeout=0.8)
+                    if r.ok:
+                        js = r.json() or {}
+                        feats = js.get("features") or []
+                        if feats:
+                            return (feats[0].get("properties") or {}).get("label") or ""
+                except Exception:
+                    pass
+                return ""
+
+            def _join_parcelles(refs: list) -> str:
+                try:
+                    vals = [d.get("reference_complete") for d in (refs or []) if d.get("reference_complete")]
+                    return ", ".join(vals[:4])
+                except Exception:
+                    return ""
+            def add_fc_as_layer(fc, name, color):
+                group = folium.FeatureGroup(name=name, show=True)
+                # Normalize FeatureCollection/list into a list of features
+                try:
+                    features_iter = ensure_feature_list(fc)
+                except Exception:
+                    features_iter = (fc or [])
+                for f in features_iter:
+                    geom = f.get("geometry") if isinstance(f, dict) else None
+                    props = (f.get("properties") or {}) if isinstance(f, dict) else {}
+                    if not geom:
+                        continue
+                    try:
+                        # compute centroid for parcelles/address
+                        try:
+                            shp = shape(geom)
+                            c = shp.centroid
+                            lat_c, lon_c = c.y, c.x
+                        except Exception:
+                            lat_c = props.get("lat")
+                            lon_c = props.get("lon")
+
+                        # Try geometry-based parcel matching first; fallback to centroid-based
+                        parc_refs = _parcelles_for_geom(geom) or (
+                            _parcelles_for_point(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else []
+                        )
+                        # Fallback API query around the feature if cache missed parcels
+                        if not parc_refs and (lat_c is not None and lon_c is not None):
+                            parc_refs = _parcelles_from_api_near(lon_c, lat_c)
+                        parcelles_txt = _join_parcelles(parc_refs)
+                        addr_txt = _reverse_address(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else ""
+
+                        # enrich props for popup/tooltip fields
+                        enriched = props.copy()
+                        if parcelles_txt and not enriched.get("parcelles"):
+                            enriched["parcelles"] = parcelles_txt
+                        if addr_txt and not enriched.get("adresse"):
+                            enriched["adresse"] = addr_txt
+
+                        gj = folium.GeoJson(
+                            {"type": "Feature", "geometry": geom, "properties": enriched},
+                            name=name,
+                            style_function=lambda _:
+                                {"color": color, "weight": 2, "fillColor": color, "fillOpacity": 0.2},
+                            tooltip=folium.GeoJsonTooltip(
+                                fields=[k for k in [
+                                    "surface_m2", "surface_toiture_m2", "parcelles", "adresse",
+                                    "min_distance_bt_m", "min_distance_hta_m"
+                                ] if k in enriched],
+                                aliases=[
+                                    "Surface (m²)", "Surface toiture (m²)", "Parcelles", "Adresse",
+                                    "Dist. BT (m)", "Dist. HTA (m)"
+                                ],
+                                sticky=True
+                            ),
+                            popup=folium.GeoJsonPopup(
+                                fields=[k for k in [
+                                    "surface_m2", "surface_toiture_m2", "parcelles", "adresse",
+                                    "min_distance_bt_m", "min_distance_hta_m"
+                                ] if k in enriched],
+                                aliases=[
+                                    "Surface (m²)", "Surface toiture (m²)", "Parcelles", "Adresse",
+                                    "Dist. BT (m)", "Dist. HTA (m)"
+                                ],
+                                labels=True,
+                                localize=True
+                            )
+                        )
+                        gj.add_to(group)
+                    except Exception:
+                        continue
+                m.add_child(group)
+
+            # Ajouter couches
+            # Parkings en violet (#800080)
+            add_fc_as_layer(parkings_data, "Parkings", "#800080")
+            add_fc_as_layer(friches_data, "Friches", "#8B4513")
+            add_fc_as_layer(toitures_data, "Toitures (OSM)", "#FFD700")
+
+            # Postes (points)
+            def add_postes(postes, name, color):
+                group = folium.FeatureGroup(name=name, show=True)
+                for p in postes:
+                    try:
+                        coords = p.get("geometry", {}).get("coordinates", [])
+                        if isinstance(coords, (list, tuple)) and len(coords) == 2:
+                            folium.CircleMarker(
+                                location=[coords[1], coords[0]], radius=4,
+                                color=color, fill=True, fill_opacity=0.9
+                            ).add_to(group)
+                    except Exception:
+                        continue
+                m.add_child(group)
+
+            add_postes(postes_bt_data, "Postes BT", "#006400")
+            add_postes(postes_hta_data, "Postes HTA", "#FF8C00")
+
+            folium.LayerControl().add_to(m)
+
+            # Sauvegarder la carte
+            def _slugify(txt: str) -> str:
+                return re.sub(r"[^a-z0-9]+", "-", txt.lower()).strip("-")
+
+            filename = f"carte_{_slugify(commune_name)}_{int(time.time())}.html"
+            try:
+                carte_rel = save_map_html(m, filename)  # e.g. "cartes/....html"
+                rapport["carte_url"] = f"/static/{carte_rel}"
+            except Exception as _:
+                rapport.setdefault("carte_url", "/static/map.html")
+            # Provide a simple static map URL for printing fallback
+            try:
+                rapport["carte_static_url"] = (
+                    f"https://staticmap.openstreetmap.de/staticmap.php?center={lat},{lon}&zoom=13&size=800x500&maptype=mapnik"
+                )
+            except Exception:
+                pass
+        except StopIteration:
+            # Carte de recherche utilisée, rien d'autre à faire
+            pass
+        except Exception as e:
+            print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur génération carte: {e}")
+            rapport.setdefault("carte_url", "/static/map.html")
+        
+        # Durée
+        try:
+            rapport.setdefault("metadata", {})["duree_generation_sec"] = round(time.time() - start_ts, 2)
+        except Exception:
+            pass
+
+        print(f"✅ [RAPPORT_INTÉGRÉ] Rapport généré avec succès pour {commune_name}")
+        return rapport
+        
+    except Exception as e:
+        print(f"❌ [RAPPORT_INTÉGRÉ] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"error": f"Erreur lors de la génération du rapport: {str(e)}"}
+
+@app.route("/rapport_commune_complet", methods=["GET", "POST"])
+def rapport_commune_complet():
+    """
+    Génère un rapport complet et exhaustif pour une commune.
+    Cette route utilise le module rapport_commune_complet ou la version intégrée en fallback.
+    """
+    from flask import request as flask_request
+    
+    try:
+        # Récupération des paramètres
+        commune = flask_request.values.get("commune", "").strip()
+        
+        if not commune:
+            return jsonify({"error": "Veuillez fournir une commune."}), 400
+        
+        print(f"📊 [RAPPORT_COMPLET] Génération du rapport exhaustif pour {commune}")
+        
+        # Récupération des filtres optionnels
+        filters = {
+            # Filtres RPG
+            "filter_rpg": flask_request.values.get("filter_rpg", "true").lower() == "true",
+            "rpg_min_area": float(flask_request.values.get("rpg_min_area", 1.0)),
+            "rpg_max_area": float(flask_request.values.get("rpg_max_area", 1000.0)),
+            
+            # Filtres parkings
+            "filter_parkings": flask_request.values.get("filter_parkings", "true").lower() == "true",
+            "parking_min_area": float(flask_request.values.get("parking_min_area", 1500.0)),
+
+            # Filtres friches
+            "filter_friches": flask_request.values.get("filter_friches", "true").lower() == "true",
+            "friches_min_area": float(flask_request.values.get("friches_min_area", 1000.0)),
+
+            # Filtres toitures
+            "filter_toitures": flask_request.values.get("filter_toitures", "true").lower() == "true",
+            "toitures_min_surface": float(flask_request.values.get("toitures_min_surface", 100.0)),
+            
+            # Filtres zones
+            "filter_zones": flask_request.values.get("filter_zones", "true").lower() == "true",
+            "zones_min_area": float(flask_request.values.get("zones_min_area", 1000.0)),
+            "zones_type_filter": flask_request.values.get("zones_type_filter", ""),
+            
+            # Filtres de distance UNIFIÉS (hors zones)
+            "filter_by_distance": flask_request.values.get("filter_by_distance", "false").lower() == "true",
+            "max_distance_bt": float(flask_request.values.get("max_distance_bt", 500.0)),
+            "max_distance_hta": float(flask_request.values.get("max_distance_hta", 2000.0)),
+            "poste_type_filter": flask_request.values.get("poste_type_filter", "ALL").upper(),
+            "distance_logic": (
+                (lambda v: "AND" if v in ("ET", "AND") else ("OR" if v in ("OU", "OR") else "OR"))
+            )(flask_request.values.get("distance_logic", "OR").upper()),
+
+            # Autres options
+            "calculate_surface_libre": flask_request.values.get("calculate_surface_libre", "false").lower() == "true",
+            "include_detailed_analysis": flask_request.values.get("include_detailed_analysis", "true").lower() == "true",
+            "export_format": flask_request.values.get("export_format", "json").lower()  # json, html, pdf
+        }
+        
+        print(f"📊 [RAPPORT_COMPLET] Filtres appliqués: {len([k for k, v in filters.items() if k.startswith('filter_') and v])} activés")
+        
+        # Tentative d'utilisation du module complet, sinon fallback vers la version intégrée
+        rapport = None
+        
+        if RAPPORT_COMPLET_AVAILABLE:
+            try:
+                print(f"📊 [RAPPORT_COMPLET] Utilisation du module rapport_commune_complet.py")
+                rapport = generate_comprehensive_commune_report(commune, filters)
+            except Exception as e:
+                print(f"⚠️ [RAPPORT_COMPLET] Erreur module externe: {e}, utilisation version intégrée")
+                rapport = None
+        
+        # Si le rapport externe est vide (valeurs toutes à 0), basculer sur la version intégrée
+        def _is_empty_report(r: dict) -> bool:
+            try:
+                r = r or {}
+                info = r.get("commune_info", {})
+                if info.get("superficie_total_ha", 0) > 0:
+                    return False
+                rpg = r.get("rpg_analysis", {}).get("resume_executif", {})
+                pk = r.get("parkings_analysis", {}).get("resume_executif", {})
+                fr = r.get("friches_analysis", {}).get("resume_executif", {})
+                toi = r.get("toitures_analysis", {}).get("resume_executif", {})
+                ent = r.get("socioeconomique_analysis", {}).get("economie", {}).get("entreprises", {})
+                if (
+                    rpg.get("total_parcelles", 0) > 0 or
+                    pk.get("total_parkings", 0) > 0 or
+                    fr.get("total_friches", 0) > 0 or
+                    toi.get("total_toitures", 0) > 0 or
+                    ent.get("total", 0) > 0
+                ):
+                    return False
+                return True
+            except Exception:
+                return False
+
+        if (not rapport or rapport.get("error") or _is_empty_report(rapport)):
+            if rapport and not rapport.get("error"):
+                print("⚠️ [RAPPORT_COMPLET] Rapport externe sans données utiles, bascule vers la version intégrée")
+            print(f"📊 [RAPPORT_COMPLET] Utilisation de la version intégrée")
+            rapport = generate_integrated_commune_report(commune, filters)
+        
+        # Vérification du succès
+        if not rapport or rapport.get("error"):
+            error_msg = rapport.get("error", "Erreur inconnue lors de la génération du rapport") if rapport else "Aucun rapport généré"
+            print(f"❌ [RAPPORT_COMPLET] Erreur: {error_msg}")
+            return jsonify({
+                "error": "Erreur lors de la génération du rapport",
+                "details": error_msg
+            }), 500
+        
+        # Logging des résultats principaux
+        metadata = rapport.get("metadata", {})
+        print(f"✅ [RAPPORT_COMPLET] Rapport généré avec succès")
+        print(f"    📅 Date: {metadata.get('date_generation', 'N/A')}")
+        print(f"    📝 Version: {metadata.get('version_rapport', 'N/A')}")
+        print(f"    🔍 Sources: {len(metadata.get('sources_donnees', []))} sources")
+        
+        # Statistiques rapides
+        stats = {
+            "commune_info": rapport.get("commune_info", {}).get("superficie_total_ha", 0),
+            "rpg_parcelles": rapport.get("rpg_analysis", {}).get("resume_executif", {}).get("total_parcelles", 0),
+            "parkings_count": rapport.get("parkings_analysis", {}).get("resume_executif", {}).get("total_parkings", 0),
+            "friches_count": rapport.get("friches_analysis", {}).get("resume_executif", {}).get("total_friches", 0),
+            "toitures_count": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("total_toitures", 0),
+            "entreprises_count": rapport.get("socioeconomique_analysis", {}).get("economie", {}).get("entreprises", {}).get("total", 0)
+        }
+        
+        print(f"    🌾 Superficie: {stats['commune_info']} ha")
+        for key, count in stats.items():
+            if key != "commune_info" and count > 0:
+                print(f"    📊 {key}: {count} éléments")
+        
+        # Retour selon le format demandé ou le type de requête
+        export_format = filters.get("export_format", "json")
+        
+        # Détecter si c'est une requête depuis un navigateur (HTML attendu)
+        accept_header = flask_request.headers.get('Accept', '')
+        is_browser_request = 'text/html' in accept_header and 'application/json' not in accept_header
+        
+        # Ajouter une URL de carte par défaut pour intégration dans le template
+        try:
+            if isinstance(rapport, dict) and not rapport.get("carte_url"):
+                # Utiliser la carte interactive standard si aucune carte dédiée n'a été générée
+                rapport["carte_url"] = "/static/map.html"
+        except Exception:
+            pass
+
+        if export_format == "html" or is_browser_request:
+            # Retourner une page HTML avec le rapport
+            from flask import render_template
+            return render_template('rapport_commune_complet.html', rapport=rapport, filters=filters)
+        elif export_format == "pdf":
+            # TODO: Implémenter la génération PDF
+            return jsonify({
+                "message": "Format PDF en développement", 
+                "rapport": rapport
+            })
+        else:
+            # Format JSON par défaut (pour les appels API)
+            return jsonify(rapport)
+        
+    except Exception as e:
+        print(f"❌ [RAPPORT_COMPLET] Erreur inattendue: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "error": "Erreur inattendue lors de la génération du rapport",
+            "details": str(e)
+        }), 500
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()

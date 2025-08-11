@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recherche Toitures par Commune - AgriWeb</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #34495e;
+        }
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        .form-row .form-group {
+            flex: 1;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .results {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #ecf0f1;
+            border-radius: 5px;
+            display: none;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+        }
+        .toiture-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .toiture-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .toiture-item:hover {
+            background-color: #f8f9fa;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+        .error {
+            background-color: #e74c3c;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .success {
+            background-color: #27ae60;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 Recherche de Toitures par Commune</h1>
+        
+        <form id="searchForm">
+            <div class="form-group">
+                <label for="commune">Commune :</label>
+                <input type="text" id="commune" name="commune" placeholder="Ex: Saint-Nazaire, Paris, Lyon..." required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="radius_km">Rayon de recherche (km) :</label>
+                    <input type="number" id="radius_km" name="radius_km" value="1.0" min="0.1" max="5.0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="max_results">Nombre max de résultats :</label>
+                    <input type="number" id="max_results" name="max_results" value="50" min="1" max="500" step="1">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="min_surface_toiture">Surface minimale (m²) :</label>
+                    <input type="number" id="min_surface_toiture" name="min_surface_toiture" value="100" min="1" step="1">
+                </div>
+                <div class="form-group">
+                    <label for="max_distance_bt">Distance max poste BT (m) :</label>
+                    <input type="number" id="max_distance_bt" name="max_distance_bt" value="500" min="1" step="1">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="max_distance_hta">Distance max poste HTA (m) :</label>
+                    <input type="number" id="max_distance_hta" name="max_distance_hta" value="1000" min="1" step="1">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="distance_logic">Logique distance :</label>
+                    <select id="distance_logic" name="distance_logic">
+                        <option value="OR">OU (BT ou HTA)</option>
+                        <option value="AND">ET (BT et HTA)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="poste_type_filter">Type de poste :</label>
+                    <select id="poste_type_filter" name="poste_type_filter">
+                        <option value="ALL">Tous (BT + HTA)</option>
+                        <option value="BT">Seulement BT</option>
+                        <option value="HTA">Seulement HTA</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="sort_by">Tri par :</label>
+                    <select id="sort_by" name="sort_by">
+                        <option value="surface">Surface (plus grande d'abord)</option>
+                        <option value="distance">Distance (plus proche d'abord)</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit">🔍 Rechercher les toitures</button>
+        </form>
+        
+        <div id="loading" class="loading" style="display: none;">
+            ⏳ Recherche en cours... Analyse des bâtiments de la commune...
+        </div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="success" class="success" style="display: none;"></div>
+        
+        <div id="results" class="results">
+            <h2>📊 Résultats de la recherche</h2>
+            
+            <div id="stats" class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-count">-</div>
+                    <div class="stat-label">Toitures trouvées</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-surface-totale">-</div>
+                    <div class="stat-label">Surface totale (m²)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-surface-moyenne">-</div>
+                    <div class="stat-label">Surface moyenne (m²)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-distance-bt">-</div>
+                    <div class="stat-label">Distance BT moy. (m)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-distance-hta">-</div>
+                    <div class="stat-label">Distance HTA moy. (m)</div>
+                </div>
+            </div>
+            
+            <h3>🏠 Liste des toitures</h3>
+            <div id="toiture-list" class="toiture-list"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Afficher le loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('success').style.display = 'none';
+            
+            // Récupérer les données du formulaire
+            const formData = new FormData(this);
+            const params = new URLSearchParams(formData);
+            
+            try {
+                // Envoyer la requête
+                const response = await fetch(`/search_toitures_commune_simple?${params}`);
+                const data = await response.json();
+                
+                // Masquer le loading
+                document.getElementById('loading').style.display = 'none';
+                
+                if (response.ok) {
+                    displayResults(data);
+                    document.getElementById('success').textContent = `✅ Recherche terminée pour ${data.commune}`;
+                    document.getElementById('success').style.display = 'block';
+                } else {
+                    throw new Error(data.error || 'Erreur inconnue');
+                }
+                
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').textContent = `❌ Erreur: ${error.message}`;
+                document.getElementById('error').style.display = 'block';
+            }
+        });
+        
+        function displayResults(data) {
+            const stats = data.statistics || {};
+            const toitures = data.toitures?.features || [];
+            
+            // Afficher les statistiques
+            document.getElementById('stat-count').textContent = stats.count || 0;
+            document.getElementById('stat-surface-totale').textContent = 
+                stats.surface_totale_m2 ? Math.round(stats.surface_totale_m2).toLocaleString() : '-';
+            document.getElementById('stat-surface-moyenne').textContent = 
+                stats.surface_moyenne_m2 ? Math.round(stats.surface_moyenne_m2) : '-';
+            document.getElementById('stat-distance-bt').textContent = 
+                stats.distance_bt_moyenne_m ? Math.round(stats.distance_bt_moyenne_m) : '-';
+            document.getElementById('stat-distance-hta').textContent = 
+                stats.distance_hta_moyenne_m ? Math.round(stats.distance_hta_moyenne_m) : '-';
+            
+            // Afficher la liste des toitures
+            const listContainer = document.getElementById('toiture-list');
+            listContainer.innerHTML = '';
+            
+            if (toitures.length === 0) {
+                listContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #7f8c8d;">Aucune toiture trouvée avec ces critères</div>';
+            } else {
+                toitures.forEach((toiture, index) => {
+                    const props = toiture.properties;
+                    const item = document.createElement('div');
+                    item.className = 'toiture-item';
+                    
+                    const surface = Math.round(props.surface_toiture_m2 || 0);
+                    const distBt = props.min_distance_bt_m ? Math.round(props.min_distance_bt_m) : 'N/A';
+                    const distHta = props.min_distance_hta_m ? Math.round(props.min_distance_hta_m) : 'N/A';
+                    
+                    item.innerHTML = `
+                        <div>
+                            <strong>Toiture #${index + 1}</strong><br>
+                            <small>Surface: ${surface.toLocaleString()} m²</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div>BT: ${distBt} m</div>
+                            <div>HTA: ${distHta} m</div>
+                        </div>
+                    `;
+                    
+                    listContainer.appendChild(item);
+                });
+            }
+            
+            // Afficher les résultats
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        // Suggestion d'auto-complétion pour les communes (version simplifiée)
+        const communeInput = document.getElementById('commune');
+        const suggestions = ['Saint-Nazaire', 'Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Nantes', 'Strasbourg', 'Montpellier', 'Bordeaux'];
+        
+        communeInput.addEventListener('input', function() {
+            // Ici on pourrait ajouter une vraie auto-complétion via une API
+            const value = this.value.toLowerCase();
+            if (value.length > 2) {
+                const matches = suggestions.filter(s => s.toLowerCase().includes(value));
+                // Pour la demo, on pourrait afficher les suggestions
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Run Flask app (run_app.py)",
+			"command": "python run_app.py",
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Restart Flask app (run_app.py)",
+			"type": "shell",
+			"command": "taskkill /F /IM python.exe; Start-Sleep -Seconds 1; python run_app.py",
+			"isBackground": false,
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run Flask app (run_app.py)",
+			"type": "shell",
+			"command": "python run_app.py",
+			"isBackground": true,
+			"group": "build"
+		},
+		{
+			"label": "Restart Flask app (run_app.py)",
+			"type": "shell",
+			"command": "taskkill /F /IM python.exe; Start-Sleep -Seconds 1; python run_app.py",
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}

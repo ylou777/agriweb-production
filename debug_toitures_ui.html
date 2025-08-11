@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Recherche Toitures UI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2><i class="bi bi-house"></i> Debug Recherche Toitures</h2>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5>Test Recherche par Toiture</h5>
+            </div>
+            <div class="card-body">
+                <form id="toituresForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="commune" class="form-label">Commune</label>
+                            <input type="text" class="form-control" id="commune" value="Saint-Nazaire" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="min_surface_toiture" class="form-label">Surface minimale (m²)</label>
+                            <input type="number" class="form-control" id="min_surface_toiture" value="200" min="50" max="5000">
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label for="max_distance_bt" class="form-label">Distance max BT (m)</label>
+                            <input type="number" class="form-control" id="max_distance_bt" value="500" min="100" max="2000">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="max_distance_hta" class="form-label">Distance max HTA (m)</label>
+                            <input type="number" class="form-control" id="max_distance_hta" value="1000" min="500" max="5000">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="radius_km" class="form-label">Rayon recherche (km)</label>
+                            <input type="number" class="form-control" id="radius_km" value="1.0" min="0.5" max="5" step="0.1">
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label for="max_results" class="form-label">Nombre max résultats</label>
+                            <input type="number" class="form-control" id="max_results" value="10" min="1" max="50">
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-search"></i> Lancer la recherche
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="clearResults">
+                            <i class="bi bi-x-circle"></i> Effacer
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Zone de résultats -->
+        <div id="resultsContainer" class="mt-4" style="display: none;">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-list-check"></i> Résultats de la recherche</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Statistiques -->
+                    <div id="stats" class="alert alert-info"></div>
+                    
+                    <!-- Liste des toitures -->
+                    <div id="toituresList"></div>
+                    
+                    <!-- Données brutes (pour debug) -->
+                    <div class="mt-3">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#rawData">
+                            <i class="bi bi-code"></i> Voir données brutes
+                        </button>
+                        <div class="collapse mt-2" id="rawData">
+                            <pre id="rawDataContent" class="bg-light p-3 small" style="max-height: 400px; overflow-y: auto;"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('toituresForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                commune: document.getElementById('commune').value.trim(),
+                min_surface_toiture: document.getElementById('min_surface_toiture').value,
+                max_distance_bt: document.getElementById('max_distance_bt').value,
+                max_distance_hta: document.getElementById('max_distance_hta').value,
+                radius_km: document.getElementById('radius_km').value,
+                max_results: document.getElementById('max_results').value
+            };
+            
+            console.log('🔍 Envoi requête avec:', formData);
+            
+            if (!formData.commune) {
+                alert('Veuillez saisir une commune');
+                return;
+            }
+            
+            // Afficher loading
+            document.getElementById('resultsContainer').style.display = 'block';
+            document.getElementById('stats').innerHTML = '<i class="bi bi-hourglass-split"></i> Recherche en cours...';
+            document.getElementById('toituresList').innerHTML = '';
+            document.getElementById('rawDataContent').textContent = 'En cours...';
+            
+            // Construction URL avec paramètres
+            const searchParams = new URLSearchParams(formData);
+            const url = '/search_toitures_commune_simple?' + searchParams.toString();
+            
+            console.log('🌐 URL requête:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('📡 Statut réponse:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('📦 Données reçues:', data);
+                    
+                    if (data.error) {
+                        document.getElementById('stats').innerHTML = 
+                            `<i class="bi bi-exclamation-triangle text-danger"></i> Erreur: ${data.error}`;
+                        return;
+                    }
+                    
+                    // Affichage des statistiques
+                    const stats = data.statistics;
+                    if (stats && stats.count > 0) {
+                        document.getElementById('stats').innerHTML = `
+                            <strong>${stats.count} toitures trouvées</strong><br>
+                            <small>
+                                Surface totale: <strong>${stats.surface_totale_m2.toLocaleString()} m²</strong><br>
+                                Surface moyenne: <strong>${stats.surface_moyenne_m2} m²</strong><br>
+                                Plus grande: <strong>${stats.surface_max_m2} m²</strong><br>
+                                Plus petite: <strong>${stats.surface_min_m2} m²</strong>
+                            </small>
+                        `;
+                        
+                        // Affichage des toitures
+                        const toitures = data.toitures.features || [];
+                        const toituresHtml = toitures.map((toiture, index) => {
+                            const props = toiture.properties;
+                            return `
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <h6 class="mb-1">Toiture #${index + 1}</h6>
+                                            <p class="mb-1">
+                                                <strong>${props.surface_toiture_m2} m²</strong>
+                                                ${props.min_distance_bt_m ? `• BT: ${props.min_distance_bt_m}m` : ''}
+                                                ${props.min_distance_hta_m ? `• HTA: ${props.min_distance_hta_m}m` : ''}
+                                            </p>
+                                            ${props.osm_id ? `<small class="text-muted">OSM ID: ${props.osm_id}</small>` : ''}
+                                        </div>
+                                        <span class="badge bg-primary">#${index + 1}</span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                        
+                        document.getElementById('toituresList').innerHTML = 
+                            `<div class="list-group">${toituresHtml}</div>`;
+                        
+                    } else {
+                        document.getElementById('stats').innerHTML = 
+                            '<i class="bi bi-info-circle text-warning"></i> Aucune toiture trouvée avec ces critères';
+                        document.getElementById('toituresList').innerHTML = '';
+                    }
+                    
+                    // Données brutes pour debug
+                    document.getElementById('rawDataContent').textContent = JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    console.error('❌ Erreur:', error);
+                    document.getElementById('stats').innerHTML = 
+                        `<i class="bi bi-exclamation-triangle text-danger"></i> Erreur de connexion: ${error.message}`;
+                    document.getElementById('rawDataContent').textContent = error.toString();
+                });
+        });
+        
+        // Bouton effacer
+        document.getElementById('clearResults').addEventListener('click', function() {
+            document.getElementById('resultsContainer').style.display = 'none';
+            document.getElementById('rawDataContent').textContent = '';
+        });
+        
+        // Test automatique au chargement (optionnel)
+        // document.addEventListener('DOMContentLoaded', function() {
+        //     document.getElementById('toituresForm').dispatchEvent(new Event('submit'));
+        // });
+    </script>
+</body>
+</html>

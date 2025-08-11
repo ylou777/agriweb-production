@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    
+        <script>
+            L_NO_TOUCH = false;
+            L_DISABLE_3D = false;
+        </script>
+    
+    <style>html, body {width: 100%;height: 100%;margin: 0;padding: 0;}</style>
+    <style>#map {position:absolute;top:0;bottom:0;right:0;left:0;}</style>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_e5b0119de4fe3102833561625ad85c6a {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+        
+</head>
+<body>
+    
+    
+        <div style="position: fixed; 
+                    bottom: 50px; left: 50px; width: 200px; height: auto; 
+                    background-color: white; border:2px solid grey; z-index:9999; 
+                    font-size:14px; padding: 10px">
+        <h5>Risques GeoRisques</h5>
+        <p><i class="fa fa-crosshairs" style="color:red"></i> Point de référence</p>
+        <p><i class="fa fa-circle" style="color:orange"></i> Sites pollués</p>
+        <p><i class="fa fa-circle" style="color:blue"></i> Inondations</p>
+        <p><i class="fa fa-circle" style="color:purple"></i> Risque sismique</p>
+        <p><i class="fa fa-circle" style="color:green"></i> Autres risques</p>
+        <small>Total: 28 risques géolocalisés</small>
+        </div>
+        
+    
+            <div class="folium-map" id="map_e5b0119de4fe3102833561625ad85c6a" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_e5b0119de4fe3102833561625ad85c6a = L.map(
+                "map_e5b0119de4fe3102833561625ad85c6a",
+                {
+                    center: [47.2186371, -1.5541362],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 14,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+
+            
+
+        
+    
+            var tile_layer_7c20c1a6571100f2d64622ebd484d0d4 = L.tileLayer(
+                "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 19,
+  "maxNativeZoom": 19,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_7c20c1a6571100f2d64622ebd484d0d4.addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+            var marker_3a656768d71719caf6814861397a8e25 = L.marker(
+                [47.2186371, -1.5541362],
+                {
+}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+            var icon_58b4c260a675535b3dd239c6177c532d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "red",
+  "iconColor": "white",
+  "icon": "crosshairs",
+  "prefix": "fa",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+            marker_3a656768d71719caf6814861397a8e25.setIcon(icon_58b4c260a675535b3dd239c6177c532d);
+        
+    
+        var popup_0a7192a88a0e06bb9e3f79b963683a44 = L.popup({
+  "maxWidth": "100%",
+});
+
+        
+            
+                var html_8309bb6f04f138b504294cdae920f8b5 = $(`<div id="html_8309bb6f04f138b504294cdae920f8b5" style="width: 100.0%; height: 100.0%;">Point de référence<br>Lat: 47.2186371<br>Lon: -1.5541362</div>`)[0];
+                popup_0a7192a88a0e06bb9e3f79b963683a44.setContent(html_8309bb6f04f138b504294cdae920f8b5);
+            
+        
+
+        marker_3a656768d71719caf6814861397a8e25.bindPopup(popup_0a7192a88a0e06bb9e3f79b963683a44)
+        ;
+
+        
+    
+    
+            var circle_marker_06d07d773ad32e13d7b6505feaa675fc = L.circleMarker(
+                [47.213496, -1.554408],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_dbd318edad90d534a99e3456ba780c79 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_ee693cfaaf9fe179b469c031bd8c6512 = $(`<div id="html_ee693cfaaf9fe179b469c031bd8c6512" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_dbd318edad90d534a99e3456ba780c79.setContent(html_ee693cfaaf9fe179b469c031bd8c6512);
+            
+        
+
+        circle_marker_06d07d773ad32e13d7b6505feaa675fc.bindPopup(popup_dbd318edad90d534a99e3456ba780c79)
+        ;
+
+        
+    
+    
+            var circle_marker_e6b9f069e52eb80d93317acb2c3acdc1 = L.circleMarker(
+                [47.221293, -1.564714],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_2d502665b800a734570350a9db673d4c = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_9fe93ec72413780da4da9fb7dacc087b = $(`<div id="html_9fe93ec72413780da4da9fb7dacc087b" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_2d502665b800a734570350a9db673d4c.setContent(html_9fe93ec72413780da4da9fb7dacc087b);
+            
+        
+
+        circle_marker_e6b9f069e52eb80d93317acb2c3acdc1.bindPopup(popup_2d502665b800a734570350a9db673d4c)
+        ;
+
+        
+    
+    
+            var circle_marker_21b28c10b8541559092265d78ff8ac66 = L.circleMarker(
+                [47.220907, -1.563879],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_ef4abb955db3e032842cdbc10518a966 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_f9e1b6c198d3f776f9d4cbc4ad1dd7b4 = $(`<div id="html_f9e1b6c198d3f776f9d4cbc4ad1dd7b4" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_ef4abb955db3e032842cdbc10518a966.setContent(html_f9e1b6c198d3f776f9d4cbc4ad1dd7b4);
+            
+        
+
+        circle_marker_21b28c10b8541559092265d78ff8ac66.bindPopup(popup_ef4abb955db3e032842cdbc10518a966)
+        ;
+
+        
+    
+    
+            var circle_marker_13808e824006ceb1ce43dc103e84b16e = L.circleMarker(
+                [47.22078, -1.565496],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_0e7d98ffa3672797daaa32ce64215554 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_c54127219af1334eb6adaf5913674614 = $(`<div id="html_c54127219af1334eb6adaf5913674614" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_0e7d98ffa3672797daaa32ce64215554.setContent(html_c54127219af1334eb6adaf5913674614);
+            
+        
+
+        circle_marker_13808e824006ceb1ce43dc103e84b16e.bindPopup(popup_0e7d98ffa3672797daaa32ce64215554)
+        ;
+
+        
+    
+    
+            var circle_marker_6c2b12d49a91c54bb5a8fb0b10627950 = L.circleMarker(
+                [47.214106, -1.553509],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_93fb43c2db36bd320f8ae650919f71d5 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_06621203ea6b050ffcd45e92273d5fd0 = $(`<div id="html_06621203ea6b050ffcd45e92273d5fd0" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_93fb43c2db36bd320f8ae650919f71d5.setContent(html_06621203ea6b050ffcd45e92273d5fd0);
+            
+        
+
+        circle_marker_6c2b12d49a91c54bb5a8fb0b10627950.bindPopup(popup_93fb43c2db36bd320f8ae650919f71d5)
+        ;
+
+        
+    
+    
+            var circle_marker_cffecbf41acc9bdcbb17b688e18b23e7 = L.circleMarker(
+                [47.224924, -1.558804],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_38f794cb510f012e2ca1ecdcf10f1ec6 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_c4fd310b896e6ab7e4e948a93eb09d5b = $(`<div id="html_c4fd310b896e6ab7e4e948a93eb09d5b" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_38f794cb510f012e2ca1ecdcf10f1ec6.setContent(html_c4fd310b896e6ab7e4e948a93eb09d5b);
+            
+        
+
+        circle_marker_cffecbf41acc9bdcbb17b688e18b23e7.bindPopup(popup_38f794cb510f012e2ca1ecdcf10f1ec6)
+        ;
+
+        
+    
+    
+            var circle_marker_8995ff3cdea14736fc977b7ce1158f63 = L.circleMarker(
+                [47.223984, -1.558057],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_fe3e72f3966649e4159f18d0123802b9 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_1e613881d82c13f71aede6539d1a6596 = $(`<div id="html_1e613881d82c13f71aede6539d1a6596" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_fe3e72f3966649e4159f18d0123802b9.setContent(html_1e613881d82c13f71aede6539d1a6596);
+            
+        
+
+        circle_marker_8995ff3cdea14736fc977b7ce1158f63.bindPopup(popup_fe3e72f3966649e4159f18d0123802b9)
+        ;
+
+        
+    
+    
+            var circle_marker_b1776d104d5c6cb35c1bcb25d7d88f39 = L.circleMarker(
+                [47.219788, -1.56335],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_6e93ab635978b22933a9ec10924a27ed = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_b87642f1706027277e165af76a2be168 = $(`<div id="html_b87642f1706027277e165af76a2be168" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_6e93ab635978b22933a9ec10924a27ed.setContent(html_b87642f1706027277e165af76a2be168);
+            
+        
+
+        circle_marker_b1776d104d5c6cb35c1bcb25d7d88f39.bindPopup(popup_6e93ab635978b22933a9ec10924a27ed)
+        ;
+
+        
+    
+    
+            var circle_marker_ea1a3c57b60e4d1848843e72e00eddc2 = L.circleMarker(
+                [47.219297, -1.563204],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_48cf3a2f8af168f3086f20b0169a9677 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_b5648292934268faaefa9a7947a58379 = $(`<div id="html_b5648292934268faaefa9a7947a58379" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_48cf3a2f8af168f3086f20b0169a9677.setContent(html_b5648292934268faaefa9a7947a58379);
+            
+        
+
+        circle_marker_ea1a3c57b60e4d1848843e72e00eddc2.bindPopup(popup_48cf3a2f8af168f3086f20b0169a9677)
+        ;
+
+        
+    
+    
+            var circle_marker_92246db10e42de27e336e66c43a28878 = L.circleMarker(
+                [47.218729, -1.56224],
+                {"bubblingMouseEvents": true, "color": "orange", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "orange", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_54c9f382acffb104a77ce398e9e80b35 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_3f672810351383d6d49dba3b3b0d5a6d = $(`<div id="html_3f672810351383d6d49dba3b3b0d5a6d" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_casias</strong></h6>                     <p><strong>Catégorie:</strong> ssp_casias</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_54c9f382acffb104a77ce398e9e80b35.setContent(html_3f672810351383d6d49dba3b3b0d5a6d);
+            
+        
+
+        circle_marker_92246db10e42de27e336e66c43a28878.bindPopup(popup_54c9f382acffb104a77ce398e9e80b35)
+        ;
+
+        
+    
+    
+            var polygon_722b9d0947ac070bfd7f58248ffe6801 = L.polygon(
+                [[47.221765, -1.55585], [47.221722, -1.55599], [47.221826, -1.556079], [47.221856, -1.556002], [47.221876, -1.555952], [47.221883, -1.555934], [47.221885, -1.555936], [47.221938, -1.555804], [47.222063, -1.555911], [47.222067, -1.555902], [47.222084, -1.555861], [47.222131, -1.555749], [47.222141, -1.555725], [47.222162, -1.555677], [47.222206, -1.555571], [47.22221, -1.555561], [47.222239, -1.555493], [47.22225, -1.555465], [47.222226, -1.555349], [47.222125, -1.555338], [47.221927, -1.555318], [47.22191, -1.555316], [47.22188, -1.555553], [47.221878, -1.555572], [47.221846, -1.555562], [47.221846, -1.555567], [47.221841, -1.555595], [47.221836, -1.555622], [47.221835, -1.555627], [47.221797, -1.555748], [47.22177, -1.555836], [47.221765, -1.55585]],
+                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_a59a3ddd673f238b53e54e16b12c3440 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_de49e14ac29dda1bd927fdd691577699 = $(`<div id="html_de49e14ac29dda1bd927fdd691577699" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_instructions</strong></h6>                     <p><strong>Catégorie:</strong> ssp_instructions</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_a59a3ddd673f238b53e54e16b12c3440.setContent(html_de49e14ac29dda1bd927fdd691577699);
+            
+        
+
+        polygon_722b9d0947ac070bfd7f58248ffe6801.bindPopup(popup_a59a3ddd673f238b53e54e16b12c3440)
+        ;
+
+        
+    
+    
+            var polygon_48812947ac9c2083b3975ba458055970 = L.polygon(
+                [[47.219546, -1.557234], [47.219702, -1.557023], [47.219669, -1.55697], [47.219872, -1.556693], [47.219932, -1.556611], [47.219974, -1.556611], [47.220123, -1.556846], [47.220121, -1.556933], [47.219894, -1.557274], [47.219841, -1.557251], [47.219743, -1.557388], [47.219792, -1.557452], [47.219818, -1.557403], [47.219846, -1.557405], [47.219899, -1.557493], [47.219864, -1.557549], [47.219873, -1.557615], [47.220223, -1.557549], [47.220464, -1.556646], [47.220596, -1.556456], [47.220532, -1.556363], [47.220639, -1.556205], [47.220613, -1.55616], [47.220628, -1.556141], [47.220507, -1.555874], [47.220353, -1.555525], [47.219889, -1.556147], [47.219612, -1.556516], [47.219313, -1.556925], [47.219366, -1.557019], [47.219461, -1.557141], [47.219524, -1.557208], [47.219546, -1.557234]],
+                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_fecd9c5aa4136874c97b2f5af551cdfc = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_1f2781c353f05295e482ab429f1f1989 = $(`<div id="html_1f2781c353f05295e482ab429f1f1989" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_instructions</strong></h6>                     <p><strong>Catégorie:</strong> ssp_instructions</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_fecd9c5aa4136874c97b2f5af551cdfc.setContent(html_1f2781c353f05295e482ab429f1f1989);
+            
+        
+
+        polygon_48812947ac9c2083b3975ba458055970.bindPopup(popup_fecd9c5aa4136874c97b2f5af551cdfc)
+        ;
+
+        
+    
+    
+            var polygon_03a6065c7287156eb4118ea7247490b1 = L.polygon(
+                [[47.223281, -1.557618], [47.223187, -1.557537], [47.22312, -1.55748], [47.223101, -1.557464], [47.223029, -1.557402], [47.222946, -1.55733], [47.222931, -1.557318], [47.222872, -1.557267], [47.222871, -1.557266], [47.222541, -1.556983], [47.222449, -1.556904], [47.222357, -1.556826], [47.222356, -1.556829], [47.222333, -1.556887], [47.222311, -1.556936], [47.222303, -1.556958], [47.222302, -1.556962], [47.222285, -1.557005], [47.222212, -1.557198], [47.222209, -1.557206], [47.222212, -1.557208], [47.222351, -1.557325], [47.222335, -1.557371], [47.222329, -1.557389], [47.222452, -1.557501], [47.22247, -1.557517], [47.222463, -1.557538], [47.222419, -1.55765], [47.222528, -1.557748], [47.222525, -1.557758], [47.222653, -1.557871], [47.222643, -1.557896], [47.222623, -1.557948], [47.222698, -1.558031], [47.222684, -1.558073], [47.222706, -1.558089], [47.222752, -1.558031], [47.222766, -1.558044], [47.222876, -1.55815], [47.222881, -1.558149], [47.222972, -1.55813], [47.223009, -1.558092], [47.223056, -1.558044], [47.223057, -1.558042], [47.223065, -1.558046], [47.22312, -1.557985], [47.223145, -1.557957], [47.223199, -1.557823], [47.223212, -1.557789], [47.223268, -1.557649], [47.223281, -1.557618]],
+                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_ceedfdd6d901561f7074c5b740165d40 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_fa64f533d0764a5ce2569397737b4bff = $(`<div id="html_fa64f533d0764a5ce2569397737b4bff" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_instructions</strong></h6>                     <p><strong>Catégorie:</strong> ssp_instructions</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_ceedfdd6d901561f7074c5b740165d40.setContent(html_fa64f533d0764a5ce2569397737b4bff);
+            
+        
+
+        polygon_03a6065c7287156eb4118ea7247490b1.bindPopup(popup_ceedfdd6d901561f7074c5b740165d40)
+        ;
+
+        
+    
+    
+            var polygon_1a6732329804156676b4c9ed8142eca1 = L.polygon(
+                [[47.227223, -1.555205], [47.227631, -1.555892], [47.22786, -1.555578], [47.227933, -1.55543], [47.227534, -1.554969], [47.227461, -1.554856], [47.227221, -1.555202], [47.227224, -1.555202], [47.227223, -1.555205]],
+                {"bubblingMouseEvents": true, "color": "red", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "red", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_f3bdc70d9478ada679b6f103426ba327 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_b498147a80f14ba51d104a935ab014ff = $(`<div id="html_b498147a80f14ba51d104a935ab014ff" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque ssp_instructions</strong></h6>                     <p><strong>Catégorie:</strong> ssp_instructions</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_f3bdc70d9478ada679b6f103426ba327.setContent(html_b498147a80f14ba51d104a935ab014ff);
+            
+        
+
+        polygon_1a6732329804156676b4c9ed8142eca1.bindPopup(popup_f3bdc70d9478ada679b6f103426ba327)
+        ;
+
+        
+    
+    
+            var polygon_ecb403d67723f6ca61a934e9e2e55687 = L.polygon(
+                [[47.221765, -1.55585], [47.221722, -1.55599], [47.221826, -1.556079], [47.221856, -1.556002], [47.221876, -1.555952], [47.221883, -1.555934], [47.221885, -1.555936], [47.221938, -1.555804], [47.222063, -1.555911], [47.222067, -1.555902], [47.222084, -1.555861], [47.222131, -1.555749], [47.222141, -1.555725], [47.222162, -1.555677], [47.222206, -1.555571], [47.22221, -1.555561], [47.222239, -1.555493], [47.22225, -1.555465], [47.222226, -1.555349], [47.222125, -1.555338], [47.221927, -1.555318], [47.22191, -1.555316], [47.22188, -1.555553], [47.221878, -1.555572], [47.221846, -1.555562], [47.221846, -1.555567], [47.221841, -1.555595], [47.221836, -1.555622], [47.221835, -1.555627], [47.221797, -1.555748], [47.22177, -1.555836], [47.221765, -1.55585]],
+                {"bubblingMouseEvents": true, "color": "darkred", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "darkred", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_be8ddb45d118cd0dff3de36a77099dcc = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_25f4c4fb7d02c81a4d0962689803e645 = $(`<div id="html_25f4c4fb7d02c81a4d0962689803e645" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>AUTO Garage de l'Ouest</strong></h6>                     <p><strong>Catégorie:</strong> ssp_conclusions_sis</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_be8ddb45d118cd0dff3de36a77099dcc.setContent(html_25f4c4fb7d02c81a4d0962689803e645);
+            
+        
+
+        polygon_ecb403d67723f6ca61a934e9e2e55687.bindPopup(popup_be8ddb45d118cd0dff3de36a77099dcc)
+        ;
+
+        
+    
+    
+            var polygon_38f5d44c40d00f2d45174af3ceb52217 = L.polygon(
+                [[47.219546, -1.557234], [47.219702, -1.557023], [47.219669, -1.55697], [47.219872, -1.556693], [47.219932, -1.556611], [47.219974, -1.556611], [47.220123, -1.556846], [47.220121, -1.556933], [47.219894, -1.557274], [47.219841, -1.557251], [47.219743, -1.557388], [47.219792, -1.557452], [47.219818, -1.557403], [47.219846, -1.557405], [47.219899, -1.557493], [47.219864, -1.557549], [47.219873, -1.557615], [47.220223, -1.557549], [47.220464, -1.556646], [47.220596, -1.556456], [47.220532, -1.556363], [47.220639, -1.556205], [47.220613, -1.55616], [47.220628, -1.556141], [47.220507, -1.555874], [47.220353, -1.555525], [47.219889, -1.556147], [47.219612, -1.556516], [47.219313, -1.556925], [47.219366, -1.557019], [47.219461, -1.557141], [47.219524, -1.557208], [47.219546, -1.557234]],
+                {"bubblingMouseEvents": true, "color": "darkred", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "darkred", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_11cdabd59e6384830d948ca59b02f110 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_b2261e3c568fb5eefc4a60edc50fbf95 = $(`<div id="html_b2261e3c568fb5eefc4a60edc50fbf95" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>EDF GDF Services NANTES "Les Tanneurs" (ex-USINE A GAZ)</strong></h6>                     <p><strong>Catégorie:</strong> ssp_conclusions_sis</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_11cdabd59e6384830d948ca59b02f110.setContent(html_b2261e3c568fb5eefc4a60edc50fbf95);
+            
+        
+
+        polygon_38f5d44c40d00f2d45174af3ceb52217.bindPopup(popup_11cdabd59e6384830d948ca59b02f110)
+        ;
+
+        
+    
+    
+            var polygon_032f8ddbb3b6c953b0e8bba88598dcb9 = L.polygon(
+                [[47.223281, -1.557618], [47.223187, -1.557537], [47.22312, -1.55748], [47.223101, -1.557464], [47.223029, -1.557402], [47.222946, -1.55733], [47.222931, -1.557318], [47.222872, -1.557267], [47.222871, -1.557266], [47.222541, -1.556983], [47.222449, -1.556904], [47.222357, -1.556826], [47.222356, -1.556829], [47.222333, -1.556887], [47.222311, -1.556936], [47.222303, -1.556958], [47.222302, -1.556962], [47.222285, -1.557005], [47.222212, -1.557198], [47.222209, -1.557206], [47.222212, -1.557208], [47.222351, -1.557325], [47.222335, -1.557371], [47.222329, -1.557389], [47.222452, -1.557501], [47.22247, -1.557517], [47.222463, -1.557538], [47.222419, -1.55765], [47.222528, -1.557748], [47.222525, -1.557758], [47.222653, -1.557871], [47.222643, -1.557896], [47.222623, -1.557948], [47.222698, -1.558031], [47.222684, -1.558073], [47.222706, -1.558089], [47.222752, -1.558031], [47.222766, -1.558044], [47.222876, -1.55815], [47.222881, -1.558149], [47.222972, -1.55813], [47.223009, -1.558092], [47.223056, -1.558044], [47.223057, -1.558042], [47.223065, -1.558046], [47.22312, -1.557985], [47.223145, -1.557957], [47.223199, -1.557823], [47.223212, -1.557789], [47.223268, -1.557649], [47.223281, -1.557618]],
+                {"bubblingMouseEvents": true, "color": "darkred", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "darkred", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_5d713c84eef9814d92c7f0f9da2ead6c = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_13a89a557aed24e8f31d524c001db9ae = $(`<div id="html_13a89a557aed24e8f31d524c001db9ae" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Ancienne station gazométrique</strong></h6>                     <p><strong>Catégorie:</strong> ssp_conclusions_sis</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_5d713c84eef9814d92c7f0f9da2ead6c.setContent(html_13a89a557aed24e8f31d524c001db9ae);
+            
+        
+
+        polygon_032f8ddbb3b6c953b0e8bba88598dcb9.bindPopup(popup_5d713c84eef9814d92c7f0f9da2ead6c)
+        ;
+
+        
+    
+    
+            var polygon_d2ab1be82047f1468fde3e7acefdbd17 = L.polygon(
+                [[47.227775, -1.5557], [47.227856, -1.555585], [47.227864, -1.555573], [47.227935, -1.555435], [47.227823, -1.555306], [47.22782, -1.555302], [47.227756, -1.555228], [47.22766, -1.555118], [47.227538, -1.554978], [47.22746, -1.554864], [47.227334, -1.555045], [47.227295, -1.555102], [47.227222, -1.555207], [47.22728, -1.555305], [47.227289, -1.555321], [47.227315, -1.555365], [47.227321, -1.555375], [47.227377, -1.55547], [47.227514, -1.555702], [47.227572, -1.5558], [47.227629, -1.555896], [47.227716, -1.555783], [47.227775, -1.5557]],
+                {"bubblingMouseEvents": true, "color": "darkred", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "darkred", "fillOpacity": 0.3, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "noClip": false, "opacity": 1.0, "smoothFactor": 1.0, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_e31bc42343be6e899c57121256f5c333 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_4a4d8557274f727f200a04c984b3960f = $(`<div id="html_4a4d8557274f727f200a04c984b3960f" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>ATELIERS NORMANDS</strong></h6>                     <p><strong>Catégorie:</strong> ssp_conclusions_sis</p>                     <p><strong>Type géométrie:</strong> MultiPolygon</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_e31bc42343be6e899c57121256f5c333.setContent(html_4a4d8557274f727f200a04c984b3960f);
+            
+        
+
+        polygon_d2ab1be82047f1468fde3e7acefdbd17.bindPopup(popup_e31bc42343be6e899c57121256f5c333)
+        ;
+
+        
+    
+    
+            var circle_marker_4eff50aef4d77b34cec1cab1a5a4bf09 = L.circleMarker(
+                [47.213496, -1.554408],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_533a3815dbb7dbcad48009cd8f55e20a = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_924102a5cb3e40185e85595415194fed = $(`<div id="html_924102a5cb3e40185e85595415194fed" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_533a3815dbb7dbcad48009cd8f55e20a.setContent(html_924102a5cb3e40185e85595415194fed);
+            
+        
+
+        circle_marker_4eff50aef4d77b34cec1cab1a5a4bf09.bindPopup(popup_533a3815dbb7dbcad48009cd8f55e20a)
+        ;
+
+        
+    
+    
+            var circle_marker_91e1a3436e440d47d1459e46c63e15e3 = L.circleMarker(
+                [47.221293, -1.564714],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_0cdcce6759bf24038002710931599f83 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_5cd4ae47e30b48ba51ac7508c247c96f = $(`<div id="html_5cd4ae47e30b48ba51ac7508c247c96f" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_0cdcce6759bf24038002710931599f83.setContent(html_5cd4ae47e30b48ba51ac7508c247c96f);
+            
+        
+
+        circle_marker_91e1a3436e440d47d1459e46c63e15e3.bindPopup(popup_0cdcce6759bf24038002710931599f83)
+        ;
+
+        
+    
+    
+            var circle_marker_badfb01223bd8e6c3c296d175202ced9 = L.circleMarker(
+                [47.220907, -1.563879],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_5df0d46aa268de36e2b8cd5e21003a87 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_37c1c0fc45f583cd53fb9063bb81de98 = $(`<div id="html_37c1c0fc45f583cd53fb9063bb81de98" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_5df0d46aa268de36e2b8cd5e21003a87.setContent(html_37c1c0fc45f583cd53fb9063bb81de98);
+            
+        
+
+        circle_marker_badfb01223bd8e6c3c296d175202ced9.bindPopup(popup_5df0d46aa268de36e2b8cd5e21003a87)
+        ;
+
+        
+    
+    
+            var circle_marker_2ff5206d6f2c0609fe0e882737ecf0c4 = L.circleMarker(
+                [47.22078, -1.565496],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_d3a6faed349f76e170895dd05a1d55a1 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_72018604213828d6cc3c918df3d89691 = $(`<div id="html_72018604213828d6cc3c918df3d89691" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_d3a6faed349f76e170895dd05a1d55a1.setContent(html_72018604213828d6cc3c918df3d89691);
+            
+        
+
+        circle_marker_2ff5206d6f2c0609fe0e882737ecf0c4.bindPopup(popup_d3a6faed349f76e170895dd05a1d55a1)
+        ;
+
+        
+    
+    
+            var circle_marker_24f1b68ca352bee9f0203f666f3167aa = L.circleMarker(
+                [47.214106, -1.553509],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_521f4895effc9c500caa97099f7979d3 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_fcf09616049d6877ed38f723e6e457e4 = $(`<div id="html_fcf09616049d6877ed38f723e6e457e4" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_521f4895effc9c500caa97099f7979d3.setContent(html_fcf09616049d6877ed38f723e6e457e4);
+            
+        
+
+        circle_marker_24f1b68ca352bee9f0203f666f3167aa.bindPopup(popup_521f4895effc9c500caa97099f7979d3)
+        ;
+
+        
+    
+    
+            var circle_marker_2f757bdbc3371ee98aedccac455ce3a9 = L.circleMarker(
+                [47.224924, -1.558804],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_d532e24d27d24b2e6c51af23b5cb15ff = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_d08e082d944493fd0c318aae6b58e382 = $(`<div id="html_d08e082d944493fd0c318aae6b58e382" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_d532e24d27d24b2e6c51af23b5cb15ff.setContent(html_d08e082d944493fd0c318aae6b58e382);
+            
+        
+
+        circle_marker_2f757bdbc3371ee98aedccac455ce3a9.bindPopup(popup_d532e24d27d24b2e6c51af23b5cb15ff)
+        ;
+
+        
+    
+    
+            var circle_marker_634b485f53349aada588ce2f0d1f590f = L.circleMarker(
+                [47.223984, -1.558057],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_e12794c47317a8da30b5de5dede6d327 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_13ff1bcdbe2d89cdf4c82dc3674f1e18 = $(`<div id="html_13ff1bcdbe2d89cdf4c82dc3674f1e18" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_e12794c47317a8da30b5de5dede6d327.setContent(html_13ff1bcdbe2d89cdf4c82dc3674f1e18);
+            
+        
+
+        circle_marker_634b485f53349aada588ce2f0d1f590f.bindPopup(popup_e12794c47317a8da30b5de5dede6d327)
+        ;
+
+        
+    
+    
+            var circle_marker_22fabefc81dfa35fe5d5def5005c4741 = L.circleMarker(
+                [47.219788, -1.56335],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_bcdc58f69074ea58fb830d407bd4e311 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_c83afa91d047b3c4dfdae0dc3cbcd941 = $(`<div id="html_c83afa91d047b3c4dfdae0dc3cbcd941" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_bcdc58f69074ea58fb830d407bd4e311.setContent(html_c83afa91d047b3c4dfdae0dc3cbcd941);
+            
+        
+
+        circle_marker_22fabefc81dfa35fe5d5def5005c4741.bindPopup(popup_bcdc58f69074ea58fb830d407bd4e311)
+        ;
+
+        
+    
+    
+            var circle_marker_0be300f240d84a41ad9454de012d35fa = L.circleMarker(
+                [47.219297, -1.563204],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_2788bb64e767c96b0ebfa6c3a7ec12b4 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_885c88f92e14531db0809f7289a56a09 = $(`<div id="html_885c88f92e14531db0809f7289a56a09" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_2788bb64e767c96b0ebfa6c3a7ec12b4.setContent(html_885c88f92e14531db0809f7289a56a09);
+            
+        
+
+        circle_marker_0be300f240d84a41ad9454de012d35fa.bindPopup(popup_2788bb64e767c96b0ebfa6c3a7ec12b4)
+        ;
+
+        
+    
+    
+            var circle_marker_9f2a6126c017c8f4c51c359711be9dc0 = L.circleMarker(
+                [47.218729, -1.56224],
+                {"bubblingMouseEvents": true, "color": "cadetblue", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "cadetblue", "fillOpacity": 0.7, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": 8, "stroke": true, "weight": 2}
+            ).addTo(map_e5b0119de4fe3102833561625ad85c6a);
+        
+    
+        var popup_4aefa211928be8ed1c711b51c6fc3ca2 = L.popup({
+  "maxWidth": 250,
+});
+
+        
+            
+                var html_292218a18b3416f89507afe973677e15 = $(`<div id="html_292218a18b3416f89507afe973677e15" style="width: 100.0%; height: 100.0%;">                 <div style="min-width: 200px;">                     <h6><strong>Risque casias_detaille</strong></h6>                     <p><strong>Catégorie:</strong> casias_detaille</p>                     <p><strong>Type géométrie:</strong> Point</p>                 <p><strong>Commune:</strong> 44109</p></div></div>`)[0];
+                popup_4aefa211928be8ed1c711b51c6fc3ca2.setContent(html_292218a18b3416f89507afe973677e15);
+            
+        
+
+        circle_marker_9f2a6126c017c8f4c51c359711be9dc0.bindPopup(popup_4aefa211928be8ed1c711b51c6fc3ca2)
+        ;
+
+        
+    
+</script>
+</html>

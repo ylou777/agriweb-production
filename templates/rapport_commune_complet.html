@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rapport Complet - {{ rapport.commune_info.caracteristiques_generales.nom }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        .map-frame {
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .print-map {
+            display: none;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            width: 100%;
+            height: auto;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section-header {
+            background: #f8f9fa;
+            padding: 15px;
+            border-left: 4px solid #007bff;
+            margin: 20px 0 10px 0;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-box {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+        }
+        .score-high { background-color: #28a745; }
+        .score-medium { background-color: #ffc107; color: #212529; }
+        .score-low { background-color: #dc3545; }
+        .analysis-detail {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        @media print {
+            .no-print { display: none; }
+            /* On imprime une image statique si disponible */
+            iframe.map-frame { display: none !important; }
+            .print-map { display: block !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- Header -->
+        <div class="row no-print">
+            <div class="col-12">
+                <nav class="navbar navbar-dark bg-primary">
+                    <div class="container-fluid">
+                        <span class="navbar-brand mb-0 h1">
+                            <i class="bi bi-file-earmark-text"></i> Rapport Complet AgriWeb
+                        </span>
+                        <div>
+                            <button class="btn btn-outline-light" onclick="window.print()">
+                                <i class="bi bi-printer"></i> Imprimer
+                            </button>
+                            <button class="btn btn-outline-light" onclick="window.close()">
+                                <i class="bi bi-x-circle"></i> Fermer
+                            </button>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Contenu principal -->
+        <div class="row mt-3">
+            <div class="col-12">
+                {% if rapport.carte_url %}
+                <div class="mb-3">
+                    <div class="section-header">
+                        <h2><i class="bi bi-map"></i> Carte interactive</h2>
+                    </div>
+                    <iframe src="{{ rapport.carte_url }}" width="100%" height="420" class="map-frame" title="Carte interactive de la commune"></iframe>
+                    {% if rapport.carte_static_url %}
+                    <img src="{{ rapport.carte_static_url }}" alt="Carte statique de la commune" class="print-map mt-2" />
+                    {% endif %}
+                </div>
+                {% endif %}
+                <!-- Informations générales -->
+                <div class="metric-card">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h1><i class="bi bi-geo-alt"></i> {{ rapport.commune_info.caracteristiques_generales.nom }}</h1>
+                            <p class="mb-2">
+                                <strong>Superficie:</strong> {{ "%.2f"|format(rapport.commune_info.superficie_total_ha) }} ha<br>
+                                <strong>Population:</strong> {{ rapport.commune_info.population or 'N/A' }} habitants<br>
+                                <strong>Coordonnées centre:</strong> {{ "%.4f"|format(rapport.commune_info.centroid_lat) }}, {{ "%.4f"|format(rapport.commune_info.centroid_lon) }}
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <small>
+                                Rapport généré le {{ rapport.metadata.date_generation }}<br>
+                                Version {{ rapport.metadata.version_rapport }}<br>
+                                Sources: {{ rapport.metadata.sources_donnees|join(', ') }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistiques principales -->
+                <!-- En-tête "Vue d'ensemble" retiré -->
+                
+                <div class="stats-grid">
+                    <!-- RPG -->
+                    {% if filters and filters.get('filter_rpg', True) and rapport.rpg_analysis %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ rapport.rpg_analysis.resume_executif.total_parcelles }}</div>
+                        <div class="stat-label">Parcelles RPG</div>
+                        <small>{{ "%.1f"|format(rapport.rpg_analysis.resume_executif.surface_totale_ha) }} ha</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Parkings -->
+                    {% if filters and filters.get('filter_parkings', True) and rapport.parkings_analysis %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ rapport.parkings_analysis.resume_executif.total_parkings | default(0, true) }}</div>
+                        <div class="stat-label">Parkings</div>
+                        <small>{{ "%.1f"|format((rapport.parkings_analysis.resume_executif.potentiel_photovoltaique_mwc | default(0, true))) }} MWc pot.</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Friches -->
+                    {% if filters and filters.get('filter_friches', True) and rapport.friches_analysis %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ rapport.friches_analysis.resume_executif.total_friches }}</div>
+                        <div class="stat-label">Friches</div>
+                        <small>{{ "%.1f"|format(rapport.friches_analysis.resume_executif.surface_totale_ha) }} ha</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Toitures -->
+                    {% if filters and filters.get('filter_toitures', True) and rapport.toitures_analysis %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ rapport.toitures_analysis.resume_executif.total_toitures | default(0, true) }}</div>
+                        <div class="stat-label">Toitures</div>
+                        <small>{{ "%.1f"|format((rapport.toitures_analysis.resume_executif.potentiel_total_mwc | default(0, true))) }} MWc pot.</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Irradiation (remplace Entreprises/SIRENE) -->
+                    {% set irr = rapport.metadata.pvgis_kwh_per_kwc %}
+                    {% if irr %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ '%.0f'|format(irr) }}</div>
+                        <div class="stat-label">Irradiation (kWh/kWc/an)</div>
+                        <small>Source: PVGIS</small>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Analyse RPG -->
+                {% if filters and filters.get('filter_rpg', True) and rapport.rpg_analysis %}
+                <div class="section-header">
+                    <h3><i class="bi bi-grid"></i> Analyse RPG (Registre Parcellaire Graphique)</h3>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="analysis-detail">
+                            <h5>Cultures principales:</h5>
+                            {% set cultures = rapport.rpg_analysis.get('resume_executif', {}).get('cultures_principales') %}
+                            {% if cultures %}
+                            <ul>
+                                {%- for culture, surface in cultures[:5] -%}
+                                <li><strong>{{ culture }}:</strong> {{ "%.1f"|format(surface) }} ha</li>
+                                {%- endfor -%}
+                            </ul>
+                            {% else %}
+                            <p>Aucune donnée disponible.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="analysis-detail">
+                            <h6>Statistiques:</h6>
+                            {% set surf_moy = (rapport.rpg_analysis.get('details_statistiques', {}).get('surface_moyenne_ha')
+                                or rapport.rpg_analysis.get('resume_executif', {}).get('surface_moyenne_parcelle_ha')) %}
+                            <p>
+                                Surface moyenne: {{ "%.1f"|format(surf_moy or 0) }} ha<br>
+                                Diversité cultures: {{ rapport.rpg_analysis.get('details_statistiques', {}).get('diversite_cultures') or (cultures | length if cultures else 0) }} types
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Analyse Parkings -->
+                {% if filters and filters.get('filter_parkings', True) %}
+                {% set parkings = rapport.get('parkings_analysis', {}) %}
+                {% set park_rs = parkings.get('resume_executif', {}) %}
+                {% if park_rs.get('total_parkings', 0) > 0 %}
+                <div class="section-header">
+                    <h3><i class="bi bi-car-front"></i> Analyse Parkings</h3>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="analysis-detail">
+                            <h6>Potentiel photovoltaïque:</h6>
+                            <p>
+                                Puissance installable: <strong>{{ "%.2f"|format(park_rs.get('potentiel_photovoltaique_mwc', 0)) }} MWc</strong><br>
+                                Production annuelle: <strong>{{ "%.0f"|format(park_rs.get('production_annuelle_mwh', 0)) }} MWh/an</strong><br>
+                                Surface totale: {{ "%.0f"|format(park_rs.get('surface_totale_m2', 0)) }} m²
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        {% set ar = parkings.get('analyse_reseau') %}
+                        {% if ar %}
+                        <div class="analysis-detail">
+                            <h6>Analyse réseau:</h6>
+                            <p>
+                                Distance moy. BT: {{ "%.0f"|format(ar.distance_moyenne_bt_m | default(0, true)) }} m<br>
+                                Distance moy. HTA: {{ "%.0f"|format(ar.distance_moyenne_hta_m | default(0, true)) }} m
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {% set park_details = parkings.get('details', []) %}
+                {% if park_details and (park_details | length) > 0 %}
+                <div class="analysis-detail">
+                    <h6 class="mb-3">Détails des parkings ({{ park_details | length }})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Surface (m²)</th>
+                                    <th>Parcelles</th>
+                                    <th>BT le plus proche</th>
+                                    <th>HTA le plus proche</th>
+                                    <th>Position</th>
+                                    <th>Liens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in park_details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td>
+                                        {% if d.parcelles %}
+                                            <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set bt = d.poste_bt_proche or {} %}
+                                        {% if bt.distance_m %}
+                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set hta = d.poste_hta_proche or {} %}
+                                        {% if hta.distance_m %}
+                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
+                                    <td>
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+
+                <!-- Analyse Friches -->
+                {% if filters and filters.get('filter_friches', True) and rapport.friches_analysis and rapport.friches_analysis.resume_executif.total_friches > 0 %}
+                <div class="section-header">
+                    <h3><i class="bi bi-building"></i> Analyse Friches</h3>
+                </div>
+                
+                <div class="analysis-detail">
+                    <p>
+                        <strong>{{ rapport.friches_analysis.resume_executif.total_friches }}</strong> friches identifiées<br>
+                        Surface totale: <strong>{{ "%.1f"|format(rapport.friches_analysis.resume_executif.surface_totale_ha) }} ha</strong><br>
+                        Potentiel de reconversion: {{ "%.1f"|format(rapport.friches_analysis.resume_executif.potentiel_reconversion_ha) }} ha
+                    </p>
+                </div>
+
+                {% set fr_details = rapport.friches_analysis.get('details', []) %}
+                {% if fr_details and (fr_details | length) > 0 %}
+                <div class="analysis-detail">
+                    <h6 class="mb-3">Détails des friches ({{ fr_details | length }})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Surface (ha)</th>
+                                    <th>Parcelles</th>
+                                    <th>BT le plus proche</th>
+                                    <th>HTA le plus proche</th>
+                                    <th>Position</th>
+                                    <th>Liens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in fr_details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ '%.2f'|format(d.surface_ha | default(0, true)) }}</td>
+                                    <td>
+                                        {% if d.parcelles %}
+                                            <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set bt = d.poste_bt_proche or {} %}
+                                        {% if bt.distance_m %}
+                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set hta = d.poste_hta_proche or {} %}
+                                        {% if hta.distance_m %}
+                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
+                                    <td>
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+
+                <!-- Analyse Toitures -->
+                {% if filters and filters.get('filter_toitures', True) %}
+                {% set toits_rs = rapport.get('toitures_analysis', {}).get('resume_executif', {}) %}
+                {% if toits_rs.get('total_toitures', 0) > 0 %}
+                <div class="section-header">
+                    <h3><i class="bi bi-house"></i> Analyse Toitures</h3>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="analysis-detail">
+                            <h6>Potentiel global:</h6>
+                            <p>
+                                Bâtiments: {{ toits_rs.get('total_toitures', 0) }}<br>
+                                Surface exploitable: {{ "%.0f"|format(toits_rs.get('surface_exploitable_pv_m2', 0)) }} m²
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="analysis-detail">
+                            <h6>Capacité installable:</h6>
+                            <p>
+                                Puissance: <strong>{{ "%.1f"|format(toits_rs.get('potentiel_total_mwc', 0)) }} MWc</strong><br>
+                                Production: {{ "%.0f"|format(toits_rs.get('production_annuelle_mwh', 0)) }} MWh/an
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="analysis-detail">
+                            <h6>Typologie:</h6>
+                            {% if rapport.toitures_analysis.details_typologie %}
+                            <ul class="mb-0">{%- for type_bat, count in rapport.toitures_analysis.details_typologie.repartition_types_batiments.items() -%}<li>{{ type_bat }}: {{ count }}</li>{%- endfor -%}</ul>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% set toit_details = rapport.get('toitures_analysis', {}).get('details', []) %}
+                {% if toit_details and (toit_details | length) > 0 %}
+                <div class="analysis-detail">
+                    <h6 class="mb-3">Détails des toitures ({{ toit_details | length }})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Surface (m²)</th>
+                                    <th>Parcelles</th>
+                                    <th>BT le plus proche</th>
+                                    <th>HTA le plus proche</th>
+                                    <th>Position</th>
+                                    <th>Liens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for d in toit_details %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td>
+                                        {% if d.parcelles %}
+                                            <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set bt = d.poste_bt_proche or {} %}
+                                        {% if bt.distance_m %}
+                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set hta = d.poste_hta_proche or {} %}
+                                        {% if hta.distance_m %}
+                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
+                                    <td class="text-nowrap">
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
+                                        {% if d.lien_annuaire %}
+                                        <a class="btn btn-sm btn-outline-secondary" href="{{ d.lien_annuaire }}" target="_blank">Annuaire</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+
+                <!-- Sections Environnement, Synthèse/Recommandations et Informations Techniques retirées à la demande -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

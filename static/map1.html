@@ -163,7 +163,25 @@
           html += `<tr><th colspan="2" style="color:#888">${prefix}${k}</th></tr>`;
           html += tableRows(v, prefix + k + ".");
         } else if (Array.isArray(v)) {
-          html += `<tr><th>${prefix}${k}</th><td>[${v.map(x=>typeof x==="object"?JSON.stringify(x):x).join(", ")}]</td></tr>`;
+          // Gestion spéciale pour les parcelles cadastrales
+          if (k === "parcelles_cadastrales") {
+            const formattedParcelles = v.map(parcelle => {
+              if (parcelle && typeof parcelle === 'object' && parcelle.reference_complete) {
+                return parcelle.reference_complete;
+              }
+              if (parcelle && typeof parcelle === 'object') {
+                const commune = parcelle.commune || '';
+                const prefixe = parcelle.prefixe || '';
+                const section = parcelle.section || '';
+                const numero = parcelle.numero || '';
+                return `${commune}${prefixe}${section}${numero}`.trim();
+              }
+              return String(parcelle);
+            }).join(", ");
+            html += `<tr><th>${prefix}${k}</th><td>${formattedParcelles}</td></tr>`;
+          } else {
+            html += `<tr><th>${prefix}${k}</th><td>[${v.map(x=>typeof x==="object"?JSON.stringify(x):x).join(", ")}]</td></tr>`;
+          }
         } else if (typeof v === "string" && v.startsWith("http")) {
           html += `<tr><th>${prefix}${k}</th><td><a href="${v}" target="_blank" class="popup-link">${v.replace(/^https?:\/\//,'')}</a></td></tr>`;
         } else {
@@ -174,7 +192,55 @@
     }
 
     // Popups enrichies
-    function makePopupContent(props, typeLayer) {
+    function makePopupContent(props, typeLayer, geometry) {
+      // Fonction pour calculer le centroïde d'une géométrie
+      function getCentroid(geom) {
+        if (!geom || !geom.coordinates) return null;
+        
+        let lat = 0, lon = 0, count = 0;
+        
+        if (geom.type === 'Point') {
+          return { lat: geom.coordinates[1], lon: geom.coordinates[0] };
+        } else if (geom.type === 'Polygon' && geom.coordinates.length > 0) {
+          // Pour un polygone, on calcule la moyenne des coordonnées du premier ring
+          const ring = geom.coordinates[0];
+          ring.forEach(coord => {
+            lon += coord[0];
+            lat += coord[1];
+            count++;
+          });
+          return count > 0 ? { lat: lat/count, lon: lon/count } : null;
+        } else if (geom.type === 'MultiPolygon' && geom.coordinates.length > 0) {
+          // Pour un multi-polygone, on prend le premier polygone
+          const firstPolygon = geom.coordinates[0];
+          if (firstPolygon.length > 0) {
+            const ring = firstPolygon[0];
+            ring.forEach(coord => {
+              lon += coord[0];
+              lat += coord[1];
+              count++;
+            });
+            return count > 0 ? { lat: lat/count, lon: lon/count } : null;
+          }
+        }
+        return null;
+      }
+      
+      // Fonction pour créer le lien Google Street View
+      function createStreetViewLink(geom, layerType) {
+        if (layerType !== "parkings") return ""; // Seulement pour les parkings
+        
+        const centroid = getCentroid(geom);
+        if (!centroid) return "";
+        
+        const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${centroid.lat},${centroid.lon}`;
+        return `<tr><th colspan="2" style="text-align: center; padding-top: 8px;">
+          <a href="${streetViewUrl}" target="_blank" class="popup-link" style="color: #1474fa; text-decoration: none; padding: 6px 12px; background: #f0f8ff; border-radius: 4px; display: inline-block;">
+            📍 Voir sur Google Street View
+          </a>
+        </th></tr>`;
+      }
+      
       let color = "#28616a";
       if(typeLayer==="postes_hta") color="#d12322";
       if(typeLayer==="postes_bt") color="#b6a800";
@@ -224,7 +290,7 @@
           break;
       }
       let mainBlock = mainHtml ? `<div class="popup-block"><table>${mainHtml}</table></div>` : "";
-      let detailsBlock = `<div class="popup-details"><b>Détails techniques</b><table>${tableRows(props)}</table></div>`;
+      let detailsBlock = `<div class="popup-details"><b>Détails techniques</b><table>${tableRows(props)}${createStreetViewLink(geometry, typeLayer)}</table></div>`;
       return `<div class="custom-popup">
         <div class="popup-title" style="color:${color}">${typeLayer||"Informations"}</div>
         ${mainBlock}${detailsBlock}
@@ -280,7 +346,7 @@
         },
         onEachFeature: function (feat, layer) {
           let typeLayer = detectTypeLayer(feat, style);
-          layer.bindPopup(makePopupContent(feat.properties, typeLayer), { maxWidth: 360 });
+          layer.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), { maxWidth: 360 });
         }
       }).addTo(map);
       window._layers.push(gj);
@@ -306,7 +372,7 @@
             },
             onEachFeature: function (feat, layer) {
               let typeLayer = (feat.properties && feat.properties._layer) ? feat.properties._layer : "";
-              layer.bindPopup(makePopupContent(feat.properties, typeLayer), {maxWidth: 360});
+              layer.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 360});
             }
           });
         }

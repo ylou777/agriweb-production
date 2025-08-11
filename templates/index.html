@@ -22,30 +22,53 @@
       flex-direction: column;
       min-height: 100vh;
     }
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1030;
+      height: 56px;
+    }
+    /* === CSS FORCE SIDEBAR À GAUCHE === */
     .main-container {
       flex: 1 1 0;
-      display: flex;
+      display: flex !important;
+      flex-direction: row !important;
       min-height: 0;
-      height: 100vh;
+      height: calc(100vh - 56px);
+      margin-top: 56px;
       overflow: hidden;
-    }
-    #sidebar {
-      width: 340px;
-      min-width: 320px;
-      max-width: 450px;
-      overflow-y: auto;
-      background: #fff;
-      z-index: 10;
-      border-right: 1px solid #f1f1f1;
-      height: 100vh;
+      align-items: stretch;
       position: relative;
-      display: flex;
-      flex-direction: column;
     }
+    
+    /* SIDEBAR FORCÉE À GAUCHE */
+    #sidebar {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 340px !important;
+      min-width: 340px !important;
+      max-width: 340px !important;
+      height: 100% !important;
+      overflow-y: auto;
+      background: #fff !important;
+      z-index: 10 !important;
+      border-right: 1px solid #f1f1f1;
+      display: flex !important;
+      flex-direction: column !important;
+      flex-shrink: 0 !important;
+      flex-grow: 0 !important;
+    }
+    
+    /* CARTE FORCÉE À DROITE */
     #mapFrame {
-      flex: 1 1 0;
-      width: 100%;
-      height: 100vh;
+      position: absolute !important;
+      left: 340px !important;
+      top: 0 !important;
+      width: calc(100% - 340px) !important;
+      height: 100% !important;
       min-width: 0;
       border: none;
       display: block;
@@ -81,22 +104,32 @@
     }
     /* Responsive sidebar pour mobile */
     @media (max-width: 991px) {
+      .main-container {
+        margin-top: 56px !important;
+        flex-direction: column !important;
+        position: relative !important;
+      }
       #sidebar {
         position: fixed !important;
-        left: -100vw;
-        top: 0;
-        width: 90vw;
-        max-width: 98vw;
-        height: 100vh;
-        z-index: 1050;
+        left: -100vw !important;
+        top: 56px !important;
+        width: 90vw !important;
+        max-width: 98vw !important;
+        height: calc(100vh - 56px) !important;
+        z-index: 1050 !important;
         box-shadow: 4px 0 24px #0002;
         transition: left 0.3s;
+        flex-direction: column !important;
       }
       #sidebar.show {
-        left: 0;
+        left: 0 !important;
       }
-      .main-container {
-        padding-left: 0 !important;
+      #mapFrame {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        height: calc(100vh - 56px) !important;
       }
     }
     #closeSidebarBtn { display: none; }
@@ -111,6 +144,7 @@
     <button id="openSidebarBtn" class="btn btn-outline-light d-lg-none ms-auto" type="button">Menu</button>
   </nav>
   <div class="main-container">
+    <!-- SIDEBAR DOIT ÊTRE À GAUCHE - PREMIER ÉLÉMENT -->
     <div id="sidebar" class="text-dark">
       <div class="offcanvas-header d-flex align-items-center px-3 pt-3">
         <h5 class="offcanvas-title flex-grow-1 mb-0">Panneau de recherche</h5>
@@ -126,7 +160,7 @@
           <ul id="layerControlList" class="layer-list"></ul>
           <h6 class="fw-bold mt-4">Informations</h6>
           <div id="info-panel"></div>
-          <button id="reportButton" type="button" class="btn btn-warning w-100 mt-2" onclick="generateReport()">Générer rapport (point courant)</button>
+          <button id="reportButton" type="button" class="btn btn-warning w-100 mt-2">Générer rapport (point courant)</button>
           <button id="communeReportBtn" type="button" class="btn btn-outline-primary w-100 mt-2">Générer rapport commune</button>
           <button id="deptReportCarteBtn" type="button" class="btn btn-outline-success w-100 mt-2">
             Générer rapport département (à partir de la carte)
@@ -134,7 +168,8 @@
         </div>
       </div>
     </div>
-    <iframe id="mapFrame" src="/static/map.html"></iframe>
+    <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
+    <iframe id="mapFrame" src="/static/map.html" title="Carte interactive"></iframe>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/static/main.js"></script>
