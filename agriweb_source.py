@@ -10235,6 +10235,58 @@ def generate_integrated_commune_report(commune_name, filters=None):
         postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", True) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", True) else []
+        
+        # Éleveurs sur la commune
+        eleveurs_data = []
+        try:
+            eleveurs_raw = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox))
+            for e in eleveurs_raw:
+                props = e.get("properties", {})
+                geom = e.get("geometry")
+                
+                # Construction des informations formatées
+                nom = props.get("nomUniteLe") or props.get("denominati") or ""
+                prenom = props.get("prenom1Uni") or props.get("prenomUsue") or ""
+                denomination = props.get("denominati") or ""
+                activite = props.get("activite_1") or ""
+                
+                # Adresse complète
+                adresse = (
+                    f"{props.get('numeroVoie','') or ''} "
+                    f"{props.get('typeVoieEt','') or ''} "
+                    f"{props.get('libelleVoi','') or ''}, "
+                    f"{props.get('codePostal','') or ''} "
+                    f"{props.get('libelleCom','') or ''}"
+                ).replace(" ,", "").strip()
+                
+                # Liens d'annuaire
+                ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
+                nom_url = (nom + " " + prenom + " " + denomination).strip().replace(" ", "+")
+                siret = props.get("siret", "")
+                
+                eleveur_props = {
+                    "nom": nom,
+                    "prenom": prenom,
+                    "denomination": denomination,
+                    "activite": activite,
+                    "adresse": adresse,
+                    "siret": siret,
+                    "lien_annuaire": f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui={nom_url}&ou={ville_url}&univers=pagesjaunes&idOu=" if nom or prenom or denomination else "",
+                    "lien_entreprise": f"https://www.societe.com/societe/{denomination.lower().replace(' ', '-')}-{siret}.html" if siret and denomination else "",
+                    "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}" if nom or prenom else ""
+                }
+                
+                eleveurs_data.append({
+                    "type": "Feature",
+                    "geometry": geom,
+                    "properties": eleveur_props
+                })
+        except Exception as e:
+            print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur collecte éleveurs: {e}")
+            eleveurs_data = []
+        
+        sirene_data = get_sirene_info_by_polygon(contour)
+        
         # Toitures: utiliser OSM bâtiments + filtres surface/distance au lieu du WFS "POTENTIEL_SOLAIRE"
         toitures_data = []
         if filters.get("filter_toitures", True):
@@ -10682,6 +10734,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
 
         print(f"📊 [RAPPORT_INTÉGRÉ] Données collectées:")
         print(f"    🌾 RPG: {len(rpg_data)} parcelles")
+        print(f"    🐄 Éleveurs: {len(eleveurs_data)} exploitants")
         print(f"    🅿️ Parkings: {len(parkings_data)} emplacements")
         print(f"    🏚️ Friches: {len(friches_data)} sites")
         print(f"    🏠 Toitures: {len(toitures_data)} bâtiments")
@@ -10690,8 +10743,10 @@ def generate_integrated_commune_report(commune_name, filters=None):
 
         # 4. Analyses statistiques
         
-        # Analyse RPG
+        # Analyse RPG avec détails des parcelles
         rpg_analysis = {"resume_executif": {"total_parcelles": 0, "surface_totale_ha": 0}}
+        rpg_parcelles_detaillees = []
+        
         if rpg_data:
             total_surface_rpg = 0
             cultures = {}
@@ -10702,8 +10757,45 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     surface_ha = shp_transform(to_l93, geom).area / 10000.0
                     total_surface_rpg += surface_ha
                     
-                    culture = parcelle.get("properties", {}).get("CODE_CULTU", "Inconnue")
+                    props = parcelle.get("properties", {})
+                    culture = props.get("CODE_CULTU", "Inconnue")
                     cultures[culture] = cultures.get(culture, 0) + surface_ha
+                    
+                    # Enrichir les propriétés de la parcelle avec distances et références
+                    centroid = geom.centroid
+                    lat_c, lon_c = centroid.y, centroid.x
+                    
+                    # Distances aux postes
+                    d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                    d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                    
+                    # Références cadastrales
+                    parcelles_refs = _parcelles_for_geom(parcelle["geometry"]) or _parcelles_for_point(lon_c, lat_c) or _parcelles_from_api_near(lon_c, lat_c)
+                    
+                    # Décodage de la culture
+                    code_culture = props.get("CODE_CULTU", "")
+                    culture_decoded = rpg_culture_mapping.get(code_culture, code_culture or "Non définie")
+                    
+                    # Enrichissement des propriétés
+                    props_enrichies = props.copy()
+                    props_enrichies.update({
+                        "Culture": culture_decoded,
+                        "surface": round(surface_ha, 3),
+                        "coords": [lat_c, lon_c],
+                        "distance_bt": round(d_bt, 2) if d_bt is not None else None,
+                        "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+                        "code_culture": code_culture,
+                        "section": parcelles_refs[0].get("section", "") if parcelles_refs else "",
+                        "numero": parcelles_refs[0].get("numero", "") if parcelles_refs else "",
+                        "nom_com": commune_name
+                    })
+                    
+                    rpg_parcelles_detaillees.append({
+                        "type": "Feature",
+                        "geometry": parcelle["geometry"],
+                        "properties": props_enrichies
+                    })
+                    
                 except Exception:
                     continue
             
@@ -10834,6 +10926,14 @@ def generate_integrated_commune_report(commune_name, filters=None):
             },
             
             "rpg_analysis": rpg_analysis,
+            "rpg_parcelles": {
+                "type": "FeatureCollection",
+                "features": rpg_parcelles_detaillees
+            },
+            "eleveurs": {
+                "type": "FeatureCollection", 
+                "features": eleveurs_data
+            },
             "parkings_analysis": parkings_analysis,
             "friches_analysis": friches_analysis,
             "toitures_analysis": toitures_analysis,

@@ -220,6 +220,141 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Détail des parcelles RPG filtrées -->
+                {% if rapport.rpg_parcelles and rapport.rpg_parcelles.features %}
+                <div class="analysis-detail mt-4">
+                    <h5 class="mb-3">Parcelles agricoles filtrées ({{ rapport.rpg_parcelles.features | length }})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Référence cadastrale</th>
+                                    <th>Culture</th>
+                                    <th>Surface (ha)</th>
+                                    <th>Distance BT</th>
+                                    <th>Distance HTA</th>
+                                    <th>Position</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for parcelle in rapport.rpg_parcelles.features %}
+                                {% set props = parcelle.properties %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        {% if props.section and props.numero %}
+                                            {{ props.nom_com or rapport.nom }}<br>
+                                            <small class="text-muted">{{ props.section }}{{ props.numero }}</small>
+                                        {% else %}
+                                            <span class="text-muted">Non référencée</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ props.Culture or 'Non définie' }}</strong>
+                                        {% if props.code_culture %}
+                                        <br><small class="text-muted">Code: {{ props.code_culture }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ "%.2f"|format(props.surface or 0) }}</td>
+                                    <td>
+                                        {% if props.distance_bt %}
+                                            <span class="badge bg-success">{{ "%.0f"|format(props.distance_bt) }} m</span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if props.distance_hta %}
+                                            <span class="badge bg-info">{{ "%.0f"|format(props.distance_hta) }} m</span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if props.coords %}
+                                            <small>{{ "%.5f"|format(props.coords[0]) }}, {{ "%.5f"|format(props.coords[1]) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Détail des éleveurs sur la commune -->
+                {% if rapport.eleveurs and rapport.eleveurs.features %}
+                <div class="analysis-detail mt-4">
+                    <h5 class="mb-3">Éleveurs et agriculteurs ({{ rapport.eleveurs.features | length }})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Nom/Dénomination</th>
+                                    <th>Activité</th>
+                                    <th>Adresse</th>
+                                    <th>Liens</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for eleveur in rapport.eleveurs.features %}
+                                {% set props = eleveur.properties %}
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            {% if props.prenom and props.nom %}
+                                                {{ props.prenom }} {{ props.nom }}
+                                            {% elif props.nom %}
+                                                {{ props.nom }}
+                                            {% elif props.denomination %}
+                                                {{ props.denomination }}
+                                            {% else %}
+                                                <span class="text-muted">Non renseigné</span>
+                                            {% endif %}
+                                        </strong>
+                                        {% if props.denomination and (props.prenom or props.nom) %}
+                                        <br><small class="text-muted">{{ props.denomination }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ props.activite or 'Non renseignée' }}</td>
+                                    <td>
+                                        {% if props.adresse and props.adresse.strip() %}
+                                            {{ props.adresse }}
+                                        {% else %}
+                                            <span class="text-muted">Non renseignée</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column gap-1">
+                                            {% if props.lien_entreprise %}
+                                            <a href="{{ props.lien_entreprise }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-building"></i> Fiche entreprise
+                                            </a>
+                                            {% endif %}
+                                            {% if props.lien_annuaire %}
+                                            <a href="{{ props.lien_annuaire }}" target="_blank" class="btn btn-sm btn-outline-info">
+                                                <i class="bi bi-telephone"></i> Annuaire
+                                            </a>
+                                            {% endif %}
+                                            {% if props.lien_pages_blanches %}
+                                            <a href="{{ props.lien_pages_blanches }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-person"></i> Pages Blanches
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
                 {% endif %}
 
                 <!-- Analyse Parkings -->
