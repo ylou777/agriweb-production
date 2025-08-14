@@ -10463,6 +10463,73 @@ def generate_integrated_commune_report(commune_name, filters=None):
         api_nature = get_all_api_nature_data(contour_optimise)
         api_urbanisme = get_all_gpu_data(contour_optimise)
 
+        # Collecte et analyse des zones d'urbanisme (PLU/GPU)
+        zones_data = []
+        if filters.get("filter_zones", True):
+            try:
+                zones_min_area = float(filters.get("zones_min_area", 1000.0))
+                zones_type_filter = filters.get("zones_type_filter", "")
+                
+                if api_urbanisme and api_urbanisme.get("success"):
+                    plu_info = api_urbanisme.get("data", {}).get("document_urba", [])
+                    for zone_feat in plu_info:
+                        try:
+                            geom = zone_feat.get("geometry")
+                            if not geom:
+                                continue
+                            props = zone_feat.get("properties", {})
+                            
+                            # Filtrage par type de zone si spécifié
+                            typologie = props.get("typezone", "").upper()
+                            if zones_type_filter and zones_type_filter.upper() not in typologie:
+                                continue
+                            
+                            # Calcul de la surface
+                            shp_zone = shape(geom)
+                            if not shp_zone.is_valid:
+                                shp_zone = shp_zone.buffer(0)
+                                if not shp_zone.is_valid:
+                                    continue
+                            
+                            # Intersection avec la commune
+                            if not (commune_poly.contains(shp_zone) or commune_poly.intersects(shp_zone)):
+                                continue
+                            
+                            # Surface en m²
+                            surface_m2 = shp_transform(to_l93, shp_zone).area
+                            if surface_m2 < zones_min_area:
+                                continue
+                            
+                            # Distances aux postes
+                            centroid = shp_zone.centroid
+                            lat_c, lon_c = centroid.y, centroid.x
+                            d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                            d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                            
+                            # Enrichissement des propriétés
+                            props_enrichies = props.copy()
+                            props_enrichies.update({
+                                "surface_m2": round(surface_m2, 2),
+                                "surface_ha": round(surface_m2 / 10000.0, 4),
+                                "coords": [lat_c, lon_c],
+                                "distance_bt": round(d_bt, 2) if d_bt is not None else None,
+                                "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+                                "nom_commune": commune_name
+                            })
+                            
+                            zones_data.append({
+                                "type": "Feature",
+                                "geometry": geom,
+                                "properties": props_enrichies
+                            })
+                            
+                        except Exception:
+                            continue
+                print(f"    🏗️ Zones d'urbanisme: {len(zones_data)} zones filtrées")
+            except Exception as e:
+                print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur collecte zones: {e}")
+                zones_data = []
+
         # Préparation des listes de détails par rubrique (position, surface, parcelles, postes proches, liens)
         def _format_parcelles_refs(props: dict) -> dict:
             try:
@@ -10735,7 +10802,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
         print(f"📊 [RAPPORT_INTÉGRÉ] Données collectées:")
         print(f"    🌾 RPG: {len(rpg_data)} parcelles")
         print(f"    🐄 Éleveurs: {len(eleveurs_data)} exploitants")
-        print(f"    🅿️ Parkings: {len(parkings_data)} emplacements")
+        print(f"    �️ Zones: {len(zones_data)} zones d'urbanisme")
+        print(f"    �🅿️ Parkings: {len(parkings_data)} emplacements")
         print(f"    🏚️ Friches: {len(friches_data)} sites")
         print(f"    🏠 Toitures: {len(toitures_data)} bâtiments")
         print(f"    ⚡ Postes BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
@@ -10899,6 +10967,37 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 "details": toitures_details
             }
         
+        # Analyse zones d'urbanisme
+        zones_analysis = {
+            "resume_executif": {
+                "total_zones": 0,
+                "surface_totale_ha": 0,
+                "types_zones": []
+            }
+        }
+        if zones_data:
+            total_surface_zones = 0
+            types_zones = {}
+            for zone in zones_data:
+                try:
+                    props = zone.get("properties", {})
+                    surface_ha = props.get("surface_ha", 0)
+                    total_surface_zones += surface_ha
+                    
+                    typologie = props.get("typezone", "Autre")
+                    types_zones[typologie] = types_zones.get(typologie, 0) + surface_ha
+                except Exception:
+                    continue
+            
+            zones_analysis = {
+                "resume_executif": {
+                    "total_zones": len(zones_data),
+                    "surface_totale_ha": round(total_surface_zones, 2),
+                    "surface_moyenne_ha": round(total_surface_zones / len(zones_data), 2) if zones_data else 0,
+                    "types_zones": sorted(types_zones.items(), key=lambda x: x[1], reverse=True)[:5]
+                }
+            }
+        
         # 5. Assemblage du rapport final
         rapport = {
             "metadata": {
@@ -10933,6 +11032,11 @@ def generate_integrated_commune_report(commune_name, filters=None):
             "eleveurs": {
                 "type": "FeatureCollection", 
                 "features": eleveurs_data
+            },
+            "zones_analysis": zones_analysis,
+            "zones": {
+                "type": "FeatureCollection",
+                "features": zones_data
             },
             "parkings_analysis": parkings_analysis,
             "friches_analysis": friches_analysis,

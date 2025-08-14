@@ -148,6 +148,15 @@
                     </div>
                     {% endif %}
 
+                    <!-- Éleveurs -->
+                    {% if rapport.eleveurs and rapport.eleveurs.features %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ rapport.eleveurs.features | length }}</div>
+                        <div class="stat-label">Éleveurs</div>
+                        <small>Exploitants agricoles</small>
+                    </div>
+                    {% endif %}
+
                     <!-- Parkings -->
                     {% if filters and filters.get('filter_parkings', True) and rapport.parkings_analysis %}
                     <div class="stat-box">
@@ -172,6 +181,15 @@
                         <div class="stat-value">{{ rapport.toitures_analysis.resume_executif.total_toitures | default(0, true) }}</div>
                         <div class="stat-label">Toitures</div>
                         <small>{{ "%.1f"|format((rapport.toitures_analysis.resume_executif.potentiel_total_mwc | default(0, true))) }} MWc pot.</small>
+                    </div>
+                    {% endif %}
+
+                    <!-- Zones d'urbanisme -->
+                    {% if filters and filters.get('filter_zones', True) and rapport.zones_analysis %}
+                    <div class="stat-box">
+                        <div class="stat-value">{{ rapport.zones_analysis.resume_executif.total_zones }}</div>
+                        <div class="stat-label">Zones d'urbanisme</div>
+                        <small>{{ "%.1f"|format(rapport.zones_analysis.resume_executif.surface_totale_ha) }} ha</small>
                     </div>
                     {% endif %}
 
@@ -290,7 +308,7 @@
                 <!-- Détail des éleveurs sur la commune -->
                 {% if rapport.eleveurs and rapport.eleveurs.features %}
                 <div class="analysis-detail mt-4">
-                    <h5 class="mb-3">Éleveurs et agriculteurs ({{ rapport.eleveurs.features | length }})</h5>
+                    <h5 class="mb-3">🐄 Éleveurs et agriculteurs ({{ rapport.eleveurs.features | length }})</h5>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
@@ -298,12 +316,14 @@
                                     <th>Nom/Dénomination</th>
                                     <th>Activité</th>
                                     <th>Adresse</th>
+                                    <th>Coordonnées</th>
                                     <th>Liens</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for eleveur in rapport.eleveurs.features %}
                                 {% set props = eleveur.properties %}
+                                {% set coords = eleveur.geometry.coordinates if eleveur.geometry and eleveur.geometry.coordinates else [] %}
                                 <tr>
                                     <td>
                                         <strong>
@@ -320,6 +340,9 @@
                                         {% if props.denomination and (props.prenom or props.nom) %}
                                         <br><small class="text-muted">{{ props.denomination }}</small>
                                         {% endif %}
+                                        {% if props.siret %}
+                                        <br><small class="text-info">SIRET: {{ props.siret }}</small>
+                                        {% endif %}
                                     </td>
                                     <td>{{ props.activite or 'Non renseignée' }}</td>
                                     <td>
@@ -330,15 +353,28 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        {% if coords and coords|length >= 2 %}
+                                            <small>
+                                                <strong>Lat:</strong> {{ "%.5f"|format(coords[1]) }}<br>
+                                                <strong>Lon:</strong> {{ "%.5f"|format(coords[0]) }}
+                                            </small>
+                                            <br><a href="https://www.google.com/maps?q={{ coords[1] }},{{ coords[0] }}" target="_blank" class="btn btn-xs btn-outline-secondary">
+                                                <i class="bi bi-geo-alt"></i> Carte
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         <div class="d-flex flex-column gap-1">
                                             {% if props.lien_entreprise %}
                                             <a href="{{ props.lien_entreprise }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-building"></i> Fiche entreprise
+                                                <i class="bi bi-building"></i> Société.com
                                             </a>
                                             {% endif %}
                                             {% if props.lien_annuaire %}
                                             <a href="{{ props.lien_annuaire }}" target="_blank" class="btn btn-sm btn-outline-info">
-                                                <i class="bi bi-telephone"></i> Annuaire
+                                                <i class="bi bi-telephone"></i> Pages Jaunes
                                             </a>
                                             {% endif %}
                                             {% if props.lien_pages_blanches %}
@@ -609,6 +645,109 @@
                                         <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
                                         {% if d.lien_annuaire %}
                                         <a class="btn btn-sm btn-outline-secondary" href="{{ d.lien_annuaire }}" target="_blank">Annuaire</a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% endif %}
+
+                <!-- Analyse Zones d'urbanisme -->
+                {% if filters and filters.get('filter_zones', True) %}
+                {% set zones = rapport.get('zones_analysis', {}) %}
+                {% set zones_rs = zones.get('resume_executif', {}) %}
+                {% if zones_rs.get('total_zones', 0) > 0 %}
+                <div class="section-header">
+                    <h3><i class="bi bi-map"></i> Analyse Zones d'urbanisme</h3>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="analysis-detail">
+                            <h5>Types de zones principaux:</h5>
+                            {% set types_zones = zones_rs.get('types_zones', []) %}
+                            {% if types_zones %}
+                            <ul>
+                                {%- for type_zone, surface in types_zones[:5] -%}
+                                <li><strong>{{ type_zone }}:</strong> {{ "%.1f"|format(surface) }} ha</li>
+                                {%- endfor -%}
+                            </ul>
+                            {% else %}
+                            <p>Aucune donnée disponible.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="analysis-detail">
+                            <h6>Statistiques:</h6>
+                            <p>
+                                Surface totale: <strong>{{ "%.1f"|format(zones_rs.get('surface_totale_ha', 0)) }} ha</strong><br>
+                                Surface moyenne: {{ "%.1f"|format(zones_rs.get('surface_moyenne_ha', 0)) }} ha<br>
+                                Nombre de zones: {{ zones_rs.get('total_zones', 0) }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Détail des zones filtrées -->
+                {% if rapport.zones and rapport.zones.features %}
+                <div class="analysis-detail mt-4">
+                    <h5 class="mb-3">Zones d'urbanisme filtrées ({{ rapport.zones.features | length }})</h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Type de zone</th>
+                                    <th>Libellé</th>
+                                    <th>Surface (ha)</th>
+                                    <th>Distance BT</th>
+                                    <th>Distance HTA</th>
+                                    <th>Position</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for zone in rapport.zones.features %}
+                                {% set props = zone.properties %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>
+                                        <strong>{{ props.typezone or 'Non défini' }}</strong>
+                                        {% if props.destdomi %}
+                                        <br><small class="text-muted">{{ props.destdomi }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {{ props.libelle or props.libelong or 'Non renseigné' }}
+                                        {% if props.nomfic %}
+                                        <br><small class="text-muted">{{ props.nomfic }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ "%.2f"|format(props.surface_ha or 0) }}</td>
+                                    <td>
+                                        {% if props.distance_bt %}
+                                            <span class="badge bg-success">{{ "%.0f"|format(props.distance_bt) }} m</span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if props.distance_hta %}
+                                            <span class="badge bg-info">{{ "%.0f"|format(props.distance_hta) }} m</span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if props.coords %}
+                                            <small>{{ "%.5f"|format(props.coords[0]) }}, {{ "%.5f"|format(props.coords[1]) }}</small>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
