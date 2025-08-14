@@ -348,6 +348,115 @@ function displayAllLayers(data) {
       return;
     }
 
+    // ----------- Éleveurs ----------- (popup personnalisé)
+    if (layerKey === "eleveurs") {
+      const leafletLayer = m.L.geoJSON(geojson, {
+        pointToLayer: function (feature, latlng) {
+          return m.L.marker(latlng, {
+            icon: m.L.divIcon({
+              html: `<span style="font-size:1.5em;color:purple;">🐄</span>`,
+              className: 'eleveur-marker',
+              iconSize: [28, 28],
+              iconAnchor: [14, 28]
+            })
+          });
+        },
+        onEachFeature: function (feature, layer) {
+          const props = feature.properties || {};
+          
+          // DEBUG: Voir les propriétés disponibles
+          console.log("🔍 DEBUG Éleveur - Propriétés disponibles:", props);
+          
+          // Construction du nom complet (avec les vrais noms de champs)
+          let nomComplet = "";
+          if (props.prenom1Uni && props.nomUniteLe) {
+            nomComplet = `${props.prenom1Uni} ${props.nomUniteLe}`;
+          } else if (props.nomUniteLe) {
+            nomComplet = props.nomUniteLe;
+          } else if (props.denominati) {
+            nomComplet = props.denominati;
+          } else if (props.nomUsageUn) {
+            nomComplet = props.nomUsageUn;
+          }
+          
+          console.log("🔍 DEBUG - Nom complet construit:", nomComplet);
+          console.log("🔍 DEBUG - Nom complet construit:", nomComplet);
+          
+          // Construction de l'adresse complète (avec les vrais noms de champs)
+          let adresseComplete = "";
+          const numeroVoie = props.numeroVoie || props.numeroVo_1 || "";
+          const typeVoie = props.typeVoieEt || props.typeVoie2E || "";
+          const libelleVoie = props.libelleVoi || props.libelleV_1 || "";
+          const codePostal = props.codePostal || props.codePost_1 || "";
+          const commune = props.libelleCom || props.libelleC_1 || "";
+          
+          console.log("🔍 DEBUG - Éléments adresse:", {numeroVoie, typeVoie, libelleVoie, codePostal, commune});
+          
+          if (numeroVoie || typeVoie || libelleVoie) {
+            adresseComplete = [numeroVoie, typeVoie, libelleVoie].filter(x => x).join(" ");
+            if (codePostal || commune) {
+              adresseComplete += ", " + [codePostal, commune].filter(x => x).join(" ");
+            }
+          } else if (codePostal || commune) {
+            adresseComplete = [codePostal, commune].filter(x => x).join(" ");
+          }
+          
+          // Construction du popup personnalisé
+          let popup = `<div style="font-family: 'Poppins', Arial, sans-serif; font-size: 15px; min-width: 250px; max-width: 355px;">`;
+          popup += `<div style="font-weight: 700; font-size: 18px; margin-bottom: 4px; letter-spacing: 0.3px; color: purple;">🐄 Éleveur</div>`;
+          popup += `<table style="width: 100%;">`;
+          
+          function row(label, val) { 
+            return val ? `<tr><th style="text-align: left; color: #28616a; font-weight: 500; min-width: 95px;">${label}</th><td style="color: #2d2d2d; max-width:200px; word-break: break-word;">${val}</td></tr>` : ""; 
+          }
+          
+          // Informations principales (avec les vrais noms de champs)
+          if (nomComplet) popup += row("Nom", nomComplet);
+          if (props.denominati && props.denominati !== nomComplet) popup += row("Dénomination", props.denominati);
+          if (adresseComplete) popup += row("Adresse", adresseComplete);
+          if (props.siret) popup += row("SIRET", props.siret);
+          if (props.activite_1) popup += row("Activité principale", props.activite_1);
+          if (props.dateCreati) popup += row("Date de création", props.dateCreati);
+          
+          // Liens vers les annuaires d'entreprises (avec les vrais noms de champs)
+          if (props.siret) {
+            const siret = props.siret;
+            const siren = props.siren || siret.substring(0, 9);
+            
+            // Lien Societe.com avec format spécifique
+            const denominationUrl = (props.denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+            const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html`;
+            popup += row("Societe.com", `<a href="${societeUrl}" target="_blank" style="color: #1474fa; text-decoration: underline;">Voir la fiche entreprise</a>`);
+            
+            // Lien Pages Jaunes
+            const denomination = encodeURIComponent(props.denominati || nomComplet || "");
+            const ville = encodeURIComponent(commune || "");
+            const codePostalFormatted = encodeURIComponent(codePostal ? `(${codePostal})` : "");
+            const pagesJaunesUrl = `https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${denomination}&ou=${ville}+${codePostalFormatted}&univers=pagesjaunes&idOu=`;
+            popup += row("Pages Jaunes", `<a href="${pagesJaunesUrl}" target="_blank" style="color: #1474fa; text-decoration: underline;">Consulter l'annuaire</a>`);
+          }
+          
+          popup += `</table>`;
+          
+          // DEBUG: Si pas d'infos, afficher toutes les propriétés
+          if (!nomComplet && !adresseComplete && !props.siret) {
+            popup += `<hr><strong>DEBUG - Toutes les propriétés:</strong><br>`;
+            for (const [k, v] of Object.entries(props)) {
+              if (v !== null && v !== undefined && v !== "") {
+                popup += `<b>${k}:</b> ${v}<br>`;
+              }
+            }
+          }
+          
+          popup += `</div>`;
+          layer.bindPopup(popup, {maxWidth: 400});
+        }
+      });
+      dynamicLayers[label] = leafletLayer;
+      leafletLayer.addTo(m.map);
+      return;
+    }
+
     // --------- CAS GENERAL ---------
     const leafletLayer = m.L.geoJSON(geojson, {
       style,

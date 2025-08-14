@@ -5144,3 +5144,441 @@ jinja2.exceptions.UndefinedError: 'dict object' has no attribute 'api_nature'
 2025-08-11 19:57:59,186 INFO 127.0.0.1 - - [11/Aug/2025 19:57:59] "GET / HTTP/1.1" 200 -
 2025-08-11 19:57:59,586 INFO 127.0.0.1 - - [11/Aug/2025 19:57:59] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
 2025-08-11 19:57:59,645 INFO 127.0.0.1 - - [11/Aug/2025 19:57:59] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-12 12:32:00,842 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-12 12:32:00,842 INFO [33mPress CTRL+C to quit[0m
+2025-08-12 12:32:11,673 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-12 12:32:11,673 INFO [33mPress CTRL+C to quit[0m
+2025-08-12 12:39:34,665 INFO 127.0.0.1 - - [12/Aug/2025 12:39:34] "GET / HTTP/1.1" 200 -
+2025-08-12 12:39:35,873 INFO 127.0.0.1 - - [12/Aug/2025 12:39:35] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-12 12:39:35,955 INFO 127.0.0.1 - - [12/Aug/2025 12:39:35] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-12 12:42:58,496 INFO 127.0.0.1 - - [12/Aug/2025 12:42:58] "GET /commune_search_sse?commune=avignon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=2500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2500&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-12 13:11:50,297 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-12 13:11:50,298 INFO [33mPress CTRL+C to quit[0m
+2025-08-12 13:12:33,114 INFO 127.0.0.1 - - [12/Aug/2025 13:12:33] "GET / HTTP/1.1" 200 -
+2025-08-12 13:12:33,504 INFO 127.0.0.1 - - [12/Aug/2025 13:12:33] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-12 13:12:33,839 INFO 127.0.0.1 - - [12/Aug/2025 13:12:33] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-12 13:12:34,395 INFO 127.0.0.1 - - [12/Aug/2025 13:12:34] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-12 13:16:16,046 INFO 127.0.0.1 - - [12/Aug/2025 13:16:16] "GET /commune_search_sse?commune=avignon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-12 13:26:45,241 INFO 127.0.0.1 - - [12/Aug/2025 13:26:45] "GET /search_by_commune?commune=avignon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-12 13:39:40,861 INFO 127.0.0.1 - - [12/Aug/2025 13:39:40] "GET /rapport_commune_complet?commune=avignon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=ALL&export_format=html HTTP/1.1" 200 -
+2025-08-12 13:39:44,082 INFO 127.0.0.1 - - [12/Aug/2025 13:39:44] "GET /generated_map HTTP/1.1" 200 -
+2025-08-13 09:16:57,906 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 09:16:57,906 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 09:17:23,070 INFO 127.0.0.1 - - [13/Aug/2025 09:17:23] "GET / HTTP/1.1" 200 -
+2025-08-13 09:17:23,489 INFO 127.0.0.1 - - [13/Aug/2025 09:17:23] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 09:17:23,602 INFO 127.0.0.1 - - [13/Aug/2025 09:17:23] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 09:17:24,239 INFO 127.0.0.1 - - [13/Aug/2025 09:17:24] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-13 09:18:17,380 INFO 127.0.0.1 - - [13/Aug/2025 09:18:17] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 09:18:54,387 INFO 127.0.0.1 - - [13/Aug/2025 09:18:54] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 09:44:41,255 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 09:44:41,255 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 09:44:59,080 INFO 127.0.0.1 - - [13/Aug/2025 09:44:59] "GET / HTTP/1.1" 200 -
+2025-08-13 09:44:59,324 INFO 127.0.0.1 - - [13/Aug/2025 09:44:59] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 09:44:59,351 INFO 127.0.0.1 - - [13/Aug/2025 09:44:59] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 09:45:43,333 INFO 127.0.0.1 - - [13/Aug/2025 09:45:43] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 09:46:15,771 INFO 127.0.0.1 - - [13/Aug/2025 09:46:15] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 09:49:31,452 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 09:49:31,452 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 09:49:54,255 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 09:49:54,255 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 10:01:13,050 INFO 127.0.0.1 - - [13/Aug/2025 10:01:13] "GET /search_by_commune?commune=gueret&filter_rpg=true HTTP/1.1" 200 -
+2025-08-13 10:06:34,208 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 10:06:34,208 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 10:06:54,594 INFO 127.0.0.1 - - [13/Aug/2025 10:06:54] "GET / HTTP/1.1" 200 -
+2025-08-13 10:06:54,856 INFO 127.0.0.1 - - [13/Aug/2025 10:06:54] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-13 10:06:54,917 INFO 127.0.0.1 - - [13/Aug/2025 10:06:54] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 10:14:20,953 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 10:14:20,953 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 10:14:40,409 INFO 127.0.0.1 - - [13/Aug/2025 10:14:40] "GET / HTTP/1.1" 200 -
+2025-08-13 10:14:40,447 INFO 127.0.0.1 - - [13/Aug/2025 10:14:40] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 10:14:40,549 INFO 127.0.0.1 - - [13/Aug/2025 10:14:40] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 10:16:48,248 INFO 127.0.0.1 - - [13/Aug/2025 10:16:48] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 10:17:40,349 INFO 127.0.0.1 - - [13/Aug/2025 10:17:40] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 10:24:36,099 INFO 127.0.0.1 - - [13/Aug/2025 10:24:36] "GET /commune_search_sse?commune=gueret HTTP/1.1" 200 -
+2025-08-13 10:25:39,347 INFO 127.0.0.1 - - [13/Aug/2025 10:25:39] "GET /search_by_commune?commune=gueret&filter_rpg=true HTTP/1.1" 200 -
+2025-08-13 10:32:58,527 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 10:32:58,527 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 10:33:22,794 INFO 127.0.0.1 - - [13/Aug/2025 10:33:22] "GET / HTTP/1.1" 200 -
+2025-08-13 10:33:22,879 INFO 127.0.0.1 - - [13/Aug/2025 10:33:22] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 10:33:23,159 INFO 127.0.0.1 - - [13/Aug/2025 10:33:23] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 10:33:23,636 INFO 127.0.0.1 - - [13/Aug/2025 10:33:23] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-13 10:40:10,912 INFO 127.0.0.1 - - [13/Aug/2025 10:40:10] "GET /commune_search_sse?commune=sanit+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 10:40:11,839 INFO 127.0.0.1 - - [13/Aug/2025 10:40:11] "[33mGET /search_by_commune?commune=sanit+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-13 10:41:24,401 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 10:41:24,402 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 10:41:45,141 INFO 127.0.0.1 - - [13/Aug/2025 10:41:45] "GET / HTTP/1.1" 200 -
+2025-08-13 10:41:45,204 INFO 127.0.0.1 - - [13/Aug/2025 10:41:45] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 10:41:45,221 INFO 127.0.0.1 - - [13/Aug/2025 10:41:45] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 10:41:45,598 INFO 127.0.0.1 - - [13/Aug/2025 10:41:45] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-13 10:54:06,194 INFO 127.0.0.1 - - [13/Aug/2025 10:54:06] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-13 10:54:54,374 INFO 127.0.0.1 - - [13/Aug/2025 10:54:54] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-13 11:05:32,310 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 11:05:32,311 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 11:05:51,872 INFO 127.0.0.1 - - [13/Aug/2025 11:05:51] "GET / HTTP/1.1" 200 -
+2025-08-13 11:05:51,946 INFO 127.0.0.1 - - [13/Aug/2025 11:05:51] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 11:05:52,053 INFO 127.0.0.1 - - [13/Aug/2025 11:05:52] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 11:06:24,563 INFO 127.0.0.1 - - [13/Aug/2025 11:06:24] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 11:07:08,583 INFO 127.0.0.1 - - [13/Aug/2025 11:07:08] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 11:41:39,116 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 11:41:39,117 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 11:42:01,374 INFO 127.0.0.1 - - [13/Aug/2025 11:42:01] "GET / HTTP/1.1" 200 -
+2025-08-13 11:42:01,431 INFO 127.0.0.1 - - [13/Aug/2025 11:42:01] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 11:42:01,547 INFO 127.0.0.1 - - [13/Aug/2025 11:42:01] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 11:42:39,870 INFO 127.0.0.1 - - [13/Aug/2025 11:42:39] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 11:43:28,630 INFO 127.0.0.1 - - [13/Aug/2025 11:43:28] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 11:59:34,590 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 11:59:34,590 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 11:59:59,533 INFO 127.0.0.1 - - [13/Aug/2025 11:59:59] "GET / HTTP/1.1" 200 -
+2025-08-13 11:59:59,940 INFO 127.0.0.1 - - [13/Aug/2025 11:59:59] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-13 11:59:59,942 INFO 127.0.0.1 - - [13/Aug/2025 11:59:59] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 12:03:38,831 INFO 127.0.0.1 - - [13/Aug/2025 12:03:38] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 12:04:23,441 INFO 127.0.0.1 - - [13/Aug/2025 12:04:23] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 12:25:38,400 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 12:25:38,401 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 12:26:01,052 INFO 127.0.0.1 - - [13/Aug/2025 12:26:01] "GET / HTTP/1.1" 200 -
+2025-08-13 12:26:01,325 INFO 127.0.0.1 - - [13/Aug/2025 12:26:01] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-13 12:26:01,343 INFO 127.0.0.1 - - [13/Aug/2025 12:26:01] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 12:55:26,748 INFO 127.0.0.1 - - [13/Aug/2025 12:55:26] "GET / HTTP/1.1" 200 -
+2025-08-13 12:55:26,782 INFO 127.0.0.1 - - [13/Aug/2025 12:55:26] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 12:55:26,807 INFO 127.0.0.1 - - [13/Aug/2025 12:55:26] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 12:56:54,082 INFO 127.0.0.1 - - [13/Aug/2025 12:56:54] "GET / HTTP/1.1" 200 -
+2025-08-13 12:56:54,123 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 12:56:54,124 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 12:57:11,537 INFO 127.0.0.1 - - [13/Aug/2025 12:57:11] "GET / HTTP/1.1" 200 -
+2025-08-13 12:57:11,595 INFO 127.0.0.1 - - [13/Aug/2025 12:57:11] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 12:57:11,610 INFO 127.0.0.1 - - [13/Aug/2025 12:57:11] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 13:10:46,784 INFO 127.0.0.1 - - [13/Aug/2025 13:10:46] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-13 13:10:54,020 INFO 127.0.0.1 - - [13/Aug/2025 13:10:54] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-08-13 13:11:25,750 INFO 127.0.0.1 - - [13/Aug/2025 13:11:25] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-13 13:44:14,302 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 13:44:14,303 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 13:44:34,600 INFO 127.0.0.1 - - [13/Aug/2025 13:44:34] "GET / HTTP/1.1" 200 -
+2025-08-13 13:44:34,665 INFO 127.0.0.1 - - [13/Aug/2025 13:44:34] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 13:44:35,055 INFO 127.0.0.1 - - [13/Aug/2025 13:44:35] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 13:45:22,609 INFO 127.0.0.1 - - [13/Aug/2025 13:45:22] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=2500&rpg_max_area=15000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 13:45:58,116 INFO 127.0.0.1 - - [13/Aug/2025 13:45:58] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2500&rpg_max_area=15000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 13:52:55,764 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 13:52:55,765 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 13:53:17,786 INFO 127.0.0.1 - - [13/Aug/2025 13:53:17] "GET / HTTP/1.1" 200 -
+2025-08-13 13:53:17,851 INFO 127.0.0.1 - - [13/Aug/2025 13:53:17] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 13:53:18,112 INFO 127.0.0.1 - - [13/Aug/2025 13:53:18] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 13:53:47,855 INFO 127.0.0.1 - - [13/Aug/2025 13:53:47] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 13:54:35,260 INFO 127.0.0.1 - - [13/Aug/2025 13:54:35] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 14:32:16,982 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 14:32:16,983 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 14:32:44,483 INFO 127.0.0.1 - - [13/Aug/2025 14:32:44] "GET / HTTP/1.1" 200 -
+2025-08-13 14:32:44,566 INFO 127.0.0.1 - - [13/Aug/2025 14:32:44] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 14:32:45,318 INFO 127.0.0.1 - - [13/Aug/2025 14:32:45] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 14:41:44,268 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 14:41:44,269 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 14:42:03,398 INFO 127.0.0.1 - - [13/Aug/2025 14:42:03] "GET / HTTP/1.1" 200 -
+2025-08-13 14:42:03,453 INFO 127.0.0.1 - - [13/Aug/2025 14:42:03] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 14:42:03,481 INFO 127.0.0.1 - - [13/Aug/2025 14:42:03] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 14:43:12,037 INFO 127.0.0.1 - - [13/Aug/2025 14:43:12] "GET /commune_search_sse?commune=gueret&filter_rpg=true&rpg_min_area=2500&rpg_max_area=15000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 14:45:14,680 INFO 127.0.0.1 - - [13/Aug/2025 14:45:14] "GET /search_by_commune?commune=gueret&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2500&rpg_max_area=15000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 14:57:34,237 INFO 127.0.0.1 - - [13/Aug/2025 14:57:34] "GET /rapport_commune_complet?commune=gueret&filter_rpg=true&rpg_min_area=2500&rpg_max_area=15000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 14:57:34,555 INFO 127.0.0.1 - - [13/Aug/2025 14:57:34] "GET /generated_map HTTP/1.1" 200 -
+2025-08-13 15:38:37,048 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 15:38:37,049 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 15:39:08,388 INFO 127.0.0.1 - - [13/Aug/2025 15:39:08] "GET / HTTP/1.1" 200 -
+2025-08-13 15:39:08,597 INFO 127.0.0.1 - - [13/Aug/2025 15:39:08] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 15:39:08,600 INFO 127.0.0.1 - - [13/Aug/2025 15:39:08] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 15:40:11,812 INFO 127.0.0.1 - - [13/Aug/2025 15:40:11] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 15:40:58,933 INFO 127.0.0.1 - - [13/Aug/2025 15:40:58] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 15:42:11,341 INFO 127.0.0.1 - - [13/Aug/2025 15:42:11] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 15:42:11,385 INFO 127.0.0.1 - - [13/Aug/2025 15:42:11] "GET /generated_map HTTP/1.1" 200 -
+2025-08-13 15:45:38,173 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 15:45:38,174 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 15:45:51,513 INFO 127.0.0.1 - - [13/Aug/2025 15:45:51] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000 HTTP/1.1" 200 -
+2025-08-13 15:45:51,553 INFO 127.0.0.1 - - [13/Aug/2025 15:45:51] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 15:47:18,225 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 15:47:18,225 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 15:51:19,810 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 15:51:19,810 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 15:51:44,481 INFO 127.0.0.1 - - [13/Aug/2025 15:51:44] "GET / HTTP/1.1" 200 -
+2025-08-13 15:51:45,226 INFO 127.0.0.1 - - [13/Aug/2025 15:51:45] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 15:51:45,228 INFO 127.0.0.1 - - [13/Aug/2025 15:51:45] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-13 15:53:30,977 INFO 127.0.0.1 - - [13/Aug/2025 15:53:30] "GET /commune_search_sse?commune=aubusson&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 15:54:41,744 INFO 127.0.0.1 - - [13/Aug/2025 15:54:41] "GET /search_by_commune?commune=aubusson&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 15:56:11,167 INFO 127.0.0.1 - - [13/Aug/2025 15:56:11] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 15:56:11,197 INFO 127.0.0.1 - - [13/Aug/2025 15:56:11] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 15:59:05,577 INFO 127.0.0.1 - - [13/Aug/2025 15:59:05] "GET /rapport_commune_complet?commune=aubusson&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 15:59:05,604 INFO 127.0.0.1 - - [13/Aug/2025 15:59:05] "[33mGET /cartes/carte_rapport_aubusson.html HTTP/1.1[0m" 404 -
+2025-08-13 16:02:35,563 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 16:02:35,564 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 16:02:56,804 INFO 127.0.0.1 - - [13/Aug/2025 16:02:56] "GET / HTTP/1.1" 200 -
+2025-08-13 16:02:56,973 INFO 127.0.0.1 - - [13/Aug/2025 16:02:56] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 16:02:56,983 INFO 127.0.0.1 - - [13/Aug/2025 16:02:56] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 16:08:26,915 INFO 127.0.0.1 - - [13/Aug/2025 16:08:26] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:08:59,009 INFO 127.0.0.1 - - [13/Aug/2025 16:08:59] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:09:33,161 INFO 127.0.0.1 - - [13/Aug/2025 16:09:33] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 16:09:33,232 INFO 127.0.0.1 - - [13/Aug/2025 16:09:33] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 16:19:52,778 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 16:19:52,778 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 16:20:09,525 INFO 127.0.0.1 - - [13/Aug/2025 16:20:09] "GET / HTTP/1.1" 200 -
+2025-08-13 16:20:09,748 INFO 127.0.0.1 - - [13/Aug/2025 16:20:09] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 16:20:09,790 INFO 127.0.0.1 - - [13/Aug/2025 16:20:09] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 16:22:56,285 INFO 127.0.0.1 - - [13/Aug/2025 16:22:56] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:23:29,832 INFO 127.0.0.1 - - [13/Aug/2025 16:23:29] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:23:43,967 INFO 127.0.0.1 - - [13/Aug/2025 16:23:43] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 16:23:43,989 INFO 127.0.0.1 - - [13/Aug/2025 16:23:43] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 16:27:11,230 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 16:27:11,230 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 16:27:28,935 INFO 127.0.0.1 - - [13/Aug/2025 16:27:28] "GET / HTTP/1.1" 200 -
+2025-08-13 16:27:29,089 INFO 127.0.0.1 - - [13/Aug/2025 16:27:29] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 16:27:29,167 INFO 127.0.0.1 - - [13/Aug/2025 16:27:29] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 16:27:59,404 INFO 127.0.0.1 - - [13/Aug/2025 16:27:59] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:28:35,691 INFO 127.0.0.1 - - [13/Aug/2025 16:28:35] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:31:55,712 INFO 127.0.0.1 - - [13/Aug/2025 16:31:55] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 16:31:55,737 INFO 127.0.0.1 - - [13/Aug/2025 16:31:55] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 16:34:16,474 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 16:34:16,474 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 16:34:33,185 INFO 127.0.0.1 - - [13/Aug/2025 16:34:33] "GET / HTTP/1.1" 200 -
+2025-08-13 16:34:33,387 INFO 127.0.0.1 - - [13/Aug/2025 16:34:33] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 16:34:33,448 INFO 127.0.0.1 - - [13/Aug/2025 16:34:33] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 16:35:34,147 INFO 127.0.0.1 - - [13/Aug/2025 16:35:34] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=99900&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:36:08,298 INFO 127.0.0.1 - - [13/Aug/2025 16:36:08] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=99900&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 16:40:22,868 INFO 127.0.0.1 - - [13/Aug/2025 16:40:22] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=99900&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 16:40:22,903 INFO 127.0.0.1 - - [13/Aug/2025 16:40:22] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 17:04:33,732 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 17:04:33,732 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 17:04:51,617 INFO 127.0.0.1 - - [13/Aug/2025 17:04:51] "GET / HTTP/1.1" 200 -
+2025-08-13 17:04:51,805 INFO 127.0.0.1 - - [13/Aug/2025 17:04:51] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 17:04:51,870 INFO 127.0.0.1 - - [13/Aug/2025 17:04:51] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 17:05:28,489 INFO 127.0.0.1 - - [13/Aug/2025 17:05:28] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 17:06:10,777 INFO 127.0.0.1 - - [13/Aug/2025 17:06:10] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-13 17:11:48,879 INFO 127.0.0.1 - - [13/Aug/2025 17:11:48] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-13 17:11:48,926 INFO 127.0.0.1 - - [13/Aug/2025 17:11:48] "[33mGET /cartes/carte_rapport_saint%20sulpice%20les%20champs.html HTTP/1.1[0m" 404 -
+2025-08-13 17:31:35,329 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 17:31:35,330 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 17:31:58,607 INFO 127.0.0.1 - - [13/Aug/2025 17:31:58] "GET / HTTP/1.1" 200 -
+2025-08-13 17:31:58,886 INFO 127.0.0.1 - - [13/Aug/2025 17:31:58] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-13 17:31:58,913 INFO 127.0.0.1 - - [13/Aug/2025 17:31:58] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-13 17:37:03,165 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 17:37:03,165 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 17:37:23,862 INFO 127.0.0.1 - - [13/Aug/2025 17:37:23] "GET / HTTP/1.1" 200 -
+2025-08-13 17:37:24,034 INFO 127.0.0.1 - - [13/Aug/2025 17:37:24] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 17:37:24,089 INFO 127.0.0.1 - - [13/Aug/2025 17:37:24] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 17:38:00,497 INFO 127.0.0.1 - - [13/Aug/2025 17:38:00] "[33mGET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1&rpg_max_area=10&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-13 17:38:30,596 INFO 127.0.0.1 - - [13/Aug/2025 17:38:30] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1&rpg_max_area=10&filter_parkings=false&parking_min_area=1500&parking_max_distance=300&filter_friches=false&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1" 200 -
+2025-08-13 17:57:13,943 ERROR Exception on /rapport_commune [GET]
+Traceback (most recent call last):
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_source.py", line 6090, in rapport_commune
+    carte_path = save_map_html(m, f"carte_{commune}.html")
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_source.py", line 309, in save_map_html
+    map_obj.save(filepath)
+    ~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\branca\element.py", line 228, in save
+    html = root.render(**kwargs)
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\branca\element.py", line 405, in render
+    child.render(**kwargs)
+    ~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\folium\folium.py", line 417, in render
+    super().render(**kwargs)
+    ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\folium\elements.py", line 27, in render
+    super().render(**kwargs)
+    ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\branca\element.py", line 736, in render
+    element.render(**kwargs)
+    ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\folium\features.py", line 848, in render
+    super().render()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\folium\map.py", line 90, in render
+    super().render(**kwargs)
+    ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\branca\element.py", line 736, in render
+    element.render(**kwargs)
+    ~~~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\folium\features.py", line 1205, in render
+    value in keys
+AssertionError: The field cadastre_section is not available in the data. Choose from: ('ID_PARCEL', 'SURF_PARC', 'CODE_CULTU', 'CODE_GROUP', 'CULTURE_D1', 'CULTURE_D2', 'Culture', 'code_com', 'com_abs', 'section', 'numero', 'nom_com', 'surface', 'coords', 'distance_bt', 'distance_hta').
+2025-08-13 17:57:14,005 INFO 127.0.0.1 - - [13/Aug/2025 17:57:14] "[35m[1mGET /rapport_commune?commune=saint+sulpice+les+champs HTTP/1.1[0m" 500 -
+2025-08-13 19:17:37,013 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-13 19:17:37,013 INFO [33mPress CTRL+C to quit[0m
+2025-08-13 19:17:57,585 INFO 127.0.0.1 - - [13/Aug/2025 19:17:57] "GET / HTTP/1.1" 200 -
+2025-08-13 19:17:57,796 INFO 127.0.0.1 - - [13/Aug/2025 19:17:57] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-13 19:17:57,876 INFO 127.0.0.1 - - [13/Aug/2025 19:17:57] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-13 19:18:39,029 INFO 127.0.0.1 - - [13/Aug/2025 19:18:39] "[33mGET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-13 19:19:02,932 INFO 127.0.0.1 - - [13/Aug/2025 19:19:02] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&parking_max_distance=300&filter_friches=false&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1" 200 -
+2025-08-13 19:19:54,942 INFO 127.0.0.1 - - [13/Aug/2025 19:19:54] "[33mGET /commune_search_sse?commune=vienne&filter_rpg=false&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1825&filter_by_distance=false&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-13 19:21:19,235 INFO 127.0.0.1 - - [13/Aug/2025 19:21:19] "GET /search_by_commune?commune=vienne&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=true&parking_min_area=1500&parking_max_distance=300&filter_friches=true&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1825&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1" 200 -
+2025-08-14 06:03:09,313 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 06:03:09,314 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 06:04:09,638 INFO 127.0.0.1 - - [14/Aug/2025 06:04:09] "GET / HTTP/1.1" 200 -
+2025-08-14 06:04:10,237 INFO 127.0.0.1 - - [14/Aug/2025 06:04:10] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-14 06:04:10,360 INFO 127.0.0.1 - - [14/Aug/2025 06:04:10] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 06:04:11,308 INFO 127.0.0.1 - - [14/Aug/2025 06:04:11] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-14 06:15:34,862 INFO 127.0.0.1 - - [14/Aug/2025 06:15:34] "GET /search_by_address?address=meulin&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-14 06:15:35,486 INFO 127.0.0.1 - - [14/Aug/2025 06:15:35] "GET /static/cartes/map_1755144933_4817440142227809319.html HTTP/1.1" 200 -
+2025-08-14 06:19:30,106 INFO 127.0.0.1 - - [14/Aug/2025 06:19:30] "GET /rapport_point?lat=46.3705146&lon=4.5086361&address=meulin&parcelle_numero=N/A&distance_poste_proche=74.1+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Dompierre-les-Ormes&api_cadastre_section=0F&api_cadastre_numero=0057&api_urbanisme_layers=17&api_urbanisme_features=5&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=true&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=10&rpg_cultures=&rpg_surfaces=0.39,4.92,6.99,1.04,0.5,19.57,5.82,4.8,1.24,10.35&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=5&zaer_zones=PV_Solaire_Commune,PV_Thermique_Commune,Bois-energie_Commune,Geothermie_Commune,Methanisation_Commune&zaer_filieres=&postes_bt_count=1&postes_bt_distances=74.06&postes_hta_count=0&postes_hta_distances=&postes_hta_capacites=&capacites_reseau_count=0&sirene_count=8&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1755145107762&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-14 06:19:30,464 INFO 127.0.0.1 - - [14/Aug/2025 06:19:30] "GET /static/cartes/rapport_point_20250814_061827.html HTTP/1.1" 200 -
+2025-08-14 06:23:56,590 INFO 127.0.0.1 - - [14/Aug/2025 06:23:56] "[33mGET /commune_search_sse?commune=meulin&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-14 06:23:56,595 INFO 127.0.0.1 - - [14/Aug/2025 06:23:56] "[33mGET /map.html HTTP/1.1[0m" 404 -
+2025-08-14 06:23:57,960 INFO 127.0.0.1 - - [14/Aug/2025 06:23:57] "[33mGET /search_by_commune?commune=meulin&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&parking_max_distance=300&filter_friches=true&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1[0m" 404 -
+2025-08-14 06:24:13,768 INFO 127.0.0.1 - - [14/Aug/2025 06:24:13] "[33mGET /commune_search_sse?commune=nice&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-14 06:28:21,284 INFO 127.0.0.1 - - [14/Aug/2025 06:28:21] "GET /search_by_commune?commune=nice&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&parking_max_distance=300&filter_friches=true&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1" 200 -
+2025-08-14 06:33:21,742 INFO 127.0.0.1 - - [14/Aug/2025 06:33:21] "[33mGET /commune_search_sse?commune=nice&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-14 06:33:22,873 INFO 127.0.0.1 - - [14/Aug/2025 06:33:22] "[33mGET /commune_search_sse?commune=nice&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-14 06:37:11,059 INFO 127.0.0.1 - - [14/Aug/2025 06:37:11] "GET /search_by_commune?commune=nice&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&parking_max_distance=300&filter_friches=true&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1" 200 -
+2025-08-14 06:37:45,864 INFO 127.0.0.1 - - [14/Aug/2025 06:37:45] "GET /search_by_commune?commune=nice&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=1000000&filter_parkings=true&parking_min_area=1500&parking_max_distance=300&filter_friches=true&friches_min_area=1000&friches_max_distance=500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1000&toitures_max_distance_bt=500&toitures_max_distance_hta=1000 HTTP/1.1" 200 -
+2025-08-14 06:42:34,738 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 06:42:34,739 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 06:48:28,915 INFO 127.0.0.1 - - [14/Aug/2025 06:48:28] "GET /?id=641c4b54-e438-4e35-a850-3dff786ca349&vscodeBrowserReqId=1755146881046 HTTP/1.1" 200 -
+2025-08-14 06:48:28,968 INFO 127.0.0.1 - - [14/Aug/2025 06:48:28] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 06:48:29,623 INFO 127.0.0.1 - - [14/Aug/2025 06:48:29] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 06:49:21,361 INFO 127.0.0.1 - - [14/Aug/2025 06:49:21] "GET / HTTP/1.1" 200 -
+2025-08-14 06:49:21,493 INFO 127.0.0.1 - - [14/Aug/2025 06:49:21] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 06:49:21,525 INFO 127.0.0.1 - - [14/Aug/2025 06:49:21] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 06:49:25,345 INFO 127.0.0.1 - - [14/Aug/2025 06:49:25] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-14 06:55:41,899 INFO 127.0.0.1 - - [14/Aug/2025 06:55:41] "GET /search_by_address?address=besançon&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-14 06:55:42,783 INFO 127.0.0.1 - - [14/Aug/2025 06:55:42] "GET /static/cartes/map_1755147338_8950228366970890885.html HTTP/1.1" 200 -
+2025-08-14 06:59:41,074 INFO 127.0.0.1 - - [14/Aug/2025 06:59:41] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 06:59:41,163 INFO 127.0.0.1 - - [14/Aug/2025 06:59:41] "[33mGET /commune_search_sse?commune=besançon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 404 -
+2025-08-14 07:00:55,160 INFO 127.0.0.1 - - [14/Aug/2025 07:00:55] "GET /search_by_commune?commune=besançon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 07:03:48,869 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 07:03:48,870 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 07:04:13,842 INFO 127.0.0.1 - - [14/Aug/2025 07:04:13] "GET / HTTP/1.1" 200 -
+2025-08-14 07:05:55,949 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 07:05:55,949 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 07:11:42,420 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 07:11:42,421 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 07:12:14,710 INFO 127.0.0.1 - - [14/Aug/2025 07:12:14] "GET / HTTP/1.1" 200 -
+2025-08-14 07:12:15,307 INFO 127.0.0.1 - - [14/Aug/2025 07:12:15] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 07:12:15,421 INFO 127.0.0.1 - - [14/Aug/2025 07:12:15] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 07:12:18,104 INFO 127.0.0.1 - - [14/Aug/2025 07:12:18] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-14 07:22:26,347 INFO 127.0.0.1 - - [14/Aug/2025 07:22:26] "GET /commune_search_sse?commune=saint+saturnin&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1525&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 07:23:56,070 INFO 127.0.0.1 - - [14/Aug/2025 07:23:56] "GET /search_by_commune?commune=saint+saturnin&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1525&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 07:28:21,784 INFO 127.0.0.1 - - [14/Aug/2025 07:28:21] "GET /commune_search_sse?commune=morieres+les+avignon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1525&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 07:31:03,871 INFO 127.0.0.1 - - [14/Aug/2025 07:31:03] "GET /search_by_commune?commune=morieres+les+avignon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1525&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 07:44:39,661 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 07:44:39,662 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 07:45:10,030 INFO 127.0.0.1 - - [14/Aug/2025 07:45:10] "GET / HTTP/1.1" 200 -
+2025-08-14 07:45:10,267 INFO 127.0.0.1 - - [14/Aug/2025 07:45:10] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-14 07:45:10,336 INFO 127.0.0.1 - - [14/Aug/2025 07:45:10] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 07:45:53,320 INFO 127.0.0.1 - - [14/Aug/2025 07:45:53] "GET /commune_search_sse?commune=avignon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 07:58:12,306 INFO 127.0.0.1 - - [14/Aug/2025 07:58:12] "GET /search_by_commune?commune=avignon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 08:12:29,538 INFO 127.0.0.1 - - [14/Aug/2025 08:12:29] "GET /rapport_commune_complet?commune=avignon&filter_rpg=false&rpg_min_area=1&rpg_max_area=1000&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-14 08:12:31,821 INFO 127.0.0.1 - - [14/Aug/2025 08:12:31] "GET /generated_map HTTP/1.1" 200 -
+2025-08-14 08:18:07,133 INFO 127.0.0.1 - - [14/Aug/2025 08:18:07] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=30000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 08:18:53,600 INFO 127.0.0.1 - - [14/Aug/2025 08:18:53] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=30000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 08:29:24,338 INFO 127.0.0.1 - - [14/Aug/2025 08:29:24] "GET /rapport_commune_complet?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=30000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=1500&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT&export_format=html HTTP/1.1" 200 -
+2025-08-14 08:29:24,405 INFO 127.0.0.1 - - [14/Aug/2025 08:29:24] "GET /generated_map HTTP/1.1" 200 -
+2025-08-14 08:36:56,933 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 08:36:56,933 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 08:37:17,551 INFO 127.0.0.1 - - [14/Aug/2025 08:37:17] "GET / HTTP/1.1" 200 -
+2025-08-14 08:37:17,765 INFO 127.0.0.1 - - [14/Aug/2025 08:37:17] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-14 08:37:17,957 INFO 127.0.0.1 - - [14/Aug/2025 08:37:17] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 08:38:33,601 INFO 127.0.0.1 - - [14/Aug/2025 08:38:33] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 08:39:16,976 INFO 127.0.0.1 - - [14/Aug/2025 08:39:16] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:08:19,673 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 09:08:19,674 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 09:08:43,619 INFO 127.0.0.1 - - [14/Aug/2025 09:08:43] "GET / HTTP/1.1" 200 -
+2025-08-14 09:08:43,796 INFO 127.0.0.1 - - [14/Aug/2025 09:08:43] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-14 09:08:43,958 INFO 127.0.0.1 - - [14/Aug/2025 09:08:43] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 09:14:23,971 INFO 127.0.0.1 - - [14/Aug/2025 09:14:23] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:15:05,283 INFO 127.0.0.1 - - [14/Aug/2025 09:15:05] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:18:48,299 INFO 127.0.0.1 - - [14/Aug/2025 09:18:48] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-08-14 09:20:43,464 INFO 127.0.0.1 - - [14/Aug/2025 09:20:43] "GET / HTTP/1.1" 200 -
+2025-08-14 09:20:43,544 INFO 127.0.0.1 - - [14/Aug/2025 09:20:43] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 09:20:44,449 INFO 127.0.0.1 - - [14/Aug/2025 09:20:44] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 09:20:48,857 INFO 127.0.0.1 - - [14/Aug/2025 09:20:48] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-14 09:23:19,058 INFO 127.0.0.1 - - [14/Aug/2025 09:23:19] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:23:55,990 INFO 127.0.0.1 - - [14/Aug/2025 09:23:55] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:29:50,930 INFO 127.0.0.1 - - [14/Aug/2025 09:29:50] "GET / HTTP/1.1" 200 -
+2025-08-14 09:29:50,988 INFO 127.0.0.1 - - [14/Aug/2025 09:29:50] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 09:29:51,807 INFO 127.0.0.1 - - [14/Aug/2025 09:29:51] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-14 09:29:53,111 INFO 127.0.0.1 - - [14/Aug/2025 09:29:53] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-14 09:31:02,614 INFO 127.0.0.1 - - [14/Aug/2025 09:31:02] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:31:45,117 INFO 127.0.0.1 - - [14/Aug/2025 09:31:45] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1&rpg_max_area=1000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:47:36,797 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 09:47:36,797 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 09:47:59,554 INFO 127.0.0.1 - - [14/Aug/2025 09:47:59] "GET / HTTP/1.1" 200 -
+2025-08-14 09:47:59,915 INFO 127.0.0.1 - - [14/Aug/2025 09:47:59] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-14 09:47:59,946 INFO 127.0.0.1 - - [14/Aug/2025 09:47:59] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 09:48:51,953 INFO 127.0.0.1 - - [14/Aug/2025 09:48:51] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 09:49:40,357 INFO 127.0.0.1 - - [14/Aug/2025 09:49:40] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 10:08:46,085 INFO 127.0.0.1 - - [14/Aug/2025 10:08:46] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-08-14 10:14:50,904 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 10:14:50,905 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 10:15:13,215 INFO 127.0.0.1 - - [14/Aug/2025 10:15:13] "GET / HTTP/1.1" 200 -
+2025-08-14 10:15:13,502 INFO 127.0.0.1 - - [14/Aug/2025 10:15:13] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 10:15:13,569 INFO 127.0.0.1 - - [14/Aug/2025 10:15:13] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 10:16:21,945 INFO 127.0.0.1 - - [14/Aug/2025 10:16:21] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 10:17:08,377 INFO 127.0.0.1 - - [14/Aug/2025 10:17:08] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=1000000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 11:07:12,429 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 11:07:12,429 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 11:07:46,825 INFO 127.0.0.1 - - [14/Aug/2025 11:07:46] "GET / HTTP/1.1" 200 -
+2025-08-14 11:07:47,067 INFO 127.0.0.1 - - [14/Aug/2025 11:07:47] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-14 11:07:47,149 INFO 127.0.0.1 - - [14/Aug/2025 11:07:47] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 11:09:21,760 INFO 127.0.0.1 - - [14/Aug/2025 11:09:21] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 11:10:33,610 INFO 127.0.0.1 - - [14/Aug/2025 11:10:33] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 12:31:56,160 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 12:31:56,160 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 12:32:26,657 INFO 127.0.0.1 - - [14/Aug/2025 12:32:26] "GET / HTTP/1.1" 200 -
+2025-08-14 12:32:26,962 INFO 127.0.0.1 - - [14/Aug/2025 12:32:26] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 12:32:26,982 INFO 127.0.0.1 - - [14/Aug/2025 12:32:26] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 12:33:22,057 INFO 127.0.0.1 - - [14/Aug/2025 12:33:22] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 12:34:40,997 INFO 127.0.0.1 - - [14/Aug/2025 12:34:40] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=1000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 12:48:18,045 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-14 12:48:18,045 INFO [33mPress CTRL+C to quit[0m
+2025-08-14 12:48:42,621 INFO 127.0.0.1 - - [14/Aug/2025 12:48:42] "GET / HTTP/1.1" 200 -
+2025-08-14 12:48:42,952 INFO 127.0.0.1 - - [14/Aug/2025 12:48:42] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-14 12:48:42,996 INFO 127.0.0.1 - - [14/Aug/2025 12:48:42] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-14 12:52:12,701 INFO 127.0.0.1 - - [14/Aug/2025 12:52:12] "GET /commune_search_sse?commune=saint+sulpice+les+champs&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-08-14 12:53:36,632 INFO 127.0.0.1 - - [14/Aug/2025 12:53:36] "GET /search_by_commune?commune=saint+sulpice+les+champs&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=10000&rpg_max_area=100000&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -

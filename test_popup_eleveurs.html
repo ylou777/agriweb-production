@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Popup Éleveurs</title>
+    <script>
+        // Simulation des données d'un éleveur
+        const testEleveurData = {
+            "ActivitePr": "",
+            "Activite 1": "01.42Z",
+            "Activite 2": "01.42Z",
+            "Denominati": "GAEC GRAMPEIX",
+            "LibelleCom": "SAINT-SULPICE-LES-CHAMPS",
+            "LibelleVoi": "LA BORIE",
+            "CodePostal": "23480",
+            "Siret": "44760833200014",
+            "Siren": "447608332",
+            "DateCreati": "2003-01-01",
+            "X": "624669.7265462702",
+            "Y": "6543721.955744691",
+            "_layer": "eleveurs"  // Test avec _layer
+        };
+
+        const testFeature = {
+            type: "Feature",
+            properties: testEleveurData,
+            geometry: {
+                type: "Point",
+                coordinates: [624669.7265462702, 6543721.955744691]
+            }
+        };
+
+        const testStyle = {
+            color: "purple"
+        };
+
+        // Fonction row identique à celle de map.html
+        function row(label, val) { 
+            return val ? `<tr><th>${label}</th><td>${val}</td></tr>` : ""; 
+        }
+
+        // Fonction de détection identique à celle de map.html
+        function detectTypeLayer(f, s) {
+            console.log("🔍 Détection de type pour:", f.properties);
+            console.log("🎨 Style:", s);
+            
+            if(f.properties && f.properties._layer) {
+                console.log("✅ Détection par _layer:", f.properties._layer);
+                return f.properties._layer;
+            }
+            if(s && s.color === "orange") return "postes_bt";
+            if(s && s.color === "red") return "postes_hta";
+            if(s && s.color === "purple") {
+                console.log("✅ Détection par couleur purple");
+                return "eleveurs";
+            }
+            if(s && s.color === "#FF6600") return "api_cadastre";
+            if(s && s.color === "#22AA22") return "api_nature";
+            if(s && s.color === "#0000FF") return "api_urbanisme";
+            if(s && s.color === "darkgreen") return "parkings";
+            if(s && s.color === "gold") return "solaire";
+            if(s && s.color === "cyan") return "zaer";
+            if(s && s.color === "darkred") return "sirene";
+            if(f.properties && (f.properties.nomUniteLe || f.properties.denomination || f.properties.NomUniteLe || f.properties.Denominati || f.properties.Siret)) {
+                console.log("✅ Détection par champs éleveurs");
+                return "eleveurs";
+            }
+            if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
+                let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
+                if (name.includes('hta')) return "postes_hta";
+                if (name.includes('bt')) return "postes_bt";
+            }
+            console.log("❌ Aucune détection, retour fallback");
+            return "";
+        }
+
+        // Fonction makePopupContent simplifiée pour les éleveurs
+        function makePopupContent(props, typeLayer, geometry) {
+            console.log("🔧 makePopupContent appelée avec:", {props, typeLayer, geometry});
+            
+            // --- Éleveurs
+            if (typeLayer === "eleveurs") {
+                console.log("✅ Section éleveurs détectée !");
+                
+                const eleveurLabels = {
+                    "Siret": "SIRET",
+                    "DateCreati": "Date de création", 
+                    "Denominati": "Dénomination",
+                    "NomUniteLe": "Nom unité légale",
+                    "NomUsageUn": "Nom d'usage",
+                    "Prenom1Uni": "Prénom",
+                    "ActivitePr": "Activité principale",
+                    "NumeroVoie": "N° voie", 
+                    "TypeVoieEt": "Type voie",
+                    "LibelleVoi": "Libellé voie",
+                    "CodePostal": "CP",
+                    "LibelleCom": "Commune",
+                    "CodeCommun": "Code commune",
+                    "X": "X (m, EPSG:2154)",
+                    "Y": "Y (m, EPSG:2154)",
+                    "Siren": "SIREN",
+                    "Nic": "NIC"
+                };
+                
+                // Construction du nom complet
+                let nomComplet = "";
+                if (props.Prenom1Uni && props.NomUniteLe) {
+                    nomComplet = `${props.Prenom1Uni} ${props.NomUniteLe}`;
+                } else if (props.NomUniteLe) {
+                    nomComplet = props.NomUniteLe;
+                } else if (props.Denominati) {
+                    nomComplet = props.Denominati;
+                } else if (props.NomUsageUn) {
+                    nomComplet = props.NomUsageUn;
+                }
+                
+                // Construction de l'adresse complète
+                let adresseComplete = "";
+                const numeroVoie = props.NumeroVoie || props["NumeroVo 1"] || "";
+                const typeVoie = props.TypeVoieEt || props.TypeVoie2E || "";
+                const libelleVoie = props.LibelleVoi || props["LibelleV 1"] || "";
+                const codePostal = props.CodePostal || props["CodePost 1"] || "";
+                const commune = props.LibelleCom || props["LibelleC 1"] || "";
+                
+                if (numeroVoie || typeVoie || libelleVoie) {
+                    adresseComplete = [numeroVoie, typeVoie, libelleVoie].filter(x => x).join(" ");
+                    if (codePostal || commune) {
+                        adresseComplete += ", " + [codePostal, commune].filter(x => x).join(" ");
+                    }
+                } else if (codePostal || commune) {
+                    adresseComplete = [codePostal, commune].filter(x => x).join(" ");
+                }
+                
+                let html = `<div class='custom-popup'><div class='popup-title' style="color:purple">🐄 Éleveur</div><table>`;
+                
+                // Informations principales
+                if (nomComplet) html += row("Nom", nomComplet);
+                if (props.Denominati && props.Denominati !== nomComplet) html += row("Dénomination", props.Denominati);
+                if (adresseComplete) html += row("Adresse", adresseComplete);
+                if (props.Siret) html += row("SIRET", props.Siret);
+                if (props.ActivitePr) html += row("Activité principale", props.ActivitePr);
+                if (props.DateCreati) html += row("Date de création", props.DateCreati);
+                
+                // Liens vers les annuaires d'entreprises
+                if (props.Siret) {
+                    const siret = props.Siret;
+                    const siren = props.Siren || siret.substring(0, 9);
+                    
+                    // Lien Societe.com avec format spécifique
+                    const denominationUrl = (props.Denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                    const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html`;
+                    html += row("Societe.com", `<a href="${societeUrl}" target="_blank" class="popup-link">Voir la fiche entreprise</a>`);
+                    
+                    // Lien Pages Jaunes
+                    const denomination = encodeURIComponent(props.Denominati || nomComplet || "");
+                    const ville = encodeURIComponent(commune || "");
+                    const codePostalFormatted = encodeURIComponent(codePostal ? `(${codePostal})` : "");
+                    const pagesJaunesUrl = `https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${denomination}&ou=${ville}+${codePostalFormatted}&univers=pagesjaunes&idOu=`;
+                    html += row("Pages Jaunes", `<a href="${pagesJaunesUrl}" target="_blank" class="popup-link">Consulter l'annuaire</a>`);
+                }
+                
+                html += `</table></div>`;
+                return html;
+            }
+            
+            // --- Fallback générique
+            console.log("❌ Fallback générique utilisé");
+            let html = `<div class="custom-popup"><table>`;
+            for(const [k,v] of Object.entries(props)) {
+                if (typeof v === "string" && v.startsWith("http")) {
+                    html += `<tr><th>${k}</th><td><a href="${v}" class="popup-link" target="_blank">${v.replace(/^https?:\/\//,'')}</a></td></tr>`;
+                } else if (typeof v === "string" || typeof v === "number") {
+                    html += `<tr><th>${k}</th><td>${v}</td></tr>`;
+                }
+            }
+            html += "</table></div>";
+            return html;
+        }
+
+        function runTest() {
+            console.log("🚀 Début du test de popup éleveurs");
+            
+            // Test 1: Détection de type
+            console.log("\n=== TEST 1: Détection de type ===");
+            const detectedType = detectTypeLayer(testFeature, testStyle);
+            console.log("Type détecté:", detectedType);
+            
+            // Test 2: Génération de popup
+            console.log("\n=== TEST 2: Génération de popup ===");
+            const popupContent = makePopupContent(testFeature.properties, detectedType, testFeature.geometry);
+            console.log("Contenu popup généré:");
+            console.log(popupContent);
+            
+            // Test 3: Affichage dans la page
+            console.log("\n=== TEST 3: Affichage ===");
+            document.getElementById('result').innerHTML = popupContent;
+            
+            // Test 4: Test sans _layer
+            console.log("\n=== TEST 4: Test sans _layer ===");
+            const testFeatureNoLayer = {...testFeature};
+            delete testFeatureNoLayer.properties._layer;
+            const detectedType2 = detectTypeLayer(testFeatureNoLayer, testStyle);
+            console.log("Type détecté sans _layer:", detectedType2);
+            
+            // Test 5: Test sans style
+            console.log("\n=== TEST 5: Test sans style ===");
+            const detectedType3 = detectTypeLayer(testFeature, null);
+            console.log("Type détecté sans style:", detectedType3);
+        }
+    </script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .custom-popup { border: 1px solid #ccc; padding: 10px; max-width: 400px; }
+        .popup-title { font-weight: bold; margin-bottom: 10px; }
+        .popup-link { color: #1474fa; text-decoration: none; }
+        table { width: 100%; }
+        th { text-align: left; padding: 2px; font-weight: bold; }
+        td { padding: 2px; }
+        #console { background: #f0f0f0; padding: 10px; margin-top: 20px; white-space: pre-line; }
+    </style>
+</head>
+<body>
+    <h1>Test Popup Éleveurs</h1>
+    <button onclick="runTest()">Lancer le test</button>
+    
+    <h2>Résultat du popup :</h2>
+    <div id="result" style="border: 1px solid #ccc; padding: 10px; min-height: 100px;">
+        Cliquez sur "Lancer le test" pour voir le résultat
+    </div>
+    
+    <h2>Console (ouvrez les outils de développement F12 pour plus de détails) :</h2>
+    <div id="console"></div>
+    
+    <script>
+        // Rediriger console.log vers la page aussi
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const consoleDiv = document.getElementById('console');
+            consoleDiv.textContent += args.join(' ') + '\n';
+        };
+    </script>
+</body>
+</html>

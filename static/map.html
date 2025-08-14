@@ -272,6 +272,88 @@
           ${row("Effectif",props.effectif)}
         </table></div>`;
       }
+      // --- Éleveurs
+      if (typeLayer === "eleveurs") {
+        const eleveurLabels = {
+          "Siret": "SIRET",
+          "DateCreati": "Date de création", 
+          "Denominati": "Dénomination",
+          "NomUniteLe": "Nom unité légale",
+          "NomUsageUn": "Nom d'usage",
+          "Prenom1Uni": "Prénom",
+          "ActivitePr": "Activité principale",
+          "NumeroVoie": "N° voie", 
+          "TypeVoieEt": "Type voie",
+          "LibelleVoi": "Libellé voie",
+          "CodePostal": "CP",
+          "LibelleCom": "Commune",
+          "CodeCommun": "Code commune",
+          "X": "X (m, EPSG:2154)",
+          "Y": "Y (m, EPSG:2154)",
+          "Siren": "SIREN",
+          "Nic": "NIC"
+        };
+        
+        // Construction du nom complet
+        let nomComplet = "";
+        if (props.Prenom1Uni && props.NomUniteLe) {
+          nomComplet = `${props.Prenom1Uni} ${props.NomUniteLe}`;
+        } else if (props.NomUniteLe) {
+          nomComplet = props.NomUniteLe;
+        } else if (props.Denominati) {
+          nomComplet = props.Denominati;
+        } else if (props.NomUsageUn) {
+          nomComplet = props.NomUsageUn;
+        }
+        
+        // Construction de l'adresse complète
+        let adresseComplete = "";
+        const numeroVoie = props.NumeroVoie || props["NumeroVo 1"] || "";
+        const typeVoie = props.TypeVoieEt || props.TypeVoie2E || "";
+        const libelleVoie = props.LibelleVoi || props["LibelleV 1"] || "";
+        const codePostal = props.CodePostal || props["CodePost 1"] || "";
+        const commune = props.LibelleCom || props["LibelleC 1"] || "";
+        
+        if (numeroVoie || typeVoie || libelleVoie) {
+          adresseComplete = [numeroVoie, typeVoie, libelleVoie].filter(x => x).join(" ");
+          if (codePostal || commune) {
+            adresseComplete += ", " + [codePostal, commune].filter(x => x).join(" ");
+          }
+        } else if (codePostal || commune) {
+          adresseComplete = [codePostal, commune].filter(x => x).join(" ");
+        }
+        
+        let html = `<div class='custom-popup'><div class='popup-title' style="color:purple">🐄 Éleveur</div><table>`;
+        
+        // Informations principales
+        if (nomComplet) html += row("Nom", nomComplet);
+        if (props.Denominati && props.Denominati !== nomComplet) html += row("Dénomination", props.Denominati);
+        if (adresseComplete) html += row("Adresse", adresseComplete);
+        if (props.Siret) html += row("SIRET", props.Siret);
+        if (props.ActivitePr) html += row("Activité principale", props.ActivitePr);
+        if (props.DateCreati) html += row("Date de création", props.DateCreati);
+        
+        // Liens vers les annuaires d'entreprises
+        if (props.Siret) {
+          const siret = props.Siret;
+          const siren = props.Siren || siret.substring(0, 9);
+          
+          // Lien Societe.com avec format spécifique
+          const denominationUrl = (props.Denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+          const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html`;
+          html += row("Societe.com", `<a href="${societeUrl}" target="_blank" class="popup-link">Voir la fiche entreprise</a>`);
+          
+          // Lien Pages Jaunes
+          const denomination = encodeURIComponent(props.Denominati || nomComplet || "");
+          const ville = encodeURIComponent(commune || "");
+          const codePostalFormatted = encodeURIComponent(codePostal ? `(${codePostal})` : "");
+          const pagesJaunesUrl = `https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${denomination}&ou=${ville}+${codePostalFormatted}&univers=pagesjaunes&idOu=`;
+          html += row("Pages Jaunes", `<a href="${pagesJaunesUrl}" target="_blank" class="popup-link">Consulter l'annuaire</a>`);
+        }
+        
+        html += `</table></div>`;
+        return html;
+      }
       // --- Fallback générique
       let html = `<div class="custom-popup"><table>`;
       for(const [k,v] of Object.entries(props)) {
@@ -298,7 +380,7 @@
       if(s && s.color === "gold") return "solaire";
       if(s && s.color === "cyan") return "zaer";
       if(s && s.color === "darkred") return "sirene";
-      if(f.properties && (f.properties.nomUniteLe || f.properties.denomination)) return "eleveurs";
+      if(f.properties && (f.properties.nomUniteLe || f.properties.denomination || f.properties.NomUniteLe || f.properties.Denominati || f.properties.Siret)) return "eleveurs";
       if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
         let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
         if (name.includes('hta')) return "postes_hta";

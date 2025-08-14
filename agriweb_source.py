@@ -1419,15 +1419,24 @@ def get_batiments_data(geom):
                     raise ValueError(f"Type de géométrie non supporté: {geom.get('type')}")
                 
                 # Limiter le nombre de points pour éviter les URLs trop longues
-                max_points = 100
+                max_points = 50  # Réduire pour éviter les timeouts
                 if len(polygon_coords) > max_points:
-                    step = len(polygon_coords) // max_points
+                    # Simplifier plus agressivement pour éviter les échecs
+                    step = max(2, len(polygon_coords) // max_points)
                     polygon_coords = polygon_coords[::step]
+                    # S'assurer que le polygone est fermé
+                    if polygon_coords[0] != polygon_coords[-1]:
+                        polygon_coords.append(polygon_coords[0])
                 
                 # Convertir en format Overpass: "lat lon lat lon ..."
                 poly_string = " ".join([f"{coord[1]} {coord[0]}" for coord in polygon_coords])
                 
-                print(f"🔍 [BATIMENTS] Requête OSM avec polygone de {len(polygon_coords)} points")
+                print(f"🔍 [BATIMENTS] Requête OSM avec polygone de {len(polygon_coords)} points (simplifié)")
+                
+                # Vérifier que la chaîne n'est pas trop longue
+                if len(poly_string) > 8000:  # Limite sécuritaire pour URL
+                    print(f"⚠️ [BATIMENTS] Polygone trop complexe ({len(poly_string)} chars), utilisation bbox")
+                    raise ValueError("Polygone trop complexe")
                 
                 overpass_query = f"""
                 [out:json][timeout:30];
@@ -1439,21 +1448,25 @@ def get_batiments_data(geom):
                 """
             except Exception as e:
                 print(f"⚠️ [BATIMENTS] Erreur construction requête polygone: {e}")
-                print("🔄 [BATIMENTS] Fallback vers méthode centroïde")
-                # Fallback vers la méthode centroïde en cas d'erreur
+                print("🔄 [BATIMENTS] Fallback vers méthode BBOX au lieu de centroïde")
+                # Fallback vers bbox au lieu de centroïde pour couvrir toute la commune
                 try:
-                    centroid = shape(geom).centroid
-                    lat, lon = centroid.y, centroid.x
+                    # Utiliser la bbox de la commune entière
+                    geom_shape = shape(geom)
+                    minx, miny, maxx, maxy = geom_shape.bounds
+                    
+                    print(f"🔍 [BATIMENTS] Utilisation bbox: {minx:.4f},{miny:.4f},{maxx:.4f},{maxy:.4f}")
+                    
                     overpass_query = f"""
-                    [out:json][timeout:25];
+                    [out:json][timeout:30];
                     (
-                      way["building"](around:1000,{lat},{lon});
-                      relation["building"](around:1000,{lat},{lon});
+                      way["building"]({miny},{minx},{maxy},{maxx});
+                      relation["building"]({miny},{minx},{maxy},{maxx});
                     );
                     out geom;
                     """
-                except:
-                    print("⚠️ [BATIMENTS] Impossible de calculer le centroïde")
+                except Exception as e2:
+                    print(f"⚠️ [BATIMENTS] Impossible de calculer la bbox: {e2}")
                     return None
         
         overpass_url = "https://overpass-api.de/api/interpreter"
@@ -4211,11 +4224,18 @@ def search_by_commune():
     # Récupérer le HTML de la carte pour l'ajouter à la réponse
     carte_html = map_obj._repr_html_() if map_obj else ""
 
+    # Ajouter _layer aux éleveurs pour la détection côté client
+    eleveurs_with_layer = []
+    for eleveur in eleveurs_data:
+        if eleveur.get("properties"):
+            eleveur["properties"]["_layer"] = "eleveurs"
+        eleveurs_with_layer.append(eleveur)
+    
     # 7) Réponse JSON avec données filtrées
     response_data = {
         "lat": lat, "lon": lon,
         "rpg": final_rpg if filter_rpg else [],
-        "eleveurs": eleveurs_data,
+        "eleveurs": eleveurs_with_layer,
         "postes_bt": postes_bt_data,
         "postes_hta": postes_hta_data,
         "parcelles": parcelles_data,
