@@ -3346,7 +3346,8 @@ def search_by_commune():
     postes_bt_data   = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
     postes_hta_data  = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
     eleveurs_data    = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
-    plu_info         = get_plu_info_by_polygon(contour)
+    # plu_info sera remplacé par filtered_zones après l'optimisation des zones
+    plu_info_temp    = get_plu_info_by_polygon(contour)
     zaer_data        = get_zaer_info_by_polygon(contour)
     
     # Récupération conditionnelle des données avec filtrage - NOUVELLE MÉTHODE POLYGONE
@@ -3980,6 +3981,9 @@ def search_by_commune():
                 pass
         
         print(f"✅ [ZONES OPTIMISÉ] {len(target_zones)} zones analysées, {total_parcelles_trouvees} parcelles trouvées")
+
+    # Utiliser les zones optimisées pour plu_info, sinon fallback
+    plu_info = filtered_zones if filtered_zones else plu_info_temp
 
     # 6) Carte interactive
     # PPRI récupération via la nouvelle fonction GeoRisques unifiée
@@ -10464,71 +10468,114 @@ def generate_integrated_commune_report(commune_name, filters=None):
         api_urbanisme = get_all_gpu_data(contour_optimise)
 
         # Collecte et analyse des zones d'urbanisme (PLU/GPU)
+        # Utiliser la logique d'optimisation des zones directement
+        plu_info = []
+        
         zones_data = []
         if filters.get("filter_zones", True):
             try:
+                # Récupérer les zones optimisées avec la même logique que build_map
                 zones_min_area = float(filters.get("zones_min_area", 1000.0))
                 zones_type_filter = filters.get("zones_type_filter", "")
                 
-                if api_urbanisme and api_urbanisme.get("success"):
-                    plu_info = api_urbanisme.get("data", {}).get("document_urba", [])
-                    for zone_feat in plu_info:
-                        try:
-                            geom = zone_feat.get("geometry")
-                            if not geom:
-                                continue
-                            props = zone_feat.get("properties", {})
-                            
-                            # Filtrage par type de zone si spécifié
-                            typologie = props.get("typezone", "").upper()
-                            if zones_type_filter and zones_type_filter.upper() not in typologie:
-                                continue
-                            
-                            # Calcul de la surface
-                            shp_zone = shape(geom)
-                            if not shp_zone.is_valid:
-                                shp_zone = shp_zone.buffer(0)
-                                if not shp_zone.is_valid:
-                                    continue
-                            
-                            # Intersection avec la commune
-                            if not (commune_poly.contains(shp_zone) or commune_poly.intersects(shp_zone)):
-                                continue
-                            
-                            # Surface en m²
-                            surface_m2 = shp_transform(to_l93, shp_zone).area
-                            if surface_m2 < zones_min_area:
-                                continue
-                            
-                            # Distances aux postes
-                            centroid = shp_zone.centroid
-                            lat_c, lon_c = centroid.y, centroid.x
-                            d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
-                            d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                            
-                            # Enrichissement des propriétés
-                            props_enrichies = props.copy()
-                            props_enrichies.update({
-                                "surface_m2": round(surface_m2, 2),
-                                "surface_ha": round(surface_m2 / 10000.0, 4),
-                                "coords": [lat_c, lon_c],
-                                "distance_bt": round(d_bt, 2) if d_bt is not None else None,
-                                "distance_hta": round(d_hta, 2) if d_hta is not None else None,
-                                "nom_commune": commune_name
-                            })
-                            
-                            zones_data.append({
-                                "type": "Feature",
-                                "geometry": geom,
-                                "properties": props_enrichies
-                            })
-                            
-                        except Exception:
+                # API GPU pour zones autour de la commune  
+                def get_zones_around_commune_simple(lat, lon, radius_km=2.0):
+                    api_url = "https://apicarto.ign.fr/api/gpu/zone-urba"
+                    delta = radius_km / 111.0
+                    bbox_geojson = {
+                        "type": "Polygon",
+                        "coordinates": [[
+                            [lon - delta, lat - delta],
+                            [lon + delta, lat - delta], 
+                            [lon + delta, lat + delta],
+                            [lon - delta, lat + delta],
+                            [lon - delta, lat - delta]
+                        ]]
+                    }
+                    params = {"geom": json.dumps(bbox_geojson), "_limit": 1000}
+                    
+                    try:
+                        resp = requests.get(api_url, params=params, timeout=30)
+                        if resp.status_code == 200:
+                            return resp.json().get('features', [])
+                        return []
+                    except Exception:
+                        return []
+                
+                # Récupérer toutes les zones autour de la commune
+                all_zones = get_zones_around_commune_simple(lat, lon, 2.0)
+                print(f"    📍 {len(all_zones)} zones trouvées autour de la commune")
+                
+                # Filtrer les zones par type 'U' si spécifié
+                target_zones = []
+                for zone in all_zones:
+                    props = zone.get('properties', {})
+                    typologie = props.get('typezone', '').upper()
+                    
+                    if not zones_type_filter or zones_type_filter.upper() in typologie:
+                        target_zones.append(zone)
+                
+                if zones_type_filter:
+                    print(f"    🎯 {len(target_zones)} zones de type '{zones_type_filter}' sélectionnées")
+                
+                # Traiter chaque zone pour enrichir avec les données
+                for i, zone_feat in enumerate(target_zones):
+                    try:
+                        geom = zone_feat.get("geometry")
+                        if not geom:
                             continue
-                print(f"    🏗️ Zones d'urbanisme: {len(zones_data)} zones filtrées")
+                        props = zone_feat.get("properties", {})
+                        
+                        # Calcul de la surface de la zone
+                        shp_zone = shape(geom)
+                        if not shp_zone.is_valid:
+                            shp_zone = shp_zone.buffer(0)
+                            if not shp_zone.is_valid:
+                                continue
+                        
+                        # Intersection avec la commune
+                        if not (commune_poly.contains(shp_zone) or commune_poly.intersects(shp_zone)):
+                            continue
+                        
+                        # Surface en m²
+                        surface_m2 = shp_transform(to_l93, shp_zone).area
+                        if surface_m2 < zones_min_area:
+                            continue
+                        
+                        # Distances aux postes
+                        centroid = shp_zone.centroid
+                        lat_c, lon_c = centroid.y, centroid.x
+                        d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                        d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                        
+                        # Enrichissement des propriétés
+                        props_enrichies = props.copy()
+                        props_enrichies.update({
+                            "surface_m2": round(surface_m2, 2),
+                            "surface_ha": round(surface_m2 / 10000.0, 4),
+                            "coords": [lat_c, lon_c],
+                            "distance_bt": round(d_bt, 2) if d_bt is not None else None,
+                            "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+                            "nom_commune": commune_name
+                        })
+                        
+                        zones_data.append({
+                            "type": "Feature",
+                            "geometry": geom,
+                            "properties": props_enrichies
+                        })
+                        
+                    except Exception:
+                        continue
+                
+                print(f"    ✅ {len(zones_data)} zones filtrées et enrichies")
+                
             except Exception as e:
-                print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur collecte zones: {e}")
+                print(f"    ⚠️ Erreur lors du traitement des zones: {e}")
                 zones_data = []
+        else:
+            print(f"    🏗️ Zones d'urbanisme: filtrage désactivé")
+            zones_data = []
 
         # Préparation des listes de détails par rubrique (position, surface, parcelles, postes proches, liens)
         def _format_parcelles_refs(props: dict) -> dict:
