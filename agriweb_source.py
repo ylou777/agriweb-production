@@ -2559,12 +2559,10 @@ def build_map(
                         refs_cadastrales = props.get("parcelles_cadastrales", [])
                         if refs_cadastrales:
                             tooltip_lines.append(f"<b>🏛️ Parcelles cadastrales ({len(refs_cadastrales)}):</b>")
-                            for ref in refs_cadastrales[:3]:  # Limite à 3 pour les toitures
+                            for ref in refs_cadastrales:  # Affiche toutes les références
                                 if isinstance(ref, dict):
                                     ref_complete = ref.get('reference_complete', 'N/A')
                                     tooltip_lines.append(f"  • {ref_complete}")
-                            if len(refs_cadastrales) > 3:
-                                tooltip_lines.append(f"  ... et {len(refs_cadastrales) - 3} autres")
                         
                         # Autres propriétés importantes pour les toitures
                         for k, v in props.items():
@@ -2581,14 +2579,12 @@ def build_map(
                             if k == "parcelles_cadastrales" and isinstance(v, list) and v:
                                 # Affichage formaté des références cadastrales
                                 tooltip_lines.append(f"<b>Références cadastrales ({len(v)}):</b>")
-                                for ref in v[:5]:  # Limite à 5 références pour la lisibilité
+                                for ref in v:  # Affiche toutes les références pour la lisibilité
                                     if isinstance(ref, dict):
                                         ref_complete = ref.get('reference_complete', 'N/A')
                                         tooltip_lines.append(f"  • {ref_complete}")
                                     else:
                                         tooltip_lines.append(f"  • {str(ref)}")
-                                if len(v) > 5:
-                                    tooltip_lines.append(f"  ... et {len(v) - 5} autres")
                             elif k == "nb_parcelles_cadastrales":
                                 tooltip_lines.append(f"<b>{k}:</b> {v}")
                             elif k not in ["parcelles_cadastrales"]:  # Exclure la liste brute
@@ -2689,12 +2685,9 @@ def build_map(
         <b>Exemples de références:</b><br>
         """
         
-        for i, ref_info in enumerate(parking_friches_cadastre[:5]):
+        for i, ref_info in enumerate(parking_friches_cadastre):
             icon = "🅿️" if ref_info["type"] == "parking" else "🏭"
             info_popup += f"{icon} {ref_info['reference']}<br>"
-        
-        if len(parking_friches_cadastre) > 5:
-            info_popup += f"... et {len(parking_friches_cadastre) - 5} autres"
         
         # Ajouter un marker central avec la liste
         folium.Marker(
@@ -3042,10 +3035,16 @@ def purge_cartes():
                     print(f"Erreur suppression {f}: {e}")
     return {"purged": count}
 
-def save_map_to_cache(map_obj):
+def save_map_to_cache(map_obj, search_data=None):
     # Réactivation du cache mémoire : on stocke le HTML de la carte générée
     last_map_params["html"] = map_obj._repr_html_()
-    print("✅ Cache mémoire des cartes activé (HTML en mémoire)")
+    
+    # Sauvegarder aussi les données de recherche pour les réutiliser dans le zoom
+    if search_data:
+        last_map_params["search_data"] = search_data
+        print("✅ Cache mémoire des cartes activé (HTML + données en mémoire)")
+    else:
+        print("✅ Cache mémoire des cartes activé (HTML en mémoire)")
 
 
 
@@ -3060,11 +3059,107 @@ def generated_map():
     1. S'il existe une carte générée par une recherche (last_map_params['html']),
     on renvoie cette version.
     2. Sinon on produit une carte par défaut (Satellite centré sur la France).
+    3. Si des paramètres de zoom sont fournis (lat, lng, zoom), centre la carte sur ces coordonnées.
     """
+    from flask import request
+    import folium
+    
+    # Récupérer les paramètres de zoom depuis l'URL
+    zoom_lat = request.args.get('lat', type=float)
+    zoom_lng = request.args.get('lng', type=float)
+    zoom_level = request.args.get('zoom', type=int, default=17)
+    marker_name = request.args.get('name', 'Point de zoom')
+    
     html = last_map_params.get("html")
 
+    # --- Cas spécial : zoom demandé avec coordonnées ---
+    if zoom_lat and zoom_lng:
+        # Récupérer les données de la dernière recherche pour les afficher aussi
+        search_data = last_map_params.get("search_data", {})
+        
+        # Créer une carte centrée sur les coordonnées demandées
+        map_obj = folium.Map(
+            location=[zoom_lat, zoom_lng],
+            zoom_start=zoom_level,
+            tiles=None
+        )
+        folium.TileLayer(
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri World Imagery",
+            name="Satellite",
+            overlay=False,
+            control=True,
+            show=True
+        ).add_to(map_obj)
+
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="Fond OSM",
+            overlay=False,
+            control=True,
+            show=False
+        ).add_to(map_obj)
+
+        # Ajouter les données de la recherche si disponibles
+        if search_data:
+            try:
+                # Reconstruire la carte avec toutes les données en utilisant la fonction existante
+                map_obj = build_map(
+                    zoom_lat, zoom_lng, marker_name,
+                    search_data.get('parcelle', {}),
+                    search_data.get('parcelles', {}),
+                    search_data.get('postes_bt', []),
+                    search_data.get('postes_hta', []),
+                    search_data.get('plu', []),
+                    search_data.get('parkings', {}).get('features', []),
+                    search_data.get('friches', {}).get('features', []),
+                    search_data.get('toitures', {}).get('features', []),
+                    search_data.get('zaer', []),
+                    search_data.get('rpg', []),
+                    search_data.get('sirene', []),
+                    0.5,  # search_radius
+                    0.01,  # ht_radius_deg
+                    api_cadastre=search_data.get('api_cadastre'),
+                    api_nature=search_data.get('api_nature'),
+                    api_urbanisme=search_data.get('api_urbanisme'),
+                    eleveurs_data=search_data.get('eleveurs', []),
+                    capacites_reseau=search_data.get('capacites_reseau'),
+                    ppri_data=search_data.get('ppri_data', [])
+                )
+                print(f"[DEBUG] Carte de zoom reconstruite avec toutes les données")
+            except Exception as e:
+                print(f"[DEBUG] Erreur reconstruction carte avec données: {e}")
+                # Fallback : carte simple avec marqueur seulement
+
+        # Ajouter un marqueur sur le point demandé
+        folium.Marker(
+            [zoom_lat, zoom_lng],
+            popup=f"<b>{marker_name}</b><br>Lat: {zoom_lat:.6f}<br>Lng: {zoom_lng:.6f}",
+            tooltip=marker_name,
+            icon=folium.Icon(color='red', icon='info-sign')
+        ).add_to(map_obj)
+
+        folium.LayerControl().add_to(map_obj)
+        html = map_obj._repr_html_()
+
+    # --- Corriger le DOCTYPE pour toute carte existante aussi ---
+    elif html and not html.strip().startswith('<!DOCTYPE'):
+        # Ajouter le DOCTYPE HTML5 si manquant
+        if '<html' in html:
+            html = '<!DOCTYPE html>\n' + html
+        else:
+            # Si pas de balise html, wrapper complètement
+            html = f'<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>{html}</body></html>'
+        
+        # S'assurer que le HTML a les bonnes balises meta pour éviter Quirks Mode
+        if 'charset' not in html.lower():
+            html = html.replace('<head>', '<head>\n<meta charset="UTF-8">')
+        
+        # Mettre à jour la carte corrigée dans le cache
+        last_map_params["html"] = html
+
     # --- Cas : aucune recherche encore faite ---
-    if not html:
+    elif not html:
         # Carte par défaut
         map_obj = folium.Map(
             location=[46.603354, 1.888334],   # centre France
@@ -3090,6 +3185,19 @@ def generated_map():
 
         folium.LayerControl().add_to(map_obj)
         html = map_obj._repr_html_()
+
+    # --- Corriger le DOCTYPE pour éviter le mode Quirks ---
+    if html and not html.strip().startswith('<!DOCTYPE'):
+        # Ajouter le DOCTYPE HTML5 si manquant
+        if '<html' in html:
+            html = '<!DOCTYPE html>\n' + html
+        else:
+            # Si pas de balise html, wrapper complètement
+            html = f'<!DOCTYPE html>\n<html><head><meta charset="UTF-8"></head><body>{html}</body></html>'
+    
+    # --- S'assurer que le HTML a les bonnes balises meta pour éviter Quirks Mode ---
+    if 'charset' not in html.lower():
+        html = html.replace('<head>', '<head>\n<meta charset="UTF-8">')
 
     # --- On renvoie toujours un objet Response ---
     resp = make_response(html)
@@ -4223,7 +4331,6 @@ def search_by_commune():
         eleveurs_data=eleveurs_data,
         ppri_data=ppri_data
     )
-    save_map_to_cache(map_obj)
     
     # Récupérer le HTML de la carte pour l'ajouter à la réponse
     carte_html = map_obj._repr_html_() if map_obj else ""
@@ -4271,6 +4378,9 @@ def search_by_commune():
             }
         }
     }
+    
+    # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom
+    save_map_to_cache(map_obj, response_data)
     
     return jsonify(response_data)
 
@@ -5863,7 +5973,7 @@ def rapport_map_point():
             map_obj.save(carte_fullpath)
             
             report_data["carte_url"] = f"/static/cartes/{carte_filename}"
-            save_map_to_cache(map_obj)
+            save_map_to_cache(map_obj, report_data)
             
             log_step("CARTE", f"✅ Carte sauvée: {carte_fullpath}", "SUCCESS")
             return map_obj
@@ -9505,7 +9615,6 @@ def search_by_address_route():
         except Exception as save_error:
             logging.error(f"[search_by_address] Erreur save_map_html: {save_error}")
             carte_url = None
-        save_map_to_cache(map_obj)
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -9522,6 +9631,13 @@ def search_by_address_route():
         return jsonify({"error": "Erreur de sérialisation des données", "details": str(json_error)}), 500
 
     info_response["carte_url"] = f"/static/{carte_url}" if carte_url else "/map.html"
+    
+    # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
+    try:
+        save_map_to_cache(map_obj, info_response)
+    except Exception as cache_error:
+        logging.error(f"[search_by_address] Erreur save_map_to_cache: {cache_error}")
+    
     return jsonify(info_response)
 
 
@@ -10548,6 +10664,31 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                         d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                         
+                        # Récupération des parcelles cadastrales pour cette zone
+                        parcelles_cadastrales = []
+                        try:
+                            cadastre_data = get_api_cadastre_data(geom)
+                            if cadastre_data and cadastre_data.get("features"):
+                                for parcelle_feat in cadastre_data["features"]:
+                                    parcelle_props = parcelle_feat.get("properties", {})
+                                    ref_cadastrale = f"{parcelle_props.get('section', '')}{parcelle_props.get('numero', '')}"
+                                    if ref_cadastrale.strip():
+                                        parcelles_cadastrales.append({
+                                            "id": parcelle_props.get("id", ""),
+                                            "section": parcelle_props.get("section", ""),
+                                            "numero": parcelle_props.get("numero", ""),
+                                            "ref": ref_cadastrale,
+                                            "commune": parcelle_props.get("commune", ""),
+                                            "prefixe": parcelle_props.get("prefixe", "")
+                                        })
+                            print(f"      🏛️ {len(parcelles_cadastrales)} parcelles cadastrales trouvées pour la zone")
+                        except Exception as e:
+                            print(f"      ⚠️ Erreur récupération parcelles cadastrales: {e}")
+                        
+                        # Debug: vérifier le contenu des parcelles pour cette zone
+                        if parcelles_cadastrales:
+                            print(f"      🔍 [DEBUG ZONE] Première parcelle: {parcelles_cadastrales[0]}")
+                        
                         # Enrichissement des propriétés
                         props_enrichies = props.copy()
                         props_enrichies.update({
@@ -10556,8 +10697,13 @@ def generate_integrated_commune_report(commune_name, filters=None):
                             "coords": [lat_c, lon_c],
                             "distance_bt": round(d_bt, 2) if d_bt is not None else None,
                             "distance_hta": round(d_hta, 2) if d_hta is not None else None,
-                            "nom_commune": commune_name
+                            "nom_commune": commune_name,
+                            "parcelles_cadastrales": parcelles_cadastrales,
+                            "nb_parcelles_cadastrales": len(parcelles_cadastrales)
                         })
+                        
+                        # Debug: vérifier les propriétés enrichies
+                        print(f"      🔍 [DEBUG ZONE] Propriétés enrichies - parcelles: {len(props_enrichies.get('parcelles_cadastrales', []))} parcelles")
                         
                         zones_data.append({
                             "type": "Feature",
@@ -11081,58 +11227,68 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 "features": eleveurs_data
             },
             "zones_analysis": zones_analysis,
-            "zones": {
-                "type": "FeatureCollection",
-                "features": zones_data
-            },
-            "parkings_analysis": parkings_analysis,
-            "friches_analysis": friches_analysis,
-            "toitures_analysis": toitures_analysis,
+        }
+        
+        # Debug: vérifier le contenu des zones_data avant ajout au rapport
+        print(f"🔍 [DEBUG RAPPORT] {len(zones_data)} zones dans zones_data avant ajout au rapport")
+        if zones_data:
+            first_zone = zones_data[0]
+            props = first_zone.get("properties", {})
+            print(f"🔍 [DEBUG RAPPORT] Première zone - parcelles: {len(props.get('parcelles_cadastrales', []))} cadastrales")
+            if props.get('parcelles_cadastrales'):
+                print(f"🔍 [DEBUG RAPPORT] Première parcelle: {props['parcelles_cadastrales'][0]}")
+        
+        rapport["zones"] = {
+            "type": "FeatureCollection",
+            "features": zones_data
+        }
+        rapport["parkings_analysis"] = parkings_analysis
+        rapport["friches_analysis"] = friches_analysis
+        rapport["toitures_analysis"] = toitures_analysis
             
-            "infrastructures_analysis": {
-                "energie": {
-                    "postes_electriques": {
-                        "postes_bt": {"count": len(postes_bt_data)},
-                        "postes_hta": {"count": len(postes_hta_data)}
-                    }
+        rapport["infrastructures_analysis"] = {
+            "energie": {
+                "postes_electriques": {
+                    "postes_bt": {"count": len(postes_bt_data)},
+                    "postes_hta": {"count": len(postes_hta_data)}
                 }
-            },
-            
-            "environnement_analysis": {
-                "zones_protegees": api_nature.get("summary", {}),
-                "biodiversite": {
-                    "zones_natura2000": api_nature.get("details", {}).get("natura2000_directive_habitat", {}).get("count", 0) + 
-                                       api_nature.get("details", {}).get("natura2000_directive_oiseaux", {}).get("count", 0),
-                    "znieff": api_nature.get("details", {}).get("znieff_type1", {}).get("count", 0) + 
-                             api_nature.get("details", {}).get("znieff_type2", {}).get("count", 0)
-                }
-            },
-            
-            "socioeconomique_analysis": {
-                "economie": {
-                    "entreprises": {"total": len(sirene_data)}
-                }
-            },
-            
-            "synthese_recommandations": {
-                "points_forts": [],
-                "recommandations_strategiques": {
-                    "court_terme": ["Analyser le potentiel photovoltaïque des toitures"],
-                    "moyen_terme": ["Développer la valorisation des friches"],
-                    "long_terme": ["Optimiser l'usage des terres agricoles"]
-                },
-                "potentiel_global": {
-                    "score_potentiel_energetique": min(100, (toitures_analysis["resume_executif"]["total_toitures"] * 2)),
-                    "score_potentiel_economique": min(100, (len(sirene_data) / 10)),
-                    "score_qualite_environnementale": min(100, (api_nature.get("summary", {}).get("total_zones", 0) * 10))
-                }
-            },
-            
-            "api_data": {
-                "cadastre": api_cadastre,
-                "nature": api_nature,
-                "urbanisme": api_urbanisme
             }
+        }
+            
+        rapport["environnement_analysis"] = {
+            "zones_protegees": api_nature.get("summary", {}),
+            "biodiversite": {
+                "zones_natura2000": api_nature.get("details", {}).get("natura2000_directive_habitat", {}).get("count", 0) + 
+                                   api_nature.get("details", {}).get("natura2000_directive_oiseaux", {}).get("count", 0),
+                "znieff": api_nature.get("details", {}).get("znieff_type1", {}).get("count", 0) + 
+                         api_nature.get("details", {}).get("znieff_type2", {}).get("count", 0)
+            }
+        }
+            
+        rapport["socioeconomique_analysis"] = {
+            "economie": {
+                "entreprises": {"total": len(sirene_data)}
+            }
+        }
+            
+        rapport["synthese_recommandations"] = {
+            "points_forts": [],
+            "recommandations_strategiques": {
+                "court_terme": ["Analyser le potentiel photovoltaïque des toitures"],
+                "moyen_terme": ["Développer la valorisation des friches"],
+                "long_terme": ["Optimiser l'usage des terres agricoles"]
+            },
+            "potentiel_global": {
+                "score_potentiel_energetique": min(100, (toitures_analysis["resume_executif"]["total_toitures"] * 2)),
+                "score_potentiel_economique": min(100, (len(sirene_data) / 10)),
+                "score_qualite_environnementale": min(100, (api_nature.get("summary", {}).get("total_zones", 0) * 10))
+            }
+        }
+            
+        rapport["api_data"] = {
+            "cadastre": api_cadastre,
+            "nature": api_nature,
+            "urbanisme": api_urbanisme
         }
 
         # Génération d'une carte Folium dédiée au rapport (parkings, friches, toitures, postes)

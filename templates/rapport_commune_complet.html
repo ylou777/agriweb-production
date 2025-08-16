@@ -105,13 +105,20 @@
             <div class="col-12">
                 {% if rapport.carte_url %}
                 <div class="mb-3">
-                    <div class="section-header">
+                    <div class="section-header d-flex justify-content-between align-items-center">
                         <h2><i class="bi bi-map"></i> Carte interactive</h2>
+                        <div>
+                            <button class="btn btn-outline-primary btn-sm" onclick="openMapFullscreen()" title="Ouvrir la carte en plein écran">
+                                <i class="bi bi-fullscreen"></i> Plein écran
+                            </button>
+                        </div>
                     </div>
-                    <iframe src="{{ rapport.carte_url }}" width="100%" height="420" class="map-frame" title="Carte interactive de la commune"></iframe>
-                    {% if rapport.carte_static_url %}
-                    <img src="{{ rapport.carte_static_url }}" alt="Carte statique de la commune" class="print-map mt-2" />
-                    {% endif %}
+                    <div class="position-relative">
+                        <iframe src="{{ rapport.carte_url }}" width="100%" height="420" class="map-frame" title="Carte interactive de la commune" id="mainMapFrame"></iframe>
+                        {% if rapport.carte_static_url %}
+                        <img src="{{ rapport.carte_static_url }}" alt="Carte statique de la commune" class="print-map mt-2" />
+                        {% endif %}
+                    </div>
                 </div>
                 {% endif %}
                 <!-- Informations générales -->
@@ -206,8 +213,13 @@
 
                 <!-- Analyse RPG -->
                 {% if filters and filters.get('filter_rpg', True) and rapport.rpg_analysis %}
-                <div class="section-header">
+                <div class="section-header d-flex justify-content-between align-items-center">
                     <h3><i class="bi bi-grid"></i> Analyse RPG (Registre Parcellaire Graphique)</h3>
+                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
+                            data-section="rpg"
+                            title="Zoom sur une parcelle RPG">
+                        <i class="bi bi-zoom-in"></i> Voir sur carte
+                    </button>
                 </div>
                 
                 <div class="row">
@@ -254,6 +266,7 @@
                                     <th>Distance BT</th>
                                     <th>Distance HTA</th>
                                     <th>Position</th>
+                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -297,6 +310,17 @@
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        {% if props.coords and props.coords|length >= 2 and props.coords[0] and props.coords[1] %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                title="Zoomer sur cette parcelle"
+                                                onclick="zoomToLocation({{ props.coords[0] }}, {{ props.coords[1] }}, 'Parcelle agricole')">
+                                            <i class="fas fa-search-plus"></i>
+                                        </button>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -317,6 +341,7 @@
                                     <th>Activité</th>
                                     <th>Adresse</th>
                                     <th>Coordonnées</th>
+                                    <th>Zoom</th>
                                     <th>Liens</th>
                                 </tr>
                             </thead>
@@ -366,6 +391,17 @@
                                         {% endif %}
                                     </td>
                                     <td>
+                                        {% if coords and coords|length >= 2 and coords[0] and coords[1] %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                title="Zoomer sur cet éleveur"
+                                                onclick="zoomToLocation({{ coords[1] }}, {{ coords[0] }}, 'Eleveur')">
+                                            <i class="fas fa-search-plus"></i>
+                                        </button>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         <div class="d-flex flex-column gap-1">
                                             {% if props.lien_entreprise %}
                                             <a href="{{ props.lien_entreprise }}" target="_blank" class="btn btn-sm btn-outline-primary">
@@ -398,8 +434,13 @@
                 {% set parkings = rapport.get('parkings_analysis', {}) %}
                 {% set park_rs = parkings.get('resume_executif', {}) %}
                 {% if park_rs.get('total_parkings', 0) > 0 %}
-                <div class="section-header">
+                <div class="section-header d-flex justify-content-between align-items-center">
                     <h3><i class="bi bi-car-front"></i> Analyse Parkings</h3>
+                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
+                            data-section="parkings"
+                            title="Zoom sur un parking">
+                        <i class="bi bi-zoom-in"></i> Voir sur carte
+                    </button>
                 </div>
                 
                 <div class="row">
@@ -441,7 +482,7 @@
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Liens</th>
+                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -474,7 +515,15 @@
                                     </td>
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
                                     <td>
-                                        <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
+                                        {% if d.lat and d.lon %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                title="Zoomer sur ce parking"
+                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Parking')">
+                                            <i class="fas fa-search-plus"></i>
+                                        </button>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -488,8 +537,13 @@
 
                 <!-- Analyse Friches -->
                 {% if filters and filters.get('filter_friches', True) and rapport.friches_analysis and rapport.friches_analysis.resume_executif.total_friches > 0 %}
-                <div class="section-header">
+                <div class="section-header d-flex justify-content-between align-items-center">
                     <h3><i class="bi bi-building"></i> Analyse Friches</h3>
+                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
+                            data-section="friches"
+                            title="Zoom sur une friche">
+                        <i class="bi bi-zoom-in"></i> Voir sur carte
+                    </button>
                 </div>
                 
                 <div class="analysis-detail">
@@ -514,7 +568,7 @@
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Liens</th>
+                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -547,7 +601,15 @@
                                     </td>
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
                                     <td>
-                                        <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
+                                        {% if d.lat and d.lon %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                title="Zoomer sur cette friche"
+                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Friche')">
+                                            <i class="fas fa-search-plus"></i>
+                                        </button>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -562,8 +624,13 @@
                 {% if filters and filters.get('filter_toitures', True) %}
                 {% set toits_rs = rapport.get('toitures_analysis', {}).get('resume_executif', {}) %}
                 {% if toits_rs.get('total_toitures', 0) > 0 %}
-                <div class="section-header">
+                <div class="section-header d-flex justify-content-between align-items-center">
                     <h3><i class="bi bi-house"></i> Analyse Toitures</h3>
+                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
+                            data-section="toitures"
+                            title="Zoom sur une toiture">
+                        <i class="bi bi-zoom-in"></i> Voir sur carte
+                    </button>
                 </div>
                 
                 <div class="row">
@@ -609,7 +676,7 @@
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Liens</th>
+                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -641,10 +708,15 @@
                                         {% endif %}
                                     </td>
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
-                                    <td class="text-nowrap">
-                                        <a class="btn btn-sm btn-outline-primary" href="{{ d.lien_streetview }}" target="_blank">Street View</a>
-                                        {% if d.lien_annuaire %}
-                                        <a class="btn btn-sm btn-outline-secondary" href="{{ d.lien_annuaire }}" target="_blank">Annuaire</a>
+                                    <td>
+                                        {% if d.lat and d.lon %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                title="Zoomer sur cette toiture"
+                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Toiture')">
+                                            <i class="fas fa-search-plus"></i>
+                                        </button>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -662,8 +734,13 @@
                 {% set zones = rapport.get('zones_analysis', {}) %}
                 {% set zones_rs = zones.get('resume_executif', {}) %}
                 {% if zones_rs.get('total_zones', 0) > 0 %}
-                <div class="section-header">
+                <div class="section-header d-flex justify-content-between align-items-center">
                     <h3><i class="bi bi-map"></i> Analyse Zones d'urbanisme</h3>
+                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
+                            data-section="zones"
+                            title="Zoom sur une zone d'urbanisme">
+                        <i class="bi bi-zoom-in"></i> Voir sur carte
+                    </button>
                 </div>
                 
                 <div class="row">
@@ -706,9 +783,11 @@
                                     <th>Type de zone</th>
                                     <th>Libellé</th>
                                     <th>Surface (ha)</th>
+                                    <th>Parcelles cadastrales</th>
                                     <th>Distance BT</th>
                                     <th>Distance HTA</th>
                                     <th>Position</th>
+                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -730,6 +809,19 @@
                                     </td>
                                     <td>{{ "%.2f"|format(props.surface_ha or 0) }}</td>
                                     <td>
+                                        {% if props.parcelles_cadastrales and props.parcelles_cadastrales | length > 0 %}
+                                            <span class="badge bg-primary">{{ props.nb_parcelles_cadastrales or props.parcelles_cadastrales | length }} parcelles</span>
+                                            <br>
+                                            <small class="text-muted">
+                                                {%- for parcelle in props.parcelles_cadastrales -%}
+                                                    {{ parcelle.ref }}{% if not loop.last %}, {% endif %}
+                                                {%- endfor -%}
+                                            </small>
+                                        {% else %}
+                                            <span class="text-muted">Non renseignées</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
                                         {% if props.distance_bt %}
                                             <span class="badge bg-success">{{ "%.0f"|format(props.distance_bt) }} m</span>
                                         {% else %}
@@ -750,6 +842,17 @@
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
+                                    <td>
+                                        {% if props.coords and props.coords|length >= 2 and props.coords[0] and props.coords[1] %}
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                title="Zoomer sur cette zone"
+                                                onclick="zoomToLocation({{ props.coords[0] }}, {{ props.coords[1] }}, 'Zone urbanisme')">
+                                            <i class="fas fa-search-plus"></i>
+                                        </button>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -766,5 +869,235 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Fonction pour ouvrir la carte en plein écran
+        function openMapFullscreen() {
+            const iframe = document.querySelector('iframe.map-frame');
+            if (iframe && iframe.src) {
+                // Ouvrir la carte dans un nouvel onglet
+                window.open(iframe.src, '_blank', 'width=1200,height=800');
+            } else {
+                alert('Carte non disponible');
+            }
+        }
+        
+        // Fonction pour zoomer - Version alternative qui ouvre un nouvel onglet
+        function zoomToLocation(lat, lng, name, type) {
+            // Validation des paramètres
+            if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+                console.error('Coordonnées invalides:', { lat, lng, name, type });
+                alert('Coordonnées invalides pour ce zoom');
+                return;
+            }
+            
+            // Essayer d'abord la méthode postMessage
+            const iframe = document.querySelector('iframe.map-frame');
+            console.log('Iframe trouvée:', iframe);
+            
+            if (iframe) {
+                // Fonction pour envoyer le message
+                function sendZoomMessage() {
+                    const message = {
+                        action: 'zoomTo',
+                        lat: parseFloat(lat),
+                        lng: parseFloat(lng),
+                        zoom: 16,
+                        name: name || 'Élément',
+                        type: type || 'Point'
+                    };
+                    
+                    console.log('Envoi message zoom:', message);
+                    
+                    try {
+                        iframe.contentWindow.postMessage(message, '*');
+                        console.log('Message envoyé avec succès');
+                        
+                        // Feedback visuel
+                        showZoomFeedback(name || 'Élément', type || 'Point');
+                    } catch (error) {
+                        console.error('Erreur lors de l\'envoi du message:', error);
+                        // Fallback: ouvrir dans un nouvel onglet avec Google Maps
+                        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
+                        window.open(mapUrl, '_blank');
+                    }
+                }
+                
+                // Si l'iframe est déjà chargée, envoyer immédiatement
+                if (iframe.contentWindow) {
+                    sendZoomMessage();
+                } else {
+                    // Sinon, attendre que l'iframe soit chargée
+                    iframe.onload = sendZoomMessage;
+                    // Fallback: essayer après un délai
+                    setTimeout(sendZoomMessage, 1000);
+                }
+            } else {
+                console.error('Iframe map-frame non trouvée');
+                // Fallback: ouvrir Google Maps
+                const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
+                window.open(mapUrl, '_blank');
+            }
+        }
+        
+        // Fonction principale de zoom - solution alternative robuste
+        function zoomToLocation(lat, lng, name, type) {
+            console.log('Zoom demandé:', lat, lng, name, type);
+            
+            // Valider les coordonnées
+            if (!lat || !lng || lat === 'undefined' || lng === 'undefined') {
+                console.error('Coordonnées invalides:', lat, lng);
+                alert('Coordonnées invalides pour cet élément');
+                return;
+            }
+            
+            // Convertir en nombres
+            const latitude = parseFloat(lat);
+            const longitude = parseFloat(lng);
+            
+            if (isNaN(latitude) || isNaN(longitude)) {
+                console.error('Coordonnées non numériques:', latitude, longitude);
+                alert('Coordonnées non valides');
+                return;
+            }
+            
+            // Afficher le feedback
+            showZoomFeedback(name || 'Point', type || 'position');
+            
+            // Construire l'URL de la carte avec les coordonnées - version corrigée
+            const protocol = window.location.protocol;
+            const host = window.location.host;
+            const baseUrl = `${protocol}//${host}`;
+            const mapUrl = `${baseUrl}/generated_map?lat=${latitude}&lng=${longitude}&zoom=17&name=${encodeURIComponent(name || 'Point')}`;
+            
+            console.log('URL de zoom construite:', mapUrl);
+            
+            // Essayer d'ouvrir dans un nouvel onglet
+            const mapWindow = window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
+            
+            // Vérifier si le popup a été bloqué
+            setTimeout(() => {
+                if (!mapWindow || mapWindow.closed || typeof mapWindow.closed == 'undefined') {
+                    // Popup bloqué, proposer une alternative
+                    const confirmation = confirm(
+                        'Les popups sont bloqués.\n\n' +
+                        'Voulez-vous ouvrir la carte dans l\'onglet actuel ?\n\n' +
+                        '⚠️ Cela remplacera la page du rapport.'
+                    );
+                    
+                    if (confirmation) {
+                        // Ouvrir dans l'onglet actuel
+                        window.location.href = mapUrl;
+                    } else {
+                        // Copier l'URL dans le presse-papier si possible
+                        if (navigator.clipboard) {
+                            navigator.clipboard.writeText(mapUrl).then(() => {
+                                alert('URL de la carte copiée dans le presse-papier.\nVous pouvez la coller dans un nouvel onglet.');
+                            }).catch(() => {
+                                alert('Veuillez autoriser les popups ou copier cette URL manuellement:\n\n' + mapUrl);
+                            });
+                        } else {
+                            alert('Veuillez autoriser les popups ou copier cette URL manuellement:\n\n' + mapUrl);
+                        }
+                    }
+                } else {
+                    // Popup ouvert avec succès
+                    console.log('Carte ouverte avec succès dans un nouvel onglet');
+                    mapWindow.focus();
+                }
+            }, 100);
+        }
+        
+        // Fonction pour ouvrir la carte locale en plein écran avec tous les calques
+        function openMapFullscreen() {
+            // Chercher l'iframe de la carte par ID d'abord, puis par classe
+            const mapIframe = document.querySelector('#mainMapFrame') || document.querySelector('iframe.map-frame') || document.querySelector('iframe[src*="map.html"]');
+            if (mapIframe) {
+                // Construire l'URL complète de votre carte avec tous les paramètres
+                let mapUrl = mapIframe.src;
+                
+                // Ajouter un paramètre pour indiquer le mode plein écran
+                if (mapUrl.includes('?')) {
+                    mapUrl += '&fullscreen=true';
+                } else {
+                    mapUrl += '?fullscreen=true';
+                }
+                
+                // Ouvrir votre carte locale dans un nouvel onglet en plein écran
+                const fullscreenWindow = window.open(mapUrl, '_blank', 'fullscreen=yes,scrollbars=yes,resizable=yes,width=1920,height=1080');
+                if (fullscreenWindow) {
+                    fullscreenWindow.focus();
+                    
+                    // Optionnel: demander le plein écran navigateur
+                    setTimeout(() => {
+                        try {
+                            fullscreenWindow.document.documentElement.requestFullscreen();
+                        } catch (e) {
+                            console.log('Plein écran automatique non supporté');
+                        }
+                    }, 1000);
+                } else {
+                    alert('Popup bloqué - veuillez autoriser les popups pour ouvrir la carte en plein écran');
+                }
+            } else {
+                alert('Carte non trouvée');
+            }
+        }
+        
+        // Feedback visuel pour confirmer le zoom
+        function showZoomFeedback(name, type) {
+            // Créer une notification temporaire
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success position-fixed';
+            notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+            notification.innerHTML = `
+                <i class="bi bi-zoom-in"></i> 
+                Zoom sur: <strong>${name}</strong> 
+                <small>(${type})</small>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Supprimer après 3 secondes
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+        
+        // Fonction simplifiée pour zoomer sur une section (fallback vers Google Maps)
+        function zoomToSection(sectionType) {
+            alert('Fonction de zoom par section - utilisez les boutons de zoom individuels pour plus de précision');
+        }
+        
+        // Gestionnaire d'événements pour les boutons de zoom
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM chargé, initialisation des boutons de zoom');
+            
+            // Boutons de zoom individuels
+            document.querySelectorAll('.zoom-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const lat = this.getAttribute('data-lat');
+                    const lng = this.getAttribute('data-lng');
+                    const name = this.getAttribute('data-name');
+                    const type = this.getAttribute('data-type');
+                    
+                    console.log('Clic sur bouton zoom:', lat, lng, name, type);
+                    zoomToLocation(lat, lng, name, type);
+                });
+            });
+            
+            // Boutons de zoom par section
+            document.querySelectorAll('.section-zoom-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const sectionType = this.getAttribute('data-section');
+                    zoomToSection(sectionType);
+                });
+            });
+            
+            console.log('Boutons de zoom initialisés:', document.querySelectorAll('.zoom-btn').length, 'individuels,', document.querySelectorAll('.section-zoom-btn').length, 'sections');
+        });
+    </script>
 </body>
 </html>
