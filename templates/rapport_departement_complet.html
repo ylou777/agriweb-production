@@ -5,26 +5,91 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rapport Département</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .summary { background: #f0f8ff; padding: 15px; border-radius: 5px; margin: 20px 0; }
-    .summary-stats { display: flex; gap: 20px; justify-content: space-around; }
-    .stat { text-align: center; }
-    .stat h4 { margin: 0; font-size: 2em; color: #2c5282; }
-    .section { margin-bottom: 30px; }
-    .carte-iframe { width: 100%; height: 500px; border: none; margin: 20px 0; }
-    .top50 { width: 100%; border-collapse: collapse; margin: 20px 0; }
-    .top50 th, .top50 td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    .top50 th { background-color: #f2f2f2; }
-    .eleveurs { margin-top: 20px; }
-    .eleveur-card { background: #f9f9f9; padding: 10px; margin: 10px 0; border-radius: 5px; }
-    .mairie-box { background: #e8f4fd; padding: 10px; margin: 10px 0; border-radius: 5px; }
-    .mairie-box span { display: block; margin: 2px 0; }
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 20px; 
+      line-height: 1.6; 
+    }
+    .header { 
+      text-align: center; 
+      margin-bottom: 30px; 
+    }
+    .synth-section { 
+      background: #e8eefa; 
+      padding: 15px 24px 22px 24px; 
+      margin-bottom: 44px; 
+      border-radius: 10px; 
+    }
+    .section { 
+      margin-bottom: 44px; 
+    }
+    .label { 
+      font-weight: bold; 
+      color: #224; 
+    }
+    .small { 
+      font-size: 0.95em; 
+      color: #777; 
+    }
+    a { 
+      color: #275dab; 
+      text-decoration: none;
+    }
+    a:hover { 
+      text-decoration: underline;
+    }
+    .top50 { 
+      width: 100%; 
+      border-collapse: collapse; 
+      margin: 18px 0; 
+    }
+    .top50 th, .top50 td { 
+      border: 1px solid #ddd; 
+      padding: 8px; 
+      text-align: left; 
+      font-size: 1em; 
+    }
+    .top50 th { 
+      background-color: #f2f2f2; 
+    }
+    .mairie-box { 
+      margin: 10px 0 25px 0; 
+      background: #f2f7ff; 
+      border-radius: 8px; 
+      padding: 12px 22px; 
+    }
+    .mairie-box h4 { 
+      margin: 0 0 7px 0; 
+      color: #275dab; 
+    }
+    .mairie-box span { 
+      display: block; 
+    }
+    .carte-iframe { 
+      width: 100%; 
+      height: 600px; 
+      border: 1px solid #888; 
+      border-radius: 8px; 
+      margin-bottom: 32px; 
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 15px 0;
+    }
+    table th, table td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    table th {
+      background-color: #f2f2f2;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>Rapport par Département</h1>
+    <h1>Rapport du département {{ dept or '' }}</h1>
   </div>
 
   {% if carte_url %}
@@ -39,36 +104,9 @@
       <li>Nombre total d'agriculteurs : <b>{{ synthese.nb_agriculteurs }}</b></li>
       <li>Nombre total de parcelles RPG : <b>{{ synthese.nb_parcelles }}</b></li>
     </ul>
-    .label { font-weight: bold; color: #224; }
-    .small { font-size: 0.95em; color: #777; }
-    a { color: #275dab; text-decoration: none;}
-    a:hover { text-decoration: underline;}
-    .section { margin-bottom: 44px; }
-    .synth-section { background: #e8eefa; padding: 15px 24px 22px 24px; margin-bottom: 44px; border-radius: 10px; }
-    .top50 { margin-top: 18px; }
-    .top50 th, .top50 td { font-size: 1em; }
-    .mairie-box { margin: 10px 0 25px 0; background: #f2f7ff; border-radius: 8px; padding: 12px 22px; }
-    .mairie-box h4 { margin: 0 0 7px 0; color: #275dab; }
-    .mairie-box span { display: block; }
-    .carte-iframe { width: 100%; height: 600px; border: 1px solid #888; border-radius: 8px; margin-bottom: 32px; }
-  </style>
-</head>
-<body>
-  <h1>Rapport du département {{ dept or '' }}</h1>
-
-  {% if carte_url %}
-    <h3>Carte interactive</h3>
-    <iframe class="carte-iframe" src="/{{ carte_url }}" allowfullscreen title="Carte interactive du département"></iframe>
-  {% endif %}
-
-  {% if synthese %}
-  <div class="synth-section">
-    <h2>Synthèse départementale</h2>
-    <ul>
-      <li>Nombre total d’agriculteurs : <b>{{ synthese.nb_agriculteurs }}</b></li>
-      <li>Nombre total de parcelles RPG : <b>{{ synthese.nb_parcelles }}</b></li>
-    </ul>
-    <h3>Top 50 parcelles les plus proches d’un poste d’injection</h3>
+    
+    {% if synthese.top50 %}
+    <h3>Top 50 parcelles les plus proches d'un poste d'injection</h3>
     <table class="top50">
       <thead>
         <tr>
@@ -129,12 +167,14 @@
       {% endfor %}
       </tbody>
     </table>
+    {% endif %}
   </div>
   {% endif %}
 
   {% for report in reports %}
     <div class="section">
       <h2>Commune : {{ report.nom or report.commune or 'N/A' }}</h2>
+      
       {% if report.mairie %}
       <div class="mairie-box">
         <h4>Mairie</h4>
@@ -144,6 +184,7 @@
         {% if report.mairie.site %}<span><b>Site web :</b> <a href="{{ report.mairie.site }}" target="_blank">{{ report.mairie.site }}</a></span>{% endif %}
       </div>
       {% endif %}
+      
       <ul>
         <li>
           Nombre de parcelles RPG :
@@ -162,6 +203,7 @@
           {{ report.eleveurs.features|length if report.eleveurs and report.eleveurs.features else '0' }}
         </li>
       </ul>
+      
       <div class="small">
         <span class="label">Surface :</span> {{ report.surface or 'N/A' }} ha &nbsp; 
         <span class="label">Population :</span> {{ report.population or 'N/A' }}
@@ -243,7 +285,6 @@
         <em>Aucun poste HTA.</em>
       {% endif %}
 
-      <!-- Capacités d'accueil HTA -->
       <h3>Capacités d'accueil réseau HTA</h3>
       {% if report.hta_capacites and report.hta_capacites.features and report.hta_capacites.features|length > 0 %}
         <table>

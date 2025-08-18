@@ -1,5 +1,6 @@
 # --- GeoRisques API: fetch risks for a point ---
 import requests
+from datetime import datetime
 
 # Fonction utilitaire pour logging sécurisé (évite les erreurs WinError 233)
 def safe_print(*args, **kwargs):
@@ -9,6 +10,91 @@ def safe_print(*args, **kwargs):
     except OSError:
         # Ignorer les erreurs de canal fermé (WinError 233)
         pass
+
+def log_search_start(commune, params):
+    """Log détaillé du début d'une recherche"""
+    print(f"\n{'='*80}")
+    print(f"🔍 [RECHERCHE COMMUNE] === DÉBUT RECHERCHE POUR '{commune.upper()}' ===")
+    print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"📍 Commune: {commune}")
+    print(f"🎯 Filtres actifs:")
+    
+    if params['filter_rpg']:
+        print(f"   🌾 RPG: OUI (surface {params['rpg_min_area']}-{params['rpg_max_area']} ha)")
+    else:
+        print(f"   🌾 RPG: NON")
+        
+    if params['filter_parkings']:
+        print(f"   🅿️ Parkings: OUI (surface min {params['parking_min_area']} m²)")
+    else:
+        print(f"   🅿️ Parkings: NON")
+        
+    if params['filter_friches']:
+        print(f"   🏚️ Friches: OUI (surface min {params['friches_min_area']} m²)")
+    else:
+        print(f"   🏚️ Friches: NON")
+        
+    if params['filter_zones']:
+        type_zone = params['zones_type_filter'] or 'toutes'
+        print(f"   🏗️ Zones urbanisme: OUI (type: {type_zone}, surface min {params['zones_min_area']} m²)")
+    else:
+        print(f"   🏗️ Zones urbanisme: NON")
+        
+    if params['filter_toitures']:
+        print(f"   🏠 Toitures: OUI (surface min {params['toitures_min_surface']} m²)")
+    else:
+        print(f"   🏠 Toitures: NON")
+        
+    if params['filter_by_distance']:
+        logic = "ET" if params['distance_logic'] == 'AND' else "OU"
+        print(f"   📏 Filtrage distance: OUI (BT<{params['max_distance_bt']}m {logic} HTA<{params['max_distance_hta']}m)")
+    else:
+        print(f"   📏 Filtrage distance: NON")
+        
+    print(f"⚡ Paramètres techniques:")
+    print(f"   - Distance max HTA: {params['ht_max_km']} km")
+    print(f"   - Distance max BT: {params['bt_max_km']} km") 
+    print(f"   - Rayon SIRENE: {params['sir_km']} km")
+    print(f"{'='*80}")
+
+def log_data_collection(step, details):
+    """Log détaillé de la collecte de données"""
+    print(f"📊 [COLLECTE] {step}: {details}")
+
+def log_search_results(commune, results):
+    """Log détaillé des résultats de recherche"""
+    print(f"\n{'='*80}")
+    print(f"✅ [RÉSULTATS] === RECHERCHE TERMINÉE POUR '{commune.upper()}' ===")
+    print(f"📊 Données collectées:")
+    
+    # Compter les éléments trouvés
+    rpg_count = len(results.get('rpg', []))
+    parkings_count = len(results.get('parkings', {}).get('features', []))
+    friches_count = len(results.get('friches', {}).get('features', []))
+    toitures_count = len(results.get('toitures', {}).get('features', []))
+    zones_count = len(results.get('plu', []))
+    parcelles_zones_count = len(results.get('parcelles_in_zones', {}).get('features', []))
+    eleveurs_count = len(results.get('eleveurs', []))
+    postes_bt_count = len(results.get('postes_bt', []))
+    postes_hta_count = len(results.get('postes_hta', []))
+    sirene_count = len(results.get('sirene', []))
+    
+    print(f"   🌾 Parcelles RPG: {rpg_count}")
+    print(f"   🅿️ Parkings: {parkings_count}")
+    print(f"   🏚️ Friches: {friches_count}")
+    print(f"   🏠 Toitures: {toitures_count}")
+    print(f"   🏗️ Zones d'urbanisme: {zones_count}")
+    print(f"   📐 Parcelles dans zones: {parcelles_zones_count}")
+    print(f"   🐄 Éleveurs: {eleveurs_count}")
+    print(f"   ⚡ Postes BT: {postes_bt_count}")
+    print(f"   🔌 Postes HTA: {postes_hta_count}")
+    print(f"   🏢 Entreprises SIRENE: {sirene_count}")
+    
+    total_elements = rpg_count + parkings_count + friches_count + toitures_count + zones_count + eleveurs_count
+    print(f"📈 Total éléments géographiques: {total_elements}")
+    print(f"🎯 Filtres appliqués: {len([f for f in results.get('filters_applied', {}).values() if f.get('active', False)])}")
+    print(f"⏱️ Recherche terminée: {datetime.now().strftime('%H:%M:%S')}")
+    print(f"{'='*80}\n")
 def fetch_georisques_risks(lat, lon):
     """
     Appelle l'API GeoRisques pour obtenir les risques naturels et technologiques pour un point.
@@ -1969,37 +2055,94 @@ def enrich_rpg_with_cadastre_num(rpg_features):
         enriched.append(feat)
     return enriched
 def synthese_departement(reports):
-    # Fusionne toutes les parcelles rpg
+    """
+    Synthèse départementale corrigée pour agréger correctement les données
+    """
+    print(f"[SYNTHESE_DEPT] Traitement de {len(reports)} rapports communaux")
+    
+    # Fusionne toutes les parcelles rpg et éleveurs
     all_rpg = []
     all_eleveurs = []
-    for rpt in reports:
-        fc = rpt.get("rpg_parcelles", {})
-        if fc and isinstance(fc, dict):
-            all_rpg.extend(fc.get("features", []))
+    
+    for i, rpt in enumerate(reports):
+        print(f"[SYNTHESE_DEPT] Rapport {i+1}: {rpt.get('commune', 'N/A')}")
+        
+        # Traitement RPG
+        fc_rpg = rpt.get("rpg_parcelles", {})
+        if fc_rpg and isinstance(fc_rpg, dict) and "features" in fc_rpg:
+            features_rpg = fc_rpg.get("features", [])
+            all_rpg.extend(features_rpg)
+            print(f"[SYNTHESE_DEPT]   - Ajout {len(features_rpg)} parcelles RPG")
+        else:
+            print(f"[SYNTHESE_DEPT]   - Aucune parcelle RPG")
+            
+        # Traitement éleveurs  
         fc_e = rpt.get("eleveurs", {})
-        if fc_e and isinstance(fc_e, dict):
-            all_eleveurs.extend(fc_e.get("features", []))
+        if fc_e and isinstance(fc_e, dict) and "features" in fc_e:
+            features_eleveurs = fc_e.get("features", [])
+            all_eleveurs.extend(features_eleveurs)
+            print(f"[SYNTHESE_DEPT]   - Ajout {len(features_eleveurs)} éleveurs")
+        else:
+            print(f"[SYNTHESE_DEPT]   - Aucun éleveur")
 
-    # Classement top 50 (distance au poste BT ou HTA)
+    print(f"[SYNTHESE_DEPT] Total agrégé: {len(all_rpg)} parcelles RPG, {len(all_eleveurs)} éleveurs")
+
+    # Fonction de tri par distance améliorée
     def get_dist(feat):
-        # Préfère BT, sinon HTA, sinon grand nombre
         props = feat.get("properties", {})
-        for key in ["distance_bt", "distance_au_poste", "distance_hta"]:
+        # Cherche dans tous les champs de distance possibles
+        for key in ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]:
             v = props.get(key)
-            if v is not None and isinstance(v, (int, float)):
+            if v is not None and isinstance(v, (int, float)) and v > 0:
                 return v
         return 999999
-    all_rpg_sorted = sorted(all_rpg, key=get_dist)
+
+    # Déduplication des parcelles RPG (évite les doublons entre communes)
+    def deduplicate_parcelles(features):
+        seen = set()
+        unique = []
+        for p in features:
+            props = p.get("properties", {})
+            # Clé unique basée sur plusieurs identifiants
+            key = (
+                props.get("ID_PARCEL") or props.get("id"),
+                props.get("code_com"),
+                props.get("com_abs"),
+                props.get("section") or props.get("cadastre_section"),
+                props.get("numero") or props.get("cadastre_numero")
+            )
+            if key not in seen:
+                seen.add(key)
+                unique.append(p)
+        return unique
+
+    # Déduplication et tri
+    all_rpg_unique = deduplicate_parcelles(all_rpg)
+    all_rpg_sorted = sorted(all_rpg_unique, key=get_dist)
     top50 = all_rpg_sorted[:50]
 
-    # Croisement avec cadastre
-    top50 = enrich_rpg_with_cadastre_num(top50)
+    print(f"[SYNTHESE_DEPT] Après déduplication: {len(all_rpg_unique)} parcelles uniques")
+    print(f"[SYNTHESE_DEPT] TOP 50 sélectionné")
 
-    return {
-        "total_eleveurs": len(all_eleveurs),
-        "total_parcelles": len(all_rpg),
-        "top50_parcelles": top50
+    # Enrichissement cadastre avec gestion d'erreur
+    try:
+        top50 = enrich_rpg_with_cadastre_num(top50)
+        print(f"[SYNTHESE_DEPT] Enrichissement cadastre terminé")
+    except Exception as e:
+        print(f"[SYNTHESE_DEPT] Erreur enrichissement cadastre: {e}")
+
+    synthese_result = {
+        "nb_agriculteurs": len(all_eleveurs),  # Correspond au template
+        "nb_parcelles": len(all_rpg_unique),   # Correspond au template
+        "total_eleveurs": len(all_eleveurs),   # Backup pour la compatibilité
+        "total_parcelles": len(all_rpg_unique), # Backup pour la compatibilité
+        "top50_parcelles": top50,             # Backup pour la compatibilité
+        "top50": top50                        # Correspond au template
     }
+    
+    print(f"[SYNTHESE_DEPT] Synthèse finale: {synthese_result['total_eleveurs']} éleveurs, {synthese_result['total_parcelles']} parcelles")
+    
+    return synthese_result
 def get_commune_mairie(nom_commune):
     url = f"https://geo.api.gouv.fr/communes?nom={quote_plus(nom_commune)}&fields=mairie"
     resp = requests.get(url, timeout=10)
@@ -3353,6 +3496,19 @@ def search_by_commune():
         # Nouveau filtre pour calculer la surface non bâtie
         calculate_surface_libre = flask_request.values.get("calculate_surface_libre", "false").lower() == "true"
         
+        # Log détaillé du début de la recherche
+        params_log = {
+            'filter_rpg': filter_rpg, 'rpg_min_area': rpg_min_area, 'rpg_max_area': rpg_max_area,
+            'filter_parkings': filter_parkings, 'parking_min_area': parking_min_area,
+            'filter_friches': filter_friches, 'friches_min_area': friches_min_area,
+            'filter_zones': filter_zones, 'zones_min_area': zones_min_area, 'zones_type_filter': zones_type_filter,
+            'filter_toitures': filter_toitures, 'toitures_min_surface': toitures_min_surface,
+            'filter_by_distance': filter_by_distance, 'max_distance_bt': max_distance_bt, 
+            'max_distance_hta': max_distance_hta, 'distance_logic': distance_logic,
+            'ht_max_km': ht_max_km, 'bt_max_km': bt_max_km, 'sir_km': sir_km
+        }
+        log_search_start(commune, params_log)
+        
     except OSError as e:
         # Erreur de canal fermé (WinError 233) - utiliser des valeurs par défaut
         safe_print(f"⚠️ [PARAMÈTRES] Erreur lecture paramètres: {e}, utilisation valeurs par défaut")
@@ -3450,23 +3606,61 @@ def search_by_commune():
     print(f"🆕 [COMMUNE_POLYGON] Récupération exhaustive sur toute la commune: {commune}")
     
     # Utilisation des nouvelles fonctions qui exploitent le polygone complet de la commune
-    rpg_raw          = get_rpg_info_by_polygon(contour) if filter_rpg else []
-    postes_bt_data   = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
-    postes_hta_data  = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
-    eleveurs_data    = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
+    log_data_collection("DÉBUT", "Collecte des données géographiques")
+    
+    rpg_raw = []
+    if filter_rpg:
+        log_data_collection("RPG", f"Récupération parcelles RPG (surface {rpg_min_area}-{rpg_max_area} ha)")
+        rpg_raw = get_rpg_info_by_polygon(contour)
+        log_data_collection("RPG", f"✅ {len(rpg_raw)} parcelles RPG récupérées")
+    else:
+        log_data_collection("RPG", "❌ Récupération RPG désactivée")
+    
+    log_data_collection("POSTES", "Récupération des postes électriques")
+    postes_bt_data = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
+    postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+    log_data_collection("POSTES", f"✅ {len(postes_bt_data)} postes BT, {len(postes_hta_data)} postes HTA")
+    
+    log_data_collection("ÉLEVEURS", "Récupération des données éleveurs")
+    eleveurs_data = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
+    log_data_collection("ÉLEVEURS", f"✅ {len(eleveurs_data)} exploitants trouvés")
+    
     # plu_info sera remplacé par filtered_zones après l'optimisation des zones
-    plu_info_temp    = get_plu_info_by_polygon(contour)
-    zaer_data        = get_zaer_info_by_polygon(contour)
+    log_data_collection("PLU", "Récupération des zones d'urbanisme")
+    plu_info_temp = get_plu_info_by_polygon(contour)
+    log_data_collection("PLU", f"✅ {len(plu_info_temp)} zones PLU récupérées")
+    
+    log_data_collection("ZAER", "Récupération des zones ZAER")
+    zaer_data = get_zaer_info_by_polygon(contour)
+    log_data_collection("ZAER", f"✅ {len(zaer_data)} zones ZAER trouvées")
     
     # Récupération conditionnelle des données avec filtrage - NOUVELLE MÉTHODE POLYGONE
-    parkings_data    = get_parkings_info_by_polygon(contour) if filter_parkings else []
-    friches_data     = get_friches_info_by_polygon(contour) if filter_friches else []
+    parkings_data = []
+    if filter_parkings:
+        log_data_collection("PARKINGS", f"Récupération parkings (surface min {parking_min_area} m²)")
+        parkings_data = get_parkings_info_by_polygon(contour)
+        log_data_collection("PARKINGS", f"✅ {len(parkings_data)} parkings récupérés")
+    else:
+        log_data_collection("PARKINGS", "❌ Récupération parkings désactivée")
+    
+    friches_data = []
+    if filter_friches:
+        log_data_collection("FRICHES", f"Récupération friches (surface min {friches_min_area} m²)")
+        friches_data = get_friches_info_by_polygon(contour)
+        log_data_collection("FRICHES", f"✅ {len(friches_data)} friches récupérées")
+    else:
+        log_data_collection("FRICHES", "❌ Récupération friches désactivée")
     
     # Données toujours récupérées pour les calculs de distance - NOUVELLE MÉTHODE POLYGONE
-    solaire_data     = get_solaire_info_by_polygon(contour)
-    sirene_data      = get_sirene_info_by_polygon(contour)
+    log_data_collection("SOLAIRE", "Récupération du potentiel solaire")
+    solaire_data = get_solaire_info_by_polygon(contour)
+    log_data_collection("SOLAIRE", f"✅ {len(solaire_data)} données solaires récupérées")
+    
+    log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
+    sirene_data = get_sirene_info_by_polygon(contour)
+    log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
 
-    point          = {"type": "Point", "coordinates": [lon, lat]}
+    point = {"type": "Point", "coordinates": [lon, lat]}
     
     # Fonction d'optimisation pour éviter les erreurs 414 "Request-URI Too Large"
     def optimize_geometry_for_api(geom):
@@ -3568,8 +3762,13 @@ def search_by_commune():
     
     # 5b) Filtrage des parkings selon les critères (utilise les sliders unifiés)
     if filter_parkings and parkings_data:
+        log_data_collection("FILTRAGE PARKINGS", f"Début filtrage sur {len(parkings_data)} parkings")
         print(f"🔍 [PARKINGS] Filtrage: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
         print(f"🔍 [PARKINGS] Parkings bruts récupérés: {len(parkings_data)}")
+        
+        surfaces_rejetees = 0
+        distances_rejetees = 0
+        
         for feat in parkings_data:
             if "geometry" not in feat:
                 continue
@@ -3580,6 +3779,7 @@ def search_by_commune():
                 # Calcul de la surface en m²
                 area_m2 = shp_transform(to_l93, poly).area
                 if area_m2 < parking_min_area:
+                    surfaces_rejetees += 1
                     continue
 
                 # Calcul de la distance aux postes BT/HTA
@@ -3601,6 +3801,7 @@ def search_by_commune():
                     # Pas de filtrage par distance lorsque l'option n'est pas cochée
                     distance_ok = True
                 if not distance_ok:
+                    distances_rejetees += 1
                     continue
 
                 # Enrichissement des propriétés
@@ -3634,6 +3835,13 @@ def search_by_commune():
             except Exception as e:
                 print(f"⚠️ Erreur filtrage parking: {e}")
                 continue
+        
+        # Log détaillé des résultats de filtrage
+        total_rejets = surfaces_rejetees + distances_rejetees
+        log_data_collection("FILTRAGE PARKINGS", 
+                          f"✅ {len(filtered_parkings)} retenus / {len(parkings_data)} analysés")
+        log_data_collection("FILTRAGE PARKINGS", 
+                          f"❌ Rejetés: {surfaces_rejetees} (surface), {distances_rejetees} (distance)")
         print(f"✅ [PARKINGS] {len(filtered_parkings)} parkings trouvés après filtrage")
         
         # 5b-bis) Récupération optimisée des références cadastrales pour les parkings sélectionnés
@@ -3706,7 +3914,13 @@ def search_by_commune():
     
     # 5c) Filtrage des friches selon les critères (utilise les sliders unifiés)
     if filter_friches and friches_data:
+        log_data_collection("FRICHES", f"🎯 Début filtrage: {len(friches_data)} friches à analyser")
         print(f"🔍 [FRICHES] Filtrage: >{friches_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        
+        # Compteurs de rejet
+        surfaces_rejetees = 0
+        distances_rejetees = 0
+        
         for feat in friches_data:
             if "geometry" not in feat:
                 continue
@@ -3717,6 +3931,7 @@ def search_by_commune():
                 # Calcul de la surface en m²
                 area_m2 = shp_transform(to_l93, poly).area
                 if area_m2 < friches_min_area:
+                    surfaces_rejetees += 1
                     continue
 
                 # Calcul de la distance aux postes BT/HTA
@@ -3738,6 +3953,7 @@ def search_by_commune():
                     # Pas de filtrage par distance lorsque l'option n'est pas cochée
                     distance_ok = True
                 if not distance_ok:
+                    distances_rejetees += 1
                     continue
 
                 # Enrichissement des propriétés
@@ -3771,6 +3987,12 @@ def search_by_commune():
             except Exception as e:
                 print(f"⚠️ Erreur filtrage friche: {e}")
                 continue
+        
+        # Log détaillé des résultats de filtrage
+        log_data_collection("FILTRAGE FRICHES", 
+                          f"✅ {len(filtered_friches)} retenues / {len(friches_data)} analysées")
+        log_data_collection("FILTRAGE FRICHES", 
+                          f"❌ Rejetées: {surfaces_rejetees} (surface), {distances_rejetees} (distance)")
         print(f"✅ [FRICHES] {len(filtered_friches)} friches trouvées après filtrage")
         
         # 5c-bis) Récupération optimisée des références cadastrales pour les friches sélectionnées
@@ -3832,6 +4054,7 @@ def search_by_commune():
     filtered_parcelles_in_zones = []
     
     if filter_zones:
+        log_data_collection("ZONES PLU", f"🎯 Début filtrage zones: type={zones_type_filter or 'toutes'}, surface min={zones_min_area}m²")
         print(f"🔍 [ZONES OPTIMISÉ] Recherche zones {zones_type_filter or 'toutes'} + parcelles >{zones_min_area}m²")
         
         # Utiliser l'API GPU pour récupérer les zones autour du centre de la commune
@@ -3897,6 +4120,7 @@ def search_by_commune():
         
         # 1. Récupérer toutes les zones autour de la commune
         all_zones = get_zones_around_commune(lat, lon, radius_km=3.0)
+        log_data_collection("ZONES PLU", f"📍 {len(all_zones)} zones trouvées dans un rayon de 3km")
         print(f"    📍 {len(all_zones)} zones trouvées autour de la commune")
         
         # 2. Filtrer par type de zone
@@ -3911,6 +4135,7 @@ def search_by_commune():
             
             target_zones.append(zone)
         
+        log_data_collection("ZONES PLU", f"🎯 {len(target_zones)} zones de type '{zones_type_filter or 'toutes'}' sélectionnées")
         print(f"    🎯 {len(target_zones)} zones de type '{zones_type_filter or 'toutes'}' sélectionnées")
         
         # 3. Pour chaque zone cible, récupérer et filtrer les parcelles
@@ -4088,6 +4313,9 @@ def search_by_commune():
             except Exception:
                 pass
         
+        log_data_collection("FILTRAGE ZONES", f"✅ {len(target_zones)} zones analysées")
+        log_data_collection("FILTRAGE ZONES", f"✅ {total_parcelles_trouvees} parcelles retenues (>{zones_min_area}m²)")
+        log_data_collection("FILTRAGE ZONES", f"✅ {len(filtered_zones)} zones avec parcelles qualifiées")
         print(f"✅ [ZONES OPTIMISÉ] {len(target_zones)} zones analysées, {total_parcelles_trouvees} parcelles trouvées")
 
     # Utiliser les zones optimisées pour plu_info, sinon fallback
@@ -4378,6 +4606,9 @@ def search_by_commune():
             }
         }
     }
+    
+    # Log final détaillé des résultats de recherche
+    log_search_results(commune, response_data)
     
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom
     save_map_to_cache(map_obj, response_data)
@@ -9153,16 +9384,15 @@ def rapport_departement():
             sirene_km=float(request.args.get("sirene_radius", 5.0)),
             want_eleveurs=True
         )
-        # Filtrage pour ne garder que les infos voulues (optionnel, mais utile pour ne pas surcharger la mémoire)
-        # Ajoute tout ce que tu veux afficher dans le rapport
-        all_reports.append({
-            "commune": nom,
-            "agriculteurs": rpt.get("eleveurs", []),
-            "parcelles": rpt.get("rpg_parcelles", []),
-            # Ajoute ici d'autres éléments si besoin (postes, distances, etc)
-        })
+        # Structure des données complète pour la synthèse
+        all_reports.append(rpt)
 
-    return render_template("rapport_departement.html", dept=dept, reports=all_reports)
+    # Calcul de la synthèse départementale
+    synthese = synthese_departement(all_reports)
+    
+    print(f"[RAPPORT_DEPT_GET] Synthèse calculée: {synthese['total_eleveurs']} éleveurs, {synthese['total_parcelles']} parcelles")
+
+    return render_template("rapport_departement_complet.html", dept=dept, reports=all_reports, synthese=synthese)
 
 
 @app.route("/rapport_commune")
@@ -9642,136 +9872,141 @@ def search_by_address_route():
 
 
 @app.route('/rapport_departement_post', methods=['POST'])
+@app.route("/rapport_departement", methods=["POST"])
 def rapport_departement_post():
+    """
+    Route POST corrigée pour le rapport départemental
+    """
     import time
-
-    data = request.get_json()
-    reports = data.get("data", [])
-    dept = None
-    for rpt in reports:
-        if "dept" in rpt and rpt["dept"]:
-            dept = rpt["dept"]
-            break
-    if not dept:
+    
+    try:
+        data = request.get_json()
+        reports = data.get("data", [])
+        
+        print(f"[RAPPORT_DEPT] Traitement de {len(reports)} rapports communaux")
+        
+        # Détection du département
         dept = None
-
-
-    # 1. Fusionne tous les RPG et agriculteurs pour la synthèse
-    all_rpg = []
-    all_eleveurs = []
-    for rpt in reports:
-        fc_rpg = rpt.get("rpg_parcelles", {})
-        if fc_rpg and isinstance(fc_rpg, dict):
-            all_rpg.extend(fc_rpg.get("features", []))
-        fc_e = rpt.get("eleveurs", {})
-        if fc_e and isinstance(fc_e, dict):
-            all_eleveurs.extend(fc_e.get("features", []))
-
-    # --- Fonctions locales ---
-    def get_dist(feat):
-        props = feat.get("properties", {})
-        for key in ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]:
-            v = props.get(key)
-            if v is not None and isinstance(v, (int, float)):
-                return v
-        return 999999
-
-    def unique_parcelles(features):
-        """Supprime les doublons sur ID parcelle + section + numero + commune"""
-        seen = set()
-        unique = []
-        for p in features:
-            props = p.get("properties", {})
-            key = (
-                props.get("ID_PARCEL") or props.get("id"),
-                props.get("section") or props.get("cadastre_section"),
-                props.get("numero") or props.get("cadastre_numero"),
-                props.get("code_com"),
-                props.get("com_abs"),
-            )
-            if key not in seen:
-                seen.add(key)
-                unique.append(p)
-        return unique
-
-    # 2. Trie, dédoublonnage et TOP 50
-    all_rpg_sorted = sorted(all_rpg, key=get_dist)
-    top50_unique = unique_parcelles(all_rpg_sorted)
-    top50 = top50_unique[:50]
-
-    # 3. Ajoute le numéro de parcelle Cadastre API (avec respect du rate-limit)
-    def enrich_rpg_with_cadastre_num(rpg_features, delay=0.3):
-        enriched = []
-        for feat in rpg_features:
-            geom = feat.get("geometry")
-            props = feat.get("properties", {})
-            try:
-                api_resp = get_api_cadastre_data(geom)
-                num_parcelle = None
-                if api_resp and "features" in api_resp and len(api_resp["features"]) > 0:
-                    num_parcelle = api_resp["features"][0]["properties"].get("numero", None)
-                props["numero_parcelle"] = num_parcelle or "N/A"
-            except Exception:
-                props["numero_parcelle"] = "N/A"
-    for rpt in reports:
-        if "dept" in rpt and rpt["dept"]:
-            pass  # TODO: implement logic or remove if not needed
-    if not dept:
-        dept = None
-
-    # 1. Fusionne tous les RPG et agriculteurs pour la synthèse
-    all_rpg = []
-    all_eleveurs = []
-    for rpt in reports:
-        fc_rpg = rpt.get("rpg_parcelles", {})
-        if fc_rpg and isinstance(fc_rpg, dict):
-            pass  # TODO: implement logic or remove if not needed
-        fc_e = rpt.get("eleveurs", {})
-        if fc_e and isinstance(fc_e, dict):
-            pass  # TODO: implement logic or remove if not needed
-
-    # --- Fonctions locales ---
-    def get_dist(feat):
-        props = feat.get("properties", {})
-        for key in ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]:
-            pass  # TODO: implement logic or remove if not needed
-        return 999999
-
-    def unique_parcelles(features):
-        """Supprime les doublons sur ID parcelle + section + numero + commune"""
-        seen = set()
-        unique = []
-        for p in features:
-            pass  # TODO: implement logic or remove if not needed
-        return unique
-
-    # 2. Trie, dédoublonnage et TOP 50
-    all_rpg_sorted = sorted(all_rpg, key=get_dist)
-    top50_unique = unique_parcelles(all_rpg_sorted)
-    top50 = top50_unique[:50]
-
-    # 3. Ajoute le numéro de parcelle Cadastre API (avec respect du rate-limit)
-    def enrich_rpg_with_cadastre_num(rpg_features, delay=0.3):
-        enriched = []
-        for feat in rpg_features:
-            pass  # TODO: implement logic or remove if not needed
-        return enriched
-
-    top50 = enrich_rpg_with_cadastre_num(top50)
-
-    # 4. Synthèse globale
-    synthese = {
-        "nb_agriculteurs": len(all_eleveurs),
-        "nb_parcelles": len(all_rpg),
-        "top50": top50
-    }
-
-    return render_template(
-        "rapport_departement.html",
-        reports=reports,
-        dept=dept,
-        synthese=synthese
-    )
+        for rpt in reports:
+            if "dept" in rpt and rpt["dept"]:
+                dept = rpt["dept"]
+                break
+        
+        print(f"[RAPPORT_DEPT] Département détecté: {dept}")
+        
+        # Utilisation de la fonction synthese_departement corrigée
+        synthese = synthese_departement(reports)
+        
+        # Enrichissement SIRET pour les éleveurs dans le TOP 50
+        def enrich_eleveurs_with_siret(eleveurs_features):
+            """Enrichit les éleveurs avec les données SIRET"""
+            enriched = []
+            for feat in eleveurs_features:
+                props = feat.get("properties", {})
+                
+                # Tentative d'enrichissement SIRET
+                siret = props.get("siret") or props.get("SIRET")
+                if siret:
+                    try:
+                        sirene_info = fetch_sirene_info(siret)
+                        if sirene_info:
+                            props.update(sirene_info)
+                            props["siret_enriched"] = True
+                        else:
+                            props["siret_enriched"] = False
+                    except Exception as e:
+                        print(f"[RAPPORT_DEPT] Erreur enrichissement SIRET {siret}: {e}")
+                        props["siret_enriched"] = False
+                else:
+                    props["siret_enriched"] = False
+                    
+                enriched.append(feat)
+            return enriched
+        
+        # Correction des distances "N/A m" dans le TOP 50
+        def fix_distances_in_top50(top50_features):
+            """Corrige les distances affichées comme 'N/A m'"""
+            fixed = []
+            for feat in top50_features:
+                props = feat.get("properties", {})
+                
+                # Calcul de la distance minimale
+                min_distance = None
+                distance_sources = ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]
+                
+                for key in distance_sources:
+                    val = props.get(key)
+                    if val is not None and isinstance(val, (int, float)) and val > 0:
+                        if min_distance is None or val < min_distance:
+                            min_distance = val
+                
+                # Mise à jour des propriétés de distance
+                if min_distance is not None:
+                    props["distance_formatted"] = f"{int(min_distance)} m"
+                    props["distance_valid"] = True
+                else:
+                    props["distance_formatted"] = "Distance non calculée"
+                    props["distance_valid"] = False
+                
+                fixed.append(feat)
+            return fixed
+        
+        # Application des corrections
+        top50_corrected = fix_distances_in_top50(synthese["top50_parcelles"])
+        synthese["top50_parcelles"] = top50_corrected
+        
+        # Enrichissement des éleveurs du département
+        all_eleveurs = []
+        for rpt in reports:
+            fc_e = rpt.get("eleveurs", {})
+            if fc_e and isinstance(fc_e, dict) and "features" in fc_e:
+                all_eleveurs.extend(fc_e.get("features", []))
+        
+        all_eleveurs_enriched = enrich_eleveurs_with_siret(all_eleveurs)
+        
+        # Correction des liens cadastre dans le TOP 50
+        def fix_cadastre_links(top50_features):
+            """Corrige les liens vers le cadastre"""
+            for feat in top50_features:
+                props = feat.get("properties", {})
+                
+                # Construction du lien cadastre
+                code_commune = props.get("code_com") or props.get("com_abs")
+                section = props.get("section") or props.get("cadastre_section")
+                numero = props.get("numero") or props.get("cadastre_numero") or props.get("numero_parcelle")
+                
+                if code_commune and section and numero and numero != "N/A":
+                    cadastre_url = f"https://www.cadastre.gouv.fr/scpc/accueil.do#c={code_commune}&sec={section}&n={numero}"
+                    props["cadastre_link"] = cadastre_url
+                    props["cadastre_link_valid"] = True
+                else:
+                    props["cadastre_link"] = None
+                    props["cadastre_link_valid"] = False
+            
+            return top50_features
+        
+        synthese["top50_parcelles"] = fix_cadastre_links(synthese["top50_parcelles"])
+        
+        print(f"[RAPPORT_DEPT] Synthèse finale: {synthese['total_eleveurs']} éleveurs, {synthese['total_parcelles']} parcelles")
+        print(f"[RAPPORT_DEPT] TOP 50 avec {len(synthese['top50_parcelles'])} parcelles")
+        print(f"[RAPPORT_DEPT] Clés synthèse: {list(synthese.keys())}")
+        print(f"[RAPPORT_DEPT] nb_agriculteurs: {synthese.get('nb_agriculteurs')}")
+        print(f"[RAPPORT_DEPT] nb_parcelles: {synthese.get('nb_parcelles')}")
+        print(f"[RAPPORT_DEPT] Transmission au template: synthese={bool(synthese)}, dept={dept}")
+        
+        return render_template(
+            "rapport_departement_complet.html",
+            reports=reports,
+            dept=dept,
+            synthese=synthese,
+            eleveurs_enriched=all_eleveurs_enriched
+        )
+        
+    except Exception as e:
+        print(f"[RAPPORT_DEPT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 @app.route("/export_map")
 def export_map():
@@ -10392,9 +10627,15 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     "adresse": adresse,
                     "siret": siret,
                     "lien_annuaire": f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui={nom_url}&ou={ville_url}&univers=pagesjaunes&idOu=" if nom or prenom or denomination else "",
-                    "lien_entreprise": f"https://www.societe.com/societe/{denomination.lower().replace(' ', '-')}-{siret}.html" if siret and denomination else "",
+                    "lien_entreprise": f"https://www.societe.com/societe/{denomination.lower().replace(' ', '-')}-{siret[:9]}.html#__establishments" if siret and denomination and len(siret) >= 9 else "",
                     "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}" if nom or prenom else ""
                 }
+                
+                # Debug: afficher le lien généré
+                if siret and denomination:
+                    print(f"🔗 [DEBUG_LIEN] Dénomination: {denomination}")
+                    print(f"🔗 [DEBUG_LIEN] SIRET: {siret} -> SIREN: {siret[:9]}")
+                    print(f"🔗 [DEBUG_LIEN] Lien généré: {eleveur_props['lien_entreprise']}")
                 
                 eleveurs_data.append({
                     "type": "Feature",
@@ -11648,3 +11889,4 @@ if __name__ == "__main__":
 
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+         

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport Département</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h1 { color: #2c3e50; }
+    h2 { color: #34495e; }
+    h3 { color: #7f8c8d; }
+    .synthese { background: #ecf0f1; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Rapport par Département</h1>
+  
+  {% if synthese %}
+  <div class="synthese">
+    <h2>Synthèse départementale</h2>
+    <p><strong>Agriculteurs :</strong> {{ synthese.nb_agriculteurs }}</p>
+    <p><strong>Parcelles :</strong> {{ synthese.nb_parcelles }}</p>
+  </div>
+  {% endif %}
+
+  {% for report in reports %}
+  <div>
+    <h3>{{ report.nom or 'Commune inconnue' }}</h3>
+  </div>
+  {% endfor %}
+
+</body>
+</html>

@@ -1,0 +1,52 @@
+{
+  "data": [
+    {
+      "commune": "Test Commune A",
+      "dept": "83",
+      "rpg_parcelles": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "ID_PARCEL": "TEST-001",
+              "code_com": "83001",
+              "section": "AB",
+              "numero": "123",
+              "distance_bt": 200,
+              "surface": "2.5",
+              "nom_com": "Test Commune A"
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                6.1,
+                43.1
+              ]
+            }
+          }
+        ]
+      },
+      "eleveurs": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {
+              "nom": "Test Eleveur",
+              "siret": "12345678901234",
+              "activite": "Test"
+            },
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                6.1,
+                43.1
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

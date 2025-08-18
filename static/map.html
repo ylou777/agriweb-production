@@ -416,6 +416,50 @@
     window.setView = function(lat, lon, zoom) {
       map.setView([lat, lon], zoom || 10);
     };
+    
+    // Écoute des messages de zoom depuis le rapport
+    window.addEventListener('message', function(event) {
+      console.log('Message reçu dans la carte:', event.data);
+      
+      // Supporter les deux formats de messages
+      if (event.data && (event.data.action === 'zoomTo' || event.data.type === 'zoom')) {
+        const { lat, lng, zoom, name, type } = event.data;
+        
+        console.log(`Zoom demandé vers: ${name} (${type}) à [${lat}, ${lng}] avec zoom ${zoom}`);
+        
+        // Vérifier que les coordonnées sont valides
+        if (isNaN(lat) || isNaN(lng)) {
+          console.error('Coordonnées invalides reçues:', { lat, lng });
+          return;
+        }
+        
+        try {
+          // Zoomer sur les coordonnées
+          map.setView([lat, lng], zoom || 16);
+          console.log('Zoom effectué avec succès');
+          
+          // Optionnel : ajouter un marqueur temporaire pour indiquer la position
+          const tempMarker = L.marker([lat, lng])
+            .addTo(map)
+            .bindPopup(`<b>${name || 'Élément'}</b><br>Type: ${type || 'Point'}`)
+            .openPopup();
+            
+          console.log('Marqueur temporaire ajouté');
+            
+          // Supprimer le marqueur temporaire après 5 secondes
+          setTimeout(() => {
+            map.removeLayer(tempMarker);
+            console.log('Marqueur temporaire supprimé');
+          }, 5000);
+          
+        } catch (error) {
+          console.error('Erreur lors du zoom:', error);
+        }
+      } else {
+        console.log('Message ignoré - action non reconnue:', event.data?.action || event.data?.type);
+      }
+    });
+    
     window._leaflet_ready = true;
   </script>
 </body>

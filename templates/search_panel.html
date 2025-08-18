@@ -78,11 +78,11 @@
               <div class="row g-2">
                 <div class="col-6">
                   <label class="form-label small">Surface min (ha)</label>
-                  <input type="number" class="form-control form-control-sm" id="rpg_min_area" value="1" min="0" step="0.1">
+                  <input type="number" class="form-control form-control-sm" id="rpg_min_area" value="0.1" min="0" step="0.1">
                 </div>
                 <div class="col-6">
                   <label class="form-label small">Surface max (ha)</label>
-                  <input type="number" class="form-control form-control-sm" id="rpg_max_area" value="1000" min="0" step="0.1">
+                  <input type="number" class="form-control form-control-sm" id="rpg_max_area" value="50" min="0" step="0.1">
                 </div>
               </div>
             </div>
@@ -549,8 +549,8 @@ document.addEventListener('DOMContentLoaded', function() {
       params.set('commune', commune);
       // Filtres par couche
       params.set('filter_rpg', String(boolVal('filter_rpg_commune', true)));
-      params.set('rpg_min_area', String(numVal('rpg_min_area', 1)));
-      params.set('rpg_max_area', String(numVal('rpg_max_area', 1000)));
+      params.set('rpg_min_area', String(numVal('rpg_min_area', 0.1)));
+      params.set('rpg_max_area', String(numVal('rpg_max_area', 50)));
 
       params.set('filter_parkings', String(boolVal('filter_parkings_commune', false)));
       params.set('parking_min_area', String(numVal('parking_min_area', 1500)));

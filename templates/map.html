@@ -340,7 +340,7 @@
           
           // Lien Societe.com avec format spécifique
           const denominationUrl = (props.Denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-          const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html`;
+          const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html#__establishments`;
           html += row("Societe.com", `<a href="${societeUrl}" target="_blank" class="popup-link">Voir la fiche entreprise</a>`);
           
           // Lien Pages Jaunes
