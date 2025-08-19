@@ -1,23 +1,46 @@
-# 🌾 AgriWeb – Analyse Géospatiale Agricole
+# 🌾 AgriWeb 2.0 - Production
 
-AgriWeb est une application interactive de visualisation et d'analyse géographique dédiée au secteur agricole. Elle permet :
+**Solution d'analyse agricole géographique professionnelle**
 
-- 🌍 La recherche par adresse, commune ou département
-- 🐄 La détection des éleveurs dans une zone donnée
-- 🛰️ L'affichage des parcelles cadastrales et RPG
-- ⚡ L'analyse de proximité aux postes HTA / BT
-- 🏭 L'intégration des entreprises via Sirene
-- 🗺️ La génération de rapports cartographiques
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app)
 
----
+## 🚀 Déploiement sur Railway
 
-## 🔧 Fonctionnalités principales
+### Déploiement automatique
+1. Allez sur [Railway.app](https://railway.app)
+2. Créez un nouveau projet
+3. Connectez ce repository GitHub: `https://github.com/ylou777/agriweb-production`
+4. Railway détectera automatiquement la configuration
 
-- **Carte interactive Leaflet** avec ajout dynamique de GeoJSON
-- **Recherche unifiée** (coordonnées, adresse)
-- **Recherche par commune** avec filtre surface et distances
-- **Recherche SSE par département** (via SSE + EventSource)
-- **Rapports dynamiques HTML ou DOCX**
+### Variables d'environnement requises
+Dans Railway, configurez ces variables :
+
+```bash
+# Flask Configuration
+SECRET_KEY=your-secret-key-here
+DEBUG=false
+ENVIRONMENT=production
+
+# GeoServer (optionnel)
+GEOSERVER_URL=https://your-geoserver-url
+```
+
+## 🛠️ Architecture
+
+- **Framework** : Flask (Python)
+- **Hébergement** : Railway (gratuit)
+- **Authentification** : Session-based sécurisé
+- **Interface** : Responsive HTML/CSS/JS
+- **Cartographie** : Intégration GeoServer
+
+## � Fonctionnalités
+
+### ✅ Disponible maintenant
+- 🔐 Système d'authentification complet
+- 📊 Dashboard utilisateur
+- 🆓 Essai gratuit (50 recherches)
+- 🌐 Interface responsive moderne
+- 🔒 Sécurité par variables d'environnement
 - **Utilisation d'API IGN, cadastre, urbanisme (GPU), Sirene**
 
 ---
