@@ -130,8 +130,13 @@ except ImportError:
     class SimpleUserManager:
         def __init__(self):
             self.users = {}
+            print("🔧 SimpleUserManager initialisé pour hébergement gratuit")
         
         def create_user(self, email, password, name=""):
+            """Créer un nouvel utilisateur"""
+            if email in self.users:
+                raise ValueError(f"L'utilisateur {email} existe déjà")
+            
             user_id = str(uuid.uuid4())
             self.users[email] = {
                 'id': user_id,
@@ -144,13 +149,25 @@ except ImportError:
                 'searches_used': 0,
                 'searches_limit': 50
             }
+            print(f"👤 Utilisateur créé: {email} (ID: {user_id})")
             return user_id
         
         def authenticate_user(self, email, password):
+            """Authentifier un utilisateur"""
             user = self.users.get(email)
             if user and user['password'] == hashlib.sha256(password.encode()).hexdigest():
+                print(f"✅ Authentification réussie: {email}")
                 return user
+            print(f"❌ Authentification échouée: {email}")
             return None
+        
+        def get_user(self, email):
+            """Récupérer un utilisateur par email (compatibilité)"""
+            return self.users.get(email)
+        
+        def add_user(self, email, password, name=""):
+            """Alias pour create_user (compatibilité)"""
+            return self.create_user(email, password, name)
     
     USER_MANAGER_AVAILABLE = False
     print("⚠️ UserManager simplifié activé")
@@ -568,17 +585,31 @@ def register():
         password = request.form.get('password')
         
         try:
-            # Détection dynamique des méthodes disponibles
-            if hasattr(user_manager, 'add_user') and hasattr(user_manager, 'get_user'):
-                # UserManager de production - utilise add_user/get_user
-                user_id = user_manager.add_user(email, password, name)
-                user_data = user_manager.get_user(email)
-            elif hasattr(user_manager, 'create_user') and hasattr(user_manager, 'users'):
+            # Essayer d'abord SimpleUserManager (hébergement gratuit)
+            if hasattr(user_manager, 'create_user') and hasattr(user_manager, 'users'):
                 # SimpleUserManager - utilise create_user/users
                 user_id = user_manager.create_user(email, password, name or "")
                 user_data = user_manager.users[email]
+                print(f"✅ Compte créé avec SimpleUserManager: {email}")
+            elif hasattr(user_manager, 'add_user') and hasattr(user_manager, 'get_user'):
+                # UserManager de production - utilise add_user/get_user
+                user_id = user_manager.add_user(email, password, name)
+                user_data = user_manager.get_user(email)
+                print(f"✅ Compte créé avec UserManager: {email}")
             else:
-                raise AttributeError("UserManager ne possède pas les méthodes requises")
+                # Fallback - créer un utilisateur manuel
+                user_id = str(uuid.uuid4())
+                user_data = {
+                    'id': user_id,
+                    'email': email,
+                    'name': name or "",
+                    'created_at': datetime.now().isoformat(),
+                    'active': True,
+                    'license_type': 'trial',
+                    'searches_used': 0,
+                    'searches_limit': 50
+                }
+                print(f"✅ Compte créé en mode fallback: {email}")
             
             session['authenticated'] = True
             session['user_data'] = user_data
@@ -587,6 +618,7 @@ def register():
             flash('Compte créé avec succès !', 'success')
             return redirect('/dashboard')
         except Exception as e:
+            print(f"❌ Erreur création compte: {e}")
             return render_template_string(
                 REGISTER_TEMPLATE, 
                 error=f"Erreur lors de la création du compte: {e}",
