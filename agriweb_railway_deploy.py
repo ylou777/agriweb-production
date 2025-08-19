@@ -10472,7 +10472,8 @@ def main():
         print(f"🚀 Port: {PORT}")
         print(f"🌐 Host: {HOST}")
         print("Routes disponibles:")
-        pprint.pprint(list(app.url_map.iter_rules()))
+        for rule in app.url_map.iter_rules():
+            print(f"  {rule.rule} -> {rule.endpoint}")
         
         # Pas de Timer ni d'ouverture de navigateur sur Railway
         if os.environ.get('RAILWAY_ENVIRONMENT'):
