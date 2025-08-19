@@ -1,0 +1,19 @@
+# Variables d'environnement pour Railway
+# Copiez ces variables dans votre Dashboard Railway
+
+SECRET_KEY=your-super-secret-key-here-change-this-for-production
+DEBUG=False
+ENVIRONMENT=production
+
+# GeoServer Configuration  
+GEOSERVER_URL=https://geoserver-agriweb-production.up.railway.app/geoserver
+GEOSERVER_USERNAME=admin
+GEOSERVER_PASSWORD=your-geoserver-password
+
+# Stripe Configuration (MODE TEST pour hébergement gratuit)
+STRIPE_SECRET_KEY=sk_test_your_stripe_test_secret_key
+STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_test_publishable_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+
+# Port (automatiquement fourni par Railway)
+PORT=5000
