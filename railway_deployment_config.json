@@ -1,0 +1,11 @@
+{
+  "tunnel_url": "https://3de153b73a2d.ngrok-free.app/geoserver",
+  "railway_vars": {
+    "GEOSERVER_TUNNEL_URL": "https://3de153b73a2d.ngrok-free.app/geoserver"
+  },
+  "deployment_info": {
+    "timestamp": "2025-08-19T10:18:12.320613",
+    "tunnel_active": true,
+    "ready_for_deployment": true
+  }
+}
