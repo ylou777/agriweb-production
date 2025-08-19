@@ -6519,3 +6519,78 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
  * Running on http://127.0.0.1:5001
  * Running on http://192.168.1.78:5001
 2025-08-19 14:44:18,935 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 14:53:52,147 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.78:5001
+2025-08-19 14:53:52,149 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 14:56:29,864 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-19 14:56:29,864 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 14:58:29,061 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.78:5001
+2025-08-19 14:58:29,063 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 15:05:52,094 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5001
+ * Running on http://192.168.1.78:5001
+2025-08-19 15:05:52,095 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 15:06:37,149 INFO 127.0.0.1 - - [19/Aug/2025 15:06:37] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-19 15:06:37,184 INFO 127.0.0.1 - - [19/Aug/2025 15:06:37] "GET /login HTTP/1.1" 200 -
+2025-08-19 15:06:43,856 INFO 127.0.0.1 - - [19/Aug/2025 15:06:43] "GET /register HTTP/1.1" 200 -
+2025-08-19 15:06:57,933 INFO 127.0.0.1 - - [19/Aug/2025 15:06:57] "[32mPOST /register HTTP/1.1[0m" 302 -
+2025-08-19 15:06:57,945 INFO 127.0.0.1 - - [19/Aug/2025 15:06:57] "GET /login HTTP/1.1" 200 -
+2025-08-19 15:07:03,396 INFO 127.0.0.1 - - [19/Aug/2025 15:07:03] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-08-19 15:07:03,433 INFO 127.0.0.1 - - [19/Aug/2025 15:07:03] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-19 15:07:03,654 INFO 127.0.0.1 - - [19/Aug/2025 15:07:03] "GET /search_interface HTTP/1.1" 200 -
+2025-08-19 15:07:08,698 INFO 127.0.0.1 - - [19/Aug/2025 15:07:08] "GET /test_agriweb HTTP/1.1" 200 -
+2025-08-19 15:33:46,999 INFO 127.0.0.1 - - [19/Aug/2025 15:33:46] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-19 15:33:55,734 INFO 127.0.0.1 - - [19/Aug/2025 15:33:55] "[32mGET /?id=0efca961-ebc4-4724-9f47-ce9182c97f01&vscodeBrowserReqId=1755610435636 HTTP/1.1[0m" 302 -
+2025-08-19 15:33:55,781 INFO 127.0.0.1 - - [19/Aug/2025 15:33:55] "GET /login HTTP/1.1" 200 -
+2025-08-19 15:34:18,592 INFO 127.0.0.1 - - [19/Aug/2025 15:34:18] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-08-19 15:34:18,606 INFO 127.0.0.1 - - [19/Aug/2025 15:34:18] "GET /login HTTP/1.1" 200 -
+2025-08-19 15:34:27,639 INFO 127.0.0.1 - - [19/Aug/2025 15:34:27] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-19 15:34:27,691 INFO 127.0.0.1 - - [19/Aug/2025 15:34:27] "GET /login HTTP/1.1" 200 -
+2025-08-19 15:34:31,006 INFO 127.0.0.1 - - [19/Aug/2025 15:34:30] "GET /register HTTP/1.1" 200 -
+2025-08-19 15:34:54,621 INFO 127.0.0.1 - - [19/Aug/2025 15:34:54] "[32mPOST /register HTTP/1.1[0m" 302 -
+2025-08-19 15:34:54,656 INFO 127.0.0.1 - - [19/Aug/2025 15:34:54] "GET /register HTTP/1.1" 200 -
+2025-08-19 15:35:04,929 INFO 127.0.0.1 - - [19/Aug/2025 15:35:04] "GET /login HTTP/1.1" 200 -
+2025-08-19 15:35:06,836 INFO 127.0.0.1 - - [19/Aug/2025 15:35:06] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-08-19 15:35:07,029 INFO 127.0.0.1 - - [19/Aug/2025 15:35:07] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-19 15:35:07,039 INFO 127.0.0.1 - - [19/Aug/2025 15:35:07] "GET /search_interface HTTP/1.1" 200 -
+2025-08-19 15:35:10,589 INFO 127.0.0.1 - - [19/Aug/2025 15:35:10] "GET /test_agriweb HTTP/1.1" 200 -
+2025-08-19 15:35:16,522 INFO 127.0.0.1 - - [19/Aug/2025 15:35:16] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-08-19 16:53:11,083 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-19 16:53:11,085 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 16:53:49,617 INFO 127.0.0.1 - - [19/Aug/2025 16:53:49] "GET / HTTP/1.1" 200 -
+2025-08-19 16:53:50,140 INFO 127.0.0.1 - - [19/Aug/2025 16:53:50] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-19 16:53:50,241 INFO 127.0.0.1 - - [19/Aug/2025 16:53:50] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-19 16:55:21,923 INFO 127.0.0.1 - - [19/Aug/2025 16:55:21] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-19 16:55:30,616 INFO 127.0.0.1 - - [19/Aug/2025 16:55:30] "GET /static/cartes/map_1755615298_3303158661825036862.html HTTP/1.1" 200 -
+2025-08-19 17:17:40,787 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-19 17:17:40,788 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 17:18:08,850 INFO 127.0.0.1 - - [19/Aug/2025 17:18:08] "GET / HTTP/1.1" 200 -
+2025-08-19 17:18:09,781 INFO 127.0.0.1 - - [19/Aug/2025 17:18:09] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-19 17:18:09,861 INFO 127.0.0.1 - - [19/Aug/2025 17:18:09] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-19 17:26:07,550 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-19 17:26:07,551 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 17:30:19,719 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-19 17:30:19,720 INFO [33mPress CTRL+C to quit[0m
+2025-08-19 17:30:48,085 INFO 127.0.0.1 - - [19/Aug/2025 17:30:48] "GET / HTTP/1.1" 200 -
+2025-08-19 17:30:48,444 INFO 127.0.0.1 - - [19/Aug/2025 17:30:48] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-19 17:30:48,557 INFO 127.0.0.1 - - [19/Aug/2025 17:30:48] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-19 17:30:57,671 INFO 127.0.0.1 - - [19/Aug/2025 17:30:57] "GET /?id=86aefb9e-f9e1-4821-a555-b1de276ea75e&vscodeBrowserReqId=1755617435838 HTTP/1.1" 200 -
+2025-08-19 17:30:57,716 INFO 127.0.0.1 - - [19/Aug/2025 17:30:57] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-19 17:30:57,972 INFO 127.0.0.1 - - [19/Aug/2025 17:30:57] "GET /static/map.html HTTP/1.1" 200 -
