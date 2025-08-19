@@ -357,7 +357,15 @@ http_session.mount(
 
 
 # === Configuration GeoServer ===
-GEOSERVER_URL = "http://localhost:8080/geoserver"
+import os
+GEOSERVER_URL = os.environ.get('GEOSERVER_URL', "http://localhost:8080/geoserver")
+RAILWAY_MODE = os.environ.get('RAILWAY_ENVIRONMENT') is not None
+
+# Configuration pour Railway : désactive GeoServer si pas de variable définie
+if RAILWAY_MODE and not os.environ.get('GEOSERVER_URL'):
+    print("🚂 Mode Railway détecté : GeoServer désactivé")
+    GEOSERVER_URL = None
+    
 CADASTRE_LAYER = "gpu:prefixes_sections"
 POSTE_LAYER = "gpu:poste_elec_shapefile"          # Postes BT
 PLU_LAYER = "gpu:gpu1"
@@ -9490,6 +9498,59 @@ def recherche_toitures():
 
 @app.route("/", methods=["GET", "POST"])
 def index():
+    # Mode Railway sans GeoServer : page d'accueil simplifiée
+    if RAILWAY_MODE and not GEOSERVER_URL:
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>AgriWeb - Version Railway</title>
+            <meta charset="utf-8">
+            <style>
+                body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; }
+                h1 { color: #2c5234; }
+                .status { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                .routes { background: #f8f9fa; padding: 15px; border-radius: 5px; }
+                ul { list-style-type: none; padding: 0; }
+                li { padding: 5px 0; }
+                a { color: #2c5234; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🌾 AgriWeb - Version Railway</h1>
+                <div class="status">
+                    <strong>✅ Application déployée avec succès sur Railway!</strong><br>
+                    Mode: Production Cloud (GeoServer externe requis pour fonctionnalités complètes)
+                </div>
+                
+                <h2>🚀 Fonctionnalités disponibles :</h2>
+                <div class="routes">
+                    <ul>
+                        <li>📊 <a href="/test_capacites_hta">Test Capacités HTA</a></li>
+                        <li>📈 <a href="/altitude_point?lat=46.603354&lon=1.888334">Test Altitude</a></li>
+                        <li>🏠 <a href="/toitures">Recherche Toitures</a></li>
+                        <li>📋 <a href="/rapport_point">Rapport Point</a></li>
+                    </ul>
+                </div>
+                
+                <h2>⚙️ Configuration :</h2>
+                <p><strong>Port:</strong> {port}</p>
+                <p><strong>Host:</strong> 0.0.0.0 (Railway)</p>
+                <p><strong>GeoServer:</strong> {geoserver_status}</p>
+                
+                <p><em>Pour accéder aux fonctionnalités complètes, configurez la variable GEOSERVER_URL dans Railway.</em></p>
+            </div>
+        </body>
+        </html>
+        """.format(
+            port=os.environ.get('PORT', '5000'),
+            geoserver_status="Non configuré (définir GEOSERVER_URL)" if not GEOSERVER_URL else GEOSERVER_URL
+        )
+    
+    # Mode normal avec GeoServer
     # Valeurs par défaut pour la carte d'accueil (France centre)
     lat, lon = 46.603354, 1.888334
     address = None
