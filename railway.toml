@@ -1,0 +1,17 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "never"
+
+[[services]]
+name = "geoserver"
+
+[services.variables]
+GEOSERVER_ADMIN_USER = "admin"
+GEOSERVER_ADMIN_PASSWORD = "admin123"
+INITIAL_MEMORY = "512M"
+MAXIMUM_MEMORY = "1536M"
+JAVA_OPTS = "-Xms512m -Xmx1536m -Djava.awt.headless=true -XX:+UseContainerSupport"
+JAVA_OPTS = "-Xms256m -Xmx512m -Djava.awt.headless=true"

@@ -1,20 +1,35 @@
 # run_app.py
 
-# Import du fichier Python modifié au lieu du module compilé
-import agriweb_source
-import traceback
+# Import du serveur unifié final
+import sys
+import os
+
+# Ajouter le chemin du projet
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 if __name__ == '__main__':
-    # Lance le serveur Flask directement sans la fonction main()
     try:
-        print("🚀 [STARTUP] Démarrage direct du serveur Flask sur port 5000")
-        print(f"🔧 [DEBUG] App type: {type(agriweb_source.app)}")
-        print(f"🔧 [DEBUG] Routes: {len(list(agriweb_source.app.url_map.iter_rules()))}")
-        print("🔧 [DEBUG] Tentative de lancement...")
+        print("🚀 [STARTUP] Démarrage du serveur AgriWeb 2.0 Unifié")
+        print("� [GEOSERVER] Intégration avec GeoServer activée")
+        
+        # Import et lancement du serveur unifié
+        from serveur_unifie_final import app
+        
+        print("✅ [SUCCESS] Serveur unifié importé")
+        print("🌐 [URL] http://localhost:5000")
+        print("� [STATUS] http://localhost:5000/status")
+        
+        app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+        
+    except ImportError as e:
+        print(f"❌ [IMPORT ERROR] {e}")
+        print("� [FALLBACK] Tentative avec l'ancien système...")
+        
+        # Fallback vers l'ancien système
+        import agriweb_source
         agriweb_source.app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
-        print("✅ [SUCCESS] Serveur lancé avec succès")
+        
     except Exception as e:
         print(f"❌ [ERROR] Exception: {e}")
-        print(f"❌ [TYPE] Type: {type(e)}")
-        print("❌ [TRACEBACK] Détail:")
+        import traceback
         traceback.print_exc()

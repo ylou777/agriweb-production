@@ -1,0 +1,15 @@
+# 🚀 COMMANDES POUR DÉMARRER AGRIWEB APRÈS INSTALLATION PYPROJ
+
+# 1. Vérifier que PyProj fonctionne
+python -c "from pyproj import Transformer; print('✅ PyProj installé correctement!')"
+
+# 2. Tester les autres dépendances
+python -c "import shapely; print('✅ Shapely OK')"
+python -c "import folium; print('✅ Folium OK')" 
+python -c "import flask; print('✅ Flask OK')"
+
+# 3. Lancer votre AgriWeb original
+python agriweb_source.py
+
+# Alternative si problème avec le serveur intégré :
+python -c "from agriweb_source import app; app.run(host='127.0.0.1', port=5000, debug=True)"

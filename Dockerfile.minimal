@@ -1,0 +1,13 @@
+# Dockerfile minimal pour GeoServer Railway
+FROM kartoza/geoserver:2.24.0
+
+# Variables d'environnement Railway
+ENV GEOSERVER_ADMIN_PASSWORD=admin123
+ENV GEOSERVER_ADMIN_USER=admin
+
+# Configuration mémoire optimisée pour Railway
+ENV INITIAL_MEMORY=512M
+ENV MAXIMUM_MEMORY=1024M
+
+# Port standard GeoServer
+EXPOSE 8080

@@ -1,0 +1,18 @@
+# GeoServer ultra-léger pour Railway Free
+FROM docker.osgeo.org/geoserver:2.24.0
+
+# Configuration mémoire minimale
+ENV GEOSERVER_DATA_DIR=/opt/geoserver_data
+ENV JAVA_OPTS="-Xms128m -Xmx256m -Djava.awt.headless=true -XX:+UseContainerSupport -XX:MaxRAMPercentage=75"
+
+# Désactiver les fonctionnalités gourmandes
+ENV GEOSERVER_CSRF_DISABLED=true
+ENV GEOSERVER_LOG_LOCATION=/dev/stdout
+
+# Copier seulement les données essentielles
+COPY --chown=1000:1000 geoserver_data_minimal/ /opt/geoserver_data/
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8080/geoserver/web/ || exit 1

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Inscription AgriWeb 2.0</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>🧪 Test Inscription AgriWeb 2.0</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="trialForm">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email professionnel</label>
+                                <input type="email" class="form-control" id="email" required value="test@example.com">
+                            </div>
+                            <div class="mb-3">
+                                <label for="company" class="form-label">Entreprise</label>
+                                <input type="text" class="form-control" id="company" value="Test Corporation">
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+                                Démarrer l'essai gratuit
+                            </button>
+                        </form>
+                        
+                        <div id="result" class="mt-3"></div>
+                        <div id="debug" class="mt-3 p-2 bg-light small"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('trialForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            const debugDiv = document.getElementById('debug');
+            
+            // Reset
+            resultDiv.innerHTML = '';
+            debugDiv.innerHTML = '🔄 Démarrage du test...<br>';
+            
+            // UI feedback
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Inscription en cours...';
+            
+            const email = document.getElementById('email').value;
+            const company = document.getElementById('company').value;
+            
+            debugDiv.innerHTML += `📧 Email: ${email}<br>`;
+            debugDiv.innerHTML += `🏢 Entreprise: ${company}<br>`;
+            debugDiv.innerHTML += `🌐 URL API: /api/trial/start<br>`;
+            
+            try {
+                debugDiv.innerHTML += '📤 Envoi de la requête...<br>';
+                
+                const response = await fetch('/api/trial/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        email: email, 
+                        company: company 
+                    })
+                });
+                
+                debugDiv.innerHTML += `📥 Réponse reçue (Status: ${response.status})<br>`;
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                debugDiv.innerHTML += `📋 Données: ${JSON.stringify(result, null, 2)}<br>`;
+                
+                if (result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <h5>🎉 Succès !</h5>
+                            <p><strong>Licence:</strong> ${result.license_key}</p>
+                            <p><strong>Message:</strong> ${result.message}</p>
+                            <button class="btn btn-success mt-2" onclick="window.location.href='${result.redirect_url}'">
+                                Accéder à l'application
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            <h5>❌ Erreur</h5>
+                            <p>${result.error}</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (error) {
+                debugDiv.innerHTML += `❌ Erreur: ${error.message}<br>`;
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>🚨 Erreur de connexion</h5>
+                        <p><strong>Erreur:</strong> ${error.message}</p>
+                        <p><strong>Possible causes:</strong></p>
+                        <ul>
+                            <li>L'API /api/trial/start n'existe pas</li>
+                            <li>Le serveur Flask n'est pas démarré</li>
+                            <li>Problème de CORS</li>
+                            <li>Erreur dans le code serveur</li>
+                        </ul>
+                    </div>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Démarrer l\'essai gratuit';
+            }
+        });
+    </script>
+</body>
+</html>
