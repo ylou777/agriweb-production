@@ -4,7 +4,6 @@ requests==2.28.2
 folium==0.14.0
 shapely==2.0.1
 pyproj==3.4.1
-pprint
 geopandas==0.13.2
 geopy==2.3.0
 pandas==2.0.3
