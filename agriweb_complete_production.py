@@ -14,20 +14,6 @@ import hashlib
 import secrets
 from functools import wraps
 
-# Fonction utilitaire pour détecter la plateforme
-def get_platform_name():
-    """Détecte la plateforme d'hébergement"""
-    if os.environ.get('RAILWAY_ENVIRONMENT'):
-        return 'Railway'
-    elif os.environ.get('RENDER'):
-        return 'Render'
-    elif os.environ.get('DYNO'):
-        return 'Heroku'
-    elif os.environ.get('VERCEL'):
-        return 'Vercel'
-    else:
-        return 'Hébergement local'
-
 # Configuration pour hébergement
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(32)
@@ -266,6 +252,13 @@ def login():
             .btn:hover { background: #218838; }
             .register-link { text-align: center; margin-top: 1rem; }
             .register-link a { color: #28a745; text-decoration: none; }
+            .alert { 
+                padding: 0.8rem; 
+                border-radius: 6px; 
+                margin-bottom: 1rem; 
+            }
+            .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+            .alert-success { background: #d1eddb; color: #155724; border: 1px solid #c3e6cb; }
         </style>
     </head>
     <body>
