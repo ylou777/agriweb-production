@@ -51,6 +51,10 @@ class Config:
     GEOSERVER_TUNNEL = os.environ.get('GEOSERVER_TUNNEL_URL')  # URL ngrok ou autre tunnel
     GEOSERVER_PRODUCTION = os.environ.get('GEOSERVER_URL', GEOSERVER_RAILWAY)
     
+    # Authentification GeoServer ✅
+    GEOSERVER_USERNAME = os.environ.get('GEOSERVER_USERNAME', 'admin')
+    GEOSERVER_PASSWORD = os.environ.get('GEOSERVER_PASSWORD', 'geoserver')
+    
     @staticmethod
     def get_geoserver_url():
         # Priorité: TUNNEL > PRODUCTION > LOCAL
@@ -67,6 +71,30 @@ class Config:
         else:
             print(f"🏠 Utilisation GeoServer local: {Config.GEOSERVER_LOCAL}")
             return Config.GEOSERVER_LOCAL
+
+    @staticmethod
+    def get_geoserver_auth():
+        """Retourne l'authentification GeoServer (username, password)"""
+        return (Config.GEOSERVER_USERNAME, Config.GEOSERVER_PASSWORD)
+
+    @staticmethod
+    def make_geoserver_request(url, method='GET', **kwargs):
+        """Fait une requête GeoServer avec authentification automatique"""
+        import requests
+        from requests.auth import HTTPBasicAuth
+        
+        auth = HTTPBasicAuth(Config.GEOSERVER_USERNAME, Config.GEOSERVER_PASSWORD)
+        
+        if method.upper() == 'GET':
+            return requests.get(url, auth=auth, **kwargs)
+        elif method.upper() == 'POST':
+            return requests.post(url, auth=auth, **kwargs)
+        elif method.upper() == 'PUT':
+            return requests.put(url, auth=auth, **kwargs)
+        elif method.upper() == 'DELETE':
+            return requests.delete(url, auth=auth, **kwargs)
+        else:
+            raise ValueError(f"Méthode HTTP non supportée: {method}")
 
 # Configuration GeoServer
 GEOSERVER_URL = Config.get_geoserver_url()
@@ -513,6 +541,8 @@ def login():
         if user:
             session['authenticated'] = True
             session['user_data'] = user
+            session['user_id'] = user.get('id', str(uuid.uuid4()))
+            session['user_email'] = email
             flash('Connexion réussie !', 'success')
             return redirect('/app')
         else:
@@ -538,9 +568,22 @@ def register():
         password = request.form.get('password')
         
         try:
-            user_id = user_manager.create_user(email, password, name)
+            # Détection dynamique des méthodes disponibles
+            if hasattr(user_manager, 'add_user') and hasattr(user_manager, 'get_user'):
+                # UserManager de production - utilise add_user/get_user
+                user_id = user_manager.add_user(email, password, name)
+                user_data = user_manager.get_user(email)
+            elif hasattr(user_manager, 'create_user') and hasattr(user_manager, 'users'):
+                # SimpleUserManager - utilise create_user/users
+                user_id = user_manager.create_user(email, password, name or "")
+                user_data = user_manager.users[email]
+            else:
+                raise AttributeError("UserManager ne possède pas les méthodes requises")
+            
             session['authenticated'] = True
-            session['user_data'] = user_manager.users[email]
+            session['user_data'] = user_data
+            session['user_id'] = user_id
+            session['user_email'] = email
             flash('Compte créé avec succès !', 'success')
             return redirect('/dashboard')
         except Exception as e:
@@ -1062,13 +1105,20 @@ if __name__ == '__main__':
     
     # Test de connexion GeoServer au démarrage
     def test_geoserver_connection():
-        """Test initial de GeoServer"""
+        """Test initial de GeoServer avec authentification"""
         try:
             import requests
-            response = requests.get(f"{GEOSERVER_URL}/web/", timeout=5)
+            from requests.auth import HTTPBasicAuth
+            
+            auth = HTTPBasicAuth(Config.GEOSERVER_USERNAME, Config.GEOSERVER_PASSWORD)
+            response = requests.get(f"{GEOSERVER_URL}/web/", auth=auth, timeout=5)
+            
             if response.status_code == 200:
-                print("✅ GeoServer: Connexion établie")
+                print("✅ GeoServer: Connexion établie avec authentification")
                 return True
+            elif response.status_code == 401:
+                print("⚠️ GeoServer: Erreur d'authentification - vérifiez GEOSERVER_USERNAME et GEOSERVER_PASSWORD")
+                return False
             else:
                 print("⏳ GeoServer: En cours de démarrage...")
                 return False
