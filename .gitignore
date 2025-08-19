@@ -1,3 +1,7 @@
+# PRODUCTION DEPLOYMENT - Exclude Docker files (use NIXPACKS)
+Dockerfile*
+*.dockerignore
+
 # Environnement Python
 __pycache__/
 *.py[cod]
