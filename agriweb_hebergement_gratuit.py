@@ -13,6 +13,15 @@ import hashlib
 import secrets
 import stripe
 
+# Import du module de correction ngrok
+try:
+    from fix_ngrok_warning import add_ngrok_bypass_headers, create_ngrok_session
+    NGROK_FIX_AVAILABLE = True
+    print("✅ Correction ngrok chargée")
+except ImportError:
+    NGROK_FIX_AVAILABLE = False
+    print("⚠️ Correction ngrok non disponible")
+
 # Fonction utilitaire pour détecter la plateforme
 def get_platform_name():
     """Détecte la plateforme d'hébergement"""
@@ -65,6 +74,11 @@ GEOSERVER_URL = Config.get_geoserver_url()
 # Configuration
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Application de la correction ngrok si disponible
+if NGROK_FIX_AVAILABLE and Config.GEOSERVER_TUNNEL:
+    app = add_ngrok_bypass_headers(app)
+    print("🛡️ Headers de contournement ngrok activés")
 
 # Import conditionnel des modules existants
 try:
