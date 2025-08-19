@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 import hashlib
 import secrets
-import stripe
+# import stripe  # Commented out for Railway deployment
 
 # Import du module de correction ngrok
 try:
@@ -110,13 +110,13 @@ if NGROK_FIX_AVAILABLE and Config.GEOSERVER_TUNNEL:
 
 # Import conditionnel des modules existants
 try:
-    from stripe_integration import stripe_payment_manager
-    stripe_payment_manager.stripe_secret_key = Config.STRIPE_SECRET_KEY
-    stripe_payment_manager.stripe_publishable_key = Config.STRIPE_PUBLISHABLE_KEY
-    stripe_payment_manager.webhook_secret = Config.STRIPE_WEBHOOK_SECRET
-    stripe.api_key = Config.STRIPE_SECRET_KEY
-    STRIPE_AVAILABLE = True
-    print("✅ Stripe configuré pour production")
+    # from stripe_integration import stripe_payment_manager  # Disabled for Railway
+    # stripe_payment_manager.stripe_secret_key = Config.STRIPE_SECRET_KEY
+    # stripe_payment_manager.stripe_publishable_key = Config.STRIPE_PUBLISHABLE_KEY
+    # stripe_payment_manager.webhook_secret = Config.STRIPE_WEBHOOK_SECRET
+    # stripe.api_key = Config.STRIPE_SECRET_KEY
+    STRIPE_AVAILABLE = False  # Disabled for Railway deployment
+    print("⚠️ Stripe désactivé pour déploiement Railway")
 except ImportError:
     STRIPE_AVAILABLE = False
     print("⚠️ Stripe non disponible")
