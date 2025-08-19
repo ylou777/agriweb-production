@@ -10,4 +10,4 @@ cmds = [
 [phases.build]
 
 [start]
-cmd = "python agriweb_railway_deploy.py"
+cmd = "python main.py"

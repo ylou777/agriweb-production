@@ -1,1 +1,1 @@
-web: python agriweb_railway_deploy.py
+web: python main.py
