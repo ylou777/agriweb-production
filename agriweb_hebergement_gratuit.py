@@ -1172,6 +1172,154 @@ def stripe_webhook():
     
     return jsonify({'status': 'success'})
 
+@app.route('/qrcode')
+def qr_code_page():
+    """Page avec QR code pour partager l'application"""
+    try:
+        import qrcode
+        import base64
+        from io import BytesIO
+        
+        # URL de l'application
+        app_url = request.url_root
+        
+        # Créer le QR code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(app_url)
+        qr.make(fit=True)
+        
+        # Générer l'image
+        img = qr.make_image(fill_color="#2d5a27", back_color="white")
+        
+        # Convertir en base64 pour l'affichage web
+        buffer = BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+        qr_code_base64 = base64.b64encode(buffer.getvalue()).decode()
+        
+        return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code - AgriWeb</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .qr-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .qr-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 2rem;
+            max-width: 500px;
+            text-align: center;
+        }
+        .qr-image {
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            max-width: 100%;
+        }
+        .share-buttons .btn {
+            margin: 0.5rem;
+            border-radius: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="qr-container">
+        <div class="qr-card">
+            <div class="mb-4">
+                <h1 class="text-success mb-2">
+                    <i class="fas fa-seedling me-2"></i>AgriWeb
+                </h1>
+                <p class="text-muted">Partagez votre application facilement</p>
+            </div>
+            
+            <div class="mb-4">
+                <img src="data:image/png;base64,{{ qr_code }}" 
+                     class="qr-image" 
+                     alt="QR Code AgriWeb">
+            </div>
+            
+            <div class="mb-4">
+                <h5><i class="fas fa-mobile-alt me-2 text-primary"></i>Comment scanner ?</h5>
+                <ol class="list-unstyled text-start">
+                    <li class="mb-2">📱 <strong>Ouvrez l'appareil photo</strong> de votre téléphone</li>
+                    <li class="mb-2">🎯 <strong>Pointez vers le QR code</strong> ci-dessus</li>
+                    <li class="mb-2">🔗 <strong>Appuyez sur la notification</strong> qui apparaît</li>
+                    <li class="mb-2">🌾 <strong>Accédez directement</strong> à AgriWeb !</li>
+                </ol>
+            </div>
+            
+            <div class="mb-4">
+                <small class="text-muted">
+                    <i class="fas fa-link me-1"></i>{{ app_url }}
+                </small>
+            </div>
+            
+            <div class="share-buttons">
+                <a href="/" class="btn btn-success">
+                    <i class="fas fa-home me-2"></i>Retour Accueil
+                </a>
+                <button class="btn btn-primary" onclick="shareQR()">
+                    <i class="fas fa-share-alt me-2"></i>Partager
+                </button>
+                <button class="btn btn-info" onclick="downloadQR()">
+                    <i class="fas fa-download me-2"></i>Télécharger
+                </button>
+            </div>
+            
+            <div class="mt-4">
+                <small class="text-muted">
+                    <i class="fas fa-clock me-1"></i>Généré le {{ now.strftime('%d/%m/%Y à %H:%M') }}
+                </small>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function shareQR() {
+            if (navigator.share) {
+                navigator.share({
+                    title: 'AgriWeb - Application Agricole',
+                    text: 'Découvrez AgriWeb, l\\'application pour l\\'agriculture moderne',
+                    url: '{{ app_url }}'
+                });
+            } else {
+                // Fallback: copier l'URL
+                navigator.clipboard.writeText('{{ app_url }}').then(() => {
+                    alert('URL copiée dans le presse-papier !');
+                });
+            }
+        }
+        
+        function downloadQR() {
+            const link = document.createElement('a');
+            link.download = 'AgriWeb_QRCode.png';
+            link.href = 'data:image/png;base64,{{ qr_code }}';
+            link.click();
+        }
+    </script>
+</body>
+</html>
+        """, qr_code=qr_code_base64, app_url=app_url, now=datetime.now())
+        
+    except Exception as e:
+        return f"Erreur génération QR code: {e}", 500
+
 # Page d'accueil avec authentification commerciale
 @app.route("/")
 def index():
