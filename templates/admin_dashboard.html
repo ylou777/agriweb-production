@@ -29,6 +29,22 @@
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             padding: 20px;
+            height: 320px; /* Hauteur fixe pour le conteneur */
+            overflow: hidden; /* Empêche le débordement */
+        }
+        
+        .chart-wrapper {
+            position: relative;
+            height: 250px; /* Hauteur fixe pour le graphique */
+            width: 100%;
+        }
+        
+        .chart-wrapper canvas {
+            position: absolute !important;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
         }
         .user-table {
             background: white;
@@ -129,7 +145,9 @@
                         <i class="bi bi-graph-up text-primary me-2"></i>
                         Évolution des Utilisateurs
                     </h5>
-                    <canvas id="usersChart" height="200"></canvas>
+                    <div class="chart-wrapper">
+                        <canvas id="usersChart"></canvas>
+                    </div>
                 </div>
             </div>
             <div class="col-md-6 mb-3">
@@ -138,7 +156,9 @@
                         <i class="bi bi-currency-euro text-success me-2"></i>
                         Revenus Mensuels
                     </h5>
-                    <canvas id="revenueChart" height="200"></canvas>
+                    <div class="chart-wrapper">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -283,9 +303,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Configuration commune pour tous les graphiques
+        Chart.defaults.responsive = true;
+        Chart.defaults.maintainAspectRatio = false;
+        Chart.defaults.resizeDelay = 0;
+        
         // Graphique des utilisateurs
         const usersCtx = document.getElementById('usersChart').getContext('2d');
-        new Chart(usersCtx, {
+        const usersChart = new Chart(usersCtx, {
             type: 'line',
             data: {
                 labels: {{ chart_data.users_labels|safe }},
@@ -308,15 +333,26 @@
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            maxTicksLimit: 6
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 8
+                        }
                     }
+                },
+                interaction: {
+                    intersect: false
                 }
             }
         });
 
         // Graphique des revenus
         const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-        new Chart(revenueCtx, {
+        const revenueChart = new Chart(revenueCtx, {
             type: 'bar',
             data: {
                 labels: {{ chart_data.revenue_labels|safe }},
@@ -338,11 +374,34 @@
                 },
                 scales: {
                     y: {
-                        beginAtZero: true
+                        beginAtZero: true,
+                        ticks: {
+                            maxTicksLimit: 6
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxTicksLimit: 8
+                        }
                     }
+                },
+                interaction: {
+                    intersect: false
                 }
             }
         });
+        
+        // Forcer le redimensionnement des graphiques
+        function resizeCharts() {
+            usersChart.resize();
+            revenueChart.resize();
+        }
+        
+        // Redimensionner quand la fenêtre change
+        window.addEventListener('resize', resizeCharts);
+        
+        // Redimensionner au chargement
+        setTimeout(resizeCharts, 100);
 
         // Fonctions d'administration
         function viewUser(userId) {
