@@ -269,6 +269,42 @@
       });
     }
     window.updateLayerSidebarControl = updateLayerSidebarControl;
+    
+    // Gestion du zoom automatique depuis les paramètres d'URL
+    {% if zoom_lat and zoom_lon %}
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('🎯 Zoom automatique demandé:', {{ zoom_lat }}, {{ zoom_lon }}, '{{ zoom_address }}');
+        
+        // Attendre que la carte soit chargée avant de faire la recherche
+        setTimeout(function() {
+            // Déclencher une recherche par coordonnées
+            const searchForm = document.querySelector('#address-search-form');
+            const latInput = document.querySelector('#lat');
+            const lonInput = document.querySelector('#lon');
+            const addressInput = document.querySelector('#address');
+            
+            if (latInput && lonInput) {
+                latInput.value = {{ zoom_lat }};
+                lonInput.value = {{ zoom_lon }};
+                {% if zoom_address %}
+                if (addressInput) {
+                    addressInput.value = '{{ zoom_address }}';
+                }
+                {% endif %}
+                
+                // Déclencher la recherche
+                if (searchForm) {
+                    console.log('🔍 Déclenchement recherche automatique');
+                    searchForm.dispatchEvent(new Event('submit'));
+                } else {
+                    console.warn('Formulaire de recherche non trouvé');
+                }
+            } else {
+                console.warn('Champs lat/lon non trouvés');
+            }
+        }, 2000);
+    });
+    {% endif %}
   </script>
 </body>
 </html>

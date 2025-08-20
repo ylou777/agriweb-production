@@ -882,7 +882,7 @@
             }
         }
         
-        // Fonction pour zoomer - Version alternative qui ouvre un nouvel onglet
+        // Fonction pour zoomer - Nouvelle version qui utilise notre interface corrigée
         function zoomToLocation(lat, lng, name, type) {
             // Validation des paramètres
             if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
@@ -891,157 +891,29 @@
                 return;
             }
             
-            // Essayer d'abord la méthode postMessage
-            const iframe = document.querySelector('iframe.map-frame');
-            console.log('Iframe trouvée:', iframe);
+            // Ouvrir notre interface principale corrigée avec les coordonnées
+            const appUrl = `/app?lat=${lat}&lon=${lng}&address=${encodeURIComponent(name || 'Point d\'intérêt')}`;
             
-            if (iframe) {
-                // Fonction pour envoyer le message
-                function sendZoomMessage() {
-                    const message = {
-                        action: 'zoomTo',
-                        lat: parseFloat(lat),
-                        lng: parseFloat(lng),
-                        zoom: 16,
-                        name: name || 'Élément',
-                        type: type || 'Point'
-                    };
-                    
-                    console.log('Envoi message zoom:', message);
-                    
-                    try {
-                        iframe.contentWindow.postMessage(message, '*');
-                        console.log('Message envoyé avec succès');
-                        
-                        // Feedback visuel
-                        showZoomFeedback(name || 'Élément', type || 'Point');
-                    } catch (error) {
-                        console.error('Erreur lors de l\'envoi du message:', error);
-                        // Fallback: ouvrir dans un nouvel onglet avec Google Maps
-                        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
-                        window.open(mapUrl, '_blank');
-                    }
-                }
-                
-                // Si l'iframe est déjà chargée, envoyer immédiatement
-                if (iframe.contentWindow) {
-                    sendZoomMessage();
-                } else {
-                    // Sinon, attendre que l'iframe soit chargée
-                    iframe.onload = sendZoomMessage;
-                    // Fallback: essayer après un délai
-                    setTimeout(sendZoomMessage, 1000);
-                }
-            } else {
-                console.error('Iframe map-frame non trouvée');
-                // Fallback: ouvrir Google Maps
-                const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
-                window.open(mapUrl, '_blank');
-            }
+            // Ouvrir dans un nouvel onglet pour garder le rapport ouvert
+            window.open(appUrl, '_blank', 'width=1200,height=800');
+            
+            console.log('Ouverture interface principale:', appUrl);
+            
+            // Feedback visuel
+            showZoomFeedback(name || 'Élément', type || 'Point');
         }
         
-        // Fonction principale de zoom - solution alternative robuste
-        function zoomToLocation(lat, lng, name, type) {
-            console.log('Zoom demandé:', lat, lng, name, type);
-            
-            // Valider les coordonnées
-            if (!lat || !lng || lat === 'undefined' || lng === 'undefined') {
-                console.error('Coordonnées invalides:', lat, lng);
-                alert('Coordonnées invalides pour cet élément');
-                return;
-            }
-            
-            // Convertir en nombres
-            const latitude = parseFloat(lat);
-            const longitude = parseFloat(lng);
-            
-            if (isNaN(latitude) || isNaN(longitude)) {
-                console.error('Coordonnées non numériques:', latitude, longitude);
-                alert('Coordonnées non valides');
-                return;
-            }
-            
-            // Afficher le feedback
-            showZoomFeedback(name || 'Point', type || 'position');
-            
-            // Construire l'URL de la carte avec les coordonnées - version corrigée
-            const protocol = window.location.protocol;
-            const host = window.location.host;
-            const baseUrl = `${protocol}//${host}`;
-            const mapUrl = `${baseUrl}/generated_map?lat=${latitude}&lng=${longitude}&zoom=17&name=${encodeURIComponent(name || 'Point')}`;
-            
-            console.log('URL de zoom construite:', mapUrl);
-            
-            // Essayer d'ouvrir dans un nouvel onglet
-            const mapWindow = window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-            
-            // Vérifier si le popup a été bloqué
-            setTimeout(() => {
-                if (!mapWindow || mapWindow.closed || typeof mapWindow.closed == 'undefined') {
-                    // Popup bloqué, proposer une alternative
-                    const confirmation = confirm(
-                        'Les popups sont bloqués.\n\n' +
-                        'Voulez-vous ouvrir la carte dans l\'onglet actuel ?\n\n' +
-                        '⚠️ Cela remplacera la page du rapport.'
-                    );
-                    
-                    if (confirmation) {
-                        // Ouvrir dans l'onglet actuel
-                        window.location.href = mapUrl;
-                    } else {
-                        // Copier l'URL dans le presse-papier si possible
-                        if (navigator.clipboard) {
-                            navigator.clipboard.writeText(mapUrl).then(() => {
-                                alert('URL de la carte copiée dans le presse-papier.\nVous pouvez la coller dans un nouvel onglet.');
-                            }).catch(() => {
-                                alert('Veuillez autoriser les popups ou copier cette URL manuellement:\n\n' + mapUrl);
-                            });
-                        } else {
-                            alert('Veuillez autoriser les popups ou copier cette URL manuellement:\n\n' + mapUrl);
-                        }
-                    }
-                } else {
-                    // Popup ouvert avec succès
-                    console.log('Carte ouverte avec succès dans un nouvel onglet');
-                    mapWindow.focus();
-                }
-            }, 100);
-        }
+        // Fonction principale de zoom - solution alternative robuste SUPPRIMÉE
+        // (remplacée par la fonction ci-dessus qui utilise notre interface corrigée)
         
         // Fonction pour ouvrir la carte locale en plein écran avec tous les calques
         function openMapFullscreen() {
-            // Chercher l'iframe de la carte par ID d'abord, puis par classe
-            const mapIframe = document.querySelector('#mainMapFrame') || document.querySelector('iframe.map-frame') || document.querySelector('iframe[src*="map.html"]');
-            if (mapIframe) {
-                // Construire l'URL complète de votre carte avec tous les paramètres
-                let mapUrl = mapIframe.src;
-                
-                // Ajouter un paramètre pour indiquer le mode plein écran
+            // Rediriger vers notre interface principale corrigée
+            window.open('/app', '_blank', 'width=1200,height=800');
+        }
                 if (mapUrl.includes('?')) {
-                    mapUrl += '&fullscreen=true';
-                } else {
-                    mapUrl += '?fullscreen=true';
-                }
-                
-                // Ouvrir votre carte locale dans un nouvel onglet en plein écran
-                const fullscreenWindow = window.open(mapUrl, '_blank', 'fullscreen=yes,scrollbars=yes,resizable=yes,width=1920,height=1080');
-                if (fullscreenWindow) {
-                    fullscreenWindow.focus();
-                    
-                    // Optionnel: demander le plein écran navigateur
-                    setTimeout(() => {
-                        try {
-                            fullscreenWindow.document.documentElement.requestFullscreen();
-                        } catch (e) {
-                            console.log('Plein écran automatique non supporté');
-                        }
-                    }, 1000);
-                } else {
-                    alert('Popup bloqué - veuillez autoriser les popups pour ouvrir la carte en plein écran');
-                }
-            } else {
-                alert('Carte non trouvée');
-            }
+            // Rediriger vers notre interface principale corrigée
+            window.open('/app', '_blank', 'width=1200,height=800');
         }
         
         // Feedback visuel pour confirmer le zoom
@@ -1053,7 +925,7 @@
             notification.innerHTML = `
                 <i class="bi bi-zoom-in"></i> 
                 Zoom sur: <strong>${name}</strong> 
-                <small>(${type})</small>
+                <small>(${type})</small>`;
             `;
             
             document.body.appendChild(notification);

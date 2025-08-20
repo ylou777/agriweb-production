@@ -937,7 +937,18 @@ def index():
 # Interface complète AgriWeb (après authentification)
 @app.route("/app")
 def app_interface():
-    """Interface complète AgriWeb - Nécessite authentification"""
+    """Interface complète AgriWeb - Nécessite authentification
+    
+    Accepte les paramètres d'URL suivants pour zoom automatique:
+    - lat: latitude du point à centrer
+    - lon: longitude du point à centrer  
+    - address: nom/description du point
+    """
+    
+    # Récupérer les paramètres de zoom depuis l'URL
+    lat = request.args.get('lat')
+    lon = request.args.get('lon') 
+    address = request.args.get('address', 'Point d\'intérêt')
     
     # Vérifier d'abord le nouveau système d'authentification
     session_token = session.get('session_token') or request.cookies.get('session_token')
@@ -949,7 +960,13 @@ def app_interface():
             try:
                 # Préparer les options de culture pour le menu déroulant
                 culture_options = sorted(list(set(rpg_culture_mapping.values())))
-                return render_template("index.html", culture_options=culture_options)
+                
+                # Passer les paramètres de zoom au template
+                return render_template("index.html", 
+                                       culture_options=culture_options,
+                                       zoom_lat=lat,
+                                       zoom_lon=lon,
+                                       zoom_address=address)
             except:
                 return redirect("/carte")
     
@@ -960,7 +977,13 @@ def app_interface():
         try:
             # Préparer les options de culture pour le menu déroulant
             culture_options = sorted(list(set(rpg_culture_mapping.values())))
-            return render_template("index.html", culture_options=culture_options)
+            
+            # Passer les paramètres de zoom au template
+            return render_template("index.html", 
+                                   culture_options=culture_options,
+                                   zoom_lat=lat,
+                                   zoom_lon=lon,
+                                   zoom_address=address)
         except:
             return redirect("/carte")
     
