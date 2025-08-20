@@ -6649,3 +6649,14 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-20 11:30:35,413 INFO 127.0.0.1 - - [20/Aug/2025 11:30:35] "GET /app HTTP/1.1" 200 -
 2025-08-20 11:30:36,029 INFO 127.0.0.1 - - [20/Aug/2025 11:30:36] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
 2025-08-20 11:30:36,039 INFO 127.0.0.1 - - [20/Aug/2025 11:30:36] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 12:00:01,160 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 12:00:01,162 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 12:00:02,702 INFO 127.0.0.1 - - [20/Aug/2025 12:00:02] "GET / HTTP/1.1" 200 -
+2025-08-20 12:00:16,800 INFO 127.0.0.1 - - [20/Aug/2025 12:00:16] "[31m[1mPOST /login HTTP/1.1[0m" 401 -
+2025-08-20 12:00:27,624 INFO 127.0.0.1 - - [20/Aug/2025 12:00:27] "[31m[1mPOST /login HTTP/1.1[0m" 401 -
+2025-08-20 12:00:47,828 INFO 127.0.0.1 - - [20/Aug/2025 12:00:47] "GET /app HTTP/1.1" 200 -
+2025-08-20 12:00:48,026 INFO 127.0.0.1 - - [20/Aug/2025 12:00:48] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 12:00:48,059 INFO 127.0.0.1 - - [20/Aug/2025 12:00:48] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 12:01:43,417 INFO 127.0.0.1 - - [20/Aug/2025 12:01:43] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-20 12:01:44,261 INFO 127.0.0.1 - - [20/Aug/2025 12:01:44] "GET /static/cartes/map_1755684092_74728635678360540.html HTTP/1.1" 200 -
