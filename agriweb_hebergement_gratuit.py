@@ -4377,7 +4377,7 @@ def generated_map():
     # Récupérer les paramètres de zoom depuis l'URL
     zoom_lat = request.args.get('lat', type=float)
     zoom_lng = request.args.get('lng', type=float)
-    zoom_level = request.args.get('zoom', type=int, default=12)
+    zoom_level = request.args.get('zoom', type=int, default=17)
     marker_name = request.args.get('name', 'Point de zoom')
     
     html = last_map_params.get("html")
