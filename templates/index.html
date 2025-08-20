@@ -27,7 +27,7 @@
       top: 0;
       left: 0;
       right: 0;
-      z-index: 1030;
+      z-index: 900; /* Réduit pour laisser passer les layer controls Leaflet (z-index: 1000) */
       height: 56px;
     }
     /* === CSS FORCE SIDEBAR À GAUCHE === */
@@ -135,6 +135,13 @@
     #closeSidebarBtn { display: none; }
     @media (max-width: 991px) {
       #closeSidebarBtn { display: inline-block; }
+    }
+    
+    /* Force les contrôles de carte au-dessus de la navbar */
+    .leaflet-control-layers,
+    .leaflet-control-zoom,
+    .leaflet-control {
+      z-index: 1000 !important;
     }
   </style>
 </head>
