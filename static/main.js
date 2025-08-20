@@ -219,7 +219,33 @@ function buildPopup (properties, extra = {}) {
 }
 
 function getMapFrame() {
-  return document.getElementById("mapFrame")?.contentWindow;
+  try {
+    // Vérifier si nous sommes dans une iframe ou non
+    if (window.parent && window.parent !== window) {
+      // Dans une iframe
+      const parentDoc = window.parent.document;
+      const mapElement = parentDoc.querySelector('[id^="map"]');
+      if (mapElement && mapElement.id) {
+        const mapVar = window.parent[mapElement.id];
+        if (mapVar && mapVar._container) {
+          return { map: mapVar, L: window.parent.L };
+        }
+      }
+    }
+    
+    // Recherche directe dans window courant
+    for (const key of Object.keys(window)) {
+      if (key.startsWith('map_') && window[key] && window[key]._container) {
+        return { map: window[key], L: window.L };
+      }
+    }
+    
+    console.warn("❌ Map instance not found");
+    return null;
+  } catch (err) {
+    console.error("❌ Erreur getMapFrame:", err);
+    return null;
+  }
 }
 function getBaseLayers() {
   const m = getMapFrame();
@@ -283,7 +309,27 @@ function displayAllLayers(data) {
       else if (Array.isArray(val) && val[0] && val[0].type === "Feature" && val[0].geometry) geojson = { type: "FeatureCollection", features: val };
       if (!geojson) return;
       
-      console.log(`[displayAllLayers] GeoJSON normalisé pour ${layerKey}:`, geojson);
+    // Validation stricte du GeoJSON avant traitement
+    if (!geojson || !geojson.type || geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features)) {
+      console.warn(`[displayAllLayers] GeoJSON invalide pour ${layerKey}:`, geojson);
+      return;
+    }
+    
+    // Filtrer les features avec geometry valide uniquement
+    geojson.features = geojson.features.filter(feature => {
+      if (!feature || !feature.geometry || !feature.geometry.type || !feature.geometry.coordinates) {
+        console.warn(`[displayAllLayers] Feature sans géométrie valide ignorée:`, feature);
+        return false;
+      }
+      return true;
+    });
+    
+    // Si plus aucune feature valide, ignorer la couche
+    if (geojson.features.length === 0) {
+      console.warn(`[displayAllLayers] Aucune feature valide pour ${layerKey}, couche ignorée`);
+      return;
+    }
+      console.log(`[displayAllLayers] GeoJSON validé pour ${layerKey}:`, geojson);
     } catch (normalizeErr) {
       console.error(`[displayAllLayers] Erreur normalisation ${layerKey}:`, normalizeErr);
       return;

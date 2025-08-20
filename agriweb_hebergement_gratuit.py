@@ -7779,9 +7779,32 @@ def compute_commune_report(
 
     # 4) Postes BT/HTA en FeatureCollection si demandés
     def poste_to_feature(poste):
+        """Convertit un poste en Feature GeoJSON valide."""
+        geometry = poste.get("geometry")
+        
+        # Validation stricte de la géométrie
+        if not geometry or not isinstance(geometry, dict):
+            return None
+        
+        if "type" not in geometry or "coordinates" not in geometry:
+            return None
+            
+        # Vérifier que les coordonnées sont valides
+        coords = geometry.get("coordinates")
+        if not coords or not isinstance(coords, (list, tuple)) or len(coords) < 2:
+            return None
+            
+        # Pour un Point, vérifier que les coordonnées sont numériques
+        if geometry["type"] == "Point":
+            try:
+                float(coords[0])  # longitude
+                float(coords[1])  # latitude
+            except (ValueError, TypeError, IndexError):
+                return None
+        
         return {
             "type": "Feature",
-            "geometry": poste.get("geometry"),
+            "geometry": geometry,
             "properties": poste.get("properties", {})
         }
     result = {
@@ -7824,12 +7847,12 @@ def compute_commune_report(
     if "BT" in reseau_types:
         result["postes_bt"] = {
             "type": "FeatureCollection",
-            "features": [poste_to_feature(p) for p in postes_bt if p.get("geometry")]
+            "features": [f for f in [poste_to_feature(p) for p in postes_bt] if f is not None]
         }
     if "HTA" in reseau_types:
         result["postes_hta"] = {
             "type": "FeatureCollection",
-            "features": [poste_to_feature(p) for p in postes_hta if p.get("geometry")]
+            "features": [f for f in [poste_to_feature(p) for p in postes_hta] if f is not None]
         }
 
     # 5) Éleveurs (toujours présent, mais filtré par want_eleveurs)
