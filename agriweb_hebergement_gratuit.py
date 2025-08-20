@@ -341,6 +341,16 @@ def handle_500_error(e):
     tb = traceback.format_exc()
     return jsonify({"error": str(e), "traceback": tb}), 500
 
+# Endpoint de santé pour Railway
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Endpoint de santé pour Railway"""
+    return jsonify({
+        "status": "healthy",
+        "service": "AgriWeb",
+        "timestamp": datetime.now().isoformat(),
+        "geoserver_url": GEOSERVER_URL
+    }), 200
 
 os.makedirs("cartes", exist_ok=True)
 
