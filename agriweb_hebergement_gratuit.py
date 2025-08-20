@@ -947,7 +947,9 @@ def app_interface():
         if user:
             # Utilisateur connecté avec le nouveau système - Interface complète
             try:
-                return render_template("index.html")
+                # Préparer les options de culture pour le menu déroulant
+                culture_options = sorted(list(set(rpg_culture_mapping.values())))
+                return render_template("index.html", culture_options=culture_options)
             except:
                 return redirect("/carte")
     
@@ -956,7 +958,9 @@ def app_interface():
     if user_authenticated:
         # Ancien système - Interface complète
         try:
-            return render_template("index.html")
+            # Préparer les options de culture pour le menu déroulant
+            culture_options = sorted(list(set(rpg_culture_mapping.values())))
+            return render_template("index.html", culture_options=culture_options)
         except:
             return redirect("/carte")
     
