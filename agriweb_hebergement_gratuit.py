@@ -3123,8 +3123,10 @@ def build_simple_map(
         icon=folium.Icon(color="red", icon="search", prefix="fa")
     ).add_to(map_obj)
     
-    # Contrôle des couches
-    folium.LayerControl().add_to(map_obj)
+    # Contrôle des couches - AJOUT EXPLICITE AVEC PARAMÈTRES
+    layer_control = folium.LayerControl(position='topright', collapsed=False)
+    layer_control.add_to(map_obj)
+    print("🎛️ [LAYER CONTROL] Ajouté en position topright, non collapsed")
     
     # Zoom approprié
     map_obj.fit_bounds([[lat-0.002, lon-0.002], [lat+0.002, lon+0.002]])
@@ -3351,6 +3353,19 @@ def build_map(
     map_obj.add_child(plu_group)
 
     # Autres couches simples
+    # DÉFINITION DES FONCTIONS DE STYLE EN DEHORS DE LA BOUCLE
+    def style_parkings(feature):
+        return {"color": "orange", "weight": 3, "fillColor": "orange", "fillOpacity": 0.4, "opacity": 0.8}
+    
+    def style_friches(feature):
+        return {"color": "brown", "weight": 3, "fillColor": "brown", "fillOpacity": 0.4, "opacity": 0.8}
+    
+    def style_solaire(feature):
+        return {"color": "gold", "weight": 3, "fillColor": "gold", "fillOpacity": 0.4, "opacity": 0.8}
+    
+    def style_zaer(feature):
+        return {"color": "cyan", "weight": 3, "fillColor": "cyan", "fillOpacity": 0.4, "opacity": 0.8}
+
     for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
         print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")
         group = folium.FeatureGroup(name=name, show=True)
@@ -3473,27 +3488,15 @@ def build_map(
                     # Créer le popup avec les liens Street View et Pages Jaunes si disponibles
                     popup_content = tooltip_text + street_view_link + pages_jaunes_link
                     
-                    # SOLUTION AMÉLIORÉE: Définir les couleurs de manière plus robuste
-                    def create_style_function(color_name):
-                        def style_func(feature):
-                            return {
-                                "color": color_name, 
-                                "weight": 3, 
-                                "fillColor": color_name, 
-                                "fillOpacity": 0.4,
-                                "opacity": 0.8
-                            }
-                        return style_func
-                    
-                    # Définir la fonction de style selon le type de couche
+                    # SOLUTION SIMPLE ET ROBUSTE: Utiliser les fonctions prédéfinies
                     if name == "Parkings":
-                        style_func = create_style_function("orange")
+                        style_func = style_parkings
                     elif name == "Friches":
-                        style_func = create_style_function("brown")
+                        style_func = style_friches
                     elif name == "Potentiel Solaire":
-                        style_func = create_style_function("gold")
+                        style_func = style_solaire
                     else:  # ZAER
-                        style_func = create_style_function("cyan")
+                        style_func = style_zaer
                     
                     folium.GeoJson(
                         geom, 
