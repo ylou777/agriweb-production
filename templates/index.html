@@ -22,22 +22,13 @@
       flex-direction: column;
       min-height: 100vh;
     }
-    .navbar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 100; /* Z-index très bas pour ne jamais cacher les contrôles Leaflet */
-      height: 56px;
-    }
     /* === CSS FORCE SIDEBAR À GAUCHE === */
     .main-container {
       flex: 1 1 0;
       display: flex !important;
       flex-direction: row !important;
       min-height: 0;
-      height: calc(100vh - 56px);
-      margin-top: 56px;
+      height: 100vh; /* Pleine hauteur maintenant qu'il n'y a plus de navbar */
       overflow: hidden;
       align-items: stretch;
       position: relative;
@@ -105,17 +96,16 @@
     /* Responsive sidebar pour mobile */
     @media (max-width: 991px) {
       .main-container {
-        margin-top: 56px !important;
         flex-direction: column !important;
         position: relative !important;
       }
       #sidebar {
         position: fixed !important;
         left: -100vw !important;
-        top: 56px !important;
+        top: 0 !important; /* Plus de décalage de navbar */
         width: 90vw !important;
         max-width: 98vw !important;
-        height: calc(100vh - 56px) !important;
+        height: 100vh !important; /* Pleine hauteur */
         z-index: 1050 !important;
         box-shadow: 4px 0 24px #0002;
         transition: left 0.3s;
@@ -129,7 +119,7 @@
         left: 0 !important;
         top: 0 !important;
         width: 100% !important;
-        height: calc(100vh - 56px) !important;
+        height: 100vh !important; /* Pleine hauteur */
       }
     }
     #closeSidebarBtn { display: none; }
@@ -160,18 +150,36 @@
     .leaflet-control-layers-list {
       z-index: 9999 !important;
     }
+    
+    /* Bouton flottant pour mobile */
+    #openSidebarBtn {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 10000;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      display: none;
+    }
+    
+    @media (max-width: 991px) {
+      #openSidebarBtn {
+        display: block;
+      }
+    }
   </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark px-3">
-    <span class="navbar-brand">Mon App Géo</span>
-    <button id="openSidebarBtn" class="btn btn-outline-light d-lg-none ms-auto" type="button">Menu</button>
-  </nav>
   <div class="main-container">
     <!-- SIDEBAR DOIT ÊTRE À GAUCHE - PREMIER ÉLÉMENT -->
     <div id="sidebar" class="text-dark">
       <div class="offcanvas-header d-flex align-items-center px-3 pt-3">
-        <h5 class="offcanvas-title flex-grow-1 mb-0">Panneau de recherche</h5>
+        <h5 class="offcanvas-title flex-grow-1 mb-0">🗺️ Mon App Géo</h5>
         <button id="closeSidebarBtn" class="btn-close text-reset ms-2" type="button"></button>
       </div>
       <div class="offcanvas-body p-0">
@@ -194,6 +202,11 @@
     </div>
     <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
     <iframe id="mapFrame" src="/static/map.html" title="Carte interactive"></iframe>
+    
+    <!-- Bouton flottant pour ouvrir la sidebar sur mobile -->
+    <button id="openSidebarBtn" type="button">
+      <i class="bi bi-list"></i>
+    </button>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/static/main.js"></script>
