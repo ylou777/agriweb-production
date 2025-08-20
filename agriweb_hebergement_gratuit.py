@@ -585,11 +585,36 @@ def authenticate_user(email, password):
         return False, None, "Erreur lors de la connexion"
 
 def create_session(user_id, ip_address=None, user_agent=None):
-    """Crée une session utilisateur"""
+    """Crée une session utilisateur avec limite de 3 sessions max"""
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
         
+        # Nettoyer les sessions expirées
+        cursor.execute('''
+            DELETE FROM user_sessions 
+            WHERE expires_at < datetime('now')
+        ''')
+        
+        # Compter les sessions actives pour cet utilisateur
+        cursor.execute('''
+            SELECT COUNT(*) FROM user_sessions 
+            WHERE user_id = ? AND expires_at > datetime('now')
+        ''', (user_id,))
+        
+        active_sessions = cursor.fetchone()[0]
+        
+        # Si 3 sessions ou plus, supprimer la plus ancienne
+        if active_sessions >= 3:
+            cursor.execute('''
+                DELETE FROM user_sessions 
+                WHERE user_id = ? 
+                ORDER BY created_at ASC 
+                LIMIT 1
+            ''', (user_id,))
+            print(f"⚠️ Session la plus ancienne supprimée pour user_id {user_id} (limite 3 sessions)")
+        
+        # Créer la nouvelle session
         session_token = secrets.token_urlsafe(32)
         expires_at = datetime.now() + timedelta(hours=24)  # Session de 24h
         
@@ -599,8 +624,17 @@ def create_session(user_id, ip_address=None, user_agent=None):
         ''', (user_id, session_token, expires_at, ip_address, user_agent))
         
         conn.commit()
+        
+        # Compter les sessions actives après création
+        cursor.execute('''
+            SELECT COUNT(*) FROM user_sessions 
+            WHERE user_id = ? AND expires_at > datetime('now')
+        ''', (user_id,))
+        final_count = cursor.fetchone()[0]
+        
         conn.close()
         
+        print(f"✅ Session créée pour user_id {user_id} ({final_count}/3 sessions actives)")
         return session_token
         
     except Exception as e:
@@ -12887,6 +12921,60 @@ def require_admin(f):
             
         return f(*args, **kwargs)
     return decorated_function
+
+@app.route('/admin/sessions')
+@require_admin
+def admin_sessions():
+    """Page de gestion des sessions actives"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Nettoyer les sessions expirées
+        cursor.execute('''
+            DELETE FROM user_sessions 
+            WHERE expires_at < datetime('now')
+        ''')
+        conn.commit()
+        
+        # Récupérer toutes les sessions actives avec infos utilisateur
+        cursor.execute('''
+            SELECT us.user_id, u.email, us.session_token, us.created_at, 
+                   us.expires_at, us.ip_address, us.user_agent,
+                   COUNT(*) OVER (PARTITION BY us.user_id) as session_count
+            FROM user_sessions us
+            JOIN users u ON us.user_id = u.id
+            WHERE us.expires_at > datetime('now')
+            ORDER BY us.created_at DESC
+        ''')
+        
+        sessions = cursor.fetchall()
+        conn.close()
+        
+        return render_template('admin_sessions.html', sessions=sessions)
+        
+    except Exception as e:
+        flash(f'Erreur lors de la récupération des sessions: {e}', 'error')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/session/revoke/<session_token>', methods=['POST'])
+@require_admin
+def revoke_session(session_token):
+    """Révoquer une session spécifique"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM user_sessions WHERE session_token = ?', (session_token,))
+        conn.commit()
+        conn.close()
+        
+        flash('Session révoquée avec succès', 'success')
+        
+    except Exception as e:
+        flash(f'Erreur lors de la révocation: {e}', 'error')
+    
+    return redirect(url_for('admin_sessions'))
 
 @app.route("/admin", methods=["GET", "POST"])
 @require_admin
