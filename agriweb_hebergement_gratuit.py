@@ -10223,6 +10223,66 @@ def recherche_toitures():
     """Interface de recherche de toitures par commune"""
     return render_template("recherche_toitures.html")
 
+@app.route('/test_geoserver', methods=['GET'])
+def test_geoserver():
+    """Test de connexion GeoServer pour debug"""
+    try:
+        print("\n🔧 [TEST GEOSERVER] === DÉBUT TEST ===")
+        
+        # Test détection automatique
+        detected_url = detect_working_geoserver()
+        print(f"🔧 [TEST] URL détectée: {detected_url}")
+        
+        # Test direct du GeoServer détecté
+        if detected_url:
+            test_url = f"{detected_url}/wfs?service=WFS&version=1.0.0&request=GetCapabilities"
+            print(f"🔧 [TEST] Test URL: {test_url}")
+            
+            response = requests.get(test_url, timeout=10)
+            print(f"🔧 [TEST] Status: {response.status_code}")
+            print(f"🔧 [TEST] Content length: {len(response.text)}")
+            print(f"🔧 [TEST] Content preview: {response.text[:200]}...")
+            
+            # Test d'une requête réelle comme celle utilisée dans build_map
+            test_wfs_url = f"{detected_url}/wfs"
+            test_params = {
+                'service': 'WFS',
+                'version': '1.0.0', 
+                'request': 'GetFeature',
+                'typeName': 'geoserver:parkings_sup500m2',
+                'outputFormat': 'application/json',
+                'maxFeatures': 1
+            }
+            
+            print(f"🔧 [TEST] Test requête WFS réelle...")
+            wfs_response = requests.get(test_wfs_url, params=test_params, timeout=15)
+            print(f"🔧 [TEST] WFS Status: {wfs_response.status_code}")
+            print(f"🔧 [TEST] WFS Content: {wfs_response.text[:300]}...")
+            
+            return jsonify({
+                'success': True,
+                'detected_url': detected_url,
+                'capabilities_status': response.status_code,
+                'capabilities_content_length': len(response.text),
+                'wfs_test_status': wfs_response.status_code,
+                'wfs_test_content': wfs_response.text[:500],
+                'environment': 'railway' if os.environ.get('RAILWAY_ENVIRONMENT') else 'local'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Aucun GeoServer détecté',
+                'environment': 'railway' if os.environ.get('RAILWAY_ENVIRONMENT') else 'local'
+            })
+            
+    except Exception as e:
+        print(f"🔧 [TEST ERROR]: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'environment': 'railway' if os.environ.get('RAILWAY_ENVIRONMENT') else 'local'
+        })
+
 @app.route("/search_by_address", methods=["GET", "POST"])
 def search_by_address_route():
     # Debug prints moved after parcelle assignment to avoid UnboundLocalError
