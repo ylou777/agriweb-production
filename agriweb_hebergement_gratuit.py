@@ -3473,39 +3473,27 @@ def build_map(
                     # Créer le popup avec les liens Street View et Pages Jaunes si disponibles
                     popup_content = tooltip_text + street_view_link + pages_jaunes_link
                     
-                    # SOLUTION: Créer la style_function directement sans closure
+                    # SOLUTION AMÉLIORÉE: Définir les couleurs de manière plus robuste
+                    def create_style_function(color_name):
+                        def style_func(feature):
+                            return {
+                                "color": color_name, 
+                                "weight": 3, 
+                                "fillColor": color_name, 
+                                "fillOpacity": 0.4,
+                                "opacity": 0.8
+                            }
+                        return style_func
+                    
+                    # Définir la fonction de style selon le type de couche
                     if name == "Parkings":
-                        style_func = lambda feature: {
-                            "color": "orange", 
-                            "weight": 3, 
-                            "fillColor": "orange", 
-                            "fillOpacity": 0.4,
-                            "opacity": 0.8
-                        }
+                        style_func = create_style_function("orange")
                     elif name == "Friches":
-                        style_func = lambda feature: {
-                            "color": "brown", 
-                            "weight": 3, 
-                            "fillColor": "brown", 
-                            "fillOpacity": 0.4,
-                            "opacity": 0.8
-                        }
+                        style_func = create_style_function("brown")
                     elif name == "Potentiel Solaire":
-                        style_func = lambda feature: {
-                            "color": "gold", 
-                            "weight": 3, 
-                            "fillColor": "gold", 
-                            "fillOpacity": 0.4,
-                            "opacity": 0.8
-                        }
+                        style_func = create_style_function("gold")
                     else:  # ZAER
-                        style_func = lambda feature: {
-                            "color": "cyan", 
-                            "weight": 3, 
-                            "fillColor": "cyan", 
-                            "fillOpacity": 0.4,
-                            "opacity": 0.8
-                        }
+                        style_func = create_style_function("cyan")
                     
                     folium.GeoJson(
                         geom, 

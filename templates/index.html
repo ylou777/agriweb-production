@@ -27,7 +27,7 @@
       top: 0;
       left: 0;
       right: 0;
-      z-index: 900; /* Réduit pour laisser passer les layer controls Leaflet (z-index: 1000) */
+      z-index: 500; /* Encore plus réduit pour laisser passer tous les contrôles Leaflet */
       height: 56px;
     }
     /* === CSS FORCE SIDEBAR À GAUCHE === */
@@ -137,10 +137,21 @@
       #closeSidebarBtn { display: inline-block; }
     }
     
-    /* Force les contrôles de carte au-dessus de la navbar */
+    /* Force tous les contrôles de carte au-dessus de la navbar */
     .leaflet-control-layers,
     .leaflet-control-zoom,
-    .leaflet-control {
+    .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out,
+    .leaflet-control,
+    .leaflet-top,
+    .leaflet-bottom,
+    .leaflet-left,
+    .leaflet-right {
+      z-index: 1000 !important;
+    }
+    
+    /* Force spécifiquement les boutons de zoom */
+    .leaflet-control-zoom a {
       z-index: 1000 !important;
     }
   </style>
