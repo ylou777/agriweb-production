@@ -10484,8 +10484,17 @@ def main():
     try:
         print("Routes disponibles:")
         pprint.pprint(list(app.url_map.iter_rules()))
-        Timer(1, open_browser).start()
-        app.run(host="127.0.0.1", port=5000, debug=False)  # Debug False pour éviter les reloads multiples
+        
+        # Vérification si on est en mode Railway
+        port = int(os.environ.get("PORT", 5000))
+        host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
+        
+        # Pas d'ouverture de navigateur en production
+        if host == "127.0.0.1":
+            Timer(1, open_browser).start()
+            
+        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
+        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
