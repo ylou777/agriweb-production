@@ -1172,6 +1172,117 @@ def stripe_webhook():
     
     return jsonify({'status': 'success'})
 
+@app.route('/test-couches')
+def test_couches_diagnostic():
+    """Page de diagnostic des couches de carte"""
+    try:
+        import folium
+        
+        # Créer une carte de test simple
+        test_map = folium.Map(location=[46.8, 2.0], zoom_start=8)
+        
+        # Ajouter couche Esri
+        folium.TileLayer(
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri World Imagery",
+            name="Satellite",
+            overlay=False,
+            control=True,
+            show=True
+        ).add_to(test_map)
+        
+        # Ajouter OSM
+        folium.TileLayer(
+            "OpenStreetMap",
+            name="Fond OSM",
+            overlay=False,
+            control=True,
+            show=False
+        ).add_to(test_map)
+        
+        # Test polygones colorés
+        test_polygons = [
+            {"coords": [[[2.0, 46.0], [2.2, 46.0], [2.2, 46.2], [2.0, 46.2], [2.0, 46.0]]], "color": "red", "name": "Rouge"},
+            {"coords": [[[2.4, 46.0], [2.6, 46.0], [2.6, 46.2], [2.4, 46.2], [2.4, 46.0]]], "color": "blue", "name": "Bleu"},
+            {"coords": [[[2.8, 46.0], [3.0, 46.0], [3.0, 46.2], [2.8, 46.2], [2.8, 46.0]]], "color": "green", "name": "Vert"},
+            {"coords": [[[3.2, 46.0], [3.4, 46.0], [3.4, 46.2], [3.2, 46.2], [3.2, 46.0]]], "color": "orange", "name": "Orange"},
+            {"coords": [[[3.6, 46.0], [3.8, 46.0], [3.8, 46.2], [3.6, 46.2], [3.6, 46.0]]], "color": "purple", "name": "Violet"}
+        ]
+        
+        for poly in test_polygons:
+            geom = {"type": "Polygon", "coordinates": poly["coords"]}
+            
+            # Style avec closure pour capturer la couleur
+            def make_style(color):
+                return lambda x: {
+                    "color": color,
+                    "weight": 3,
+                    "fillColor": color,
+                    "fillOpacity": 0.4,
+                    "opacity": 0.8
+                }
+            
+            folium.GeoJson(
+                geom,
+                style_function=make_style(poly["color"]),
+                tooltip=f"Test {poly['name']} - Couleur: {poly['color']}"
+            ).add_to(test_map)
+        
+        # Ajouter LayerControl
+        folium.LayerControl().add_to(test_map)
+        
+        # Générer HTML
+        map_html = test_map._repr_html_()
+        
+        return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Diagnostic Couches</title>
+    <style>
+        body {{ margin: 0; padding: 20px; font-family: Arial, sans-serif; }}
+        .info {{ background: #f0f0f0; padding: 10px; margin-bottom: 10px; border-radius: 5px; }}
+        .map-container {{ height: 600px; border: 1px solid #ccc; }}
+    </style>
+</head>
+<body>
+    <h1>🔍 Diagnostic des Couches de Carte</h1>
+    
+    <div class="info">
+        <h3>🎯 Test des éléments suivants :</h3>
+        <ul>
+            <li>✅ Couche Esri Satellite (par défaut)</li>
+            <li>✅ Couche OpenStreetMap (désactivée)</li>
+            <li>🎨 Polygones : Rouge, Bleu, Vert, Orange, Violet</li>
+            <li>🎛️ LayerControl pour basculer entre couches</li>
+        </ul>
+        
+        <p><strong>Si tous les polygones apparaissent en orange :</strong> problème de style fonction</p>
+        <p><strong>Si pas de couche Esri :</strong> problème de tuiles</p>
+        <p><strong>Si pas de LayerControl :</strong> problème d'affichage des contrôles</p>
+    </div>
+    
+    <div class="map-container">
+        {map_html}
+    </div>
+    
+    <div class="info">
+        <h3>🔗 Actions :</h3>
+        <a href="/app">← Retour à l'application</a> | 
+        <a href="/test-couches">🔄 Recharger le test</a>
+    </div>
+</body>
+</html>
+        """
+        
+    except Exception as e:
+        return f"""
+<h1>❌ Erreur Test Couches</h1>
+<p>Erreur : {str(e)}</p>
+<pre>{traceback.format_exc()}</pre>
+<a href="/app">← Retour à l'application</a>
+        """
+
 @app.route('/qrcode')
 def qr_code_page():
     """Page avec QR code pour partager l'application"""
