@@ -10448,8 +10448,10 @@ def search_by_address_route():
         carte_filename = f"map_{int(time.time())}_{abs(hash((lat, lon, address)))}.html"
         try:
             carte_url = save_map_html(map_obj, carte_filename)
+            print(f"[DEBUG] Carte Folium sauvée: {carte_url}")
         except Exception as save_error:
             logging.error(f"[search_by_address] Erreur save_map_html: {save_error}")
+            print(f"[DEBUG] Erreur save_map_html: {save_error}")
             carte_url = None
     except Exception as e:
         import traceback
@@ -10466,7 +10468,25 @@ def search_by_address_route():
         logging.error(f"[search_by_address] Erreur JSON serialization: {json_error}")
         return jsonify({"error": "Erreur de sérialisation des données", "details": str(json_error)}), 500
 
-    info_response["carte_url"] = f"/static/{carte_url}" if carte_url else "/static/map.html"
+    # Toujours utiliser la carte Folium générée avec LayerControl complet
+    if carte_url:
+        info_response["carte_url"] = f"/static/{carte_url}"
+        print(f"[DEBUG] Utilisation carte Folium: /static/{carte_url}")
+    else:
+        # Générer une carte Folium simple si la génération a échoué
+        print(f"[DEBUG] Génération carte Folium de fallback...")
+        try:
+            import folium
+            fallback_map = folium.Map(location=[lat, lon], zoom_start=13)
+            folium.Marker([lat, lon], popup=f"Recherche: {address}").add_to(fallback_map)
+            folium.LayerControl().add_to(fallback_map)
+            fallback_filename = f"fallback_map_{int(time.time())}.html"
+            fallback_url = save_map_html(fallback_map, fallback_filename)
+            info_response["carte_url"] = f"/static/{fallback_url}"
+            print(f"[DEBUG] Carte fallback générée: /static/{fallback_url}")
+        except Exception as fallback_error:
+            print(f"[DEBUG] Erreur carte fallback: {fallback_error}")
+            info_response["carte_url"] = "/static/map.html"
     
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
     try:
