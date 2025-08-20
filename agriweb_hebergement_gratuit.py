@@ -327,6 +327,25 @@ except ImportError:
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
+# Styles statiques pour éviter les problèmes avec les fonctions lambda en production
+STATIC_STYLES = {
+    'parcelles': {'color': '#FF6600', 'fillColor': '#FFD700', 'fillOpacity': 0.3, 'weight': 2},
+    'postes_bt': {'color': '#FFD700', 'fillColor': '#FFD700', 'fillOpacity': 0.6, 'weight': 2},
+    'postes_hta': {'color': '#D12322', 'fillColor': '#D12322', 'fillOpacity': 0.6, 'weight': 2},
+    'eleveurs': {'color': '#34ad41', 'fillColor': '#34ad41', 'fillOpacity': 0.5, 'weight': 2},
+    'parkings': {'color': '#2ecc71', 'fillColor': '#2ecc71', 'fillOpacity': 0.5, 'weight': 2},
+    'solaire': {'color': '#ffd700', 'fillColor': '#ffd700', 'fillOpacity': 0.5, 'weight': 2},
+    'rpg': {'color': '#228B22', 'fillColor': '#90EE90', 'fillOpacity': 0.3, 'weight': 1},
+    'api_cadastre': {'color': '#FF6600', 'fillColor': '#FFE4B5', 'fillOpacity': 0.3, 'weight': 1},
+    'api_nature': {'color': '#22AA22', 'fillColor': '#98FB98', 'fillOpacity': 0.3, 'weight': 1},
+    'api_urbanisme': {'color': '#0000FF', 'fillColor': '#ADD8E6', 'fillOpacity': 0.3, 'weight': 1},
+    'default': {'color': '#3388ff', 'fillColor': '#8cc0ff', 'fillOpacity': 0.3, 'weight': 2}
+}
+
+def get_static_style(layer_type='default'):
+    """Retourne un style statique pour le type de couche donné"""
+    return STATIC_STYLES.get(layer_type, STATIC_STYLES['default'])
+
 
 # Configuration CORS pour Railway
 @app.after_request

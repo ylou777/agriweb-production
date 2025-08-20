@@ -58,6 +58,7 @@
     var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
     sat.addTo(map);
     var baseMaps = { "Satellite": sat, "OSM": osm };
+    L.control.layers(baseMaps).addTo(map);
     window._layers = [];
 
     // Fix full size si l’iframe bouge
