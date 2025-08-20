@@ -352,6 +352,338 @@ def health_check():
         "geoserver_url": GEOSERVER_URL
     }), 200
 
+# Page d'accueil avec authentification
+@app.route("/")
+def index():
+    """Page d'accueil avec authentification ou interface directe"""
+    # Vérifier si l'utilisateur a une session active
+    user_authenticated = request.cookies.get('user_authenticated') or request.args.get('demo')
+    
+    if user_authenticated:
+        # Utilisateur connecté - afficher l'interface complète
+        try:
+            return render_template("index.html")
+        except:
+            # Fallback si le template n'existe pas
+            return render_template_string("""
+            <!DOCTYPE html>
+            <html lang="fr">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>🌾 AgriWeb - Interface</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f8f9fa; }
+                    .header { background: linear-gradient(135deg, #2c5f41, #4a8b3b); color: white; padding: 2rem 0; text-align: center; }
+                    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+                    .nav-card { background: white; border-radius: 12px; padding: 2rem; margin: 1rem 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+                    .nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 2rem; }
+                    .nav-item { background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 8px; padding: 1.5rem; text-align: center; transition: all 0.3s ease; text-decoration: none; color: #333; }
+                    .nav-item:hover { border-color: #28a745; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2); }
+                    .nav-item h3 { margin: 0 0 0.5rem 0; color: #2c5f41; }
+                    .status-bar { background: #d4edda; border: 1px solid #c3e6cb; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>🌾 AgriWeb - Interface de géolocalisation agricole</h1>
+                    <p>Plateforme complète d'analyse géospatiale</p>
+                </div>
+                
+                <div class="container">
+                    <div class="status-bar">
+                        ✅ <strong>Système opérationnel</strong> - GeoServer connecté : {{ geoserver_url }}
+                    </div>
+                    
+                    <div class="nav-card">
+                        <h2>🔍 Fonctionnalités principales</h2>
+                        <div class="nav-grid">
+                            <a href="/search_by_commune" class="nav-item">
+                                <h3>🏘️ Recherche par commune</h3>
+                                <p>Analyse complète d'une commune avec toutes les couches de données</p>
+                            </a>
+                            <a href="/search_by_address" class="nav-item">
+                                <h3>📍 Recherche par adresse</h3>
+                                <p>Localisation précise avec coordonnées GPS</p>
+                            </a>
+                            <a href="/toitures" class="nav-item">
+                                <h3>🏠 Analyse toitures</h3>
+                                <p>Potentiel solaire et surface exploitable</p>
+                            </a>
+                            <a href="/rapport_commune" class="nav-item">
+                                <h3>📊 Rapport commune</h3>
+                                <p>Rapport détaillé avec statistiques</p>
+                            </a>
+                            <a href="/rapport_departement" class="nav-item">
+                                <h3>🗺️ Rapport département</h3>
+                                <p>Synthèse départementale complète</p>
+                            </a>
+                            <a href="/carte_risques" class="nav-item">
+                                <h3>⚠️ Carte des risques</h3>
+                                <p>Visualisation des risques naturels</p>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """)
+    else:
+        # Nouvel utilisateur - page d'accueil avec authentification
+        return render_template_string("""
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>🌾 AgriWeb - Plateforme d'analyse géospatiale agricole</title>
+            <style>
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { 
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background: linear-gradient(135deg, #2c5f41 0%, #4a8b3b 100%);
+                    min-height: 100vh; 
+                    display: flex; 
+                    align-items: center; 
+                    justify-content: center;
+                    color: #333;
+                }
+                .welcome-container { 
+                    background: rgba(255,255,255,0.95); 
+                    padding: 3rem; 
+                    border-radius: 16px; 
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                    width: 100%; 
+                    max-width: 600px; 
+                    text-align: center;
+                    backdrop-filter: blur(10px);
+                }
+                .logo { 
+                    font-size: 3rem; 
+                    margin-bottom: 1rem; 
+                    color: #2c5f41; 
+                    font-weight: 700;
+                }
+                .tagline {
+                    font-size: 1.2rem;
+                    color: #666;
+                    margin-bottom: 2rem;
+                    line-height: 1.6;
+                }
+                .features {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 1.5rem;
+                    margin: 2rem 0;
+                }
+                .feature {
+                    background: #f8f9fa;
+                    padding: 1.5rem;
+                    border-radius: 12px;
+                    border-left: 4px solid #28a745;
+                }
+                .feature h3 {
+                    color: #2c5f41;
+                    margin-bottom: 0.5rem;
+                    font-size: 1.1rem;
+                }
+                .feature p {
+                    color: #666;
+                    font-size: 0.9rem;
+                    line-height: 1.4;
+                }
+                .action-buttons {
+                    display: flex;
+                    gap: 1rem;
+                    justify-content: center;
+                    margin-top: 2rem;
+                    flex-wrap: wrap;
+                }
+                .btn { 
+                    padding: 1rem 2rem; 
+                    border: none; 
+                    border-radius: 8px; 
+                    font-weight: 600; 
+                    cursor: pointer; 
+                    transition: all 0.3s ease; 
+                    font-size: 1rem;
+                    text-decoration: none;
+                    display: inline-block;
+                }
+                .btn-primary { 
+                    background: #28a745; 
+                    color: white; 
+                }
+                .btn-primary:hover { 
+                    background: #218838; 
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
+                }
+                .btn-secondary { 
+                    background: transparent; 
+                    color: #2c5f41; 
+                    border: 2px solid #2c5f41;
+                }
+                .btn-secondary:hover { 
+                    background: #2c5f41; 
+                    color: white;
+                }
+                .demo-info {
+                    background: #e3f2fd;
+                    padding: 1rem;
+                    border-radius: 8px;
+                    margin-top: 2rem;
+                    font-size: 0.9rem;
+                    color: #1565c0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="welcome-container">
+                <div class="logo">🌾 AgriWeb</div>
+                <div class="tagline">
+                    Plateforme complète d'analyse géospatiale pour l'agriculture et l'aménagement territorial
+                </div>
+                
+                <div class="features">
+                    <div class="feature">
+                        <h3>🗺️ Cartographie avancée</h3>
+                        <p>Analyse des parcelles RPG, toitures, zones d'activité et infrastructure électrique</p>
+                    </div>
+                    <div class="feature">
+                        <h3>📊 Rapports détaillés</h3>
+                        <p>Génération de rapports communaux et départementaux avec statistiques complètes</p>
+                    </div>
+                    <div class="feature">
+                        <h3>🔌 Infrastructure</h3>
+                        <p>Localisation des postes électriques BT/HTA et calcul des distances</p>
+                    </div>
+                    <div class="feature">
+                        <h3>🏠 Potentiel solaire</h3>
+                        <p>Analyse du potentiel photovoltaïque des toitures et surfaces disponibles</p>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <a href="/?demo=1" class="btn btn-primary">
+                        🚀 Accès direct (Démo)
+                    </a>
+                    <a href="/auth" class="btn btn-secondary">
+                        🔐 Créer un compte
+                    </a>
+                </div>
+                
+                <div class="demo-info">
+                    💡 <strong>Mode démo :</strong> Accès immédiat à toutes les fonctionnalités sans inscription
+                </div>
+            </div>
+        </body>
+        </html>
+        """)
+
+@app.route("/auth")
+def auth():
+    """Page de connexion/inscription"""
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🔐 Connexion - AgriWeb</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #2c5f41 0%, #4a8b3b 100%);
+                min-height: 100vh; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+            }
+            .login-container { 
+                background: white; 
+                padding: 2.5rem; 
+                border-radius: 16px; 
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                width: 100%; 
+                max-width: 450px; 
+            }
+            .logo { 
+                text-align: center; 
+                margin-bottom: 2rem; 
+                font-size: 2.5rem; 
+                color: #2c5f41; 
+                font-weight: 700;
+            }
+            .demo-notice {
+                background: #fff3cd;
+                padding: 1rem;
+                border-radius: 8px;
+                margin-bottom: 2rem;
+                border-left: 4px solid #ffc107;
+                font-size: 0.9rem;
+            }
+            .btn { 
+                width: 100%; 
+                padding: 1rem; 
+                background: #28a745; 
+                color: white; 
+                border: none; 
+                border-radius: 8px; 
+                font-size: 1rem; 
+                font-weight: 600; 
+                cursor: pointer; 
+                transition: all 0.3s ease;
+                text-decoration: none;
+                display: inline-block;
+                text-align: center;
+                margin: 0.5rem 0;
+            }
+            .btn:hover { 
+                background: #218838; 
+                transform: translateY(-2px);
+            }
+            .btn-secondary {
+                background: transparent;
+                color: #2c5f41;
+                border: 2px solid #2c5f41;
+            }
+            .btn-secondary:hover {
+                background: #2c5f41;
+                color: white;
+            }
+            .back-link { 
+                text-align: center; 
+                margin-top: 2rem; 
+            }
+            .back-link a { 
+                color: #2c5f41; 
+                text-decoration: none; 
+                font-weight: 600;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="login-container">
+            <div class="logo">🔐 AgriWeb</div>
+            
+            <div class="demo-notice">
+                💡 <strong>En développement :</strong> L'authentification sera bientôt disponible. 
+                Utilisez l'accès direct pour tester la plateforme.
+            </div>
+            
+            <a href="/?demo=1" class="btn">🚀 Accès direct (Démo)</a>
+            <a href="#" class="btn btn-secondary" onclick="alert('Fonctionnalité en développement')">📝 Créer un compte</a>
+            
+            <div class="back-link">
+                <a href="/">← Retour à l'accueil</a>
+            </div>
+        </div>
+    </body>
+    </html>
+    """)
+
 os.makedirs("cartes", exist_ok=True)
 
 # Session HTTP avec retry exponentiel
