@@ -6660,3 +6660,15 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-20 12:00:48,059 INFO 127.0.0.1 - - [20/Aug/2025 12:00:48] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
 2025-08-20 12:01:43,417 INFO 127.0.0.1 - - [20/Aug/2025 12:01:43] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
 2025-08-20 12:01:44,261 INFO 127.0.0.1 - - [20/Aug/2025 12:01:44] "GET /static/cartes/map_1755684092_74728635678360540.html HTTP/1.1" 200 -
+2025-08-20 13:21:22,070 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 13:21:22,071 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 13:21:24,685 INFO 127.0.0.1 - - [20/Aug/2025 13:21:24] "GET / HTTP/1.1" 200 -
+2025-08-20 13:21:39,146 INFO 127.0.0.1 - - [20/Aug/2025 13:21:39] "[31m[1mPOST /login HTTP/1.1[0m" 401 -
+2025-08-20 13:22:20,000 INFO 127.0.0.1 - - [20/Aug/2025 13:22:20] "[35m[1mPOST /register HTTP/1.1[0m" 201 -
+2025-08-20 13:22:28,898 INFO 127.0.0.1 - - [20/Aug/2025 13:22:28] "POST /login HTTP/1.1" 200 -
+2025-08-20 13:22:30,498 INFO 127.0.0.1 - - [20/Aug/2025 13:22:30] "GET /app HTTP/1.1" 200 -
+2025-08-20 13:22:30,916 INFO 127.0.0.1 - - [20/Aug/2025 13:22:30] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 13:22:31,015 INFO 127.0.0.1 - - [20/Aug/2025 13:22:31] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 13:23:15,859 INFO 127.0.0.1 - - [20/Aug/2025 13:23:15] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-20 13:23:16,606 INFO 127.0.0.1 - - [20/Aug/2025 13:23:16] "GET /static/cartes/map_1755688985_4300979764672399140.html HTTP/1.1" 200 -

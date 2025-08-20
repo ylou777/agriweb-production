@@ -10422,8 +10422,17 @@ def search_by_address_route():
 
     # 10. Carte Folium complète avec tous les calques métiers
     carte_url = None
+    map_obj = None
     try:
         print(f"[DEBUG] Génération carte pour {address} - Lat: {lat}, Lon: {lon}")
+        print(f"[DEBUG] Données à traiter:")
+        print(f"  - Parcelles: {len(ensure_feature_list(parcelles_data))}")
+        print(f"  - Postes BT: {len(ensure_feature_list(postes_bt))}")
+        print(f"  - Postes HTA: {len(ensure_feature_list(postes_hta))}")
+        print(f"  - PLU: {len(ensure_feature_list(plu_info))}")
+        print(f"  - Parkings: {len(ensure_feature_list(parkings))}")
+        print(f"  - Friches: {len(ensure_feature_list(friches))}")
+        print(f"  - Solaire: {len(ensure_feature_list(solaire))}")
         
         map_obj = build_map(
             lat, lon, address,
@@ -10468,25 +10477,36 @@ def search_by_address_route():
         logging.error(f"[search_by_address] Erreur JSON serialization: {json_error}")
         return jsonify({"error": "Erreur de sérialisation des données", "details": str(json_error)}), 500
 
-    # Toujours utiliser la carte Folium générée avec LayerControl complet
-    if carte_url:
-        info_response["carte_url"] = f"/static/{carte_url}"
-        print(f"[DEBUG] Utilisation carte Folium: /static/{carte_url}")
-    else:
-        # Générer une carte Folium simple si la génération a échoué
-        print(f"[DEBUG] Génération carte Folium de fallback...")
+    # Validation et correction: s'assurer qu'une carte Folium soit toujours générée
+    if not carte_url:
+        print(f"[WARNING] Génération carte échouée, retry avec carte simple...")
         try:
+            # Régénérer une carte Folium avec au moins les données de base
             import folium
-            fallback_map = folium.Map(location=[lat, lon], zoom_start=13)
-            folium.Marker([lat, lon], popup=f"Recherche: {address}").add_to(fallback_map)
-            folium.LayerControl().add_to(fallback_map)
-            fallback_filename = f"fallback_map_{int(time.time())}.html"
-            fallback_url = save_map_html(fallback_map, fallback_filename)
-            info_response["carte_url"] = f"/static/{fallback_url}"
-            print(f"[DEBUG] Carte fallback générée: /static/{fallback_url}")
-        except Exception as fallback_error:
-            print(f"[DEBUG] Erreur carte fallback: {fallback_error}")
-            info_response["carte_url"] = "/static/map.html"
+            simple_map = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+            
+            # Fonds de carte
+            folium.TileLayer(
+                tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                attr="Esri World Imagery", name="Satellite", overlay=False, control=True, show=True
+            ).add_to(simple_map)
+            folium.TileLayer("OpenStreetMap", name="OSM", overlay=False, control=True, show=False).add_to(simple_map)
+            
+            # Point de recherche
+            folium.Marker([lat, lon], popup=f"📍 {address}").add_to(simple_map)
+            
+            # Ajouter LayerControl
+            folium.LayerControl().add_to(simple_map)
+            
+            simple_filename = f"simple_map_{int(time.time())}.html"
+            carte_url = save_map_html(simple_map, simple_filename)
+            print(f"[DEBUG] Carte simple générée: {carte_url}")
+        except Exception as e:
+            print(f"[ERROR] Impossible de générer même une carte simple: {e}")
+            carte_url = None
+
+    info_response["carte_url"] = f"/static/{carte_url}" if carte_url else "/static/map.html"
+    print(f"[DEBUG] URL finale de carte: {info_response['carte_url']}")
     
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
     try:
