@@ -328,6 +328,15 @@ app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
+# Configuration CORS pour Railway
+@app.after_request
+def after_request(response):
+    """Configure les headers CORS pour Railway"""
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║                    SYSTÈME D'AUTHENTIFICATION COMMERCIAL                 ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
@@ -617,6 +626,23 @@ def health_check():
         "service": "AgriWeb",
         "timestamp": datetime.now().isoformat(),
         "geoserver_url": GEOSERVER_URL
+    }), 200
+
+# Endpoint de debug pour tester les API d'authentification
+@app.route("/debug/auth", methods=["GET"])
+def debug_auth():
+    """Debug des routes d'authentification"""
+    return jsonify({
+        "status": "ok",
+        "message": "API d'authentification opérationnelle",
+        "endpoints": {
+            "register": "/register (POST)",
+            "login": "/login (POST)", 
+            "trial": "/api/trial (POST)",
+            "logout": "/logout (POST/GET)"
+        },
+        "database": "SQLite operational",
+        "environment": "Railway" if os.getenv("RAILWAY_ENVIRONMENT") else "Local"
     }), 200
 
 # ╔══════════════════════════════════════════════════════════════════════════╗

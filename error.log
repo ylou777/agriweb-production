@@ -6610,3 +6610,42 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-20 06:48:29,533 INFO 127.0.0.1 - - [20/Aug/2025 06:48:29] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
 2025-08-20 06:49:41,394 INFO 127.0.0.1 - - [20/Aug/2025 06:49:41] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
 2025-08-20 06:49:42,427 INFO 127.0.0.1 - - [20/Aug/2025 06:49:42] "GET /static/cartes/map_1755665365_8528038618736464481.html HTTP/1.1" 200 -
+2025-08-20 10:39:57,174 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 10:39:57,178 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 10:40:00,985 INFO 127.0.0.1 - - [20/Aug/2025 10:40:00] "GET / HTTP/1.1" 200 -
+2025-08-20 10:40:01,525 INFO 127.0.0.1 - - [20/Aug/2025 10:40:01] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-20 10:40:19,961 INFO 127.0.0.1 - - [20/Aug/2025 10:40:19] "[35m[1mPOST /api/trial HTTP/1.1[0m" 201 -
+2025-08-20 10:40:22,156 INFO 127.0.0.1 - - [20/Aug/2025 10:40:22] "GET /app HTTP/1.1" 200 -
+2025-08-20 10:40:22,831 INFO 127.0.0.1 - - [20/Aug/2025 10:40:22] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 10:40:22,838 INFO 127.0.0.1 - - [20/Aug/2025 10:40:22] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 10:41:05,175 INFO 127.0.0.1 - - [20/Aug/2025 10:41:05] "GET /search_by_address?address=messein&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-20 10:41:05,505 INFO 127.0.0.1 - - [20/Aug/2025 10:41:05] "GET /static/cartes/map_1755679263_886134245664958025.html HTTP/1.1" 200 -
+2025-08-20 10:41:56,438 INFO 127.0.0.1 - - [20/Aug/2025 10:41:56] "GET /rapport_point?lat=48.6100192&lon=6.1454087&address=messein&parcelle_numero=AB0235&distance_poste_proche=N/A&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Messein&api_cadastre_section=AB&api_cadastre_numero=0235&api_urbanisme_layers=17&api_urbanisme_features=39&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=0&postes_bt_distances=&postes_hta_count=0&postes_hta_distances=&postes_hta_capacites=&capacites_reseau_count=0&sirene_count=0&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1755679283004&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-20 10:41:56,787 INFO 127.0.0.1 - - [20/Aug/2025 10:41:56] "GET /static/cartes/rapport_point_20250820_104123.html HTTP/1.1" 200 -
+2025-08-20 10:42:24,657 INFO 127.0.0.1 - - [20/Aug/2025 10:42:24] "GET /app HTTP/1.1" 200 -
+2025-08-20 10:42:24,694 INFO 127.0.0.1 - - [20/Aug/2025 10:42:24] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 10:42:24,740 INFO 127.0.0.1 - - [20/Aug/2025 10:42:24] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 10:43:03,950 INFO 127.0.0.1 - - [20/Aug/2025 10:43:03] "GET /search_by_address?address=nimes&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-20 10:43:04,677 INFO 127.0.0.1 - - [20/Aug/2025 10:43:04] "GET /static/cartes/map_1755679379_4622593171358982023.html HTTP/1.1" 200 -
+2025-08-20 10:44:04,936 INFO 127.0.0.1 - - [20/Aug/2025 10:44:04] "GET /rapport_point?lat=43.8374249&lon=4.3600687&address=nimes&parcelle_numero=EY0408&distance_poste_proche=N/A&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=N�mes&api_cadastre_section=EY&api_cadastre_numero=0408&api_urbanisme_layers=17&api_urbanisme_features=331&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=0&postes_bt_distances=&postes_hta_count=0&postes_hta_distances=&postes_hta_capacites=&capacites_reseau_count=0&sirene_count=0&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1755679407249&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-20 10:44:05,701 INFO 127.0.0.1 - - [20/Aug/2025 10:44:05] "GET /static/cartes/rapport_point_20250820_104327.html HTTP/1.1" 200 -
+2025-08-20 10:56:53,371 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 10:56:53,373 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 10:56:54,920 INFO 127.0.0.1 - - [20/Aug/2025 10:56:54] "GET / HTTP/1.1" 200 -
+2025-08-20 10:57:18,109 INFO 127.0.0.1 - - [20/Aug/2025 10:57:18] "GET /app HTTP/1.1" 200 -
+2025-08-20 10:57:18,316 INFO 127.0.0.1 - - [20/Aug/2025 10:57:18] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 10:57:18,335 INFO 127.0.0.1 - - [20/Aug/2025 10:57:18] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 10:58:09,485 INFO 127.0.0.1 - - [20/Aug/2025 10:58:09] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
+2025-08-20 10:58:10,608 INFO 127.0.0.1 - - [20/Aug/2025 10:58:10] "GET /static/cartes/map_1755680277_1776759839097882860.html HTTP/1.1" 200 -
+2025-08-20 10:59:05,675 INFO 127.0.0.1 - - [20/Aug/2025 10:59:05] "GET /rapport_point?lat=47.2186371&lon=-1.5541362&address=nantes&parcelle_numero=N/A&distance_poste_proche=73.6+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Nantes&api_cadastre_section=EY&api_cadastre_numero=0064&api_urbanisme_layers=17&api_urbanisme_features=1264&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=2&zaer_zones=RCU+/+Nantes+/+Réseau+Centre+Loire,Géothermie+/+Nantes&zaer_filieres=BIOMASSE_RESEAU_CF&postes_bt_count=1&postes_bt_distances=73.63&postes_hta_count=1&postes_hta_distances=337.76&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=499&sirene_activites=&eleveurs_count=0&parkings_count=2&friches_count=1&friches_types=&search_timestamp=1755680307559&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-20 10:59:06,369 INFO 127.0.0.1 - - [20/Aug/2025 10:59:06] "GET /static/cartes/rapport_point_20250820_105827.html HTTP/1.1" 200 -
+2025-08-20 11:29:55,232 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 11:29:55,232 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 11:29:56,732 INFO 127.0.0.1 - - [20/Aug/2025 11:29:56] "GET / HTTP/1.1" 200 -
+2025-08-20 11:30:23,699 INFO 127.0.0.1 - - [20/Aug/2025 11:30:23] "[31m[1mPOST /register HTTP/1.1[0m" 400 -
+2025-08-20 11:30:35,413 INFO 127.0.0.1 - - [20/Aug/2025 11:30:35] "GET /app HTTP/1.1" 200 -
+2025-08-20 11:30:36,029 INFO 127.0.0.1 - - [20/Aug/2025 11:30:36] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 11:30:36,039 INFO 127.0.0.1 - - [20/Aug/2025 11:30:36] "[36mGET /static/main.js HTTP/1.1[0m" 304 -

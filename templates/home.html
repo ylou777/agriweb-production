@@ -403,6 +403,13 @@
                     body: JSON.stringify(data)
                 });
                 
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const htmlText = await response.text();
+                    console.error('Réponse non-JSON reçue:', htmlText.substring(0, 200));
+                    throw new Error('Le serveur a retourné du HTML au lieu de JSON. Problème de configuration sur Railway.');
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -415,6 +422,7 @@
                     showAlert(result.error, 'danger');
                 }
             } catch (error) {
+                console.error('Erreur inscription:', error);
                 showAlert('Erreur: ' + error.message, 'danger');
             }
         }
@@ -438,6 +446,13 @@
                     body: JSON.stringify(data)
                 });
                 
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const htmlText = await response.text();
+                    console.error('Réponse non-JSON reçue:', htmlText.substring(0, 200));
+                    throw new Error('Le serveur a retourné du HTML au lieu de JSON. Problème de configuration sur Railway.');
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -449,6 +464,7 @@
                     showAlert(result.error, 'danger');
                 }
             } catch (error) {
+                console.error('Erreur connexion:', error);
                 showAlert('Erreur: ' + error.message, 'danger');
             }
         }
@@ -473,6 +489,13 @@
                     body: JSON.stringify(data)
                 });
                 
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const htmlText = await response.text();
+                    console.error('Réponse non-JSON reçue:', htmlText.substring(0, 200));
+                    throw new Error('Le serveur a retourné du HTML au lieu de JSON. Problème de configuration sur Railway.');
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
@@ -484,6 +507,7 @@
                     showAlert(result.error || 'Erreur lors de l\'activation de l\'essai', 'danger');
                 }
             } catch (error) {
+                console.error('Erreur essai:', error);
                 showAlert('Erreur: ' + error.message, 'danger');
             }
         }
