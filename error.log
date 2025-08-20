@@ -6672,3 +6672,46 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-20 13:22:31,015 INFO 127.0.0.1 - - [20/Aug/2025 13:22:31] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
 2025-08-20 13:23:15,859 INFO 127.0.0.1 - - [20/Aug/2025 13:23:15] "GET /search_by_address?address=nantes&sirene_radius=0.1 HTTP/1.1" 200 -
 2025-08-20 13:23:16,606 INFO 127.0.0.1 - - [20/Aug/2025 13:23:16] "GET /static/cartes/map_1755688985_4300979764672399140.html HTTP/1.1" 200 -
+2025-08-20 15:35:08,647 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 15:35:08,650 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 15:35:13,947 INFO 127.0.0.1 - - [20/Aug/2025 15:35:13] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 15:35:14,677 INFO 127.0.0.1 - - [20/Aug/2025 15:35:14] "GET /app HTTP/1.1" 200 -
+2025-08-20 15:35:15,658 INFO 127.0.0.1 - - [20/Aug/2025 15:35:15] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 15:35:16,852 INFO 127.0.0.1 - - [20/Aug/2025 15:35:16] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-20 15:35:17,077 INFO 127.0.0.1 - - [20/Aug/2025 15:35:17] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-20 15:37:46,415 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 15:37:46,416 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 15:37:47,701 INFO 127.0.0.1 - - [20/Aug/2025 15:37:47] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 15:37:47,810 INFO 127.0.0.1 - - [20/Aug/2025 15:37:47] "GET /app HTTP/1.1" 200 -
+2025-08-20 15:37:48,068 INFO 127.0.0.1 - - [20/Aug/2025 15:37:48] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 15:37:48,164 INFO 127.0.0.1 - - [20/Aug/2025 15:37:48] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 15:38:35,813 INFO 127.0.0.1 - - [20/Aug/2025 15:38:35] "GET /?id=5e20b72b-76ba-43bb-a001-93fbce3f7f43&vscodeBrowserReqId=1755697115350 HTTP/1.1" 200 -
+2025-08-20 15:38:43,600 INFO 127.0.0.1 - - [20/Aug/2025 15:38:43] "GET / HTTP/1.1" 200 -
+2025-08-20 15:38:46,565 INFO 127.0.0.1 - - [20/Aug/2025 15:38:46] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-20 15:39:19,696 INFO 127.0.0.1 - - [20/Aug/2025 15:39:19] "[35m[1mPOST /register HTTP/1.1[0m" 201 -
+2025-08-20 15:40:04,156 INFO 127.0.0.1 - - [20/Aug/2025 15:40:04] "[35m[1mPOST /api/create-checkout-session HTTP/1.1[0m" 500 -
+2025-08-20 15:40:08,838 INFO 127.0.0.1 - - [20/Aug/2025 15:40:08] "[35m[1mPOST /api/create-checkout-session HTTP/1.1[0m" 500 -
+2025-08-20 15:40:18,901 INFO 127.0.0.1 - - [20/Aug/2025 15:40:18] "POST /login HTTP/1.1" 200 -
+2025-08-20 15:40:20,499 INFO 127.0.0.1 - - [20/Aug/2025 15:40:20] "GET /app HTTP/1.1" 200 -
+2025-08-20 15:40:20,799 INFO 127.0.0.1 - - [20/Aug/2025 15:40:20] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-20 15:40:20,966 INFO 127.0.0.1 - - [20/Aug/2025 15:40:20] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-20 15:40:52,376 INFO 127.0.0.1 - - [20/Aug/2025 15:40:52] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 15:40:52,402 INFO 127.0.0.1 - - [20/Aug/2025 15:40:52] "GET /app HTTP/1.1" 200 -
+2025-08-20 15:40:52,748 INFO 127.0.0.1 - - [20/Aug/2025 15:40:52] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 15:40:53,157 INFO 127.0.0.1 - - [20/Aug/2025 15:40:53] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 15:43:59,320 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 15:43:59,321 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 15:44:02,159 INFO 127.0.0.1 - - [20/Aug/2025 15:44:02] "GET /?id=5e20b72b-76ba-43bb-a001-93fbce3f7f43&vscodeBrowserReqId=1755697441276 HTTP/1.1" 200 -
+2025-08-20 15:44:04,011 INFO 127.0.0.1 - - [20/Aug/2025 15:44:04] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 15:44:04,375 INFO 127.0.0.1 - - [20/Aug/2025 15:44:04] "GET /app HTTP/1.1" 200 -
+2025-08-20 15:44:05,121 INFO 127.0.0.1 - - [20/Aug/2025 15:44:05] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 15:44:05,189 INFO 127.0.0.1 - - [20/Aug/2025 15:44:05] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 15:44:05,553 INFO 127.0.0.1 - - [20/Aug/2025 15:44:05] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-20 15:44:12,321 INFO 127.0.0.1 - - [20/Aug/2025 15:44:12] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 15:44:12,740 INFO 127.0.0.1 - - [20/Aug/2025 15:44:12] "GET /app HTTP/1.1" 200 -
+2025-08-20 15:44:13,114 INFO 127.0.0.1 - - [20/Aug/2025 15:44:13] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 15:44:13,249 INFO 127.0.0.1 - - [20/Aug/2025 15:44:13] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 15:44:14,296 INFO 127.0.0.1 - - [20/Aug/2025 15:44:14] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -

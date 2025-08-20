@@ -453,6 +453,55 @@ def create_user(email, name, company, password):
         print(f"Erreur création utilisateur: {e}")
         return False, "Erreur lors de la création du compte"
 
+def create_demo_accounts():
+    """Crée les comptes de démonstration par défaut"""
+    demo_accounts = [
+        {
+            'email': 'admin@test.com',
+            'name': 'Administrateur',
+            'company': 'AgriWeb Demo',
+            'password': 'admin123',
+            'subscription_status': 'active'
+        },
+        {
+            'email': 'demo@test.com', 
+            'name': 'Utilisateur Demo',
+            'company': 'Demo Company',
+            'password': 'demo123',
+            'subscription_status': 'trial'
+        }
+    ]
+    
+    for account in demo_accounts:
+        try:
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            # Vérifier si l'utilisateur existe déjà
+            cursor.execute('SELECT id FROM users WHERE email = ?', (account['email'],))
+            if cursor.fetchone():
+                continue  # L'utilisateur existe déjà
+            
+            # Créer l'utilisateur de démo
+            password_hash, salt = hash_password(account['password'])
+            trial_end = datetime.now() + timedelta(days=365) if account['subscription_status'] == 'active' else datetime.now() + timedelta(days=7)
+            
+            cursor.execute('''
+                INSERT INTO users (email, name, company, password_hash, salt, 
+                                 subscription_status, trial_end_date, is_active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+            ''', (
+                account['email'], account['name'], account['company'], 
+                password_hash, salt, account['subscription_status'], trial_end.isoformat()
+            ))
+            
+            conn.commit()
+            conn.close()
+            print(f"✅ Compte démo créé: {account['email']}")
+            
+        except Exception as e:
+            print(f"Erreur création compte démo {account['email']}: {e}")
+
 def authenticate_user(email, password):
     """Authentifie un utilisateur"""
     try:
@@ -474,9 +523,9 @@ def authenticate_user(email, password):
         if not verify_password(password, stored_hash, salt):
             return False, None, "Email ou mot de passe incorrect"
         
-        # Vérifier l'état de l'abonnement
+        # Vérifier l'état de l'abonnement (sauf pour les comptes admin)
         now = datetime.now()
-        if subscription_status == 'trial':
+        if subscription_status == 'trial' and email != 'admin@test.com':
             trial_end_date = datetime.fromisoformat(trial_end)
             if now > trial_end_date:
                 return False, None, "Période d'essai expirée. Veuillez souscrire à un abonnement."
@@ -597,6 +646,7 @@ def require_auth(f):
 
 # Initialiser la base de données au démarrage
 init_database()
+create_demo_accounts()
 print("✅ Système d'authentification commercial initialisé")
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -925,17 +975,153 @@ def profile():
     </html>
     """, user=user)
 
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                           INTÉGRATION STRIPE PAIEMENTS                   ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# Configuration Stripe (remplacer par vos vraies clés)
+STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', 'pk_test_YOUR_STRIPE_PUBLIC_KEY')
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_YOUR_STRIPE_SECRET_KEY')
+
+try:
+    import stripe
+    stripe.api_key = STRIPE_SECRET_KEY
+    print("✅ Stripe configuré")
+except ImportError:
+    print("⚠️ Stripe non installé - pip install stripe")
+    stripe = None
+
+@app.route("/api/create-checkout-session", methods=["POST"])
+def create_checkout_session():
+    """Crée une session de paiement Stripe"""
+    if not stripe:
+        return jsonify({'error': 'Stripe non configuré'}), 500
+        
+    try:
+        data = request.get_json()
+        plan = data.get('plan', 'professional')
+        
+        # Configuration des plans
+        prices = {
+            'professional': {
+                'price_id': 'price_YOUR_PROFESSIONAL_PRICE_ID',  # À remplacer
+                'name': 'AgriWeb Pro - Plan Professionnel',
+                'amount': 29900,  # 299€ en centimes
+            }
+        }
+        
+        if plan not in prices:
+            return jsonify({'error': 'Plan invalide'}), 400
+            
+        plan_config = prices[plan]
+        
+        # Créer la session Stripe Checkout
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'eur',
+                    'product_data': {
+                        'name': plan_config['name'],
+                        'description': 'Accès mensuel à la plateforme AgriWeb Pro'
+                    },
+                    'unit_amount': plan_config['amount'],
+                    'recurring': {
+                        'interval': 'month'
+                    }
+                },
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url=request.url_root + 'payment-success?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=request.url_root + '?payment_cancelled=1',
+            metadata={
+                'plan': plan
+            }
+        )
+        
+        return jsonify({'url': checkout_session.url})
+        
+    except Exception as e:
+        print(f"Erreur Stripe: {e}")
+        return jsonify({'error': 'Erreur lors de la création de la session de paiement'}), 500
+
+@app.route("/payment-success")
+def payment_success():
+    """Page de confirmation de paiement réussi"""
+    session_id = request.args.get('session_id')
+    
+    if not stripe or not session_id:
+        return redirect('/?payment_cancelled=1')
+    
+    try:
+        # Récupérer les détails de la session Stripe
+        checkout_session = stripe.checkout.Session.retrieve(session_id)
+        
+        if checkout_session.payment_status == 'paid':
+            # Ici vous pourriez mettre à jour l'abonnement de l'utilisateur
+            # update_user_subscription(checkout_session.customer_email, 'active')
+            
+            return redirect('/app?payment_success=1')
+        else:
+            return redirect('/?payment_cancelled=1')
+            
+    except Exception as e:
+        print(f"Erreur vérification paiement: {e}")
+        return redirect('/?payment_cancelled=1')
+
+@app.route("/stripe-webhook", methods=["POST"])
+def stripe_webhook():
+    """Webhook Stripe pour gérer les événements de paiement"""
+    if not stripe:
+        return jsonify({'error': 'Stripe non configuré'}), 500
+        
+    payload = request.get_data(as_text=True)
+    sig_header = request.headers.get('Stripe-Signature')
+    endpoint_secret = os.environ.get('STRIPE_WEBHOOK_SECRET')
+    
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    except ValueError:
+        return jsonify({'error': 'Invalid payload'}), 400
+    except stripe.error.SignatureVerificationError:
+        return jsonify({'error': 'Invalid signature'}), 400
+    
+    # Gérer les événements Stripe
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        # Activer l'abonnement utilisateur
+        print(f"Paiement réussi pour session: {session['id']}")
+        
+    elif event['type'] == 'invoice.payment_succeeded':
+        invoice = event['data']['object']
+        # Renouvellement d'abonnement
+        print(f"Renouvellement réussi: {invoice['id']}")
+        
+    elif event['type'] == 'customer.subscription.deleted':
+        subscription = event['data']['object']
+        # Désactiver l'abonnement
+        print(f"Abonnement annulé: {subscription['id']}")
+    
+    return jsonify({'status': 'success'})
+
 # Page d'accueil avec authentification commerciale
 @app.route("/")
 def index():
     """Page d'accueil avec authentification commerciale - Collecte emails et essais gratuits"""
-    login_required = request.args.get('login_required')
-    session_expired = request.args.get('session_expired')
     
-    return render_template("home.html", login_required=login_required, session_expired=session_expired)
+    # Vérifier si l'utilisateur est déjà connecté
+    session_token = session.get('session_token') or request.cookies.get('session_token')
+    if session_token:
+        user = get_user_by_session(session_token)
+        if user:
+            return redirect('/app')
+    
+    return render_template("homepage.html", stripe_public_key=STRIPE_PUBLIC_KEY)
 
 # Interface complète AgriWeb (après authentification)
 @app.route("/app")
+@require_auth
 def app_interface():
     """Interface complète AgriWeb - Nécessite authentification
     
