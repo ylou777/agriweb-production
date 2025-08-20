@@ -1,422 +1,697 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <title>Carte interactive (map.html)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <style>
-    html, body, #map { height:100%; margin:0; padding:0; }
-    .custom-popup { font-family: 'Poppins', Arial, sans-serif; font-size: 15px; min-width: 250px; max-width: 355px;}
-    .custom-popup th { text-align: left; color: #28616a; font-weight: 500; min-width: 95px;}
-    .custom-popup td { color: #2d2d2d; max-width:200px; word-break: break-word;}
-    .popup-title { font-weight: 700; font-size: 18px; margin-bottom: 4px; letter-spacing: 0.3px; }
-    .popup-link { color: #1474fa; text-decoration: underline; }
-    .popup-link:hover { color: #0e4a92; }
-    .leaflet-popup-content { padding: 6px 10px 4px 10px !important; }
-    .summary-bar {
-      position:absolute;top:8px;left:55px;z-index:1001;background:#fff5;
-      padding:6px 18px;font-size:16px;font-family:Poppins,Arial,sans-serif;border-radius:8px;
-      box-shadow:0 2px 10px #0002;min-width:200px;pointer-events:none;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🗺️ Carte Interactive AgriWeb 2.0</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #map { height: 100vh; width: 100%; }
+        
+        /* Interface de contrôle des couches avancée */
+        .advanced-layer-control {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 320px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .control-header {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 15px;
+            border-radius: 12px 12px 0 0;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .control-body {
+            padding: 15px;
+        }
+        
+        .layer-group {
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .layer-group-header {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: between;
+        }
+        
+        .layer-group-header:hover {
+            background: #e9ecef;
+        }
+        
+        .layer-group-body {
+            padding: 10px;
+        }
+        
+        .layer-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f8f9fa;
+        }
+        
+        .layer-item:last-child {
+            border-bottom: none;
+        }
+        
+        .layer-checkbox {
+            margin-right: 10px;
+        }
+        
+        .layer-name {
+            flex: 1;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .layer-opacity {
+            width: 60px;
+            margin-left: 10px;
+        }
+        
+        .layer-actions {
+            display: flex;
+            gap: 5px;
+            margin-left: 10px;
+        }
+        
+        .layer-action-btn {
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .layer-action-btn:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        /* Outils de dessin */
+        .drawing-tools {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            padding: 8px;
+        }
+        
+        .draw-btn {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 8px 10px;
+            margin: 2px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: inline-block;
+        }
+        
+        .draw-btn:hover {
+            background: #f8f9fa;
+            border-color: #007bff;
+        }
+        
+        .draw-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        /* Interface de recherche rapide */
+        .search-control {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 300px;
+            z-index: 1000;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px 45px 12px 15px;
+            border: none;
+            border-radius: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-size: 14px;
+        }
+        
+        .search-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #007bff;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            color: white;
+            cursor: pointer;
+        }
+        
+        /* Pop-up amélioré */
+        .custom-popup {
+            min-width: 300px;
+        }
+        
+        .popup-header {
+            background: #007bff;
+            color: white;
+            padding: 10px 15px;
+            margin: -10px -15px 10px -15px;
+            font-weight: 600;
+        }
+        
+        .popup-content {
+            line-height: 1.5;
+        }
+        
+        .popup-actions {
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        .popup-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            margin: 0 3px;
+        }
+        
+        .popup-btn:hover {
+            background: #218838;
+        }
+        
+        /* Indicateur de chargement */
+        .loading-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            z-index: 2000;
+            display: none;
+        }
+        
+        /* Responsivité */
+        @media (max-width: 768px) {
+            .advanced-layer-control {
+                width: 90%;
+                right: 5%;
+                top: 60px;
+                max-height: 60vh;
+            }
+            
+            .search-control {
+                width: 250px;
+            }
+            
+            .drawing-tools {
+                left: 10px;
+                top: 120px;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div class="summary-bar" id="summaryBar" style="display:none"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    // Icônes personnalisées
-    const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
-    const iconHta = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><polygon points='28,4 8,28 24,28 20,44 40,20 24,20' fill='#D12322' stroke='#b61a13' stroke-width='2'/></svg>`),iconSize:[38,38],iconAnchor:[19,38],popupAnchor:[0,-28]});
-    const iconFeuille = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 4 Q29 13 18 29 Q7 22 16 4 Z' fill='#34ad41' stroke='#258633' stroke-width='2'/></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-18]});
-    const iconParking = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x="4" y="8" width="24" height="16" rx="6" fill="#2ecc71" stroke="#166838" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial" font-weight="bold">P</text></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-12]});
-    const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
-
-    // Carte Leaflet avec fond satellite par défaut
-    var map = L.map('map').setView([46.8, 2], 8);
-    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
-    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
-    sat.addTo(map);
-
-    var baseMaps = { "Satellite": sat, "OSM": osm };
-    L.control.layers(baseMaps).addTo(map);
-
-    window._layers = [];
-
-    // Résumé dynamique (ex : nb objets)
-    function updateSummaryBar() {
-      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0);
-      let communes = new Set();
-      window._layers.forEach(l => l.eachLayer?.(lyr => {
-        if(lyr.feature?.properties?.commune) communes.add(lyr.feature.properties.commune);
-        if(lyr.feature?.properties?.libelleCom) communes.add(lyr.feature.properties.libelleCom);
-      }));
-      let bar = document.getElementById('summaryBar');
-      bar.innerHTML = `<b>Objets affichés :</b> ${n}${communes.size>0?` &nbsp;|&nbsp; <b>Communes :</b> ${communes.size}`:""}`;
-      bar.style.display = n>0 ? "" : "none";
-    }
-
-    window.clearMap = function() {
-      window._layers.forEach(l => map.removeLayer(l));
-      window._layers = [];
-      updateSummaryBar();
-    };
-
-    // Popups riches & dynamiques
-    function makePopupContent(props, typeLayer, geometry) {
-      function row(label, val) { return val ? `<tr><th>${label}</th><td>${val}</td></tr>` : ""; }
-      
-      // Fonction pour calculer le centroïde d'une géométrie
-      function getCentroid(geom) {
-        if (!geom || !geom.coordinates) return null;
+    <!-- Indicateur de chargement -->
+    <div id="loading" class="loading-indicator">
+        <i class="fas fa-spinner fa-spin"></i> Chargement des données...
+    </div>
+    
+    <!-- Contrôle de recherche -->
+    <div class="search-control">
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Rechercher une adresse, commune...">
+        <button id="searchBtn" class="search-btn">
+            <i class="fas fa-search"></i>
+        </button>
+    </div>
+    
+    <!-- Outils de dessin -->
+    <div class="drawing-tools">
+        <button class="draw-btn" id="drawPoint" title="Dessiner un point">
+            <i class="fas fa-map-marker-alt"></i>
+        </button>
+        <button class="draw-btn" id="drawLine" title="Dessiner une ligne">
+            <i class="fas fa-minus"></i>
+        </button>
+        <button class="draw-btn" id="drawPolygon" title="Dessiner un polygone">
+            <i class="fas fa-draw-polygon"></i>
+        </button>
+        <button class="draw-btn" id="drawCircle" title="Dessiner un cercle">
+            <i class="fas fa-circle"></i>
+        </button>
+        <button class="draw-btn" id="clearDrawings" title="Effacer les dessins">
+            <i class="fas fa-trash"></i>
+        </button>
+    </div>
+    
+    <!-- Contrôle avancé des couches -->
+    <div class="advanced-layer-control">
+        <div class="control-header">
+            <div>
+                <i class="fas fa-layer-group"></i> Gestionnaire de Couches
+            </div>
+            <button id="toggleControl" style="background: none; border: none; color: white;">
+                <i class="fas fa-chevron-up"></i>
+            </button>
+        </div>
+        <div class="control-body">
+            <!-- Couches de base -->
+            <div class="layer-group">
+                <div class="layer-group-header">
+                    <i class="fas fa-map"></i> Fonds de carte
+                </div>
+                <div class="layer-group-body">
+                    <div class="layer-item">
+                        <input type="radio" name="baseLayer" value="osm" class="layer-checkbox" checked>
+                        <span class="layer-name">OpenStreetMap</span>
+                    </div>
+                    <div class="layer-item">
+                        <input type="radio" name="baseLayer" value="satellite" class="layer-checkbox">
+                        <span class="layer-name">Vue satellite</span>
+                    </div>
+                    <div class="layer-item">
+                        <input type="radio" name="baseLayer" value="terrain" class="layer-checkbox">
+                        <span class="layer-name">Relief</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Couches thématiques -->
+            <div class="layer-group">
+                <div class="layer-group-header">
+                    <i class="fas fa-seedling"></i> Agriculture
+                </div>
+                <div class="layer-group-body">
+                    <div class="layer-item">
+                        <input type="checkbox" class="layer-checkbox" data-layer="rpg">
+                        <span class="layer-name">Registre Parcellaire</span>
+                        <input type="range" class="layer-opacity" min="0" max="100" value="70">
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" title="Info"><i class="fas fa-info"></i></button>
+                            <button class="layer-action-btn" title="Légende"><i class="fas fa-palette"></i></button>
+                        </div>
+                    </div>
+                    <div class="layer-item">
+                        <input type="checkbox" class="layer-checkbox" data-layer="elevage">
+                        <span class="layer-name">Élevages</span>
+                        <input type="range" class="layer-opacity" min="0" max="100" value="80">
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" title="Info"><i class="fas fa-info"></i></button>
+                            <button class="layer-action-btn" title="Légende"><i class="fas fa-palette"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Infrastructure -->
+            <div class="layer-group">
+                <div class="layer-group-header">
+                    <i class="fas fa-bolt"></i> Infrastructure
+                </div>
+                <div class="layer-group-body">
+                    <div class="layer-item">
+                        <input type="checkbox" class="layer-checkbox" data-layer="postes_bt">
+                        <span class="layer-name">Postes BT</span>
+                        <input type="range" class="layer-opacity" min="0" max="100" value="90">
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" title="Info"><i class="fas fa-info"></i></button>
+                            <button class="layer-action-btn" title="Légende"><i class="fas fa-palette"></i></button>
+                        </div>
+                    </div>
+                    <div class="layer-item">
+                        <input type="checkbox" class="layer-checkbox" data-layer="postes_hta">
+                        <span class="layer-name">Postes HTA</span>
+                        <input type="range" class="layer-opacity" min="0" max="100" value="90">
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" title="Info"><i class="fas fa-info"></i></button>
+                            <button class="layer-action-btn" title="Légende"><i class="fas fa-palette"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contraintes -->
+            <div class="layer-group">
+                <div class="layer-group-header">
+                    <i class="fas fa-exclamation-triangle"></i> Contraintes
+                </div>
+                <div class="layer-group-body">
+                    <div class="layer-item">
+                        <input type="checkbox" class="layer-checkbox" data-layer="zones_protegees">
+                        <span class="layer-name">Zones protégées</span>
+                        <input type="range" class="layer-opacity" min="0" max="100" value="60">
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" title="Info"><i class="fas fa-info"></i></button>
+                            <button class="layer-action-btn" title="Légende"><i class="fas fa-palette"></i></button>
+                        </div>
+                    </div>
+                    <div class="layer-item">
+                        <input type="checkbox" class="layer-checkbox" data-layer="risques">
+                        <span class="layer-name">Zones à risques</span>
+                        <input type="range" class="layer-opacity" min="0" max="100" value="70">
+                        <div class="layer-actions">
+                            <button class="layer-action-btn" title="Info"><i class="fas fa-info"></i></button>
+                            <button class="layer-action-btn" title="Légende"><i class="fas fa-palette"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Carte principale -->
+    <div id="map"></div>
+    
+    <script>
+        // Initialisation de la carte
+        const map = L.map('map').setView([46.603354, 1.888334], 6);
         
-        let lat = 0, lon = 0, count = 0;
-        
-        if (geom.type === 'Point') {
-          return { lat: geom.coordinates[1], lon: geom.coordinates[0] };
-        } else if (geom.type === 'Polygon' && geom.coordinates.length > 0) {
-          // Pour un polygone, on calcule la moyenne des coordonnées du premier ring
-          const ring = geom.coordinates[0];
-          ring.forEach(coord => {
-            lon += coord[0];
-            lat += coord[1];
-            count++;
-          });
-          return count > 0 ? { lat: lat/count, lon: lon/count } : null;
-        } else if (geom.type === 'MultiPolygon' && geom.coordinates.length > 0) {
-          // Pour un multi-polygone, on prend le premier polygone
-          const firstPolygon = geom.coordinates[0];
-          if (firstPolygon.length > 0) {
-            const ring = firstPolygon[0];
-            ring.forEach(coord => {
-              lon += coord[0];
-              lat += coord[1];
-              count++;
-            });
-            return count > 0 ? { lat: lat/count, lon: lon/count } : null;
-          }
-        }
-        return null;
-      }
-      
-      // Fonction pour créer le lien Google Street View
-      function createStreetViewLink(geom) {
-        const centroid = getCentroid(geom);
-        if (!centroid) return "";
-        
-        const streetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${centroid.lat},${centroid.lon}`;
-        return `<a href="${streetViewUrl}" target="_blank" class="popup-link" style="color: #1474fa; text-decoration: none; padding: 4px 8px; background: #f0f8ff; border-radius: 4px; display: inline-block; margin-top: 4px;">
-          📍 Voir sur Google Street View
-        </a>`;
-      }
-      // --- Parcelles cadastrales / API cadastre / RPG
-      if (typeLayer === "parcelles" || typeLayer === "api_cadastre" || typeLayer==="rpg" || typeLayer==="rpg_parcelles") {
-        let html = `<div class='custom-popup'><div class='popup-title' style="color:#FF6600">Parcelle cadastrale</div><table>`;
-        html+=row("Section",props.section); html+=row("Numéro",props.numero);
-        html+=row("Surface (ha)",props.surface_ha); html+=row("Surface (m²)",props.surface);
-        html+=row("Adresse",props.adresse); html+=row("Commune",props.commune||props.nomcommune);
-        html+=row("Propriétaire",props.proprietaire||props.nomproprietaire);
-        html+=row("Nature culture",props.culture);
-        html+=`</table></div>`;
-        return html;
-      }
-      // --- Nature & Urbanisme (API IGN)
-      if (typeLayer === "api_nature" || typeLayer === "api_urbanisme") {
-        return `<div class='custom-popup'><div class='popup-title' style="color:${typeLayer==="api_nature"?"#22AA22":"#0000FF"}">
-          ${typeLayer==="api_nature"?"Zone Naturelle":"Zone Urbanisme"}</div>
-        <table>
-          ${row("Type",props.type||props.nature||props.nom)}
-          ${row("Description",props.description)}
-          ${row("Lien",props.url?`<a href="${props.url}" class="popup-link" target="_blank">Voir fiche</a>`:"")}
-        </table></div>`;
-      }
-      // --- Postes HTA
-      if (typeLayer === "postes_hta") {
-        let html = `<div class='custom-popup'><div class='popup-title' style="color:#d12322">Poste HTA</div><table>`;
-        ["Nom","Code","Puissance","Tension av","S3REnR","Taux d'aff","Capacité"].forEach(f=> html+=row(f,props[f]||props[f.replace(/ /g,"_")]));
-        html+=`</table></div>`;
-        return html;
-      }
-      // --- Postes BT
-      if (typeLayer === "postes_bt") {
-        let nom = props.NOM || props.nom || props.Nom || "Poste";
-        let c = props.coords || (props.geometry && props.geometry.coordinates) || [];
-        let lat, lon;
-        if (Array.isArray(c) && c.length === 2) { lat=c[0]; lon=c[1]; }
-        if ((!lat || !lon) && props.geometry && props.geometry.type === "Point") {
-          lat = props.geometry.coordinates[1];
-          lon = props.geometry.coordinates[0];
-        }
-        let gmap = (lat && lon) ? `https://www.google.com/maps/@${lat},${lon},18z` : null;
-        let street = (lat && lon) ? `https://www.google.com/maps?q=&layer=c&cbll=${lat},${lon}` : null;
-        let html = `<div class='custom-popup'><div class='popup-title' style="color:#b6a800">Poste BT</div><table>`;
-        html+=row("Nom",nom); html+=row("Capacité",props.CAPACITE||props.capacite);
-        html+=row("Tension",props.TENSION||props.tension);
-        if(gmap) html+=row("Google Maps", `<a href="${gmap}" target="_blank" class="popup-link">Voir la carte</a>`);
-        if(street) html+=row("Street View", `<a href="${street}" target="_blank" class="popup-link">Voir la rue</a>`);
-        html+=`</table></div>`;
-        return html;
-      }
-      // --- Friches
-      if (typeLayer === "friches") {
-        return `<div class='custom-popup'><div class='popup-title' style="color:brown">Friche</div>
-        <table>
-          ${row("Nom",props.nom)}
-          ${row("Surface (ha)",props.surface_ha)}
-          ${row("Type",props.type_friche)}
-          ${row("Statut",props.statut)}
-        </table></div>`;
-      }
-      // --- Parkings
-      if (typeLayer === "parkings") {
-        // Fonction pour formater les parcelles cadastrales
-        function formatParcelleCadastrale(parcelles) {
-          if (!Array.isArray(parcelles) || parcelles.length === 0) return "Aucune";
-          return parcelles.map(parcelle => {
-            if (parcelle && typeof parcelle === 'object' && parcelle.reference_complete) {
-              return parcelle.reference_complete;
-            }
-            if (parcelle && typeof parcelle === 'object') {
-              const commune = parcelle.commune || '';
-              const prefixe = parcelle.prefixe || '';
-              const section = parcelle.section || '';
-              const numero = parcelle.numero || '';
-              return `${commune}${prefixe}${section}${numero}`.trim();
-            }
-            return String(parcelle);
-          }).join(', ');
-        }
-        
-        const streetViewLink = createStreetViewLink(geometry);
-        
-        return `<div class='custom-popup'><div class='popup-title' style="color:darkgreen">Parking</div>
-        <table>
-          ${row("Nom",props.nom||props.nom_parking)}
-          ${row("Surface (m²)",props.surface)}
-          ${row("Nombre de places",props.places)}
-          ${row("Parcelles cadastrales", formatParcelleCadastrale(props.parcelles_cadastrales))}
-          ${row("Nb parcelles cadastrales", props.nb_parcelles_cadastrales)}
-          ${row("Distance poste BT (m)", props.min_poste_distance_m ? Math.round(props.min_poste_distance_m * 100) / 100 : '')}
-        </table>
-        ${streetViewLink}
-        </div>`;
-      }
-      // --- Potentiel Solaire / Toitures
-      if (typeLayer === "solaire") {
-        // Fonction pour formater les parcelles cadastrales (identique aux parkings)
-        function formatParcelleCadastrale(parcelles) {
-          if (!Array.isArray(parcelles) || parcelles.length === 0) return "Aucune";
-          return parcelles.map(parcelle => {
-            if (parcelle && typeof parcelle === 'object' && parcelle.reference_complete) {
-              return parcelle.reference_complete;
-            }
-            if (parcelle && typeof parcelle === 'object') {
-              const commune = parcelle.commune || '';
-              const prefixe = parcelle.prefixe || '';
-              const section = parcelle.section || '';
-              const numero = parcelle.numero || '';
-              return `${commune}${prefixe}${section}${numero}`.trim();
-            }
-            return String(parcelle);
-          }).join(', ');
-        }
-        
-        const streetViewLink = createStreetViewLink(geometry);
-        
-        // Détecter s'il s'agit de toitures ou de vraies données solaires
-        if (props.surface_toiture_m2 || props.search_method || props.min_distance_bt_m !== undefined) {
-          // C'est une toiture enrichie
-          return `<div class='custom-popup'><div class='popup-title' style="color:gold">🏠 Toiture sélectionnée</div>
-          <table>
-            ${row("Surface toiture (m²)", props.surface_toiture_m2)}
-            ${row("Distance poste BT (m)", props.min_distance_bt_m)}
-            ${row("Distance poste HTA (m)", props.min_distance_hta_m)}
-            ${row("Commune", props.commune)}
-            ${row("Code INSEE", props.insee)}
-            ${row("Parcelles cadastrales", formatParcelleCadastrale(props.parcelles_cadastrales))}
-            ${row("Nb parcelles cadastrales", props.nb_parcelles_cadastrales)}
-            ${row("Source", props.source || "Bâtiment IGN")}
-          </table>
-          ${streetViewLink}
-          </div>`;
-        } else {
-          // Vraies données de potentiel solaire
-          return `<div class='custom-popup'><div class='popup-title' style="color:gold">☀️ Potentiel solaire</div>
-          <table>
-            ${row("Nom",props.nom)}
-            ${row("Surface (ha)",props.surface_ha)}
-            ${row("Puissance (MWc)",props.puissance)}
-            ${row("Exposition",props.exposition)}
-            ${row("Inclinaison",props.inclinaison)}
-          </table></div>`;
-        }
-      }
-      // --- ZAER
-      if (typeLayer === "zaer") {
-        return `<div class='custom-popup'><div class='popup-title' style="color:cyan">ZAER</div>
-        <table>
-          ${row("Libellé",props.libelle)}
-          ${row("Surface (ha)",props.surface_ha)}
-          ${row("Statut",props.statut)}
-        </table></div>`;
-      }
-      // --- Sirene
-      if (typeLayer === "sirene") {
-        return `<div class='custom-popup'><div class='popup-title' style="color:darkred">Établissement Sirene</div>
-        <table>
-          ${row("Nom",props.nom)}
-          ${row("Activité",props.activite)}
-          ${row("Adresse",props.adresse)}
-          ${row("SIRET",props.siret)}
-          ${row("Effectif",props.effectif)}
-        </table></div>`;
-      }
-      // --- Éleveurs
-      if (typeLayer === "eleveurs") {
-        const eleveurLabels = {
-          "Siret": "SIRET",
-          "DateCreati": "Date de création", 
-          "Denominati": "Dénomination",
-          "NomUniteLe": "Nom unité légale",
-          "NomUsageUn": "Nom d'usage",
-          "Prenom1Uni": "Prénom",
-          "ActivitePr": "Activité principale",
-          "NumeroVoie": "N° voie", 
-          "TypeVoieEt": "Type voie",
-          "LibelleVoi": "Libellé voie",
-          "CodePostal": "CP",
-          "LibelleCom": "Commune",
-          "CodeCommun": "Code commune",
-          "X": "X (m, EPSG:2154)",
-          "Y": "Y (m, EPSG:2154)",
-          "Siren": "SIREN",
-          "Nic": "NIC"
+        // Fonds de carte
+        const baseLayers = {
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri'
+            }),
+            terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap contributors'
+            })
         };
         
-        // Construction du nom complet
-        let nomComplet = "";
-        if (props.Prenom1Uni && props.NomUniteLe) {
-          nomComplet = `${props.Prenom1Uni} ${props.NomUniteLe}`;
-        } else if (props.NomUniteLe) {
-          nomComplet = props.NomUniteLe;
-        } else if (props.Denominati) {
-          nomComplet = props.Denominati;
-        } else if (props.NomUsageUn) {
-          nomComplet = props.NomUsageUn;
+        // Ajouter la couche par défaut
+        baseLayers.osm.addTo(map);
+        
+        // Couches de données
+        const dataLayers = {};
+        
+        // Configuration des couches GeoServer
+        const layerConfigs = {
+            rpg: {
+                name: 'Registre Parcellaire Graphique',
+                url: '/proxy/wms',
+                layers: 'gpu:PARCELLES_GRAPHIQUES',
+                format: 'image/png',
+                transparent: true
+            },
+            elevage: {
+                name: 'Établissements d\'élevage',
+                url: '/proxy/wms',
+                layers: 'gpu:GeolocalisationEtablissement_Sirene france',
+                format: 'image/png',
+                transparent: true
+            },
+            postes_bt: {
+                name: 'Postes BT',
+                url: '/proxy/wms',
+                layers: 'gpu:POSTES_ELECTRIQUES_BT',
+                format: 'image/png',
+                transparent: true
+            },
+            postes_hta: {
+                name: 'Postes HTA',
+                url: '/proxy/wms',
+                layers: 'gpu:POSTES_ELECTRIQUES_HTA',
+                format: 'image/png',
+                transparent: true
+            },
+            zones_protegees: {
+                name: 'Zones protégées',
+                url: '/proxy/wms',
+                layers: 'gpu:ZONE_NATURA2000',
+                format: 'image/png',
+                transparent: true
+            },
+            risques: {
+                name: 'Zones à risques',
+                url: '/proxy/wms',
+                layers: 'gpu:zones_risques',
+                format: 'image/png',
+                transparent: true
+            }
+        };
+        
+        // Gestionnaire des couches de base
+        document.querySelectorAll('input[name="baseLayer"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                // Supprimer toutes les couches de base
+                Object.values(baseLayers).forEach(layer => {
+                    if (map.hasLayer(layer)) {
+                        map.removeLayer(layer);
+                    }
+                });
+                // Ajouter la nouvelle couche
+                baseLayers[this.value].addTo(map);
+            });
+        });
+        
+        // Gestionnaire des couches thématiques
+        document.querySelectorAll('.layer-checkbox[data-layer]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const layerId = this.dataset.layer;
+                const config = layerConfigs[layerId];
+                
+                if (this.checked) {
+                    // Ajouter la couche
+                    if (!dataLayers[layerId]) {
+                        dataLayers[layerId] = L.tileLayer.wms(config.url, {
+                            layers: config.layers,
+                            format: config.format,
+                            transparent: config.transparent,
+                            attribution: 'GeoServer - AgriWeb'
+                        });
+                    }
+                    dataLayers[layerId].addTo(map);
+                } else {
+                    // Supprimer la couche
+                    if (dataLayers[layerId] && map.hasLayer(dataLayers[layerId])) {
+                        map.removeLayer(dataLayers[layerId]);
+                    }
+                }
+            });
+        });
+        
+        // Gestionnaire d'opacité des couches
+        document.querySelectorAll('.layer-opacity').forEach(slider => {
+            slider.addEventListener('input', function() {
+                const layerItem = this.closest('.layer-item');
+                const checkbox = layerItem.querySelector('.layer-checkbox[data-layer]');
+                if (checkbox && checkbox.dataset.layer) {
+                    const layerId = checkbox.dataset.layer;
+                    if (dataLayers[layerId] && map.hasLayer(dataLayers[layerId])) {
+                        dataLayers[layerId].setOpacity(this.value / 100);
+                    }
+                }
+            });
+        });
+        
+        // Outils de dessin
+        let currentDrawingMode = null;
+        const drawnItems = L.featureGroup().addTo(map);
+        
+        // Gestionnaires des outils de dessin
+        document.getElementById('drawPoint').addEventListener('click', function() {
+            setDrawingMode('point');
+        });
+        
+        document.getElementById('drawLine').addEventListener('click', function() {
+            setDrawingMode('line');
+        });
+        
+        document.getElementById('drawPolygon').addEventListener('click', function() {
+            setDrawingMode('polygon');
+        });
+        
+        document.getElementById('drawCircle').addEventListener('click', function() {
+            setDrawingMode('circle');
+        });
+        
+        document.getElementById('clearDrawings').addEventListener('click', function() {
+            drawnItems.clearLayers();
+        });
+        
+        function setDrawingMode(mode) {
+            // Désactiver le mode précédent
+            document.querySelectorAll('.draw-btn').forEach(btn => btn.classList.remove('active'));
+            
+            // Activer le nouveau mode
+            document.getElementById('draw' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+            currentDrawingMode = mode;
+            
+            // Changer le curseur
+            map.getContainer().style.cursor = 'crosshair';
         }
         
-        // Construction de l'adresse complète
-        let adresseComplete = "";
-        const numeroVoie = props.NumeroVoie || props["NumeroVo 1"] || "";
-        const typeVoie = props.TypeVoieEt || props.TypeVoie2E || "";
-        const libelleVoie = props.LibelleVoi || props["LibelleV 1"] || "";
-        const codePostal = props.CodePostal || props["CodePost 1"] || "";
-        const commune = props.LibelleCom || props["LibelleC 1"] || "";
+        // Gestionnaire de clic pour le dessin
+        map.on('click', function(e) {
+            if (currentDrawingMode === 'point') {
+                const marker = L.marker(e.latlng).addTo(drawnItems);
+                marker.bindPopup('Point ajouté<br>Coordonnées: ' + e.latlng.lat.toFixed(6) + ', ' + e.latlng.lng.toFixed(6));
+            }
+        });
         
-        if (numeroVoie || typeVoie || libelleVoie) {
-          adresseComplete = [numeroVoie, typeVoie, libelleVoie].filter(x => x).join(" ");
-          if (codePostal || commune) {
-            adresseComplete += ", " + [codePostal, commune].filter(x => x).join(" ");
-          }
-        } else if (codePostal || commune) {
-          adresseComplete = [codePostal, commune].filter(x => x).join(" ");
+        // Recherche géographique
+        document.getElementById('searchBtn').addEventListener('click', performSearch);
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') performSearch();
+        });
+        
+        function performSearch() {
+            const query = document.getElementById('searchInput').value;
+            if (!query.trim()) return;
+            
+            showLoading();
+            
+            // Utiliser Nominatim pour la géolocalisation
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=fr`)
+                .then(response => response.json())
+                .then(data => {
+                    hideLoading();
+                    if (data && data.length > 0) {
+                        const result = data[0];
+                        const lat = parseFloat(result.lat);
+                        const lon = parseFloat(result.lon);
+                        
+                        map.setView([lat, lon], 14);
+                        
+                        // Ajouter un marqueur temporaire
+                        const marker = L.marker([lat, lon]).addTo(map);
+                        marker.bindPopup(`
+                            <div class="custom-popup">
+                                <div class="popup-header">📍 ${result.display_name}</div>
+                                <div class="popup-content">
+                                    <strong>Coordonnées:</strong><br>
+                                    Latitude: ${lat.toFixed(6)}<br>
+                                    Longitude: ${lon.toFixed(6)}
+                                </div>
+                                <div class="popup-actions">
+                                    <button class="popup-btn" onclick="generateReport(${lat}, ${lon})">
+                                        📊 Générer rapport
+                                    </button>
+                                </div>
+                            </div>
+                        `).openPopup();
+                        
+                        // Supprimer le marqueur après 10 secondes
+                        setTimeout(() => {
+                            map.removeLayer(marker);
+                        }, 10000);
+                    } else {
+                        alert('Aucun résultat trouvé pour cette recherche');
+                    }
+                })
+                .catch(error => {
+                    hideLoading();
+                    console.error('Erreur de recherche:', error);
+                    alert('Erreur lors de la recherche');
+                });
         }
         
-        let html = `<div class='custom-popup'><div class='popup-title' style="color:purple">🐄 Éleveur</div><table>`;
-        
-        // Informations principales
-        if (nomComplet) html += row("Nom", nomComplet);
-        if (props.Denominati && props.Denominati !== nomComplet) html += row("Dénomination", props.Denominati);
-        if (adresseComplete) html += row("Adresse", adresseComplete);
-        if (props.Siret) html += row("SIRET", props.Siret);
-        if (props.ActivitePr) html += row("Activité principale", props.ActivitePr);
-        if (props.DateCreati) html += row("Date de création", props.DateCreati);
-        
-        // Liens vers les annuaires d'entreprises
-        if (props.Siret) {
-          const siret = props.Siret;
-          const siren = props.Siren || siret.substring(0, 9);
-          
-          // Lien Societe.com avec format spécifique
-          const denominationUrl = (props.Denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-          const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html#__establishments`;
-          html += row("Societe.com", `<a href="${societeUrl}" target="_blank" class="popup-link">Voir la fiche entreprise</a>`);
-          
-          // Lien Pages Jaunes
-          const denomination = encodeURIComponent(props.Denominati || nomComplet || "");
-          const ville = encodeURIComponent(commune || "");
-          const codePostalFormatted = encodeURIComponent(codePostal ? `(${codePostal})` : "");
-          const pagesJaunesUrl = `https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${denomination}&ou=${ville}+${codePostalFormatted}&univers=pagesjaunes&idOu=`;
-          html += row("Pages Jaunes", `<a href="${pagesJaunesUrl}" target="_blank" class="popup-link">Consulter l'annuaire</a>`);
+        // Fonction pour générer un rapport
+        function generateReport(lat, lon) {
+            window.open(`/rapport_point?lat=${lat}&lon=${lon}`, '_blank');
         }
         
-        html += `</table></div>`;
-        return html;
-      }
-      // --- Fallback générique
-      let html = `<div class="custom-popup"><table>`;
-      for(const [k,v] of Object.entries(props)) {
-        if (typeof v === "string" && v.startsWith("http")) {
-          html += `<tr><th>${k}</th><td><a href="${v}" class="popup-link" target="_blank">${v.replace(/^https?:\/\//,'')}</a></td></tr>`;
-        } else if (typeof v === "string" || typeof v === "number") {
-          html += `<tr><th>${k}</th><td>${v}</td></tr>`;
+        // Gestionnaire du clic sur la carte pour les rapports
+        map.on('contextmenu', function(e) {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            
+            const popup = L.popup()
+                .setLatLng(e.latlng)
+                .setContent(`
+                    <div class="custom-popup">
+                        <div class="popup-header">🎯 Analyse de position</div>
+                        <div class="popup-content">
+                            <strong>Coordonnées:</strong><br>
+                            ${lat.toFixed(6)}, ${lon.toFixed(6)}
+                        </div>
+                        <div class="popup-actions">
+                            <button class="popup-btn" onclick="generateReport(${lat}, ${lon})">
+                                📊 Rapport complet
+                            </button>
+                            <button class="popup-btn" onclick="centerMap(${lat}, ${lon})">
+                                🎯 Centrer
+                            </button>
+                        </div>
+                    </div>
+                `)
+                .openOn(map);
+        });
+        
+        function centerMap(lat, lon) {
+            map.setView([lat, lon], map.getZoom());
         }
-      }
-      html += "</table></div>";
-      return html;
-    }
-
-    // Détection automatique du type de couche
-    function detectTypeLayer(f, s) {
-      if(f.properties && f.properties._layer) return f.properties._layer;
-      if(s && s.color === "orange") return "postes_bt";
-      if(s && s.color === "red") return "postes_hta";
-      if(s && s.color === "purple") return "eleveurs";
-      if(s && s.color === "#FF6600") return "api_cadastre";
-      if(s && s.color === "#22AA22") return "api_nature";
-      if(s && s.color === "#0000FF") return "api_urbanisme";
-      if(s && s.color === "darkgreen") return "parkings";
-      if(s && s.color === "gold") return "solaire";
-      if(s && s.color === "cyan") return "zaer";
-      if(s && s.color === "darkred") return "sirene";
-      if(f.properties && (f.properties.nomUniteLe || f.properties.denomination || f.properties.NomUniteLe || f.properties.Denominati || f.properties.Siret)) return "eleveurs";
-      if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
-        let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
-        if (name.includes('hta')) return "postes_hta";
-        if (name.includes('bt')) return "postes_bt";
-      }
-      return "";
-    }
-
-    // Ajout sur la carte + popups enrichies + icônes
-    window.addGeoJsonToMap = function(feature, style) {
-      if(!feature) return;
-      var gj = L.geoJSON(feature, {
-        style: style || {},
-        pointToLayer: function (f, latlng) {
-          let typeLayer = detectTypeLayer(f, style);
-          if(typeLayer === "postes_bt") return L.marker(latlng, {icon: iconBt});
-          if(typeLayer === "postes_hta") return L.marker(latlng, {icon: iconHta});
-          if(typeLayer === "eleveurs") return L.marker(latlng, {icon: iconFeuille});
-          if(typeLayer === "parkings") return L.marker(latlng, {icon: iconParking});
-          if(typeLayer === "solaire") return L.marker(latlng, {icon: iconSolaire});
-          // Default : point bleu élégant
-          return L.circleMarker(latlng, { radius: 8, color: style?.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
-        },
-        onEachFeature: function (feat, layer) {
-          let typeLayer = detectTypeLayer(feat, style);
-          layer.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 340});
+        
+        // Toggle du contrôle des couches
+        document.getElementById('toggleControl').addEventListener('click', function() {
+            const body = document.querySelector('.control-body');
+            const icon = this.querySelector('i');
+            
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                icon.className = 'fas fa-chevron-up';
+            } else {
+                body.style.display = 'none';
+                icon.className = 'fas fa-chevron-down';
+            }
+        });
+        
+        // Fonctions utilitaires
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
         }
-      }).addTo(map);
-      window._layers.push(gj);
-      updateSummaryBar();
-    };
-
-    window.setView = function(lat, lon, zoom) {
-      map.setView([lat, lon], zoom || 10);
-    };
-    window._leaflet_ready = true;
-  </script>
+        
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // Initialisation terminée
+        console.log('🗺️ Carte AgriWeb 2.0 initialisée avec éditeur de couches avancé');
+    </script>
 </body>
 </html>

@@ -1,237 +1,585 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mon App Géo</title>
-  <!-- Polices et styles externes -->
-  <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-  <style>
-    html, body {
-      height: 100%;
-      min-height: 100vh;
-    }
-    body {
-      margin: 0;
-      font-family: Poppins, sans-serif;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-    .navbar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 1030;
-      height: 56px;
-    }
-    /* === CSS FORCE SIDEBAR À GAUCHE === */
-    .main-container {
-      flex: 1 1 0;
-      display: flex !important;
-      flex-direction: row !important;
-      min-height: 0;
-      height: calc(100vh - 56px);
-      margin-top: 56px;
-      overflow: hidden;
-      align-items: stretch;
-      position: relative;
-    }
-    
-    /* SIDEBAR FORCÉE À GAUCHE */
-    #sidebar {
-      position: absolute !important;
-      left: 0 !important;
-      top: 0 !important;
-      width: 340px !important;
-      min-width: 340px !important;
-      max-width: 340px !important;
-      height: 100% !important;
-      overflow-y: auto;
-      background: #fff !important;
-      z-index: 10 !important;
-      border-right: 1px solid #f1f1f1;
-      display: flex !important;
-      flex-direction: column !important;
-      flex-shrink: 0 !important;
-      flex-grow: 0 !important;
-    }
-    
-    /* CARTE FORCÉE À DROITE */
-    #mapFrame {
-      position: absolute !important;
-      left: 340px !important;
-      top: 0 !important;
-      width: calc(100% - 340px) !important;
-      height: 100% !important;
-      min-width: 0;
-      border: none;
-      display: block;
-      background: #eee;
-    }
-    .layer-list {
-      list-style: none;
-      padding-left: 0;
-      margin: 0 0 1em 0;
-    }
-    .layer-list li {
-      display: flex;
-      align-items: center;
-      margin-bottom: 5px;
-    }
-    .layer-color {
-      width: 14px;
-      height: 14px;
-      display: inline-block;
-      border-radius: 4px;
-      margin-right: 8px;
-      border: 1px solid #bbb;
-    }
-    pre {
-      background: #f0f0f0;
-      padding: 1em;
-      height: 200px;
-      overflow: auto;
-      font-size: .8rem;
-    }
-    .slider-value {
-      font-weight: 500;
-    }
-    /* Responsive sidebar pour mobile */
-    @media (max-width: 991px) {
-      .main-container {
-        margin-top: 56px !important;
-        flex-direction: column !important;
-        position: relative !important;
-      }
-      #sidebar {
-        position: fixed !important;
-        left: -100vw !important;
-        top: 56px !important;
-        width: 90vw !important;
-        max-width: 98vw !important;
-        height: calc(100vh - 56px) !important;
-        z-index: 1050 !important;
-        box-shadow: 4px 0 24px #0002;
-        transition: left 0.3s;
-        flex-direction: column !important;
-      }
-      #sidebar.show {
-        left: 0 !important;
-      }
-      #mapFrame {
-        position: relative !important;
-        left: 0 !important;
-        top: 0 !important;
-        width: 100% !important;
-        height: calc(100vh - 56px) !important;
-      }
-    }
-    #closeSidebarBtn { display: none; }
-    @media (max-width: 991px) {
-      #closeSidebarBtn { display: inline-block; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriWeb 2.0 - Plateforme Géospatiale Agricole</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.95), rgba(32, 201, 151, 0.95));
+            color: white;
+            padding: 100px 0;
+            text-align: center;
+        }
+        
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .auth-section {
+            background: white;
+            margin: -50px auto 0;
+            max-width: 800px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .auth-tabs {
+            display: flex;
+            background: #f8f9fa;
+        }
+        
+        .auth-tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+        
+        .auth-tab.active {
+            background: white;
+            color: #28a745;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .auth-content {
+            padding: 40px;
+        }
+        
+        .auth-form {
+            display: none;
+        }
+        
+        .auth-form.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        .features-section {
+            background: white;
+            padding: 80px 0;
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            color: #28a745;
+            margin-bottom: 1rem;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            margin-bottom: 1rem;
+        }
+        
+        .footer {
+            background: #343a40;
+            color: white;
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        .demo-accounts {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .btn-access {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-access:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.4);
+            color: white;
+        }
+    </style>
 </head>
 <body>
-  <nav class="navbar navbar-dark bg-dark px-3">
-    <span class="navbar-brand">Mon App Géo</span>
-    <button id="openSidebarBtn" class="btn btn-outline-light d-lg-none ms-auto" type="button">Menu</button>
-  </nav>
-  <div class="main-container">
-    <!-- SIDEBAR DOIT ÊTRE À GAUCHE - PREMIER ÉLÉMENT -->
-    <div id="sidebar" class="text-dark">
-      <div class="offcanvas-header d-flex align-items-center px-3 pt-3">
-        <h5 class="offcanvas-title flex-grow-1 mb-0">Panneau de recherche</h5>
-        <button id="closeSidebarBtn" class="btn-close text-reset ms-2" type="button"></button>
-      </div>
-      <div class="offcanvas-body p-0">
-        <div class="accordion" id="searchAccordion">
-          {% include 'search_panel.html' %}
+    <!-- Section héro -->
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">🌾 AgriWeb 2.0</h1>
+            <p class="hero-subtitle">Plateforme Géospatiale Agricole Professionnelle</p>
+            <p class="lead">
+                Analyse géospatiale avancée • Rapports automatisés • Cartographie interactive
+            </p>
+            
+            <!-- Accès rapide aux fonctionnalités principales -->
+            <div class="mt-4">
+                <a href="/carte" class="btn-access">
+                    <i class="bi bi-map"></i> Carte Interactive
+                </a>
+                <a href="/rapport_point" class="btn-access">
+                    <i class="bi bi-file-text"></i> Générer Rapport
+                </a>
+                <a href="/search_by_address" class="btn-access">
+                    <i class="bi bi-search"></i> Rechercher
+                </a>
+            </div>
         </div>
-        <hr class="m-0">
-        <div class="p-3">
-          <h6 class="fw-bold">Calques visibles</h6>
-          <ul id="layerControlList" class="layer-list"></ul>
-          <h6 class="fw-bold mt-4">Informations</h6>
-          <div id="info-panel"></div>
-          <button id="reportButton" type="button" class="btn btn-warning w-100 mt-2">Générer rapport (point courant)</button>
-          <button id="communeReportBtn" type="button" class="btn btn-outline-primary w-100 mt-2">Générer rapport commune</button>
-          <button id="deptReportCarteBtn" type="button" class="btn btn-outline-success w-100 mt-2">
-            Générer rapport département (à partir de la carte)
-          </button>
+    </section>
+    
+    <!-- Section d'authentification -->
+    <div class="container">
+        <div class="auth-section">
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="showTab('login')">
+                    <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                </button>
+                <button class="auth-tab" onclick="showTab('register')">
+                    <i class="bi bi-person-plus"></i> Créer un compte
+                </button>
+                <button class="auth-tab" onclick="showTab('trial')">
+                    <i class="bi bi-gift"></i> Essai gratuit
+                </button>
+            </div>
+            
+            <div class="auth-content">
+                <!-- Alertes -->
+                <div id="alert-zone"></div>
+                
+                <!-- Formulaire de connexion -->
+                <div id="login-form" class="auth-form active">
+                    <h3><i class="bi bi-box-arrow-in-right"></i> Connexion</h3>
+                    <p class="text-muted">Accédez à votre espace AgriWeb</p>
+                    
+                    <div class="demo-accounts">
+                        <h6><i class="bi bi-info-circle"></i> Comptes de démonstration :</h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <strong>Admin:</strong><br>
+                                <code>admin@agriweb.fr</code> / <code>admin123</code>
+                            </div>
+                            <div class="col-6">
+                                <strong>Utilisateur:</strong><br>
+                                <code>demo@agriweb.fr</code> / <code>demo123</code>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label for="login-email">
+                                <i class="bi bi-envelope"></i> Email
+                            </label>
+                            <input type="email" id="login-email" name="email" required 
+                                   placeholder="votre.email@entreprise.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="login-password">
+                                <i class="bi bi-lock"></i> Mot de passe
+                            </label>
+                            <input type="password" id="login-password" name="password" required
+                                   placeholder="Votre mot de passe">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Formulaire d'inscription -->
+                <div id="register-form" class="auth-form">
+                    <h3><i class="bi bi-person-plus"></i> Créer un compte</h3>
+                    <p class="text-muted">Rejoignez la plateforme AgriWeb 2.0</p>
+                    
+                    <form onsubmit="handleRegister(event)">
+                        <div class="form-group">
+                            <label for="register-name">
+                                <i class="bi bi-person"></i> Nom complet
+                            </label>
+                            <input type="text" id="register-name" name="name" required
+                                   placeholder="Prénom Nom">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-email">
+                                <i class="bi bi-envelope"></i> Email professionnel
+                            </label>
+                            <input type="email" id="register-email" name="email" required
+                                   placeholder="votre.email@entreprise.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-password">
+                                <i class="bi bi-lock"></i> Mot de passe
+                            </label>
+                            <input type="password" id="register-password" name="password" required
+                                   placeholder="Au moins 6 caractères" minlength="6">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-company">
+                                <i class="bi bi-building"></i> Entreprise (optionnel)
+                            </label>
+                            <input type="text" id="register-company" name="company"
+                                   placeholder="Nom de votre entreprise">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-person-plus"></i> Créer mon compte
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Formulaire d'essai gratuit -->
+                <div id="trial-form" class="auth-form">
+                    <h3><i class="bi bi-gift"></i> Essai gratuit 7 jours</h3>
+                    <p class="text-muted">Découvrez AgriWeb 2.0 sans engagement</p>
+                    
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="feature-icon">📊</div>
+                                <h6>Rapports illimités</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="feature-icon">🗺️</div>
+                                <h6>Cartes interactives</h6>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="feature-icon">🔍</div>
+                                <h6>Analyses géospatiales</h6>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <form onsubmit="handleTrial(event)">
+                        <div class="form-group">
+                            <label for="trial-name">
+                                <i class="bi bi-person"></i> Nom complet
+                            </label>
+                            <input type="text" id="trial-name" name="name" required
+                                   placeholder="Prénom Nom">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="trial-email">
+                                <i class="bi bi-envelope"></i> Email professionnel
+                            </label>
+                            <input type="email" id="trial-email" name="email" required
+                                   placeholder="votre.email@entreprise.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="trial-company">
+                                <i class="bi bi-building"></i> Entreprise
+                            </label>
+                            <input type="text" id="trial-company" name="company" required
+                                   placeholder="Nom de votre entreprise">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-gift"></i> Démarrer l'essai gratuit
+                        </button>
+                    </form>
+                </div>
+            </div>
         </div>
-      </div>
     </div>
-    <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
-    <iframe id="mapFrame" src="/static/map.html" title="Carte interactive"></iframe>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/static/main.js"></script>
-  <script>
-    // Sidebar responsive (fixe desktop, offcanvas mobile)
-    const sidebar = document.getElementById('sidebar');
-    const openBtn = document.getElementById('openSidebarBtn');
-    const closeBtn = document.getElementById('closeSidebarBtn');
-
-    function openSidebar() {
-      sidebar.classList.add('show');
-      document.body.style.overflow = 'hidden';
-    }
-    function closeSidebar() {
-      sidebar.classList.remove('show');
-      document.body.style.overflow = '';
-    }
-    if (openBtn) openBtn.addEventListener('click', openSidebar);
-    if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
-
-    // Ferme sidebar sur clic extérieur (mobile uniquement)
-    window.addEventListener('click', function(e) {
-      if(window.innerWidth > 991) return;
-      if(sidebar.classList.contains('show') && !sidebar.contains(e.target) && e.target !== openBtn) {
-        closeSidebar();
-      }
-    });
-    // Ferme la sidebar sur resize desktop
-    window.addEventListener('resize', () => {
-      if(window.innerWidth > 991) closeSidebar();
-    });
-
-    // Contrôle des calques depuis main.js
-    function updateLayerSidebarControl(layers) {
-      const list = document.getElementById("layerControlList");
-      if (!list) return;
-      list.innerHTML = '';
-      Object.entries(layers).forEach(([key, config]) => {
-        const li = document.createElement('li');
-        const box = document.createElement('input');
-        box.type = "checkbox";
-        box.checked = true;
-        box.dataset.layer = key;
-        box.style.marginRight = "7px";
-        box.onchange = function() {
-          const m = document.getElementById("mapFrame").contentWindow;
-          if (m && typeof m.toggleLayerVisibility === "function") {
-            m.toggleLayerVisibility(key, box.checked);
-          } else if (m && m.toggleLayerVisibility) {
-            m.toggleLayerVisibility(key, box.checked);
-          }
-        };
-        const color = document.createElement('span');
-        color.className = 'layer-color';
-        color.style.background = config.color || '#bbb';
-        li.appendChild(box);
-        li.appendChild(color);
-        li.appendChild(document.createTextNode(config.label || key));
-        list.appendChild(li);
-      });
-    }
-    window.updateLayerSidebarControl = updateLayerSidebarControl;
-  </script>
+    
+    <!-- Section fonctionnalités -->
+    <section class="features-section">
+        <div class="container">
+            <div class="row text-center mb-5">
+                <div class="col-12">
+                    <h2>🚀 Fonctionnalités avancées</h2>
+                    <p class="lead text-muted">Une plateforme complète pour l'analyse géospatiale agricole</p>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h4>Rapports automatisés</h4>
+                        <p>Génération automatique de rapports détaillés avec analyses PVGIS, cadastre, infrastructure électrique et contraintes d'urbanisme.</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">🗺️</div>
+                        <h4>Cartographie interactive</h4>
+                        <p>Interface cartographique avancée avec gestionnaire de couches, outils de dessin et recherche géographique intégrée.</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h4>Infrastructure électrique</h4>
+                        <p>Analyse complète des postes BT/HTA, distances de raccordement et évaluation des coûts d'infrastructure.</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">🌱</div>
+                        <h4>Données agricoles</h4>
+                        <p>Registre Parcellaire Graphique, données d'élevage, analyses de sols et potentiel photovoltaïque.</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">🛡️</div>
+                        <h4>Contraintes réglementaires</h4>
+                        <p>Identification automatique des zones protégées, contraintes d'urbanisme et risques naturels.</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">📱</div>
+                        <h4>Interface moderne</h4>
+                        <p>Interface responsive et intuitive, compatible mobile et desktop avec export PDF intégré.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2025 AgriWeb 2.0 - Plateforme Géospatiale Agricole Professionnelle</p>
+            <p>Système intégré avec GeoServer • Support technique disponible</p>
+        </div>
+    </footer>
+    
+    <script>
+        // Gestion des onglets
+        function showTab(tabName) {
+            // Désactiver tous les onglets
+            document.querySelectorAll('.auth-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Masquer tous les formulaires
+            document.querySelectorAll('.auth-form').forEach(form => {
+                form.classList.remove('active');
+            });
+            
+            // Activer l'onglet et le formulaire sélectionnés
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-form').classList.add('active');
+            
+            // Nettoyer les alertes
+            document.getElementById('alert-zone').innerHTML = '';
+        }
+        
+        // Gestion de la connexion
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams(data)
+                });
+                
+                if (response.ok) {
+                    // Redirection après connexion réussie
+                    window.location.href = '/carte';
+                } else {
+                    showAlert('Identifiants incorrects', 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur de connexion: ' + error.message, 'danger');
+            }
+        }
+        
+        // Gestion de l'inscription
+        async function handleRegister(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                password: formData.get('password'),
+                company: formData.get('company')
+            };
+            
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: new URLSearchParams(data)
+                });
+                
+                if (response.ok) {
+                    showAlert('Compte créé avec succès ! Vous pouvez maintenant vous connecter.', 'success');
+                    setTimeout(() => {
+                        showTab('login');
+                    }, 2000);
+                } else {
+                    const text = await response.text();
+                    showAlert('Erreur lors de la création du compte', 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur: ' + error.message, 'danger');
+            }
+        }
+        
+        // Gestion de l'essai gratuit
+        async function handleTrial(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                company: formData.get('company')
+            };
+            
+            try {
+                const response = await fetch('/api/trial', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Essai gratuit activé ! Redirection en cours...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/carte';
+                    }, 2000);
+                } else {
+                    showAlert(result.error || 'Erreur lors de l\'activation de l\'essai', 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur: ' + error.message, 'danger');
+            }
+        }
+        
+        // Fonction d'affichage des alertes
+        function showAlert(message, type) {
+            const alertZone = document.getElementById('alert-zone');
+            alertZone.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+        
+        console.log('🏠 Page d\'accueil AgriWeb 2.0 initialisée');
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
