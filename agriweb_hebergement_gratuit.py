@@ -10466,8 +10466,7 @@ def search_by_address_route():
         logging.error(f"[search_by_address] Erreur JSON serialization: {json_error}")
         return jsonify({"error": "Erreur de sérialisation des données", "details": str(json_error)}), 500
 
-    # FORCER l'utilisation de map.html pour cohérence avec le contrôleur de couches
-    info_response["carte_url"] = "/static/map.html"
+    info_response["carte_url"] = f"/static/cartes/{carte_url}" if carte_url else "/static/map.html"
     
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
     try:
