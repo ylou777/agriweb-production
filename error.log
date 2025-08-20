@@ -6715,3 +6715,39 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-20 15:44:13,114 INFO 127.0.0.1 - - [20/Aug/2025 15:44:13] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
 2025-08-20 15:44:13,249 INFO 127.0.0.1 - - [20/Aug/2025 15:44:13] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
 2025-08-20 15:44:14,296 INFO 127.0.0.1 - - [20/Aug/2025 15:44:14] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-20 16:21:31,708 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 16:21:31,714 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 16:21:33,516 INFO 127.0.0.1 - - [20/Aug/2025 16:21:33] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 16:21:33,720 INFO 127.0.0.1 - - [20/Aug/2025 16:21:33] "GET /app HTTP/1.1" 200 -
+2025-08-20 16:21:34,019 INFO 127.0.0.1 - - [20/Aug/2025 16:21:34] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 16:21:34,245 INFO 127.0.0.1 - - [20/Aug/2025 16:21:34] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 16:21:35,122 INFO 127.0.0.1 - - [20/Aug/2025 16:21:35] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-20 16:40:23,379 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 16:40:23,379 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 16:40:24,863 INFO 127.0.0.1 - - [20/Aug/2025 16:40:24] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 16:40:24,923 INFO 127.0.0.1 - - [20/Aug/2025 16:40:24] "GET /app HTTP/1.1" 200 -
+2025-08-20 16:40:25,272 INFO 127.0.0.1 - - [20/Aug/2025 16:40:25] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 16:40:25,363 INFO 127.0.0.1 - - [20/Aug/2025 16:40:25] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 16:40:41,213 INFO 127.0.0.1 - - [20/Aug/2025 16:40:41] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 16:40:41,254 INFO 127.0.0.1 - - [20/Aug/2025 16:40:41] "GET /app HTTP/1.1" 200 -
+2025-08-20 16:40:41,297 INFO 127.0.0.1 - - [20/Aug/2025 16:40:41] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 16:40:41,319 INFO 127.0.0.1 - - [20/Aug/2025 16:40:41] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 16:40:43,144 INFO 127.0.0.1 - - [20/Aug/2025 16:40:43] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 16:40:43,189 INFO 127.0.0.1 - - [20/Aug/2025 16:40:43] "GET /app HTTP/1.1" 200 -
+2025-08-20 16:40:43,314 INFO 127.0.0.1 - - [20/Aug/2025 16:40:43] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 16:40:43,349 INFO 127.0.0.1 - - [20/Aug/2025 16:40:43] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 16:42:34,239 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-20 16:42:34,239 INFO [33mPress CTRL+C to quit[0m
+2025-08-20 16:42:35,606 INFO 127.0.0.1 - - [20/Aug/2025 16:42:35] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 16:42:35,677 INFO 127.0.0.1 - - [20/Aug/2025 16:42:35] "GET /app HTTP/1.1" 200 -
+2025-08-20 16:42:35,786 INFO 127.0.0.1 - - [20/Aug/2025 16:42:35] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 16:42:35,830 INFO 127.0.0.1 - - [20/Aug/2025 16:42:35] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 16:42:38,646 INFO 127.0.0.1 - - [20/Aug/2025 16:42:38] "[32mGET / HTTP/1.1[0m" 302 -
+2025-08-20 16:42:38,894 INFO 127.0.0.1 - - [20/Aug/2025 16:42:38] "GET /app HTTP/1.1" 200 -
+2025-08-20 16:42:39,089 INFO 127.0.0.1 - - [20/Aug/2025 16:42:39] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-20 16:42:39,091 INFO 127.0.0.1 - - [20/Aug/2025 16:42:39] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-20 16:44:21,525 INFO 127.0.0.1 - - [20/Aug/2025 16:44:21] "GET /?id=5e20b72b-76ba-43bb-a001-93fbce3f7f43&vscodeBrowserReqId=1755701061150 HTTP/1.1" 200 -
+2025-08-20 16:45:27,903 INFO 127.0.0.1 - - [20/Aug/2025 16:45:27] "GET /?id=5e20b72b-76ba-43bb-a001-93fbce3f7f43&vscodeBrowserReqId=1755701127464 HTTP/1.1" 200 -

@@ -396,6 +396,14 @@ def init_database():
         )
     ''')
     
+    # Ajouter la colonne is_admin si elle n'existe pas
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0')
+        print("✅ Colonne is_admin ajoutée")
+    except sqlite3.OperationalError:
+        # La colonne existe déjà
+        pass
+    
     conn.commit()
     conn.close()
 
@@ -488,11 +496,12 @@ def create_demo_accounts():
             
             cursor.execute('''
                 INSERT INTO users (email, name, company, password_hash, salt, 
-                                 subscription_status, trial_end_date, is_active, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP)
+                                 subscription_status, trial_end_date, is_active, is_admin, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
             ''', (
                 account['email'], account['name'], account['company'], 
-                password_hash, salt, account['subscription_status'], trial_end.isoformat()
+                password_hash, salt, account['subscription_status'], trial_end.isoformat(),
+                1 if account['email'] == 'admin@test.com' else 0  # Admin pour admin@test.com
             ))
             
             conn.commit()
@@ -509,7 +518,7 @@ def authenticate_user(email, password):
         cursor = conn.cursor()
         
         cursor.execute('''
-            SELECT id, password_hash, salt, subscription_status, trial_end_date, name
+            SELECT id, password_hash, salt, subscription_status, trial_end_date, name, is_admin
             FROM users WHERE email = ? AND is_active = 1
         ''', (email,))
         
@@ -517,7 +526,7 @@ def authenticate_user(email, password):
         if not user:
             return False, None, "Email ou mot de passe incorrect"
         
-        user_id, stored_hash, salt, subscription_status, trial_end, name = user
+        user_id, stored_hash, salt, subscription_status, trial_end, name, is_admin = user
         
         # Vérifier le mot de passe
         if not verify_password(password, stored_hash, salt):
@@ -545,7 +554,8 @@ def authenticate_user(email, password):
             'email': email,
             'name': name,
             'subscription_status': subscription_status,
-            'trial_end': trial_end
+            'trial_end': trial_end,
+            'is_admin': bool(is_admin)
         }, "Connexion réussie"
         
     except Exception as e:
@@ -963,7 +973,7 @@ def profile():
                             {% endif %}
                             
                             <div class="mt-4">
-                                <a href="/carte" class="btn btn-success me-2">🗺️ Retour à la carte</a>
+                                <a href="/app" class="btn btn-success me-2">🗺️ Retour à la carte</a>
                                 <a href="/logout" class="btn btn-outline-danger">Déconnexion</a>
                             </div>
                         </div>
@@ -1112,12 +1122,25 @@ def index():
     
     # Vérifier si l'utilisateur est déjà connecté
     session_token = session.get('session_token') or request.cookies.get('session_token')
+    is_admin = False
+    current_user = None
+    
     if session_token:
         user = get_user_by_session(session_token)
         if user:
-            return redirect('/app')
+            current_user = user
+            # Vérifier si l'utilisateur est admin
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user['id'],))
+            admin_result = cursor.fetchone()
+            is_admin = bool(admin_result[0]) if admin_result else False
+            conn.close()
     
-    return render_template("homepage.html", stripe_public_key=STRIPE_PUBLIC_KEY)
+    return render_template("homepage.html", 
+                         stripe_public_key=STRIPE_PUBLIC_KEY, 
+                         is_admin=is_admin,
+                         current_user=current_user)
 
 # Interface complète AgriWeb (après authentification)
 @app.route("/app")
@@ -1154,7 +1177,7 @@ def app_interface():
                                        zoom_lon=lon,
                                        zoom_address=address)
             except:
-                return redirect("/carte")
+                return redirect("/app")
     
     # Vérifier l'ancien système (rétrocompatibilité)
     user_authenticated = request.cookies.get('user_authenticated') or request.args.get('demo')
@@ -1171,7 +1194,7 @@ def app_interface():
                                    zoom_lon=lon,
                                    zoom_address=address)
         except:
-            return redirect("/carte")
+            return redirect("/app")
     
     # Nouveaux utilisateurs - Redirection vers authentification
     return redirect("/?login_required=1")
@@ -12811,6 +12834,380 @@ def rapport_commune_complet():
             "error": "Erreur inattendue lors de la génération du rapport",
             "details": str(e)
         }), 500
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                           PANEL D'ADMINISTRATION                         ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+def require_admin(f):
+    """Décorateur pour vérifier les droits administrateur"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('session_token'):
+            return redirect('/login')
+            
+        # Vérifier si l'utilisateur est admin
+        session_token = session.get('session_token')
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.email, u.is_admin FROM users u
+            JOIN user_sessions s ON u.id = s.user_id
+            WHERE s.session_token = ? AND s.expires_at > datetime('now')
+        """, (session_token,))
+        
+        user_data = cursor.fetchone()
+        conn.close()
+        
+        if not user_data or user_data[1] != 1:  # is_admin = 1
+            return redirect('/')
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route("/admin")
+@require_admin
+def admin_dashboard():
+    """Tableau de bord administrateur"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Statistiques principales
+    stats = {}
+    
+    # Total utilisateurs
+    cursor.execute("SELECT COUNT(*) FROM users")
+    stats['total_users'] = cursor.fetchone()[0]
+    
+    # Nouveaux utilisateurs aujourd'hui
+    cursor.execute("SELECT COUNT(*) FROM users WHERE date(created_at) = date('now')")
+    stats['new_users_today'] = cursor.fetchone()[0]
+    
+    # Abonnements actifs
+    cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'active'")
+    stats['active_subscriptions'] = cursor.fetchone()[0]
+    
+    # Essais en cours
+    cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'trial' AND datetime(trial_end_date) > datetime('now')")
+    stats['active_trials'] = cursor.fetchone()[0]
+    
+    # Revenus du mois (approximation basée sur les abonnements actifs)
+    stats['revenue_month'] = stats['active_subscriptions'] * 299
+    
+    # Taux de conversion essai -> abonnement
+    cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'active' AND created_at >= date('now', '-30 days')")
+    conversions = cursor.fetchone()[0]
+    total_trials = stats['active_trials'] + conversions
+    stats['trial_conversions'] = round((conversions / max(total_trials, 1)) * 100, 1)
+    
+    # Vues de pages (simulation)
+    stats['page_views_today'] = stats['new_users_today'] * 5 + 47
+    stats['unique_visitors'] = stats['new_users_today'] + 12
+    
+    # Liste des utilisateurs
+    cursor.execute("""
+        SELECT id, email, name as username, subscription_status as subscription_type, 
+               created_at, last_login, 
+               CASE WHEN subscription_status IN ('active', 'trial') THEN 1 ELSE 0 END as is_active
+        FROM users 
+        ORDER BY created_at DESC 
+        LIMIT 50
+    """)
+    
+    users = []
+    for row in cursor.fetchall():
+        user = {
+            'id': row[0],
+            'email': row[1],
+            'username': row[2],
+            'subscription_type': row[3],
+            'created_at': datetime.fromisoformat(row[4]) if row[4] else None,
+            'last_login': datetime.fromisoformat(row[5]) if row[5] else None,
+            'is_active': bool(row[6])
+        }
+        users.append(user)
+    
+    conn.close()
+    
+    # Données pour les graphiques
+    chart_data = {
+        'users_labels': ['J-6', 'J-5', 'J-4', 'J-3', 'J-2', 'Hier', "Aujourd'hui"],
+        'users_data': [2, 1, 3, 0, 1, 2, stats['new_users_today']],
+        'revenue_labels': ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun'],
+        'revenue_data': [1200, 1800, 2400, 2100, 2700, stats['revenue_month']]
+    }
+    
+    return render_template('admin_dashboard.html', 
+                         stats=stats, 
+                         users=users, 
+                         chart_data=chart_data)
+
+@app.route("/admin/user/<int:user_id>")
+@require_admin
+def admin_view_user(user_id):
+    """Voir les détails d'un utilisateur"""
+    c = get_db_connection().cursor()
+    c.execute("""
+        SELECT id, email, username, subscription_status, created_at, last_login, trial_end_date
+        FROM users WHERE id = ?
+    """, (user_id,))
+    
+    user = c.fetchone()
+    if not user:
+        return "Utilisateur non trouvé", 404
+    
+    # Sessions de l'utilisateur
+    c.execute("""
+        SELECT created_at, ip_address, user_agent, expires_at
+        FROM sessions WHERE user_id = ?
+        ORDER BY created_at DESC LIMIT 10
+    """, (user_id,))
+    sessions = c.fetchall()
+    
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Utilisateur {{ user[1] }} - Admin</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container mt-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/admin">Administration</a></li>
+                    <li class="breadcrumb-item active">Utilisateur {{ user[1] }}</li>
+                </ol>
+            </nav>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Informations Utilisateur</h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>ID:</strong> {{ user[0] }}</p>
+                            <p><strong>Email:</strong> {{ user[1] }}</p>
+                            <p><strong>Nom:</strong> {{ user[2] or 'Non défini' }}</p>
+                            <p><strong>Statut:</strong> 
+                                <span class="badge bg-{{ 'warning' if user[3] == 'trial' else 'success' if user[3] == 'active' else 'secondary' }}">
+                                    {{ user[3] }}
+                                </span>
+                            </p>
+                            <p><strong>Inscription:</strong> {{ user[4] }}</p>
+                            <p><strong>Dernière connexion:</strong> {{ user[5] or 'Jamais' }}</p>
+                            {% if user[6] %}
+                            <p><strong>Fin d'essai:</strong> {{ user[6] }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Sessions Récentes</h5>
+                        </div>
+                        <div class="card-body">
+                            {% for session in sessions %}
+                            <div class="border-bottom pb-2 mb-2">
+                                <small>
+                                    <strong>{{ session[0] }}</strong><br>
+                                    IP: {{ session[1] }}<br>
+                                    Navigateur: {{ session[2][:50] }}...<br>
+                                    Expire: {{ session[3] }}
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <a href="/admin" class="btn btn-secondary">Retour</a>
+                <button class="btn btn-warning" onclick="resetPassword()">Réinitialiser mot de passe</button>
+                <button class="btn btn-primary" onclick="extendTrial()">Prolonger essai</button>
+            </div>
+        </div>
+        
+        <script>
+            function resetPassword() {
+                if (confirm('Réinitialiser le mot de passe de cet utilisateur ?')) {
+                    fetch('/admin/user/{{ user[0] }}/reset-password', {method: 'POST'})
+                    .then(response => response.json())
+                    .then(data => alert(data.message));
+                }
+            }
+            
+            function extendTrial() {
+                if (confirm('Prolonger l\'essai de 7 jours ?')) {
+                    fetch('/admin/user/{{ user[0] }}/extend-trial', {method: 'POST'})
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.message);
+                        location.reload();
+                    });
+                }
+            }
+        </script>
+    </body>
+    </html>
+    """, user=user, sessions=sessions)
+
+@app.route("/admin/user/<int:user_id>/delete", methods=["POST"])
+@require_admin
+def admin_delete_user(user_id):
+    """Supprimer un utilisateur"""
+    c = get_db_connection().cursor()
+    
+    # Vérifier que ce n'est pas un compte admin/demo
+    c.execute("SELECT email FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    
+    if user and user[0] in ['admin@test.com', 'demo@test.com']:
+        return jsonify({'error': 'Impossible de supprimer les comptes système'}), 400
+    
+    # Supprimer les sessions
+    c.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    # Supprimer l'utilisateur
+    c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    c.connection.commit()
+    
+    return jsonify({'success': True, 'message': 'Utilisateur supprimé'})
+
+@app.route("/admin/user/<int:user_id>/reset-password", methods=["POST"])
+@require_admin
+def admin_reset_password(user_id):
+    """Réinitialiser le mot de passe d'un utilisateur"""
+    import secrets
+    import string
+    
+    # Générer un nouveau mot de passe
+    alphabet = string.ascii_letters + string.digits
+    new_password = ''.join(secrets.choice(alphabet) for i in range(8))
+    
+    # Hasher le mot de passe
+    from passlib.hash import pbkdf2_sha256
+    hashed_password = pbkdf2_sha256.hash(new_password)
+    
+    # Mettre à jour en base
+    c = get_db_connection().cursor()
+    c.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed_password, user_id))
+    c.connection.commit()
+    
+    return jsonify({
+        'success': True, 
+        'message': f'Nouveau mot de passe: {new_password}',
+        'password': new_password
+    })
+
+@app.route("/admin/user/<int:user_id>/extend-trial", methods=["POST"])
+@require_admin
+def admin_extend_trial(user_id):
+    """Prolonger l'essai d'un utilisateur"""
+    from datetime import datetime, timedelta
+    
+    # Nouvelle date de fin d'essai (+7 jours)
+    new_trial_end = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    c = get_db_connection().cursor()
+    c.execute("""
+        UPDATE users 
+        SET trial_end_date = ?, subscription_status = 'trial'
+        WHERE id = ?
+    """, (new_trial_end, user_id))
+    c.connection.commit()
+    
+    return jsonify({
+        'success': True,
+        'message': f'Essai prolongé jusqu\'au {new_trial_end[:10]}'
+    })
+
+@app.route("/admin/export/users")
+@require_admin
+def admin_export_users():
+    """Exporter la liste des utilisateurs en CSV"""
+    import csv
+    from io import StringIO
+    
+    c = get_db_connection().cursor()
+    c.execute("""
+        SELECT email, username, subscription_status, created_at, last_login
+        FROM users ORDER BY created_at DESC
+    """)
+    
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Email', 'Nom', 'Statut', 'Inscription', 'Dernière connexion'])
+    
+    for row in c.fetchall():
+        writer.writerow(row)
+    
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': 'attachment; filename=users.csv'}
+    )
+
+@app.route("/admin/system/check")
+@require_admin
+def admin_system_check():
+    """Vérification du système"""
+    status = {
+        'status': 'OK',
+        'database': 'Connectée',
+        'servers': 'En ligne'
+    }
+    
+    try:
+        # Test base de données
+        c = get_db_connection().cursor()
+        c.execute("SELECT COUNT(*) FROM users")
+        c.fetchone()
+    except:
+        status['database'] = 'Erreur'
+        status['status'] = 'ERREUR'
+    
+    return jsonify(status)
+
+@app.route("/admin/logs")
+@require_admin
+def admin_logs():
+    """Afficher les logs système"""
+    try:
+        with open('error.log', 'r') as f:
+            logs = f.read()
+    except:
+        logs = "Aucun log disponible"
+    
+    return f"<pre>{logs}</pre>"
+
+# Fonction pour créer un utilisateur admin au démarrage
+def create_admin_user():
+    """Créer un utilisateur admin si nécessaire"""
+    c = get_db_connection().cursor()
+    
+    # Vérifier si admin existe déjà
+    c.execute("SELECT id FROM users WHERE email = 'admin@test.com'")
+    if c.fetchone():
+        # Mettre à jour pour s'assurer qu'il est admin
+        c.execute("UPDATE users SET is_admin = 1 WHERE email = 'admin@test.com'")
+        c.connection.commit()
+        return
+    
+    # Créer l'utilisateur admin
+    from passlib.hash import pbkdf2_sha256
+    admin_password = pbkdf2_sha256.hash('admin123')
+    
+    c.execute("""
+        INSERT INTO users (email, username, password_hash, subscription_status, is_admin, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, ('admin@test.com', 'Administrateur', admin_password, 'active', 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+    c.connection.commit()
+    print("✅ Utilisateur admin créé: admin@test.com / admin123")
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
