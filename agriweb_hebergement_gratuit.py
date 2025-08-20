@@ -10494,7 +10494,10 @@ def main():
             Timer(1, open_browser).start()
             
         print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
-        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
+        
+        # Ne pas utiliser app.run() si on est lancé par gunicorn
+        if __name__ == "__main__":
+            app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
