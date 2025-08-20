@@ -10508,6 +10508,12 @@ def search_by_address_route():
     info_response["carte_url"] = f"/static/{carte_url}" if carte_url else "/static/map.html"
     print(f"[DEBUG] URL finale de carte: {info_response['carte_url']}")
     
+    # Force le rechargement en ajoutant un timestamp pour éviter le cache
+    import time
+    if carte_url and "map_" in carte_url:
+        info_response["carte_url"] += f"?t={int(time.time())}"
+        print(f"[DEBUG] URL avec cache bust: {info_response['carte_url']}")
+    
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
     try:
         save_map_to_cache(map_obj, info_response)

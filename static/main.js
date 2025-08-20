@@ -577,7 +577,11 @@ async function handleUnifiedSearch(e) {
       window.lastSearchData = data;
       // Recharge la carte générée dans l'iframe
       if (data.carte_url) {
-        document.getElementById("mapFrame").src = data.carte_url;
+        console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
+        const iframe = document.getElementById("mapFrame");
+        // Force le rechargement avec cache bust
+        iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+        console.log("[DEBUG] URL finale iframe:", iframe.src);
       }
       displayAllLayers(data);
       updateInfoPanel([data]);
