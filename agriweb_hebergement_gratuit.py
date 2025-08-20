@@ -261,7 +261,7 @@ def ensure_feature_list(data):
 # ──────────────────────────────────────────────────────────────
 from flask import (
     Flask, request, render_template, render_template_string, jsonify, send_file,
-    make_response, Response, stream_with_context, redirect
+    make_response, Response, stream_with_context, redirect, session, flash
 )
 import folium
 from folium.plugins import Draw, MeasureControl, MarkerCluster, Search
@@ -272,12 +272,16 @@ from pyproj import Transformer
 from urllib.parse import quote, quote_plus
 import unicodedata, re
 from threading import Timer
-from datetime import datetime
+from datetime import datetime, timedelta
 import webbrowser
 import os
 import json
 import io
 import csv
+import sqlite3
+import hashlib
+import secrets
+from functools import wraps
 import zipfile
 from io import BytesIO
 import pprint
@@ -322,9 +326,272 @@ except ImportError:
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                    SYSTÈME D'AUTHENTIFICATION COMMERCIAL                 ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# Configuration de la base de données
+DATABASE_PATH = 'agriweb_users.db'
+
+def init_database():
+    """Initialise la base de données des utilisateurs"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    # Table des utilisateurs
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            company TEXT,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            trial_start_date TIMESTAMP,
+            trial_end_date TIMESTAMP,
+            subscription_status TEXT DEFAULT 'trial',
+            subscription_type TEXT,
+            subscription_end_date TIMESTAMP,
+            last_login TIMESTAMP,
+            login_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT 1
+        )
+    ''')
+    
+    # Table des sessions actives
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            session_token TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            ip_address TEXT,
+            user_agent TEXT,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    
+    # Table des logs d'utilisation
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usage_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT,
+            endpoint TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def hash_password(password, salt=None):
+    """Hash un mot de passe avec du sel"""
+    if salt is None:
+        salt = secrets.token_hex(32)
+    else:
+        salt = salt
+    
+    # Utilise PBKDF2 pour le hashing sécurisé
+    password_hash = hashlib.pbkdf2_hmac('sha256', 
+                                       password.encode('utf-8'), 
+                                       salt.encode('utf-8'), 
+                                       100000)  # 100,000 itérations
+    return password_hash.hex(), salt
+
+def verify_password(password, stored_hash, salt):
+    """Vérifie un mot de passe"""
+    password_hash, _ = hash_password(password, salt)
+    return password_hash == stored_hash
+
+def create_user(email, name, company, password):
+    """Crée un nouvel utilisateur avec période d'essai"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Vérifier si l'email existe déjà
+        cursor.execute('SELECT id FROM users WHERE email = ?', (email,))
+        if cursor.fetchone():
+            return False, "Cet email est déjà enregistré"
+        
+        # Hash du mot de passe
+        password_hash, salt = hash_password(password)
+        
+        # Calcul des dates d'essai
+        trial_start = datetime.now()
+        trial_end = trial_start + timedelta(days=7)
+        
+        # Insertion du nouvel utilisateur
+        cursor.execute('''
+            INSERT INTO users (email, name, company, password_hash, salt, 
+                             trial_start_date, trial_end_date, subscription_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (email, name, company, password_hash, salt, trial_start, trial_end, 'trial'))
+        
+        conn.commit()
+        user_id = cursor.lastrowid
+        conn.close()
+        
+        return True, f"Compte créé avec succès ! Essai gratuit jusqu'au {trial_end.strftime('%d/%m/%Y')}"
+        
+    except Exception as e:
+        print(f"Erreur création utilisateur: {e}")
+        return False, "Erreur lors de la création du compte"
+
+def authenticate_user(email, password):
+    """Authentifie un utilisateur"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, password_hash, salt, subscription_status, trial_end_date, name
+            FROM users WHERE email = ? AND is_active = 1
+        ''', (email,))
+        
+        user = cursor.fetchone()
+        if not user:
+            return False, None, "Email ou mot de passe incorrect"
+        
+        user_id, stored_hash, salt, subscription_status, trial_end, name = user
+        
+        # Vérifier le mot de passe
+        if not verify_password(password, stored_hash, salt):
+            return False, None, "Email ou mot de passe incorrect"
+        
+        # Vérifier l'état de l'abonnement
+        now = datetime.now()
+        if subscription_status == 'trial':
+            trial_end_date = datetime.fromisoformat(trial_end)
+            if now > trial_end_date:
+                return False, None, "Période d'essai expirée. Veuillez souscrire à un abonnement."
+        
+        # Mettre à jour les stats de connexion
+        cursor.execute('''
+            UPDATE users 
+            SET last_login = CURRENT_TIMESTAMP, login_count = login_count + 1
+            WHERE id = ?
+        ''', (user_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return True, {
+            'id': user_id,
+            'email': email,
+            'name': name,
+            'subscription_status': subscription_status,
+            'trial_end': trial_end
+        }, "Connexion réussie"
+        
+    except Exception as e:
+        print(f"Erreur authentification: {e}")
+        return False, None, "Erreur lors de la connexion"
+
+def create_session(user_id, ip_address=None, user_agent=None):
+    """Crée une session utilisateur"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        session_token = secrets.token_urlsafe(32)
+        expires_at = datetime.now() + timedelta(hours=24)  # Session de 24h
+        
+        cursor.execute('''
+            INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (user_id, session_token, expires_at, ip_address, user_agent))
+        
+        conn.commit()
+        conn.close()
+        
+        return session_token
+        
+    except Exception as e:
+        print(f"Erreur création session: {e}")
+        return None
+
+def get_user_by_session(session_token):
+    """Récupère un utilisateur par token de session"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT u.id, u.email, u.name, u.subscription_status, u.trial_end_date,
+                   s.expires_at
+            FROM users u
+            JOIN user_sessions s ON u.id = s.user_id
+            WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
+        ''', (session_token,))
+        
+        user_data = cursor.fetchone()
+        conn.close()
+        
+        if user_data:
+            return {
+                'id': user_data[0],
+                'email': user_data[1],
+                'name': user_data[2],
+                'subscription_status': user_data[3],
+                'trial_end_date': user_data[4],
+                'session_expires': user_data[5]
+            }
+        return None
+        
+    except Exception as e:
+        print(f"Erreur récupération session: {e}")
+        return None
+
+def log_user_action(user_id, action, endpoint):
+    """Enregistre une action utilisateur"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO usage_logs (user_id, action, endpoint)
+            VALUES (?, ?, ?)
+        ''', (user_id, action, endpoint))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Erreur log action: {e}")
+
+def require_auth(f):
+    """Décorateur pour protéger les routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        session_token = session.get('session_token') or request.cookies.get('session_token')
+        
+        if not session_token:
+            return redirect('/?login_required=1')
+        
+        user = get_user_by_session(session_token)
+        if not user:
+            session.pop('session_token', None)
+            resp = make_response(redirect('/?session_expired=1'))
+            resp.set_cookie('session_token', '', expires=0)
+            return resp
+        
+        # Ajouter l'utilisateur au contexte de la requête
+        request.current_user = user
+        log_user_action(user['id'], f.__name__, request.endpoint)
+        
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Initialiser la base de données au démarrage
+init_database()
+print("✅ Système d'authentification commercial initialisé")
 
 # Configuration pour Railway
-GEOSERVER_URL = os.getenv("GEOSERVER_URL", "https://3de153b73a2d.ngrok-free.app/geoserver")
+GEOSERVER_URL = os.getenv("GEOSERVER_URL", "https://bff9776acb7f.ngrok-free.app/geoserver")
 PORT = int(os.getenv("PORT", 5000))
 DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
@@ -352,234 +619,238 @@ def health_check():
         "geoserver_url": GEOSERVER_URL
     }), 200
 
-# Page d'accueil avec authentification
-@app.route("/")
-def index():
-    """Page d'accueil avec authentification ou interface directe"""
-    # Vérifier si l'utilisateur a une session active
-    user_authenticated = request.cookies.get('user_authenticated') or request.args.get('demo')
-    
-    if user_authenticated:
-        # Utilisateur connecté - afficher l'interface complète
-        try:
-            return render_template("index.html")
-        except:
-            # Fallback si le template n'existe pas
-            return render_template_string("""
-            <!DOCTYPE html>
-            <html lang="fr">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>🌾 AgriWeb - Interface</title>
-                <style>
-                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f8f9fa; }
-                    .header { background: linear-gradient(135deg, #2c5f41, #4a8b3b); color: white; padding: 2rem 0; text-align: center; }
-                    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-                    .nav-card { background: white; border-radius: 12px; padding: 2rem; margin: 1rem 0; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-                    .nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 2rem; }
-                    .nav-item { background: #f8f9fa; border: 2px solid #e9ecef; border-radius: 8px; padding: 1.5rem; text-align: center; transition: all 0.3s ease; text-decoration: none; color: #333; }
-                    .nav-item:hover { border-color: #28a745; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(40, 167, 69, 0.2); }
-                    .nav-item h3 { margin: 0 0 0.5rem 0; color: #2c5f41; }
-                    .status-bar { background: #d4edda; border: 1px solid #c3e6cb; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <h1>🌾 AgriWeb - Interface de géolocalisation agricole</h1>
-                    <p>Plateforme complète d'analyse géospatiale</p>
-                </div>
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                           ROUTES D'AUTHENTIFICATION                      ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+@app.route("/register", methods=["POST"])
+def register():
+    """Inscription d'un nouvel utilisateur"""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        
+        email = data.get('email', '').strip().lower()
+        name = data.get('name', '').strip()
+        company = data.get('company', '').strip()
+        password = data.get('password', '').strip()
+        
+        # Validation des données
+        if not email or not name or not password:
+            return jsonify({'success': False, 'error': 'Tous les champs sont obligatoires'}), 400
+        
+        if len(password) < 6:
+            return jsonify({'success': False, 'error': 'Le mot de passe doit contenir au moins 6 caractères'}), 400
+        
+        # Créer l'utilisateur
+        success, message = create_user(email, name, company, password)
+        
+        if success:
+            return jsonify({'success': True, 'message': message}), 201
+        else:
+            return jsonify({'success': False, 'error': message}), 400
+            
+    except Exception as e:
+        print(f"Erreur register: {e}")
+        return jsonify({'success': False, 'error': 'Erreur lors de l\'inscription'}), 500
+
+@app.route("/login", methods=["POST"])
+def login():
+    """Connexion d'un utilisateur"""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '').strip()
+        
+        if not email or not password:
+            return jsonify({'success': False, 'error': 'Email et mot de passe requis'}), 400
+        
+        # Authentifier l'utilisateur
+        success, user_data, message = authenticate_user(email, password)
+        
+        if success:
+            # Créer une session
+            session_token = create_session(
+                user_data['id'], 
+                request.remote_addr, 
+                request.headers.get('User-Agent')
+            )
+            
+            if session_token:
+                # Créer la réponse de redirection
+                if request.is_json:
+                    resp = jsonify({
+                        'success': True, 
+                        'message': message,
+                        'user': {
+                            'name': user_data['name'],
+                            'email': user_data['email'],
+                            'subscription_status': user_data['subscription_status']
+                        },
+                        'redirect': '/app'
+                    })
+                else:
+                    resp = make_response(redirect('/app'))
                 
-                <div class="container">
-                    <div class="status-bar">
-                        ✅ <strong>Système opérationnel</strong> - GeoServer connecté : {{ geoserver_url }}
-                    </div>
-                    
-                    <div class="nav-card">
-                        <h2>🔍 Fonctionnalités principales</h2>
-                        <div class="nav-grid">
-                            <a href="/search_by_commune" class="nav-item">
-                                <h3>🏘️ Recherche par commune</h3>
-                                <p>Analyse complète d'une commune avec toutes les couches de données</p>
-                            </a>
-                            <a href="/search_by_address" class="nav-item">
-                                <h3>📍 Recherche par adresse</h3>
-                                <p>Localisation précise avec coordonnées GPS</p>
-                            </a>
-                            <a href="/toitures" class="nav-item">
-                                <h3>🏠 Analyse toitures</h3>
-                                <p>Potentiel solaire et surface exploitable</p>
-                            </a>
-                            <a href="/rapport_commune" class="nav-item">
-                                <h3>📊 Rapport commune</h3>
-                                <p>Rapport détaillé avec statistiques</p>
-                            </a>
-                            <a href="/rapport_departement" class="nav-item">
-                                <h3>🗺️ Rapport département</h3>
-                                <p>Synthèse départementale complète</p>
-                            </a>
-                            <a href="/carte_risques" class="nav-item">
-                                <h3>⚠️ Carte des risques</h3>
-                                <p>Visualisation des risques naturels</p>
-                            </a>
+                # Stocker le token de session
+                session['session_token'] = session_token
+                resp.set_cookie('session_token', session_token, max_age=86400, httponly=True, secure=False)
+                
+                return resp
+            else:
+                return jsonify({'success': False, 'error': 'Erreur lors de la création de session'}), 500
+        else:
+            return jsonify({'success': False, 'error': message}), 401
+            
+    except Exception as e:
+        print(f"Erreur login: {e}")
+        return jsonify({'success': False, 'error': 'Erreur lors de la connexion'}), 500
+
+@app.route("/logout", methods=["POST", "GET"])
+def logout():
+    """Déconnexion d'un utilisateur"""
+    session.pop('session_token', None)
+    resp = make_response(redirect('/'))
+    resp.set_cookie('session_token', '', expires=0)
+    return resp
+
+@app.route("/api/trial", methods=["POST"])
+def start_trial():
+    """Démarrage d'un essai gratuit rapide"""
+    try:
+        data = request.get_json()
+        
+        email = data.get('email', '').strip().lower()
+        name = data.get('name', '').strip()
+        company = data.get('company', '').strip()
+        
+        if not email or not name:
+            return jsonify({'success': False, 'error': 'Email et nom requis'}), 400
+        
+        # Générer un mot de passe temporaire
+        temp_password = secrets.token_urlsafe(12)
+        
+        # Créer l'utilisateur d'essai
+        success, message = create_user(email, name, company, temp_password)
+        
+        if success:
+            # Authentifier automatiquement
+            auth_success, user_data, auth_message = authenticate_user(email, temp_password)
+            
+            if auth_success:
+                session_token = create_session(
+                    user_data['id'], 
+                    request.remote_addr, 
+                    request.headers.get('User-Agent')
+                )
+                
+                # Stocker le token de session
+                session['session_token'] = session_token
+                
+                return jsonify({
+                    'success': True, 
+                    'message': f'Essai gratuit activé ! {message}',
+                    'session_token': session_token,
+                    'temp_password': temp_password
+                }), 201
+            else:
+                return jsonify({'success': False, 'error': 'Erreur lors de l\'authentification automatique'}), 500
+        else:
+            return jsonify({'success': False, 'error': message}), 400
+            
+    except Exception as e:
+        print(f"Erreur trial: {e}")
+        return jsonify({'success': False, 'error': 'Erreur lors de l\'activation de l\'essai'}), 500
+
+@app.route("/profile")
+@require_auth
+def profile():
+    """Page de profil utilisateur"""
+    user = request.current_user
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Profil - AgriWeb 2.0</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container mt-5">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>👤 Profil Utilisateur</h3>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Nom:</strong> {{ user.name }}</p>
+                            <p><strong>Email:</strong> {{ user.email }}</p>
+                            <p><strong>Statut:</strong> 
+                                <span class="badge bg-{{ 'warning' if user.subscription_status == 'trial' else 'success' }}">
+                                    {{ 'Essai gratuit' if user.subscription_status == 'trial' else 'Abonnement actif' }}
+                                </span>
+                            </p>
+                            {% if user.subscription_status == 'trial' %}
+                            <p><strong>Fin d'essai:</strong> {{ user.trial_end_date[:10] }}</p>
+                            <div class="alert alert-warning">
+                                <h5>🎯 Votre essai se termine bientôt !</h5>
+                                <p>Souscrivez à un abonnement pour continuer à utiliser AgriWeb 2.0.</p>
+                                <a href="/subscribe" class="btn btn-primary">Voir les abonnements</a>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="mt-4">
+                                <a href="/carte" class="btn btn-success me-2">🗺️ Retour à la carte</a>
+                                <a href="/logout" class="btn btn-outline-danger">Déconnexion</a>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </body>
-            </html>
-            """)
-    else:
-        # Nouvel utilisateur - page d'accueil avec authentification
-        return render_template_string("""
-        <!DOCTYPE html>
-        <html lang="fr">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>🌾 AgriWeb - Plateforme d'analyse géospatiale agricole</title>
-            <style>
-                * { margin: 0; padding: 0; box-sizing: border-box; }
-                body { 
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                    background: linear-gradient(135deg, #2c5f41 0%, #4a8b3b 100%);
-                    min-height: 100vh; 
-                    display: flex; 
-                    align-items: center; 
-                    justify-content: center;
-                    color: #333;
-                }
-                .welcome-container { 
-                    background: rgba(255,255,255,0.95); 
-                    padding: 3rem; 
-                    border-radius: 16px; 
-                    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-                    width: 100%; 
-                    max-width: 600px; 
-                    text-align: center;
-                    backdrop-filter: blur(10px);
-                }
-                .logo { 
-                    font-size: 3rem; 
-                    margin-bottom: 1rem; 
-                    color: #2c5f41; 
-                    font-weight: 700;
-                }
-                .tagline {
-                    font-size: 1.2rem;
-                    color: #666;
-                    margin-bottom: 2rem;
-                    line-height: 1.6;
-                }
-                .features {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                    gap: 1.5rem;
-                    margin: 2rem 0;
-                }
-                .feature {
-                    background: #f8f9fa;
-                    padding: 1.5rem;
-                    border-radius: 12px;
-                    border-left: 4px solid #28a745;
-                }
-                .feature h3 {
-                    color: #2c5f41;
-                    margin-bottom: 0.5rem;
-                    font-size: 1.1rem;
-                }
-                .feature p {
-                    color: #666;
-                    font-size: 0.9rem;
-                    line-height: 1.4;
-                }
-                .action-buttons {
-                    display: flex;
-                    gap: 1rem;
-                    justify-content: center;
-                    margin-top: 2rem;
-                    flex-wrap: wrap;
-                }
-                .btn { 
-                    padding: 1rem 2rem; 
-                    border: none; 
-                    border-radius: 8px; 
-                    font-weight: 600; 
-                    cursor: pointer; 
-                    transition: all 0.3s ease; 
-                    font-size: 1rem;
-                    text-decoration: none;
-                    display: inline-block;
-                }
-                .btn-primary { 
-                    background: #28a745; 
-                    color: white; 
-                }
-                .btn-primary:hover { 
-                    background: #218838; 
-                    transform: translateY(-2px);
-                    box-shadow: 0 8px 20px rgba(40, 167, 69, 0.3);
-                }
-                .btn-secondary { 
-                    background: transparent; 
-                    color: #2c5f41; 
-                    border: 2px solid #2c5f41;
-                }
-                .btn-secondary:hover { 
-                    background: #2c5f41; 
-                    color: white;
-                }
-                .demo-info {
-                    background: #e3f2fd;
-                    padding: 1rem;
-                    border-radius: 8px;
-                    margin-top: 2rem;
-                    font-size: 0.9rem;
-                    color: #1565c0;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="welcome-container">
-                <div class="logo">🌾 AgriWeb</div>
-                <div class="tagline">
-                    Plateforme complète d'analyse géospatiale pour l'agriculture et l'aménagement territorial
-                </div>
-                
-                <div class="features">
-                    <div class="feature">
-                        <h3>🗺️ Cartographie avancée</h3>
-                        <p>Analyse des parcelles RPG, toitures, zones d'activité et infrastructure électrique</p>
-                    </div>
-                    <div class="feature">
-                        <h3>📊 Rapports détaillés</h3>
-                        <p>Génération de rapports communaux et départementaux avec statistiques complètes</p>
-                    </div>
-                    <div class="feature">
-                        <h3>🔌 Infrastructure</h3>
-                        <p>Localisation des postes électriques BT/HTA et calcul des distances</p>
-                    </div>
-                    <div class="feature">
-                        <h3>🏠 Potentiel solaire</h3>
-                        <p>Analyse du potentiel photovoltaïque des toitures et surfaces disponibles</p>
-                    </div>
-                </div>
-                
-                <div class="action-buttons">
-                    <a href="/?demo=1" class="btn btn-primary">
-                        🚀 Accès direct (Démo)
-                    </a>
-                    <a href="/auth" class="btn btn-secondary">
-                        🔐 Créer un compte
-                    </a>
-                </div>
-                
-                <div class="demo-info">
-                    💡 <strong>Mode démo :</strong> Accès immédiat à toutes les fonctionnalités sans inscription
-                </div>
             </div>
-        </body>
-        </html>
-        """)
+        </div>
+    </body>
+    </html>
+    """, user=user)
+
+# Page d'accueil avec authentification commerciale
+@app.route("/")
+def index():
+    """Page d'accueil avec authentification commerciale - Collecte emails et essais gratuits"""
+    login_required = request.args.get('login_required')
+    session_expired = request.args.get('session_expired')
+    
+    return render_template("home.html", login_required=login_required, session_expired=session_expired)
+
+# Interface complète AgriWeb (après authentification)
+@app.route("/app")
+def app_interface():
+    """Interface complète AgriWeb - Nécessite authentification"""
+    
+    # Vérifier d'abord le nouveau système d'authentification
+    session_token = session.get('session_token') or request.cookies.get('session_token')
+    
+    if session_token:
+        user = get_user_by_session(session_token)
+        if user:
+            # Utilisateur connecté avec le nouveau système - Interface complète
+            try:
+                return render_template("index.html")
+            except:
+                return redirect("/carte")
+    
+    # Vérifier l'ancien système (rétrocompatibilité)
+    user_authenticated = request.cookies.get('user_authenticated') or request.args.get('demo')
+    if user_authenticated:
+        # Ancien système - Interface complète
+        try:
+            return render_template("index.html")
+        except:
+            return redirect("/carte")
+    
+    # Nouveaux utilisateurs - Redirection vers authentification
+    return redirect("/?login_required=1")
 
 @app.route("/auth")
 def auth():

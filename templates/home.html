@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriWeb 2.0 - Plateforme Géospatiale Agricole Professionnelle</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-section {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.95), rgba(32, 201, 151, 0.95));
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .auth-section {
+            background: white;
+            margin: -60px auto 0;
+            max-width: 900px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .auth-tabs {
+            display: flex;
+            background: #f8f9fa;
+        }
+        
+        .auth-tab {
+            flex: 1;
+            padding: 25px;
+            text-align: center;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #6c757d;
+            transition: all 0.3s ease;
+        }
+        
+        .auth-tab.active {
+            background: white;
+            color: #28a745;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .auth-content {
+            padding: 50px;
+        }
+        
+        .auth-form {
+            display: none;
+        }
+        
+        .auth-form.active {
+            display: block;
+        }
+        
+        .form-group {
+            margin-bottom: 2rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.7rem;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }
+        
+        .btn-auth {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            padding: 15px 35px;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            width: 100%;
+            color: white;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+        
+        .btn-auth:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+            color: white;
+        }
+        
+        .commercial-banner {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            border-radius: 15px;
+        }
+        
+        .pricing-highlight {
+            background: #fff3cd;
+            border: 1px solid #ffecb5;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .feature-item {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .demo-access {
+            background: #e7f3ff;
+            border: 1px solid #b3d4fc;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Section héro -->
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">🌾 AgriWeb 2.0</h1>
+            <p class="hero-subtitle">Plateforme Géospatiale Agricole Professionnelle</p>
+            <p class="lead">
+                Solution complète d'analyse géospatiale • Rapports automatisés • Interface cartographique avancée
+            </p>
+        </div>
+    </section>
+    
+    <!-- Section d'authentification -->
+    <div class="container">
+        <div class="auth-section">
+            <!-- Bandeau commercial -->
+            <div class="commercial-banner">
+                <h3>🚀 Découvrez AgriWeb 2.0 - Version Professionnelle</h3>
+                <p class="mb-0">Inscrivez-vous et obtenez <strong>7 jours d'essai gratuit</strong> pour tester toutes les fonctionnalités</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="showTab('register')">
+                    <i class="bi bi-person-plus"></i> Créer un compte (7j gratuit)
+                </button>
+                <button class="auth-tab" onclick="showTab('login')">
+                    <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                </button>
+                <button class="auth-tab" onclick="showTab('trial')">
+                    <i class="bi bi-gift"></i> Essai express
+                </button>
+            </div>
+            
+            <div class="auth-content">
+                <!-- Alertes -->
+                <div id="alert-zone">
+                    {% if login_required %}
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Connexion requise pour accéder à cette fonctionnalité
+                    </div>
+                    {% endif %}
+                    {% if session_expired %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-clock"></i> Votre session a expiré. Veuillez vous reconnecter.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Formulaire d'inscription -->
+                <div id="register-form" class="auth-form active">
+                    <h3><i class="bi bi-person-plus"></i> Créer votre compte professionnel</h3>
+                    <p class="text-muted mb-4">Démarrez votre essai gratuit de 7 jours - Aucune carte bancaire requise</p>
+                    
+                    <div class="pricing-highlight">
+                        <h6><i class="bi bi-gift"></i> Offre de lancement :</h6>
+                        <ul class="mb-0">
+                            <li>✅ <strong>7 jours gratuits</strong> - Accès complet</li>
+                            <li>✅ <strong>Rapports illimités</strong> - Analyses PVGIS, cadastre, infrastructure</li>
+                            <li>✅ <strong>Cartes interactives</strong> - Gestionnaire de couches avancé</li>
+                            <li>✅ <strong>Support technique</strong> - Assistance dédiée</li>
+                        </ul>
+                    </div>
+                    
+                    <form onsubmit="handleRegister(event)">
+                        <div class="form-group">
+                            <label for="register-name">
+                                <i class="bi bi-person"></i> Nom complet
+                            </label>
+                            <input type="text" id="register-name" name="name" required
+                                   placeholder="Prénom Nom">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-email">
+                                <i class="bi bi-envelope"></i> Email professionnel
+                            </label>
+                            <input type="email" id="register-email" name="email" required
+                                   placeholder="votre.email@entreprise.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-company">
+                                <i class="bi bi-building"></i> Entreprise
+                            </label>
+                            <input type="text" id="register-company" name="company"
+                                   placeholder="Nom de votre entreprise ou organisation">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="register-password">
+                                <i class="bi bi-lock"></i> Mot de passe
+                            </label>
+                            <input type="password" id="register-password" name="password" required
+                                   placeholder="Au moins 6 caractères" minlength="6">
+                        </div>
+                        
+                        <button type="submit" class="btn-auth">
+                            <i class="bi bi-rocket"></i> Démarrer l'essai gratuit (7 jours)
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Formulaire de connexion -->
+                <div id="login-form" class="auth-form">
+                    <h3><i class="bi bi-box-arrow-in-right"></i> Connexion à votre compte</h3>
+                    <p class="text-muted">Accédez à votre espace AgriWeb 2.0</p>
+                    
+                    <form onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label for="login-email">
+                                <i class="bi bi-envelope"></i> Email
+                            </label>
+                            <input type="email" id="login-email" name="email" required 
+                                   placeholder="votre.email@entreprise.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="login-password">
+                                <i class="bi bi-lock"></i> Mot de passe
+                            </label>
+                            <input type="password" id="login-password" name="password" required
+                                   placeholder="Votre mot de passe">
+                        </div>
+                        
+                        <button type="submit" class="btn-auth">
+                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Essai express -->
+                <div id="trial-form" class="auth-form">
+                    <h3><i class="bi bi-lightning"></i> Essai express (1 minute)</h3>
+                    <p class="text-muted">Testez immédiatement AgriWeb 2.0 sans créer de mot de passe</p>
+                    
+                    <div class="features-grid">
+                        <div class="feature-item">
+                            <div style="font-size: 2rem;">📊</div>
+                            <strong>Rapports automatisés</strong>
+                        </div>
+                        <div class="feature-item">
+                            <div style="font-size: 2rem;">🗺️</div>
+                            <strong>Cartes interactives</strong>
+                        </div>
+                        <div class="feature-item">
+                            <div style="font-size: 2rem;">⚡</div>
+                            <strong>Infrastructure électrique</strong>
+                        </div>
+                        <div class="feature-item">
+                            <div style="font-size: 2rem;">🌱</div>
+                            <strong>Données agricoles</strong>
+                        </div>
+                    </div>
+                    
+                    <form onsubmit="handleTrial(event)">
+                        <div class="form-group">
+                            <label for="trial-name">
+                                <i class="bi bi-person"></i> Nom complet
+                            </label>
+                            <input type="text" id="trial-name" name="name" required
+                                   placeholder="Prénom Nom">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="trial-email">
+                                <i class="bi bi-envelope"></i> Email professionnel
+                            </label>
+                            <input type="email" id="trial-email" name="email" required
+                                   placeholder="votre.email@entreprise.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="trial-company">
+                                <i class="bi bi-building"></i> Entreprise
+                            </label>
+                            <input type="text" id="trial-company" name="company" required
+                                   placeholder="Nom de votre entreprise">
+                        </div>
+                        
+                        <button type="submit" class="btn-auth">
+                            <i class="bi bi-lightning"></i> Accès instantané (7 jours gratuit)
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Accès démo pour les anciens utilisateurs -->
+                <div class="demo-access">
+                    <h5>🔓 Accès direct (mode démo)</h5>
+                    <p class="mb-2">Pour les utilisateurs existants ou pour tester rapidement</p>
+                    <a href="/app" class="btn btn-outline-primary">
+                        <i class="bi bi-play-circle"></i> Accéder à l'application complète
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Gestion des onglets
+        function showTab(tabName) {
+            // Désactiver tous les onglets
+            document.querySelectorAll('.auth-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Masquer tous les formulaires
+            document.querySelectorAll('.auth-form').forEach(form => {
+                form.classList.remove('active');
+            });
+            
+            // Activer l'onglet et le formulaire sélectionnés
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-form').classList.add('active');
+            
+            // Nettoyer les alertes
+            document.getElementById('alert-zone').innerHTML = '';
+        }
+        
+        // Gestion de l'inscription
+        async function handleRegister(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                company: formData.get('company'),
+                password: formData.get('password')
+            };
+            
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Compte créé avec succès ! 🎉 Vous pouvez maintenant vous connecter.', 'success');
+                    setTimeout(() => {
+                        showTab('login');
+                        document.getElementById('login-email').value = data.email;
+                    }, 2000);
+                } else {
+                    showAlert(result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur: ' + error.message, 'danger');
+            }
+        }
+        
+        // Gestion de la connexion
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                email: formData.get('email'),
+                password: formData.get('password')
+            };
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Connexion réussie ! Redirection...', 'success');
+                    setTimeout(() => {
+                        window.location.href = result.redirect || '/app';
+                    }, 1500);
+                } else {
+                    showAlert(result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur: ' + error.message, 'danger');
+            }
+        }
+        
+        // Gestion de l'essai express
+        async function handleTrial(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const data = {
+                name: formData.get('name'),
+                email: formData.get('email'),
+                company: formData.get('company')
+            };
+            
+            try {
+                const response = await fetch('/api/trial', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Essai gratuit activé ! 🚀 Redirection vers l\'interface...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/app';
+                    }, 2000);
+                } else {
+                    showAlert(result.error || 'Erreur lors de l\'activation de l\'essai', 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur: ' + error.message, 'danger');
+            }
+        }
+        
+        // Fonction d'affichage des alertes
+        function showAlert(message, type) {
+            const alertZone = document.getElementById('alert-zone');
+            alertZone.innerHTML = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+        }
+        
+        console.log('🏠 Interface d\'authentification commerciale AgriWeb 2.0 chargée');
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
