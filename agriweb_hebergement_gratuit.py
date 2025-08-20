@@ -511,6 +511,28 @@ def create_demo_accounts():
         except Exception as e:
             print(f"Erreur création compte démo {account['email']}: {e}")
 
+def ensure_admin_rights():
+    """S'assurer que admin@test.com a les droits administrateur"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Forcer les droits admin pour admin@test.com
+        cursor.execute('UPDATE users SET is_admin = 1 WHERE email = ?', ('admin@test.com',))
+        conn.commit()
+        
+        # Vérifier
+        cursor.execute('SELECT is_admin FROM users WHERE email = ?', ('admin@test.com',))
+        result = cursor.fetchone()
+        if result and result[0] == 1:
+            print("✅ Droits administrateur confirmés pour admin@test.com")
+        else:
+            print("⚠️ Problème avec les droits administrateur")
+            
+        conn.close()
+    except Exception as e:
+        print(f"Erreur mise à jour droits admin: {e}")
+
 def authenticate_user(email, password):
     """Authentifie un utilisateur"""
     try:
@@ -657,6 +679,7 @@ def require_auth(f):
 # Initialiser la base de données au démarrage
 init_database()
 create_demo_accounts()
+ensure_admin_rights()
 print("✅ Système d'authentification commercial initialisé")
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -12844,7 +12867,7 @@ def require_admin(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('session_token'):
-            return redirect('/login')
+            return redirect('/?admin_required=1')
             
         # Vérifier si l'utilisateur est admin
         session_token = session.get('session_token')
@@ -12860,12 +12883,12 @@ def require_admin(f):
         conn.close()
         
         if not user_data or user_data[1] != 1:  # is_admin = 1
-            return redirect('/')
+            return redirect('/?admin_required=1')
             
         return f(*args, **kwargs)
     return decorated_function
 
-@app.route("/admin")
+@app.route("/admin", methods=["GET", "POST"])
 @require_admin
 def admin_dashboard():
     """Tableau de bord administrateur"""
