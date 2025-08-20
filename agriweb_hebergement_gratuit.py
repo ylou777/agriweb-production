@@ -260,7 +260,7 @@ def ensure_feature_list(data):
 # Imports principaux
 # ──────────────────────────────────────────────────────────────
 from flask import (
-    Flask, request, render_template, jsonify, send_file,
+    Flask, request, render_template, render_template_string, jsonify, send_file,
     make_response, Response, stream_with_context, redirect
 )
 import folium
