@@ -808,13 +808,22 @@ def detect_working_geoserver():
 
 # Configuration pour Railway avec détection automatique
 GEOSERVER_URL = detect_working_geoserver()
+GEOSERVER_USERNAME = os.getenv("GEOSERVER_USERNAME", "admin")
+GEOSERVER_PASSWORD = os.getenv("GEOSERVER_PASSWORD", "geoserver")
 PORT = int(os.getenv("PORT", 5000))
 DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
 print(f"🚀 Configuration Railway:")
 print(f"   - GeoServer URL: {GEOSERVER_URL}")
+print(f"   - GeoServer Auth: {GEOSERVER_USERNAME}:{'*' * len(GEOSERVER_PASSWORD)}")
 print(f"   - Port: {PORT}")
 print(f"   - Debug: {DEBUG}")
+
+# Fonction d'authentification GeoServer
+def get_geoserver_auth():
+    """Retourne les credentials d'authentification GeoServer"""
+    from requests.auth import HTTPBasicAuth
+    return HTTPBasicAuth(GEOSERVER_USERNAME, GEOSERVER_PASSWORD)
 
 # Add a global error handler for 500 errors to return JSON with error and traceback
 from flask import jsonify
