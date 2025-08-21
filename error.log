@@ -6833,3 +6833,24 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-21 07:52:19,167 INFO 127.0.0.1 - - [21/Aug/2025 07:52:19] "GET /static/cartes/map_1755755506_7568635001573876022.html?t=1755755518&cache=1755755537684 HTTP/1.1" 200 -
 2025-08-21 08:03:42,787 INFO 127.0.0.1 - - [21/Aug/2025 08:03:42] "GET /rapport_point?lat=43.8374249&lon=4.3600687&address=nimes&parcelle_numero=N/A&distance_poste_proche=91.4+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Nîmes&api_cadastre_section=EY&api_cadastre_numero=0408&api_urbanisme_layers=17&api_urbanisme_features=331&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=91.36&postes_hta_count=1&postes_hta_distances=1282.46&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=1783&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1755756181515&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
 2025-08-21 08:03:43,905 INFO 127.0.0.1 - - [21/Aug/2025 08:03:43] "GET /static/cartes/rapport_point_20250821_080301.html HTTP/1.1" 200 -
+2025-08-21 08:31:29,940 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-21 08:31:29,942 INFO [33mPress CTRL+C to quit[0m
+2025-08-21 08:31:46,754 INFO 127.0.0.1 - - [21/Aug/2025 08:31:46] "GET / HTTP/1.1" 200 -
+2025-08-21 08:31:46,818 INFO 127.0.0.1 - - [21/Aug/2025 08:31:46] "GET / HTTP/1.1" 200 -
+2025-08-21 08:31:47,617 INFO 127.0.0.1 - - [21/Aug/2025 08:31:47] "GET / HTTP/1.1" 200 -
+2025-08-21 08:31:47,928 INFO 127.0.0.1 - - [21/Aug/2025 08:31:47] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-21 08:31:48,273 INFO 127.0.0.1 - - [21/Aug/2025 08:31:48] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-21 08:31:48,349 INFO 127.0.0.1 - - [21/Aug/2025 08:31:48] "GET / HTTP/1.1" 200 -
+2025-08-21 08:31:48,603 INFO 127.0.0.1 - - [21/Aug/2025 08:31:48] "GET / HTTP/1.1" 200 -
+2025-08-21 08:31:48,788 INFO 127.0.0.1 - - [21/Aug/2025 08:31:48] "GET / HTTP/1.1" 200 -
+2025-08-21 08:32:02,976 INFO 127.0.0.1 - - [21/Aug/2025 08:32:02] "GET / HTTP/1.1" 200 -
+2025-08-21 08:32:03,312 INFO 127.0.0.1 - - [21/Aug/2025 08:32:03] "GET / HTTP/1.1" 200 -
+2025-08-21 08:32:03,827 INFO 127.0.0.1 - - [21/Aug/2025 08:32:03] "GET / HTTP/1.1" 200 -
+2025-08-21 08:32:03,839 INFO 127.0.0.1 - - [21/Aug/2025 08:32:03] "GET / HTTP/1.1" 200 -
+2025-08-21 08:32:30,745 INFO 127.0.0.1 - - [21/Aug/2025 08:32:30] "[33mPOST /api/login HTTP/1.1[0m" 404 -
+2025-08-21 08:32:55,556 INFO 127.0.0.1 - - [21/Aug/2025 08:32:55] "POST /api/trial HTTP/1.1" 200 -
+2025-08-21 08:34:08,821 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-21 08:34:08,822 INFO [33mPress CTRL+C to quit[0m
+2025-08-21 08:34:47,268 INFO 127.0.0.1 - - [21/Aug/2025 08:34:47] "GET / HTTP/1.1" 200 -
