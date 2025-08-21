@@ -742,13 +742,50 @@ print("✅ Système d'authentification commercial initialisé")
 def detect_working_geoserver():
     """Détecte automatiquement une URL GeoServer fonctionnelle"""
     
-    # URLs possibles par ordre de priorité
-    possible_urls = [
-        # URL depuis variable d'environnement (priorité 1)
-        os.getenv("GEOSERVER_URL"),
-        # URL ngrok actuelle (priorité 2 - détection dynamique)
-        None,  # Sera remplie par la détection ngrok
-        # URLs de fallback historiques (priorité 3)
+    # Priorité 1: Variable d'environnement (faire confiance directement sur Railway)
+    env_url = os.getenv("GEOSERVER_URL")
+    if env_url:
+        # En production (Railway/Heroku), faire confiance à la variable d'environnement
+        # sans test localhost car le serveur distant ne peut pas se connecter à localhost
+        environment = os.getenv("ENVIRONMENT", "").lower()
+        if environment in ["production", "railway"] or "railway" in os.environ.get("RAILWAY_ENVIRONMENT", ""):
+            print(f"🚀 [PRODUCTION] Utilisation de GEOSERVER_URL: {env_url}")
+            return env_url
+        
+        # En développement local, tester la connectivité
+        try:
+            import requests
+            response = requests.head(env_url, timeout=5, allow_redirects=True)
+            if response.status_code in [200, 302]:
+                print(f"✅ [LOCAL] GeoServer accessible via variable d'environnement: {env_url}")
+                return env_url
+        except Exception as e:
+            print(f"⚠️ [LOCAL] Test de la variable d'environnement échoué: {e}")
+    
+    # Priorité 2: Détection automatique ngrok (développement local uniquement)
+    try:
+        import requests
+        response = requests.get("http://localhost:4040/api/tunnels", timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            for tunnel in data.get('tunnels', []):
+                if tunnel.get('proto') == 'https':
+                    current_url = f"{tunnel.get('public_url')}/geoserver"
+                    print(f"🔍 URL ngrok détectée automatiquement: {current_url}")
+                    # Tester la connectivité
+                    try:
+                        test_response = requests.head(current_url, timeout=5, allow_redirects=True)
+                        if test_response.status_code in [200, 302]:
+                            print(f"✅ GeoServer accessible: {current_url}")
+                            return current_url
+                    except Exception as e:
+                        print(f"❌ Test échoué pour {current_url}: {e}")
+                    break
+    except Exception as e:
+        print(f"⚠️ Détection ngrok échouée: {e}")
+    
+    # Priorité 3: URLs de fallback historiques
+    fallback_urls = [
         "https://79ab87ca9610.ngrok-free.app/geoserver",  # URL ngrok actuelle (auto-update 07:22)
         "https://5e51b248ab39.ngrok-free.app/geoserver",  # URL ngrok précédente
         "https://707690655c56.ngrok-free.app/geoserver",  # URL ngrok précédente
@@ -763,40 +800,22 @@ def detect_working_geoserver():
         "https://32a26e170f83.ngrok-free.app/geoserver",
     ]
     
-    # Essayer de détecter l'URL ngrok actuelle
-    try:
-        import requests
-        response = requests.get("http://localhost:4040/api/tunnels", timeout=3)
-        if response.status_code == 200:
-            data = response.json()
-            for tunnel in data.get('tunnels', []):
-                if tunnel.get('proto') == 'https':
-                    current_url = f"{tunnel.get('public_url')}/geoserver"
-                    possible_urls[1] = current_url
-                    print(f"🔍 URL ngrok détectée automatiquement: {current_url}")
-                    break
-    except Exception as e:
-        print(f"⚠️ Détection ngrok échouée: {e}")
-    
-    # Tester chaque URL dans l'ordre de priorité
-    for url in possible_urls:
-        if not url:
-            continue
-            
+    # Tester les URLs de fallback
+    for url in fallback_urls:
         try:
             import requests
             response = requests.head(url, timeout=5, allow_redirects=True)
             if response.status_code in [200, 302]:
-                print(f"✅ GeoServer accessible: {url}")
+                print(f"✅ GeoServer accessible (fallback): {url}")
                 return url
         except Exception as e:
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
     # URL par défaut si rien ne fonctionne
-    fallback_url = "https://bff9776acb7f.ngrok-free.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation fallback: {fallback_url}")
-    return fallback_url
+    final_fallback = "https://bff9776acb7f.ngrok-free.app/geoserver"
+    print(f"⚠️ Aucun GeoServer accessible, utilisation fallback final: {final_fallback}")
+    return final_fallback
 
 # Configuration pour Railway avec détection automatique
 GEOSERVER_URL = detect_working_geoserver()

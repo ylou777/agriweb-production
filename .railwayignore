@@ -1,12 +1,15 @@
 # Ignorer tous les autres fichiers agriweb pour éviter la confusion sur Railway
 agriweb_*.py
 !agriweb_railway_deploy.py
+!agriweb_hebergement_gratuit.py
 
 # Garder seulement les fichiers nécessaires pour Railway
 !main.py
 !requirements.txt
 !Procfile
 !nixpacks.toml
+!run_app.py
+!serveur_unifie_final.py
 
 # Ignorer les backups et tests
 backup_*/
