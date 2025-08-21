@@ -1,0 +1,23 @@
+# Configuration d'environnement pour Railway - VARIABLES OBLIGATOIRES
+# Copier ces variables dans Railway Variables/Secrets
+
+# === GEOSERVER CONFIGURATION (OBLIGATOIRE) ===
+# GEOSERVER_URL=http://81.220.178.156:8080/geoserver
+# GEOSERVER_USERNAME=railway_user  
+# GEOSERVER_PASSWORD=railway_secure_pass_2024
+
+# === APPLICATION CONFIGURATION ===
+# ENVIRONMENT=production
+# FLASK_DEBUG=False
+# SECRET_KEY=agriweb-secret-key-2025-commercial-production
+
+# === STRIPE CONFIGURATION (si utilisé) ===
+# STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
+# STRIPE_SECRET_KEY=sk_test_your_key_here
+# STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+
+# === RAILWAY CONFIGURATION ===
+# PORT=8080
+
+# IMPORTANT: Ces variables DOIVENT être configurées dans Railway
+# pour que les proxies sécurisés fonctionnent correctement.

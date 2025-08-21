@@ -6854,3 +6854,13 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
  * Running on http://127.0.0.1:5000
 2025-08-21 08:34:08,822 INFO [33mPress CTRL+C to quit[0m
 2025-08-21 08:34:47,268 INFO 127.0.0.1 - - [21/Aug/2025 08:34:47] "GET / HTTP/1.1" 200 -
+2025-08-21 14:31:50,094 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-21 14:31:50,097 INFO [33mPress CTRL+C to quit[0m
+2025-08-21 14:31:57,456 INFO 127.0.0.1 - - [21/Aug/2025 14:31:57] "GET / HTTP/1.1" 200 -
+2025-08-21 14:32:05,327 INFO 127.0.0.1 - - [21/Aug/2025 14:32:05] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-21 14:32:06,729 INFO 127.0.0.1 - - [21/Aug/2025 14:32:06] "GET /app HTTP/1.1" 200 -
+2025-08-21 14:32:07,275 INFO 127.0.0.1 - - [21/Aug/2025 14:32:07] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-21 14:32:07,295 INFO 127.0.0.1 - - [21/Aug/2025 14:32:07] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-21 14:33:14,580 INFO 127.0.0.1 - - [21/Aug/2025 14:33:14] "GET /search_by_address?address=nantes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-21 14:33:15,869 INFO 127.0.0.1 - - [21/Aug/2025 14:33:15] "GET /static/cartes/map_1755779581_9012400492716056015.html?t=1755779589&cache=1755779594901 HTTP/1.1" 200 -
