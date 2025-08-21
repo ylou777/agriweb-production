@@ -25,7 +25,7 @@ def check_tunnel_status():
     
     try:
         import requests
-        tunnel_url = "https://3de153b73a2d.ngrok-free.app/geoserver/web/"
+        tunnel_url = "https://complete-simple-ghost.ngrok-free.app/geoserver/web/"
         
         response = requests.get(tunnel_url, timeout=10)
         if response.status_code in [200, 302]:
@@ -79,9 +79,9 @@ def generate_deployment_config():
     print("\n3️⃣ Génération de la configuration...")
     
     config = {
-        "tunnel_url": "https://3de153b73a2d.ngrok-free.app/geoserver",
+        "tunnel_url": "https://complete-simple-ghost.ngrok-free.app/geoserver",
         "railway_vars": {
-            "GEOSERVER_TUNNEL_URL": "https://3de153b73a2d.ngrok-free.app/geoserver"
+            "GEOSERVER_TUNNEL_URL": "https://complete-simple-ghost.ngrok-free.app/geoserver"
         },
         "deployment_info": {
             "timestamp": datetime.now().isoformat(),
@@ -111,7 +111,7 @@ def show_deployment_instructions():
     print()
     print("6. **Ajoutez cette variable :**")
     print("   📝 Variable Name: GEOSERVER_TUNNEL_URL")
-    print("   🔗 Variable Value: https://3de153b73a2d.ngrok-free.app/geoserver")
+    print("   🔗 Variable Value: https://complete-simple-ghost.ngrok-free.app/geoserver")
     print()
     print("7. **Sauvegardez** la variable")
     print("8. **Redéployez** (Railway le fait automatiquement)")

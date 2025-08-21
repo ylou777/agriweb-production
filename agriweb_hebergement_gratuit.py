@@ -784,20 +784,9 @@ def detect_working_geoserver():
     except Exception as e:
         print(f"⚠️ Détection ngrok échouée: {e}")
     
-    # Priorité 3: URLs de fallback historiques
+    # Priorité 3: URL ngrok permanente UNIQUE
     fallback_urls = [
-        "https://79ab87ca9610.ngrok-free.app/geoserver",  # URL ngrok actuelle (auto-update 07:22)
-        "https://5e51b248ab39.ngrok-free.app/geoserver",  # URL ngrok précédente
-        "https://707690655c56.ngrok-free.app/geoserver",  # URL ngrok précédente
-        "https://cb46ea3eeee4.ngrok-free.app/geoserver",  # URL ngrok test précédent
-        "https://a587ef131919.ngrok-free.app/geoserver",  # URL ngrok test
-        "https://93eaff607728.ngrok-free.app/geoserver",  # URL ngrok historique
-        "https://231ec42f1091.ngrok-free.app/geoserver",  # URL ngrok précédente
-        "https://395f45ad23c9.ngrok-free.app/geoserver",  # URL ngrok précédente
-        "https://471070cdb8f0.ngrok-free.app/geoserver",  # URL ngrok précédente
-        "https://bff9776acb7f.ngrok-free.app/geoserver",
-        "https://3de153b73a2d.ngrok-free.app/geoserver",
-        "https://32a26e170f83.ngrok-free.app/geoserver",
+        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # 🚀 DOMAINE PERMANENT NGROK (Pay-as-you-go)
     ]
     
     # Tester les URLs de fallback
@@ -813,8 +802,8 @@ def detect_working_geoserver():
             continue
     
     # URL par défaut si rien ne fonctionne
-    final_fallback = "https://bff9776acb7f.ngrok-free.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation fallback final: {final_fallback}")
+    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
+    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine permanent: {final_fallback}")
     return final_fallback
 
 # Configuration pour Railway avec détection automatique

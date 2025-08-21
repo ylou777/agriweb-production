@@ -10,11 +10,8 @@ def get_working_geoserver_url():
     
     # URLs possibles par ordre de priorité
     possible_urls = [
-        # URL ngrok dynamique actuelle
-        "https://bff9776acb7f.ngrok-free.app/geoserver",
-        # URL ngrok précédentes (historique)
-        "https://3de153b73a2d.ngrok-free.app/geoserver",
-        "https://32a26e170f83.ngrok-free.app/geoserver",
+        # URL ngrok permanente (Pay-as-you-go)
+        "https://complete-simple-ghost.ngrok-free.app/geoserver",
         # URL locale (pour tests)
         "http://localhost:8080/geoserver"
     ]

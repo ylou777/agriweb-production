@@ -1,7 +1,7 @@
 {
-  "tunnel_url": "https://3de153b73a2d.ngrok-free.app/geoserver",
+  "tunnel_url": "https://complete-simple-ghost.ngrok-free.app/geoserver",
   "railway_vars": {
-    "GEOSERVER_TUNNEL_URL": "https://3de153b73a2d.ngrok-free.app/geoserver"
+    "GEOSERVER_TUNNEL_URL": "https://complete-simple-ghost.ngrok-free.app/geoserver"
   },
   "deployment_info": {
     "timestamp": "2025-08-19T10:32:20.650817",
