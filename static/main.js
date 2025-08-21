@@ -209,6 +209,128 @@ function htmlifyField (key, value) {
   
   return value;
 }
+
+// --------- UTILITAIRES POUR LA RECHERCHE PAR ADRESSE ---------
+
+// Créer ou récupérer l'élément de log pour la recherche par adresse
+function createOrGetSearchLog() {
+  let logElement = document.getElementById('searchLog');
+  if (logElement) {
+    // Rendre visible le log existant
+    logElement.style.display = 'block';
+    return logElement;
+  }
+  
+  // Créer l'élément de log s'il n'existe pas (fallback)
+  logElement = document.createElement('div');
+  logElement.id = 'searchLog';
+  logElement.className = 'form-text text-info mb-2';
+  logElement.style.minHeight = '1.5em';
+  logElement.style.fontSize = '0.9em';
+  logElement.style.maxHeight = '120px';
+  logElement.style.overflowY = 'auto';
+  logElement.style.border = '1px solid #dee2e6';
+  logElement.style.borderRadius = '4px';
+  logElement.style.padding = '8px';
+  logElement.style.backgroundColor = '#f8f9fa';
+  logElement.style.display = 'block';
+  
+  // Insérer après le formulaire unifiedSearchForm
+  const form = document.getElementById('unifiedSearchForm');
+  if (form && form.parentNode) {
+    form.parentNode.insertBefore(logElement, form.nextSibling);
+  }
+  
+  return logElement;
+}
+
+// Afficher un log de recherche
+function logSearch(message, type = 'info') {
+  const logElement = createOrGetSearchLog();
+  if (!logElement) return;
+  
+  const now = new Date();
+  const timestamp = now.toLocaleTimeString();
+  
+  // Créer une nouvelle ligne de log
+  const logLine = document.createElement('div');
+  logLine.style.marginBottom = '2px';
+  logLine.style.fontSize = '0.85em';
+  
+  // Couleurs selon le type
+  const colors = {
+    info: '#17a2b8',
+    success: '#28a745', 
+    error: '#dc3545',
+    warning: '#ffc107'
+  };
+  
+  logLine.style.color = colors[type] || colors.info;
+  logLine.innerHTML = `<span style="color: #6c757d;">[${timestamp}]</span> ${message}`;
+  
+  logElement.appendChild(logLine);
+  
+  // Scroll automatique vers le bas
+  logElement.scrollTop = logElement.scrollHeight;
+  
+  // Limiter le nombre de lignes (garder les 10 dernières)
+  while (logElement.children.length > 10) {
+    logElement.removeChild(logElement.firstChild);
+  }
+}
+
+// Effacer les logs de recherche
+function clearSearchLog() {
+  const logElement = document.getElementById('searchLog');
+  if (logElement) {
+    logElement.innerHTML = '';
+    logElement.style.display = 'none';
+  }
+}
+
+// Changer l'état visuel du bouton de recherche
+function setSearchStatus(status, button, text) {
+  if (!button) return;
+  
+  switch (status) {
+    case 'loading':
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>' + text;
+      button.className = button.className.replace('btn-primary', 'btn-secondary');
+      break;
+    case 'idle':
+      button.disabled = false;
+      button.innerHTML = text;
+      button.className = button.className.replace('btn-secondary', 'btn-primary');
+      break;
+  }
+}
+
+// Analyser les résultats de recherche pour les logs
+function analyzeSearchResults(data) {
+  const stats = [];
+  
+  if (data.parcelles && data.parcelles.features) {
+    stats.push(`${data.parcelles.features.length} parcelle(s)`);
+  }
+  if (data.rpg && data.rpg.features) {
+    stats.push(`${data.rpg.features.length} parcelle(s) RPG`);
+  }
+  if (data.postes_bt && data.postes_bt.features) {
+    stats.push(`${data.postes_bt.features.length} poste(s) BT`);
+  }
+  if (data.postes_hta && data.postes_hta.features) {
+    stats.push(`${data.postes_hta.features.length} poste(s) HTA`);
+  }
+  if (data.eleveurs && data.eleveurs.features) {
+    stats.push(`${data.eleveurs.features.length} éleveur(s)`);
+  }
+  if (data.sirene && data.sirene.features) {
+    stats.push(`${data.sirene.features.length} entreprise(s) Sirene`);
+  }
+  
+  return stats.length > 0 ? stats.join(', ') : 'aucune donnée trouvée';
+}
 function buildPopup (properties, extra = {}) {
   let out = "";
   for (const [k, v] of Object.entries(properties || {}))
@@ -569,77 +691,130 @@ function mergeResults(arr) {
 // --------- RECHERCHE UNIFIÉE (ADRESSE / COORDONNÉES) ---------
 async function handleUnifiedSearch(e) {
   e.preventDefault();
+  
+  // Obtenir les éléments de l'interface
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  const searchInput = document.getElementById("search_input");
+  const logElement = createOrGetSearchLog();
+  
+  // État initial
+  const originalBtnText = submitBtn ? submitBtn.textContent : 'Rechercher';
+  setSearchStatus('loading', submitBtn, 'Recherche en cours...');
+  logSearch('🔍 Initialisation de la recherche...');
+  
   switchMap("/static/map.html", async () => {
-    const v = document.getElementById("search_input").value.trim();
-    if (!v) {
-      alert("Saisissez une adresse (ex : Limoges) ou des coordonnées (ex : 45.85, 1.25)");
-      return;
-    }
-
-    function parseLatLonInput(val) {
-      try {
-        const obj = JSON.parse(val);
-        if (obj.type === "Point" && Array.isArray(obj.coordinates)) {
-          let [lon, lat] = obj.coordinates;
-          if (
-            typeof lat === "number" && typeof lon === "number" &&
-            Math.abs(lat) <= 90 && Math.abs(lon) <= 180
-          ) {
-            return { lat, lon };
-          }
-        }
-      } catch {}
-      const parts = val.split(",").map(x => parseFloat(x.trim()));
-      if (parts.length === 2 && parts.every(n => !isNaN(n))) {
-        let [a, b] = parts;
-        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lon: b };
-        if (Math.abs(b) <= 90 && Math.abs(a) <= 180) return { lat: b, lon: a };
-      }
-      return null;
-    }
-
-    const coords = parseLatLonInput(v);
-    const ps = new URLSearchParams();
-    if (coords) {
-      ps.append("lat", coords.lat);
-      ps.append("lon", coords.lon);
-    } else {
-      ps.append("address", v);
-    }
-    ps.append("sirene_radius", document.getElementById("sirene_radius").value);
-
     try {
+      const v = searchInput.value.trim();
+      if (!v) {
+        logSearch('❌ Erreur : Aucune adresse saisie', 'error');
+        alert("Saisissez une adresse (ex : Limoges) ou des coordonnées (ex : 45.85, 1.25)");
+        return;
+      }
+
+      logSearch(`📍 Analyse de l'entrée : "${v}"`);
+
+      function parseLatLonInput(val) {
+        try {
+          const obj = JSON.parse(val);
+          if (obj.type === "Point" && Array.isArray(obj.coordinates)) {
+            let [lon, lat] = obj.coordinates;
+            if (
+              typeof lat === "number" && typeof lon === "number" &&
+              Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+            ) {
+              return { lat, lon };
+            }
+          }
+        } catch {}
+        const parts = val.split(",").map(x => parseFloat(x.trim()));
+        if (parts.length === 2 && parts.every(n => !isNaN(n))) {
+          let [a, b] = parts;
+          if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lon: b };
+          if (Math.abs(b) <= 90 && Math.abs(a) <= 180) return { lat: b, lon: a };
+        }
+        return null;
+      }
+
+      const coords = parseLatLonInput(v);
+      const ps = new URLSearchParams();
+      
+      if (coords) {
+        logSearch(`📌 Coordonnées détectées : ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`);
+        ps.append("lat", coords.lat);
+        ps.append("lon", coords.lon);
+      } else {
+        logSearch(`🏠 Adresse détectée : géocodage en cours...`);
+        ps.append("address", v);
+      }
+      
+      ps.append("sirene_radius", document.getElementById("sirene_radius").value);
+      ps.append("ht_radius", (document.getElementById("ht_max_distance").value / 1000).toString());
+      ps.append("bt_radius", (document.getElementById("bt_max_distance").value / 1000).toString());
+
+      logSearch('🌐 Envoi de la requête au serveur...');
+      
       const res = await fetch("/search_by_address?" + ps.toString());
+      
       if (!res.ok) {
+        logSearch(`❌ Erreur serveur : ${res.status}`, 'error');
         alert("Erreur serveur : " + res.status);
         return;
       }
+      
+      logSearch('📦 Réception des données...');
       const data = await res.json();
+      
       if (data.error) {
+        logSearch(`❌ Erreur : ${data.error}`, 'error');
         alert(data.error);
         return;
       }
+
+      // Analyser les données reçues
+      const stats = analyzeSearchResults(data);
+      logSearch(`✅ Données reçues : ${stats}`);
+      
       // Mémorise le contexte pour rapport "point courant"
       window.lastSearchData = data;
+      
       // Recharge la carte générée dans l'iframe
       if (data.carte_url) {
+        logSearch('🗺️ Chargement de la carte interactive...');
         console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
         const iframe = document.getElementById("mapFrame");
         // Force le rechargement avec cache bust
         iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
         console.log("[DEBUG] URL finale iframe:", iframe.src);
       }
+      
+      logSearch('🎨 Affichage des couches de données...');
       displayAllLayers(data);
       updateInfoPanel([data]);
+      
       const m = getMapFrame();
       if (data.lat && data.lon && m?.setView) {
         let z = 14;
         if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
         if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
+        logSearch(`🎯 Centrage de la carte sur ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (zoom ${z})`);
         m.setView(data.lat, data.lon, z);
       }
+      
+      logSearch('🎉 Recherche terminée avec succès !', 'success');
+      
     } catch (err) {
+      logSearch(`❌ Erreur de requête : ${err.message || err}`, 'error');
       alert("Erreur de requête : " + (err.message || err));
+    } finally {
+      // Restaurer l'état du bouton
+      setSearchStatus('idle', submitBtn, originalBtnText);
+      
+      // Effacer les logs après quelques secondes si succès
+      setTimeout(() => {
+        if (logElement && logElement.textContent.includes('succès')) {
+          clearSearchLog();
+        }
+      }, 5000);
     }
   });
 }

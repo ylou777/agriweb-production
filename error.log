@@ -6805,3 +6805,31 @@ NameError: name 'postes_data' is not defined. Did you mean: 'postes_bt_data'?
 2025-08-21 07:31:58,481 INFO 127.0.0.1 - - [21/Aug/2025 07:31:58] "GET /static/cartes/map_1755754306_4499952360287177256.html?t=1755754311&cache=1755754317531 HTTP/1.1" 200 -
 2025-08-21 07:33:18,500 INFO 127.0.0.1 - - [21/Aug/2025 07:33:18] "GET /rapport_point?lat=43.8374249&lon=4.3600687&address=nimes&parcelle_numero=N/A&distance_poste_proche=91.4+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Nîmes&api_cadastre_section=EY&api_cadastre_numero=0408&api_urbanisme_layers=17&api_urbanisme_features=331&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=91.36&postes_hta_count=0&postes_hta_distances=&postes_hta_capacites=&capacites_reseau_count=0&sirene_count=1783&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1755754363059&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
 2025-08-21 07:33:19,406 INFO 127.0.0.1 - - [21/Aug/2025 07:33:19] "GET /static/cartes/rapport_point_20250821_073243.html HTTP/1.1" 200 -
+2025-08-21 07:46:27,222 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-21 07:46:27,224 INFO [33mPress CTRL+C to quit[0m
+2025-08-21 07:46:33,044 INFO 127.0.0.1 - - [21/Aug/2025 07:46:33] "GET /?id=09fe5af3-aa1e-4067-8cfa-e10ec83facef&vscodeBrowserReqId=1755755192671 HTTP/1.1" 200 -
+2025-08-21 07:47:19,078 INFO 127.0.0.1 - - [21/Aug/2025 07:47:19] "[33mGET /search_by_address?address=Lyon&sirene_radius=0.05 HTTP/1.1[0m" 404 -
+2025-08-21 07:47:28,199 INFO 127.0.0.1 - - [21/Aug/2025 07:47:28] "[33mGET /search_by_address?address=Lyon&sirene_radius=0.05 HTTP/1.1[0m" 404 -
+2025-08-21 07:47:48,513 INFO 127.0.0.1 - - [21/Aug/2025 07:47:48] "[33mGET /search_by_address?address=Lyon&sirene_radius=0.05 HTTP/1.1[0m" 404 -
+2025-08-21 07:47:58,410 INFO 127.0.0.1 - - [21/Aug/2025 07:47:58] "GET / HTTP/1.1" 200 -
+2025-08-21 07:49:48,887 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-21 07:49:48,887 INFO [33mPress CTRL+C to quit[0m
+2025-08-21 07:49:51,349 INFO 127.0.0.1 - - [21/Aug/2025 07:49:51] "GET / HTTP/1.1" 200 -
+2025-08-21 07:49:54,676 INFO 127.0.0.1 - - [21/Aug/2025 07:49:54] "[35m[1mPOST /login HTTP/1.1[0m" 500 -
+2025-08-21 07:50:05,948 INFO 127.0.0.1 - - [21/Aug/2025 07:50:05] "[35m[1mPOST /login HTTP/1.1[0m" 500 -
+2025-08-21 07:50:10,407 INFO 127.0.0.1 - - [21/Aug/2025 07:50:10] "[31m[1mPOST /login HTTP/1.1[0m" 401 -
+2025-08-21 07:50:11,626 INFO 127.0.0.1 - - [21/Aug/2025 07:50:11] "[35m[1mPOST /login HTTP/1.1[0m" 500 -
+2025-08-21 07:50:11,896 INFO 127.0.0.1 - - [21/Aug/2025 07:50:11] "[31m[1mPOST /login HTTP/1.1[0m" 401 -
+2025-08-21 07:50:28,563 INFO 127.0.0.1 - - [21/Aug/2025 07:50:28] "[31m[1mPOST /register HTTP/1.1[0m" 400 -
+2025-08-21 07:50:33,847 INFO 127.0.0.1 - - [21/Aug/2025 07:50:33] "[31m[1mPOST /register HTTP/1.1[0m" 400 -
+2025-08-21 07:50:41,767 INFO 127.0.0.1 - - [21/Aug/2025 07:50:41] "[31m[1mPOST /login HTTP/1.1[0m" 401 -
+2025-08-21 07:50:51,985 INFO 127.0.0.1 - - [21/Aug/2025 07:50:51] "[31m[1mPOST /register HTTP/1.1[0m" 400 -
+2025-08-21 07:50:56,745 INFO 127.0.0.1 - - [21/Aug/2025 07:50:56] "GET /app HTTP/1.1" 200 -
+2025-08-21 07:50:57,309 INFO 127.0.0.1 - - [21/Aug/2025 07:50:57] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-21 07:50:57,464 INFO 127.0.0.1 - - [21/Aug/2025 07:50:57] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-21 07:52:17,477 INFO 127.0.0.1 - - [21/Aug/2025 07:52:17] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-21 07:52:19,167 INFO 127.0.0.1 - - [21/Aug/2025 07:52:19] "GET /static/cartes/map_1755755506_7568635001573876022.html?t=1755755518&cache=1755755537684 HTTP/1.1" 200 -
+2025-08-21 08:03:42,787 INFO 127.0.0.1 - - [21/Aug/2025 08:03:42] "GET /rapport_point?lat=43.8374249&lon=4.3600687&address=nimes&parcelle_numero=N/A&distance_poste_proche=91.4+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Nîmes&api_cadastre_section=EY&api_cadastre_numero=0408&api_urbanisme_layers=17&api_urbanisme_features=331&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=91.36&postes_hta_count=1&postes_hta_distances=1282.46&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=1783&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1755756181515&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-21 08:03:43,905 INFO 127.0.0.1 - - [21/Aug/2025 08:03:43] "GET /static/cartes/rapport_point_20250821_080301.html HTTP/1.1" 200 -
