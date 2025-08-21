@@ -786,6 +786,7 @@ def detect_working_geoserver():
     
     # Priorité 3: URLs de fallback historiques
     fallback_urls = [
+        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # DOMAINE FIXE PRINCIPAL
         "https://79ab87ca9610.ngrok-free.app/geoserver",  # URL ngrok actuelle (auto-update 07:22)
         "https://5e51b248ab39.ngrok-free.app/geoserver",  # URL ngrok précédente
         "https://707690655c56.ngrok-free.app/geoserver",  # URL ngrok précédente
@@ -812,8 +813,8 @@ def detect_working_geoserver():
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
-    # URL par défaut si rien ne fonctionne
-    final_fallback = "https://bff9776acb7f.ngrok-free.app/geoserver"
+    # URL par défaut si rien ne fonctionne - DOMAINE FIXE
+    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
     print(f"⚠️ Aucun GeoServer accessible, utilisation fallback final: {final_fallback}")
     return final_fallback
 
@@ -13648,6 +13649,12 @@ def create_admin_user():
     """, ('admin@test.com', 'Administrateur', admin_password, 'active', 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     c.connection.commit()
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
+
+# Route pour la page d'aide
+@app.route('/aide')
+def aide():
+    """Page d'aide pour les utilisateurs"""
+    return render_template('aide.html')
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
