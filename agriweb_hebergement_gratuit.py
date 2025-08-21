@@ -749,6 +749,15 @@ def detect_working_geoserver():
         # URL ngrok actuelle (priorité 2 - détection dynamique)
         None,  # Sera remplie par la détection ngrok
         # URLs de fallback historiques (priorité 3)
+        "https://79ab87ca9610.ngrok-free.app/geoserver",  # URL ngrok actuelle (auto-update 07:22)
+        "https://5e51b248ab39.ngrok-free.app/geoserver",  # URL ngrok précédente
+        "https://707690655c56.ngrok-free.app/geoserver",  # URL ngrok précédente
+        "https://cb46ea3eeee4.ngrok-free.app/geoserver",  # URL ngrok test précédent
+        "https://a587ef131919.ngrok-free.app/geoserver",  # URL ngrok test
+        "https://93eaff607728.ngrok-free.app/geoserver",  # URL ngrok historique
+        "https://231ec42f1091.ngrok-free.app/geoserver",  # URL ngrok précédente
+        "https://395f45ad23c9.ngrok-free.app/geoserver",  # URL ngrok précédente
+        "https://471070cdb8f0.ngrok-free.app/geoserver",  # URL ngrok précédente
         "https://bff9776acb7f.ngrok-free.app/geoserver",
         "https://3de153b73a2d.ngrok-free.app/geoserver",
         "https://32a26e170f83.ngrok-free.app/geoserver",
