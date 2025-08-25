@@ -788,7 +788,7 @@ def detect_working_geoserver():
     # Priorité 3: Railway Production (priorité absolue)
     fallback_urls = [
         "https://bubbly-integrity-production.up.railway.app/geoserver",  # 🚀 RAILWAY PRODUCTION
-        "https://agriweb-prod.ngrok-free.app/geoserver",  # � DOMAINE NGROK (secours)
+        "https://agriweb-prod.ngrok-free.app/geoserver",  # 🔗 DOMAINE NGROK STABLE
     ]
     
     # Tester les URLs de fallback
@@ -803,9 +803,15 @@ def detect_working_geoserver():
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
+<<<<<<< HEAD
     # URL par défaut si rien ne fonctionne - DOMAINE UNIFIÉ
     final_fallback = "https://bubbly-integrity-production.up.railway.app/geoserver"
     print(f"⚠️ Aucun GeoServer accessible, utilisation domaine unifié par défaut: {final_fallback}")
+=======
+    # URL par défaut si rien ne fonctionne - DOMAINE FIXE
+    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
+    print(f"⚠️ Aucun GeoServer accessible, utilisation fallback final: {final_fallback}")
+>>>>>>> 7d3b12eb1de641ee71a181bf3c6a7344f8bc9d2e
     return final_fallback
 
 # Configuration pour Railway avec détection automatique
@@ -11045,6 +11051,12 @@ def create_admin_user():
     """, ('admin@test.com', 'Administrateur', admin_password, 'active', 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     c.connection.commit()
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
+
+# Route pour la page d'aide
+@app.route('/aide')
+def aide():
+    """Page d'aide pour les utilisateurs"""
+    return render_template('aide.html')
 
 if __name__ == "__main__":
     app.config["TEMPLATES_AUTO_RELOAD"] = True
