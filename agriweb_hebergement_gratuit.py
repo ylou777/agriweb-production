@@ -3,9 +3,39 @@ import requests
 import os
 from datetime import datetime
 
+# Système de capture des logs pour SSE
+import threading
+from queue import Queue, Empty
+
+# Variable globale pour capturer les logs SSE
+_sse_log_callback = None
+
+def set_sse_log_callback(callback):
+    """Définit la fonction callback pour les logs SSE"""
+    global _sse_log_callback
+    _sse_log_callback = callback
+    
+def clear_sse_log_callback():
+    """Efface le callback des logs SSE"""
+    global _sse_log_callback
+    _sse_log_callback = None
+
 # Fonction utilitaire pour logging sécurisé (évite les erreurs WinError 233)
 def safe_print(*args, **kwargs):
-    """Print sécurisé qui ignore les erreurs de canal fermé"""
+    """Print sécurisé qui ignore les erreurs de canal fermé et capture pour SSE"""
+    global _sse_log_callback
+    
+    # Formatter le message
+    message = " ".join(str(arg) for arg in args)
+    
+    # Si un callback SSE est défini, l'appeler
+    if _sse_log_callback is not None:
+        try:
+            _sse_log_callback(message)
+        except:
+            pass
+    
+    # Toujours afficher dans le terminal
     try:
         print(*args, **kwargs)
     except OSError:
@@ -845,6 +875,11 @@ def health_check():
         "timestamp": datetime.now().isoformat(),
         "geoserver_url": GEOSERVER_URL
     }), 200
+
+@app.route("/test-buttons", methods=["GET"])
+def test_buttons():
+    """Page de test pour les boutons zoom et plein écran"""
+    return render_template("test_buttons.html")
 
 # Endpoint de debug pour tester les API d'authentification
 @app.route("/debug/auth", methods=["GET"])
@@ -4736,73 +4771,228 @@ def commune_search_sse():
             chunks.append(f"event: {event}")
         for line in data.splitlines() or [""]:
             chunks.append(f"data: {line}")
-        return "\n".join(chunks) + "\n\n"
+        result = "\n".join(chunks) + "\n\n"
+        # Debug log pour voir si les SSE sont envoyés
+        safe_print(f"[SSE DEBUG] Envoi: {data[:100]}...")
+        return result
+
+    def collect_commune_data_simple(commune, filter_rpg, filter_parkings, filter_friches, filter_toitures):
+        """Version simplifiée de collecte de données de commune pour SSE"""
+        import requests
+        from urllib.parse import quote_plus
+        from shapely.geometry import shape
+        
+        safe_print(f"\n{'='*80}")
+        safe_print(f"🔍 [RECHERCHE COMMUNE] === DÉBUT RECHERCHE POUR '{commune.upper()}' ===")
+        safe_print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        safe_print(f"📍 Commune: {commune}")
+        
+        # Récupération du contour de la commune
+        safe_print(f"🌍 [API] Récupération contour commune '{commune}'...")
+        resp = requests.get(
+            f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour,codesPostaux,departement",
+            timeout=15
+        )
+        
+        if resp.status_code != 200:
+            safe_print(f"❌ [ERREUR] Geo API Gouv: {resp.status_code}")
+            raise Exception(f"Erreur Geo API Gouv: {resp.status_code}")
+            
+        infos = resp.json()
+        if not infos:
+            safe_print(f"❌ [ERREUR] Commune '{commune}' introuvable")
+            raise Exception(f"Commune '{commune}' introuvable")
+            
+        info = infos[0]
+        contour = info.get("contour")
+        if not contour:
+            safe_print(f"❌ [ERREUR] Contour de '{commune}' indisponible")
+            raise Exception(f"Contour de '{commune}' indisponible")
+            
+        centre = info.get("centre", {}).get("coordinates", [None, None])
+        departement = info.get("departement", {}).get("nom", "Inconnu")
+        safe_print(f"✅ [API] Contour récupéré (centre: lat={centre[1]}, lon={centre[0]}, dép: {departement})")
+        
+        # Conversion en polygone
+        geom_geojson = {"type": "Polygon", "coordinates": contour["coordinates"]}
+        safe_print(f"📐 [GEOM] Contour converti en GeoJSON Polygon")
+        
+        # Collecte des données selon les filtres
+        data_collected = {}
+        base_url = "https://agriweb-prod.ngrok-free.app/geoserver/ows"
+        
+        if filter_toitures:
+            safe_print("🏠 [TOITURES] Début collecte des bâtiments...")
+            try:
+                buildings_data = get_data_by_commune_polygon(geom_geojson, base_url, "batiments_commune")
+                data_collected['toitures'] = buildings_data
+                count = len(buildings_data) if buildings_data else 0
+                safe_print(f"🏠 [TOITURES] {count} bâtiments récupérés dans la commune")
+            except Exception as e:
+                safe_print(f"❌ [TOITURES] Erreur: {e}")
+                
+        if filter_rpg:
+            safe_print("🌾 [RPG] Début collecte des parcelles agricoles...")
+            try:
+                rpg_data = get_data_by_commune_polygon(geom_geojson, base_url, "rpg2023")
+                data_collected['rpg'] = rpg_data
+                count = len(rpg_data) if rpg_data else 0
+                safe_print(f"✅ [RPG] {count} parcelles agricoles récupérées")
+            except Exception as e:
+                safe_print(f"❌ [RPG] Erreur: {e}")
+                
+        if filter_parkings:
+            safe_print("🅿️ [PARKINGS] Début collecte des parkings...")
+            try:
+                parking_data = get_data_by_commune_polygon(geom_geojson, base_url, "parkings")
+                data_collected['parkings'] = parking_data
+                count = len(parking_data) if parking_data else 0
+                safe_print(f"✅ [PARKINGS] {count} parkings récupérés")
+            except Exception as e:
+                safe_print(f"❌ [PARKINGS] Erreur: {e}")
+                
+        if filter_friches:
+            safe_print("🏭 [FRICHES] Début collecte des friches...")
+            try:
+                friches_data = get_data_by_commune_polygon(geom_geojson, base_url, "friches")
+                data_collected['friches'] = friches_data
+                count = len(friches_data) if friches_data else 0
+                safe_print(f"✅ [FRICHES] {count} friches récupérées")
+            except Exception as e:
+                safe_print(f"❌ [FRICHES] Erreur: {e}")
+        
+        # Collecte des postes électriques
+        safe_print("📊 [COLLECTE] Début récupération des postes électriques...")
+        try:
+            postes_data = get_data_by_commune_polygon(geom_geojson, base_url, "postes_electriques")
+            data_collected['postes'] = postes_data
+            if postes_data:
+                bt_count = len([p for p in postes_data if p.get('properties', {}).get('type') == 'BT'])
+                ht_count = len([p for p in postes_data if p.get('properties', {}).get('type') == 'HTA'])
+                safe_print(f"📊 [COLLECTE] POSTES: ✅ {bt_count} postes BT, {ht_count} postes HTA")
+            else:
+                safe_print(f"📊 [COLLECTE] POSTES: ✅ 0 postes électriques")
+        except Exception as e:
+            safe_print(f"❌ [POSTES] Erreur: {e}")
+            
+        # Collecte SIRENE
+        safe_print("🏢 [SIRENE] Début collecte des entreprises...")
+        try:
+            sirene_data = get_data_by_commune_polygon(geom_geojson, base_url, "sirene_data")
+            data_collected['sirene'] = sirene_data
+            count = len(sirene_data) if sirene_data else 0
+            safe_print(f"🏢 [SIRENE] ✅ {count} entreprises récupérées")
+        except Exception as e:
+            safe_print(f"❌ [SIRENE] Erreur: {e}")
+            
+        safe_print(f"✅ [COLLECTE] Analyse de '{commune}' terminée avec succès")
+        safe_print(f"{'='*80}\n")
+        
+        return {"status": "success", "data": data_collected, "commune": commune}
 
     @stream_with_context
     def event_stream():
-        # Récupération des paramètres minimaux
-        commune = flask_request.args.get("commune", "").strip()
-        if not commune:
-            yield sse_format("error", "Veuillez fournir une commune.")
-            return
-
-        # Transmettre quelques filtres utiles (optionnels)
-        filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
-        filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
-        filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
-        filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
-        filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
-
+        # Liste pour stocker les messages à envoyer
+        sse_messages = []
+        
+        def sse_log_callback(message):
+            """Callback pour capturer les logs et les stocker"""
+            # Filtrer les messages de debug SSE pour éviter la récursion
+            if not message.startswith("[SSE DEBUG]"):
+                sse_messages.append(message)
+        
+        # Activer la capture des logs
+        set_sse_log_callback(sse_log_callback)
+        
         try:
+            # Récupération des paramètres minimaux
+            commune = flask_request.args.get("commune", "").strip()
+            if not commune:
+                yield sse_format("error", "Veuillez fournir une commune.")
+                return
+
+            # Transmettre quelques filtres utiles (optionnels)
+            filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
+            filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
+            filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
+            filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
+            filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
+
             yield sse_format(None, f"🔎 Démarrage analyse pour: {commune}")
             yield sse_format(None, "⏳ Récupération du contour de la commune…")
 
-            # Vérifie accès au contour pour feedback utilisateur
-            resp = requests.get(
-                f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour",
-                timeout=12
-            )
-            if resp.status_code != 200:
-                yield sse_format("error", f"Erreur Geo API Gouv: {resp.status_code}")
-                return
-            infos = resp.json() or []
-            if not infos or not infos[0].get("contour"):
-                yield sse_format("error", "Contour de la commune introuvable.")
-                return
-            centre = infos[0].get("centre", {}).get("coordinates", [None, None])
-            yield sse_format(None, f"✅ Contour récupéré (centre: lat={centre[1]}, lon={centre[0]})")
+            # Faire l'analyse RÉELLE en appelant directement les fonctions de collecte
+            try:
+                # Variables pour le suivi des messages
+                import time
+                last_message_count = 0
+                
+                # Lancer l'analyse en arrière-plan
+                import threading
+                analysis_done = threading.Event()
+                analysis_result = {'success': False}
+                
+                def run_search():
+                    try:
+                        # Appeler directement la collecte de données simplifiée
+                        result = collect_commune_data_simple(commune, filter_rpg, filter_parkings, filter_friches, filter_toitures)
+                        analysis_result['result'] = result
+                        analysis_result['success'] = True
+                    except Exception as e:
+                        analysis_result['error'] = str(e)
+                    finally:
+                        analysis_done.set()
+                
+                # Démarrer l'analyse
+                search_thread = threading.Thread(target=run_search)
+                search_thread.start()
+                
+                # Transmettre les messages capturés en temps réel
+                while not analysis_done.is_set():
+                    # Envoyer les nouveaux messages
+                    if len(sse_messages) > last_message_count:
+                        for i in range(last_message_count, len(sse_messages)):
+                            yield sse_format(None, sse_messages[i])
+                        last_message_count = len(sse_messages)
+                    
+                    # Attendre un peu
+                    time.sleep(0.1)
+                
+                # Attendre la fin de l'analyse
+                search_thread.join(timeout=60)
+                
+                # Envoyer les derniers messages
+                if len(sse_messages) > last_message_count:
+                    for i in range(last_message_count, len(sse_messages)):
+                        yield sse_format(None, sse_messages[i])
+                
+                if analysis_result['success']:
+                    yield sse_format(None, "✅ Analyse terminée. Utilisez le bouton 'Générer rapport commune' pour créer le rapport.")
+                else:
+                    yield sse_format("error", f"Erreur lors de l'analyse: {analysis_result.get('error', 'Erreur inconnue')}")
+                    
+            except Exception as e:
+                yield sse_format("error", f"Erreur lors de l'analyse: {e}")
 
-            # Feedback sur filtres sélectionnés
-            selected = []
-            if filter_rpg:      selected.append("RPG")
-            if filter_parkings: selected.append("Parkings")
-            if filter_friches:  selected.append("Friches")
-            if filter_toitures: selected.append("Toitures")
-            if selected:
-                yield sse_format(None, "🧰 Couches activées: " + ", ".join(selected))
-            if filter_by_dist:
-                yield sse_format(None, "📏 Filtrage par distance aux postes activé")
-
-            # Étapes principales (indicatives, la génération réelle est faite sur l'URL de rapport)
-            yield sse_format(None, "📡 Préparation de la génération du rapport complet…")
-            yield sse_format(None, "🗺️ La carte et les analyses détaillées seront générées…")
-
-            # Fin: ne pas rediriger automatiquement. Le rapport sera généré
-            # uniquement via le bouton "Générer rapport commune".
-            yield sse_format(None, "✅ Analyse terminée. Utilisez le bouton 'Générer rapport commune' pour créer le rapport.")
             yield sse_format("done", "done")
+            
         except Exception as e:
             safe_print(f"❌ [SSE COMMUNE] Erreur: {e}")
             yield sse_format("error", f"Erreur inattendue: {e}")
+        finally:
+            # Désactiver la capture des logs
+            clear_sse_log_callback()
 
     headers = {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
         "Connection": "keep-alive",
-        # Autorise le SSE depuis même origine
-        "X-Accel-Buffering": "no",
+        "X-Accel-Buffering": "no",  # Nginx: disable buffering
+        "Access-Control-Allow-Origin": "*",  # CORS pour SSE
+        "Access-Control-Allow-Headers": "Cache-Control",
     }
+    safe_print("[SSE DEBUG] Démarrage stream SSE commune...")
     return Response(event_stream(), headers=headers)
 
 @app.route("/search_by_commune", methods=["GET", "POST"])
