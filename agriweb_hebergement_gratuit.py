@@ -803,15 +803,9 @@ def detect_working_geoserver():
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
-<<<<<<< HEAD
     # URL par défaut si rien ne fonctionne - DOMAINE UNIFIÉ
     final_fallback = "https://bubbly-integrity-production.up.railway.app/geoserver"
     print(f"⚠️ Aucun GeoServer accessible, utilisation domaine unifié par défaut: {final_fallback}")
-=======
-    # URL par défaut si rien ne fonctionne - DOMAINE FIXE
-    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation fallback final: {final_fallback}")
->>>>>>> 7d3b12eb1de641ee71a181bf3c6a7344f8bc9d2e
     return final_fallback
 
 # Configuration pour Railway avec détection automatique
