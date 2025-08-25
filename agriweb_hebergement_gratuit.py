@@ -4857,19 +4857,6 @@ def search_by_commune():
         # Nouveau filtre pour calculer la surface non bâtie
         calculate_surface_libre = flask_request.values.get("calculate_surface_libre", "false").lower() == "true"
         
-        # Log détaillé du début de la recherche
-        params_log = {
-            'filter_rpg': filter_rpg, 'rpg_min_area': rpg_min_area, 'rpg_max_area': rpg_max_area,
-            'filter_parkings': filter_parkings, 'parking_min_area': parking_min_area,
-            'filter_friches': filter_friches, 'friches_min_area': friches_min_area,
-            'filter_zones': filter_zones, 'zones_min_area': zones_min_area, 'zones_type_filter': zones_type_filter,
-            'filter_toitures': filter_toitures, 'toitures_min_surface': toitures_min_surface,
-            'filter_by_distance': filter_by_distance, 'max_distance_bt': max_distance_bt, 
-            'max_distance_hta': max_distance_hta, 'distance_logic': distance_logic,
-            'ht_max_km': ht_max_km, 'bt_max_km': bt_max_km, 'sir_km': sir_km
-        }
-        log_search_start(commune, params_log)
-        
     except OSError as e:
         # Erreur de canal fermé (WinError 233) - utiliser des valeurs par défaut
         safe_print(f"⚠️ [PARAMÈTRES] Erreur lecture paramètres: {e}, utilisation valeurs par défaut")
@@ -11055,8 +11042,6 @@ def create_admin_user():
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
 
 if __name__ == "__main__":
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
     main()  # Ceci inclut Timer + app.run()
-
-
-app.config["TEMPLATES_AUTO_RELOAD"] = True
          
