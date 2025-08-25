@@ -782,9 +782,27 @@ async function handleUnifiedSearch(e) {
         logSearch('🗺️ Chargement de la carte interactive...');
         console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
         const iframe = document.getElementById("mapFrame");
-        // Force le rechargement avec cache bust
-        iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
-        console.log("[DEBUG] URL finale iframe:", iframe.src);
+        if (iframe) {
+          // Utiliser directement l'URL fournie par le serveur (qui a déjà son cache bust)
+          iframe.src = data.carte_url;
+          console.log("[DEBUG] URL finale iframe:", iframe.src);
+          
+          // S'assurer que l'iframe est visible
+          iframe.style.display = 'block';
+          
+          // Attendre que la carte se charge
+          iframe.onload = function() {
+            console.log("✅ Carte chargée avec succès");
+            logSearch('✅ Carte interactive chargée');
+          };
+          
+          iframe.onerror = function() {
+            console.error("❌ Erreur lors du chargement de la carte");
+            logSearch('❌ Erreur chargement carte');
+          };
+        } else {
+          console.error("❌ Element mapFrame non trouvé");
+        }
       }
       
       logSearch('🎨 Affichage des couches de données...');

@@ -785,10 +785,10 @@ def detect_working_geoserver():
     except Exception as e:
         print(f"⚠️ Détection ngrok échouée: {e}")
     
-    # Priorité 3: URL Railway production
+    # Priorité 3: Railway Production (priorité absolue)
     fallback_urls = [
         "https://bubbly-integrity-production.up.railway.app/geoserver",  # 🚀 RAILWAY PRODUCTION
-        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # � DOMAINE NGROK (secours)
+        "https://agriweb-prod.ngrok-free.app/geoserver",  # � DOMAINE NGROK (secours)
     ]
     
     # Tester les URLs de fallback
@@ -803,9 +803,9 @@ def detect_working_geoserver():
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
-    # URL par défaut si rien ne fonctionne
+    # URL par défaut si rien ne fonctionne - DOMAINE UNIFIÉ
     final_fallback = "https://bubbly-integrity-production.up.railway.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation Railway production: {final_fallback}")
+    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine unifié par défaut: {final_fallback}")
     return final_fallback
 
 # Configuration pour Railway avec détection automatique
@@ -2588,6 +2588,10 @@ def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
                                 geom = geom.buffer(0)
                             if geom.intersects(commune_poly):
                                 filtered.append(f)
+                                # Limite spéciale pour SIRENE pour éviter les blocages
+                                if "sirene" in layer_name.lower() and len(filtered) >= 1000:
+                                    print(f"⚠️ [LIMITE] SIRENE limité à 1000 entreprises pour éviter les blocages")
+                                    break
                         except Exception as e:
                             continue
                     print(f"✅ [POLYGON_SEARCH] {layer_name}: {len(filtered)}/{len(features)} features dans la commune")
