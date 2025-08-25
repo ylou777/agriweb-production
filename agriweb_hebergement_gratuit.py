@@ -785,16 +785,17 @@ def detect_working_geoserver():
     except Exception as e:
         print(f"⚠️ Détection ngrok échouée: {e}")
     
-    # Priorité 3: URL ngrok permanente UNIQUE
+    # Priorité 3: URL Railway production
     fallback_urls = [
-        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # 🚀 DOMAINE PERMANENT NGROK (Pay-as-you-go)
+        "https://bubbly-integrity-production.up.railway.app/geoserver",  # 🚀 RAILWAY PRODUCTION
+        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # � DOMAINE NGROK (secours)
     ]
     
     # Tester les URLs de fallback
     for url in fallback_urls:
         try:
             import requests
-            response = requests.head(url, timeout=5, allow_redirects=True)
+            response = requests.head(url, timeout=10, allow_redirects=True)
             if response.status_code in [200, 302]:
                 print(f"✅ GeoServer accessible (fallback): {url}")
                 return url
@@ -803,8 +804,8 @@ def detect_working_geoserver():
             continue
     
     # URL par défaut si rien ne fonctionne
-    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine permanent: {final_fallback}")
+    final_fallback = "https://bubbly-integrity-production.up.railway.app/geoserver"
+    print(f"⚠️ Aucun GeoServer accessible, utilisation Railway production: {final_fallback}")
     return final_fallback
 
 # Configuration pour Railway avec détection automatique

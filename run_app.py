@@ -13,7 +13,7 @@ if __name__ == '__main__':
         print("� [GEOSERVER] Intégration avec GeoServer activée")
         
         # Import et lancement du serveur unifié
-        from serveur_unifie_final import app
+        from agriweb_hebergement_gratuit import app
         
         print("✅ [SUCCESS] Serveur unifié importé")
         print("🌐 [URL] http://localhost:5000")
@@ -26,8 +26,8 @@ if __name__ == '__main__':
         print("� [FALLBACK] Tentative avec l'ancien système...")
         
         # Fallback vers l'ancien système
-        import agriweb_source
-        agriweb_source.app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+        import agriweb_hebergement_gratuit
+        agriweb_hebergement_gratuit.app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
         
     except Exception as e:
         print(f"❌ [ERROR] Exception: {e}")
