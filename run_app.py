@@ -19,7 +19,7 @@ if __name__ == '__main__':
         print("🌐 [URL] http://localhost:5000")
         print("� [STATUS] http://localhost:5000/status")
         
-        app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+        app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False, use_reloader=False)
         
     except ImportError as e:
         print(f"❌ [IMPORT ERROR] {e}")
@@ -27,7 +27,7 @@ if __name__ == '__main__':
         
         # Fallback vers l'ancien système
         import agriweb_hebergement_gratuit
-        agriweb_hebergement_gratuit.app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+        agriweb_hebergement_gratuit.app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False, use_reloader=False)
         
     except Exception as e:
         print(f"❌ [ERROR] Exception: {e}")
