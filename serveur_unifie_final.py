@@ -431,6 +431,12 @@ def index():
     
     return html_content
 
+@app.route('/favicon.ico')
+def favicon():
+    """Route pour le favicon - évite les erreurs 502"""
+    from flask import Response
+    return Response(status=204)  # No Content - pas de favicon disponible
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """API de connexion pour utilisateurs existants"""

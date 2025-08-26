@@ -1637,6 +1637,12 @@ def app_interface():
     # Nouveaux utilisateurs - Redirection vers authentification
     return redirect("/?login_required=1")
 
+@app.route("/favicon.ico")
+def favicon():
+    """Route pour le favicon - évite les erreurs 502"""
+    from flask import abort
+    abort(204)  # No Content - pas de favicon disponible
+
 @app.route("/auth")
 def auth():
     """Page de connexion/inscription"""
@@ -2230,75 +2236,6 @@ def get_all_gpu_data(geom):
         data = fetch_gpu_data(ep, geom)
         results[ep] = data
     return results
-
-def check_prescription_surfacique_abf(api_urbanisme_data):
-    """
-    Vérifie si la zone de recherche contient des prescriptions surfaciques nécessitant l'avis des ABF.
-    
-    Args:
-        api_urbanisme_data: Dictionnaire contenant les données GPU urbanisme
-        
-    Returns:
-        dict: {
-            "has_prescription_surf": bool,
-            "count": int,
-            "details": list,
-            "abf_warning": str or None
-        }
-    """
-    result = {
-        "has_prescription_surf": False,
-        "count": 0,
-        "details": [],
-        "abf_warning": None
-    }
-    
-    if not api_urbanisme_data or not isinstance(api_urbanisme_data, dict):
-        return result
-    
-    # Récupérer les données de prescription surfacique
-    prescription_surf_data = api_urbanisme_data.get("prescription-surf", {})
-    
-    if prescription_surf_data and isinstance(prescription_surf_data, dict):
-        features = prescription_surf_data.get("features", [])
-        
-        if features:
-            result["has_prescription_surf"] = True
-            result["count"] = len(features)
-            
-            # Analyser les détails des prescriptions
-            for feature in features:
-                props = feature.get("properties", {})
-                
-                # Extraire les informations pertinentes
-                libelle = props.get("libelle", "")
-                txt = props.get("txt", "")
-                typologie = props.get("typologie", "")
-                
-                detail = {
-                    "libelle": libelle,
-                    "txt": txt,
-                    "typologie": typologie,
-                    "properties": props
-                }
-                result["details"].append(detail)
-            
-            # Générer l'avertissement ABF
-            result["abf_warning"] = (
-                f"⚠️ **ATTENTION - AVIS OBLIGATOIRE DES ABF REQUIS** ⚠️\n\n"
-                f"Cette zone est concernée par {result['count']} prescription(s) surfacique(s) "
-                f"d'urbanisme. Tout projet d'aménagement ou de construction dans cette zone "
-                f"**DOIT OBLIGATOIREMENT** faire l'objet d'un avis des **Architectes des "
-                f"Bâtiments de France (ABF)** avant dépôt du permis de construire.\n\n"
-                f"**Démarches obligatoires :**\n"
-                f"• Consultation préalable du service territorial de l'architecture et du patrimoine (STAP)\n"
-                f"• Dépôt d'un dossier détaillé avec plans, coupes et élévations\n"
-                f"• Respect des prescriptions architecturales et paysagères\n"
-                f"• Délais de traitement supplémentaires à prévoir (2 à 4 mois)\n\n"
-                f"**Contact :** Direction Régionale des Affaires Culturelles (DRAC) - Service ABF"
-            )
-    
-    return result
 
 # Fonction supprimée - conservé seulement main() à la fin du fichier
 def get_api_cadastre_data(point_geojson):
@@ -7531,26 +7468,6 @@ def rapport_map_point():
                     api_details["gpu"]["features_count"] = total_features
                     api_details["gpu"]["details"] = layers_details
                     
-                    # === VÉRIFICATION ABF PRESCRIPTION SURFACIQUE ===
-                    log_step("CONTEXT", "🏛️ Vérification prescription surfacique ABF...")
-                    try:
-                        abf_check = check_prescription_surfacique_abf(gpu_data)
-                        report_data["abf_warning"] = abf_check
-                        
-                        if abf_check["has_prescription_surf"]:
-                            log_step("CONTEXT", f"⚠️ ABF: {abf_check['count']} prescription(s) surfacique(s) détectée(s)", "WARNING")
-                            log_step("CONTEXT", f"Message ABF: {abf_check['message'][:100]}...", "INFO")
-                        else:
-                            log_step("CONTEXT", "✅ ABF: Aucune prescription surfacique détectée", "SUCCESS")
-                    except Exception as e:
-                        log_step("CONTEXT", f"❌ Erreur vérification ABF: {e}", "ERROR")
-                        report_data["abf_warning"] = {
-                            "has_prescription_surf": False,
-                            "count": 0,
-                            "message": "",
-                            "error": str(e)
-                        }
-                    
                     log_step("CONTEXT", f"✅ API GPU: {len(gpu_data)} couches, {total_features} features", "SUCCESS")
                 else:
                     api_details["gpu"]["error"] = "Aucune donnée d'urbanisme trouvée"
@@ -8647,6 +8564,7 @@ def search_by_address_route():
     parcelles_data = get_all_parcelles(lat, lon, radius=search_radius)
 
     def get_parcelle_info(lat, lon):
+        safe_print(f"📐 [CADASTRE] Recherche parcelle cadastrale pour {lat}, {lon}")
         bbox = f"{lon-0.001},{lat-0.001},{lon+0.001},{lat+0.001},EPSG:4326"
         features = fetch_wfs_data(CADASTRE_LAYER, bbox)
         point = Point(lon, lat)
@@ -8655,7 +8573,9 @@ def search_by_address_route():
             if geom.contains(point):
                 parcelle_info = feature["properties"]
                 parcelle_info["geometry"] = feature["geometry"]
+                safe_print(f"✅ [CADASTRE] Parcelle trouvée: {parcelle_info.get('numero', 'N/A')}")
                 return parcelle_info
+        safe_print(f"❌ [CADASTRE] Aucune parcelle cadastrale trouvée")
         return None
 
     # 4. Postes, réseaux, couches métiers

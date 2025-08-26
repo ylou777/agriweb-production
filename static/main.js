@@ -782,27 +782,9 @@ async function handleUnifiedSearch(e) {
         logSearch('🗺️ Chargement de la carte interactive...');
         console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
         const iframe = document.getElementById("mapFrame");
-        if (iframe) {
-          // Utiliser directement l'URL fournie par le serveur (qui a déjà son cache bust)
-          iframe.src = data.carte_url;
-          console.log("[DEBUG] URL finale iframe:", iframe.src);
-          
-          // S'assurer que l'iframe est visible
-          iframe.style.display = 'block';
-          
-          // Attendre que la carte se charge
-          iframe.onload = function() {
-            console.log("✅ Carte chargée avec succès");
-            logSearch('✅ Carte interactive chargée');
-          };
-          
-          iframe.onerror = function() {
-            console.error("❌ Erreur lors du chargement de la carte");
-            logSearch('❌ Erreur chargement carte');
-          };
-        } else {
-          console.error("❌ Element mapFrame non trouvé");
-        }
+        // Force le rechargement avec cache bust
+        iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+        console.log("[DEBUG] URL finale iframe:", iframe.src);
       }
       
       logSearch('🎨 Affichage des couches de données...');
@@ -837,7 +819,7 @@ async function handleUnifiedSearch(e) {
   });
 }
 
-// --------- RECHERCHE PAR COMMUNE AVEC SSE ---------
+// --------- RECHERCHE PAR COMMUNE ---------
 async function handleCommuneSearch(e) {
   e?.preventDefault?.();
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
@@ -847,8 +829,7 @@ async function handleCommuneSearch(e) {
       setCommuneSearchLog('❗️ Veuillez saisir une commune.', 'red');
       return alert("Commune requise.");
     }
-    
-    // Paramètres de recherche
+    setCommuneSearchLog('🔄 Envoi de la requête... Calculs en cours...', '#0a58ca');
     const ps = new URLSearchParams({
       commune,
       culture: document.getElementById("culture")?.value || "",
@@ -874,96 +855,36 @@ async function handleCommuneSearch(e) {
       // Filtres Toitures
       filter_toitures: document.getElementById("filter_toitures_commune")?.checked || false,
       toitures_min_surface: document.getElementById("min_surface_toiture")?.value || 100,
-      // Distances globales
-      filter_by_distance: document.getElementById("filter_by_distance_commune")?.checked || false,
-      max_distance_bt: document.getElementById("bt_max_distance_commune")?.value || 2000,
-      max_distance_hta: document.getElementById("ht_max_distance_commune")?.value || 5000,
-      poste_type_filter: (document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL')
+    // Distances globales
+    filter_by_distance: document.getElementById("filter_by_distance_commune")?.checked || false,
+    max_distance_bt: document.getElementById("bt_max_distance_commune")?.value || 2000,
+    max_distance_hta: document.getElementById("ht_max_distance_commune")?.value || 5000,
+  poste_type_filter: (document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL')
     });
-
     try {
-      setCommuneSearchLog('� Connexion SSE...', '#0a58ca');
-      
-      // Utilisation des Server-Sent Events pour logs en temps réel
-      const eventSource = new EventSource("/commune_search_sse?" + ps.toString());
-      
-      eventSource.onmessage = function(event) {
-        const data = event.data;
-        setCommuneSearchLog(data, '#0a58ca');
-      };
-      
-      eventSource.onerror = function(error) {
-        console.error('SSE Error:', error);
-        setCommuneSearchLog('❌ Erreur de connexion SSE', 'red');
-        eventSource.close();
-        
-        // Fallback vers fetch classique
-        fallbackFetchCommune(ps);
-      };
-      
-      eventSource.addEventListener('done', function(event) {
-        setCommuneSearchLog('✅ Recherche terminée !', '#198754');
-        eventSource.close();
-        window.lastCommuneSearch = { commune: commune };
-        
-        // Récupération des résultats finaux
-        setTimeout(() => getFinalResults(ps), 1000);
-      });
-      
-      eventSource.addEventListener('error', function(event) {
-        setCommuneSearchLog('❌ Erreur : ' + event.data, 'red');
-        eventSource.close();
-      });
-      
-    } catch (err) {
-      setCommuneSearchLog('❌ Erreur lors de la recherche : ' + err, 'red');
-      console.error('Commune search error:', err);
-      alert("Erreur lors de la recherche par commune : " + err);
-    }
-  });
-}
-
-// Fonction de fallback si SSE échoue
-async function fallbackFetchCommune(ps) {
-  try {
-    setCommuneSearchLog('🔄 Mode fallback - Requête directe...', '#ff8800');
-    const res = await fetch("/search_by_commune?" + ps.toString());
-    if (!res.ok) {
-      setCommuneSearchLog('❌ Erreur serveur : ' + res.status, 'red');
-      return alert('Erreur serveur : ' + res.status);
-    }
-    const data = await res.json();
-    if (data.error) {
-      setCommuneSearchLog('❌ Erreur : ' + data.error, 'red');
-      return alert(data.error);
-    }
-    setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
-    window.lastCommuneSearch = { commune: ps.get('commune') };
-    displayAllLayers(data);
-    updateInfoPanel([data]);
-    const m = getMapFrame();
-    if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
-    setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
-  } catch (err) {
-    setCommuneSearchLog('❌ Erreur fallback : ' + err, 'red');
-    alert("Erreur lors de la recherche : " + err);
-  }
-}
-
-// Récupération des résultats finaux après SSE
-async function getFinalResults(ps) {
-  try {
-    const res = await fetch("/search_by_commune?" + ps.toString());
-    if (res.ok) {
+      setCommuneSearchLog('📦 Traitement des données reçues...', '#0a58ca');
+      const res = await fetch("/search_by_commune?" + ps.toString());
+      if (!res.ok) {
+        setCommuneSearchLog('❌ Erreur serveur : ' + res.status, 'red');
+        return alert('Erreur serveur : ' + res.status);
+      }
       const data = await res.json();
+      if (data.error) {
+        setCommuneSearchLog('❌ Erreur : ' + data.error, 'red');
+        return alert(data.error);
+      }
+      setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
+      window.lastCommuneSearch = { commune: commune };
       displayAllLayers(data);
       updateInfoPanel([data]);
       const m = getMapFrame();
       if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
+      setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
+    } catch (err) {
+      setCommuneSearchLog('❌ Erreur lors de la recherche : ' + err, 'red');
+      alert("Erreur lors de la recherche par commune : " + err);
     }
-  } catch (err) {
-    console.error('Error getting final results:', err);
-  }
+  });
 }
 
 // --------- RECHERCHE DEPARTEMENT SSE ---------

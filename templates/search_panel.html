@@ -577,7 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
       params.set('max_distance_hta', String(numVal('ht_max_distance_commune', 5000)));
       const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
       params.set('poste_type_filter', posteType);
-      
+
       // Démarre EventSource
       const url = '/commune_search_sse?' + params.toString();
       const es = new EventSource(url);
@@ -600,66 +600,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Après la fin de l'analyse, générer automatiquement la carte
         setTimeout(() => {
           // Récupérer les mêmes paramètres que pour l'EventSource
-          const commune = document.getElementById('commune').value.trim();
-          console.log('🔍 [DEBUG JS] Commune récupérée:', commune);
+          const commune = document.getElementById('commune_search').value.trim();
           if (commune) {
-            // Construire les paramètres manuellement en récupérant TOUS les filtres de la page
+            const formData = new FormData(form);
             const searchParams = new URLSearchParams();
-            
-            // Ajouter la commune
-            searchParams.append('commune', commune);
-            
-            // Récupérer TOUS les filtres depuis leurs éléments respectifs (avec suffixe _commune)
-            // Filtres RPG
-            const filterRpg = document.getElementById('filter_rpg_commune')?.checked || false;
-            searchParams.append('filter_rpg', filterRpg);
-            if (filterRpg) {
-              searchParams.append('rpg_min_area', document.getElementById('rpg_min_area')?.value || '0.1');
-              searchParams.append('rpg_max_area', document.getElementById('rpg_max_area')?.value || '50');
+            for (const [key, value] of formData.entries()) {
+              searchParams.append(key, value);
             }
-            
-            // Filtres Parkings
-            const filterParkings = document.getElementById('filter_parkings_commune')?.checked || false;
-            searchParams.append('filter_parkings', filterParkings);
-            if (filterParkings) {
-              searchParams.append('parking_min_area', document.getElementById('parking_min_area')?.value || '1500');
-            }
-            
-            // Filtres Friches
-            const filterFriches = document.getElementById('filter_friches_commune')?.checked || false;
-            searchParams.append('filter_friches', filterFriches);
-            if (filterFriches) {
-              searchParams.append('friches_min_area', document.getElementById('friches_min_area')?.value || '1000');
-            }
-            
-            // Filtres Zones
-            const filterZones = document.getElementById('filter_zones_commune')?.checked || false;
-            searchParams.append('filter_zones', filterZones);
-            if (filterZones) {
-              searchParams.append('zones_min_area', document.getElementById('zones_min_area')?.value || '1000');
-              searchParams.append('zones_type_filter', document.getElementById('zones_type_filter')?.value || '');
-            }
-            
-            // Filtres Toitures
-            const filterToitures = document.getElementById('filter_toitures_commune')?.checked || false;
-            searchParams.append('filter_toitures', filterToitures);
-            if (filterToitures) {
-              searchParams.append('toitures_min_surface', document.getElementById('min_surface_toiture')?.value || '100');
-            }
-            
-            // Filtres Distance (utilise les mêmes IDs que pour la recherche par adresse)
-            const filterDistance = document.getElementById('filter_by_distance')?.checked || false;
-            searchParams.append('filter_by_distance', filterDistance);
-            if (filterDistance) {
-              searchParams.append('max_distance_bt', document.getElementById('max_distance_bt')?.value || '500');
-              searchParams.append('max_distance_hta', document.getElementById('max_distance_hta')?.value || '2000');
-              const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
-              searchParams.append('poste_type_filter', posteType);
-            } else {
-              searchParams.append('poste_type_filter', 'ALL');
-            }
-            
-            console.log('🔍 [DEBUG JS] URL construite:', '/search_by_commune?' + searchParams.toString());
             
             // Appeler la route qui génère la carte
             fetch('/search_by_commune?' + searchParams.toString())

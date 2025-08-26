@@ -9167,3 +9167,11 @@ OSError: [Errno 28] No space left on device
 2025-08-26 09:39:00,547 INFO 127.0.0.1 - - [26/Aug/2025 09:39:00] "GET /static/main.js HTTP/1.1" 200 -
 2025-08-26 09:40:06,800 INFO 127.0.0.1 - - [26/Aug/2025 09:40:06] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
 2025-08-26 09:40:09,351 INFO 127.0.0.1 - - [26/Aug/2025 09:40:09] "GET /static/cartes/map_1756193992_3985999986143423163.html?t=1756193999 HTTP/1.1" 200 -
+2025-08-26 10:03:11,220 INFO 127.0.0.1 - - [26/Aug/2025 10:03:11] "[33mHEAD /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 10:03:41,457 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 10:03:41,458 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 10:03:45,770 INFO 127.0.0.1 - - [26/Aug/2025 10:03:45] "[33mHEAD /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 10:09:17,067 INFO 127.0.0.1 - - [26/Aug/2025 10:09:17] "[33mHEAD /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 10:10:35,888 INFO 127.0.0.1 - - [26/Aug/2025 10:10:35] "[33mHEAD /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 10:11:17,322 INFO 127.0.0.1 - - [26/Aug/2025 10:11:17] "[33mHEAD /favicon.ico HTTP/1.1[0m" 404 -

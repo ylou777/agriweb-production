@@ -873,24 +873,17 @@
     <script>
         // Fonction pour ouvrir la carte en plein écran
         function openMapFullscreen() {
-            console.log('Tentative d\'ouverture de la carte en plein écran');
-            
-            // D'abord essayer de trouver l'iframe de la carte
             const iframe = document.querySelector('iframe.map-frame');
             if (iframe && iframe.src) {
-                console.log('Iframe trouvée, ouverture de:', iframe.src);
+                // Ouvrir la carte dans un nouvel onglet
                 window.open(iframe.src, '_blank', 'width=1200,height=800');
             } else {
-                // Fallback: ouvrir l'interface principale
-                console.log('Iframe non trouvée, ouverture de l\'interface principale');
-                window.open('/app', '_blank', 'width=1200,height=800');
+                alert('Carte non disponible');
             }
         }
         
-        // Fonction pour zoomer sur une location spécifique
+        // Fonction pour zoomer - Nouvelle version qui utilise notre interface corrigée
         function zoomToLocation(lat, lng, name, type) {
-            console.log('Zoom vers:', { lat, lng, name, type });
-            
             // Validation des paramètres
             if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
                 console.error('Coordonnées invalides:', { lat, lng, name, type });
@@ -898,15 +891,29 @@
                 return;
             }
             
-            // Ouvrir l'interface principale avec les coordonnées
+            // Ouvrir notre interface principale corrigée avec les coordonnées
             const appUrl = `/app?lat=${lat}&lon=${lng}&address=${encodeURIComponent(name || 'Point d\'intérêt')}`;
-            console.log('Ouverture interface principale:', appUrl);
             
-            // Ouvrir dans un nouvel onglet
+            // Ouvrir dans un nouvel onglet pour garder le rapport ouvert
             window.open(appUrl, '_blank', 'width=1200,height=800');
+            
+            console.log('Ouverture interface principale:', appUrl);
             
             // Feedback visuel
             showZoomFeedback(name || 'Élément', type || 'Point');
+        }
+        
+        // Fonction principale de zoom - solution alternative robuste SUPPRIMÉE
+        // (remplacée par la fonction ci-dessus qui utilise notre interface corrigée)
+        
+        // Fonction pour ouvrir la carte locale en plein écran avec tous les calques
+        function openMapFullscreen() {
+            // Rediriger vers notre interface principale corrigée
+            window.open('/app', '_blank', 'width=1200,height=800');
+        }
+                if (mapUrl.includes('?')) {
+            // Rediriger vers notre interface principale corrigée
+            window.open('/app', '_blank', 'width=1200,height=800');
         }
         
         // Feedback visuel pour confirmer le zoom
@@ -918,67 +925,51 @@
             notification.innerHTML = `
                 <i class="bi bi-zoom-in"></i> 
                 Zoom sur: <strong>${name}</strong> 
-                <small>(${type})</small>
+                <small>(${type})</small>`;
             `;
             
             document.body.appendChild(notification);
             
             // Supprimer après 3 secondes
             setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.remove();
-                }
+                notification.remove();
             }, 3000);
         }
         
-        // Fonction simplifiée pour zoomer sur une section
+        // Fonction simplifiée pour zoomer sur une section (fallback vers Google Maps)
         function zoomToSection(sectionType) {
-            console.log('Zoom vers section:', sectionType);
-            // Ouvrir l'interface principale pour navigation manuelle
-            window.open('/app', '_blank', 'width=1200,height=800');
-            showZoomFeedback(`Section ${sectionType}`, 'Section');
+            alert('Fonction de zoom par section - utilisez les boutons de zoom individuels pour plus de précision');
         }
         
-        // Gestionnaire d'événements pour initialiser les boutons
+        // Gestionnaire d'événements pour les boutons de zoom
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM chargé, initialisation des fonctions de zoom');
+            console.log('DOM chargé, initialisation des boutons de zoom');
             
-            // Test des boutons plein écran
-            const fullscreenBtns = document.querySelectorAll('[onclick*="openMapFullscreen"]');
-            console.log('Boutons plein écran trouvés:', fullscreenBtns.length);
-            
-            // Test des boutons zoom
-            const zoomBtns = document.querySelectorAll('[onclick*="zoomToLocation"]');
-            console.log('Boutons zoom trouvés:', zoomBtns.length);
-            
-            // Ajouter des event listeners en plus des onclick existants pour debug
-            fullscreenBtns.forEach((btn, index) => {
+            // Boutons de zoom individuels
+            document.querySelectorAll('.zoom-btn').forEach(btn => {
                 btn.addEventListener('click', function(e) {
-                    console.log(`Clic détecté sur bouton plein écran ${index + 1}`);
+                    e.preventDefault();
+                    const lat = this.getAttribute('data-lat');
+                    const lng = this.getAttribute('data-lng');
+                    const name = this.getAttribute('data-name');
+                    const type = this.getAttribute('data-type');
+                    
+                    console.log('Clic sur bouton zoom:', lat, lng, name, type);
+                    zoomToLocation(lat, lng, name, type);
                 });
             });
             
-            zoomBtns.forEach((btn, index) => {
+            // Boutons de zoom par section
+            document.querySelectorAll('.section-zoom-btn').forEach(btn => {
                 btn.addEventListener('click', function(e) {
-                    console.log(`Clic détecté sur bouton zoom ${index + 1}`);
+                    e.preventDefault();
+                    const sectionType = this.getAttribute('data-section');
+                    zoomToSection(sectionType);
                 });
             });
+            
+            console.log('Boutons de zoom initialisés:', document.querySelectorAll('.zoom-btn').length, 'individuels,', document.querySelectorAll('.section-zoom-btn').length, 'sections');
         });
-        
-        // Test function pour debug
-        function testFunctions() {
-            console.log('Test des fonctions:');
-            console.log('- openMapFullscreen:', typeof openMapFullscreen);
-            console.log('- zoomToLocation:', typeof zoomToLocation);
-            
-            // Test d'ouverture
-            openMapFullscreen();
-        }
-        
-        // Exposer la fonction de test globalement
-        window.testFunctions = testFunctions;
-        
-        console.log('Script de rapport chargé avec succès');
     </script>
 </body>
 </html>
