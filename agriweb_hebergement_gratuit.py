@@ -815,10 +815,10 @@ def detect_working_geoserver():
     except Exception as e:
         print(f"⚠️ Détection ngrok échouée: {e}")
     
-    # Priorité 3: Railway Production (priorité absolue)
+    # Priorité 3: Domaines configurés (priorité absolue)
     fallback_urls = [
-        "https://bubbly-integrity-production.up.railway.app/geoserver",  # 🚀 RAILWAY PRODUCTION
-        "https://agriweb-prod.ngrok-free.app/geoserver",  # 🔗 DOMAINE NGROK STABLE
+        "https://agriweb-prod.ngrok-free.app/geoserver",  # � DOMAINE NGROK STABLE (PRIORITÉ)
+        "https://bubbly-integrity-production.up.railway.app/geoserver",  # � RAILWAY PRODUCTION
     ]
     
     # Tester les URLs de fallback
@@ -833,9 +833,9 @@ def detect_working_geoserver():
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
-    # URL par défaut si rien ne fonctionne - DOMAINE UNIFIÉ
-    final_fallback = "https://bubbly-integrity-production.up.railway.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine unifié par défaut: {final_fallback}")
+    # URL par défaut si rien ne fonctionne - DOMAINE NGROK STABLE
+    final_fallback = "https://agriweb-prod.ngrok-free.app/geoserver"
+    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine ngrok par défaut: {final_fallback}")
     return final_fallback
 
 # Configuration pour Railway avec détection automatique
