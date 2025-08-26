@@ -12,6 +12,14 @@ import requests
 import uuid
 import json
 
+# Imports pour les cartes
+import folium
+from folium.plugins import Draw, MeasureControl, MarkerCluster
+import geopandas as gpd
+from shapely.geometry import shape, Point, mapping, MultiPolygon, Polygon
+from pyproj import Transformer
+import time
+
 # Import des modules AgriWeb existants
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -64,6 +72,29 @@ print(f"   - PORT raw: '{os.getenv('PORT', 'NOT_SET')}'")
 print(f"   - FLASK_DEBUG raw: '{os.getenv('FLASK_DEBUG', 'NOT_SET')}'")
 print(f"   - SECRET_KEY présente: {'Oui' if os.getenv('SECRET_KEY') else 'Non'}")
 
+# Configuration des couches GeoServer
+CADASTRE_LAYER = "gpu:prefixes_sections"
+POSTE_LAYER = "gpu:poste_elec_shapefile"          # Postes BT
+PLU_LAYER = "gpu:gpu1"
+PARCELLE_LAYER = "gpu:PARCELLE2024"
+HT_POSTE_LAYER = "gpu:postes-electriques-rte"      # Postes HTA
+CAPACITES_RESEAU_LAYER = "gpu:CapacitesDAccueil"   # Capacités d'accueil (HTA)
+PARKINGS_LAYER = "gpu:parkings_sup500m2"
+FRICHES_LAYER = "gpu:friches-standard"
+POTENTIEL_SOLAIRE_LAYER = "gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93"
+ZAER_LAYER = "gpu:ZAER_ARRETE_SHP_FRA"
+PARCELLES_GRAPHIQUES_LAYER = "gpu:PARCELLES_GRAPHIQUES"  # RPG
+SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène
+ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
+PPRI_LAYER = "gpu:ppri"
+
+print("🗺️ [COUCHES] Configuration GeoServer:")
+print(f"   - Parcelles: {PARCELLE_LAYER}")
+print(f"   - RPG: {PARCELLES_GRAPHIQUES_LAYER}")
+print(f"   - PLU: {PLU_LAYER}")
+print(f"   - Postes BT: {POSTE_LAYER}")
+print(f"   - Postes HTA: {HT_POSTE_LAYER}")
+
 # Test de connectivité GeoServer au démarrage
 def test_geoserver_connection():
     """Test la connectivité GeoServer avec gestion d'erreurs"""
@@ -79,6 +110,41 @@ def test_geoserver_connection():
 
 # Test au démarrage
 geoserver_ok = test_geoserver_connection()
+
+# === FONCTIONS UTILITAIRES POUR LES CARTES ===
+
+def safe_print(*args, **kwargs):
+    """Print sécurisé pour les logs"""
+    try:
+        print(*args, **kwargs)
+    except Exception:
+        pass
+
+def get_parcelle_info(lat, lon):
+    """Récupère info parcelle via API IGN"""
+    try:
+        url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+        params = {"lon": lon, "lat": lat}
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        safe_print(f"Erreur API parcelle: {e}")
+    return None
+
+def get_all_parcelles(lat, lon, radius=0.03):
+    """Récupère toutes parcelles dans rayon"""
+    try:
+        # bbox autour du point
+        bbox = f"{lon-radius},{lat-radius},{lon+radius},{lat+radius}"
+        url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+        params = {"bbox": bbox}
+        response = requests.get(url, params=params, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+    except Exception as e:
+        safe_print(f"Erreur API parcelles: {e}")
+    return {"type": "FeatureCollection", "features": []}
 
 @app.route('/')
 def index():
@@ -756,6 +822,120 @@ def status():
     }
     
     return jsonify(status_data)
+
+# === FONCTIONS CARTOGRAPHIQUES ===
+
+def build_map_simple(lat, lon, address, parcelles_data=None):
+    """Version simplifiée de build_map avec Esri et parcelles"""
+    
+    # Création carte avec fond Esri
+    map_obj = folium.Map(location=[lat, lon], zoom_start=15, tiles=None)
+    
+    # Couche Esri (satellite)
+    folium.TileLayer(
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery",
+        name="Satellite",
+        overlay=False, control=True, show=True
+    ).add_to(map_obj)
+    
+    # Couche OpenStreetMap
+    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
+    
+    # Marqueur principal
+    folium.Marker(
+        [lat, lon], 
+        popup=f"📍 {address}<br>Lat: {lat:.6f}<br>Lon: {lon:.6f}",
+        icon=folium.Icon(color='red', icon='info-sign')
+    ).add_to(map_obj)
+    
+    # Parcelles cadastrales
+    if parcelles_data and parcelles_data.get("features"):
+        parcelles_group = folium.FeatureGroup(name="Parcelles", show=True)
+        for feature in parcelles_data["features"]:
+            if feature.get("geometry"):
+                folium.GeoJson(
+                    feature,
+                    style_function=lambda x: {
+                        "color": "#FF6600", 
+                        "weight": 2, 
+                        "fillColor": "#FFD700", 
+                        "fillOpacity": 0.3
+                    },
+                    popup=folium.Popup(f"Parcelle: {feature.get('properties', {}).get('id', 'N/A')}")
+                ).add_to(parcelles_group)
+        parcelles_group.add_to(map_obj)
+    
+    # Contrôles
+    folium.LayerControl().add_to(map_obj)
+    
+    return map_obj
+
+@app.route('/search_by_address', methods=['GET', 'POST'])
+def search_by_address_route():
+    """Route de recherche par adresse avec cartes complètes"""
+    
+    safe_print(f"\n{'='*80}")
+    safe_print(f"🔍 [RECHERCHE ADRESSE] === DÉBUT RECHERCHE PAR ADRESSE ===")
+    safe_print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    values = request.values
+    lat_str = values.get("lat")
+    lon_str = values.get("lon") 
+    address = values.get("address", "Adresse inconnue")
+    
+    safe_print(f"📍 Paramètres reçus:")
+    safe_print(f"   - Latitude: {lat_str}")
+    safe_print(f"   - Longitude: {lon_str}")
+    safe_print(f"   - Adresse: {address}")
+    
+    try:
+        lat = float(lat_str)
+        lon = float(lon_str)
+    except (TypeError, ValueError):
+        return jsonify({
+            'success': False,
+            'error': 'Coordonnées invalides'
+        }), 400
+    
+    # Récupération des parcelles cadastrales
+    safe_print("🏠 [PARCELLES] Récupération données cadastrales...")
+    parcelle_info = get_parcelle_info(lat, lon)
+    if not parcelle_info or not parcelle_info.get("features"):
+        parcelle_info = get_all_parcelles(lat, lon, radius=0.01)
+    
+    parcelles_count = len(parcelle_info.get("features", []))
+    safe_print(f"📐 Parcelles trouvées: {parcelles_count}")
+    
+    # Génération de la carte
+    safe_print("🗺️ [CARTE] Génération carte avec Esri et parcelles...")
+    
+    map_obj = build_map_simple(lat, lon, address, parcelle_info)
+    
+    # Sauvegarde de la carte
+    timestamp = int(time.time())
+    map_filename = f"map_{timestamp}_{abs(hash(f'{lat}{lon}'))}.html"
+    map_path = os.path.join("static", "cartes", map_filename)
+    
+    # Créer le dossier si nécessaire
+    os.makedirs(os.path.dirname(map_path), exist_ok=True)
+    
+    map_obj.save(map_path)
+    map_url = f"/static/cartes/{map_filename}?t={timestamp}"
+    
+    safe_print(f"✅ [CARTE] Carte sauvée: {map_url}")
+    safe_print(f"✅ [RÉSULTATS] === RECHERCHE PAR ADRESSE TERMINÉE ===")
+    
+    return jsonify({
+        'success': True,
+        'map_url': map_url,
+        'data': {
+            'address': address,
+            'coordinates': {'lat': lat, 'lon': lon},
+            'parcelles_count': parcelles_count,
+            'layers': ['Esri Satellite', 'OpenStreetMap', 'Parcelles cadastrales']
+        }
+    })
 
 # Module serveur unifié - importé par run_app.py
 # N'exécute pas directement l'application pour éviter les conflits Railway
