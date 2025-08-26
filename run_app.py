@@ -15,11 +15,16 @@ if __name__ == '__main__':
         # Import et lancement du serveur unifié
         from serveur_unifie_final import app
         
-        print("✅ [SUCCESS] Serveur unifié importé")
-        print("🌐 [URL] http://localhost:5000")
-        print("� [STATUS] http://localhost:5000/status")
+        # Configuration Railway
+        port = int(os.getenv('PORT', 5000))
+        host = os.getenv('HOST', '0.0.0.0')  # Railway nécessite 0.0.0.0
+        debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
         
-        app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+        print("✅ [SUCCESS] Serveur unifié importé")
+        print(f"🌐 [URL] http://{host}:{port}")
+        print(f"📊 [STATUS] http://{host}:{port}/status")
+        
+        app.run(host=host, port=port, debug=debug, use_reloader=False)
         
     except ImportError as e:
         print(f"❌ [IMPORT ERROR] {e}")

@@ -27,16 +27,26 @@ try:
 except ImportError as e:
     print(f"❌ Erreur import AgriWeb: {e}")
 
-app = Flask(__name__)
-app.secret_key = 'agriweb-2025-production-key'
+import os
 
-# Configuration GeoServer (votre serveur existant)
-GEOSERVER_URL = "http://localhost:8080/geoserver"
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'agriweb-2025-production-key')
+
+# Configuration GeoServer - Utilise les variables d'environnement Railway
+GEOSERVER_URL = os.getenv('GEOSERVER_URL', 'http://localhost:8080/geoserver')
 GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/ows"
+GEOSERVER_USERNAME = os.getenv('GEOSERVER_USERNAME', 'admin')
+GEOSERVER_PASSWORD = os.getenv('GEOSERVER_PASSWORD', 'geoserver')
 
 # Base de données simple des utilisateurs (en production, utiliser une vraie DB)
 USERS_DB = {}
 
+print(f"🚀 [PRODUCTION] Utilisation de GEOSERVER_URL: {GEOSERVER_URL}")
+print(f"🚀 Configuration Railway:")
+print(f"   - GeoServer URL: {GEOSERVER_URL}")
+print(f"   - GeoServer Auth: {GEOSERVER_USERNAME}:{'*' * len(GEOSERVER_PASSWORD)}")
+print(f"   - Port: {os.getenv('PORT', '5000')}")
+print(f"   - Debug: {os.getenv('FLASK_DEBUG', 'False')}")
 print(f"🔗 GeoServer configuré: {GEOSERVER_URL}")
 
 @app.route('/')
