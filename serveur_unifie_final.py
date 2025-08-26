@@ -6240,9 +6240,14 @@ def search_by_commune():
     is_browser_request = 'text/html' in accept_header and 'application/json' not in accept_header
     
     if is_browser_request and response_data.get('carte_url'):
-        # Requête depuis navigateur -> rediriger vers la carte HTML
-        print(f"🌐 [BROWSER] Redirection vers la carte: {response_data['carte_url']}")
-        return redirect(response_data['carte_url'])
+        # Requête depuis navigateur -> afficher template avec iframe
+        print(f"🌐 [BROWSER] Affichage template avec carte: {response_data['carte_url']}")
+        return render_template('recherche_resultat.html', 
+                             carte_url=response_data['carte_url'],
+                             recherche_type='commune',
+                             commune=commune,
+                             departement=departement,
+                             heure_recherche=datetime.now().strftime('%H:%M:%S le %d/%m/%Y'))
     else:
         # Requête API -> retourner JSON
         print(f"🔧 [API] Retour JSON pour requête API")
@@ -8882,9 +8887,15 @@ def search_by_address_route():
     is_browser_request = 'text/html' in accept_header and 'application/json' not in accept_header
     
     if is_browser_request and carte_url:
-        # Requête depuis navigateur -> rediriger vers la carte HTML
-        safe_print(f"🌐 [BROWSER] Redirection vers la carte: {info_response['carte_url']}")
-        return redirect(info_response['carte_url'])
+        # Requête depuis navigateur -> afficher template avec iframe
+        safe_print(f"🌐 [BROWSER] Affichage template avec carte: {info_response['carte_url']}")
+        return render_template('recherche_resultat.html', 
+                             carte_url=info_response['carte_url'],
+                             recherche_type='adresse',
+                             adresse=address,
+                             lat=lat,
+                             lon=lon,
+                             heure_recherche=datetime.now().strftime('%H:%M:%S le %d/%m/%Y'))
     else:
         # Requête API -> retourner JSON
         safe_print(f"🔧 [API] Retour JSON pour requête API")
