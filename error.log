@@ -8993,3 +8993,177 @@ OSError: [Errno 28] No space left on device
 2025-08-25 22:46:56,389 INFO 127.0.0.1 - - [25/Aug/2025 22:46:56] "GET /search_by_commune?commune=perpignan&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=250&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=3000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=4000&filter_by_distance=false&max_distance_bt=150&max_distance_hta=250&poste_type_filter=ALL HTTP/1.1" 200 -
 2025-08-25 22:47:07,483 INFO 127.0.0.1 - - [25/Aug/2025 22:47:07] "GET /search_by_commune?commune=perpignan&filter_rpg=false&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=3000&filter_zones=false&filter_toitures=true&toitures_min_surface=4000&filter_by_distance=false&poste_type_filter=ALL HTTP/1.1" 200 -
 2025-08-25 22:47:10,534 INFO 127.0.0.1 - - [25/Aug/2025 22:47:10] "GET /static/cartes/commune_map__20250825_224551.html?t=1756154792&t=1756154828068 HTTP/1.1" 200 -
+2025-08-26 07:19:37,670 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 07:19:37,671 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:19:39,731 INFO 127.0.0.1 - - [26/Aug/2025 07:19:39] "GET / HTTP/1.1" 200 -
+2025-08-26 07:20:04,418 INFO 127.0.0.1 - - [26/Aug/2025 07:20:04] "GET /app HTTP/1.1" 200 -
+2025-08-26 07:20:04,751 INFO 127.0.0.1 - - [26/Aug/2025 07:20:04] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-26 07:20:04,829 INFO 127.0.0.1 - - [26/Aug/2025 07:20:04] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-26 07:21:06,401 INFO 127.0.0.1 - - [26/Aug/2025 07:21:06] "GET /commune_search_sse?commune=nantes&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=2000&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-26 07:21:06,414 INFO 127.0.0.1 - - [26/Aug/2025 07:21:06] "GET /commune_search_sse?commune=nantes&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=2000&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=2000&max_distance_hta=5000&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-08-26 07:21:50,947 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 07:21:50,948 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:21:52,155 INFO 127.0.0.1 - - [26/Aug/2025 07:21:52] "GET / HTTP/1.1" 200 -
+2025-08-26 07:21:57,292 INFO 127.0.0.1 - - [26/Aug/2025 07:21:57] "GET /app HTTP/1.1" 200 -
+2025-08-26 07:21:57,498 INFO 127.0.0.1 - - [26/Aug/2025 07:21:57] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 07:21:57,515 INFO 127.0.0.1 - - [26/Aug/2025 07:21:57] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 07:29:28,215 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 07:29:28,215 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:30:03,832 INFO 127.0.0.1 - - [26/Aug/2025 07:30:03] "[33mGET /status HTTP/1.1[0m" 404 -
+2025-08-26 07:31:12,685 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 07:31:12,686 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:31:20,095 INFO 127.0.0.1 - - [26/Aug/2025 07:31:20] "GET /?id=56e51b5a-18fb-4f14-b041-4facecff73e6&vscodeBrowserReqId=1756186279724 HTTP/1.1" 200 -
+2025-08-26 07:31:25,695 INFO 127.0.0.1 - - [26/Aug/2025 07:31:25] "GET / HTTP/1.1" 200 -
+2025-08-26 07:31:28,405 INFO 127.0.0.1 - - [26/Aug/2025 07:31:28] "GET /app HTTP/1.1" 200 -
+2025-08-26 07:31:29,342 INFO 127.0.0.1 - - [26/Aug/2025 07:31:29] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 07:31:29,357 INFO 127.0.0.1 - - [26/Aug/2025 07:31:29] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-26 07:34:25,450 INFO 127.0.0.1 - - [26/Aug/2025 07:34:25] "GET /?id=56e51b5a-18fb-4f14-b041-4facecff73e6&vscodeBrowserReqId=1756186464324 HTTP/1.1" 200 -
+2025-08-26 07:34:33,123 INFO 127.0.0.1 - - [26/Aug/2025 07:34:33] "GET / HTTP/1.1" 200 -
+2025-08-26 07:34:35,704 INFO 127.0.0.1 - - [26/Aug/2025 07:34:35] "GET /app HTTP/1.1" 200 -
+2025-08-26 07:34:36,481 INFO 127.0.0.1 - - [26/Aug/2025 07:34:36] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 07:34:36,482 INFO 127.0.0.1 - - [26/Aug/2025 07:34:36] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 07:35:50,103 INFO 127.0.0.1 - - [26/Aug/2025 07:35:50] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 07:35:51,658 INFO 127.0.0.1 - - [26/Aug/2025 07:35:51] "GET /static/cartes/map_1756186539_3125263498376556792.html?t=1756186544 HTTP/1.1" 200 -
+2025-08-26 07:39:34,493 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 07:39:34,553 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:39:37,051 INFO 127.0.0.1 - - [26/Aug/2025 07:39:37] "GET / HTTP/1.1" 200 -
+2025-08-26 07:40:13,985 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 07:40:13,987 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:40:17,966 INFO 127.0.0.1 - - [26/Aug/2025 07:40:17] "GET / HTTP/1.1" 200 -
+2025-08-26 07:40:19,555 INFO 127.0.0.1 - - [26/Aug/2025 07:40:19] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 07:43:12,015 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 07:43:12,016 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:43:34,416 INFO 127.0.0.1 - - [26/Aug/2025 07:43:34] "GET /app HTTP/1.1" 200 -
+2025-08-26 07:43:35,666 INFO 127.0.0.1 - - [26/Aug/2025 07:43:35] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-26 07:43:35,815 INFO 127.0.0.1 - - [26/Aug/2025 07:43:35] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-26 07:43:53,318 INFO 127.0.0.1 - - [26/Aug/2025 07:43:53] "[33mGET /geoserver/cite/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=gpu:PARCELLE2024&outputFormat=application/json&bbox=2063675.59101204,6962893.492599784,2064274.9910120398,6963492.892599785,EPSG:2154 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:54,618 INFO 127.0.0.1 - - [26/Aug/2025 07:43:54] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:poste_elec_shapefile&outputFormat=application/json&bbox=21.565781895495498,48.314364995495495,21.574790904504503,48.3233740045045,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:54,703 INFO 127.0.0.1 - - [26/Aug/2025 07:43:54] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:postes-electriques-rte&outputFormat=application/json&bbox=21.53875486846847,48.287337968468464,21.60181793153153,48.35040103153153,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:54,844 INFO 127.0.0.1 - - [26/Aug/2025 07:43:54] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:CapacitesDAccueil&outputFormat=application/json&bbox=21.53875486846847,48.287337968468464,21.60181793153153,48.35040103153153,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:54,945 INFO 127.0.0.1 - - [26/Aug/2025 07:43:54] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:gpu1&outputFormat=application/json&bbox=21.5675864,48.3161695,21.5729864,48.321569499999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:55,036 INFO 127.0.0.1 - - [26/Aug/2025 07:43:55] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:parkings_sup500m2&outputFormat=application/json&bbox=21.5675864,48.3161695,21.5729864,48.321569499999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:55,151 INFO 127.0.0.1 - - [26/Aug/2025 07:43:55] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:friches-standard&outputFormat=application/json&bbox=21.5675864,48.3161695,21.5729864,48.321569499999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:55,224 INFO 127.0.0.1 - - [26/Aug/2025 07:43:55] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93&outputFormat=application/json&bbox=21.5675864,48.3161695,21.5729864,48.321569499999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:55,314 INFO 127.0.0.1 - - [26/Aug/2025 07:43:55] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:ZAER_ARRETE_SHP_FRA&outputFormat=application/json&bbox=21.5675864,48.3161695,21.5729864,48.321569499999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:55,383 INFO 127.0.0.1 - - [26/Aug/2025 07:43:55] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:PARCELLES_GRAPHIQUES&outputFormat=application/json&bbox=21.5675864,48.3161695,21.5729864,48.321569499999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:43:55,464 INFO 127.0.0.1 - - [26/Aug/2025 07:43:55] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:GeolocalisationEtablissement_Sirene%20france&outputFormat=application/json&bbox=21.5693854990991,48.317968599099096,21.571187300900903,48.3197704009009,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:44:10,669 INFO 127.0.0.1 - - [26/Aug/2025 07:44:10] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:prefixes_sections&outputFormat=application/json&bbox=21.5692864,48.3178695,21.5712864,48.319869499999996,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:44:16,573 INFO 127.0.0.1 - - [26/Aug/2025 07:44:16] "GET /search_by_address?address=retel&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 07:44:17,562 INFO 127.0.0.1 - - [26/Aug/2025 07:44:17] "GET /static/cartes/map_1756187056_7989595062481092155.html?t=1756187056 HTTP/1.1" 200 -
+2025-08-26 07:45:42,000 INFO 127.0.0.1 - - [26/Aug/2025 07:45:42] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 07:45:43,238 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/cite/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=gpu:PARCELLE2024&outputFormat=application/json&bbox=823155.9924333426,6923095.796285473,823755.3924333425,6923695.196285473,EPSG:2154 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,316 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:poste_elec_shapefile&outputFormat=application/json&bbox=4.695860295495495,49.3935792954955,4.704869304504505,49.402588304504505,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,400 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:postes-electriques-rte&outputFormat=application/json&bbox=4.668833268468468,49.36655226846847,4.731896331531532,49.42961533153154,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,482 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:CapacitesDAccueil&outputFormat=application/json&bbox=4.668833268468468,49.36655226846847,4.731896331531532,49.42961533153154,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,569 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:gpu1&outputFormat=application/json&bbox=4.6976648,49.395383800000005,4.7030648,49.4007838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,649 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:parkings_sup500m2&outputFormat=application/json&bbox=4.6976648,49.395383800000005,4.7030648,49.4007838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,732 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:friches-standard&outputFormat=application/json&bbox=4.6976648,49.395383800000005,4.7030648,49.4007838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,800 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93&outputFormat=application/json&bbox=4.6976648,49.395383800000005,4.7030648,49.4007838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,880 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:ZAER_ARRETE_SHP_FRA&outputFormat=application/json&bbox=4.6976648,49.395383800000005,4.7030648,49.4007838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:43,968 INFO 127.0.0.1 - - [26/Aug/2025 07:45:43] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:PARCELLES_GRAPHIQUES&outputFormat=application/json&bbox=4.6976648,49.395383800000005,4.7030648,49.4007838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:45:44,057 INFO 127.0.0.1 - - [26/Aug/2025 07:45:44] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:GeolocalisationEtablissement_Sirene%20france&outputFormat=application/json&bbox=4.699463899099099,49.3971828990991,4.701265700900901,49.398984700900904,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:46:01,224 INFO 127.0.0.1 - - [26/Aug/2025 07:46:01] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:prefixes_sections&outputFormat=application/json&bbox=4.6993648,49.397083800000004,4.7013648,49.3990838,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:46:08,962 INFO 127.0.0.1 - - [26/Aug/2025 07:46:08] "GET /search_by_address?address=vouziers&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 07:46:09,282 INFO 127.0.0.1 - - [26/Aug/2025 07:46:09] "GET /static/cartes/map_1756187168_3225703234529411994.html?t=1756187168 HTTP/1.1" 200 -
+2025-08-26 07:50:36,713 INFO 127.0.0.1 - - [26/Aug/2025 07:50:36] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 07:50:37,953 INFO 127.0.0.1 - - [26/Aug/2025 07:50:37] "[33mGET /geoserver/cite/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=gpu:PARCELLE2024&outputFormat=application/json&bbox=351603.5428375617,6789015.305977615,352202.9428375617,6789614.705977615,EPSG:2154 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,052 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:poste_elec_shapefile&outputFormat=application/json&bbox=-1.6845243045045044,48.106834195495495,-1.6755152954954955,48.1158432045045,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,141 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:postes-electriques-rte&outputFormat=application/json&bbox=-1.7115513315315314,48.07980716846846,-1.6484882684684685,48.14287023153153,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,221 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:CapacitesDAccueil&outputFormat=application/json&bbox=-1.7115513315315314,48.07980716846846,-1.6484882684684685,48.14287023153153,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,320 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:gpu1&outputFormat=application/json&bbox=-1.6827197999999999,48.1086387,-1.6773198,48.114038699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,405 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:parkings_sup500m2&outputFormat=application/json&bbox=-1.6827197999999999,48.1086387,-1.6773198,48.114038699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,471 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:friches-standard&outputFormat=application/json&bbox=-1.6827197999999999,48.1086387,-1.6773198,48.114038699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,558 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93&outputFormat=application/json&bbox=-1.6827197999999999,48.1086387,-1.6773198,48.114038699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,639 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:ZAER_ARRETE_SHP_FRA&outputFormat=application/json&bbox=-1.6827197999999999,48.1086387,-1.6773198,48.114038699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,724 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:PARCELLES_GRAPHIQUES&outputFormat=application/json&bbox=-1.6827197999999999,48.1086387,-1.6773198,48.114038699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:38,805 INFO 127.0.0.1 - - [26/Aug/2025 07:50:38] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:GeolocalisationEtablissement_Sirene%20france&outputFormat=application/json&bbox=-1.6809207009009008,48.110437799099095,-1.679118899099099,48.1122396009009,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:50:56,920 INFO 127.0.0.1 - - [26/Aug/2025 07:50:56] "[33mGET /geoserver/ows?service=WFS&version=2.0.0&request=GetFeature&typeName=gpu:prefixes_sections&outputFormat=application/json&bbox=-1.6810197999999998,48.1103387,-1.6790198,48.112338699999995,EPSG:4326&srsname=EPSG:4326 HTTP/1.1[0m" 404 -
+2025-08-26 07:55:22,112 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 07:55:22,112 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 07:56:08,252 INFO 127.0.0.1 - - [26/Aug/2025 07:56:08] "[33mGET /status HTTP/1.1[0m" 404 -
+2025-08-26 07:56:08,270 INFO 127.0.0.1 - - [26/Aug/2025 07:56:08] "[33mGET /status HTTP/1.1[0m" 404 -
+2025-08-26 07:56:08,561 INFO 127.0.0.1 - - [26/Aug/2025 07:56:08] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 07:56:12,035 INFO 127.0.0.1 - - [26/Aug/2025 07:56:12] "GET /?id=56e51b5a-18fb-4f14-b041-4facecff73e6&vscodeBrowserReqId=1756187771658 HTTP/1.1" 200 -
+2025-08-26 07:56:19,701 INFO 127.0.0.1 - - [26/Aug/2025 07:56:19] "GET / HTTP/1.1" 200 -
+2025-08-26 07:56:22,488 INFO 127.0.0.1 - - [26/Aug/2025 07:56:22] "GET /app HTTP/1.1" 200 -
+2025-08-26 07:56:22,859 INFO 127.0.0.1 - - [26/Aug/2025 07:56:22] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 07:56:22,887 INFO 127.0.0.1 - - [26/Aug/2025 07:56:22] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 07:56:23,767 INFO 127.0.0.1 - - [26/Aug/2025 07:56:23] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 07:57:05,627 INFO 127.0.0.1 - - [26/Aug/2025 07:57:05] "GET /search_by_address?address=vouziers&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 07:57:06,446 INFO 127.0.0.1 - - [26/Aug/2025 07:57:06] "GET /static/cartes/map_1756187824_11255150623110330.html?t=1756187824 HTTP/1.1" 200 -
+2025-08-26 07:59:57,557 INFO 127.0.0.1 - - [26/Aug/2025 07:59:57] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 08:00:24,676 INFO 127.0.0.1 - - [26/Aug/2025 08:00:24] "GET /search_by_address?address=lens&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 08:00:25,295 INFO 127.0.0.1 - - [26/Aug/2025 08:00:25] "GET /static/cartes/map_1756188021_1530149563250399804.html?t=1756188023 HTTP/1.1" 200 -
+2025-08-26 08:01:23,923 INFO 127.0.0.1 - - [26/Aug/2025 08:01:23] "GET /rapport_point?lat=50.4291723&lon=2.8319805&address=lens&parcelle_numero=N/A&distance_poste_proche=58.3+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=false&api_cadastre_commune=&api_cadastre_section=&api_cadastre_numero=&api_urbanisme_layers=17&api_urbanisme_features=139&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=58.32&postes_hta_count=1&postes_hta_distances=3812.14&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=419&sirene_activites=&eleveurs_count=0&parkings_count=4&friches_count=1&friches_types=&search_timestamp=1756188053128&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-26 08:01:24,252 INFO 127.0.0.1 - - [26/Aug/2025 08:01:24] "GET /static/cartes/rapport_point_20250826_080053.html HTTP/1.1" 200 -
+2025-08-26 08:05:23,186 INFO 127.0.0.1 - - [26/Aug/2025 08:05:23] "GET /?id=56e51b5a-18fb-4f14-b041-4facecff73e6&vscodeBrowserReqId=1756188322748 HTTP/1.1" 200 -
+2025-08-26 08:06:37,105 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 08:06:37,105 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 08:06:39,031 INFO 127.0.0.1 - - [26/Aug/2025 08:06:39] "GET / HTTP/1.1" 200 -
+2025-08-26 08:06:42,520 INFO 127.0.0.1 - - [26/Aug/2025 08:06:42] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-08-26 08:06:43,434 INFO 127.0.0.1 - - [26/Aug/2025 08:06:43] "GET /app HTTP/1.1" 200 -
+2025-08-26 08:06:43,673 INFO 127.0.0.1 - - [26/Aug/2025 08:06:43] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-26 08:06:43,713 INFO 127.0.0.1 - - [26/Aug/2025 08:06:43] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-26 08:07:25,129 INFO 127.0.0.1 - - [26/Aug/2025 08:07:25] "GET /search_by_address?address=lens&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 08:07:25,842 INFO 127.0.0.1 - - [26/Aug/2025 08:07:25] "GET /static/cartes/map_1756188441_3681703740969632199.html?t=1756188443 HTTP/1.1" 200 -
+2025-08-26 08:08:28,705 INFO 127.0.0.1 - - [26/Aug/2025 08:08:28] "GET /rapport_point?lat=50.4291723&lon=2.8319805&address=lens&parcelle_numero=N/A&distance_poste_proche=58.3+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=false&api_cadastre_commune=&api_cadastre_section=&api_cadastre_numero=&api_urbanisme_layers=17&api_urbanisme_features=139&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=1&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=58.32&postes_hta_count=1&postes_hta_distances=3812.14&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=419&sirene_activites=&eleveurs_count=0&parkings_count=4&friches_count=1&friches_types=&search_timestamp=1756188478820&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-26 08:08:28,982 INFO 127.0.0.1 - - [26/Aug/2025 08:08:28] "GET /static/cartes/rapport_point_20250826_080758.html HTTP/1.1" 200 -
+2025-08-26 08:13:21,817 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 08:13:21,827 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 08:22:39,546 INFO 127.0.0.1 - - [26/Aug/2025 08:22:39] "GET /?id=642743d5-5b4d-4cfb-b53a-dddbedf93019&vscodeBrowserReqId=1756189358346 HTTP/1.1" 200 -
+2025-08-26 08:22:49,596 INFO 127.0.0.1 - - [26/Aug/2025 08:22:49] "GET / HTTP/1.1" 200 -
+2025-08-26 08:22:51,948 INFO 127.0.0.1 - - [26/Aug/2025 08:22:51] "GET /app HTTP/1.1" 200 -
+2025-08-26 08:22:52,365 INFO 127.0.0.1 - - [26/Aug/2025 08:22:52] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 08:22:52,526 INFO 127.0.0.1 - - [26/Aug/2025 08:22:52] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 08:24:15,333 INFO 127.0.0.1 - - [26/Aug/2025 08:24:15] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 08:24:17,345 INFO 127.0.0.1 - - [26/Aug/2025 08:24:17] "GET /static/cartes/map_1756189441_7526718822637993087.html?t=1756189448 HTTP/1.1" 200 -
+2025-08-26 08:27:45,289 INFO 127.0.0.1 - - [26/Aug/2025 08:27:45] "GET /rapport_point?lat=43.8374249&lon=4.3600687&address=nimes&parcelle_numero=N/A&distance_poste_proche=91.4+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Nîmes&api_cadastre_section=EY&api_cadastre_numero=0408&api_urbanisme_layers=17&api_urbanisme_features=331&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=91.36&postes_hta_count=1&postes_hta_distances=1282.46&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=1783&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=0&friches_types=&search_timestamp=1756189624583&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
+2025-08-26 08:27:46,747 INFO 127.0.0.1 - - [26/Aug/2025 08:27:46] "GET /static/cartes/rapport_point_20250826_082705.html HTTP/1.1" 200 -
+2025-08-26 08:47:35,295 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 08:47:35,295 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 08:47:38,197 INFO 127.0.0.1 - - [26/Aug/2025 08:47:38] "GET / HTTP/1.1" 200 -
+2025-08-26 08:47:42,606 INFO 127.0.0.1 - - [26/Aug/2025 08:47:42] "GET /app HTTP/1.1" 200 -
+2025-08-26 08:47:43,614 INFO 127.0.0.1 - - [26/Aug/2025 08:47:43] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 08:47:43,814 INFO 127.0.0.1 - - [26/Aug/2025 08:47:43] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 08:48:53,107 INFO 127.0.0.1 - - [26/Aug/2025 08:48:53] "GET /search_by_address?address=avignon&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 08:48:56,931 INFO 127.0.0.1 - - [26/Aug/2025 08:48:56] "GET /static/cartes/map_1756190921_7424076349526058183.html?t=1756190928 HTTP/1.1" 200 -
+2025-08-26 09:18:28,536 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 09:18:28,536 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 09:18:32,576 INFO 127.0.0.1 - - [26/Aug/2025 09:18:32] "GET / HTTP/1.1" 200 -
+2025-08-26 09:18:42,094 INFO 127.0.0.1 - - [26/Aug/2025 09:18:42] "POST /login HTTP/1.1" 200 -
+2025-08-26 09:18:43,888 INFO 127.0.0.1 - - [26/Aug/2025 09:18:43] "GET /app HTTP/1.1" 200 -
+2025-08-26 09:18:44,288 INFO 127.0.0.1 - - [26/Aug/2025 09:18:44] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 09:18:44,290 INFO 127.0.0.1 - - [26/Aug/2025 09:18:44] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 09:20:51,839 INFO 127.0.0.1 - - [26/Aug/2025 09:20:51] "GET /search_by_address?address=avignon&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 09:20:55,043 INFO 127.0.0.1 - - [26/Aug/2025 09:20:55] "GET /static/cartes/map_1756192830_7424076349526058183.html?t=1756192846 HTTP/1.1" 200 -
+2025-08-26 09:37:49,150 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 09:37:49,153 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 09:37:59,616 INFO 127.0.0.1 - - [26/Aug/2025 09:37:59] "GET / HTTP/1.1" 200 -
+2025-08-26 09:38:59,689 INFO 127.0.0.1 - - [26/Aug/2025 09:38:59] "GET /app HTTP/1.1" 200 -
+2025-08-26 09:39:00,546 INFO 127.0.0.1 - - [26/Aug/2025 09:39:00] "GET /static/map.html HTTP/1.1" 200 -
+2025-08-26 09:39:00,547 INFO 127.0.0.1 - - [26/Aug/2025 09:39:00] "GET /static/main.js HTTP/1.1" 200 -
+2025-08-26 09:40:06,800 INFO 127.0.0.1 - - [26/Aug/2025 09:40:06] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 09:40:09,351 INFO 127.0.0.1 - - [26/Aug/2025 09:40:09] "GET /static/cartes/map_1756193992_3985999986143423163.html?t=1756193999 HTTP/1.1" 200 -

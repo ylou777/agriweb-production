@@ -876,6 +876,11 @@ def health_check():
         "geoserver_url": GEOSERVER_URL
     }), 200
 
+@app.route("/test-search", methods=["GET"])
+def test_search():
+    """Page de test pour diagnostiquer les problèmes de recherche"""
+    return render_template("test_search.html")
+
 @app.route("/test-buttons", methods=["GET"])
 def test_buttons():
     """Page de test pour les boutons zoom et plein écran"""
@@ -2226,6 +2231,75 @@ def get_all_gpu_data(geom):
         results[ep] = data
     return results
 
+def check_prescription_surfacique_abf(api_urbanisme_data):
+    """
+    Vérifie si la zone de recherche contient des prescriptions surfaciques nécessitant l'avis des ABF.
+    
+    Args:
+        api_urbanisme_data: Dictionnaire contenant les données GPU urbanisme
+        
+    Returns:
+        dict: {
+            "has_prescription_surf": bool,
+            "count": int,
+            "details": list,
+            "abf_warning": str or None
+        }
+    """
+    result = {
+        "has_prescription_surf": False,
+        "count": 0,
+        "details": [],
+        "abf_warning": None
+    }
+    
+    if not api_urbanisme_data or not isinstance(api_urbanisme_data, dict):
+        return result
+    
+    # Récupérer les données de prescription surfacique
+    prescription_surf_data = api_urbanisme_data.get("prescription-surf", {})
+    
+    if prescription_surf_data and isinstance(prescription_surf_data, dict):
+        features = prescription_surf_data.get("features", [])
+        
+        if features:
+            result["has_prescription_surf"] = True
+            result["count"] = len(features)
+            
+            # Analyser les détails des prescriptions
+            for feature in features:
+                props = feature.get("properties", {})
+                
+                # Extraire les informations pertinentes
+                libelle = props.get("libelle", "")
+                txt = props.get("txt", "")
+                typologie = props.get("typologie", "")
+                
+                detail = {
+                    "libelle": libelle,
+                    "txt": txt,
+                    "typologie": typologie,
+                    "properties": props
+                }
+                result["details"].append(detail)
+            
+            # Générer l'avertissement ABF
+            result["abf_warning"] = (
+                f"⚠️ **ATTENTION - AVIS OBLIGATOIRE DES ABF REQUIS** ⚠️\n\n"
+                f"Cette zone est concernée par {result['count']} prescription(s) surfacique(s) "
+                f"d'urbanisme. Tout projet d'aménagement ou de construction dans cette zone "
+                f"**DOIT OBLIGATOIREMENT** faire l'objet d'un avis des **Architectes des "
+                f"Bâtiments de France (ABF)** avant dépôt du permis de construire.\n\n"
+                f"**Démarches obligatoires :**\n"
+                f"• Consultation préalable du service territorial de l'architecture et du patrimoine (STAP)\n"
+                f"• Dépôt d'un dossier détaillé avec plans, coupes et élévations\n"
+                f"• Respect des prescriptions architecturales et paysagères\n"
+                f"• Délais de traitement supplémentaires à prévoir (2 à 4 mois)\n\n"
+                f"**Contact :** Direction Régionale des Affaires Culturelles (DRAC) - Service ABF"
+            )
+    
+    return result
+
 # Fonction supprimée - conservé seulement main() à la fin du fichier
 def get_api_cadastre_data(point_geojson):
     url = "https://apicarto.ign.fr/api/cadastre/parcelle"
@@ -2458,7 +2532,7 @@ def get_all_parcelles(lat, lon, radius=0.03):
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
     x, y = transformer.transform(lon, lat)
     bbox = f"{x - radius * 111000},{y - radius * 111000},{x + radius * 111000},{y + radius * 111000},EPSG:2154"
-    url = f"{GEOSERVER_URL}/cite/wfs"
+    url = f"{GEOSERVER_URL}/wfs"  # ✅ CORRECTION: Suppression du /cite qui causait l'erreur
     params = {
         "service": "WFS",
         "version": "1.0.0",
@@ -4308,7 +4382,7 @@ def build_map(
     map_obj.add_child(caps_group)
 
     # Sirene
-    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=True)
+    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=None)
     for feat in sirene_data:
         if feat.get('geometry', {}).get('type') == 'Point':
             lon_s, lat_s = feat['geometry']['coordinates']
@@ -7457,6 +7531,26 @@ def rapport_map_point():
                     api_details["gpu"]["features_count"] = total_features
                     api_details["gpu"]["details"] = layers_details
                     
+                    # === VÉRIFICATION ABF PRESCRIPTION SURFACIQUE ===
+                    log_step("CONTEXT", "🏛️ Vérification prescription surfacique ABF...")
+                    try:
+                        abf_check = check_prescription_surfacique_abf(gpu_data)
+                        report_data["abf_warning"] = abf_check
+                        
+                        if abf_check["has_prescription_surf"]:
+                            log_step("CONTEXT", f"⚠️ ABF: {abf_check['count']} prescription(s) surfacique(s) détectée(s)", "WARNING")
+                            log_step("CONTEXT", f"Message ABF: {abf_check['message'][:100]}...", "INFO")
+                        else:
+                            log_step("CONTEXT", "✅ ABF: Aucune prescription surfacique détectée", "SUCCESS")
+                    except Exception as e:
+                        log_step("CONTEXT", f"❌ Erreur vérification ABF: {e}", "ERROR")
+                        report_data["abf_warning"] = {
+                            "has_prescription_surf": False,
+                            "count": 0,
+                            "message": "",
+                            "error": str(e)
+                        }
+                    
                     log_step("CONTEXT", f"✅ API GPU: {len(gpu_data)} couches, {total_features} features", "SUCCESS")
                 else:
                     api_details["gpu"]["error"] = "Aucune donnée d'urbanisme trouvée"
@@ -8480,6 +8574,21 @@ def search_by_address_route():
     from shapely.geometry import shape, Point
     import time
 
+    # Logs de début de recherche par adresse
+    safe_print(f"\n{'='*80}")
+    safe_print(f"🔍 [RECHERCHE ADRESSE] === DÉBUT RECHERCHE PAR ADRESSE ===")
+    safe_print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    values = request.values
+    lat_str = values.get("lat")
+    lon_str = values.get("lon")
+    address = values.get("address")
+    
+    safe_print(f"📍 Paramètres reçus:")
+    safe_print(f"   - Latitude: {lat_str}")
+    safe_print(f"   - Longitude: {lon_str}")
+    safe_print(f"   - Adresse: {address}")
+
     # --- Fonctions utilitaires ---
     def safe_float(value, default=0.0):
         try:
@@ -8503,14 +8612,20 @@ def search_by_address_route():
     if lat_str not in (None, "") and lon_str not in (None, ""):
         try:
             lat, lon = float(lat_str), float(lon_str)
+            safe_print(f"✅ [COORDONNÉES] Coordonnées directes: {lat}, {lon}")
         except ValueError:
+            safe_print(f"❌ [ERREUR] Coordonnées invalides: {lat_str}, {lon_str}")
             return jsonify({"error": "Les coordonnées doivent être des nombres."}), 400
     elif address:
+        safe_print(f"🔍 [GEOCODAGE] Géocodage de l'adresse: {address}")
         coords = geocode_address(address)
         if not coords:
+            safe_print(f"❌ [ERREUR] Adresse non trouvée: {address}")
             return jsonify({"error": "Adresse non trouvée."}), 404
         lat, lon = coords
+        safe_print(f"✅ [GEOCODAGE] Adresse géocodée: {address} -> {lat}, {lon}")
     else:
+        safe_print(f"❌ [ERREUR] Aucune adresse ou coordonnées fournies")
         return jsonify({"error": "Veuillez fournir une adresse ou des coordonnées."}), 400
 
     # 2. Rayons et bbox
@@ -8518,6 +8633,12 @@ def search_by_address_route():
     bt_radius_km     = safe_float(values.get("bt_radius"),     1.0)
     sirene_radius_km = safe_float(values.get("sirene_radius"), 0.05)
     search_radius = 0.0027  # 300 mètres (300m / 111000m par degré)
+    
+    safe_print(f"⚙️ [PARAMÈTRES] Configuration de recherche:")
+    safe_print(f"   - Rayon postes HTA: {ht_radius_km} km")
+    safe_print(f"   - Rayon postes BT: {bt_radius_km} km")
+    safe_print(f"   - Rayon SIRENE: {sirene_radius_km} km")
+    safe_print(f"   - Rayon recherche parcelle: {search_radius} degrés (≈300m)")
     bt_radius_deg = bt_radius_km / 111
     ht_radius_deg = ht_radius_km / 111
     sirene_radius_deg = sirene_radius_km / 111
@@ -8538,6 +8659,7 @@ def search_by_address_route():
         return None
 
     # 4. Postes, réseaux, couches métiers
+    safe_print(f"⚡ [RÉSEAU] Recherche des postes électriques...")
     postes_bt_raw = ensure_feature_list(get_nearest_postes(lat, lon, count=1, radius_deg=bt_radius_deg))
     postes_hta_raw = ensure_feature_list(get_nearest_ht_postes(lat, lon, count=1, radius_deg=ht_radius_deg))
     capacites_reseau_raw = ensure_feature_list(get_nearest_capacites_reseau(lat, lon, count=1, radius_deg=ht_radius_deg))
@@ -8547,10 +8669,16 @@ def search_by_address_route():
 
     # Debug: vérifier les données des postes
     if postes_bt_raw:
-        print(f"[DEBUG] Poste BT trouvé avec distance: {postes_bt_raw[0].get('distance', 'N/A')}")
+        safe_print(f"🔌 [POSTES BT] Poste BT trouvé avec distance: {postes_bt_raw[0].get('distance', 'N/A')} km")
     else:
-        print("[DEBUG] Aucun poste BT trouvé")
+        safe_print("🔌 [POSTES BT] Aucun poste BT trouvé dans le rayon")
+        
+    if postes_hta_raw:
+        safe_print(f"⚡ [POSTES HTA] Poste HTA trouvé avec distance: {postes_hta_raw[0].get('distance', 'N/A')} km")
+    else:
+        safe_print("⚡ [POSTES HTA] Aucun poste HTA trouvé dans le rayon")
 
+    safe_print(f"📊 [COLLECTE] Récupération des données géographiques...")
     plu_info    = to_feature_collection(ensure_feature_list(get_plu_info(lat, lon, radius=search_radius)))
     parkings    = to_feature_collection(ensure_feature_list(get_parkings_info(lat, lon, radius=search_radius)))
     friches     = to_feature_collection(ensure_feature_list(get_friches_info(lat, lon, radius=search_radius)))
@@ -8558,15 +8686,28 @@ def search_by_address_route():
     zaer        = to_feature_collection(ensure_feature_list(get_zaer_info(lat, lon, radius=search_radius)))
     rpg_data    = to_feature_collection(ensure_feature_list(get_rpg_info(lat, lon, radius=0.0027)))
     sirene_data = to_feature_collection(ensure_feature_list(get_sirene_info(lat, lon, radius=sirene_radius_deg)))
+    
+    safe_print(f"🏢 [SIRENE] {len(sirene_data.get('features', []))} entreprises trouvées")
+    safe_print(f"🌾 [RPG] {len(rpg_data.get('features', []))} parcelles agricoles trouvées")
+    safe_print(f"🅿️ [PARKINGS] {len(parkings.get('features', []))} parkings trouvés")
+    safe_print(f"🏚️ [FRICHES] {len(friches.get('features', []))} friches trouvées")
 
     # 5. APIs externes
+    safe_print(f"🌐 [APIs EXTERNES] Appel aux APIs externes...")
     geom_point = {"type": "Point", "coordinates": [lon, lat]}
     radius_km = 0.3  # 300 mètres
     delta = radius_km / 111.0
     search_poly = bbox_to_polygon(lon, lat, delta)
+    
+    safe_print(f"🌿 [API NATURE] Récupération données nature...")
     api_nature = get_api_nature_data(search_poly)
+    
+    safe_print(f"🏗️ [API URBANISME] Récupération données urbanisme...")
     api_urbanisme_dict = get_all_gpu_data(search_poly)
+    
+    safe_print(f"📐 [API CADASTRE] Récupération données cadastre...")
     api_cadastre = get_api_cadastre_data(geom_point)
+    
     api_urbanisme = {k: to_feature_collection(v) for k, v in (api_urbanisme_dict or {}).items()}
 
     # 6. Validation (avant build_map)
@@ -8594,6 +8735,7 @@ def search_by_address_route():
     parcelle = None
     # 7. Recherche info parcelle
     parcelle = get_parcelle_info(lat, lon)
+    
     # Debug: print types and samples of all build_map arguments (now that parcelle is assigned)
     print("[DEBUG build_map args] parcelle:", type(parcelle or {}), (parcelle or {}) if isinstance(parcelle or {}, dict) else str(parcelle or {})[:200])
     print("[DEBUG build_map args] parcelles_data:", type(parcelles_data), ensure_feature_list(parcelles_data)[:1])
@@ -8673,15 +8815,15 @@ def search_by_address_route():
     carte_url = None
     map_obj = None
     try:
-        print(f"[DEBUG] Génération carte pour {address} - Lat: {lat}, Lon: {lon}")
-        print(f"[DEBUG] Données à traiter:")
-        print(f"  - Parcelles: {len(ensure_feature_list(parcelles_data))}")
-        print(f"  - Postes BT: {len(ensure_feature_list(postes_bt))}")
-        print(f"  - Postes HTA: {len(ensure_feature_list(postes_hta))}")
-        print(f"  - PLU: {len(ensure_feature_list(plu_info))}")
-        print(f"  - Parkings: {len(ensure_feature_list(parkings))}")
-        print(f"  - Friches: {len(ensure_feature_list(friches))}")
-        print(f"  - Solaire: {len(ensure_feature_list(solaire))}")
+        safe_print(f"🗺️ [CARTE] Génération carte pour {address} - Lat: {lat}, Lon: {lon}")
+        safe_print(f"📊 [CARTE] Données à traiter:")
+        safe_print(f"  - Parcelles: {len(ensure_feature_list(parcelles_data))}")
+        safe_print(f"  - Postes BT: {len(ensure_feature_list(postes_bt))}")
+        safe_print(f"  - Postes HTA: {len(ensure_feature_list(postes_hta))}")
+        safe_print(f"  - PLU: {len(ensure_feature_list(plu_info))}")
+        safe_print(f"  - Parkings: {len(ensure_feature_list(parkings))}")
+        safe_print(f"  - Friches: {len(ensure_feature_list(friches))}")
+        safe_print(f"  - Solaire: {len(ensure_feature_list(solaire))}")
         
         map_obj = build_map(
             lat, lon, address,
@@ -8714,7 +8856,7 @@ def search_by_address_route():
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        print("[search_by_address] Erreur build_map :", e)
+        safe_print("[search_by_address] Erreur build_map :", e)
         logging.error(f"[search_by_address] Erreur build_map: {e}\nTraceback:\n{tb}")
         return jsonify({"error": f"Erreur build_map: {e}", "traceback": tb}), 500
 
@@ -8728,7 +8870,7 @@ def search_by_address_route():
 
     # Validation et correction: s'assurer qu'une carte Folium soit toujours générée
     if not carte_url:
-        print(f"[WARNING] Génération carte échouée, retry avec carte simple...")
+        safe_print(f"⚠️ [CARTE] Génération carte échouée, retry avec carte simple...")
         try:
             # Régénérer une carte Folium avec au moins les données de base
             import folium
@@ -8761,13 +8903,22 @@ def search_by_address_route():
     import time
     if carte_url and "map_" in carte_url:
         info_response["carte_url"] += f"?t={int(time.time())}"
-        print(f"[DEBUG] URL avec cache bust: {info_response['carte_url']}")
+        safe_print(f"🗺️ [CARTE] URL avec cache bust: {info_response['carte_url']}")
     
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
     try:
         save_map_to_cache(map_obj, info_response)
+        safe_print(f"💾 [CACHE] Carte sauvegardée en cache")
     except Exception as cache_error:
         logging.error(f"[search_by_address] Erreur save_map_to_cache: {cache_error}")
+        safe_print(f"❌ [CACHE] Erreur sauvegarde cache: {cache_error}")
+    
+    # Logs de fin de recherche
+    safe_print(f"✅ [RÉSULTATS] === RECHERCHE PAR ADRESSE TERMINÉE ===")
+    safe_print(f"📍 Adresse traitée: {address or f'{lat}, {lon}'}")
+    safe_print(f"🗺️ Carte générée: {'✅' if carte_url else '❌'}")
+    safe_print(f"⏱️ Recherche terminée: {datetime.now().strftime('%H:%M:%S')}")
+    safe_print(f"{'='*80}\n")
     
     return jsonify(info_response)
 

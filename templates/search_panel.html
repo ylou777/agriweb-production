@@ -8,38 +8,8 @@
     </button>
   </h2>
   <div id="acc-pane-addr" class="accordion-collapse collapse show">
-    <div class="accordion      // Démarre EventSource
-      const url = '/commune_search_sse?' + params.toString();
-      console.log('🚀 [DEBUG JS] Démarrage EventSource:', url);
-      const es = new EventSource(url);
-      appendLog('Analyse en cours…');
-
-      // Écouter TOUS les événements SSE, pas seulement 'message'
-      es.onmessage = function(ev) {
-        console.log('📩 [DEBUG JS] Message SSE reçu:', ev.data);
-        if (ev?.data) appendLog(ev.data);
-      };
-      
-      es.addEventListener('message', (ev) => {
-        console.log('📩 [DEBUG JS] Event message reçu:', ev.data);
-        if (ev?.data) appendLog(ev.data);
-      });
-      
-  // Plus de redirection automatique: on conserve seulement les logs.
-  // Le rapport complet sera lancé depuis le bouton dédié.
-      es.addEventListener('error', (ev) => {
-        console.log('❌ [DEBUG JS] Erreur SSE:', ev);
-        appendLog('Erreur pendant l'analyse.');
-        try { es.close(); } catch {}
-      });
-      
-      es.addEventListener('done', () => {
-        console.log('✅ [DEBUG JS] Événement done reçu');
-        appendLog('Analyse terminée.');
-        appendLog('🗺️ Génération de la carte...');
-        try { es.close(); } catch {}
-        
-        // Après la fin de l'analyse, générer automatiquement la carte id="unifiedSearchForm" autocomplete="off">
+    <div class="accordion-body">
+      <form id="unifiedSearchForm" autocomplete="off">
         <label class="form-label" for="search_input">Adresse, coordonnées ou GeoJSON :</label>
         <input id="search_input" class="form-control mb-2" placeholder='48.85,2.35 ou {"type":"Point",...}'>
 
