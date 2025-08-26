@@ -14,11 +14,14 @@ import json
 
 # Imports pour les cartes
 import folium
-from folium.plugins import Draw, MeasureControl, MarkerCluster
+from folium.plugins import Draw, MeasureControl, MarkerCluster, Search
 import geopandas as gpd
 from shapely.geometry import shape, Point, mapping, MultiPolygon, Polygon
 from shapely.ops import transform as shp_transform
+from shapely.errors import GEOSException
 from pyproj import Transformer
+from urllib.parse import quote, quote_plus
+import unicodedata, re
 import time
 
 # Import des modules AgriWeb existants
