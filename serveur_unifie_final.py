@@ -754,9 +754,36 @@ def index():
                     const result = await response.json();
                     
                     if (result.success) {
-                        document.getElementById('search-results').innerHTML = 
-                            '<div class="alert alert-success"><h3>✅ Résultats pour ' + commune + '</h3>' +
-                            '<pre>' + JSON.stringify(result.results, null, 2) + '</pre></div>';
+                        let html = '<div class="alert alert-success"><h3>✅ Résultats pour ' + commune + '</h3>';
+                        
+                        // Si une carte a été générée, l'afficher
+                        if (result.results.map_url) {
+                            html += '<div style="margin: 20px 0;"><h4>🗺️ Carte Interactive</h4>' +
+                                   '<iframe src="' + result.results.map_url + '" ' +
+                                   'style="width: 100%; height: 600px; border: 1px solid #ccc; border-radius: 8px;" ' +
+                                   'title="Carte interactive"></iframe></div>';
+                        }
+                        
+                        // Informations de base
+                        if (result.results.coordinates) {
+                            html += '<p><strong>📍 Coordonnées:</strong> ' + 
+                                   result.results.coordinates.lat.toFixed(4) + ', ' + 
+                                   result.results.coordinates.lon.toFixed(4) + '</p>';
+                        }
+                        
+                        // Statistiques des couches
+                        if (result.results.search_results && result.results.search_results.layers_count) {
+                            html += '<p><strong>📊 Couches chargées:</strong> ' + 
+                                   result.results.search_results.layers_count + ' éléments</p>';
+                        }
+                        
+                        // Détails techniques (repliable)
+                        html += '<details style="margin-top: 20px;"><summary>🔧 Détails techniques</summary>' +
+                               '<pre style="background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; max-height: 300px;">' + 
+                               JSON.stringify(result.results, null, 2) + '</pre></details>';
+                        
+                        html += '</div>';
+                        document.getElementById('search-results').innerHTML = html;
                     } else {
                         document.getElementById('search-results').innerHTML = 
                             '<div class="alert alert-error">❌ ' + result.error + '</div>';
@@ -1000,6 +1027,108 @@ def api_search():
             }), 400
         
         print(f"🔍 Recherche pour {commune} par {session.get('email', 'unknown')}")
+        
+        # ===== GÉNÉRATION VRAIE CARTE AVEC DONNÉES RÉELLES =====
+        try:
+            # 1. Géocodage de la commune pour obtenir lat/lon
+            print(f"🌍 [GEOCODAGE] Géocodage de {commune}...")
+            coordinates = geocode_address(commune)
+            if not coordinates:
+                # Fallback: essayer avec "Commune, France"
+                coordinates = geocode_address(f"{commune}, France")
+            
+            if not coordinates:
+                return jsonify({
+                    'success': False,
+                    'error': f'Impossible de localiser la commune {commune}'
+                }), 400
+                
+            lat, lon = coordinates
+            print(f"📍 [GEOCODAGE] {commune} trouvé: {lat}, {lon}")
+            
+            # 2. Génération du rapport complet avec carte
+            print(f"🗺️ [RAPPORT] Génération rapport complet pour {commune}...")
+            report_data = build_report_data(lat, lon, commune, ht_radius_km=1, sirene_radius_km=0.05)
+            
+            # 3. Génération de la carte avec notre fonction build_map
+            print(f"🗺️ [CARTE] Génération carte complète...")
+            
+            # Récupération des données pour la carte
+            parcelle_info = get_all_parcelles(lat, lon, radius=0.01)
+            
+            # Données GeoServer dynamiques
+            postes_data = get_all_postes(lat, lon, radius_deg=0.1)
+            ht_postes_data = get_all_ht_postes(lat, lon, radius_deg=0.5)
+            plu_info = get_plu_info(lat, lon, radius=0.03)
+            parkings_data = get_parkings_info(lat, lon, radius=0.03)
+            friches_data = get_friches_info(lat, lon, radius=0.03)
+            potentiel_solaire_data = get_potentiel_solaire_info(lat, lon, radius=1.0)
+            zaer_data = get_zaer_info(lat, lon, radius=0.03)
+            rpg_data = get_rpg_info(lat, lon, radius=0.0027)
+            sirene_data = get_sirene_info(lat, lon, radius=0.03)
+            eleveurs_data = get_eleveurs_info(lat, lon, radius=0.1)
+            capacites_reseau = get_capacites_reseau_info(lat, lon, radius=0.5)
+            ppri_data = get_ppri_info(lat, lon, radius=0.03)
+            
+            print(f"📊 [DONNÉES] Postes: {len(postes_data)}, PLU: {len(plu_info)}, Parkings: {len(parkings_data)}")
+            
+            # Construction de la carte
+            map_obj = build_map(
+                lat=lat, lon=lon, address=commune,
+                parcelle_props=None, parcelles_data=parcelle_info,
+                postes_data=postes_data, ht_postes_data=ht_postes_data,
+                plu_info=plu_info, parkings_data=parkings_data,
+                friches_data=friches_data, potentiel_solaire_data=potentiel_solaire_data,
+                zaer_data=zaer_data, rpg_data=rpg_data, sirene_data=sirene_data,
+                search_radius=1000, ht_radius_deg=0.1, api_cadastre=None,
+                api_nature=None, api_urbanisme=None, eleveurs_data=eleveurs_data,
+                capacites_reseau=capacites_reseau, ppri_data=ppri_data
+            )
+            
+            # Sauvegarde de la carte
+            timestamp = int(time.time())
+            map_filename = f"commune_{commune}_{timestamp}.html"
+            map_path = os.path.join("static", "cartes", map_filename)
+            os.makedirs(os.path.dirname(map_path), exist_ok=True)
+            map_obj.save(map_path)
+            
+            map_url = f"/static/cartes/{map_filename}?t={timestamp}"
+            print(f"✅ [CARTE] Carte sauvée: {map_url}")
+            
+            # Résultats complets
+            results = {
+                'commune': commune,
+                'coordinates': {'lat': lat, 'lon': lon},
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'map_url': map_url,
+                'user': {
+                    'email': session.get('email'),
+                    'license': session.get('license_type'),
+                    'expires': session.get('expires')
+                },
+                'report_data': report_data,
+                'search_results': {
+                    'status': 'success',
+                    'message': f'Carte complète générée pour {commune}',
+                    'layers_count': len(postes_data) + len(plu_info) + len(parkings_data) + len(friches_data)
+                }
+            }
+            
+            return jsonify({
+                'success': True,
+                'results': results
+            })
+            
+        except Exception as e:
+            print(f"❌ [ERREUR] Erreur génération carte commune: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Fallback vers l'ancien système
+            pass
+        
+        # === FALLBACK: ANCIEN SYSTÈME SIMPLE ===
+        print("⚠️ [FALLBACK] Utilisation système simple")
         
         # Test connexion GeoServer
         try:
