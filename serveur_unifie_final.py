@@ -372,6 +372,18 @@ def clean_env_var(var_name, default_value):
     if value and value.startswith('"') and value.endswith('"'):
         value = value[1:-1]  # Retire les guillemets
     return value
+
+def force_https_geoserver_url(url):
+    """Force HTTPS et ajoute le slash final pour éviter les redirections ngrok"""
+    if not url:
+        return url
+    # Forcer HTTPS
+    if url.startswith('http://'):
+        url = url.replace('http://', 'https://', 1)
+    # Ajouter slash final si manquant pour éviter redirect 302
+    if url.endswith('/geoserver'):
+        url = url + '/'
+    return url
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
     'parcelles': {'color': '#FF6600', 'fillColor': '#FFD700', 'fillOpacity': 0.3, 'weight': 2},
@@ -795,7 +807,7 @@ def detect_working_geoserver():
         environment = clean_env_var("ENVIRONMENT", "").lower()
         if environment in ["production", "railway"] or "railway" in os.environ.get("RAILWAY_ENVIRONMENT", ""):
             print(f"🚀 [PRODUCTION] Utilisation de GEOSERVER_URL: {env_url}")
-            return env_url
+            return force_https_geoserver_url(env_url)
         
         # En développement local, tester la connectivité
         try:
@@ -803,7 +815,7 @@ def detect_working_geoserver():
             response = requests.head(env_url, timeout=5, allow_redirects=True)
             if response.status_code in [200, 302]:
                 print(f"✅ [LOCAL] GeoServer accessible via variable d'environnement: {env_url}")
-                return env_url
+                return force_https_geoserver_url(env_url)
         except Exception as e:
             print(f"⚠️ [LOCAL] Test de la variable d'environnement échoué: {e}")
     
@@ -822,7 +834,7 @@ def detect_working_geoserver():
                         test_response = requests.head(current_url, timeout=5, allow_redirects=True)
                         if test_response.status_code in [200, 302]:
                             print(f"✅ GeoServer accessible: {current_url}")
-                            return current_url
+                            return force_https_geoserver_url(current_url)
                     except Exception as e:
                         print(f"❌ Test échoué pour {current_url}: {e}")
                     break
@@ -842,15 +854,15 @@ def detect_working_geoserver():
             response = requests.head(url, timeout=10, allow_redirects=True)
             if response.status_code in [200, 302]:
                 print(f"✅ GeoServer accessible (fallback): {url}")
-                return url
+                return force_https_geoserver_url(url)
         except Exception as e:
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
     # URL par défaut si rien ne fonctionne - DOMAINE NGROK STABLE
-    final_fallback = "https://agriweb-prod.ngrok-free.app/geoserver"
+    final_fallback = "https://agriweb-prod.ngrok-free.app/geoserver/"
     print(f"⚠️ Aucun GeoServer accessible, utilisation domaine ngrok par défaut: {final_fallback}")
-    return final_fallback
+    return force_https_geoserver_url(final_fallback)
 
 # Configuration pour Railway avec détection automatique
 GEOSERVER_URL = detect_working_geoserver()
