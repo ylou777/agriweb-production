@@ -355,23 +355,9 @@ try:
 except ImportError:
     tk = None  # Environnement headless (pas d’interface X11)
 
-# Configuration Flask avec dossier static pour Railway
-app = Flask(__name__, static_folder='static', static_url_path='/static')
+app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
-
-# Créer le dossier static/cartes si il n'existe pas (pour Railway)
-static_cartes_dir = os.path.join(os.path.dirname(__file__), 'static', 'cartes')
-os.makedirs(static_cartes_dir, exist_ok=True)
-print(f"📁 Dossier static/cartes créé: {static_cartes_dir}")
-
-# Fonction pour nettoyer les guillemets des variables Railway
-def clean_env_var(var_name, default_value):
-    """Nettoie les guillemets des variables d'environnement Railway"""
-    value = os.getenv(var_name, default_value)
-    if value and value.startswith('"') and value.endswith('"'):
-        value = value[1:-1]  # Retire les guillemets
-    return value
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
     'parcelles': {'color': '#FF6600', 'fillColor': '#FFD700', 'fillOpacity': 0.3, 'weight': 2},
@@ -788,11 +774,11 @@ def detect_working_geoserver():
     """Détecte automatiquement une URL GeoServer fonctionnelle"""
     
     # Priorité 1: Variable d'environnement (faire confiance directement sur Railway)
-    env_url = clean_env_var("GEOSERVER_URL", None)
+    env_url = os.getenv("GEOSERVER_URL")
     if env_url:
         # En production (Railway/Heroku), faire confiance à la variable d'environnement
         # sans test localhost car le serveur distant ne peut pas se connecter à localhost
-        environment = clean_env_var("ENVIRONMENT", "").lower()
+        environment = os.getenv("ENVIRONMENT", "").lower()
         if environment in ["production", "railway"] or "railway" in os.environ.get("RAILWAY_ENVIRONMENT", ""):
             print(f"🚀 [PRODUCTION] Utilisation de GEOSERVER_URL: {env_url}")
             return env_url
@@ -854,10 +840,10 @@ def detect_working_geoserver():
 
 # Configuration pour Railway avec détection automatique
 GEOSERVER_URL = detect_working_geoserver()
-GEOSERVER_USERNAME = clean_env_var("GEOSERVER_USERNAME", "admin")
-GEOSERVER_PASSWORD = clean_env_var("GEOSERVER_PASSWORD", "geoserver")
-PORT = int(clean_env_var("PORT", "5000"))
-DEBUG = clean_env_var("FLASK_DEBUG", "False").lower() == "true"
+GEOSERVER_USERNAME = os.getenv("GEOSERVER_USERNAME", "admin")
+GEOSERVER_PASSWORD = os.getenv("GEOSERVER_PASSWORD", "geoserver")
+PORT = int(os.getenv("PORT", 5000))
+DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
 print(f"🚀 Configuration Railway:")
 print(f"   - GeoServer URL: {GEOSERVER_URL}")

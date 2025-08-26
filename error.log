@@ -9197,3 +9197,12 @@ OSError: [Errno 28] No space left on device
 2025-08-26 12:23:35,158 INFO 127.0.0.1 - - [26/Aug/2025 12:23:35] "GET /static/main.js HTTP/1.1" 200 -
 2025-08-26 12:24:47,376 INFO 127.0.0.1 - - [26/Aug/2025 12:24:47] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
 2025-08-26 12:24:48,429 INFO 127.0.0.1 - - [26/Aug/2025 12:24:48] "GET /static/cartes/map_1756203866_553097605574517883.html?t=1756203876&cache=1756203887613 HTTP/1.1" 200 -
+2025-08-26 14:44:57,623 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 14:44:57,626 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 14:45:00,899 INFO 127.0.0.1 - - [26/Aug/2025 14:45:00] "GET / HTTP/1.1" 200 -
+2025-08-26 14:45:04,816 INFO 127.0.0.1 - - [26/Aug/2025 14:45:04] "GET /app HTTP/1.1" 200 -
+2025-08-26 14:45:05,274 INFO 127.0.0.1 - - [26/Aug/2025 14:45:05] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-08-26 14:45:05,302 INFO 127.0.0.1 - - [26/Aug/2025 14:45:05] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-08-26 14:46:06,393 INFO 127.0.0.1 - - [26/Aug/2025 14:46:06] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-08-26 14:46:07,412 INFO 127.0.0.1 - - [26/Aug/2025 14:46:07] "GET /static/cartes/map_1756212346_3822255607488744032.html?t=1756212353&cache=1756212366666 HTTP/1.1" 200 -
