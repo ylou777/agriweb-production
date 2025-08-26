@@ -17,6 +17,7 @@ import folium
 from folium.plugins import Draw, MeasureControl, MarkerCluster
 import geopandas as gpd
 from shapely.geometry import shape, Point, mapping, MultiPolygon, Polygon
+from shapely.ops import transform as shp_transform
 from pyproj import Transformer
 import time
 
@@ -87,6 +88,237 @@ PARCELLES_GRAPHIQUES_LAYER = "gpu:PARCELLES_GRAPHIQUES"  # RPG
 SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène
 ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
 PPRI_LAYER = "gpu:ppri"
+
+# === FONCTIONS UTILITAIRES POUR LES CARTES ===
+
+def save_map_html(map_obj, filename):
+    """
+    Save a Folium map object to static/cartes/ and return the relative path for use in the app.
+    """
+    import os
+    # Ensure the directory exists
+    cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+    os.makedirs(cartes_dir, exist_ok=True)
+    # Save the map
+    filepath = os.path.join(cartes_dir, filename)
+    map_obj.save(filepath)
+    # Return the relative path from /static/
+    return f"cartes/{filename}"
+
+def bbox_to_polygon(lon, lat, delta):
+    """
+    Construit un polygone de type 'Polygon' (GeoJSON)
+    autour d'un centre (lon, lat) avec un rayon en degrés = delta.
+    """
+    return {
+        "type": "Polygon",
+        "coordinates": [[
+            [lon - delta, lat - delta],
+            [lon + delta, lat - delta],
+            [lon + delta, lat + delta],
+            [lon - delta, lat + delta],
+            [lon - delta, lat - delta]
+        ]]
+    }
+
+# Mapping des cultures RPG
+rpg_culture_mapping = {
+    "BTH": "Blé tendre d'hiver",
+    "BTP": "Blé tendre de printemps",
+    "MID": "Maïs doux",
+    "MIE": "Maïs ensilage",
+    "MIS": "Maïs",
+    "ORH": "Orge d'hiver",
+    "ORP": "Orge de printemps",
+    "AVH": "Avoine d'hiver",
+    "AVP": "Avoine de printemps",
+    "CZH": "Colza d'hiver",
+    "CZP": "Colza de printemps",
+    "TRN": "Tournesol",
+    "ARA": "Arachide"
+}
+
+def decode_rpg_feature(feature):
+    props = feature.get("properties", {})
+    code = props.get("CODE_CULTU", "").strip()
+    if code in rpg_culture_mapping:
+        props["Culture"] = rpg_culture_mapping[code]
+    else:
+        props["Culture"] = code
+    return feature
+
+def calculate_min_distance(centroid, postes):
+    distances = [
+        shape(poste["geometry"]).distance(Point(centroid)) * 111000
+        for poste in postes
+    ]
+    return min(distances) if distances else None
+
+def flatten_gpu_dict_to_featurecollection(gpu_dict):
+    features = []
+    for key, value in gpu_dict.items():
+        # Chaque "value" devrait être une FeatureCollection
+        if isinstance(value, dict) and value.get("type") == "FeatureCollection":
+            features += value.get("features", [])
+    return {"type": "FeatureCollection", "features": features}
+
+def get_all_gpu_data(geom):
+    """Version simplifiée pour Railway - utilise fetch_gpu_data si disponible"""
+    endpoints = [
+        "zone-urba",
+        "prescription-surf",
+        "prescription-lin",
+        "prescription-pct",
+        "secteur-cc"
+    ]
+    results = {}
+    for ep in endpoints:
+        try:
+            if 'fetch_gpu_data' in globals():
+                data = fetch_gpu_data(ep, geom)
+            else:
+                data = {"type": "FeatureCollection", "features": []}
+            results[ep] = data
+        except Exception as e:
+            print(f"[DEBUG] Erreur GPU {ep}: {e}")
+            results[ep] = {"type": "FeatureCollection", "features": []}
+    return results
+
+# === FONCTIONS DE RÉCUPÉRATION DYNAMIQUE DES DONNÉES GEOSERVER ===
+
+def fetch_wfs_data(layer_name, bbox, srsname="EPSG:4326"):
+    """Récupère les données WFS depuis GeoServer de façon dynamique"""
+    from urllib.parse import quote
+    layer_q = quote(layer_name, safe=':')
+    url = f"{GEOSERVER_WFS_URL}?service=WFS&version=2.0.0&request=GetFeature&typeName={layer_q}&outputFormat=application/json&bbox={bbox}&srsname={srsname}"
+    try:
+        resp = requests.get(url, auth=(GEOSERVER_USERNAME, GEOSERVER_PASSWORD), timeout=10)
+        resp.raise_for_status()
+        if 'xml' in resp.headers.get('Content-Type', ''):
+            print(f"[fetch_wfs_data] GeoServer error XML for {layer_name}:\n{resp.text[:200]}")
+            return []
+        return resp.json().get('features', [])
+    except Exception as e:
+        print(f"[fetch_wfs_data] Erreur {layer_name}: {e}")
+        return []
+
+def get_all_postes(lat, lon, radius_deg=0.1):
+    """Récupère dynamiquement les postes BT depuis GeoServer"""
+    bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
+    features = fetch_wfs_data(POSTE_LAYER, bbox)
+    if not features:
+        print(f"[DEBUG] Aucun poste trouvé dans le bbox {bbox}")
+        return []
+    
+    point = Point(lon, lat)
+    postes = []
+    for feature in features:
+        geom_shp = shape(feature["geometry"])
+        dist = geom_shp.distance(point) * 111000  # Conversion en mètres
+        postes.append({
+            "properties": feature["properties"],
+            "distance": round(dist, 2),
+            "geometry": mapping(geom_shp)
+        })
+    print(f"[DEBUG] {len(postes)} postes trouvés, distances: {[p['distance'] for p in postes[:3]]}")
+    return postes
+
+def get_all_ht_postes(lat, lon, radius_deg=0.5):
+    """Récupère dynamiquement les postes HTA depuis GeoServer"""
+    bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
+    features = fetch_wfs_data(HT_POSTE_LAYER, bbox)
+    if not features:
+        return []
+    
+    point = Point(lon, lat)
+    postes = []
+    for feature in features:
+        geom_shp = shape(feature["geometry"])
+        dist = geom_shp.distance(point) * 111000
+        postes.append({
+            "properties": feature["properties"],
+            "distance": round(dist, 2),
+            "geometry": mapping(geom_shp)
+        })
+    return postes
+
+def get_plu_info(lat, lon, radius=0.03):
+    """Récupère dynamiquement les données PLU depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    features = fetch_wfs_data(PLU_LAYER, bbox)
+    plu_info = []
+    for feature in features:
+        props = feature["properties"]
+        plu_info.append({
+            "insee": props.get("insee"),
+            "typeref": props.get("typeref"),
+            "archive_url": props.get("archiveUrl"),
+            "files": props.get("files", "").split(", "),
+            "geometry": feature.get("geometry")
+        })
+    return plu_info
+
+def get_parkings_info(lat, lon, radius=0.03):
+    """Récupère dynamiquement les parkings depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    return fetch_wfs_data(PARKINGS_LAYER, bbox)
+
+def get_friches_info(lat, lon, radius=0.03):
+    """Récupère dynamiquement les friches depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    return fetch_wfs_data(FRICHES_LAYER, bbox)
+
+def get_potentiel_solaire_info(lat, lon, radius=1.0):
+    """Récupère dynamiquement le potentiel solaire depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    return fetch_wfs_data(POTENTIEL_SOLAIRE_LAYER, bbox)
+
+def get_zaer_info(lat, lon, radius=0.03):
+    """Récupère dynamiquement les zones ZAER depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    return fetch_wfs_data(ZAER_LAYER, bbox)
+
+def get_rpg_info(lat, lon, radius=0.0027):
+    """Récupère dynamiquement les données RPG depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    print(f"[DEBUG RPG] BBOX: {bbox}")
+    print(f"[DEBUG RPG] Layer: {PARCELLES_GRAPHIQUES_LAYER}")
+    
+    features = fetch_wfs_data(PARCELLES_GRAPHIQUES_LAYER, bbox)
+    print(f"[DEBUG RPG] Features trouvées: {len(features) if features else 0}")
+    
+    if features:
+        print(f"[DEBUG RPG] Première feature: {list(features[0].get('properties', {}).keys())}")
+    
+    return features
+
+def get_sirene_info(lat, lon, radius):
+    """Récupère dynamiquement les données Sirene depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    return fetch_wfs_data(SIRENE_LAYER, bbox)
+
+def get_eleveurs_info(lat, lon, radius=0.1):
+    """Récupère dynamiquement les éleveurs depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    return fetch_wfs_data(ELEVEURS_LAYER, bbox)
+
+def get_ppri_info(lat, lon, radius=0.03):
+    """Récupère dynamiquement les données PPRI depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    features = fetch_wfs_data(PPRI_LAYER, bbox)
+    return {"type": "FeatureCollection", "features": features}
+
+def get_capacites_reseau_info(lat, lon, radius=0.5):
+    """Récupère dynamiquement les capacités réseau depuis GeoServer"""
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    features = fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox)
+    capacites = []
+    for feature in features:
+        capacites.append({
+            "properties": feature["properties"],
+            "geometry": feature["geometry"]
+        })
+    return capacites
 
 print("🗺️ [COUCHES] Configuration GeoServer:")
 print(f"   - Parcelles: {PARCELLE_LAYER}")
@@ -825,50 +1057,582 @@ def status():
 
 # === FONCTIONS CARTOGRAPHIQUES ===
 
-def build_map_simple(lat, lon, address, parcelles_data=None):
-    """Version simplifiée de build_map avec Esri et parcelles"""
+def build_map(
+    lat, lon, address,
+    parcelle_props, parcelles_data,
+    postes_data, ht_postes_data, plu_info,
+    parkings_data, friches_data, potentiel_solaire_data,
+    zaer_data, rpg_data, sirene_data,
+    search_radius, ht_radius_deg,
+    api_cadastre=None, api_nature=None, api_urbanisme=None,
+    eleveurs_data=None,
+    capacites_reseau=None,
+    ppri_data=None  # Ajout PPRI
+):
+    import folium
+    from folium.plugins import Draw, MeasureControl, MarkerCluster
+    from pyproj import Transformer
+    from shapely.geometry import shape, mapping, MultiPolygon
+    from folium import Element
+
+    # --- PATCH ROBUSTESSE ENTRÉES ---
+    if parcelles_data is None or not isinstance(parcelles_data, dict):
+        parcelles_data = {"type": "FeatureCollection", "features": []}
+    if postes_data is None:
+        postes_data = []
+    if ht_postes_data is None:
+        ht_postes_data = []
+    if plu_info is None:
+        plu_info = []
+    if parkings_data is None:
+        parkings_data = []
+    if friches_data is None:
+        friches_data = []
+    if potentiel_solaire_data is None:
+        potentiel_solaire_data = []
+    if zaer_data is None:
+        zaer_data = []
+    if rpg_data is None:
+        rpg_data = []
+    if sirene_data is None:
+        sirene_data = []
+    if api_cadastre is None or not isinstance(api_cadastre, dict):
+        api_cadastre = {"type": "FeatureCollection", "features": []}
+    if api_nature is None or not isinstance(api_nature, dict):
+        api_nature = {"type": "FeatureCollection", "features": []}
+    if api_urbanisme is None or not isinstance(api_urbanisme, dict):
+        api_urbanisme = {}
+    # eleveurs_data : None accepté
+    if capacites_reseau is None:
+        capacites_reseau = []
+    if ppri_data is None or not isinstance(ppri_data, dict):
+        ppri_data = {"type": "FeatureCollection", "features": []}
     
-    # Création carte avec fond Esri
-    map_obj = folium.Map(location=[lat, lon], zoom_start=15, tiles=None)
+    # === CRÉATION DE LA CARTE (doit être fait avant toute utilisation) ===
+    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
     
-    # Couche Esri (satellite)
+    # Ajouter les couches de base
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery",
         name="Satellite",
         overlay=False, control=True, show=True
     ).add_to(map_obj)
-    
-    # Couche OpenStreetMap
     folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
     
-    # Marqueur principal
-    folium.Marker(
-        [lat, lon], 
-        popup=f"📍 {address}<br>Lat: {lat:.6f}<br>Lon: {lon:.6f}",
-        icon=folium.Icon(color='red', icon='info-sign')
-    ).add_to(map_obj)
+    # --- PPRI ---
+    if ppri_data.get("features"):
+        ppri_group = folium.FeatureGroup(name="PPRI", show=True)
+        for feat in ppri_data["features"]:
+            geom = feat.get("geometry")
+            valid_geom = False
+            if geom and isinstance(geom, dict):
+                gtype = geom.get("type")
+                coords = geom.get("coordinates")
+                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                    if coords and coords != [] and coords is not None:
+                        valid_geom = True
+            if valid_geom:
+                try:
+                    folium.GeoJson(
+                        geom,
+                        style_function=lambda _: {"color": "#FF00FF", "weight": 2, "fillColor": "#FFB6FF", "fillOpacity": 0.3},
+                        tooltip="<br>".join(f"{k}: {v}" for k, v in feat.get("properties", {}).items())
+                    ).add_to(ppri_group)
+                except Exception as e:
+                    print(f"[ERROR] Exception while adding PPRI geometry: {e}\nGeom: {geom}")
+            else:
+                print(f"[DEBUG] Invalid PPRI geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+        map_obj.add_child(ppri_group)
+
+    # Option: mode léger (pas de LayerControl, pas de Marker inutile)
+    mode_light = False  # Désactivé par défaut
     
-    # Parcelles cadastrales
-    if parcelles_data and parcelles_data.get("features"):
-        parcelles_group = folium.FeatureGroup(name="Parcelles", show=True)
-        for feature in parcelles_data["features"]:
-            if feature.get("geometry"):
+    if not mode_light:
+        from folium.plugins import Draw
+        Draw(export=True).add_to(map_obj)
+        MeasureControl(position="topright").add_to(map_obj)
+
+    # Cadastre
+    cadastre_group = folium.FeatureGroup(name="Cadastre (WFS)", show=True)
+    if parcelle_props and parcelle_props.get("geometry"):
+        tooltip = "<br>".join(f"{k}: {v}" for k, v in parcelle_props.items() if k != "geometry")
+        geom = parcelle_props["geometry"]
+        valid_geom = False
+        if geom and isinstance(geom, dict):
+            gtype = geom.get("type")
+            coords = geom.get("coordinates")
+            if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                if coords and coords != [] and coords is not None:
+                    valid_geom = True
+        if valid_geom:
+            try:
+                folium.GeoJson(geom, style_function=lambda _: {"color": "blue", "weight": 2}, tooltip=tooltip).add_to(cadastre_group)
+            except Exception as e:
+                print(f"[ERROR] Exception while adding Cadastre geometry: {e}\nGeom: {geom}")
+        else:
+            print(f"[DEBUG] Invalid Cadastre geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+    if parcelles_data.get("features"):
+        to_wgs84 = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True).transform
+        for feat in parcelles_data["features"]:
+            try:
+                geom_wgs = shp_transform(to_wgs84, shape(feat["geometry"]))
+                props = feat.get("properties", {})
+                tooltip = "<br>".join(f"{k}: {v}" for k, v in props.items())
+                folium.GeoJson(mapping(geom_wgs), style_function=lambda _: {"color": "purple", "weight": 2}, tooltip=tooltip).add_to(cadastre_group)
+            except Exception as e:
+                print(f"[ERROR] Exception while adding Cadastre feature: {e}\nFeature: {feat}")
+    map_obj.add_child(cadastre_group)
+
+    if api_cadastre.get("features"):
+        cad_api_group = folium.FeatureGroup(name="Cadastre (API IGN)", show=True)
+        for feat in api_cadastre["features"]:
+            geom = feat.get("geometry")
+            valid_geom = False
+            if geom and isinstance(geom, dict):
+                gtype = geom.get("type")
+                coords = geom.get("coordinates")
+                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                    if coords and coords != [] and coords is not None:
+                        valid_geom = True
+            if valid_geom:
+                try:
+                    folium.GeoJson(geom, style_function=lambda _: {"color": "#FF6600", "weight": 2, "fillColor": "#FFFF00", "fillOpacity": 0.4}, tooltip="<br>".join(f"{k}: {v}" for k, v in feat.get("properties", {}).items())).add_to(cad_api_group)
+                except Exception as e:
+                    print(f"[ERROR] Exception while adding API Cadastre geometry: {e}\nGeom: {geom}")
+            else:
+                print(f"[DEBUG] Invalid API Cadastre geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+        map_obj.add_child(cad_api_group)
+
+    # --- Postes BT (filtrage doublons par coordonnées) ---
+    def poste_key(poste):
+        geom = poste.get("geometry")
+        if geom and "coordinates" in geom:
+            coords = tuple(geom["coordinates"])
+        else:
+            coords = ()
+        return coords
+
+    seen_bt = set()
+    filtered_bt = []
+    for poste in postes_data:
+        key = poste_key(poste)
+        if key in seen_bt or not poste.get("geometry"):
+            continue
+        seen_bt.add(key)
+        filtered_bt.append(poste)
+
+    bt_group = folium.FeatureGroup(name="Postes BT", show=True)
+    for poste in filtered_bt:
+        props = poste.get("properties", {})
+        dist_m = poste.get("distance")
+        try:
+            coords = poste["geometry"]["coordinates"]
+            lat_p, lon_p = coords[1], coords[0]
+        except Exception:
+            continue
+        popup = "<b>Poste BT</b><br>" + "<br>".join(f"{k}: {v}" for k, v in props.items())
+        if dist_m is not None:
+            popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
+        streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
+        popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
+        folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="darkgreen", icon="flash", prefix="fa")).add_to(bt_group)
+        folium.Circle([lat_p, lon_p], radius=25, color="darkgreen", fill=True, fill_opacity=0.2).add_to(bt_group)
+    map_obj.add_child(bt_group)
+
+    # --- Postes HTA (filtrage doublons par coordonnées) ---
+    seen_hta = set()
+    filtered_hta = []
+    for poste in ht_postes_data:
+        key = poste_key(poste)
+        if key in seen_hta or not poste.get("geometry"):
+            continue
+        seen_hta.add(key)
+        filtered_hta.append(poste)
+
+    hta_group = folium.FeatureGroup(name="Postes HTA (capacité)", show=True)
+    for poste in filtered_hta:
+        props = poste.get("properties", {})
+        dist_m = poste.get("distance")
+        try:
+            coords = poste["geometry"]["coordinates"]
+            lat_p, lon_p = coords[1], coords[0]
+        except Exception:
+            continue
+        capa = props.get("Capacité") or props.get("CapacitÃƒÂ©") or "N/A"
+        popup = "<b>Poste HTA</b><br>" + "<br>".join(f"{k}: {v}" for k, v in props.items())
+        if dist_m is not None:
+            popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
+        popup += f"<br><b>Capacité dispo</b>: {capa}"
+        streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
+        popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
+        folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="orange", icon="bolt", prefix="fa")).add_to(hta_group)
+    map_obj.add_child(hta_group)
+
+    # PLU
+    plu_group = folium.FeatureGroup(name="PLU", show=True)
+    for item in plu_info:
+        if item.get("geometry"):
+            folium.GeoJson(item.get("geometry"), style_function=lambda _: {"color": "red", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in item.items())).add_to(plu_group)
+    map_obj.add_child(plu_group)
+
+    # Autres couches simples
+    # DÉFINITION DES FONCTIONS DE STYLE EN DEHORS DE LA BOUCLE
+    def style_parkings(feature):
+        return {"color": "orange", "weight": 3, "fillColor": "orange", "fillOpacity": 0.4, "opacity": 0.8}
+    
+    def style_friches(feature):
+        return {"color": "brown", "weight": 3, "fillColor": "brown", "fillOpacity": 0.4, "opacity": 0.8}
+    
+    def style_solaire(feature):
+        return {"color": "gold", "weight": 3, "fillColor": "gold", "fillOpacity": 0.4, "opacity": 0.8}
+    
+    def style_zaer(feature):
+        return {"color": "cyan", "weight": 3, "fillColor": "cyan", "fillOpacity": 0.4, "opacity": 0.8}
+
+    for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
+        print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")
+        group = folium.FeatureGroup(name=name, show=True)
+        
+        for f in data:
+            geom = f.get("geometry")
+            valid_geom = False
+            if geom and isinstance(geom, dict):
+                gtype = geom.get("type")
+                coords = geom.get("coordinates")
+                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                    if coords and coords != [] and coords is not None:
+                        valid_geom = True
+            if valid_geom:
+                try:
+                    # Création d'un tooltip enrichi
+                    props = f.get("properties", {})
+                    tooltip_lines = []
+                    
+                    # SOLUTION SIMPLE ET ROBUSTE: Utiliser les fonctions prédéfinies
+                    if name == "Parkings":
+                        style_func = style_parkings
+                    elif name == "Friches":
+                        style_func = style_friches
+                    elif name == "Potentiel Solaire":
+                        style_func = style_solaire
+                    else:  # ZAER
+                        style_func = style_zaer
+                    
+                    for k, v in props.items():
+                        tooltip_lines.append(f"<b>{k}:</b> {v}")
+                    
+                    tooltip_text = "<br>".join(tooltip_lines)
+                    
+                    folium.GeoJson(
+                        geom, 
+                        style_function=style_func,
+                        tooltip=tooltip_text,
+                        popup=folium.Popup(tooltip_text, max_width=400)
+                    ).add_to(group)
+                except Exception as e:
+                    print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
+            else:
+                print(f"[DEBUG] Invalid {name} geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+        map_obj.add_child(group)
+
+    # RPG
+    rpg_group = folium.FeatureGroup(name="RPG", show=True)
+    for idx, feat in enumerate(rpg_data):
+        if not isinstance(feat, dict):
+            print(f"[DEBUG] Skipping invalid RPG feature at index {idx}: not a dict, got {type(feat)}: {repr(feat)[:100]}")
+            continue
+        if "geometry" not in feat or "properties" not in feat:
+            print(f"[DEBUG] Skipping invalid RPG feature at index {idx}: missing 'geometry' or 'properties' keys: {repr(feat)[:100]}")
+            continue
+        try:
+            dec = decode_rpg_feature(feat)
+            geom, props = dec['geometry'], dec['properties']
+            id_parcel = props.get("ID_PARCEL", "N/A")
+            surf_ha = props.get("SURF_PARC", props.get("SURF_HA", "N/A"))
+            try:
+                surf_ha = f"{float(surf_ha):.2f} ha"
+            except Exception:
+                surf_ha = str(surf_ha)
+            code_cultu = props.get("CODE_CULTU", "N/A")
+            culture_label = props.get("Culture", code_cultu)
+            dist_bt = props.get("min_bt_distance_m", "N/A")
+            dist_hta = props.get("min_ht_distance_m", "N/A")
+            popup_html = (
+                f"<b>ID Parcelle :</b> {id_parcel}<br>"
+                f"<b>Surface :</b> {surf_ha}<br>"
+                f"<b>Code culture :</b> {code_cultu}<br>"
+                f"<b>Culture :</b> {culture_label}<br>"
+                f"<b>Distance au poste BT :</b> {dist_bt} m<br>"
+                f"<b>Distance au poste HTA :</b> {dist_hta} m"
+            )
+            valid_geom = False
+            if geom and isinstance(geom, dict):
+                gtype = geom.get("type")
+                coords = geom.get("coordinates")
+                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                    if coords and coords != [] and coords is not None:
+                        valid_geom = True
+            if valid_geom:
+                try:
+                    folium.GeoJson(
+                        geom,
+                        style_function=lambda _: {"color": "darkblue", "weight": 2, "fillOpacity": 0.3},
+                        tooltip=folium.Tooltip(popup_html)
+                    ).add_to(rpg_group)
+                except Exception as e:
+                    print(f"[ERROR] Exception while adding RPG geometry: {e}\nGeom: {geom}")
+            else:
+                print(f"[DEBUG] Invalid RPG geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+        except Exception as e:
+            print(f"[ERROR] Exception while processing RPG feature at index {idx}: {e}\nFeature: {repr(feat)[:200]}")
+    map_obj.add_child(rpg_group)
+
+    # Capacités réseau HTA
+    caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=True)
+    for item in capacites_reseau:
+        popup = "<br>".join(f"{k}: {v}" for k, v in item['properties'].items())
+        # Attention : parfois la géométrie peut être un dict ou un shapely, adapte si besoin
+        try:
+            lon_c, lat_c = shape(item['geometry']).centroid.coords[0]
+        except Exception:
+            coords = item.get("geometry", {}).get("coordinates", [0, 0])
+            lon_c, lat_c = coords[0], coords[1]
+        folium.Marker([lat_c, lon_c], popup=popup, icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
+    map_obj.add_child(caps_group)
+
+    # Sirene
+    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=None)
+    for feat in sirene_data:
+        if feat.get('geometry', {}).get('type') == 'Point':
+            lon_s, lat_s = feat['geometry']['coordinates']
+            folium.Marker([lat_s, lon_s], popup="<br>".join(f"{k}: {v}" for k, v in feat['properties'].items()), icon=folium.Icon(color="darkred", icon="building")).add_to(sir_group)
+    map_obj.add_child(sir_group)
+    
+    # Défini bbox_poly avant d'utiliser get_all_gpu_data(bbox_poly)
+    delta = 5.0 / 111.0  # 5km en degrés ~
+    bbox_poly = bbox_to_polygon(lon, lat, delta)
+    
+    # GPU Urbanisme : Ajout dynamique de toutes les couches du GPU urbanisme (zone-urba, prescription-surf, ...)
+    COLOR_GPU = {
+        "zone-urba": "#0055FF",
+        "prescription-surf": "#FF9900",
+        "prescription-lin": "#44AA44",
+        "prescription-pct": "#AA44AA",
+        "secteur-cc": "#666666",
+    }
+    gpu = api_urbanisme or get_all_gpu_data(bbox_poly)
+    if not isinstance(gpu, dict):
+        gpu = {}
+
+    def make_style(couleur):
+        return lambda feature: {"color": couleur, "weight": 2, "fillOpacity": 0.3, "fill": True}
+
+    for ep, data in gpu.items():
+        if not isinstance(data, dict):
+            data = {"type": "FeatureCollection", "features": []}
+        features = data.get('features', [])
+        if not features:
+            continue
+        layer_label = ep.replace("-", " ").capitalize()
+        color = COLOR_GPU.get(ep, "#3333CC")
+        group = folium.FeatureGroup(name=f"Urbanisme - {layer_label}", show=(ep == "zone-urba"))
+
+        for feat in features:
+            geom = feat.get('geometry')
+            props = feat.get('properties', {})
+            popup_html = ""
+            if not props:
+                popup_html = "Aucune propriété trouvée"
+            else:
+                for k, v in props.items():
+                    popup_html += f"<b>{k}</b>: {v}<br>"
+            # Vérification stricte de la géométrie avant ajout
+            valid_geom = False
+            if geom and isinstance(geom, dict):
+                gtype = geom.get("type")
+                coords = geom.get("coordinates")
+                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                    if coords and coords != [] and coords is not None:
+                        valid_geom = True
+            if valid_geom:
+                try:
+                    folium.GeoJson(
+                        geom,
+                        style_function=make_style(color),
+                        tooltip=props.get("libelle", layer_label) or layer_label,
+                        popup=folium.Popup(popup_html, max_width=400)
+                    ).add_to(group)
+                except Exception as e:
+                    print(f"[ERROR] Exception while adding GPU geometry for {ep}: {e}\nGeom: {geom}")
+            else:
+                print(f"[DEBUG] Invalid GPU geometry for {ep}: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+
+        map_obj.add_child(group)
+
+    # Éleveurs
+    if eleveurs_data:
+        el_group = folium.FeatureGroup(name="Éleveurs", show=True)
+        cluster = MarkerCluster().add_to(el_group)
+        for feat in eleveurs_data:
+            try:
+                coords = shape(feat['geometry']).coords[0]
+                if abs(coords[0]) > 180 or abs(coords[1]) > 90:
+                    to_wgs = Transformer.from_crs("EPSG:2154","EPSG:4326",always_xy=True).transform
+                    lon_e, lat_e = to_wgs(*coords)
+                else:
+                    lon_e, lat_e = coords
+            except Exception:
+                continue
+            props = feat['properties']
+            nom = props.get("nomUniteLe", "") or ""
+            prenom = props.get("prenom1Uni", "") or ""
+            denomination = props.get("denominati", "") or ""
+            adresse = (
+                f"{props.get('numeroVoie','') or ''} "
+                f"{props.get('typeVoieEt','') or ''} "
+                f"{props.get('libelleVoi','') or ''}, "
+                f"{props.get('codePostal','') or ''} "
+                f"{props.get('libelleCom','') or ''}"
+            ).replace(" ,", "").strip()
+            siret = props.get("siret", "")
+            
+            folium.Marker(
+                [lat_e, lon_e],
+                popup=folium.Popup(
+                    f"<b>{nom} {prenom}</b><br>{adresse}<br>SIRET: {siret}",
+                    max_width=300
+                ),
+                icon=folium.Icon(color="cadetblue", icon="paw", prefix="fa")
+            ).add_to(cluster)
+        map_obj.add_child(el_group)
+
+    # API Cadastre/Nature IGN (5km)
+    cad5 = api_cadastre or {"type": "FeatureCollection", "features": []}
+    nat5 = api_nature or {"type": "FeatureCollection", "features": []}
+    
+    # Cadastre (masqué par défaut)
+    cad_grp = folium.FeatureGroup(name="API Cadastre IGN (5km)", show=False)
+    for f in cad5.get('features', []):
+        if f.get('geometry'):
+            folium.GeoJson(
+                f['geometry'], 
+                style_function=lambda _: {"color": "#FF5500", "weight": 2, "fillOpacity": 0.3}, 
+                tooltip="<br>".join(f"{k}: {v}" for k, v in f.get('properties', {}).items())
+            ).add_to(cad_grp)
+    map_obj.add_child(cad_grp)
+    
+    # Zones naturelles protégées (affichées par défaut)
+    if nat5.get('features'):
+        nat_grp = folium.FeatureGroup(name="🌿 Zones Naturelles Protégées", show=True)
+        
+        # Couleurs par type de protection
+        protection_colors = {
+            "Parcs Nationaux": "#2E8B57",  # Vert foncé
+            "Parcs Naturels Régionaux": "#228B22",  # Vert forêt
+            "Natura 2000 Directive Habitat": "#4682B4",  # Bleu acier
+            "Natura 2000 Directive Oiseaux": "#87CEEB",  # Bleu ciel
+            "ZNIEFF Type 1": "#FFB347",  # Orange
+            "ZNIEFF Type 2": "#FFA500",  # Orange foncé
+            "Réserves Naturelles Nationales": "#8B0000",  # Rouge foncé
+            "Réserves Naturelles de Corse": "#DC143C",  # Rouge cramoisi
+            "Réserves Nationales de Chasse et Faune Sauvage": "#8B4513"  # Brun
+        }
+        
+        for f in nat5.get('features', []):
+            if f.get('geometry'):
+                props = f.get('properties', {})
+                type_protection = props.get('TYPE_PROTECTION', 'Zone naturelle')
+                color = protection_colors.get(type_protection, "#22AA22")
+                
+                # Popup avec informations détaillées
+                popup_content = f"<div style='max-width: 300px;'>"
+                popup_content += f"<h5 style='color: {color};'>{props.get('NOM', 'Zone naturelle')}</h5>"
+                popup_content += f"<span class='badge' style='background-color: {color}; color: white; margin-bottom: 10px;'>{type_protection}</span><br><br>"
+                
+                for k, v in props.items():
+                    if k not in ['TYPE_PROTECTION'] and v:
+                        popup_content += f"<b>{k}:</b> {v}<br>"
+                popup_content += "</div>"
+                
                 folium.GeoJson(
-                    feature,
-                    style_function=lambda x: {
-                        "color": "#FF6600", 
-                        "weight": 2, 
-                        "fillColor": "#FFD700", 
-                        "fillOpacity": 0.3
+                    f['geometry'], 
+                    style_function=lambda _, c=color: {
+                        "color": c, 
+                        "weight": 3, 
+                        "fillOpacity": 0.4,
+                        "fillColor": c
                     },
-                    popup=folium.Popup(f"Parcelle: {feature.get('properties', {}).get('id', 'N/A')}")
-                ).add_to(parcelles_group)
-        parcelles_group.add_to(map_obj)
+                    popup=folium.Popup(popup_content, max_width=400),
+                    tooltip=f"🌿 {props.get('NOM', 'Zone naturelle')} ({type_protection})"
+                ).add_to(nat_grp)
+        
+        map_obj.add_child(nat_grp)
+
+    if not mode_light:
+        folium.LayerControl().add_to(map_obj)
+
+    # --- Zoom sur emprise calculée ---
+    bounds = None
+    if parcelles_data and parcelles_data.get("features"):
+        polys = [shape(f["geometry"]) for f in parcelles_data["features"] if "geometry" in f]
+        if polys:
+            try:
+                multi = MultiPolygon([p for p in polys if p.geom_type == "Polygon"] + [p for p in polys if p.geom_type == "MultiPolygon"])
+                minx, miny, maxx, maxy = multi.bounds
+                bounds = [[miny, minx], [maxy, maxx]]
+            except Exception:
+                pass
+    if not bounds:
+        delta = 0.01
+        bounds = [[lat - delta, lon - delta], [lat + delta, lon + delta]]
+
+    helper_js = """
+    <script>
+    (function () {
+    var mapInstance = (function () {
+        for (var k in window) {
+            if (window[k] instanceof L.Map) { return window[k]; }
+        }
+        return null;
+    })();
+    if (!mapInstance) { console.error('❌ Map instance not found'); return; }
+    var dynLayer = L.geoJSON(null).addTo(mapInstance);
+    window.addGeoJsonToMap = function (feature, style) {
+        if (!feature) { return; }
+        if (style) {
+            L.geoJSON(feature, {
+                style: function () { return style; },
+                pointToLayer: function (f, latlng) {
+                    return L.circleMarker(latlng, style);
+                }
+            }).addTo(mapInstance);
+        } else {
+            dynLayer.addData(feature);
+        }
+        mapInstance.fitBounds(dynLayer.getBounds(), {maxZoom: 18});
+    };
+    window.clearMap = function () {
+        try { dynLayer.clearLayers(); } catch(e) {}
+    };
+    window.fetchAndDisplayGeoJson = function () {/* rien ici */};
+    })();
+    </script>
+    """
+    map_obj.get_root().html.add_child(Element(helper_js))
+
+    map_obj.fit_bounds(bounds)
+    if not mode_light:
+        folium.Marker([lat, lon], popup="Test marker").add_to(map_obj)
     
-    # Contrôles
-    folium.LayerControl().add_to(map_obj)
-    
+    # Ajouter timestamp pour éviter le cache
+    if getattr(map_obj, '_no_save', False):
+        print("💡 Carte non sauvegardée sur disque (mode _no_save)")
+    else:
+        # Ajouter timestamp pour éviter le cache
+        import time
+        timestamp = int(time.time())
+        save_map_html(map_obj, f"cartes_{timestamp}.html")
     return map_obj
 
 @app.route('/search_by_address', methods=['GET', 'POST'])
@@ -908,9 +1672,67 @@ def search_by_address_route():
     safe_print(f"📐 Parcelles trouvées: {parcelles_count}")
     
     # Génération de la carte
-    safe_print("🗺️ [CARTE] Génération carte avec Esri et parcelles...")
+    safe_print("🗺️ [CARTE] Génération carte complète avec toutes les couches...")
     
-    map_obj = build_map_simple(lat, lon, address, parcelle_info)
+    # ⚡ RÉCUPÉRATION DYNAMIQUE DES DONNÉES GEOSERVER ⚡
+    safe_print("🔍 [GEOSERVER] Récupération dynamique des données...")
+    
+    # Postes électriques (BT et HTA)
+    postes_data = get_all_postes(lat, lon, radius_deg=0.1)
+    ht_postes_data = get_all_ht_postes(lat, lon, radius_deg=0.5)
+    safe_print(f"⚡ Postes BT: {len(postes_data)}, HTA: {len(ht_postes_data)}")
+    
+    # PLU, parkings, friches
+    plu_info = get_plu_info(lat, lon, radius=0.03)
+    parkings_data = get_parkings_info(lat, lon, radius=0.03)
+    friches_data = get_friches_info(lat, lon, radius=0.03)
+    safe_print(f"🏛️ PLU: {len(plu_info)}, 🅿️ Parkings: {len(parkings_data)}, 🌾 Friches: {len(friches_data)}")
+    
+    # Potentiel solaire et ZAER
+    potentiel_solaire_data = get_potentiel_solaire_info(lat, lon, radius=1.0)
+    zaer_data = get_zaer_info(lat, lon, radius=0.03)
+    safe_print(f"🏠 Toitures: {len(potentiel_solaire_data)}, 🌿 ZAER: {len(zaer_data)}")
+    
+    # RPG et Sirene
+    rpg_data = get_rpg_info(lat, lon, radius=0.0027)
+    sirene_data = get_sirene_info(lat, lon, radius=0.03)
+    safe_print(f"🌾 RPG: {len(rpg_data)}, 🏢 Sirene: {len(sirene_data)}")
+    
+    # Éleveurs et capacités réseau
+    eleveurs_data = get_eleveurs_info(lat, lon, radius=0.1)
+    capacites_reseau = get_capacites_reseau_info(lat, lon, radius=0.5)
+    safe_print(f"🐄 Éleveurs: {len(eleveurs_data)}, 🔌 Capacités: {len(capacites_reseau)}")
+    
+    # PPRI
+    ppri_data = get_ppri_info(lat, lon, radius=0.03)
+    safe_print(f"🌊 PPRI: {len(ppri_data.get('features', []))}")
+    
+    safe_print("✅ [GEOSERVER] Toutes les données récupérées avec succès !")
+    
+    map_obj = build_map(
+        lat=lat, 
+        lon=lon, 
+        address=address,
+        parcelle_props=None,  # Pas de parcelle individuelle pour l'instant
+        parcelles_data=parcelle_info,  # Données parcelles IGN
+        postes_data=postes_data,  # ✅ DONNÉES DYNAMIQUES
+        ht_postes_data=ht_postes_data,  # ✅ DONNÉES DYNAMIQUES
+        plu_info=plu_info,  # ✅ DONNÉES DYNAMIQUES
+        parkings_data=parkings_data,  # ✅ DONNÉES DYNAMIQUES
+        friches_data=friches_data,  # ✅ DONNÉES DYNAMIQUES
+        potentiel_solaire_data=potentiel_solaire_data,  # ✅ DONNÉES DYNAMIQUES
+        zaer_data=zaer_data,  # ✅ DONNÉES DYNAMIQUES
+        rpg_data=rpg_data,  # ✅ DONNÉES DYNAMIQUES
+        sirene_data=sirene_data,  # ✅ DONNÉES DYNAMIQUES
+        search_radius=1000,  # 1km par défaut
+        ht_radius_deg=0.1,  # 0.1° par défaut
+        api_cadastre=None,  # Pas d'API cadastre pour l'instant
+        api_nature=None,  # Pas d'API nature pour l'instant
+        api_urbanisme=None,  # Pas d'API urbanisme pour l'instant
+        eleveurs_data=eleveurs_data,  # ✅ DONNÉES DYNAMIQUES
+        capacites_reseau=capacites_reseau,  # ✅ DONNÉES DYNAMIQUES
+        ppri_data=ppri_data  # ✅ DONNÉES DYNAMIQUES
+    )
     
     # Sauvegarde de la carte
     timestamp = int(time.time())
