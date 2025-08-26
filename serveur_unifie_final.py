@@ -33,10 +33,18 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-2025-production-key')
 
 # Configuration GeoServer - Utilise les variables d'environnement Railway
-GEOSERVER_URL = os.getenv('GEOSERVER_URL', 'http://localhost:8080/geoserver')
+# Fonction pour nettoyer les guillemets des variables Railway
+def clean_env_var(var_name, default_value):
+    """Nettoie les guillemets des variables d'environnement Railway"""
+    value = os.getenv(var_name, default_value)
+    if value and value.startswith('"') and value.endswith('"'):
+        value = value[1:-1]  # Retire les guillemets
+    return value
+
+GEOSERVER_URL = clean_env_var('GEOSERVER_URL', 'http://localhost:8080/geoserver')
 GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/ows"
-GEOSERVER_USERNAME = os.getenv('GEOSERVER_USERNAME', 'admin')
-GEOSERVER_PASSWORD = os.getenv('GEOSERVER_PASSWORD', 'geoserver')
+GEOSERVER_USERNAME = clean_env_var('GEOSERVER_USERNAME', 'admin')
+GEOSERVER_PASSWORD = clean_env_var('GEOSERVER_PASSWORD', 'geoserver')
 
 # Base de données simple des utilisateurs (en production, utiliser une vraie DB)
 USERS_DB = {}
@@ -48,6 +56,13 @@ print(f"   - GeoServer Auth: {GEOSERVER_USERNAME}:{'*' * len(GEOSERVER_PASSWORD)
 print(f"   - Port: {os.getenv('PORT', '5000')}")
 print(f"   - Debug: {os.getenv('FLASK_DEBUG', 'False')}")
 print(f"🔗 GeoServer configuré: {GEOSERVER_URL}")
+
+# Debug variables d'environnement
+print("🔍 [DEBUG] Variables d'environnement reçues:")
+print(f"   - GEOSERVER_URL raw: '{os.getenv('GEOSERVER_URL', 'NOT_SET')}'")
+print(f"   - PORT raw: '{os.getenv('PORT', 'NOT_SET')}'")
+print(f"   - FLASK_DEBUG raw: '{os.getenv('FLASK_DEBUG', 'NOT_SET')}'")
+print(f"   - SECRET_KEY présente: {'Oui' if os.getenv('SECRET_KEY') else 'Non'}")
 
 # Test de connectivité GeoServer au démarrage
 def test_geoserver_connection():

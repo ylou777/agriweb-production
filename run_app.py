@@ -16,9 +16,16 @@ if __name__ == '__main__':
         from serveur_unifie_final import app
         
         # Configuration Railway
-        port = int(os.getenv('PORT', 5000))
-        host = os.getenv('HOST', '0.0.0.0')  # Railway nécessite 0.0.0.0
-        debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+        def clean_env_var(var_name, default_value):
+            """Nettoie les guillemets des variables Railway"""
+            value = os.getenv(var_name, default_value)
+            if value and value.startswith('"') and value.endswith('"'):
+                value = value[1:-1]
+            return value
+        
+        port = int(clean_env_var('PORT', '5000'))
+        host = clean_env_var('HOST', '0.0.0.0')  # Railway nécessite 0.0.0.0
+        debug = clean_env_var('FLASK_DEBUG', 'False').lower() == 'true'
         
         print("✅ [SUCCESS] Serveur unifié importé")
         print(f"🌐 [URL] http://{host}:{port}")
