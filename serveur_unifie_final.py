@@ -6235,7 +6235,18 @@ def search_by_commune():
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom
     save_map_to_cache(map_obj, response_data)
     
-    return jsonify(response_data)
+    # Détection du type de requête : navigateur web vs API
+    accept_header = request.headers.get('Accept', '')
+    is_browser_request = 'text/html' in accept_header and 'application/json' not in accept_header
+    
+    if is_browser_request and response_data.get('carte_url'):
+        # Requête depuis navigateur -> rediriger vers la carte HTML
+        print(f"🌐 [BROWSER] Redirection vers la carte: {response_data['carte_url']}")
+        return redirect(response_data['carte_url'])
+    else:
+        # Requête API -> retourner JSON
+        print(f"🔧 [API] Retour JSON pour requête API")
+        return jsonify(response_data)
 
 @app.route("/search_toitures_commune_polygon", methods=["GET", "POST"])
 def search_toitures_commune_polygon():
@@ -8866,7 +8877,38 @@ def search_by_address_route():
     safe_print(f"⏱️ Recherche terminée: {datetime.now().strftime('%H:%M:%S')}")
     safe_print(f"{'='*80}\n")
     
-    return jsonify(info_response)
+    # Détection du type de requête : navigateur web vs API
+    accept_header = request.headers.get('Accept', '')
+    is_browser_request = 'text/html' in accept_header and 'application/json' not in accept_header
+    
+    if is_browser_request and carte_url:
+        # Requête depuis navigateur -> rediriger vers la carte HTML
+        safe_print(f"🌐 [BROWSER] Redirection vers la carte: {info_response['carte_url']}")
+        return redirect(info_response['carte_url'])
+    else:
+        # Requête API -> retourner JSON
+        safe_print(f"🔧 [API] Retour JSON pour requête API")
+        return jsonify(info_response)
+
+
+# Variable globale pour stocker la dernière carte générée
+last_generated_map = None
+
+@app.route('/map_direct')
+def map_direct():
+    """Retourne directement le HTML de la dernière carte générée (pour Railway)"""
+    global last_generated_map
+    if last_generated_map:
+        return last_generated_map._repr_html_()
+    else:
+        # Carte par défaut si aucune carte n'est en cache
+        import folium
+        default_map = folium.Map(location=[46.603354, 1.888334], zoom_start=6)
+        folium.TileLayer(
+            tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            attr="Esri World Imagery", name="Satellite", overlay=False, control=True, show=True
+        ).add_to(default_map)
+        return default_map._repr_html_()
 
 
 @app.route('/rapport_departement_post', methods=['POST'])
