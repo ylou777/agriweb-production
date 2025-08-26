@@ -716,15 +716,18 @@ def status():
     
     return jsonify(status_data)
 
-if __name__ == '__main__':
-    print("🚀 Démarrage AgriWeb 2.0 Unifié - Production")
-    print("=" * 60)
-    print(f"🔗 GeoServer: {GEOSERVER_URL}")
-    print(f"🌐 Interface web: http://localhost:5000")
-    print(f"📊 Statut système: http://localhost:5000/status")
-    print(f"🆓 Essais gratuits: Activés (7 jours)")
-    print(f"💼 Licences: Basic (299€), Pro (999€), Enterprise (2999€)")
-    print("=" * 60)
-    print("✅ Prêt pour la commercialisation !")
-    
-    app.run(host='0.0.0.0', port=5000, debug=False)
+# Module serveur unifié - importé par run_app.py
+# N'exécute pas directement l'application pour éviter les conflits Railway
+
+# if __name__ == '__main__':
+#     print("🚀 Démarrage AgriWeb 2.0 Unifié - Production")
+#     print("=" * 60)
+#     print(f"🔗 GeoServer: {GEOSERVER_URL}")
+#     print(f"🌐 Interface web: http://localhost:5000")
+#     print(f"📊 Statut système: http://localhost:5000/status")
+#     print(f"🆓 Essais gratuits: Activés (7 jours)")
+#     print(f"💼 Licences: Basic (299€), Pro (999€), Enterprise (2999€)")
+#     print("=" * 60)
+#     print("✅ Prêt pour la commercialisation !")
+#     
+#     app.run(host='0.0.0.0', port=5000, debug=False)
