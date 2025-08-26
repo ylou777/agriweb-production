@@ -38,8 +38,14 @@ except ImportError as e:
 
 import os
 
-app = Flask(__name__)
+# Configuration Flask avec dossier static
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-2025-production-key')
+
+# Créer le dossier static/cartes si il n'existe pas
+static_cartes_dir = os.path.join(os.path.dirname(__file__), 'static', 'cartes')
+os.makedirs(static_cartes_dir, exist_ok=True)
+print(f"📁 Dossier static/cartes créé: {static_cartes_dir}")
 
 # Configuration GeoServer - Utilise les variables d'environnement Railway
 # Fonction pour nettoyer les guillemets des variables Railway
@@ -775,6 +781,26 @@ def favicon():
     """Route pour le favicon - évite les erreurs 502"""
     from flask import Response
     return Response(status=204)  # No Content - pas de favicon disponible
+
+@app.route('/test-static')
+def test_static():
+    """Route de test pour vérifier que les fichiers statiques fonctionnent"""
+    cartes_dir = os.path.join(app.static_folder, 'cartes')
+    exists = os.path.exists(cartes_dir)
+    files = []
+    if exists:
+        try:
+            files = os.listdir(cartes_dir)
+        except:
+            files = ["Erreur lecture dossier"]
+    
+    return jsonify({
+        'static_folder': app.static_folder,
+        'cartes_dir': cartes_dir,
+        'cartes_exists': exists,
+        'files_count': len(files),
+        'sample_files': files[:5] if files else []
+    })
 
 @app.route('/api/login', methods=['POST'])
 def api_login():
