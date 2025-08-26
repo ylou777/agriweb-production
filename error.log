@@ -9206,3 +9206,19 @@ OSError: [Errno 28] No space left on device
 2025-08-26 14:45:05,302 INFO 127.0.0.1 - - [26/Aug/2025 14:45:05] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
 2025-08-26 14:46:06,393 INFO 127.0.0.1 - - [26/Aug/2025 14:46:06] "GET /search_by_address?address=nimes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
 2025-08-26 14:46:07,412 INFO 127.0.0.1 - - [26/Aug/2025 14:46:07] "GET /static/cartes/map_1756212346_3822255607488744032.html?t=1756212353&cache=1756212366666 HTTP/1.1" 200 -
+2025-08-26 14:58:17,140 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 14:58:17,140 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 14:59:12,862 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-08-26 14:59:12,862 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 15:10:38,139 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.78:5000
+2025-08-26 15:10:38,139 INFO [33mPress CTRL+C to quit[0m
+2025-08-26 15:28:43,300 INFO 127.0.0.1 - - [26/Aug/2025 15:28:43] "HEAD /health HTTP/1.1" 200 -
+2025-08-26 15:28:50,319 INFO 127.0.0.1 - - [26/Aug/2025 15:28:50] "GET /health HTTP/1.1" 200 -
+2025-08-26 15:28:57,853 INFO 127.0.0.1 - - [26/Aug/2025 15:28:57] "[33mGET /search_by_coordinates?lat=48.8566&lon=2.3522&id=642743d5-5b4d-4cfb-b53a-dddbedf93019&vscodeBrowserReqId=1756214937504 HTTP/1.1[0m" 404 -
