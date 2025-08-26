@@ -802,6 +802,43 @@ def test_static():
         'sample_files': files[:5] if files else []
     })
 
+@app.route('/test-map')
+def test_map():
+    """Créer une carte de test très simple pour débugger Railway"""
+    import folium
+    import time
+    
+    # Carte très simple
+    m = folium.Map(
+        location=[45.75, 4.85],  # Lyon
+        zoom_start=13,
+        tiles='OpenStreetMap'
+    )
+    
+    # Ajouter un marqueur simple
+    folium.Marker(
+        [45.75, 4.85],
+        popup='Test Railway',
+        tooltip='Ceci est un test'
+    ).add_to(m)
+    
+    # Sauver la carte
+    timestamp = int(time.time())
+    filename = f"test_simple_{timestamp}.html"
+    map_path = os.path.join("static", "cartes", filename)
+    
+    # Créer le dossier si nécessaire
+    os.makedirs(os.path.dirname(map_path), exist_ok=True)
+    
+    m.save(map_path)
+    
+    return jsonify({
+        'success': True,
+        'filename': filename,
+        'url': f'/static/cartes/{filename}',
+        'full_path': map_path
+    })
+
 @app.route('/api/login', methods=['POST'])
 def api_login():
     """API de connexion pour utilisateurs existants"""
