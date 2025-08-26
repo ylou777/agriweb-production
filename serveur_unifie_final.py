@@ -49,6 +49,22 @@ print(f"   - Port: {os.getenv('PORT', '5000')}")
 print(f"   - Debug: {os.getenv('FLASK_DEBUG', 'False')}")
 print(f"🔗 GeoServer configuré: {GEOSERVER_URL}")
 
+# Test de connectivité GeoServer au démarrage
+def test_geoserver_connection():
+    """Test la connectivité GeoServer avec gestion d'erreurs"""
+    try:
+        import requests
+        response = requests.get(GEOSERVER_URL, timeout=10, allow_redirects=True)
+        print(f"✅ GeoServer test: HTTP {response.status_code}")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"⚠️ GeoServer test failed: {e}")
+        print("🔄 Application continue sans GeoServer...")
+        return False
+
+# Test au démarrage
+geoserver_ok = test_geoserver_connection()
+
 @app.route('/')
 def index():
     """Page d'accueil principale"""
