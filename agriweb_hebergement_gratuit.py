@@ -1737,9 +1737,15 @@ POTENTIEL_SOLAIRE_LAYER = "gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93"
 ZAER_LAYER = "gpu:ZAER_ARRETE_SHP_FRA"
 PARCELLES_GRAPHIQUES_LAYER = "gpu:PARCELLES_GRAPHIQUES"  # RPG
 SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène (~50 m)
-GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/rest/layers"  # Pour lister les couches
-GEOSERVER_OWS_URL = f"{GEOSERVER_URL}/ows"  # Pour les requêtes WFS/GetFeature
 ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
+
+# Fonction pour obtenir les URLs GeoServer actuelles (mise à jour dynamique)
+def get_geoserver_urls():
+    """Retourne les URLs GeoServer actuelles basées sur GEOSERVER_URL"""
+    return {
+        'wfs': f"{GEOSERVER_URL}/rest/layers",
+        'ows': f"{GEOSERVER_URL}/ows"
+    }
 # Ajout couche PPRI (adapter le nom si besoin)
 PPRI_LAYER = "gpu:ppri"  # <-- Vérifiez le nom exact dans votre GeoServer
 
@@ -3118,8 +3124,9 @@ def flatten_feature_collections(fc):
     return {"type": "FeatureCollection", "features": out}
 
 def fetch_wfs_data(layer_name, bbox, srsname="EPSG:4326"):
+    geoserver_urls = get_geoserver_urls()
     layer_q = quote(layer_name, safe=':')
-    url = f"{GEOSERVER_OWS_URL}?service=WFS&version=2.0.0&request=GetFeature&typeName={layer_q}&outputFormat=application/json&bbox={bbox}&srsname={srsname}"
+    url = f"{geoserver_urls['ows']}?service=WFS&version=2.0.0&request=GetFeature&typeName={layer_q}&outputFormat=application/json&bbox={bbox}&srsname={srsname}"
     try:
         resp = http_session.get(url, auth=get_geoserver_auth(), timeout=10)
         resp.raise_for_status()
