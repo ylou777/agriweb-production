@@ -3,39 +3,9 @@ import requests
 import os
 from datetime import datetime
 
-# Système de capture des logs pour SSE
-import threading
-from queue import Queue, Empty
-
-# Variable globale pour capturer les logs SSE
-_sse_log_callback = None
-
-def set_sse_log_callback(callback):
-    """Définit la fonction callback pour les logs SSE"""
-    global _sse_log_callback
-    _sse_log_callback = callback
-    
-def clear_sse_log_callback():
-    """Efface le callback des logs SSE"""
-    global _sse_log_callback
-    _sse_log_callback = None
-
 # Fonction utilitaire pour logging sécurisé (évite les erreurs WinError 233)
 def safe_print(*args, **kwargs):
-    """Print sécurisé qui ignore les erreurs de canal fermé et capture pour SSE"""
-    global _sse_log_callback
-    
-    # Formatter le message
-    message = " ".join(str(arg) for arg in args)
-    
-    # Si un callback SSE est défini, l'appeler
-    if _sse_log_callback is not None:
-        try:
-            _sse_log_callback(message)
-        except:
-            pass
-    
-    # Toujours afficher dans le terminal
+    """Print sécurisé qui ignore les erreurs de canal fermé"""
     try:
         print(*args, **kwargs)
     except OSError:
@@ -303,7 +273,6 @@ from urllib.parse import quote, quote_plus
 import unicodedata, re
 from threading import Timer
 from datetime import datetime, timedelta
-import time
 import webbrowser
 import os
 import json
@@ -356,7 +325,7 @@ except ImportError:
     tk = None  # Environnement headless (pas d’interface X11)
 
 app = Flask(__name__)
-app.config["TEMPLATES_AUTO_RELOAD"] = False  # Désactivé pour éviter le rafraîchissement automatique
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
@@ -815,17 +784,16 @@ def detect_working_geoserver():
     except Exception as e:
         print(f"⚠️ Détection ngrok échouée: {e}")
     
-    # Priorité 3: Domaines configurés (priorité absolue)
+    # Priorité 3: URL ngrok permanente UNIQUE
     fallback_urls = [
-        "https://agriweb-prod.ngrok-free.app/geoserver",  # � DOMAINE NGROK STABLE (PRIORITÉ)
-        "https://bubbly-integrity-production.up.railway.app/geoserver",  # � RAILWAY PRODUCTION
+        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # 🚀 DOMAINE PERMANENT NGROK (Pay-as-you-go)
     ]
     
     # Tester les URLs de fallback
     for url in fallback_urls:
         try:
             import requests
-            response = requests.head(url, timeout=10, allow_redirects=True)
+            response = requests.head(url, timeout=5, allow_redirects=True)
             if response.status_code in [200, 302]:
                 print(f"✅ GeoServer accessible (fallback): {url}")
                 return url
@@ -833,9 +801,9 @@ def detect_working_geoserver():
             print(f"❌ Test échoué pour {url}: {e}")
             continue
     
-    # URL par défaut si rien ne fonctionne - DOMAINE NGROK STABLE
-    final_fallback = "https://agriweb-prod.ngrok-free.app/geoserver"
-    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine ngrok par défaut: {final_fallback}")
+    # URL par défaut si rien ne fonctionne
+    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
+    print(f"⚠️ Aucun GeoServer accessible, utilisation domaine permanent: {final_fallback}")
     return final_fallback
 
 # Configuration pour Railway avec détection automatique
@@ -875,16 +843,6 @@ def health_check():
         "timestamp": datetime.now().isoformat(),
         "geoserver_url": GEOSERVER_URL
     }), 200
-
-@app.route("/test-search", methods=["GET"])
-def test_search():
-    """Page de test pour diagnostiquer les problèmes de recherche"""
-    return render_template("test_search.html")
-
-@app.route("/test-buttons", methods=["GET"])
-def test_buttons():
-    """Page de test pour les boutons zoom et plein écran"""
-    return render_template("test_buttons.html")
 
 # Endpoint de debug pour tester les API d'authentification
 @app.route("/debug/auth", methods=["GET"])
@@ -1636,12 +1594,6 @@ def app_interface():
     
     # Nouveaux utilisateurs - Redirection vers authentification
     return redirect("/?login_required=1")
-
-@app.route("/favicon.ico")
-def favicon():
-    """Route pour le favicon - évite les erreurs 502"""
-    from flask import abort
-    abort(204)  # No Content - pas de favicon disponible
 
 @app.route("/auth")
 def auth():
@@ -2469,7 +2421,7 @@ def get_all_parcelles(lat, lon, radius=0.03):
     transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
     x, y = transformer.transform(lon, lat)
     bbox = f"{x - radius * 111000},{y - radius * 111000},{x + radius * 111000},{y + radius * 111000},EPSG:2154"
-    url = f"{GEOSERVER_URL}/wfs"  # ✅ CORRECTION: Suppression du /cite qui causait l'erreur
+    url = f"{GEOSERVER_URL}/cite/wfs"
     params = {
         "service": "WFS",
         "version": "1.0.0",
@@ -2634,10 +2586,6 @@ def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
                                 geom = geom.buffer(0)
                             if geom.intersects(commune_poly):
                                 filtered.append(f)
-                                # Limite spéciale pour SIRENE pour éviter les blocages
-                                if "sirene" in layer_name.lower() and len(filtered) >= 1000:
-                                    print(f"⚠️ [LIMITE] SIRENE limité à 1000 entreprises pour éviter les blocages")
-                                    break
                         except Exception as e:
                             continue
                     print(f"✅ [POLYGON_SEARCH] {layer_name}: {len(filtered)}/{len(features)} features dans la commune")
@@ -4319,7 +4267,7 @@ def build_map(
     map_obj.add_child(caps_group)
 
     # Sirene
-    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=None)
+    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=True)
     for feat in sirene_data:
         if feat.get('geometry', {}).get('type') == 'Point':
             lon_s, lat_s = feat['geometry']['coordinates']
@@ -4782,425 +4730,79 @@ def commune_search_sse():
             chunks.append(f"event: {event}")
         for line in data.splitlines() or [""]:
             chunks.append(f"data: {line}")
-        result = "\n".join(chunks) + "\n\n"
-        # Debug log pour voir si les SSE sont envoyés
-        safe_print(f"[SSE DEBUG] Envoi: {data[:100]}...")
-        return result
-
-    def collect_commune_data_simple(
-        commune, filter_rpg, filter_parkings, filter_friches, filter_toitures,
-        culture="", bt_max_km=0.5, ht_max_km=2.0, rpg_min_area=1.0, rpg_max_area=1000.0,
-        distance_logic="OR", poste_type_filter="ALL", filter_by_distance=False
-    ):
-        """Version simplifiée de collecte de données de commune pour SSE avec filtrage avancé"""
-        import requests
-        from urllib.parse import quote_plus
-        from shapely.geometry import shape
-        
-        safe_print(f"\n{'='*80}")
-        safe_print(f"🔍 [RECHERCHE COMMUNE] === DÉBUT RECHERCHE POUR '{commune.upper()}' ===")
-        safe_print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        safe_print(f"📍 Commune: {commune}")
-        
-        # Affichage de l'état des filtres pour diagnostic
-        safe_print(f"🔧 [FILTRES] État des filtres activés:")
-        safe_print(f"   🌾 RPG: {'OUI' if filter_rpg else 'NON'}")
-        if filter_rpg:
-            safe_print(f"      - Culture: '{culture or 'toutes'}'")
-            safe_print(f"      - Surface: {rpg_min_area}-{rpg_max_area} ha")
-            safe_print(f"      - Distance BT: ≤{bt_max_km:.3f} km")
-            safe_print(f"      - Distance HTA: ≤{ht_max_km:.3f} km")
-        safe_print(f"   🅿️ Parkings: {'OUI' if filter_parkings else 'NON'}")
-        safe_print(f"   🏭 Friches: {'OUI' if filter_friches else 'NON'}")
-        safe_print(f"   🏠 Toitures: {'OUI' if filter_toitures else 'NON'}")
-        safe_print(f"   📊 Filtrage distance: {'OUI' if filter_by_distance else 'NON'}")
-        if filter_by_distance:
-            safe_print(f"      - Logique: {distance_logic}, Type postes: {poste_type_filter}")
-        
-        # Logging détaillé pour le débogage RPG
-        safe_print(f"🔧 [DEBUG RPG] Paramètres de filtrage distance:")
-        safe_print(f"   - bt_max_km: {bt_max_km:.3f} km")
-        safe_print(f"   - ht_max_km: {ht_max_km:.3f} km")
-        safe_print(f"   - poste_type_filter: {poste_type_filter}")
-        safe_print(f"   - filter_by_distance: {filter_by_distance}")
-        
-        # Récupération du contour de la commune
-        safe_print(f"🌍 [API] Récupération contour commune '{commune}'...")
-        resp = requests.get(
-            f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour,codesPostaux,departement",
-            timeout=15
-        )
-        
-        if resp.status_code != 200:
-            safe_print(f"❌ [ERREUR] Geo API Gouv: {resp.status_code}")
-            raise Exception(f"Erreur Geo API Gouv: {resp.status_code}")
-            
-        infos = resp.json()
-        if not infos:
-            safe_print(f"❌ [ERREUR] Commune '{commune}' introuvable")
-            raise Exception(f"Commune '{commune}' introuvable")
-            
-        info = infos[0]
-        contour = info.get("contour")
-        if not contour:
-            safe_print(f"❌ [ERREUR] Contour de '{commune}' indisponible")
-            raise Exception(f"Contour de '{commune}' indisponible")
-            
-        centre = info.get("centre", {}).get("coordinates", [None, None])
-        departement = info.get("departement", {}).get("nom", "Inconnu")
-        safe_print(f"✅ [API] Contour récupéré (centre: lat={centre[1]}, lon={centre[0]}, dép: {departement})")
-        
-        # Conversion en polygone
-        geom_geojson = {"type": "Polygon", "coordinates": contour["coordinates"]}
-        safe_print(f"📐 [GEOM] Contour converti en GeoJSON Polygon")
-        
-        # Collecte des données selon les filtres
-        data_collected = {}
-        base_url = "https://agriweb-prod.ngrok-free.app/geoserver/ows"
-        
-        if filter_toitures:
-            safe_print("🏠 [TOITURES] Début collecte des bâtiments...")
-            try:
-                buildings_data = get_data_by_commune_polygon(geom_geojson, base_url, "batiments_commune")
-                data_collected['toitures'] = buildings_data
-                count = len(buildings_data) if buildings_data else 0
-                safe_print(f"🏠 [TOITURES] {count} bâtiments récupérés dans la commune")
-            except Exception as e:
-                safe_print(f"❌ [TOITURES] Erreur: {e}")
-                
-        if filter_rpg:
-            safe_print("🌾 [RPG] Début collecte des parcelles agricoles...")
-            try:
-                # Récupération des données RPG brutes
-                rpg_raw = get_data_by_commune_polygon(geom_geojson, base_url, "rpg2023")
-                safe_print(f"🌾 [RPG] {len(rpg_raw) if rpg_raw else 0} parcelles brutes récupérées")
-                
-                # Récupération des postes électriques pour calcul des distances
-                postes_data = get_data_by_commune_polygon(geom_geojson, base_url, "postes_electriques")
-                postes_bt_data = [p for p in (postes_data or []) if p.get('properties', {}).get('type') == 'BT']
-                postes_hta_data = [p for p in (postes_data or []) if p.get('properties', {}).get('type') == 'HTA']
-                safe_print(f"📊 [POSTES] {len(postes_bt_data)} postes BT, {len(postes_hta_data)} postes HTA")
-                
-                # Application du filtrage avancé
-                final_rpg = []
-                parcelles_rejetees_culture = 0
-                parcelles_rejetees_surface = 0
-                parcelles_rejetees_distance = 0
-                
-                for feat in (rpg_raw or []):
-                    from shapely.geometry import shape
-                    from shapely.ops import transform as shp_transform
-                    from pyproj import Transformer
-                    
-                    # Décoder la feature RPG
-                    props = feat.get("properties", {})
-                    geom = feat.get("geometry")
-                    if not geom:
-                        continue
-                    poly = shape(geom)
-                    
-                    # a) Filtrage par culture
-                    culture_rpg = props.get("Culture", "")
-                    if culture and culture.lower() not in culture_rpg.lower():
-                        parcelles_rejetees_culture += 1
-                        continue
-                    
-                    # b) Filtrage par surface (conversion en hectares)
-                    to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
-                    ha = shp_transform(to_l93, poly).area / 10_000.0
-                    if ha < rpg_min_area or ha > rpg_max_area:
-                        parcelles_rejetees_surface += 1
-                        continue
-                    
-                    # c) Filtrage par distance aux postes - TOUJOURS appliqué pour RPG
-                    if postes_bt_data or postes_hta_data:
-                        cent = poly.centroid.coords[0]
-                        d_bt = calculate_min_distance(cent, postes_bt_data) if postes_bt_data else None
-                        d_hta = calculate_min_distance(cent, postes_hta_data) if postes_hta_data else None
-                        
-                        # Conversion en km et test des limites
-                        bt_too_far = (d_bt is not None and (d_bt / 1000.0) > bt_max_km) or (d_bt is None and len(postes_bt_data) > 0)
-                        hta_too_far = (d_hta is not None and (d_hta / 1000.0) > ht_max_km) or (d_hta is None and len(postes_hta_data) > 0)
-                        
-                        # Logique de rejet selon les paramètres + sélection type de poste
-                        distance_rejected = False
-                        
-                        # Appliquer la logique selon le type de poste sélectionné
-                        if poste_type_filter == "BT":
-                            # Ne considérer que les postes BT
-                            if len(postes_bt_data) > 0:
-                                if bt_too_far:
-                                    distance_rejected = True
-                            else:
-                                # Pas de postes BT disponibles : rejeter
-                                distance_rejected = True
-                                
-                        elif poste_type_filter == "HTA":
-                            # Ne considérer que les postes HTA
-                            if len(postes_hta_data) > 0:
-                                if hta_too_far:
-                                    distance_rejected = True
-                            else:
-                                # Pas de postes HTA disponibles : rejeter
-                                distance_rejected = True
-                                
-                        else:  # poste_type_filter == "ALL" (par défaut)
-                            # Logique originale : considérer les deux types
-                            if len(postes_bt_data) > 0 and len(postes_hta_data) > 0:
-                                # Les deux types existent : rejeter si les deux sont trop loin
-                                if bt_too_far and hta_too_far:
-                                    distance_rejected = True
-                            elif len(postes_bt_data) > 0:
-                                # Seuls les postes BT existent : rejeter si BT trop loin
-                                if bt_too_far:
-                                    distance_rejected = True
-                            elif len(postes_hta_data) > 0:
-                                # Seuls les postes HTA existent : rejeter si HTA trop loin
-                                if hta_too_far:
-                                    distance_rejected = True
-                        
-                        if distance_rejected:
-                            parcelles_rejetees_distance += 1
-                            # Logging détaillé pour quelques premières parcelles rejetées
-                            if parcelles_rejetees_distance <= 3:
-                                safe_print(f"🚫 [DEBUG] Parcelle REJETÉE #{parcelles_rejetees_distance}:")
-                                safe_print(f"   - Culture: {props.get('Culture', 'N/A')}")
-                                safe_print(f"   - Surface: {ha:.2f} ha")
-                                if d_bt is not None:
-                                    safe_print(f"   - Distance BT: {d_bt/1000.0:.3f} km (limite: {bt_max_km:.3f} km)")
-                                else:
-                                    safe_print(f"   - Distance BT: N/A")
-                                if d_hta is not None:
-                                    safe_print(f"   - Distance HTA: {d_hta/1000.0:.3f} km (limite: {ht_max_km:.3f} km)")
-                                else:
-                                    safe_print(f"   - Distance HTA: N/A")
-                                safe_print(f"   - Type postes requis: {poste_type_filter}")
-                                safe_print(f"   - bt_too_far: {bt_too_far}, hta_too_far: {hta_too_far}")
-                            continue
-                        
-                        # Logging pour quelques parcelles ACCEPTÉES
-                        if len(final_rpg) < 3:
-                            safe_print(f"✅ [DEBUG] Parcelle ACCEPTÉE #{len(final_rpg)+1}:")
-                            safe_print(f"   - Culture: {props.get('Culture', 'N/A')}")
-                            safe_print(f"   - Surface: {ha:.2f} ha")
-                            if d_bt is not None:
-                                safe_print(f"   - Distance BT: {d_bt/1000.0:.3f} km (limite: {bt_max_km:.3f} km)")
-                            else:
-                                safe_print(f"   - Distance BT: N/A")
-                            if d_hta is not None:
-                                safe_print(f"   - Distance HTA: {d_hta/1000.0:.3f} km (limite: {ht_max_km:.3f} km)")
-                            else:
-                                safe_print(f"   - Distance HTA: N/A")
-                            safe_print(f"   - Type postes requis: {poste_type_filter}")
-                        
-                        # Enrichir les propriétés avec les distances
-                        props.update({
-                            "SURF_HA": round(ha, 3),
-                            "min_bt_distance_m": round(d_bt, 2) if d_bt is not None else None,
-                            "min_ht_distance_m": round(d_hta, 2) if d_hta is not None else None,
-                        })
-                    else:
-                        # Pas de postes trouvés, juste ajouter la surface
-                        props["SURF_HA"] = round(ha, 3)
-                    
-                    # Ajouter la parcelle filtrée
-                    final_rpg.append({
-                        "type": "Feature",
-                        "geometry": geom,
-                        "properties": props
-                    })
-                
-                # Logging du filtrage
-                safe_print(f"🌾 [RPG FILTRAGE] Total brut: {len(rpg_raw or [])} parcelles")
-                safe_print(f"   - Rejetées culture '{culture}': {parcelles_rejetees_culture}")
-                safe_print(f"   - Rejetées surface {rpg_min_area}-{rpg_max_area}ha: {parcelles_rejetees_surface}")
-                safe_print(f"   - Rejetées distance BT<{bt_max_km:.3f}km HTA<{ht_max_km:.3f}km: {parcelles_rejetees_distance}")
-                safe_print(f"✅ [RPG] Parcelles finales: {len(final_rpg)}")
-                
-                data_collected['rpg'] = final_rpg
-                
-            except Exception as e:
-                safe_print(f"❌ [RPG] Erreur: {e}")
-                
-        if filter_parkings:
-            safe_print("🅿️ [PARKINGS] Début collecte des parkings...")
-            try:
-                parking_data = get_data_by_commune_polygon(geom_geojson, base_url, "parkings")
-                data_collected['parkings'] = parking_data
-                count = len(parking_data) if parking_data else 0
-                safe_print(f"✅ [PARKINGS] {count} parkings récupérés")
-            except Exception as e:
-                safe_print(f"❌ [PARKINGS] Erreur: {e}")
-                
-        if filter_friches:
-            safe_print("🏭 [FRICHES] Début collecte des friches...")
-            try:
-                friches_data = get_data_by_commune_polygon(geom_geojson, base_url, "friches")
-                data_collected['friches'] = friches_data
-                count = len(friches_data) if friches_data else 0
-                safe_print(f"✅ [FRICHES] {count} friches récupérées")
-            except Exception as e:
-                safe_print(f"❌ [FRICHES] Erreur: {e}")
-        
-        # Collecte des postes électriques
-        safe_print("📊 [COLLECTE] Début récupération des postes électriques...")
-        try:
-            postes_data = get_data_by_commune_polygon(geom_geojson, base_url, "postes_electriques")
-            data_collected['postes'] = postes_data
-            if postes_data:
-                bt_count = len([p for p in postes_data if p.get('properties', {}).get('type') == 'BT'])
-                ht_count = len([p for p in postes_data if p.get('properties', {}).get('type') == 'HTA'])
-                safe_print(f"📊 [COLLECTE] POSTES: ✅ {bt_count} postes BT, {ht_count} postes HTA")
-            else:
-                safe_print(f"📊 [COLLECTE] POSTES: ✅ 0 postes électriques")
-        except Exception as e:
-            safe_print(f"❌ [POSTES] Erreur: {e}")
-            
-        # Collecte SIRENE
-        safe_print("🏢 [SIRENE] Début collecte des entreprises...")
-        try:
-            sirene_data = get_data_by_commune_polygon(geom_geojson, base_url, "sirene_data")
-            data_collected['sirene'] = sirene_data
-            count = len(sirene_data) if sirene_data else 0
-            safe_print(f"🏢 [SIRENE] ✅ {count} entreprises récupérées")
-        except Exception as e:
-            safe_print(f"❌ [SIRENE] Erreur: {e}")
-            
-        safe_print(f"✅ [COLLECTE] Analyse de '{commune}' terminée avec succès")
-        safe_print(f"{'='*80}\n")
-        
-        return {"status": "success", "data": data_collected, "commune": commune}
+        return "\n".join(chunks) + "\n\n"
 
     @stream_with_context
     def event_stream():
-        # Liste pour stocker les messages à envoyer
-        sse_messages = []
-        
-        def sse_log_callback(message):
-            """Callback pour capturer les logs et les stocker"""
-            # Filtrer les messages de debug SSE pour éviter la récursion
-            if not message.startswith("[SSE DEBUG]"):
-                sse_messages.append(message)
-        
-        # Activer la capture des logs
-        set_sse_log_callback(sse_log_callback)
-        
+        # Récupération des paramètres minimaux
+        commune = flask_request.args.get("commune", "").strip()
+        if not commune:
+            yield sse_format("error", "Veuillez fournir une commune.")
+            return
+
+        # Transmettre quelques filtres utiles (optionnels)
+        filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
+        filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
+        filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
+        filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
+        filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
+
         try:
-            # Récupération des paramètres minimaux
-            commune = flask_request.args.get("commune", "").strip()
-            if not commune:
-                yield sse_format("error", "Veuillez fournir une commune.")
-                return
-
-            # Récupération de TOUS les paramètres de filtrage (comme dans search_by_commune)
-            filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
-            filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
-            filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
-            filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
-            filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
-            
-            # Paramètres détaillés pour RPG
-            culture = flask_request.args.get("culture", "")
-            max_distance_bt = float(flask_request.args.get("max_distance_bt", 500.0))
-            max_distance_hta = float(flask_request.args.get("max_distance_hta", 2000.0))
-            rpg_min_area = float(flask_request.args.get("rpg_min_area", 1.0))
-            rpg_max_area = float(flask_request.args.get("rpg_max_area", 1000.0))
-            
-            # Autres paramètres de filtrage
-            distance_logic = flask_request.args.get("distance_logic", "OR").upper()
-            poste_type_filter = flask_request.args.get("poste_type_filter", "ALL").upper()
-            
-            # Convertir distances en km pour cohérence avec le code existant
-            bt_max_km = max_distance_bt / 1000.0
-            ht_max_km = max_distance_hta / 1000.0
-
             yield sse_format(None, f"🔎 Démarrage analyse pour: {commune}")
             yield sse_format(None, "⏳ Récupération du contour de la commune…")
 
-            # Faire l'analyse RÉELLE en appelant directement les fonctions de collecte
-            try:
-                # Variables pour le suivi des messages
-                import time
-                last_message_count = 0
-                
-                # Lancer l'analyse en arrière-plan
-                import threading
-                analysis_done = threading.Event()
-                analysis_result = {'success': False}
-                
-                def run_search():
-                    try:
-                        # Appeler directement la collecte de données simplifiée avec TOUS les paramètres
-                        result = collect_commune_data_simple(
-                            commune, 
-                            filter_rpg, filter_parkings, filter_friches, filter_toitures,
-                            culture, bt_max_km, ht_max_km, rpg_min_area, rpg_max_area,
-                            distance_logic, poste_type_filter, filter_by_dist
-                        )
-                        analysis_result['result'] = result
-                        analysis_result['success'] = True
-                    except Exception as e:
-                        analysis_result['error'] = str(e)
-                    finally:
-                        analysis_done.set()
-                
-                # Démarrer l'analyse
-                search_thread = threading.Thread(target=run_search)
-                search_thread.start()
-                
-                # Transmettre les messages capturés en temps réel
-                while not analysis_done.is_set():
-                    # Envoyer les nouveaux messages
-                    if len(sse_messages) > last_message_count:
-                        for i in range(last_message_count, len(sse_messages)):
-                            yield sse_format(None, sse_messages[i])
-                        last_message_count = len(sse_messages)
-                    
-                    # Attendre un peu
-                    time.sleep(0.1)
-                
-                # Attendre la fin de l'analyse
-                search_thread.join(timeout=60)
-                
-                # Envoyer les derniers messages
-                if len(sse_messages) > last_message_count:
-                    for i in range(last_message_count, len(sse_messages)):
-                        yield sse_format(None, sse_messages[i])
-                
-                if analysis_result['success']:
-                    yield sse_format(None, "✅ Analyse terminée. Utilisez le bouton 'Générer rapport commune' pour créer le rapport.")
-                else:
-                    yield sse_format("error", f"Erreur lors de l'analyse: {analysis_result.get('error', 'Erreur inconnue')}")
-                    
-            except Exception as e:
-                yield sse_format("error", f"Erreur lors de l'analyse: {e}")
+            # Vérifie accès au contour pour feedback utilisateur
+            resp = requests.get(
+                f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour",
+                timeout=12
+            )
+            if resp.status_code != 200:
+                yield sse_format("error", f"Erreur Geo API Gouv: {resp.status_code}")
+                return
+            infos = resp.json() or []
+            if not infos or not infos[0].get("contour"):
+                yield sse_format("error", "Contour de la commune introuvable.")
+                return
+            centre = infos[0].get("centre", {}).get("coordinates", [None, None])
+            yield sse_format(None, f"✅ Contour récupéré (centre: lat={centre[1]}, lon={centre[0]})")
 
+            # Feedback sur filtres sélectionnés
+            selected = []
+            if filter_rpg:      selected.append("RPG")
+            if filter_parkings: selected.append("Parkings")
+            if filter_friches:  selected.append("Friches")
+            if filter_toitures: selected.append("Toitures")
+            if selected:
+                yield sse_format(None, "🧰 Couches activées: " + ", ".join(selected))
+            if filter_by_dist:
+                yield sse_format(None, "📏 Filtrage par distance aux postes activé")
+
+            # Étapes principales (indicatives, la génération réelle est faite sur l'URL de rapport)
+            yield sse_format(None, "📡 Préparation de la génération du rapport complet…")
+            yield sse_format(None, "🗺️ La carte et les analyses détaillées seront générées…")
+
+            # Fin: ne pas rediriger automatiquement. Le rapport sera généré
+            # uniquement via le bouton "Générer rapport commune".
+            yield sse_format(None, "✅ Analyse terminée. Utilisez le bouton 'Générer rapport commune' pour créer le rapport.")
             yield sse_format("done", "done")
-            
         except Exception as e:
             safe_print(f"❌ [SSE COMMUNE] Erreur: {e}")
             yield sse_format("error", f"Erreur inattendue: {e}")
-        finally:
-            # Désactiver la capture des logs
-            clear_sse_log_callback()
 
     headers = {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
         "Connection": "keep-alive",
-        "X-Accel-Buffering": "no",  # Nginx: disable buffering
-        "Access-Control-Allow-Origin": "*",  # CORS pour SSE
-        "Access-Control-Allow-Headers": "Cache-Control",
+        # Autorise le SSE depuis même origine
+        "X-Accel-Buffering": "no",
     }
-    safe_print("[SSE DEBUG] Démarrage stream SSE commune...")
     return Response(event_stream(), headers=headers)
 
 @app.route("/search_by_commune", methods=["GET", "POST"])
 def search_by_commune():
     import requests
     import json
-    import time
     from urllib.parse import quote_plus
     from flask import request as flask_request
     from shapely.geometry import shape, Point
@@ -5211,8 +4813,8 @@ def search_by_commune():
     try:
         commune = flask_request.values.get("commune", "").strip()
         culture = flask_request.values.get("culture", "")
-        ht_max_km = float(flask_request.values.get("max_distance_hta", 1000.0)) / 1000.0  # Conversion mètres -> km
-        bt_max_km = float(flask_request.values.get("max_distance_bt", 500.0)) / 1000.0   # Conversion mètres -> km
+        ht_max_km = float(flask_request.values.get("ht_max_distance", 1.0))
+        bt_max_km = float(flask_request.values.get("bt_max_distance", 1.0))
         sir_km    = float(flask_request.values.get("sirene_radius", 0.05))
         min_ha    = float(flask_request.values.get("min_area_ha", 0))
         max_ha    = float(flask_request.values.get("max_area_ha", 1e9))
@@ -5253,6 +4855,19 @@ def search_by_commune():
         # Nouveau filtre pour calculer la surface non bâtie
         calculate_surface_libre = flask_request.values.get("calculate_surface_libre", "false").lower() == "true"
         
+        # Log détaillé du début de la recherche
+        params_log = {
+            'filter_rpg': filter_rpg, 'rpg_min_area': rpg_min_area, 'rpg_max_area': rpg_max_area,
+            'filter_parkings': filter_parkings, 'parking_min_area': parking_min_area,
+            'filter_friches': filter_friches, 'friches_min_area': friches_min_area,
+            'filter_zones': filter_zones, 'zones_min_area': zones_min_area, 'zones_type_filter': zones_type_filter,
+            'filter_toitures': filter_toitures, 'toitures_min_surface': toitures_min_surface,
+            'filter_by_distance': filter_by_distance, 'max_distance_bt': max_distance_bt, 
+            'max_distance_hta': max_distance_hta, 'distance_logic': distance_logic,
+            'ht_max_km': ht_max_km, 'bt_max_km': bt_max_km, 'sir_km': sir_km
+        }
+        log_search_start(commune, params_log)
+        
     except OSError as e:
         # Erreur de canal fermé (WinError 233) - utiliser des valeurs par défaut
         safe_print(f"⚠️ [PARAMÈTRES] Erreur lecture paramètres: {e}, utilisation valeurs par défaut")
@@ -5288,9 +4903,8 @@ def search_by_commune():
     # Logging sécurisé pour éviter les erreurs de canal fermé
     try:
         safe_print(f"🔍 [COMMUNE] Recherche filtrée pour {commune}")
-        safe_print(f"🔧 [DISTANCES] BT max: {bt_max_km:.3f} km, HTA max: {ht_max_km:.3f} km")
         if filter_rpg:
-            safe_print(f"    RPG: {rpg_min_area}-{rpg_max_area} ha, culture: '{culture or 'toutes'}'")
+            safe_print(f"    RPG: {rpg_min_area}-{rpg_max_area} ha")
         if filter_parkings:
             safe_print(f"    Parkings: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
         if filter_friches:
@@ -5463,10 +5077,6 @@ def search_by_commune():
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
     final_rpg = []
-    parcelles_rejetees_culture = 0
-    parcelles_rejetees_surface = 0
-    parcelles_rejetees_distance = 0
-    
     for feat in (rpg_raw or []):
         dec   = decode_rpg_feature(feat)
         poly  = shape(dec["geometry"])
@@ -5474,13 +5084,11 @@ def search_by_commune():
 
         # a) culture
         if culture and culture.lower() not in props.get("Culture", "").lower():
-            parcelles_rejetees_culture += 1
             continue
 
         # b) surface (ha)
         ha = shp_transform(to_l93, poly).area / 10_000.0
         if ha < min_ha or ha > max_ha:
-            parcelles_rejetees_surface += 1
             continue
 
         # c) distances réseaux (m) : on cherche le **minimum** dans CHAQUE liste
@@ -5494,24 +5102,19 @@ def search_by_commune():
         
         # Si les deux types de postes existent et sont tous les deux trop loin, on rejette
         # Si un seul type existe et qu'il est trop loin, on rejette aussi
-        distance_rejected = False
         if len(postes_bt_data) > 0 and len(postes_hta_data) > 0:
             # Les deux types existent : rejeter si les deux sont trop loin
             if bt_too_far and hta_too_far:
-                distance_rejected = True
+                continue
         elif len(postes_bt_data) > 0:
             # Seuls les postes BT existent : rejeter si BT trop loin
             if bt_too_far:
-                distance_rejected = True
+                continue
         elif len(postes_hta_data) > 0:
             # Seuls les postes HTA existent : rejeter si HTA trop loin
             if hta_too_far:
-                distance_rejected = True
+                continue
         # Si aucun poste n'existe, on garde la parcelle
-        
-        if distance_rejected:
-            parcelles_rejetees_distance += 1
-            continue
 
         props.update({
             "SURF_HA":            round(ha, 3),
@@ -5523,17 +5126,6 @@ def search_by_commune():
             "geometry":   dec["geometry"],
             "properties": props
         })
-
-    # Logging du filtrage RPG
-    try:
-        if filter_rpg:
-            safe_print(f"🌾 [RPG FILTRAGE] Total brut: {len(rpg_raw or [])} parcelles")
-            safe_print(f"   - Rejetées culture '{culture}': {parcelles_rejetees_culture}")
-            safe_print(f"   - Rejetées surface {min_ha}-{max_ha}ha: {parcelles_rejetees_surface}")
-            safe_print(f"   - Rejetées distance BT<{bt_max_km:.3f}km HTA<{ht_max_km:.3f}km: {parcelles_rejetees_distance}")
-            safe_print(f"   - ✅ Parcelles finales: {len(final_rpg)}")
-    except OSError:
-        pass
 
     # Filtrage avancé pour les nouvelles couches
     
@@ -8704,21 +8296,6 @@ def search_by_address_route():
     from shapely.geometry import shape, Point
     import time
 
-    # Logs de début de recherche par adresse
-    safe_print(f"\n{'='*80}")
-    safe_print(f"🔍 [RECHERCHE ADRESSE] === DÉBUT RECHERCHE PAR ADRESSE ===")
-    safe_print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
-    values = request.values
-    lat_str = values.get("lat")
-    lon_str = values.get("lon")
-    address = values.get("address")
-    
-    safe_print(f"📍 Paramètres reçus:")
-    safe_print(f"   - Latitude: {lat_str}")
-    safe_print(f"   - Longitude: {lon_str}")
-    safe_print(f"   - Adresse: {address}")
-
     # --- Fonctions utilitaires ---
     def safe_float(value, default=0.0):
         try:
@@ -8742,20 +8319,14 @@ def search_by_address_route():
     if lat_str not in (None, "") and lon_str not in (None, ""):
         try:
             lat, lon = float(lat_str), float(lon_str)
-            safe_print(f"✅ [COORDONNÉES] Coordonnées directes: {lat}, {lon}")
         except ValueError:
-            safe_print(f"❌ [ERREUR] Coordonnées invalides: {lat_str}, {lon_str}")
             return jsonify({"error": "Les coordonnées doivent être des nombres."}), 400
     elif address:
-        safe_print(f"🔍 [GEOCODAGE] Géocodage de l'adresse: {address}")
         coords = geocode_address(address)
         if not coords:
-            safe_print(f"❌ [ERREUR] Adresse non trouvée: {address}")
             return jsonify({"error": "Adresse non trouvée."}), 404
         lat, lon = coords
-        safe_print(f"✅ [GEOCODAGE] Adresse géocodée: {address} -> {lat}, {lon}")
     else:
-        safe_print(f"❌ [ERREUR] Aucune adresse ou coordonnées fournies")
         return jsonify({"error": "Veuillez fournir une adresse ou des coordonnées."}), 400
 
     # 2. Rayons et bbox
@@ -8763,12 +8334,6 @@ def search_by_address_route():
     bt_radius_km     = safe_float(values.get("bt_radius"),     1.0)
     sirene_radius_km = safe_float(values.get("sirene_radius"), 0.05)
     search_radius = 0.0027  # 300 mètres (300m / 111000m par degré)
-    
-    safe_print(f"⚙️ [PARAMÈTRES] Configuration de recherche:")
-    safe_print(f"   - Rayon postes HTA: {ht_radius_km} km")
-    safe_print(f"   - Rayon postes BT: {bt_radius_km} km")
-    safe_print(f"   - Rayon SIRENE: {sirene_radius_km} km")
-    safe_print(f"   - Rayon recherche parcelle: {search_radius} degrés (≈300m)")
     bt_radius_deg = bt_radius_km / 111
     ht_radius_deg = ht_radius_km / 111
     sirene_radius_deg = sirene_radius_km / 111
@@ -8777,7 +8342,6 @@ def search_by_address_route():
     parcelles_data = get_all_parcelles(lat, lon, radius=search_radius)
 
     def get_parcelle_info(lat, lon):
-        safe_print(f"📐 [CADASTRE] Recherche parcelle cadastrale pour {lat}, {lon}")
         bbox = f"{lon-0.001},{lat-0.001},{lon+0.001},{lat+0.001},EPSG:4326"
         features = fetch_wfs_data(CADASTRE_LAYER, bbox)
         point = Point(lon, lat)
@@ -8786,13 +8350,10 @@ def search_by_address_route():
             if geom.contains(point):
                 parcelle_info = feature["properties"]
                 parcelle_info["geometry"] = feature["geometry"]
-                safe_print(f"✅ [CADASTRE] Parcelle trouvée: {parcelle_info.get('numero', 'N/A')}")
                 return parcelle_info
-        safe_print(f"❌ [CADASTRE] Aucune parcelle cadastrale trouvée")
         return None
 
     # 4. Postes, réseaux, couches métiers
-    safe_print(f"⚡ [RÉSEAU] Recherche des postes électriques...")
     postes_bt_raw = ensure_feature_list(get_nearest_postes(lat, lon, count=1, radius_deg=bt_radius_deg))
     postes_hta_raw = ensure_feature_list(get_nearest_ht_postes(lat, lon, count=1, radius_deg=ht_radius_deg))
     capacites_reseau_raw = ensure_feature_list(get_nearest_capacites_reseau(lat, lon, count=1, radius_deg=ht_radius_deg))
@@ -8802,16 +8363,10 @@ def search_by_address_route():
 
     # Debug: vérifier les données des postes
     if postes_bt_raw:
-        safe_print(f"🔌 [POSTES BT] Poste BT trouvé avec distance: {postes_bt_raw[0].get('distance', 'N/A')} km")
+        print(f"[DEBUG] Poste BT trouvé avec distance: {postes_bt_raw[0].get('distance', 'N/A')}")
     else:
-        safe_print("🔌 [POSTES BT] Aucun poste BT trouvé dans le rayon")
-        
-    if postes_hta_raw:
-        safe_print(f"⚡ [POSTES HTA] Poste HTA trouvé avec distance: {postes_hta_raw[0].get('distance', 'N/A')} km")
-    else:
-        safe_print("⚡ [POSTES HTA] Aucun poste HTA trouvé dans le rayon")
+        print("[DEBUG] Aucun poste BT trouvé")
 
-    safe_print(f"📊 [COLLECTE] Récupération des données géographiques...")
     plu_info    = to_feature_collection(ensure_feature_list(get_plu_info(lat, lon, radius=search_radius)))
     parkings    = to_feature_collection(ensure_feature_list(get_parkings_info(lat, lon, radius=search_radius)))
     friches     = to_feature_collection(ensure_feature_list(get_friches_info(lat, lon, radius=search_radius)))
@@ -8819,28 +8374,15 @@ def search_by_address_route():
     zaer        = to_feature_collection(ensure_feature_list(get_zaer_info(lat, lon, radius=search_radius)))
     rpg_data    = to_feature_collection(ensure_feature_list(get_rpg_info(lat, lon, radius=0.0027)))
     sirene_data = to_feature_collection(ensure_feature_list(get_sirene_info(lat, lon, radius=sirene_radius_deg)))
-    
-    safe_print(f"🏢 [SIRENE] {len(sirene_data.get('features', []))} entreprises trouvées")
-    safe_print(f"🌾 [RPG] {len(rpg_data.get('features', []))} parcelles agricoles trouvées")
-    safe_print(f"🅿️ [PARKINGS] {len(parkings.get('features', []))} parkings trouvés")
-    safe_print(f"🏚️ [FRICHES] {len(friches.get('features', []))} friches trouvées")
 
     # 5. APIs externes
-    safe_print(f"🌐 [APIs EXTERNES] Appel aux APIs externes...")
     geom_point = {"type": "Point", "coordinates": [lon, lat]}
     radius_km = 0.3  # 300 mètres
     delta = radius_km / 111.0
     search_poly = bbox_to_polygon(lon, lat, delta)
-    
-    safe_print(f"🌿 [API NATURE] Récupération données nature...")
     api_nature = get_api_nature_data(search_poly)
-    
-    safe_print(f"🏗️ [API URBANISME] Récupération données urbanisme...")
     api_urbanisme_dict = get_all_gpu_data(search_poly)
-    
-    safe_print(f"📐 [API CADASTRE] Récupération données cadastre...")
     api_cadastre = get_api_cadastre_data(geom_point)
-    
     api_urbanisme = {k: to_feature_collection(v) for k, v in (api_urbanisme_dict or {}).items()}
 
     # 6. Validation (avant build_map)
@@ -8868,7 +8410,6 @@ def search_by_address_route():
     parcelle = None
     # 7. Recherche info parcelle
     parcelle = get_parcelle_info(lat, lon)
-    
     # Debug: print types and samples of all build_map arguments (now that parcelle is assigned)
     print("[DEBUG build_map args] parcelle:", type(parcelle or {}), (parcelle or {}) if isinstance(parcelle or {}, dict) else str(parcelle or {})[:200])
     print("[DEBUG build_map args] parcelles_data:", type(parcelles_data), ensure_feature_list(parcelles_data)[:1])
@@ -8948,15 +8489,15 @@ def search_by_address_route():
     carte_url = None
     map_obj = None
     try:
-        safe_print(f"🗺️ [CARTE] Génération carte pour {address} - Lat: {lat}, Lon: {lon}")
-        safe_print(f"📊 [CARTE] Données à traiter:")
-        safe_print(f"  - Parcelles: {len(ensure_feature_list(parcelles_data))}")
-        safe_print(f"  - Postes BT: {len(ensure_feature_list(postes_bt))}")
-        safe_print(f"  - Postes HTA: {len(ensure_feature_list(postes_hta))}")
-        safe_print(f"  - PLU: {len(ensure_feature_list(plu_info))}")
-        safe_print(f"  - Parkings: {len(ensure_feature_list(parkings))}")
-        safe_print(f"  - Friches: {len(ensure_feature_list(friches))}")
-        safe_print(f"  - Solaire: {len(ensure_feature_list(solaire))}")
+        print(f"[DEBUG] Génération carte pour {address} - Lat: {lat}, Lon: {lon}")
+        print(f"[DEBUG] Données à traiter:")
+        print(f"  - Parcelles: {len(ensure_feature_list(parcelles_data))}")
+        print(f"  - Postes BT: {len(ensure_feature_list(postes_bt))}")
+        print(f"  - Postes HTA: {len(ensure_feature_list(postes_hta))}")
+        print(f"  - PLU: {len(ensure_feature_list(plu_info))}")
+        print(f"  - Parkings: {len(ensure_feature_list(parkings))}")
+        print(f"  - Friches: {len(ensure_feature_list(friches))}")
+        print(f"  - Solaire: {len(ensure_feature_list(solaire))}")
         
         map_obj = build_map(
             lat, lon, address,
@@ -8989,7 +8530,7 @@ def search_by_address_route():
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
-        safe_print("[search_by_address] Erreur build_map :", e)
+        print("[search_by_address] Erreur build_map :", e)
         logging.error(f"[search_by_address] Erreur build_map: {e}\nTraceback:\n{tb}")
         return jsonify({"error": f"Erreur build_map: {e}", "traceback": tb}), 500
 
@@ -9003,7 +8544,7 @@ def search_by_address_route():
 
     # Validation et correction: s'assurer qu'une carte Folium soit toujours générée
     if not carte_url:
-        safe_print(f"⚠️ [CARTE] Génération carte échouée, retry avec carte simple...")
+        print(f"[WARNING] Génération carte échouée, retry avec carte simple...")
         try:
             # Régénérer une carte Folium avec au moins les données de base
             import folium
@@ -9036,22 +8577,13 @@ def search_by_address_route():
     import time
     if carte_url and "map_" in carte_url:
         info_response["carte_url"] += f"?t={int(time.time())}"
-        safe_print(f"🗺️ [CARTE] URL avec cache bust: {info_response['carte_url']}")
+        print(f"[DEBUG] URL avec cache bust: {info_response['carte_url']}")
     
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom  
     try:
         save_map_to_cache(map_obj, info_response)
-        safe_print(f"💾 [CACHE] Carte sauvegardée en cache")
     except Exception as cache_error:
         logging.error(f"[search_by_address] Erreur save_map_to_cache: {cache_error}")
-        safe_print(f"❌ [CACHE] Erreur sauvegarde cache: {cache_error}")
-    
-    # Logs de fin de recherche
-    safe_print(f"✅ [RÉSULTATS] === RECHERCHE PAR ADRESSE TERMINÉE ===")
-    safe_print(f"📍 Adresse traitée: {address or f'{lat}, {lon}'}")
-    safe_print(f"🗺️ Carte générée: {'✅' if carte_url else '❌'}")
-    safe_print(f"⏱️ Recherche terminée: {datetime.now().strftime('%H:%M:%S')}")
-    safe_print(f"{'='*80}\n")
     
     return jsonify(info_response)
 
@@ -9660,7 +9192,8 @@ def main():
         print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
         
         # Ne pas utiliser app.run() si on est lancé par gunicorn
-        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
+        if __name__ == "__main__":
+            app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -11519,13 +11052,9 @@ def create_admin_user():
     c.connection.commit()
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
 
-# Route pour la page d'aide
-@app.route('/aide')
-def aide():
-    """Page d'aide pour les utilisateurs"""
-    return render_template('aide.html')
-
 if __name__ == "__main__":
-    app.config["TEMPLATES_AUTO_RELOAD"] = True
     main()  # Ceci inclut Timer + app.run()
+
+
+app.config["TEMPLATES_AUTO_RELOAD"] = True
          

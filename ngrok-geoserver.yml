@@ -1,0 +1,14 @@
+version: 2
+authtoken_from_env: true
+
+tunnels:
+  geoserver:
+    proto: http
+    addr: 8080
+    domain: agriweb-prod.ngrok-free.app
+    host_header: rewrite
+    inspect: true
+    # Redirection vers /geoserver pour la racine
+    request_headers:
+      add:
+        - "X-Forwarded-Proto: https"
