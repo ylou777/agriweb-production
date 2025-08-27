@@ -1,10 +1,16 @@
-# Configuration ngrok pour GeoServer
+# Configuration ngrok pour Flask + GeoServer
 authtoken: 31UrhBFN9GpDYlr8yORTQkwedNI_29vvhqzAb5naKvH8hRV9d
 version: 2
 
 tunnels:
+  flask:
+    proto: http
+    addr: localhost:5000
+    hostname: agriweb-prod.ngrok-free.app
+    inspect: true
   geoserver:
     proto: http
     addr: localhost:8080
+    subdomain: geoserver-prod
     host_header: rewrite
     inspect: false

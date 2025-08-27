@@ -356,7 +356,7 @@ except ImportError:
     tk = None  # Environnement headless (pas d’interface X11)
 
 app = Flask(__name__)
-app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["TEMPLATES_AUTO_RELOAD"] = False  # Désactivé pour éviter le rafraîchissement automatique
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
@@ -4787,8 +4787,12 @@ def commune_search_sse():
         safe_print(f"[SSE DEBUG] Envoi: {data[:100]}...")
         return result
 
-    def collect_commune_data_simple(commune, filter_rpg, filter_parkings, filter_friches, filter_toitures):
-        """Version simplifiée de collecte de données de commune pour SSE"""
+    def collect_commune_data_simple(
+        commune, filter_rpg, filter_parkings, filter_friches, filter_toitures,
+        culture="", bt_max_km=0.5, ht_max_km=2.0, rpg_min_area=1.0, rpg_max_area=1000.0,
+        distance_logic="OR", poste_type_filter="ALL", filter_by_distance=False
+    ):
+        """Version simplifiée de collecte de données de commune pour SSE avec filtrage avancé"""
         import requests
         from urllib.parse import quote_plus
         from shapely.geometry import shape
@@ -4797,6 +4801,28 @@ def commune_search_sse():
         safe_print(f"🔍 [RECHERCHE COMMUNE] === DÉBUT RECHERCHE POUR '{commune.upper()}' ===")
         safe_print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         safe_print(f"📍 Commune: {commune}")
+        
+        # Affichage de l'état des filtres pour diagnostic
+        safe_print(f"🔧 [FILTRES] État des filtres activés:")
+        safe_print(f"   🌾 RPG: {'OUI' if filter_rpg else 'NON'}")
+        if filter_rpg:
+            safe_print(f"      - Culture: '{culture or 'toutes'}'")
+            safe_print(f"      - Surface: {rpg_min_area}-{rpg_max_area} ha")
+            safe_print(f"      - Distance BT: ≤{bt_max_km:.3f} km")
+            safe_print(f"      - Distance HTA: ≤{ht_max_km:.3f} km")
+        safe_print(f"   🅿️ Parkings: {'OUI' if filter_parkings else 'NON'}")
+        safe_print(f"   🏭 Friches: {'OUI' if filter_friches else 'NON'}")
+        safe_print(f"   🏠 Toitures: {'OUI' if filter_toitures else 'NON'}")
+        safe_print(f"   📊 Filtrage distance: {'OUI' if filter_by_distance else 'NON'}")
+        if filter_by_distance:
+            safe_print(f"      - Logique: {distance_logic}, Type postes: {poste_type_filter}")
+        
+        # Logging détaillé pour le débogage RPG
+        safe_print(f"🔧 [DEBUG RPG] Paramètres de filtrage distance:")
+        safe_print(f"   - bt_max_km: {bt_max_km:.3f} km")
+        safe_print(f"   - ht_max_km: {ht_max_km:.3f} km")
+        safe_print(f"   - poste_type_filter: {poste_type_filter}")
+        safe_print(f"   - filter_by_distance: {filter_by_distance}")
         
         # Récupération du contour de la commune
         safe_print(f"🌍 [API] Récupération contour commune '{commune}'...")
@@ -4845,10 +4871,154 @@ def commune_search_sse():
         if filter_rpg:
             safe_print("🌾 [RPG] Début collecte des parcelles agricoles...")
             try:
-                rpg_data = get_data_by_commune_polygon(geom_geojson, base_url, "rpg2023")
-                data_collected['rpg'] = rpg_data
-                count = len(rpg_data) if rpg_data else 0
-                safe_print(f"✅ [RPG] {count} parcelles agricoles récupérées")
+                # Récupération des données RPG brutes
+                rpg_raw = get_data_by_commune_polygon(geom_geojson, base_url, "rpg2023")
+                safe_print(f"🌾 [RPG] {len(rpg_raw) if rpg_raw else 0} parcelles brutes récupérées")
+                
+                # Récupération des postes électriques pour calcul des distances
+                postes_data = get_data_by_commune_polygon(geom_geojson, base_url, "postes_electriques")
+                postes_bt_data = [p for p in (postes_data or []) if p.get('properties', {}).get('type') == 'BT']
+                postes_hta_data = [p for p in (postes_data or []) if p.get('properties', {}).get('type') == 'HTA']
+                safe_print(f"📊 [POSTES] {len(postes_bt_data)} postes BT, {len(postes_hta_data)} postes HTA")
+                
+                # Application du filtrage avancé
+                final_rpg = []
+                parcelles_rejetees_culture = 0
+                parcelles_rejetees_surface = 0
+                parcelles_rejetees_distance = 0
+                
+                for feat in (rpg_raw or []):
+                    from shapely.geometry import shape
+                    from shapely.ops import transform as shp_transform
+                    from pyproj import Transformer
+                    
+                    # Décoder la feature RPG
+                    props = feat.get("properties", {})
+                    geom = feat.get("geometry")
+                    if not geom:
+                        continue
+                    poly = shape(geom)
+                    
+                    # a) Filtrage par culture
+                    culture_rpg = props.get("Culture", "")
+                    if culture and culture.lower() not in culture_rpg.lower():
+                        parcelles_rejetees_culture += 1
+                        continue
+                    
+                    # b) Filtrage par surface (conversion en hectares)
+                    to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+                    ha = shp_transform(to_l93, poly).area / 10_000.0
+                    if ha < rpg_min_area or ha > rpg_max_area:
+                        parcelles_rejetees_surface += 1
+                        continue
+                    
+                    # c) Filtrage par distance aux postes - TOUJOURS appliqué pour RPG
+                    if postes_bt_data or postes_hta_data:
+                        cent = poly.centroid.coords[0]
+                        d_bt = calculate_min_distance(cent, postes_bt_data) if postes_bt_data else None
+                        d_hta = calculate_min_distance(cent, postes_hta_data) if postes_hta_data else None
+                        
+                        # Conversion en km et test des limites
+                        bt_too_far = (d_bt is not None and (d_bt / 1000.0) > bt_max_km) or (d_bt is None and len(postes_bt_data) > 0)
+                        hta_too_far = (d_hta is not None and (d_hta / 1000.0) > ht_max_km) or (d_hta is None and len(postes_hta_data) > 0)
+                        
+                        # Logique de rejet selon les paramètres + sélection type de poste
+                        distance_rejected = False
+                        
+                        # Appliquer la logique selon le type de poste sélectionné
+                        if poste_type_filter == "BT":
+                            # Ne considérer que les postes BT
+                            if len(postes_bt_data) > 0:
+                                if bt_too_far:
+                                    distance_rejected = True
+                            else:
+                                # Pas de postes BT disponibles : rejeter
+                                distance_rejected = True
+                                
+                        elif poste_type_filter == "HTA":
+                            # Ne considérer que les postes HTA
+                            if len(postes_hta_data) > 0:
+                                if hta_too_far:
+                                    distance_rejected = True
+                            else:
+                                # Pas de postes HTA disponibles : rejeter
+                                distance_rejected = True
+                                
+                        else:  # poste_type_filter == "ALL" (par défaut)
+                            # Logique originale : considérer les deux types
+                            if len(postes_bt_data) > 0 and len(postes_hta_data) > 0:
+                                # Les deux types existent : rejeter si les deux sont trop loin
+                                if bt_too_far and hta_too_far:
+                                    distance_rejected = True
+                            elif len(postes_bt_data) > 0:
+                                # Seuls les postes BT existent : rejeter si BT trop loin
+                                if bt_too_far:
+                                    distance_rejected = True
+                            elif len(postes_hta_data) > 0:
+                                # Seuls les postes HTA existent : rejeter si HTA trop loin
+                                if hta_too_far:
+                                    distance_rejected = True
+                        
+                        if distance_rejected:
+                            parcelles_rejetees_distance += 1
+                            # Logging détaillé pour quelques premières parcelles rejetées
+                            if parcelles_rejetees_distance <= 3:
+                                safe_print(f"🚫 [DEBUG] Parcelle REJETÉE #{parcelles_rejetees_distance}:")
+                                safe_print(f"   - Culture: {props.get('Culture', 'N/A')}")
+                                safe_print(f"   - Surface: {ha:.2f} ha")
+                                if d_bt is not None:
+                                    safe_print(f"   - Distance BT: {d_bt/1000.0:.3f} km (limite: {bt_max_km:.3f} km)")
+                                else:
+                                    safe_print(f"   - Distance BT: N/A")
+                                if d_hta is not None:
+                                    safe_print(f"   - Distance HTA: {d_hta/1000.0:.3f} km (limite: {ht_max_km:.3f} km)")
+                                else:
+                                    safe_print(f"   - Distance HTA: N/A")
+                                safe_print(f"   - Type postes requis: {poste_type_filter}")
+                                safe_print(f"   - bt_too_far: {bt_too_far}, hta_too_far: {hta_too_far}")
+                            continue
+                        
+                        # Logging pour quelques parcelles ACCEPTÉES
+                        if len(final_rpg) < 3:
+                            safe_print(f"✅ [DEBUG] Parcelle ACCEPTÉE #{len(final_rpg)+1}:")
+                            safe_print(f"   - Culture: {props.get('Culture', 'N/A')}")
+                            safe_print(f"   - Surface: {ha:.2f} ha")
+                            if d_bt is not None:
+                                safe_print(f"   - Distance BT: {d_bt/1000.0:.3f} km (limite: {bt_max_km:.3f} km)")
+                            else:
+                                safe_print(f"   - Distance BT: N/A")
+                            if d_hta is not None:
+                                safe_print(f"   - Distance HTA: {d_hta/1000.0:.3f} km (limite: {ht_max_km:.3f} km)")
+                            else:
+                                safe_print(f"   - Distance HTA: N/A")
+                            safe_print(f"   - Type postes requis: {poste_type_filter}")
+                        
+                        # Enrichir les propriétés avec les distances
+                        props.update({
+                            "SURF_HA": round(ha, 3),
+                            "min_bt_distance_m": round(d_bt, 2) if d_bt is not None else None,
+                            "min_ht_distance_m": round(d_hta, 2) if d_hta is not None else None,
+                        })
+                    else:
+                        # Pas de postes trouvés, juste ajouter la surface
+                        props["SURF_HA"] = round(ha, 3)
+                    
+                    # Ajouter la parcelle filtrée
+                    final_rpg.append({
+                        "type": "Feature",
+                        "geometry": geom,
+                        "properties": props
+                    })
+                
+                # Logging du filtrage
+                safe_print(f"🌾 [RPG FILTRAGE] Total brut: {len(rpg_raw or [])} parcelles")
+                safe_print(f"   - Rejetées culture '{culture}': {parcelles_rejetees_culture}")
+                safe_print(f"   - Rejetées surface {rpg_min_area}-{rpg_max_area}ha: {parcelles_rejetees_surface}")
+                safe_print(f"   - Rejetées distance BT<{bt_max_km:.3f}km HTA<{ht_max_km:.3f}km: {parcelles_rejetees_distance}")
+                safe_print(f"✅ [RPG] Parcelles finales: {len(final_rpg)}")
+                
+                data_collected['rpg'] = final_rpg
+                
             except Exception as e:
                 safe_print(f"❌ [RPG] Erreur: {e}")
                 
@@ -4922,12 +5092,27 @@ def commune_search_sse():
                 yield sse_format("error", "Veuillez fournir une commune.")
                 return
 
-            # Transmettre quelques filtres utiles (optionnels)
+            # Récupération de TOUS les paramètres de filtrage (comme dans search_by_commune)
             filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
             filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
             filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
             filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
             filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
+            
+            # Paramètres détaillés pour RPG
+            culture = flask_request.args.get("culture", "")
+            max_distance_bt = float(flask_request.args.get("max_distance_bt", 500.0))
+            max_distance_hta = float(flask_request.args.get("max_distance_hta", 2000.0))
+            rpg_min_area = float(flask_request.args.get("rpg_min_area", 1.0))
+            rpg_max_area = float(flask_request.args.get("rpg_max_area", 1000.0))
+            
+            # Autres paramètres de filtrage
+            distance_logic = flask_request.args.get("distance_logic", "OR").upper()
+            poste_type_filter = flask_request.args.get("poste_type_filter", "ALL").upper()
+            
+            # Convertir distances en km pour cohérence avec le code existant
+            bt_max_km = max_distance_bt / 1000.0
+            ht_max_km = max_distance_hta / 1000.0
 
             yield sse_format(None, f"🔎 Démarrage analyse pour: {commune}")
             yield sse_format(None, "⏳ Récupération du contour de la commune…")
@@ -4945,8 +5130,13 @@ def commune_search_sse():
                 
                 def run_search():
                     try:
-                        # Appeler directement la collecte de données simplifiée
-                        result = collect_commune_data_simple(commune, filter_rpg, filter_parkings, filter_friches, filter_toitures)
+                        # Appeler directement la collecte de données simplifiée avec TOUS les paramètres
+                        result = collect_commune_data_simple(
+                            commune, 
+                            filter_rpg, filter_parkings, filter_friches, filter_toitures,
+                            culture, bt_max_km, ht_max_km, rpg_min_area, rpg_max_area,
+                            distance_logic, poste_type_filter, filter_by_dist
+                        )
                         analysis_result['result'] = result
                         analysis_result['success'] = True
                     except Exception as e:
@@ -5021,8 +5211,8 @@ def search_by_commune():
     try:
         commune = flask_request.values.get("commune", "").strip()
         culture = flask_request.values.get("culture", "")
-        ht_max_km = float(flask_request.values.get("ht_max_distance", 1.0))
-        bt_max_km = float(flask_request.values.get("bt_max_distance", 1.0))
+        ht_max_km = float(flask_request.values.get("max_distance_hta", 1000.0)) / 1000.0  # Conversion mètres -> km
+        bt_max_km = float(flask_request.values.get("max_distance_bt", 500.0)) / 1000.0   # Conversion mètres -> km
         sir_km    = float(flask_request.values.get("sirene_radius", 0.05))
         min_ha    = float(flask_request.values.get("min_area_ha", 0))
         max_ha    = float(flask_request.values.get("max_area_ha", 1e9))
@@ -5098,8 +5288,9 @@ def search_by_commune():
     # Logging sécurisé pour éviter les erreurs de canal fermé
     try:
         safe_print(f"🔍 [COMMUNE] Recherche filtrée pour {commune}")
+        safe_print(f"🔧 [DISTANCES] BT max: {bt_max_km:.3f} km, HTA max: {ht_max_km:.3f} km")
         if filter_rpg:
-            safe_print(f"    RPG: {rpg_min_area}-{rpg_max_area} ha")
+            safe_print(f"    RPG: {rpg_min_area}-{rpg_max_area} ha, culture: '{culture or 'toutes'}'")
         if filter_parkings:
             safe_print(f"    Parkings: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
         if filter_friches:
@@ -5272,6 +5463,10 @@ def search_by_commune():
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
     final_rpg = []
+    parcelles_rejetees_culture = 0
+    parcelles_rejetees_surface = 0
+    parcelles_rejetees_distance = 0
+    
     for feat in (rpg_raw or []):
         dec   = decode_rpg_feature(feat)
         poly  = shape(dec["geometry"])
@@ -5279,11 +5474,13 @@ def search_by_commune():
 
         # a) culture
         if culture and culture.lower() not in props.get("Culture", "").lower():
+            parcelles_rejetees_culture += 1
             continue
 
         # b) surface (ha)
         ha = shp_transform(to_l93, poly).area / 10_000.0
         if ha < min_ha or ha > max_ha:
+            parcelles_rejetees_surface += 1
             continue
 
         # c) distances réseaux (m) : on cherche le **minimum** dans CHAQUE liste
@@ -5297,19 +5494,24 @@ def search_by_commune():
         
         # Si les deux types de postes existent et sont tous les deux trop loin, on rejette
         # Si un seul type existe et qu'il est trop loin, on rejette aussi
+        distance_rejected = False
         if len(postes_bt_data) > 0 and len(postes_hta_data) > 0:
             # Les deux types existent : rejeter si les deux sont trop loin
             if bt_too_far and hta_too_far:
-                continue
+                distance_rejected = True
         elif len(postes_bt_data) > 0:
             # Seuls les postes BT existent : rejeter si BT trop loin
             if bt_too_far:
-                continue
+                distance_rejected = True
         elif len(postes_hta_data) > 0:
             # Seuls les postes HTA existent : rejeter si HTA trop loin
             if hta_too_far:
-                continue
+                distance_rejected = True
         # Si aucun poste n'existe, on garde la parcelle
+        
+        if distance_rejected:
+            parcelles_rejetees_distance += 1
+            continue
 
         props.update({
             "SURF_HA":            round(ha, 3),
@@ -5321,6 +5523,17 @@ def search_by_commune():
             "geometry":   dec["geometry"],
             "properties": props
         })
+
+    # Logging du filtrage RPG
+    try:
+        if filter_rpg:
+            safe_print(f"🌾 [RPG FILTRAGE] Total brut: {len(rpg_raw or [])} parcelles")
+            safe_print(f"   - Rejetées culture '{culture}': {parcelles_rejetees_culture}")
+            safe_print(f"   - Rejetées surface {min_ha}-{max_ha}ha: {parcelles_rejetees_surface}")
+            safe_print(f"   - Rejetées distance BT<{bt_max_km:.3f}km HTA<{ht_max_km:.3f}km: {parcelles_rejetees_distance}")
+            safe_print(f"   - ✅ Parcelles finales: {len(final_rpg)}")
+    except OSError:
+        pass
 
     # Filtrage avancé pour les nouvelles couches
     
@@ -9447,8 +9660,7 @@ def main():
         print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
         
         # Ne pas utiliser app.run() si on est lancé par gunicorn
-        if __name__ == "__main__":
-            app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
+        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
     except Exception as e:
         import traceback
         tb = traceback.format_exc()

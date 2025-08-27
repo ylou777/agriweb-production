@@ -261,6 +261,22 @@
           </div>
         </div>
         
+        <!-- Options de visibilité des couches -->
+        <div class="mb-3">
+          <h6 class="mb-2"><i class="bi bi-eye-fill"></i> Couches à afficher sur la carte :</h6>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="show_sirene_commune">
+            <label class="form-check-label" for="show_sirene_commune">Entreprises SIRENE</label>
+          </div>
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="show_api_ign_commune">
+            <label class="form-check-label" for="show_api_ign_commune">API Cadastre IGN (5km)</label>
+          </div>
+          <small class="text-muted">
+            <i class="bi bi-info-circle"></i> Décochez pour masquer ces couches sur la carte générée
+          </small>
+        </div>
+        
   <button id="communeSearchButton" type="submit" class="btn btn-secondary w-100 mt-2">Rechercher commune</button>
   <div id="communeSearchLog" class="form-text text-info mb-2" style="min-height:1.5em;"></div>
       </form>
@@ -507,6 +523,99 @@ document.addEventListener('DOMContentLoaded', function() {
   };
 });
 
+// Gestion du formulaire de recherche par adresse/coordonnées
+document.addEventListener('DOMContentLoaded', function() {
+  const addressForm = document.getElementById('unifiedSearchForm');
+  const searchLog = document.getElementById('searchLog');
+
+  function appendSearchLog(msg) {
+    if (!searchLog) return;
+    searchLog.style.display = 'block';
+    const now = new Date();
+    const ts = now.toLocaleTimeString();
+    const line = document.createElement('div');
+    line.textContent = `[${ts}] ${msg}`;
+    searchLog.appendChild(line);
+    searchLog.scrollTop = searchLog.scrollHeight;
+  }
+
+  if (addressForm) {
+    addressForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Reset logs
+      if (searchLog) {
+        searchLog.innerHTML = '';
+        searchLog.style.display = 'block';
+      }
+
+      const searchInput = document.getElementById('search_input')?.value?.trim() || '';
+      if (!searchInput) {
+        appendSearchLog('Veuillez saisir une adresse ou des coordonnées.');
+        return;
+      }
+
+      appendSearchLog('🔍 Recherche en cours...');
+
+      // Collecte des paramètres
+      const sireneRadius = document.getElementById('sirene_radius')?.value || '0.05';
+      const btMaxDistance = document.getElementById('bt_max_distance')?.value || '500';
+      const htMaxDistance = document.getElementById('ht_max_distance')?.value || '3500';
+
+      // Préparation des paramètres pour la requête
+      const params = new URLSearchParams();
+      
+      // Analyser si c'est des coordonnées ou une adresse
+      const coordsMatch = searchInput.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+      if (coordsMatch) {
+        // Format coordonnées détecté
+        params.set('lat', coordsMatch[1].trim());
+        params.set('lon', coordsMatch[2].trim());
+      } else {
+        // Format adresse
+        params.set('address', searchInput);
+      }
+      
+      params.set('sirene_radius', sireneRadius);
+      params.set('bt_max_distance', btMaxDistance);
+      params.set('ht_max_distance', htMaxDistance);
+
+      // Lancer la recherche
+      const url = '/search_by_address?' + params.toString();
+      
+      fetch(url, { method: 'POST' })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Erreur HTTP: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data.carte_url) {
+            appendSearchLog('✅ Carte générée ! Mise à jour de la carte...');
+            
+            // Mettre à jour l'iframe mapFrame avec la nouvelle carte
+            const mapFrame = document.getElementById('mapFrame');
+            if (mapFrame) {
+              const newUrl = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+              mapFrame.src = newUrl;
+              appendSearchLog('🗺️ Carte mise à jour avec succès');
+            } else {
+              appendSearchLog('⚠️ Carte générée, mais iframe non trouvé');
+              window.open(data.carte_url, '_blank');
+            }
+          } else {
+            appendSearchLog('⚠️ Recherche terminée, mais aucune carte générée');
+          }
+        })
+        .catch(err => {
+          console.error('Erreur recherche adresse:', err);
+          appendSearchLog('❌ Erreur lors de la recherche: ' + err.message);
+        });
+    });
+  }
+});
+
 // Enrichissement: logs en direct via SSE pendant la recherche commune
 document.addEventListener('DOMContentLoaded', function() {
   const form = document.getElementById('communeSearchForm');
@@ -556,6 +665,8 @@ document.addEventListener('DOMContentLoaded', function() {
       params.set('filter_rpg', String(boolVal('filter_rpg_commune', true)));
       params.set('rpg_min_area', String(numVal('rpg_min_area', 0.1)));
       params.set('rpg_max_area', String(numVal('rpg_max_area', 50)));
+      // AJOUT DU PARAMÈTRE CULTURE MANQUANT
+      params.set('culture', document.getElementById('culture')?.value || '');
 
       params.set('filter_parkings', String(boolVal('filter_parkings_commune', false)));
       params.set('parking_min_area', String(numVal('parking_min_area', 1500)));
@@ -577,6 +688,10 @@ document.addEventListener('DOMContentLoaded', function() {
       params.set('max_distance_hta', String(numVal('ht_max_distance_commune', 5000)));
       const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
       params.set('poste_type_filter', posteType);
+      
+      // Options de visibilité des couches
+      params.set('show_sirene', String(boolVal('show_sirene_commune', false)));
+      params.set('show_api_ign', String(boolVal('show_api_ign_commune', false)));
 
       // Démarre EventSource
       const url = '/commune_search_sse?' + params.toString();
@@ -601,12 +716,67 @@ document.addEventListener('DOMContentLoaded', function() {
         setTimeout(() => {
           // Récupérer les mêmes paramètres que pour l'EventSource
           const commune = document.getElementById('commune_search').value.trim();
+          console.log('🔍 [DEBUG JS] Commune récupérée:', commune);
           if (commune) {
-            const formData = new FormData(form);
+            // Construire les paramètres manuellement en récupérant TOUS les filtres de la page
             const searchParams = new URLSearchParams();
-            for (const [key, value] of formData.entries()) {
-              searchParams.append(key, value);
+            
+            // Ajouter la commune
+            searchParams.append('commune', commune);
+            
+            // Récupérer TOUS les filtres depuis leurs éléments respectifs (avec suffixe _commune)
+            // Filtres RPG
+            const filterRpg = document.getElementById('filter_rpg_commune')?.checked || false;
+            searchParams.append('filter_rpg', filterRpg);
+            if (filterRpg) {
+              searchParams.append('rpg_min_area', document.getElementById('rpg_min_area')?.value || '0.1');
+              searchParams.append('rpg_max_area', document.getElementById('rpg_max_area')?.value || '50');
+              // AJOUT DU PARAMÈTRE CULTURE MANQUANT
+              searchParams.append('culture', document.getElementById('culture')?.value || '');
             }
+            
+            // Filtres Parkings
+            const filterParkings = document.getElementById('filter_parkings_commune')?.checked || false;
+            searchParams.append('filter_parkings', filterParkings);
+            if (filterParkings) {
+              searchParams.append('parking_min_area', document.getElementById('parking_min_area')?.value || '1500');
+            }
+            
+            // Filtres Friches
+            const filterFriches = document.getElementById('filter_friches_commune')?.checked || false;
+            searchParams.append('filter_friches', filterFriches);
+            if (filterFriches) {
+              searchParams.append('friches_min_area', document.getElementById('friches_min_area')?.value || '1000');
+            }
+            
+            // Filtres Zones
+            const filterZones = document.getElementById('filter_zones_commune')?.checked || false;
+            searchParams.append('filter_zones', filterZones);
+            if (filterZones) {
+              searchParams.append('zones_min_area', document.getElementById('zones_min_area')?.value || '1000');
+              searchParams.append('zones_type_filter', document.getElementById('zones_type_filter')?.value || '');
+            }
+            
+            // Filtres Toitures
+            const filterToitures = document.getElementById('filter_toitures_commune')?.checked || false;
+            searchParams.append('filter_toitures', filterToitures);
+            if (filterToitures) {
+              searchParams.append('toitures_min_surface', document.getElementById('min_surface_toiture')?.value || '100');
+            }
+            
+            // Filtres Distance (utilise les IDs avec suffixe _commune)
+            const filterDistance = document.getElementById('filter_by_distance_commune')?.checked || false;
+            searchParams.append('filter_by_distance', filterDistance);
+            if (filterDistance) {
+              searchParams.append('max_distance_bt', document.getElementById('bt_max_distance_commune')?.value || '2000');
+              searchParams.append('max_distance_hta', document.getElementById('ht_max_distance_commune')?.value || '5000');
+              const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
+              searchParams.append('poste_type_filter', posteType);
+            } else {
+              searchParams.append('poste_type_filter', 'ALL');
+            }
+            
+            console.log('🔍 [DEBUG JS] URL construite:', '/search_by_commune?' + searchParams.toString());
             
             // Appeler la route qui génère la carte
             fetch('/search_by_commune?' + searchParams.toString())
