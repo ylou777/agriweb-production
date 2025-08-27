@@ -325,7 +325,7 @@ except ImportError:
     tk = None  # Environnement headless (pas d’interface X11)
 
 app = Flask(__name__)
-app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["TEMPLATES_AUTO_RELOAD"] = False  # Désactivé pour éviter rafraîchissement automatique
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
@@ -6004,11 +6004,12 @@ def search_by_commune():
     # Log final détaillé des résultats de recherche
     log_search_results(commune, response_data)
     
-    # Ajouter cache bust comme dans search_by_address - DIAGNOSTIC DÉTAILLÉ
+    # URL carte finale sans cache bust automatique pour éviter rafraîchissements intempestifs
     print(f"🔍 [DEBUG_FINAL] carte_url avant traitement: '{carte_url}' (type: {type(carte_url)})")
     if carte_url and "commune_map_" in carte_url:
-        response_data["carte_url"] = f"/static/{carte_url}?t={int(time.time())}"
-        print(f"✅ [DEBUG_FINAL] URL carte avec cache bust: {response_data['carte_url']}")
+        # Pas de cache bust automatique - laisse le navigateur gérer le cache normalement
+        response_data["carte_url"] = f"/static/{carte_url}"
+        print(f"✅ [DEBUG_FINAL] URL carte finale: {response_data['carte_url']}")
     elif carte_url:
         response_data["carte_url"] = f"/static/{carte_url}"
         print(f"✅ [DEBUG_FINAL] URL carte finale: {response_data['carte_url']}")
