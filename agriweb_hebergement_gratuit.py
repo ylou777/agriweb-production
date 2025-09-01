@@ -4219,7 +4219,7 @@ def build_map(
                             geom, 
                             style_function=style_func,
                             tooltip=tooltip_text,
-                            popup=folium.Popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
+                            popup=folium.Popup(html=popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
                         ).add_to(group)
                     except Exception as e:
                         print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
