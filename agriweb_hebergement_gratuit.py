@@ -3226,13 +3226,14 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
         rpg_parcelles.append(props)
 
     # 5) Prépare les éleveurs (liens annuaire/entreprise)
-    for eleveur in eleveurs_data:
-        props = eleveur.get("properties", {})
-        nom_url = (props.get("nomUniteLe", "") + " " + props.get("denominati", "")).strip().replace(" ", "+")
-        ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
-        props["lien_annuaire"] = f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}"
-        siret = props.get("siret", "")
-        props["lien_entreprise"] = f"https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}" if siret else "#"
+    if eleveurs_data:
+        for eleveur in eleveurs_data:
+            props = eleveur.get("properties", {})
+            nom_url = (props.get("nomUniteLe", "") + " " + props.get("denominati", "")).strip().replace(" ", "+")
+            ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
+            props["lien_annuaire"] = f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}"
+            siret = props.get("siret", "")
+            props["lien_entreprise"] = f"https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}" if siret else "#"
 
     # 6) Prépare les postes BT/HTA (distance, nom)
     def poste_label(poste):
@@ -3241,8 +3242,8 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
         dist = poste.get("distance", "")
         return {"nom": nom, "distance": dist}
 
-    postes_bt = [poste_label(p) for p in postes_bt_data]
-    postes_hta = [poste_label(p) for p in postes_hta_data]
+    postes_bt = [poste_label(p) for p in postes_bt_data] if postes_bt_data else []
+    postes_hta = [poste_label(p) for p in postes_hta_data] if postes_hta_data else []
 
     # 7) Rapport final
     return {
@@ -3254,11 +3255,11 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
         "rpg_parcelles": rpg_parcelles,
         "postes_bt": postes_bt,
         "postes_hta": postes_hta,
-        "eleveurs": [e.get("properties", {}) for e in eleveurs_data],
+        "eleveurs": [e.get("properties", {}) for e in eleveurs_data] if eleveurs_data else [],
         "hta_capacites": hta_capacites,
         "api_nature": api_nature,
         "api_cadastre": api_cadastre,
-        "sirene": [s.get("properties", {}) for s in sirene_data]
+        "sirene": [s.get("properties", {}) for s in sirene_data] if sirene_data else []
     }
 
 
@@ -3900,7 +3901,39 @@ def build_map(
                 print(f"[ERROR] Exception while adding Cadastre feature: {e}\nFeature: {feat}")
     map_obj.add_child(cadastre_group)
 
-    # Note: Cadastre (API IGN) supprimé car parasite - les données cadastrales sont déjà dans la couche principale
+    # Cadastre API IGN (parcelles de l'API cadastre)
+    if api_cadastre and api_cadastre.get("features"):
+        cad_api_group = folium.FeatureGroup(name="Cadastre (API IGN)", show=True)
+        for feat in api_cadastre["features"]:
+            geom = feat.get("geometry")
+            valid_geom = False
+            if geom and isinstance(geom, dict):
+                gtype = geom.get("type")
+                coords = geom.get("coordinates")
+                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                    if coords and coords != [] and coords is not None:
+                        valid_geom = True
+            
+            if valid_geom:
+                try:
+                    props = feat.get("properties", {})
+                    numero = props.get("numero", "N/A")
+                    section = props.get("section", "N/A")
+                    code_com = props.get("code_com", "N/A")
+                    
+                    tooltip_html = f"<b>Parcelle API:</b> {code_com}{section}{numero}<br>"
+                    for k, v in props.items():
+                        if k not in ["numero", "section", "code_com"]:
+                            tooltip_html += f"<b>{k}:</b> {v}<br>"
+                    
+                    folium.GeoJson(
+                        geom,
+                        style_function=lambda _: {"color": "#FF6600", "weight": 2, "fillColor": "#FFE4B5", "fillOpacity": 0.3},
+                        tooltip=tooltip_html
+                    ).add_to(cad_api_group)
+                except Exception as e:
+                    print(f"[ERROR] Exception while adding API Cadastre feature: {e}\nFeature: {feat}")
+        map_obj.add_child(cad_api_group)
 
     # --- Postes BT (filtrage doublons par coordonnées) ---
     def poste_key(poste):
@@ -3969,48 +4002,69 @@ def build_map(
 
     # --- Éleveurs avec liens hypertexte ---
     eleveurs_group = folium.FeatureGroup(name="Éleveurs", show=True)
-    for eleveur in eleveurs_data:
-        props = eleveur.get("properties", {})
-        geom = eleveur.get("geometry")
+    if eleveurs_data:  # Vérification ajoutée pour éviter l'erreur NoneType
+        for eleveur in eleveurs_data:
+            props = eleveur.get("properties", {})
+            geom = eleveur.get("geometry")
         
-        if not geom or geom.get("type") != "Point":
-            continue
+            if not geom or geom.get("type") != "Point":
+                continue
             
-        try:
-            coords = geom["coordinates"]
-            lat_e, lon_e = coords[1], coords[0]
-        except Exception:
-            continue
+            try:
+                coords = geom["coordinates"]
+                lat_e, lon_e = coords[1], coords[0]
+            except Exception:
+                continue
+                
+            # Construction du popup enrichi avec liens hypertexte
+            nom = props.get("nomUniteLe", "") or props.get("denominati", "") or "Éleveur"
+            commune = props.get("libelleCom", "")
+            siret = props.get("siret", "")
             
-        # Construction du popup simplifié
-        nom = props.get("nomUniteLe", "") or props.get("denominati", "") or "Éleveur"
-        commune = props.get("libelleCom", "")
-        siret = props.get("siret", "")
-        
-        popup_html = f"<b>🐄 Éleveur</b><br>"
-        popup_html += f"<b>Nom:</b> {nom}<br>"
-        if commune:
-            popup_html += f"<b>Commune:</b> {commune}<br>"
-        if siret:
-            popup_html += f"<b>SIRET:</b> {siret}<br>"
+            popup_html = f"<b>🐄 Éleveur</b><br>"
+            popup_html += f"<b>Nom:</b> {nom}<br>"
+            if commune:
+                popup_html += f"<b>Commune:</b> {commune}<br>"
+            if siret:
+                popup_html += f"<b>SIRET:</b> {siret}<br>"
+                
+            # --- LIENS HYPERTEXTE ENRICHIS ---
+            popup_html += "<br><b>🔗 Liens utiles:</b><br>"
             
-        # Lien Street View seulement
-        streetview_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_e},{lon_e}"
-        popup_html += f"<br><a href='{streetview_url}' target='_blank'>📍 Voir sur Street View</a>"
-        
-        folium.Marker(
-            [lat_e, lon_e], 
-            popup=folium.Popup(popup_html, max_width=300),
-            icon=folium.Icon(color="green", icon="home", prefix="fa")
-        ).add_to(eleveurs_group)
+            # 1. Street View
+            streetview_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_e},{lon_e}"
+            popup_html += f"<a href='{streetview_url}' target='_blank'>📍 Street View</a><br>"
+            
+            # 2. Annuaire SIRENE (si SIRET disponible)
+            if siret:
+                sirene_search_url = f"https://annuaire-entreprises.data.gouv.fr/entreprise/{siret}"
+                popup_html += f"<a href='{sirene_search_url}' target='_blank'>🏢 Fiche SIRENE</a><br>"
+            
+            # 3. Recherche générale de l'entreprise
+            if nom and nom != "Éleveur":
+                # URL de recherche sur l'annuaire
+                nom_encoded = nom.replace(" ", "%20")
+                annuaire_url = f"https://annuaire-entreprises.data.gouv.fr/rechercher?terme={nom_encoded}"
+                popup_html += f"<a href='{annuaire_url}' target='_blank'>🔍 Recherche Annuaire</a><br>"
+            
+            # 4. Carte Google Maps de la zone
+            maps_url = f"https://www.google.com/maps/search/?api=1&query={lat_e},{lon_e}"
+            popup_html += f"<a href='{maps_url}' target='_blank'>🗺️ Google Maps</a>"
+            
+            folium.Marker(
+                [lat_e, lon_e], 
+                popup=folium.Popup(popup_html, max_width=300),
+                icon=folium.Icon(color="green", icon="home", prefix="fa")
+            ).add_to(eleveurs_group)
     
     map_obj.add_child(eleveurs_group)
 
     # PLU
     plu_group = folium.FeatureGroup(name="PLU", show=True)
-    for item in plu_info:
-        if item.get("geometry"):
-            folium.GeoJson(item.get("geometry"), style_function=lambda _: {"color": "red", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in item.items())).add_to(plu_group)
+    if plu_info:
+        for item in plu_info:
+            if item.get("geometry"):
+                folium.GeoJson(item.get("geometry"), style_function=lambda _: {"color": "red", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in item.items())).add_to(plu_group)
     map_obj.add_child(plu_group)
 
     # Autres couches simples
@@ -4027,21 +4081,22 @@ def build_map(
     def style_zaer(feature):
         return {"color": "cyan", "weight": 3, "fillColor": "cyan", "fillOpacity": 0.4, "opacity": 0.8}
 
-    for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
-        print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")
-        group = folium.FeatureGroup(name=name, show=True)
-        
-        for f in data:
-            geom = f.get("geometry")
-            valid_geom = False
-            if geom and isinstance(geom, dict):
-                gtype = geom.get("type")
-                coords = geom.get("coordinates")
-                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
-                    if coords and coords != [] and coords is not None:
-                        valid_geom = True
-            if valid_geom:
-                try:
+    for name, data, color in [("Parkings", parkings_data or [], "orange"), ("Friches", friches_data or [], "brown"), ("Potentiel Solaire", potentiel_solaire_data or [], "gold"), ("ZAER", zaer_data or [], "cyan")]:
+        if data:  # Vérifier que data n'est pas None ou vide
+            print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")
+            group = folium.FeatureGroup(name=name, show=True)
+            
+            for f in data:
+                geom = f.get("geometry")
+                valid_geom = False
+                if geom and isinstance(geom, dict):
+                    gtype = geom.get("type")
+                    coords = geom.get("coordinates")
+                    if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
+                        if coords and coords != [] and coords is not None:
+                            valid_geom = True
+                            
+                if valid_geom:
                     # Création d'un tooltip enrichi pour parkings, friches et toitures avec références cadastrales
                     props = f.get("properties", {})
                     tooltip_lines = []
@@ -4150,26 +4205,27 @@ def build_map(
                     popup_content = tooltip_text + street_view_link + pages_jaunes_link
                     
                     # SOLUTION SIMPLE ET ROBUSTE: Utiliser les fonctions prédéfinies
-                    if name == "Parkings":
-                        style_func = style_parkings
-                    elif name == "Friches":
-                        style_func = style_friches
-                    elif name == "Potentiel Solaire":
-                        style_func = style_solaire
-                    else:  # ZAER
-                        style_func = style_zaer
-                    
-                    folium.GeoJson(
-                        geom, 
-                        style_function=style_func,
-                        tooltip=tooltip_text,
-                        popup=folium.Popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
-                    ).add_to(group)
-                except Exception as e:
-                    print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
-            else:
-                print(f"[DEBUG] Invalid {name} geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
-        map_obj.add_child(group)
+                    try:
+                        if name == "Parkings":
+                            style_func = style_parkings
+                        elif name == "Friches":
+                            style_func = style_friches
+                        elif name == "Potentiel Solaire":
+                            style_func = style_solaire
+                        else:  # ZAER
+                            style_func = style_zaer
+                        
+                        folium.GeoJson(
+                            geom, 
+                            style_function=style_func,
+                            tooltip=tooltip_text,
+                            popup=folium.Popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
+                        ).add_to(group)
+                    except Exception as e:
+                        print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
+                else:
+                    print(f"[DEBUG] Invalid {name} geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+            map_obj.add_child(group)
 
     # Couche cadastre des parkings/friches sélectionnés
     parking_friches_cadastre = []
@@ -4308,10 +4364,11 @@ def build_map(
 
     # Sirene - Couche décochée par défaut pour éviter l'encombrement
     sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=False)
-    for feat in sirene_data:
-        if feat.get('geometry', {}).get('type') == 'Point':
-            lon_s, lat_s = feat['geometry']['coordinates']
-            folium.Marker([lat_s, lon_s], popup="<br>".join(f"{k}: {v}" for k, v in feat['properties'].items()), icon=folium.Icon(color="darkred", icon="building")).add_to(sir_group)
+    if sirene_data:
+        for feat in sirene_data:
+            if feat.get('geometry', {}).get('type') == 'Point':
+                lon_s, lat_s = feat['geometry']['coordinates']
+                folium.Marker([lat_s, lon_s], popup="<br>".join(f"{k}: {v}" for k, v in feat['properties'].items()), icon=folium.Icon(color="darkred", icon="building")).add_to(sir_group)
     map_obj.add_child(sir_group)
     # Défini bbox_poly avant d'utiliser get_all_gpu_data(bbox_poly)
     delta = 5.0 / 111.0  # 5km en degrés ~
@@ -5087,9 +5144,9 @@ def search_by_commune():
         print(f"🔍 [COMMUNE] Enrichissement des détails de zones GPU pour {commune}")
         # Ajouter des informations détaillées sur les zones trouvées
         zones_summary = {}
-        if api_urbanisme.get("details"):
+        if api_urbanisme.get("details") and isinstance(api_urbanisme["details"], dict):
             for zone_key, zone_data in api_urbanisme["details"].items():
-                if zone_data.get("features"):
+                if zone_data and zone_data.get("features"):
                     zones_summary[zone_key] = {
                         "count": zone_data.get("count", 0),
                         "name_fr": zone_data.get("name_fr", zone_key),
@@ -5974,10 +6031,11 @@ def search_by_commune():
 
     # Ajouter _layer aux éleveurs pour la détection côté client
     eleveurs_with_layer = []
-    for eleveur in eleveurs_data:
-        if eleveur.get("properties"):
-            eleveur["properties"]["_layer"] = "eleveurs"
-        eleveurs_with_layer.append(eleveur)
+    if eleveurs_data:
+        for eleveur in eleveurs_data:
+            if eleveur.get("properties"):
+                eleveur["properties"]["_layer"] = "eleveurs"
+            eleveurs_with_layer.append(eleveur)
     
     # 7) Réponse JSON avec données filtrées
     print(f"🔧 [DEBUG_RPG_PARCELLES] Création response_data avec filter_rpg={filter_rpg}, final_rpg count={len(final_rpg) if final_rpg else 0}")
@@ -8395,10 +8453,19 @@ def search_by_address_route():
             return features
         return {"type": "FeatureCollection", "features": features}
 
-    values = request.values
-    lat_str = values.get("lat")
-    lon_str = values.get("lon")
-    address = values.get("address")
+    # Gestion des paramètres GET et POST
+    if request.method == "POST" and request.is_json:
+        # Requête POST avec JSON
+        json_data = request.get_json() or {}
+        lat_str = json_data.get("lat")
+        lon_str = json_data.get("lon") 
+        address = json_data.get("address")
+    else:
+        # Requête GET ou POST form
+        values = request.values
+        lat_str = values.get("lat")
+        lon_str = values.get("lon")
+        address = values.get("address")
 
     # 1. Parse coordonnées ou adresse
     if lat_str not in (None, "") and lon_str not in (None, ""):
@@ -8414,10 +8481,18 @@ def search_by_address_route():
     else:
         return jsonify({"error": "Veuillez fournir une adresse ou des coordonnées."}), 400
 
-    # 2. Rayons et bbox
-    ht_radius_km     = safe_float(values.get("ht_radius"),     1.0)
-    bt_radius_km     = safe_float(values.get("bt_radius"),     1.0)
-    sirene_radius_km = safe_float(values.get("sirene_radius"), 0.05)
+    # 2. Rayons et bbox - récupération cohérente des paramètres
+    if request.method == "POST" and request.is_json:
+        json_data = request.get_json() or {}
+        ht_radius_km     = safe_float(json_data.get("ht_radius"),     1.0)
+        bt_radius_km     = safe_float(json_data.get("bt_radius"),     1.0)
+        sirene_radius_km = safe_float(json_data.get("sirene_radius"), 0.05)
+    else:
+        values = request.values
+        ht_radius_km     = safe_float(values.get("ht_radius"),     1.0)
+        bt_radius_km     = safe_float(values.get("bt_radius"),     1.0)
+        sirene_radius_km = safe_float(values.get("sirene_radius"), 0.05)
+        
     search_radius = 0.0027  # 300 mètres (300m / 111000m par degré)
     bt_radius_deg = bt_radius_km / 111
     ht_radius_deg = ht_radius_km / 111
@@ -8459,6 +8534,12 @@ def search_by_address_route():
     zaer        = to_feature_collection(ensure_feature_list(get_zaer_info(lat, lon, radius=search_radius)))
     rpg_data    = to_feature_collection(ensure_feature_list(get_rpg_info(lat, lon, radius=0.0027)))
     sirene_data = to_feature_collection(ensure_feature_list(get_sirene_info(lat, lon, radius=sirene_radius_deg)))
+    
+    # 4.5. Récupération des données d'éleveurs (ajout manquant)
+    eleveurs_bbox = f"{lon-0.03},{lat-0.03},{lon+0.03},{lat+0.03},EPSG:4326"
+    eleveurs_data = fetch_wfs_data(ELEVEURS_LAYER, eleveurs_bbox)
+    if eleveurs_data is None:
+        eleveurs_data = []
 
     # 5. APIs externes
     geom_point = {"type": "Point", "coordinates": [lon, lat]}
@@ -8488,6 +8569,7 @@ def search_by_address_route():
         validate_feature_list(zaer.get("features", []), 'zaer')
         validate_feature_list(rpg_data.get("features", []), 'rpg_data')
         validate_feature_list(sirene_data.get("features", []), 'sirene_data')
+        validate_feature_list(eleveurs_data or [], 'eleveurs_data')
     except Exception as e:
         print(f"[VALIDATION ERROR avant build_map] : {e}")
         return jsonify({"error": f"Erreur de validation des données pour build_map: {e}"}), 500
@@ -8533,6 +8615,7 @@ def search_by_address_route():
         "solaire": to_feature_collection(solaire),
         "zaer": to_feature_collection(zaer),
         "sirene": to_feature_collection(sirene_data),
+        "eleveurs": to_feature_collection(eleveurs_data),
         "api_cadastre": flatten_feature_collections(api_cadastre),
         "api_nature": flatten_feature_collections(api_nature),
         "api_urbanisme": api_urbanisme,   # dict {nom: FeatureCollection}
@@ -8586,23 +8669,25 @@ def search_by_address_route():
         
         map_obj = build_map(
             lat, lon, address,
-            parcelle or {},
-            ensure_feature_list(parcelles_data),
-            ensure_feature_list(postes_bt),
-            ensure_feature_list(postes_hta),
-            ensure_feature_list(plu_info),
-            ensure_feature_list(parkings),
-            ensure_feature_list(friches),
-            ensure_feature_list(solaire),
-            ensure_feature_list(zaer),
-            ensure_feature_list(rpg_data),
-            ensure_feature_list(sirene_data),
-            search_radius, ht_radius_deg,
+            parcelle_props=parcelle or {},
+            parcelles_data=ensure_feature_list(parcelles_data),
+            postes_data=ensure_feature_list(postes_bt),
+            ht_postes_data=ensure_feature_list(postes_hta),
+            plu_info=ensure_feature_list(plu_info),
+            parkings_data=ensure_feature_list(parkings),
+            friches_data=ensure_feature_list(friches),
+            potentiel_solaire_data=ensure_feature_list(solaire),
+            zaer_data=ensure_feature_list(zaer),
+            rpg_data=ensure_feature_list(rpg_data),
+            sirene_data=ensure_feature_list(sirene_data),
+            search_radius=search_radius, 
+            ht_radius_deg=ht_radius_deg,
             api_cadastre=api_cadastre,
             api_nature=api_nature,
             api_urbanisme=api_urbanisme,
-            eleveurs_data=None,
-            capacites_reseau=ensure_feature_list(capacites_reseau)
+            eleveurs_data=eleveurs_data,
+            capacites_reseau=ensure_feature_list(capacites_reseau),
+            ppri_data=None  # Ajout du paramètre manquant
         )
         carte_filename = f"map_{int(time.time())}_{abs(hash((lat, lon, address)))}.html"
         try:
