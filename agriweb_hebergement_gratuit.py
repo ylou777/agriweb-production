@@ -260,7 +260,7 @@ def ensure_feature_list(data):
 # Imports principaux
 # ──────────────────────────────────────────────────────────────
 from flask import (
-    Flask, request, render_template, render_template_string, jsonify, send_file,
+    Flask, request, render_template, render_template_string, jsonify, send_file, send_from_directory,
     make_response, Response, stream_with_context, redirect, session, flash
 )
 import folium
@@ -278,6 +278,7 @@ import os
 import json
 import io
 import csv
+import time
 import sqlite3
 import hashlib
 import secrets
@@ -325,7 +326,7 @@ except ImportError:
     tk = None  # Environnement headless (pas d’interface X11)
 
 app = Flask(__name__)
-app.config["TEMPLATES_AUTO_RELOAD"] = False  # Désactivé pour éviter rafraîchissement automatique
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
@@ -926,6 +927,12 @@ def get_geoserver_layers_info():
             'sample_layers': [],
             'status': f'❌ Erreur: {str(e)}'
         }
+
+# Route de test pour carte directe
+@app.route("/test", methods=["GET"])
+def test_carte():
+    """Sert la page de test pour debug rapide"""
+    return send_from_directory('.', 'test_carte_directe.html')
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║                           ROUTES D'AUTHENTIFICATION                      ║
@@ -1737,15 +1744,9 @@ POTENTIEL_SOLAIRE_LAYER = "gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93"
 ZAER_LAYER = "gpu:ZAER_ARRETE_SHP_FRA"
 PARCELLES_GRAPHIQUES_LAYER = "gpu:PARCELLES_GRAPHIQUES"  # RPG
 SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène (~50 m)
+GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/rest/layers"  # Pour lister les couches
+GEOSERVER_OWS_URL = f"{GEOSERVER_URL}/ows"  # Pour les requêtes WFS/GetFeature
 ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
-
-# Fonction pour obtenir les URLs GeoServer actuelles (mise à jour dynamique)
-def get_geoserver_urls():
-    """Retourne les URLs GeoServer actuelles basées sur GEOSERVER_URL"""
-    return {
-        'wfs': f"{GEOSERVER_URL}/rest/layers",
-        'ows': f"{GEOSERVER_URL}/ows"
-    }
 # Ajout couche PPRI (adapter le nom si besoin)
 PPRI_LAYER = "gpu:ppri"  # <-- Vérifiez le nom exact dans votre GeoServer
 
@@ -3124,9 +3125,8 @@ def flatten_feature_collections(fc):
     return {"type": "FeatureCollection", "features": out}
 
 def fetch_wfs_data(layer_name, bbox, srsname="EPSG:4326"):
-    geoserver_urls = get_geoserver_urls()
     layer_q = quote(layer_name, safe=':')
-    url = f"{geoserver_urls['ows']}?service=WFS&version=2.0.0&request=GetFeature&typeName={layer_q}&outputFormat=application/json&bbox={bbox}&srsname={srsname}"
+    url = f"{GEOSERVER_OWS_URL}?service=WFS&version=2.0.0&request=GetFeature&typeName={layer_q}&outputFormat=application/json&bbox={bbox}&srsname={srsname}"
     try:
         resp = http_session.get(url, auth=get_geoserver_auth(), timeout=10)
         resp.raise_for_status()
@@ -3466,7 +3466,7 @@ def synthese_departement(reports):
     def get_dist(feat):
         props = feat.get("properties", {})
         # Cherche dans tous les champs de distance possibles
-        for key in ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]:
+        for key in ["distance_bt", "distance_au_poste", "distance_hta", "min_distance_bt_m", "min_distance_hta_m"]:
             v = props.get(key)
             if v is not None and isinstance(v, (int, float)) and v > 0:
                 return v
@@ -3900,25 +3900,7 @@ def build_map(
                 print(f"[ERROR] Exception while adding Cadastre feature: {e}\nFeature: {feat}")
     map_obj.add_child(cadastre_group)
 
-    if api_cadastre.get("features"):
-        cad_api_group = folium.FeatureGroup(name="Cadastre (API IGN)", show=True)
-        for feat in api_cadastre["features"]:
-            geom = feat.get("geometry")
-            valid_geom = False
-            if geom and isinstance(geom, dict):
-                gtype = geom.get("type")
-                coords = geom.get("coordinates")
-                if gtype in {"Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"}:
-                    if coords and coords != [] and coords is not None:
-                        valid_geom = True
-            if valid_geom:
-                try:
-                    folium.GeoJson(geom, style_function=lambda _: {"color": "#FF6600", "weight": 2, "fillColor": "#FFFF00", "fillOpacity": 0.4}, tooltip="<br>".join(f"{k}: {v}" for k, v in feat.get("properties", {}).items())).add_to(cad_api_group)
-                except Exception as e:
-                    print(f"[ERROR] Exception while adding API Cadastre geometry: {e}\nGeom: {geom}")
-            else:
-                print(f"[DEBUG] Invalid API Cadastre geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
-        map_obj.add_child(cad_api_group)
+    # Note: Cadastre (API IGN) supprimé car parasite - les données cadastrales sont déjà dans la couche principale
 
     # --- Postes BT (filtrage doublons par coordonnées) ---
     def poste_key(poste):
@@ -3984,6 +3966,45 @@ def build_map(
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="orange", icon="bolt", prefix="fa")).add_to(hta_group)
     map_obj.add_child(hta_group)
+
+    # --- Éleveurs avec liens hypertexte ---
+    eleveurs_group = folium.FeatureGroup(name="Éleveurs", show=True)
+    for eleveur in eleveurs_data:
+        props = eleveur.get("properties", {})
+        geom = eleveur.get("geometry")
+        
+        if not geom or geom.get("type") != "Point":
+            continue
+            
+        try:
+            coords = geom["coordinates"]
+            lat_e, lon_e = coords[1], coords[0]
+        except Exception:
+            continue
+            
+        # Construction du popup simplifié
+        nom = props.get("nomUniteLe", "") or props.get("denominati", "") or "Éleveur"
+        commune = props.get("libelleCom", "")
+        siret = props.get("siret", "")
+        
+        popup_html = f"<b>🐄 Éleveur</b><br>"
+        popup_html += f"<b>Nom:</b> {nom}<br>"
+        if commune:
+            popup_html += f"<b>Commune:</b> {commune}<br>"
+        if siret:
+            popup_html += f"<b>SIRET:</b> {siret}<br>"
+            
+        # Lien Street View seulement
+        streetview_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_e},{lon_e}"
+        popup_html += f"<br><a href='{streetview_url}' target='_blank'>📍 Voir sur Street View</a>"
+        
+        folium.Marker(
+            [lat_e, lon_e], 
+            popup=folium.Popup(popup_html, max_width=300),
+            icon=folium.Icon(color="green", icon="home", prefix="fa")
+        ).add_to(eleveurs_group)
+    
+    map_obj.add_child(eleveurs_group)
 
     # PLU
     plu_group = folium.FeatureGroup(name="PLU", show=True)
@@ -4210,6 +4231,9 @@ def build_map(
 
     # RPG
     rpg_group = folium.FeatureGroup(name="RPG", show=True)
+    valid_rpg_count = 0
+    invalid_rpg_count = 0
+    print(f"🌾 [BUILD_MAP_RPG] Traitement de {len(rpg_data)} parcelles RPG")
     for idx, feat in enumerate(rpg_data):
         if not isinstance(feat, dict):
             print(f"[DEBUG] Skipping invalid RPG feature at index {idx}: not a dict, got {type(feat)}: {repr(feat)[:100]}")
@@ -4228,8 +4252,8 @@ def build_map(
                 surf_ha = str(surf_ha)
             code_cultu = props.get("CODE_CULTU", "N/A")
             culture_label = props.get("Culture", code_cultu)
-            dist_bt = props.get("min_bt_distance_m", "N/A")
-            dist_hta = props.get("min_ht_distance_m", "N/A")
+            dist_bt = props.get("min_distance_bt_m", "N/A")
+            dist_hta = props.get("min_distance_hta_m", "N/A")
             popup_html = (
                 f"<b>ID Parcelle :</b> {id_parcel}<br>"
                 f"<b>Surface :</b> {surf_ha}<br>"
@@ -4252,13 +4276,22 @@ def build_map(
                         style_function=lambda _: {"color": "darkblue", "weight": 2, "fillOpacity": 0.3},
                         tooltip=folium.Tooltip(popup_html)
                     ).add_to(rpg_group)
+                    valid_rpg_count += 1
+                    print(f"🌾 [DEBUG] Parcelle RPG {idx} ajoutée avec succès")
                 except Exception as e:
-                    print(f"[ERROR] Exception while adding RPG geometry: {e}\nGeom: {geom}")
+                    print(f"❌ [ERROR] Exception while adding RPG geometry: {e}\nGeom: {geom}")
+                    invalid_rpg_count += 1
             else:
-                print(f"[DEBUG] Invalid RPG geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+                print(f"❌ [DEBUG] Invalid RPG geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+                invalid_rpg_count += 1
         except Exception as e:
-            print(f"[ERROR] Exception while processing RPG feature at index {idx}: {e}\nFeature: {repr(feat)[:200]}")
+            print(f"❌ [ERROR] Exception while processing RPG feature at index {idx}: {e}\nFeature: {repr(feat)[:200]}")
+            invalid_rpg_count += 1
+    
+    print(f"🌾 [BUILD_MAP_RPG] RÉSUMÉ: {valid_rpg_count} parcelles valides, {invalid_rpg_count} invalides")
+    print(f"🌾 [DEBUG_GROUP] Nombre d'enfants dans rpg_group avant ajout: {len(rpg_group._children)}")
     map_obj.add_child(rpg_group)
+    print(f"🌾 [DEBUG_MAP] Nombre total d'enfants dans map_obj après ajout: {len(map_obj._children)}")
 
     # Capacités réseau HTA
     caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=True)
@@ -4273,8 +4306,8 @@ def build_map(
         folium.Marker([lat_c, lon_c], popup=popup, icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
     map_obj.add_child(caps_group)
 
-    # Sirene
-    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=True)
+    # Sirene - Couche décochée par défaut pour éviter l'encombrement
+    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=False)
     for feat in sirene_data:
         if feat.get('geometry', {}).get('type') == 'Point':
             lon_s, lat_s = feat['geometry']['coordinates']
@@ -4342,64 +4375,6 @@ def build_map(
                 print(f"[DEBUG] Invalid GPU geometry for {ep}: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
 
         map_obj.add_child(group)
-
-    
-    # Éleveurs
-# Remplacez la section éleveurs dans build_map (lignes 1728-1770 environ) par :
-
-    # Éleveurs
-    if eleveurs_data:
-        el_group = folium.FeatureGroup(name="Éleveurs", show=True)
-        cluster = MarkerCluster().add_to(el_group)
-        for feat in eleveurs_data:
-            try:
-                coords = shape(feat['geometry']).coords[0]
-                if abs(coords[0]) > 180 or abs(coords[1]) > 90:
-                    to_wgs = Transformer.from_crs("EPSG:2154","EPSG:4326",always_xy=True).transform
-                    lon_e, lat_e = to_wgs(*coords)
-                else:
-                    lon_e, lat_e = coords
-            except Exception:
-                continue
-            props = feat['properties']
-            nom = props.get("nomUniteLe", "") or ""
-            prenom = props.get("prenom1Uni", "") or ""
-            denomination = props.get("denominati", "") or ""
-            adresse = (
-                f"{props.get('numeroVoie','') or ''} "
-                f"{props.get('typeVoieEt','') or ''} "
-                f"{props.get('libelleVoi','') or ''}, "
-                f"{props.get('codePostal','') or ''} "
-                f"{props.get('libelleCom','') or ''}"
-            ).replace(" ,", "").strip()
-            siret = props.get("siret", "")
-            
-            # CORRECTION: Définir ville_url et nom_url
-            ville_url = (props.get("libelleCom", "") or "").replace(" ", "+")
-            nom_url = (nom + " " + denomination).strip().replace(" ", "+")
-            
-            eleveur_props = {
-                "nom": nom,
-                "prenom": prenom,
-                "denomination": denomination,
-                "activite": props.get("activite_1", ""),
-                "adresse": adresse,
-                "telephone": props.get("telephone", ""),
-                "email": props.get("email", ""),
-                "site_web": props.get("site_web", ""),
-                "lien_annuaire": f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}" if nom else "",
-                "lien_entreprise": f"https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}" if siret else "",
-                "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}"
-            }
-            folium.Marker(
-                [lat_e, lon_e],
-                popup=folium.Popup(
-                    f"<b>{nom} {prenom}</b><br>{adresse}<br>SIRET: {siret}",
-                    max_width=300
-                ),
-                icon=folium.Icon(color="cadetblue", icon="paw", prefix="fa")
-            ).add_to(cluster)
-        map_obj.add_child(el_group)
 
     # API Cadastre/Nature IGN (5km)
     cad5 = api_cadastre or {"type": "FeatureCollection", "features": []}
@@ -4730,6 +4705,9 @@ def commune_search_sse():
     from flask import request as flask_request
     from urllib.parse import quote_plus
     import json as _json
+    
+    print(f"🚨 [DEBUG_SSE] /commune_search_sse appelée")
+    print(f"🚨 [DEBUG_SSE] Args: {dict(flask_request.args)}")
 
     def sse_format(event: str | None, data: str):
         chunks = []
@@ -4741,18 +4719,30 @@ def commune_search_sse():
 
     @stream_with_context
     def event_stream():
-        # Récupération des paramètres minimaux
-        commune = flask_request.args.get("commune", "").strip()
+        # Récupération des paramètres minimaux - Version robuste
+        try:
+            commune = flask_request.args.get("commune", "").strip()
+        except:
+            commune = ""
+            
         if not commune:
             yield sse_format("error", "Veuillez fournir une commune.")
             return
 
         # Transmettre quelques filtres utiles (optionnels)
-        filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
-        filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
-        filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
-        filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
-        filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
+        try:
+            filter_rpg       = flask_request.args.get("filter_rpg", "true").lower() == "true"
+            filter_parkings  = flask_request.args.get("filter_parkings", "true").lower() == "true"
+            filter_friches   = flask_request.args.get("filter_friches", "true").lower() == "true"
+            filter_toitures  = flask_request.args.get("filter_toitures", "true").lower() == "true"
+            filter_by_dist   = flask_request.args.get("filter_by_distance", "false").lower() == "true"
+        except:
+            # Valeurs par défaut en cas d'erreur
+            filter_rpg = True
+            filter_parkings = True
+            filter_friches = True
+            filter_toitures = True
+            filter_by_dist = False
 
         try:
             yield sse_format(None, f"🔎 Démarrage analyse pour: {commune}")
@@ -4808,6 +4798,10 @@ def commune_search_sse():
 
 @app.route("/search_by_commune", methods=["GET", "POST"])
 def search_by_commune():
+    print("="*80)
+    print("🚨🚨🚨 DEBUT SEARCH_BY_COMMUNE - VERSION MODIFIEE 🚨🚨🚨")
+    print("="*80)
+    
     import requests
     import json
     from urllib.parse import quote_plus
@@ -4815,6 +4809,22 @@ def search_by_commune():
     from shapely.geometry import shape, Point
     from shapely.ops import transform as shp_transform
     from pyproj import Transformer
+    
+    # Log immédiat pour diagnostiquer si la requête arrive
+    print(f"🚨 [DEBUG_FETCH] Requête reçue sur /search_by_commune")
+    print(f"🚨 [DEBUG_FETCH] Méthode: {flask_request.method}")
+    print(f"🚨 [DEBUG_FETCH] Args: {dict(flask_request.args)}")
+    print(f"🚨 [DEBUG_FETCH] Values: {dict(flask_request.values)}")
+    
+    # Headers CORS pour éviter les problèmes de fetch
+    from flask import make_response
+    
+    def add_cors_headers(response):
+        response.headers['Access-Control-Allow-Origin'] = '*'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        response.headers['Connection'] = 'keep-alive'
+        return response
     
     # 1) Paramètres - Récupération sécurisée pour éviter les erreurs OSError
     try:
@@ -4830,6 +4840,11 @@ def search_by_commune():
         filter_rpg = flask_request.values.get("filter_rpg", "false").lower() == "true"
         rpg_min_area = float(flask_request.values.get("rpg_min_area", 1.0))
         rpg_max_area = float(flask_request.values.get("rpg_max_area", 1000.0))
+        
+        # DEBUG: Log des paramètres RPG reçus
+        print(f"🚨 [DEBUG_RPG] filter_rpg reçu: '{flask_request.values.get('filter_rpg', 'PAS_TROUVE')}' -> {filter_rpg}")
+        print(f"🚨 [DEBUG_RPG] rpg_min_area: {rpg_min_area}, rpg_max_area: {rpg_max_area}")
+        print(f"🚨 [DEBUG_RPG] Tous paramètres reçus: {dict(flask_request.values)}")
 
         filter_parkings = flask_request.values.get("filter_parkings", "false").lower() == "true"
         parking_min_area = float(flask_request.values.get("parking_min_area", 1500.0))
@@ -4878,7 +4893,9 @@ def search_by_commune():
     except OSError as e:
         # Erreur de canal fermé (WinError 233) - utiliser des valeurs par défaut
         safe_print(f"⚠️ [PARAMÈTRES] Erreur lecture paramètres: {e}, utilisation valeurs par défaut")
-        commune = ""
+        # CORRECTION CRITIQUE: Préserver commune s'il a été lu avec succès
+        if 'commune' not in locals():
+            commune = ""
         culture = ""
         ht_max_km = 1.0
         bt_max_km = 1.0
@@ -5093,40 +5110,38 @@ def search_by_commune():
         if culture and culture.lower() not in props.get("Culture", "").lower():
             continue
 
-        # b) surface (ha)
+        # b) surface (ha) - CORRECTION: Utiliser les paramètres RPG spécifiques
         ha = shp_transform(to_l93, poly).area / 10_000.0
-        if ha < min_ha or ha > max_ha:
+        if ha < rpg_min_area or ha > rpg_max_area:
+            print(f"🚨 [DEBUG_RPG] Parcelle rejetée: {ha:.2f}ha (hors limites {rpg_min_area}-{rpg_max_area}ha)")
             continue
 
-        # c) distances réseaux (m) : on cherche le **minimum** dans CHAQUE liste
-        cent   = poly.centroid.coords[0]
-        d_bt   = calculate_min_distance(cent, postes_bt_data)
-        d_hta  = calculate_min_distance(cent, postes_hta_data)
+        # c) distances réseaux : utiliser la logique unifiée de filtrage par distance
+        cent = poly.centroid.coords[0]
+        d_bt = calculate_min_distance(cent, postes_bt_data)
+        d_hta = calculate_min_distance(cent, postes_hta_data)
 
-        # Filtrage par distance : rejeter seulement si TOUTES les connexions possibles sont trop loin
-        bt_too_far = (d_bt is not None and (d_bt / 1000.0) > bt_max_km) or (d_bt is None and len(postes_bt_data) > 0)
-        hta_too_far = (d_hta is not None and (d_hta / 1000.0) > ht_max_km) or (d_hta is None and len(postes_hta_data) > 0)
-        
-        # Si les deux types de postes existent et sont tous les deux trop loin, on rejette
-        # Si un seul type existe et qu'il est trop loin, on rejette aussi
-        if len(postes_bt_data) > 0 and len(postes_hta_data) > 0:
-            # Les deux types existent : rejeter si les deux sont trop loin
-            if bt_too_far and hta_too_far:
+        # Appliquer le filtrage par distance unifié (même logique que les autres éléments)
+        if filter_by_distance:
+            # Logique de filtrage par type de poste (BT/HTA/Tous)
+            bt_ok = (d_bt is not None and d_bt <= max_distance_bt) if d_bt is not None else False
+            hta_ok = (d_hta is not None and d_hta <= max_distance_hta) if d_hta is not None else False
+            
+            if poste_type_filter == "BT":
+                distance_ok = bt_ok
+            elif poste_type_filter == "HTA":
+                distance_ok = hta_ok
+            else:  # ALL
+                distance_ok = bt_ok or hta_ok
+                
+            if not distance_ok:
+                print(f"🚨 [DEBUG_RPG] Parcelle rejetée: distance BT={d_bt:.1f}m, HTA={d_hta if d_hta else 'N/A'}, limites BT<={max_distance_bt}m, HTA<={max_distance_hta}m")
                 continue
-        elif len(postes_bt_data) > 0:
-            # Seuls les postes BT existent : rejeter si BT trop loin
-            if bt_too_far:
-                continue
-        elif len(postes_hta_data) > 0:
-            # Seuls les postes HTA existent : rejeter si HTA trop loin
-            if hta_too_far:
-                continue
-        # Si aucun poste n'existe, on garde la parcelle
 
         props.update({
-            "SURF_HA":            round(ha, 3),
-            "min_bt_distance_m":  round(d_bt,  2) if d_bt  is not None else None,
-            "min_ht_distance_m":  round(d_hta, 2) if d_hta is not None else None,
+            "SURF_HA": round(ha, 3),
+            "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
+            "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None,
         })
         final_rpg.append({
             "type":       "Feature",
@@ -5920,6 +5935,7 @@ def search_by_commune():
             toitures_data = []
     
     print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
+    print(f"🌾 [DEBUG_RPG] Parcelles RPG passées à build_map: {len(final_rpg)}")
     
     map_obj = build_map(
         lat, lon, commune,
@@ -5964,9 +5980,11 @@ def search_by_commune():
         eleveurs_with_layer.append(eleveur)
     
     # 7) Réponse JSON avec données filtrées
+    print(f"🔧 [DEBUG_RPG_PARCELLES] Création response_data avec filter_rpg={filter_rpg}, final_rpg count={len(final_rpg) if final_rpg else 0}")
     response_data = {
         "lat": lat, "lon": lon,
         "rpg": final_rpg if filter_rpg else [],
+        "rpg_parcelles": {"type": "FeatureCollection", "features": final_rpg} if filter_rpg else {"type": "FeatureCollection", "features": []},
         "eleveurs": eleveurs_with_layer,
         "postes_bt": postes_bt_data,
         "postes_hta": postes_hta_data,
@@ -6001,15 +6019,22 @@ def search_by_commune():
         }
     }
     
+    # DEBUG: Vérifier le contenu de response_data
+    print(f"🔧 [DEBUG_RPG_PARCELLES] response_data créé avec clés: {list(response_data.keys())}")
+    if 'rpg_parcelles' in response_data:
+        rpg_p = response_data['rpg_parcelles']
+        print(f"✅ [DEBUG_RPG_PARCELLES] rpg_parcelles présent, type: {type(rpg_p)}, features: {len(rpg_p.get('features', [])) if isinstance(rpg_p, dict) else 'N/A'}")
+    else:
+        print(f"❌ [DEBUG_RPG_PARCELLES] rpg_parcelles MANQUANT dans response_data!")
+    
     # Log final détaillé des résultats de recherche
     log_search_results(commune, response_data)
     
-    # URL carte finale sans cache bust automatique pour éviter rafraîchissements intempestifs
+    # Ajouter cache bust comme dans search_by_address - DIAGNOSTIC DÉTAILLÉ
     print(f"🔍 [DEBUG_FINAL] carte_url avant traitement: '{carte_url}' (type: {type(carte_url)})")
     if carte_url and "commune_map_" in carte_url:
-        # Pas de cache bust automatique - laisse le navigateur gérer le cache normalement
-        response_data["carte_url"] = f"/static/{carte_url}"
-        print(f"✅ [DEBUG_FINAL] URL carte finale: {response_data['carte_url']}")
+        response_data["carte_url"] = f"/static/{carte_url}?t={int(time.time())}"
+        print(f"✅ [DEBUG_FINAL] URL carte avec cache bust: {response_data['carte_url']}")
     elif carte_url:
         response_data["carte_url"] = f"/static/{carte_url}"
         print(f"✅ [DEBUG_FINAL] URL carte finale: {response_data['carte_url']}")
@@ -6022,7 +6047,33 @@ def search_by_commune():
     # Sauvegarder la carte avec toutes les données de recherche pour permettre le zoom
     save_map_to_cache(map_obj, response_data)
     
-    return jsonify(response_data)
+    # Diagnostics de taille de réponse pour éviter les timeouts
+    try:
+        import json
+        response_size = len(json.dumps(response_data, default=str))
+        print(f"📊 [RESPONSE_SIZE] Taille de la réponse: {response_size/1024:.2f} KB")
+        
+        if response_size > 5 * 1024 * 1024:  # Plus de 5MB
+            print(f"⚠️ [RESPONSE_SIZE] ALERTE: Réponse très volumineuse ({response_size/1024/1024:.2f} MB)")
+            print(f"🔧 [OPTIMIZATION] Considérer une réduction des données pour éviter les timeouts")
+            
+    except Exception as e:
+        print(f"❌ [RESPONSE_SIZE] Erreur calcul taille: {e}")
+    
+    try:
+        print(f"✅ [FINAL_RESPONSE] Retour de la réponse JSON pour {commune}")
+        response = make_response(jsonify(response_data))
+        return add_cors_headers(response)
+    except Exception as e:
+        print(f"❌ [JSONIFY_ERROR] Erreur lors de la sérialisation JSON: {e}")
+        # Retour d'une réponse simplifiée en cas d'erreur
+        error_response = make_response(jsonify({
+            "error": "Erreur lors de la génération de la réponse",
+            "commune": commune,
+            "lat": lat, "lon": lon,
+            "carte_url": response_data.get("carte_url", "/static/map.html")
+        }), 500)
+        return add_cors_headers(error_response)
 
 @app.route("/search_toitures_commune_polygon", methods=["GET", "POST"])
 def search_toitures_commune_polygon():
@@ -6038,15 +6089,26 @@ def search_toitures_commune_polygon():
     
     print("🏠 [TOITURES POLYGON] === DÉBUT RECHERCHE PAR POLYGONE COMMUNE ===")
     
-    # 1) Paramètres de la requête
-    commune = flask_request.values.get("commune", "").strip()
-    min_surface_toiture = float(flask_request.values.get("min_surface_toiture", 100.0))
-    max_distance_bt = float(flask_request.values.get("max_distance_bt", 500.0))
-    max_distance_hta = float(flask_request.values.get("max_distance_hta", 1000.0))
-    max_results = int(flask_request.values.get("max_results", 100))  # Augmenté pour polygon complet
-    
+    # 1) Paramètres de la requête - Version robuste
+    try:
+        commune = flask_request.values.get("commune", "").strip()
+    except:
+        commune = ""
+        
     if not commune:
         return jsonify({"error": "Veuillez fournir une commune."}), 400
+    
+    try:
+        min_surface_toiture = float(flask_request.values.get("min_surface_toiture", 100.0))
+        max_distance_bt = float(flask_request.values.get("max_distance_bt", 500.0))
+        max_distance_hta = float(flask_request.values.get("max_distance_hta", 1000.0))
+        max_results = int(flask_request.values.get("max_results", 100))  # Augmenté pour polygon complet
+    except:
+        # Valeurs par défaut en cas d'erreur
+        min_surface_toiture = 100.0
+        max_distance_bt = 500.0
+        max_distance_hta = 1000.0
+        max_results = 100
 
     print(f"🏠 [TOITURES POLYGON] Commune: {commune}")
     print(f"    Surface mini: {min_surface_toiture}m², max résultats: {max_results}")
@@ -6462,21 +6524,35 @@ def search_toitures_commune():
     
     print("🏠 [TOITURES] === DÉBUT RECHERCHE TOITURES COMMUNE ===")
     
-    # 1) Paramètres de la requête
-    commune = flask_request.values.get("commune", "").strip()
-    
-    # Filtres spécifiques aux toitures
-    min_surface_toiture = float(flask_request.values.get("min_surface_toiture", 50.0))  # m²
-    max_distance_bt = float(flask_request.values.get("max_distance_bt", 300.0))  # mètres
-    max_distance_hta = float(flask_request.values.get("max_distance_hta", 1000.0))  # mètres
-    distance_logic = flask_request.values.get("distance_logic", "OR").upper()  # OR ou AND
-    poste_type_filter = flask_request.values.get("poste_type_filter", "ALL").upper()  # ALL, BT, HTA
-    
-    # Filtres optionnels
-    max_results = int(flask_request.values.get("max_results", 1000000))  # Limite de résultats augmentée
-    sort_by = flask_request.values.get("sort_by", "surface").lower()  # surface, distance
-    
+    # 1) Paramètres de la requête - Version robuste
+    try:
+        commune = flask_request.values.get("commune", "").strip()
+    except:
+        commune = ""
+        
     if not commune:
+        return jsonify({"error": "Veuillez fournir une commune."}), 400
+    
+    try:
+        # Filtres spécifiques aux toitures
+        min_surface_toiture = float(flask_request.values.get("min_surface_toiture", 50.0))  # m²
+        max_distance_bt = float(flask_request.values.get("max_distance_bt", 300.0))  # mètres
+        max_distance_hta = float(flask_request.values.get("max_distance_hta", 1000.0))  # mètres
+        distance_logic = flask_request.values.get("distance_logic", "OR").upper()  # OR ou AND
+        poste_type_filter = flask_request.values.get("poste_type_filter", "ALL").upper()  # ALL, BT, HTA
+        
+        # Filtres optionnels
+        max_results = int(flask_request.values.get("max_results", 1000000))  # Limite de résultats augmentée
+        sort_by = flask_request.values.get("sort_by", "surface").lower()  # surface, distance
+    except:
+        # Valeurs par défaut en cas d'erreur
+        min_surface_toiture = 50.0
+        max_distance_bt = 300.0
+        max_distance_hta = 1000.0
+        distance_logic = "OR"
+        poste_type_filter = "ALL"
+        max_results = 1000000
+        sort_by = "surface"
         return jsonify({"error": "Veuillez fournir une commune."}), 400
 
     print(f"🏠 [TOITURES] Commune: {commune}")
@@ -8060,8 +8136,9 @@ def generate_reports_by_dept_sse():
 
         # Lecture des paramètres
         culture     = request.args.get("culture", "")
-        min_area    = float(request.args.get("min_area_ha", 0))
-        max_area    = float(request.args.get("max_area_ha", 99999))
+        # CORRECTION: Utiliser les nouveaux paramètres RPG cohérents avec search_by_commune
+        min_area    = float(request.args.get("rpg_min_area", request.args.get("min_area_ha", 0)))
+        max_area    = float(request.args.get("rpg_max_area", request.args.get("max_area_ha", 99999)))
         ht_max_km   = float(request.args.get("ht_max_distance", 10))
         bt_max_km   = float(request.args.get("bt_max_distance", 10))
         sirene_km   = float(request.args.get("sirene_radius", 5))
@@ -8125,8 +8202,8 @@ def rapport_departement():
         rpt = compute_commune_report(
             commune_name=nom,
             culture=request.args.get("culture", ""),
-            min_area_ha=float(request.args.get("min_area_ha", 0)),
-            max_area_ha=float(request.args.get("max_area_ha", 1e9)),
+            min_area_ha=float(request.args.get("rpg_min_area", request.args.get("min_area_ha", 0))),
+            max_area_ha=float(request.args.get("rpg_max_area", request.args.get("max_area_ha", 1e9))),
             ht_max_km=float(request.args.get("ht_max_distance", 5.0)),
             bt_max_km=float(request.args.get("bt_max_distance", 5.0)),
             sirene_km=float(request.args.get("sirene_radius", 5.0)),
@@ -8153,8 +8230,8 @@ def rapport_commune():
     report = compute_commune_report(
         commune_name=commune,
         culture=request.args.get("culture", ""),
-        min_area_ha=float(request.args.get("min_area_ha", 0)),
-        max_area_ha=float(request.args.get("max_area_ha", 1e9)),
+        min_area_ha=float(request.args.get("rpg_min_area", request.args.get("min_area_ha", 0))),
+        max_area_ha=float(request.args.get("rpg_max_area", request.args.get("max_area_ha", 1e9))),
         ht_max_km=float(request.args.get("ht_max_distance", 5.0)),
         bt_max_km=float(request.args.get("bt_max_distance", 5.0)),
         sirene_km=float(request.args.get("sirene_radius", 5.0)),
@@ -8657,7 +8734,7 @@ def rapport_departement_post():
                 
                 # Calcul de la distance minimale
                 min_distance = None
-                distance_sources = ["distance_bt", "distance_au_poste", "distance_hta", "min_bt_distance_m", "min_ht_distance_m"]
+                distance_sources = ["distance_bt", "distance_au_poste", "distance_hta", "min_distance_bt_m", "min_distance_hta_m"]
                 
                 for key in distance_sources:
                     val = props.get(key)
@@ -10462,20 +10539,24 @@ def rapport_commune_complet():
     from flask import request as flask_request
     
     try:
-        # Récupération des paramètres
-        commune = flask_request.values.get("commune", "").strip()
-        
+        # Récupération des paramètres - Version robuste
+        try:
+            commune = flask_request.values.get("commune", "").strip()
+        except:
+            commune = ""
+            
         if not commune:
             return jsonify({"error": "Veuillez fournir une commune."}), 400
         
         print(f"📊 [RAPPORT_COMPLET] Génération du rapport exhaustif pour {commune}")
         
         # Récupération des filtres optionnels
-        filters = {
-            # Filtres RPG
-            "filter_rpg": flask_request.values.get("filter_rpg", "true").lower() == "true",
-            "rpg_min_area": float(flask_request.values.get("rpg_min_area", 1.0)),
-            "rpg_max_area": float(flask_request.values.get("rpg_max_area", 1000.0)),
+        try:
+            filters = {
+                # Filtres RPG
+                "filter_rpg": flask_request.values.get("filter_rpg", "true").lower() == "true",
+                "rpg_min_area": float(flask_request.values.get("rpg_min_area", 1.0)),
+                "rpg_max_area": float(flask_request.values.get("rpg_max_area", 1000.0)),
             
             # Filtres parkings
             "filter_parkings": flask_request.values.get("filter_parkings", "true").lower() == "true",
@@ -10508,6 +10589,18 @@ def rapport_commune_complet():
             "include_detailed_analysis": flask_request.values.get("include_detailed_analysis", "true").lower() == "true",
             "export_format": flask_request.values.get("export_format", "json").lower()  # json, html, pdf
         }
+        except:
+            # Valeurs par défaut en cas d'erreur de lecture des paramètres
+            filters = {
+                "filter_rpg": True, "rpg_min_area": 1.0, "rpg_max_area": 1000.0,
+                "filter_parkings": True, "parking_min_area": 1500.0,
+                "filter_friches": True, "friches_min_area": 1000.0,
+                "filter_toitures": True, "toitures_min_surface": 100.0,
+                "filter_zones": True, "zones_min_area": 1000.0, "zones_type_filter": "",
+                "filter_by_distance": False, "max_distance_bt": 500.0, "max_distance_hta": 2000.0,
+                "poste_type_filter": "ALL", "distance_logic": "OR",
+                "calculate_surface_libre": False, "include_detailed_analysis": True, "export_format": "json"
+            }
         
         print(f"📊 [RAPPORT_COMPLET] Filtres appliqués: {len([k for k, v in filters.items() if k.startswith('filter_') and v])} activés")
         

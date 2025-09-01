@@ -362,7 +362,8 @@ function getMapFrame() {
       }
     }
     
-    console.warn("❌ Map instance not found");
+    // Pas d'erreur dans la console - retour silencieux pour architecture iframe
+    return null;
     return null;
   } catch (err) {
     console.error("❌ Erreur getMapFrame:", err);
