@@ -4139,8 +4139,8 @@ def build_map(
                         except Exception as e:
                             print(f"[DEBUG] Impossible de calculer le centroïde pour {name}: {e}")
                     
-                    # Debug : Vérifier si on a des références cadastrales
-                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
+                    # Debug : Vérifier si on a des références cadastrales (limité pour éviter spam)
+                    if name in ["Parkings", "Friches"]:  # Retiré "Potentiel Solaire" pour éviter 154 logs identiques
                         cadastre_refs = props.get("parcelles_cadastrales", [])
                         print(f"🏛️ [DEBUG {name}] Feature avec {len(cadastre_refs)} références cadastrales")
                     
@@ -5791,73 +5791,73 @@ def search_by_commune():
     # Initialisation parcelles_data pour la carte (pas utilisé avec la nouvelle logique optimisée)
     parcelles_data = {"type": "FeatureCollection", "features": []}
     
-    # 6b) Traitement des toitures si demandé - Nouvelle méthode basée sur le polygone de la commune (utilise sliders unifiés)
+    # 6b) Traitement des toitures - Récupération systématique avec filtrage optionnel
     toitures_data = []
-    if filter_toitures:
-        print(f"🏠 [TOITURES] Recherche activée - utilisation du polygone de la commune")
-        print(f"🏠 [TOITURES] Postes disponibles - BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
-        try:
-            from shapely.geometry import mapping, Point
-            from shapely.ops import transform as shp_transform
-            from pyproj import Transformer
+    print(f"🏠 [TOITURES] Recherche des toitures dans la commune - utilisation du polygone de la commune")
+    print(f"🏠 [TOITURES] Postes disponibles - BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
+    print(f"🏠 [TOITURES] Filtrage activé: {filter_toitures} (surface min: {toitures_min_surface}m²)")
+    try:
+        from shapely.geometry import mapping, Point
+        from shapely.ops import transform as shp_transform
+        from pyproj import Transformer
 
-            # Définir la transformation vers Lambert 93 pour le calcul des surfaces
-            to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+        # Définir la transformation vers Lambert 93 pour le calcul des surfaces
+        to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
-            # Utiliser le contour exact de la commune au lieu d'un rayon
-            search_geom_geojson = contour
+        # Utiliser le contour exact de la commune au lieu d'un rayon
+        search_geom_geojson = contour
 
-            # Utiliser la fonction existante get_batiments_data avec le polygone de la commune
-            batiments_features = get_batiments_data(search_geom_geojson)
-            batiments_data = batiments_features.get("features", []) if batiments_features else []
-            print(f"🏠 [TOITURES] {len(batiments_data)} bâtiments récupérés dans la commune")
+        # Utiliser la fonction existante get_batiments_data avec le polygone de la commune
+        batiments_features = get_batiments_data(search_geom_geojson)
+        batiments_data = batiments_features.get("features", []) if batiments_features else []
+        print(f"🏠 [TOITURES] {len(batiments_data)} bâtiments récupérés dans la commune")
 
-            # ANALYSE COMPLÈTE: Traitement de tous les bâtiments de la commune
-            print(f"🔍 [TOITURES] Analyse complète de tous les {len(batiments_data)} bâtiments")
-            print(f"💡 [TOITURES] Traitement complet activé pour une analyse exhaustive")
+        # ANALYSE COMPLÈTE: Traitement de tous les bâtiments de la commune
+        print(f"🔍 [TOITURES] Analyse complète de tous les {len(batiments_data)} bâtiments")
+        print(f"💡 [TOITURES] Traitement complet activé pour une analyse exhaustive")
 
-            # Filtrer et enrichir les toitures avec intersection géométrique précise
-            for idx, batiment in enumerate(batiments_data):
-                try:
-                    geom = shape(batiment["geometry"])
+        # Filtrer et enrichir les toitures avec intersection géométrique précise
+        for idx, batiment in enumerate(batiments_data):
+            try:
+                geom = shape(batiment["geometry"])
+                if not geom.is_valid:
+                    geom = geom.buffer(0)
                     if not geom.is_valid:
-                        geom = geom.buffer(0)
-                        if not geom.is_valid:
-                            continue
-
-                    # Vérifier que le bâtiment est bien dans la commune (double filtrage)
-                    if not (commune_poly.contains(geom) or commune_poly.intersects(geom)):
                         continue
 
-                    # Calculer la surface
-                    surface_m2 = shp_transform(to_l93, geom).area
-                    if surface_m2 < toitures_min_surface:
-                        continue
+                # Vérifier que le bâtiment est bien dans la commune (double filtrage)
+                if not (commune_poly.contains(geom) or commune_poly.intersects(geom)):
+                    continue
 
-                    # Calculer les distances aux postes
-                    centroid = geom.centroid.coords[0]
-                    d_bt = calculate_min_distance(centroid, postes_bt_data) if postes_bt_data else None
-                    d_hta = calculate_min_distance(centroid, postes_hta_data) if postes_hta_data else None
+                # Calculer la surface
+                surface_m2 = shp_transform(to_l93, geom).area
+                if surface_m2 < toitures_min_surface:
+                    continue
 
-                    # Logique de filtrage portée par le type de poste sélectionné (Tous/BT/HTA)
-                    bt_ok = (d_bt is not None and d_bt <= max_distance_bt) if d_bt is not None else False
-                    hta_ok = (d_hta is not None and d_hta <= max_distance_hta) if d_hta is not None else False
-                    if filter_by_distance:
-                        if poste_type_filter == "BT":
-                            distance_ok = bt_ok
-                        elif poste_type_filter == "HTA":
-                            distance_ok = hta_ok
-                        else:  # ALL
-                            distance_ok = bt_ok or hta_ok
-                    else:
-                        # Pas de filtrage par distance lorsque l'option n'est pas cochée
-                        distance_ok = True
-                    if not distance_ok:
-                        continue
+                # Calculer les distances aux postes
+                centroid = geom.centroid.coords[0]
+                d_bt = calculate_min_distance(centroid, postes_bt_data) if postes_bt_data else None
+                d_hta = calculate_min_distance(centroid, postes_hta_data) if postes_hta_data else None
 
-                    # Ajouter à la liste filtrée (enrichissement cadastral sera fait après)
-                    toitures_data.append({
-                        "type": "Feature",
+                # Logique de filtrage portée par le type de poste sélectionné (Tous/BT/HTA)
+                bt_ok = (d_bt is not None and d_bt <= max_distance_bt) if d_bt is not None else False
+                hta_ok = (d_hta is not None and d_hta <= max_distance_hta) if d_hta is not None else False
+                if filter_by_distance:
+                    if poste_type_filter == "BT":
+                        distance_ok = bt_ok
+                    elif poste_type_filter == "HTA":
+                        distance_ok = hta_ok
+                    else:  # ALL
+                        distance_ok = bt_ok or hta_ok
+                else:
+                    # Pas de filtrage par distance lorsque l'option n'est pas cochée
+                    distance_ok = True
+                if not distance_ok:
+                    continue
+
+                # Ajouter à la liste filtrée (enrichissement cadastral sera fait après)
+                toitures_data.append({
+                    "type": "Feature",
                         "geometry": batiment["geometry"],
                         "properties": {
                             "surface_toiture_m2": round(surface_m2, 2),
@@ -5874,122 +5874,122 @@ def search_by_commune():
                         }
                     })
 
-                except Exception as e:
-                    print(f"⚠️ [TOITURES] Erreur traitement bâtiment {idx}: {e}")
-                    continue
+            except Exception as e:
+                print(f"⚠️ [TOITURES] Erreur traitement bâtiment {idx}: {e}")
+                continue
 
-            print(f"✅ [TOITURES] {len(toitures_data)} toitures filtrées trouvées (méthode polygone)")
+        print(f"✅ [TOITURES] {len(toitures_data)} toitures filtrées trouvées (méthode polygone)")
+        
+        # Enrichissement cadastral OPTIMISÉ avec limite
+        if toitures_data:
+            # ENRICHISSEMENT COMPLET: Traitement de toutes les toitures de la commune
+            toitures_a_enrichir = toitures_data  # Traitement complet sans limitation
             
-            # Enrichissement cadastral OPTIMISÉ avec limite
-            if toitures_data:
-                # ENRICHISSEMENT COMPLET: Traitement de toutes les toitures de la commune
-                toitures_a_enrichir = toitures_data  # Traitement complet sans limitation
-                
-                print(f"🏛️ [CADASTRE-TOITURES] Enrichissement complet : {len(toitures_a_enrichir)} toitures")
-                print(f"🔍 [CADASTRE-TOITURES] Traitement individuel optimisé avec limite 1000")
-                
-                def get_parcelles_for_toiture(toiture_geometry):
-                    """Récupère les parcelles cadastrales intersectant une toiture spécifique avec limite optimisée"""
-                    try:
-                        api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
-                        params = {
-                            "geom": json.dumps(toiture_geometry),
-                            "_limit": 1000  # Limite maximale au lieu de 3
-                        }
-                        
-                        resp = requests.get(api_url, params=params, timeout=10)
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            return data.get('features', [])
-                        else:
-                            return []
-                    except Exception:
-                        return []
-                
-                # Traitement individuel mais optimisé
-                total_enrichies = 0
-                total_erreurs = 0
-                
-                for i, toiture in enumerate(toitures_a_enrichir):
-                    # Log de progression moins verbeux
-                    if (i + 1) % 50 == 0 or i == 0:
-                        print(f"    📍 Progression: {i+1}/{len(toitures_a_enrichir)} toitures traitées...")
+            print(f"🏛️ [CADASTRE-TOITURES] Enrichissement complet : {len(toitures_a_enrichir)} toitures")
+            print(f"🔍 [CADASTRE-TOITURES] Traitement individuel optimisé avec limite 1000")
+            
+            def get_parcelles_for_toiture(toiture_geometry):
+                """Récupère les parcelles cadastrales intersectant une toiture spécifique avec limite optimisée"""
+                try:
+                    api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
+                    params = {
+                        "geom": json.dumps(toiture_geometry),
+                        "_limit": 1000  # Limite maximale au lieu de 3
+                    }
                     
-                    # 1. Enrichissement cadastral
-                    parcelles_toiture = get_parcelles_for_toiture(toiture["geometry"])
-                    
-                    if parcelles_toiture:
-                        # Extraire les références cadastrales
-                        refs_cadastrales = []
-                        for parcelle in parcelles_toiture:
-                            props = parcelle.get('properties', {})
-                            
-                            numero = props.get('numero', '')
-                            section = props.get('section', '')
-                            commune_code = props.get('commune', '')
-                            prefixe = props.get('prefixe', '')
-                            
-                            if section and numero:
-                                ref = {
-                                    'numero': numero,
-                                    'section': section,
-                                    'commune': commune_code,
-                                    'prefixe': prefixe,
-                                    'reference_complete': f"{commune_code}{prefixe}{section}{numero}".strip()
-                                }
-                                refs_cadastrales.append(ref)
-                        
-                        toiture["properties"]["parcelles_cadastrales"] = refs_cadastrales
-                        toiture["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
-                        total_enrichies += 1
+                    resp = requests.get(api_url, params=params, timeout=10)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        return data.get('features', [])
                     else:
-                        toiture["properties"]["parcelles_cadastrales"] = []
-                        toiture["properties"]["nb_parcelles_cadastrales"] = 0
-                        total_erreurs += 1
-                    
-                    # 2. Enrichissement avec l'adresse IGN (géocodage inverse)
-                    geom = toiture.get("geometry", {})
-                    if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
-                        try:
-                            # Calculer le centroïde de la toiture pour obtenir lat/lon
-                            from shapely.geometry import shape
-                            shp_geom = shape(geom)
-                            centroid = shp_geom.centroid
-                            
-                            # Géocodage inverse IGN
-                            adresse_info = get_address_from_coordinates(centroid.y, centroid.x)
-                            
-                            if adresse_info and adresse_info.get('address'):
-                                toiture["properties"]["adresse"] = adresse_info['address']
-                                toiture["properties"]["adresse_distance"] = adresse_info.get('distance', 0)
-                                toiture["properties"]["adresse_score"] = adresse_info.get('score', 0)
-                                toiture["properties"]["code_postal"] = adresse_info.get('postcode', '')
-                                toiture["properties"]["ville"] = adresse_info.get('city', '')
-                                toiture["properties"]["code_commune"] = adresse_info.get('citycode', '')
-                                # Mettre à jour le lien annuaire avec la ville si disponible
-                                try:
-                                    ville = adresse_info.get('city', '') or commune
-                                    toiture["properties"]["lien_annuaire"] = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(ville)}&univers=pagesjaunes&idOu="
-                                except Exception:
-                                    pass
-                            else:
-                                toiture["properties"]["adresse"] = "Adresse non trouvée"
-                                toiture["properties"]["adresse_distance"] = None
-                                toiture["properties"]["adresse_score"] = 0
-                        except Exception as e:
-                            safe_print(f"🔴 [ADRESSE] Erreur enrichissement toiture {i}: {e}")
-                            toiture["properties"]["adresse"] = "Erreur géocodage"
-                
-                print(f"✅ [CADASTRE-TOITURES] Enrichissement individuel optimisé terminé:")
-                print(f"    📊 {total_enrichies} toitures enrichies avec succès")
-                print(f"    ⚠️ {total_erreurs} toitures sans données cadastrales")
-                print(f"    🎯 {len(toitures_data)} toitures disponibles au total sur la carte")
+                        return []
+                except Exception:
+                    return []
             
-        except Exception as e:
-            print(f"❌ [TOITURES] Erreur recherche: {e}")
-            import traceback
-            traceback.print_exc()
-            toitures_data = []
+            # Traitement individuel mais optimisé
+            total_enrichies = 0
+            total_erreurs = 0
+            
+            for i, toiture in enumerate(toitures_a_enrichir):
+                # Log de progression moins verbeux
+                if (i + 1) % 50 == 0 or i == 0:
+                    print(f"    📍 Progression: {i+1}/{len(toitures_a_enrichir)} toitures traitées...")
+                
+                # 1. Enrichissement cadastral
+                parcelles_toiture = get_parcelles_for_toiture(toiture["geometry"])
+                
+                if parcelles_toiture:
+                    # Extraire les références cadastrales
+                    refs_cadastrales = []
+                    for parcelle in parcelles_toiture:
+                        props = parcelle.get('properties', {})
+                        
+                        numero = props.get('numero', '')
+                        section = props.get('section', '')
+                        commune_code = props.get('commune', '')
+                        prefixe = props.get('prefixe', '')
+                        
+                        if section and numero:
+                            ref = {
+                                'numero': numero,
+                                'section': section,
+                                'commune': commune_code,
+                                'prefixe': prefixe,
+                                'reference_complete': f"{commune_code}{prefixe}{section}{numero}".strip()
+                            }
+                    refs_cadastrales.append(ref)
+                    
+                    toiture["properties"]["parcelles_cadastrales"] = refs_cadastrales
+                    toiture["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
+                    total_enrichies += 1
+                else:
+                    toiture["properties"]["parcelles_cadastrales"] = []
+                    toiture["properties"]["nb_parcelles_cadastrales"] = 0
+                    total_erreurs += 1
+                
+                # 2. Enrichissement avec l'adresse IGN (géocodage inverse)
+                geom = toiture.get("geometry", {})
+                if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
+                    try:
+                        # Calculer le centroïde de la toiture pour obtenir lat/lon
+                        from shapely.geometry import shape
+                        shp_geom = shape(geom)
+                        centroid = shp_geom.centroid
+                        
+                        # Géocodage inverse IGN
+                        adresse_info = get_address_from_coordinates(centroid.y, centroid.x)
+                        
+                        if adresse_info and adresse_info.get('address'):
+                            toiture["properties"]["adresse"] = adresse_info['address']
+                            toiture["properties"]["adresse_distance"] = adresse_info.get('distance', 0)
+                            toiture["properties"]["adresse_score"] = adresse_info.get('score', 0)
+                            toiture["properties"]["code_postal"] = adresse_info.get('postcode', '')
+                            toiture["properties"]["ville"] = adresse_info.get('city', '')
+                            toiture["properties"]["code_commune"] = adresse_info.get('citycode', '')
+                            # Mettre à jour le lien annuaire avec la ville si disponible
+                            try:
+                                ville = adresse_info.get('city', '') or commune
+                                toiture["properties"]["lien_annuaire"] = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(ville)}&univers=pagesjaunes&idOu="
+                            except Exception:
+                                pass
+                        else:
+                            toiture["properties"]["adresse"] = "Adresse non trouvée"
+                            toiture["properties"]["adresse_distance"] = None
+                            toiture["properties"]["adresse_score"] = 0
+                    except Exception as e:
+                        safe_print(f"🔴 [ADRESSE] Erreur enrichissement toiture {i}: {e}")
+                        toiture["properties"]["adresse"] = "Erreur géocodage"
+            
+            print(f"✅ [CADASTRE-TOITURES] Enrichissement individuel optimisé terminé:")
+            print(f"    📊 {total_enrichies} toitures enrichies avec succès")
+            print(f"    ⚠️ {total_erreurs} toitures sans données cadastrales")
+            print(f"    🎯 {len(toitures_data)} toitures disponibles au total sur la carte")
+                
+    except Exception as e:
+        print(f"❌ [TOITURES] Erreur recherche: {e}")
+        import traceback
+        traceback.print_exc()
+        toitures_data = []
     
     print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
     print(f"🌾 [DEBUG_RPG] Parcelles RPG passées à build_map: {len(final_rpg)}")
@@ -6002,7 +6002,7 @@ def search_by_commune():
         plu_info=plu_info,
         parkings_data=filtered_parkings,
         friches_data=filtered_friches,
-        potentiel_solaire_data=toitures_data if filter_toitures else solaire_data,  # Remplacer temporairement par les toitures
+        potentiel_solaire_data=toitures_data if toitures_data else solaire_data,  # Toujours afficher les toitures si disponibles
         zaer_data=zaer_data,
         rpg_data=final_rpg,
         sirene_data=sirene_data,
