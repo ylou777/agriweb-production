@@ -3,30 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AgriWeb - Plateforme Géospatial            {% if is_admin %}
-            <!-- Accès Administration pour les admins -->
-            <div class="mb-4">
-                <a href="/admin" class="btn btn-warning btn-lg me-3">
-                    <i class="bi bi-shield-check"></i> Administration
-                </a>
-                <a href="/app" class="btn btn-success btn-lg">
-                    <i class="bi bi-map"></i> Application
-                </a>
-            </div>
-            {% elif current_user %}
-            <!-- Accès pour les utilisateurs connectés -->
-            <div class="mb-4">
-                <a href="/app" class="btn btn-success btn-lg me-3">
-                    <i class="bi bi-map"></i> Accéder à l'Application
-                </a>
-                <a href="/logout" class="btn btn-outline-light btn-lg">
-                    <i class="bi bi-box-arrow-right"></i> Déconnexion
-                </a>
-            </div>
-            {% endif %}Professionnelle</title>
+    <title>AgriWeb - Plateforme Géospatiale & Énergétique</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
@@ -44,12 +24,10 @@
             font-size: 3.5rem;
             font-weight: 700;
             margin-bottom: 1rem;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
         
         .hero-subtitle {
-            font-size: 1.3rem;
-            font-weight: 300;
+            font-size: 1.5rem;
             margin-bottom: 2rem;
             opacity: 0.9;
         }
@@ -58,142 +36,51 @@
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-            margin-top: 2rem;
+            margin-bottom: 3rem;
         }
         
         .nav-pills .nav-link {
-            border-radius: 15px;
-            padding: 0.75rem 1.5rem;
-            font-weight: 500;
-            transition: all 0.3s;
+            border-radius: 10px;
+            margin: 0 5px;
         }
         
         .nav-pills .nav-link.active {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
+            background: linear-gradient(135deg, #667eea, #764ba2);
         }
         
-        .form-control {
-            border-radius: 12px;
-            border: 2px solid #e9ecef;
-            padding: 0.75rem 1rem;
-            transition: all 0.3s;
-        }
-        
-        .form-control:focus {
-            border-color: #28a745;
-            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
-        }
-        
-        .btn-auth {
-            background: linear-gradient(135deg, #28a745, #20c997);
+        .btn-gradient {
+            background: linear-gradient(135deg, #667eea, #764ba2);
             border: none;
-            border-radius: 12px;
-            padding: 0.75rem;
-            font-weight: 600;
             color: white;
-            transition: all 0.3s;
         }
         
-        .btn-auth:hover {
-            background: linear-gradient(135deg, #218838, #1c7873);
-            transform: translateY(-2px);
+        .btn-gradient:hover {
+            background: linear-gradient(135deg, #5a6fd8, #6a42a0);
             color: white;
         }
         
         .pricing-section {
+            padding: 4rem 0;
             background: white;
-            padding: 4rem 0;
-        }
-        
-        .pricing-card {
-            border: none;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: all 0.3s;
-            height: 100%;
-        }
-        
-        .pricing-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
-        }
-        
-        .pricing-card.featured {
-            border: 3px solid #28a745;
-            transform: scale(1.05);
-        }
-        
-        .pricing-header {
-            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-            padding: 2rem;
-            text-align: center;
-            border-radius: 20px 20px 0 0;
-        }
-        
-        .pricing-header.featured {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-        }
-        
-        .price {
-            font-size: 3rem;
-            font-weight: 700;
-            margin: 1rem 0;
-        }
-        
-        .features-section {
-            background: #f8f9fa;
-            padding: 4rem 0;
         }
         
         .feature-card {
             background: white;
-            border-radius: 15px;
-            padding: 2rem;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            height: 100%;
-            transition: all 0.3s;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
         }
         
         .feature-icon {
             width: 60px;
             height: 60px;
-            background: linear-gradient(135deg, #28a745, #20c997);
-            border-radius: 15px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 1.5rem;
-            margin-bottom: 1rem;
-        }
-        
-        .alert {
-            border-radius: 12px;
-            border: none;
-        }
-        
-        .demo-section {
-            background: #e3f2fd;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin: 1rem 0;
-        }
-        
-        @media (max-width: 768px) {
-            .hero-title {
-                font-size: 2.5rem;
-            }
-            .pricing-card.featured {
-                transform: none;
-            }
         }
     </style>
 </head>
@@ -227,130 +114,159 @@
                     <i class="bi bi-box-arrow-right"></i> Déconnexion
                 </a>
             </div>
+            {% else %}
+            <!-- Boutons pour utilisateurs non connectés -->
+            <div class="mb-4">
+                <a href="/demo-real" class="btn btn-light btn-lg me-3">
+                    <i class="bi bi-play-circle"></i> Voir la Démo
+                </a>
+                <a href="/register" class="btn btn-gradient btn-lg me-3">
+                    <i class="bi bi-person-plus"></i> Inscription
+                </a>
+                <button class="btn btn-outline-light btn-lg" data-bs-toggle="modal" data-bs-target="#authModal">
+                    <i class="bi bi-box-arrow-in-right"></i> Connexion
+                </button>
+            </div>
             {% endif %}
+        </div>
+    </div>
+    
+    <!-- Section Description des fonctionnalités -->
+    <div class="description-section" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 4rem 0;">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="display-5 fw-bold">Comment fonctionne AgriWeb Pro ?</h2>
+                <p class="lead text-muted">Une solution complète pour l'analyse géospatiale et énergétique</p>
+            </div>
             
-            <!-- Carte d'authentification -->
-            <div class="row justify-content-center">
-                <div class="col-lg-6 col-md-8">
-                    <div class="auth-card">
-                        <div class="p-4">
-                            <!-- Onglets de navigation -->
-                            <ul class="nav nav-pills nav-justified mb-4" id="authTabs" role="tablist">
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link active" id="login-tab" data-bs-toggle="pill" data-bs-target="#login-panel" type="button" role="tab">
-                                        <i class="bi bi-box-arrow-in-right"></i> Connexion
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="register-tab" data-bs-toggle="pill" data-bs-target="#register-panel" type="button" role="tab">
-                                        <i class="bi bi-person-plus"></i> Inscription
-                                    </button>
-                                </li>
-                                <li class="nav-item" role="presentation">
-                                    <button class="nav-link" id="trial-tab" data-bs-toggle="pill" data-bs-target="#trial-panel" type="button" role="tab">
-                                        <i class="bi bi-lightning"></i> Essai Gratuit
-                                    </button>
-                                </li>
-                            </ul>
-                            
-                            <!-- Messages d'alerte -->
-                            <div id="alertContainer"></div>
-                            
-                            <!-- Contenu des onglets -->
-                            <div class="tab-content" id="authTabsContent">
-                                <!-- Panneau de connexion -->
-                                <div class="tab-pane fade show active" id="login-panel" role="tabpanel">
-                                    <form id="loginForm">
-                                        <div class="mb-3">
-                                            <label for="loginEmail" class="form-label">
-                                                <i class="bi bi-envelope"></i> Email
-                                            </label>
-                                            <input type="email" class="form-control" id="loginEmail" name="email" 
-                                                   placeholder="votre@email.com" required>
-                                        </div>
-                                        <div class="mb-4">
-                                            <label for="loginPassword" class="form-label">
-                                                <i class="bi bi-lock"></i> Mot de passe
-                                            </label>
-                                            <input type="password" class="form-control" id="loginPassword" name="password" 
-                                                   placeholder="Votre mot de passe" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-auth w-100">
-                                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
-                                        </button>
-                                    </form>
+            <div class="row g-4">
+                <!-- Étape 1: Recherche -->
+                <div class="col-lg-4">
+                    <div class="feature-card" style="background: white; border-radius: 20px; padding: 3rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="feature-icon me-3" style="background: linear-gradient(135deg, #28a745, #20c997);">
+                                <span style="font-size: 1.5rem;">1️⃣</span>
+                            </div>
+                            <h4 class="mb-0">Recherche & Localisation</h4>
+                        </div>
+                        <p class="text-muted mb-4">Recherchez n'importe quelle adresse, commune ou parcelle en France. Notre moteur de recherche intelligent vous localise précisément.</p>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Recherche par adresse postale</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Recherche par coordonnées GPS</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Recherche par commune</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Recherche par parcelle cadastrale</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Étape 2: Analyse -->
+                <div class="col-lg-4">
+                    <div class="feature-card" style="background: white; border-radius: 20px; padding: 3rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="feature-icon me-3" style="background: linear-gradient(135deg, #007bff, #0056b3);">
+                                <span style="font-size: 1.5rem;">2️⃣</span>
+                            </div>
+                            <h4 class="mb-0">Analyse Multi-Critères</h4>
+                        </div>
+                        <p class="text-muted mb-4">Analysez automatiquement tous les critères importants : réglementations, contraintes, potentiels et risques.</p>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Contraintes d'urbanisme (PLU, POS)</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Zones protégées (NATURA 2000, etc.)</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Risques naturels (PPRI, PPR, etc.)</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Potentiel énergétique solaire</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Analyse des toitures</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Friches industrielles et urbaines</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Parkings et zones urbanisées</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Registre Parcellaire Graphique (RPG)</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <!-- Étape 3: Rapports -->
+                <div class="col-lg-4">
+                    <div class="feature-card" style="background: white; border-radius: 20px; padding: 3rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="feature-icon me-3" style="background: linear-gradient(135deg, #fd7e14, #e55347);">
+                                <span style="font-size: 1.5rem;">3️⃣</span>
+                            </div>
+                            <h4 class="mb-0">Rapports Professionnels</h4>
+                        </div>
+                        <p class="text-muted mb-4">Générez instantanément des rapports détaillés prêts à être présentés à vos clients ou partenaires.</p>
+                        <ul class="list-unstyled">
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Rapports PDF personnalisés</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Exports Excel détaillés</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Cartes haute résolution</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Synthèses par département</li>
+                            <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Données temps réel</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Section À qui s'adresse -->
+    <div class="container my-5">
+        <div class="row g-4">
+            <div class="col-lg-12">
+                <div class="feature-card" style="background: linear-gradient(135deg, #6f42c1, #e83e8c); color: white; border-radius: 20px; padding: 3rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                    <div class="text-center mb-4">
+                        <h3 class="fw-bold mb-0">🎯 À qui s'adresse AgriWeb Pro ?</h3>
+                    </div>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-sun" style="font-size: 3rem; color: #ffc107;"></i>
                                 </div>
-                                
-                                <!-- Panneau d'inscription -->
-                                <div class="tab-pane fade" id="register-panel" role="tabpanel">
-                                    <form id="registerForm">
-                                        <div class="mb-3">
-                                            <label for="registerName" class="form-label">
-                                                <i class="bi bi-person"></i> Nom complet
-                                            </label>
-                                            <input type="text" class="form-control" id="registerName" name="name" 
-                                                   placeholder="Jean Dupont" required>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="registerEmail" class="form-label">
-                                                <i class="bi bi-envelope"></i> Email
-                                            </label>
-                                            <input type="email" class="form-control" id="registerEmail" name="email" 
-                                                   placeholder="jean@monentreprise.com" required>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="registerCompany" class="form-label">
-                                                <i class="bi bi-building"></i> Entreprise (optionnel)
-                                            </label>
-                                            <input type="text" class="form-control" id="registerCompany" name="company" 
-                                                   placeholder="Mon Entreprise Agricole">
-                                        </div>
-                                        <div class="mb-4">
-                                            <label for="registerPassword" class="form-label">
-                                                <i class="bi bi-lock"></i> Mot de passe
-                                            </label>
-                                            <input type="password" class="form-control" id="registerPassword" name="password" 
-                                                   placeholder="Minimum 6 caractères" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-auth w-100">
-                                            <i class="bi bi-person-plus"></i> Créer un compte
-                                        </button>
-                                    </form>
+                                <h5>Développeurs photovoltaïques</h5>
+                                <p class="mb-0 opacity-75">Pour repérer rapidement les meilleurs sites d'implantation.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-bar-chart" style="font-size: 3rem; color: #20c997;"></i>
                                 </div>
-                                
-                                <!-- Panneau d'essai gratuit -->
-                                <div class="tab-pane fade" id="trial-panel" role="tabpanel">
-                                    <form id="trialForm">
-                                        <div class="text-center mb-3">
-                                            <h5 class="text-success">🎯 Essai Gratuit 7 Jours</h5>
-                                            <p class="text-muted">Accès complet à toutes les fonctionnalités</p>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="trialName" class="form-label">
-                                                <i class="bi bi-person"></i> Nom complet
-                                            </label>
-                                            <input type="text" class="form-control" id="trialName" name="name" 
-                                                   placeholder="Jean Dupont" required>
-                                        </div>
-                                        <div class="mb-3">
-                                            <label for="trialEmail" class="form-label">
-                                                <i class="bi bi-envelope"></i> Email professionnel
-                                            </label>
-                                            <input type="email" class="form-control" id="trialEmail" name="email" 
-                                                   placeholder="jean@monentreprise.com" required>
-                                        </div>
-                                        <div class="mb-4">
-                                            <label for="trialCompany" class="form-label">
-                                                <i class="bi bi-building"></i> Entreprise
-                                            </label>
-                                            <input type="text" class="form-control" id="trialCompany" name="company" 
-                                                   placeholder="Mon Entreprise Agricole" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-auth w-100">
-                                            <i class="bi bi-lightning"></i> Commencer l'essai gratuit
-                                        </button>
-                                    </form>
+                                <h5>Bureaux d'études</h5>
+                                <p class="mb-0 opacity-75">Pour disposer des données clés avant toute visite de terrain et réaliser études d'impact.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-currency-euro" style="font-size: 3rem; color: #28a745;"></i>
                                 </div>
+                                <h5>Investisseurs ENR</h5>
+                                <p class="mb-0 opacity-75">Pour identifier des projets à fort potentiel de rentabilité.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-truck" style="font-size: 3rem; color: #fd7e14;"></i>
+                                </div>
+                                <h5>Agriculteurs</h5>
+                                <p class="mb-0 opacity-75">Pour diversifier leurs revenus, optimiser leurs pratiques, et valoriser leur foncier.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-house-door" style="font-size: 3rem; color: #dc3545;"></i>
+                                </div>
+                                <h5>Agences immobilières</h5>
+                                <p class="mb-0 opacity-75">Pour diagnostiquer les contraintes d'urbanisme (PLU, PPRI, zones naturelles) de vos biens.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <div class="mb-3">
+                                    <i class="bi bi-building" style="font-size: 3rem; color: #0d6efd;"></i>
+                                </div>
+                                <h5>Collectivités</h5>
+                                <p class="mb-0 opacity-75">Pour analyser le potentiel territorial, identifier les gisements fonciers et planifier les projets.</p>
                             </div>
                         </div>
                     </div>
@@ -359,145 +275,128 @@
         </div>
     </div>
     
-    <!-- Section Fonctionnalités -->
-    <div class="features-section">
-        <div class="container">
-            <div class="text-center mb-5">
-                <h2 class="display-5 fw-bold">Fonctionnalités Avancées</h2>
-                <p class="lead text-muted">Une suite complète d'outils pour l'analyse géospatiale agricole</p>
-            </div>
-            
-            <div class="row g-4">
-                <div class="col-lg-4 col-md-6">
-                    <div class="feature-card text-center">
-                        <div class="feature-icon mx-auto">
-                            <i class="bi bi-geo-alt"></i>
-                        </div>
-                        <h5>Cartographie Avancée</h5>
-                        <p class="text-muted">Analyse multicritères des parcelles avec données RPG, cadastre, urbanisme et risques naturels</p>
+    <!-- Section Exemples et Démos -->
+    <div class="container my-5">
+        <div class="row g-4">
+            <div class="col-lg-12">
+                <div class="feature-card" style="background: linear-gradient(135deg, #17a2b8, #138496); color: white; border-radius: 20px; padding: 3rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1);">
+                    <div class="text-center mb-4">
+                        <h3 class="fw-bold mb-0">📊 Exemples de Cartes et Rapports</h3>
                     </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="feature-card text-center">
-                        <div class="feature-icon mx-auto">
-                            <i class="bi bi-lightning-charge"></i>
+                    
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="demo-section" style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 2rem;">
+                                <h5><i class="bi bi-map me-2"></i>Cartes Interactives</h5>
+                                <ul class="list-unstyled mb-0">
+                                    <li class="mb-2">• Cartographie des potentiels solaires par commune</li>
+                                    <li class="mb-2">• Overlay des infrastructures électriques</li>
+                                    <li class="mb-2">• Zones réglementaires et contraintes</li>
+                                    <li class="mb-0">• Visualisation des projets agrivoltaïques</li>
+                                </ul>
+                            </div>
                         </div>
-                        <h5>Potentiel Énergétique</h5>
-                        <p class="text-muted">Évaluation du potentiel solaire des toitures et identification des zones d'implantation</p>
+                        <div class="col-md-6">
+                            <div class="demo-section" style="background: rgba(255,255,255,0.1); border-radius: 15px; padding: 2rem;">
+                                <h5><i class="bi bi-file-earmark-pdf me-2"></i>Rapports Détaillés</h5>
+                                <ul class="list-unstyled mb-0">
+                                    <li class="mb-2">• Analyses de faisabilité par parcelle</li>
+                                    <li class="mb-2">• Synthèses départementales et communales</li>
+                                    <li class="mb-2">• Calculs de rentabilité prévisionnelle</li>
+                                    <li class="mb-0">• Exports Excel et PDF personnalisés</li>
+                                </ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="feature-card text-center">
-                        <div class="feature-icon mx-auto">
-                            <i class="bi bi-graph-up"></i>
-                        </div>
-                        <h5>Analyses Économiques</h5>
-                        <p class="text-muted">Calculs de rentabilité, optimisation foncière et aide à la décision</p>
-                    </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="feature-card text-center">
-                        <div class="feature-icon mx-auto">
-                            <i class="bi bi-building"></i>
-                        </div>
-                        <h5>Friches & Parkings</h5>
-                        <p class="text-muted">Détection automatisée des friches industrielles et optimisation des espaces urbains</p>
-                    </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="feature-card text-center">
-                        <div class="feature-icon mx-auto">
-                            <i class="bi bi-file-earmark-text"></i>
-                        </div>
-                        <h5>Rapports Automatisés</h5>
-                        <p class="text-muted">Génération de rapports détaillés par commune, département ou zone personnalisée</p>
-                    </div>
-                </div>
-                <div class="col-lg-4 col-md-6">
-                    <div class="feature-card text-center">
-                        <div class="feature-icon mx-auto">
-                            <i class="bi bi-cloud-upload"></i>
-                        </div>
-                        <h5>API & Intégration</h5>
-                        <p class="text-muted">APIs RESTful et export de données pour intégration dans vos systèmes existants</p>
+                    
+                    <div class="text-center mt-4">
+                        <a href="/demo-real" class="btn btn-light btn-lg">
+                            <i class="bi bi-play-circle me-2"></i>Voir la Démo Technique
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Section Tarifs -->
+    <!-- Section Plans & Tarifs -->
     <div class="pricing-section">
         <div class="container">
             <div class="text-center mb-5">
                 <h2 class="display-5 fw-bold">Plans & Tarifs</h2>
-                <p class="lead text-muted">Votre solution géospatiale !</p>
+                <p class="lead text-muted">Choisissez la solution qui vous correspond !</p>
             </div>
             
-            <div class="row g-4 justify-content-center">
-                <!-- Plan Essai -->
-                <div class="col-lg-4 col-md-6">
-                    <div class="card pricing-card">
-                        <div class="pricing-header">
-                            <h4 class="fw-bold">Essai Gratuit</h4>
-                            <div class="price">0€<small class="fs-6 fw-normal">/7 jours</small></div>
-                            <p class="mb-0">Découvrez toutes les fonctionnalités</p>
-                        </div>
-                        <div class="card-body p-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Accès complet 7 jours</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Toutes les fonctionnalités</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Support par email</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Rapports illimités</li>
-                                <li class="mb-2"><i class="bi bi-x-circle-fill text-muted me-2"></i> Pas d'engagement</li>
+            <div class="row g-4">
+                <!-- Plan Basic -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <h5 class="card-title fw-bold">Basic</h5>
+                            <div class="display-6 fw-bold text-primary mb-3">35€<small class="fs-6 text-muted">/mois</small></div>
+                            <p class="text-muted">1 utilisateur</p>
+                            <ul class="list-unstyled text-start mb-4">
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Accès complet aux cartes</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Rapports de base</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Export PDF</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Support email</li>
                             </ul>
-                            <button class="btn btn-outline-primary w-100 mt-3" onclick="switchToTrialTab()">
-                                Commencer l'essai
-                            </button>
+                            <button class="btn btn-gradient w-100" onclick="createCheckout('basic')">Choisir Basic</button>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Plan Professionnel -->
-                <div class="col-lg-4 col-md-6">
-                    <div class="card pricing-card featured">
-                        <div class="pricing-header featured">
-                            <h4 class="fw-bold">Professionnel</h4>
-                            <div class="price">299€<small class="fs-6 fw-normal">/mois</small></div>
-                            <p class="mb-0">Pour les consultants et bureaux d'études</p>
-                        </div>
-                        <div class="card-body p-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Accès complet illimité</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> API complète</li>
+                <!-- Plan Professional -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm border-primary">
+                        <div class="card-body text-center p-4">
+                            <div class="badge bg-primary mb-2">Recommandé</div>
+                            <h5 class="card-title fw-bold">Professional</h5>
+                            <div class="display-6 fw-bold text-primary mb-3">199€<small class="fs-6 text-muted">/mois</small></div>
+                            <p class="text-muted">1 utilisateur</p>
+                            <ul class="list-unstyled text-start mb-4">
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Tout du plan Basic</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Rapports avancés</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> API access</li>
                                 <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Support prioritaire</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Exports illimités</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Mises à jour incluses</li>
                             </ul>
-                            <button class="btn btn-primary w-100 mt-3" onclick="startSubscription('professional')">
-                                Choisir ce plan
-                            </button>
+                            <button class="btn btn-gradient w-100" onclick="createCheckout('professional')">Choisir Professional</button>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Plan Entreprise -->
-                <div class="col-lg-4 col-md-6">
-                    <div class="card pricing-card">
-                        <div class="pricing-header">
-                            <h4 class="fw-bold">Entreprise</h4>
-                            <div class="price">Sur mesure</div>
-                            <p class="mb-0">Solutions personnalisées</p>
+                <!-- Plan Team -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <h5 class="card-title fw-bold">Team</h5>
+                            <div class="display-6 fw-bold text-primary mb-3">299€<small class="fs-6 text-muted">/mois</small></div>
+                            <p class="text-muted">3 utilisateurs</p>
+                            <ul class="list-unstyled text-start mb-4">
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Tout du plan Professional</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Gestion d'équipe</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Rapports collaboratifs</li>
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Support téléphonique</li>
+                            </ul>
+                            <button class="btn btn-gradient w-100" onclick="createCheckout('team')">Choisir Team</button>
                         </div>
-                        <div class="card-body p-4">
-                            <ul class="list-unstyled">
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Installation dédiée</li>
+                    </div>
+                </div>
+                
+                <!-- Plan Enterprise -->
+                <div class="col-lg-3 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <h5 class="card-title fw-bold">Entreprise</h5>
+                            <div class="display-6 fw-bold text-primary mb-3">Sur mesure</div>
+                            <p class="text-muted">Utilisateurs illimités</p>
+                            <ul class="list-unstyled text-start mb-4">
+                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Tout du plan Team</li>
                                 <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Personnalisation complète</li>
                                 <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Formation équipe</li>
                                 <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Support dédié</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Intégration sur mesure</li>
                             </ul>
-                            <button class="btn btn-outline-primary w-100 mt-3" onclick="contactSales()">
+                            <button class="btn btn-outline-primary w-100" onclick="contactSales()">
                                 Nous contacter
                             </button>
                         </div>
@@ -507,11 +406,57 @@
         </div>
     </div>
     
+    <!-- Modal de connexion pour les non connectés -->
+    {% if not current_user %}
+    <div class="modal fade" id="authModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Connexion à AgriWeb Pro</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="text-center mb-4">
+                        <p>Connectez-vous pour accéder à toutes les fonctionnalités d'AgriWeb Pro</p>
+                    </div>
+                    
+                    <!-- Formulaire de connexion simple -->
+                    <form method="POST" action="/login">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Mot de passe</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-gradient btn-lg">
+                                <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="text-center">
+                        <p class="mb-2">Pas encore de compte ?</p>
+                        <a href="/register" class="btn btn-outline-primary btn-lg">
+                            <i class="bi bi-person-plus"></i> Créer un compte
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Container pour les alertes -->
+    <div id="alertContainer" class="position-fixed top-0 start-50 translate-middle-x" style="z-index: 1050; margin-top: 1rem;"></div>
+    
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://js.stripe.com/v3/"></script>
     <script>
-        // Configuration Stripe (dynamique depuis le serveur)
         const stripe = Stripe('{{ stripe_public_key or "pk_test_YOUR_STRIPE_PUBLIC_KEY" }}');
         
         // Gestion des alertes
@@ -535,127 +480,33 @@
             }, 5000);
         }
         
-        // Basculer vers l'onglet d'essai
-        function switchToTrialTab() {
-            const trialTab = new bootstrap.Tab(document.getElementById('trial-tab'));
-            trialTab.show();
-        }
-        
-        // Gestion du formulaire de connexion
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
+        // Création de session Stripe
+        async function createCheckout(priceType) {
             try {
-                const response = await fetch('/login', {
+                const response = await fetch('/api/stripe/create-checkout', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showAlert(result.message, 'success');
-                    setTimeout(() => {
-                        window.location.href = '/app';
-                    }, 1500);
-                } else {
-                    showAlert(result.error, 'danger');
-                }
-            } catch (error) {
-                showAlert('Erreur de connexion au serveur', 'danger');
-            }
-        });
-        
-        // Gestion du formulaire d'inscription
-        document.getElementById('registerForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await fetch('/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showAlert(result.message, 'success');
-                    // Basculer vers l'onglet de connexion
-                    setTimeout(() => {
-                        const loginTab = new bootstrap.Tab(document.getElementById('login-tab'));
-                        loginTab.show();
-                        document.getElementById('loginEmail').value = data.email;
-                    }, 2000);
-                } else {
-                    showAlert(result.error, 'danger');
-                }
-            } catch (error) {
-                showAlert('Erreur de connexion au serveur', 'danger');
-            }
-        });
-        
-        // Gestion du formulaire d'essai gratuit
-        document.getElementById('trialForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = Object.fromEntries(formData.entries());
-            
-            try {
-                const response = await fetch('/api/trial', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data)
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    showAlert('Essai gratuit activé ! Redirection...', 'success');
-                    setTimeout(() => {
-                        window.location.href = '/app';
-                    }, 2000);
-                } else {
-                    showAlert(result.error, 'danger');
-                }
-            } catch (error) {
-                showAlert('Erreur de connexion au serveur', 'danger');
-            }
-        });
-        
-        // Démarrer un abonnement Stripe
-        async function startSubscription(planType) {
-            try {
-                showAlert('Redirection vers le paiement...', 'info');
-                
-                const response = await fetch('/api/create-checkout-session', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ plan: planType })
+                    body: JSON.stringify({
+                        price_type: priceType
+                    })
                 });
                 
                 const session = await response.json();
                 
-                if (session.url) {
-                    window.location.href = session.url;
-                } else {
-                    showAlert('Erreur lors de la création de la session de paiement', 'danger');
+                if (session.error) {
+                    showAlert(session.error, 'danger');
+                    return;
+                }
+                
+                // Redirection vers Stripe Checkout
+                const result = await stripe.redirectToCheckout({
+                    sessionId: session.session_id
+                });
+                
+                if (result.error) {
+                    showAlert(result.error.message, 'danger');
                 }
             } catch (error) {
                 showAlert('Erreur de connexion au serveur', 'danger');
@@ -664,10 +515,21 @@
         
         // Contact commercial
         function contactSales() {
-            showAlert('Pour les solutions entreprise, contactez-nous à : contact@agriweb-pro.fr', 'info');
+            // Ouvrir le client email par défaut avec les informations pré-remplies
+            const subject = encodeURIComponent('Demande d\'information - Solution Entreprise AgriWeb Pro');
+            const body = encodeURIComponent('Bonjour,\n\nJe souhaite obtenir des informations sur les solutions entreprise d\'AgriWeb Pro.\n\nMerci de me recontacter pour discuter de mes besoins.\n\nCordialement');
+            const mailtoUrl = `mailto:ylaurent.perso@gmail.com?subject=${subject}&body=${body}`;
+            
+            // Tenter d'ouvrir le client email
+            window.open(mailtoUrl, '_self');
+            
+            // Afficher aussi les informations de contact
+            setTimeout(() => {
+                showAlert('<strong>Contact commercial :</strong><br>📧 ylaurent.perso@gmail.com<br>📞 Demande de rappel disponible', 'info');
+            }, 500);
         }
         
-        // Vérifier les paramètres URL pour les messages
+        // Gestion des messages d'URL
         window.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
             
@@ -684,9 +546,18 @@
             }
             
             if (urlParams.get('payment_cancelled')) {
-                showAlert('Paiement annulé. Vous pouvez réessayer à tout moment.', 'info');
+                showAlert('Paiement annulé. Vous pouvez réessayer quand vous le souhaitez.', 'info');
             }
         });
+        
+        // Messages du serveur
+        {% if success_message %}
+        showAlert('{{ success_message }}', 'success');
+        {% endif %}
+        
+        {% if error_message %}
+        showAlert('{{ error_message }}', 'danger');
+        {% endif %}
     </script>
 </body>
 </html>

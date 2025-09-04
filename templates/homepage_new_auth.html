@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgriWeb Pro - Plateforme Géospatiale Agricole</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-section {
+            padding: 4rem 0;
+            color: white;
+            text-align: center;
+        }
+        
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .hero-subtitle {
+            font-size: 1.3rem;
+            font-weight: 300;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        
+        .auth-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-top: 2rem;
+        }
+        
+        .nav-pills .nav-link {
+            border-radius: 15px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+        
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .form-control {
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s;
+        }
+        
+        .form-control:focus {
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+        }
+        
+        .btn-auth {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            border-radius: 12px;
+            padding: 0.75rem;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s;
+        }
+        
+        .btn-auth:hover {
+            background: linear-gradient(135deg, #218838, #1c7873);
+            transform: translateY(-2px);
+            color: white;
+        }
+        
+        .alert {
+            border-radius: 12px;
+            border: none;
+        }
+        
+        .password-requirements {
+            font-size: 0.875rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+        
+        .requirement {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        
+        .requirement.valid {
+            color: #28a745;
+        }
+        
+        .requirement.invalid {
+            color: #dc3545;
+        }
+        
+        .email-config-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .loading-spinner {
+            display: none;
+        }
+        
+        .step-indicator {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .step-indicator.email-sent {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <!-- Section Hero -->
+    <div class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">🌱 AgriWeb Pro</h1>
+            <p class="hero-subtitle">
+                Plateforme géospatiale professionnelle<br>
+                Analyse de terrains • Potentiel énergétique • Prospection foncière
+            </p>
+            
+            <!-- Affichage pour utilisateurs connectés -->
+            {% if current_user %}
+            <div class="mb-4">
+                <h5 class="text-white mb-3">Bienvenue {{ current_user.name }} !</h5>
+                {% if is_admin %}
+                <a href="/admin" class="btn btn-warning btn-lg me-3">
+                    <i class="bi bi-shield-check"></i> Administration
+                </a>
+                {% endif %}
+                <a href="/app" class="btn btn-success btn-lg me-3">
+                    <i class="bi bi-map"></i> Accéder à l'Application
+                </a>
+                <a href="/logout" class="btn btn-outline-light btn-lg">
+                    <i class="bi bi-box-arrow-right"></i> Déconnexion
+                </a>
+            </div>
+            {% else %}
+            
+            <!-- Carte d'authentification pour nouveaux utilisateurs -->
+            <div class="row justify-content-center">
+                <div class="col-lg-6 col-md-8">
+                    <div class="auth-card">
+                        <div class="p-4">
+                            <!-- Configuration email notice -->
+                            <div class="email-config-notice" id="emailConfigNotice">
+                                <h6><i class="bi bi-info-circle"></i> Configuration requise</h6>
+                                <p class="mb-2">La confirmation par email nécessite une configuration SMTP.</p>
+                                <small>Variables d'environnement: SMTP_EMAIL et SMTP_PASSWORD</small>
+                            </div>
+                            
+                            <!-- Onglets de navigation -->
+                            <ul class="nav nav-pills nav-justified mb-4" id="authTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="register-tab" data-bs-toggle="pill" data-bs-target="#register-panel" type="button" role="tab">
+                                        <i class="bi bi-person-plus"></i> Inscription
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="login-tab" data-bs-toggle="pill" data-bs-target="#login-panel" type="button" role="tab">
+                                        <i class="bi bi-box-arrow-in-right"></i> Connexion
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <!-- Messages d'alerte -->
+                            <div id="alertContainer"></div>
+                            
+                            <!-- Contenu des onglets -->
+                            <div class="tab-content" id="authTabsContent">
+                                <!-- Panneau d'inscription -->
+                                <div class="tab-pane fade show active" id="register-panel" role="tabpanel">
+                                    <div id="registerForm">
+                                        <h5 class="mb-3">Créer votre compte professionnel</h5>
+                                        <p class="text-muted mb-4">
+                                            <i class="bi bi-gift"></i> <strong>7 jours d'essai gratuit</strong> avec toutes les fonctionnalités
+                                        </p>
+                                        
+                                        <form id="registrationForm">
+                                            <div class="mb-3">
+                                                <label for="registerName" class="form-label">
+                                                    <i class="bi bi-person"></i> Nom complet *
+                                                </label>
+                                                <input type="text" class="form-control" id="registerName" name="name" 
+                                                       placeholder="Jean Dupont" required minlength="2">
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="registerEmail" class="form-label">
+                                                    <i class="bi bi-envelope"></i> Email professionnel *
+                                                </label>
+                                                <input type="email" class="form-control" id="registerEmail" name="email" 
+                                                       placeholder="jean@monentreprise.com" required>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="registerCompany" class="form-label">
+                                                    <i class="bi bi-building"></i> Entreprise
+                                                </label>
+                                                <input type="text" class="form-control" id="registerCompany" name="company" 
+                                                       placeholder="Mon Entreprise Agricole">
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label for="registerPassword" class="form-label">
+                                                    <i class="bi bi-lock"></i> Mot de passe *
+                                                </label>
+                                                <input type="password" class="form-control" id="registerPassword" name="password" 
+                                                       placeholder="Créez un mot de passe sécurisé" required>
+                                                       
+                                                <!-- Indicateurs de force du mot de passe -->
+                                                <div class="password-requirements" id="passwordRequirements">
+                                                    <strong>Votre mot de passe doit contenir :</strong>
+                                                    <div class="requirement" id="req-length">
+                                                        <i class="bi bi-x-circle me-2"></i> Au moins 8 caractères
+                                                    </div>
+                                                    <div class="requirement" id="req-upper">
+                                                        <i class="bi bi-x-circle me-2"></i> Une majuscule
+                                                    </div>
+                                                    <div class="requirement" id="req-lower">
+                                                        <i class="bi bi-x-circle me-2"></i> Une minuscule
+                                                    </div>
+                                                    <div class="requirement" id="req-number">
+                                                        <i class="bi bi-x-circle me-2"></i> Un chiffre
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
+                                            <button type="submit" class="btn btn-auth w-100" id="registerBtn">
+                                                <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"></span>
+                                                <i class="bi bi-person-plus"></i> Créer mon compte
+                                            </button>
+                                        </form>
+                                    </div>
+                                    
+                                    <!-- Étape de confirmation email -->
+                                    <div id="emailConfirmationStep" style="display: none;">
+                                        <div class="step-indicator email-sent">
+                                            <h5><i class="bi bi-envelope-check"></i> Email envoyé !</h5>
+                                            <p class="mb-0">Vérifiez votre boîte mail <strong id="sentEmailAddress"></strong></p>
+                                        </div>
+                                        
+                                        <div class="text-center">
+                                            <h6>Prochaines étapes :</h6>
+                                            <ol class="text-start">
+                                                <li>Ouvrez l'email que nous venons d'envoyer</li>
+                                                <li>Cliquez sur "Confirmer mon compte"</li>
+                                                <li>Revenez ici pour vous connecter</li>
+                                            </ol>
+                                            
+                                            <button class="btn btn-outline-primary" onclick="resendVerificationEmail()">
+                                                <i class="bi bi-arrow-clockwise"></i> Renvoyer l'email
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Panneau de connexion -->
+                                <div class="tab-pane fade" id="login-panel" role="tabpanel">
+                                    <h5 class="mb-3">Connexion à votre compte</h5>
+                                    <p class="text-muted mb-4">Accédez à votre espace AgriWeb Pro</p>
+                                    
+                                    <form id="loginForm">
+                                        <div class="mb-3">
+                                            <label for="loginEmail" class="form-label">
+                                                <i class="bi bi-envelope"></i> Email
+                                            </label>
+                                            <input type="email" class="form-control" id="loginEmail" name="email" 
+                                                   placeholder="votre@email.com" required>
+                                        </div>
+                                        
+                                        <div class="mb-4">
+                                            <label for="loginPassword" class="form-label">
+                                                <i class="bi bi-lock"></i> Mot de passe
+                                            </label>
+                                            <input type="password" class="form-control" id="loginPassword" name="password" 
+                                                   placeholder="Votre mot de passe" required>
+                                        </div>
+                                        
+                                        <button type="submit" class="btn btn-auth w-100" id="loginBtn">
+                                            <span class="loading-spinner spinner-border spinner-border-sm me-2" role="status"></span>
+                                            <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                                        </button>
+                                    </form>
+                                    
+                                    <div class="text-center mt-3">
+                                        <small class="text-muted">
+                                            <a href="#" onclick="switchToRegister()">Pas encore de compte ? Créez-en un</a>
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Variables globales
+        let lastEmailSent = '';
+        
+        // Validation du mot de passe en temps réel
+        document.getElementById('registerPassword').addEventListener('input', function() {
+            const password = this.value;
+            const requirements = {
+                'req-length': password.length >= 8,
+                'req-upper': /[A-Z]/.test(password),
+                'req-lower': /[a-z]/.test(password),
+                'req-number': /\d/.test(password)
+            };
+            
+            Object.keys(requirements).forEach(reqId => {
+                const element = document.getElementById(reqId);
+                const icon = element.querySelector('i');
+                
+                if (requirements[reqId]) {
+                    element.classList.remove('invalid');
+                    element.classList.add('valid');
+                    icon.className = 'bi bi-check-circle me-2';
+                } else {
+                    element.classList.remove('valid');
+                    element.classList.add('invalid');
+                    icon.className = 'bi bi-x-circle me-2';
+                }
+            });
+        });
+        
+        // Fonction d'affichage des alertes
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertHtml = `
+                <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                    ${message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            `;
+            alertContainer.innerHTML = alertHtml;
+            
+            // Auto-dismiss après 10 secondes
+            setTimeout(() => {
+                const alert = alertContainer.querySelector('.alert');
+                if (alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                }
+            }, 10000);
+        }
+        
+        // Fonction pour basculer vers l'inscription
+        function switchToRegister() {
+            const registerTab = new bootstrap.Tab(document.getElementById('register-tab'));
+            registerTab.show();
+        }
+        
+        // Gestion du formulaire d'inscription
+        document.getElementById('registrationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const registerBtn = document.getElementById('registerBtn');
+            const spinner = registerBtn.querySelector('.loading-spinner');
+            
+            // Afficher le spinner
+            spinner.style.display = 'inline-block';
+            registerBtn.disabled = true;
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Masquer le formulaire et afficher l'étape de confirmation
+                    document.getElementById('registerForm').style.display = 'none';
+                    document.getElementById('emailConfirmationStep').style.display = 'block';
+                    document.getElementById('sentEmailAddress').textContent = data.email;
+                    lastEmailSent = data.email;
+                    
+                    showAlert(result.message, 'success');
+                } else {
+                    showAlert(result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur de connexion au serveur', 'danger');
+            } finally {
+                // Masquer le spinner
+                spinner.style.display = 'none';
+                registerBtn.disabled = false;
+            }
+        });
+        
+        // Gestion du formulaire de connexion
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const spinner = loginBtn.querySelector('.loading-spinner');
+            
+            // Afficher le spinner
+            spinner.style.display = 'inline-block';
+            loginBtn.disabled = true;
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(result.message, 'success');
+                    setTimeout(() => {
+                        window.location.href = result.redirect || '/app';
+                    }, 1500);
+                } else {
+                    showAlert(result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur de connexion au serveur', 'danger');
+            } finally {
+                // Masquer le spinner
+                spinner.style.display = 'none';
+                loginBtn.disabled = false;
+            }
+        });
+        
+        // Fonction pour renvoyer l'email de vérification
+        async function resendVerificationEmail() {
+            if (!lastEmailSent) return;
+            
+            try {
+                const response = await fetch('/resend-verification', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ email: lastEmailSent })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Email de vérification renvoyé !', 'success');
+                } else {
+                    showAlert(result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Erreur lors du renvoi', 'danger');
+            }
+        }
+        
+        // Vérifier les paramètres URL pour les messages
+        window.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            if (urlParams.get('login_required')) {
+                showAlert('Connexion requise pour accéder à cette page', 'warning');
+            }
+            
+            if (urlParams.get('session_expired')) {
+                showAlert('Votre session a expiré, veuillez vous reconnecter', 'warning');
+            }
+            
+            if (urlParams.get('email_verified')) {
+                showAlert('Email vérifié avec succès ! Vous pouvez maintenant vous connecter.', 'success');
+                // Basculer vers l'onglet de connexion
+                const loginTab = new bootstrap.Tab(document.getElementById('login-tab'));
+                loginTab.show();
+            }
+        });
+    </script>
+</body>
+</html>

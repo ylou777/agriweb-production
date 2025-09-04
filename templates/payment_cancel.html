@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement annulé - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .cancel-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .cancel-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        
+        .cancel-icon {
+            font-size: 4rem;
+            color: #ffc107;
+            margin-bottom: 2rem;
+            animation: shake 1s ease-in-out;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,123,255,0.3);
+        }
+        
+        .help-section {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 2rem;
+            margin: 2rem 0;
+        }
+        
+        .reason-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 4px solid #007bff;
+            transition: all 0.3s ease;
+        }
+        
+        .reason-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="cancel-container">
+        <div class="cancel-card">
+            <div class="cancel-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            
+            <h1 class="h2 mb-3">Paiement annulé</h1>
+            <p class="lead text-muted mb-4">
+                Votre commande n'a pas été finalisée. Aucun frais n'a été prélevé.
+            </p>
+            
+            <div class="help-section">
+                <h5 class="mb-3"><i class="fas fa-lightbulb text-warning me-2"></i>Pourquoi reprendre votre abonnement ?</h5>
+                
+                <div class="reason-card">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-gift text-success fa-2x me-3"></i>
+                        <div class="text-start">
+                            <h6 class="mb-1">14 jours gratuits</h6>
+                            <small class="text-muted">Essayez toutes les fonctionnalités sans engagement</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="reason-card">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-shield-alt text-primary fa-2x me-3"></i>
+                        <div class="text-start">
+                            <h6 class="mb-1">Paiement sécurisé</h6>
+                            <small class="text-muted">Chiffrement SSL et conformité bancaire</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="reason-card">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-undo text-info fa-2x me-3"></i>
+                        <div class="text-start">
+                            <h6 class="mb-1">Annulation facile</h6>
+                            <small class="text-muted">Résiliez en un clic à tout moment</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-block mb-4">
+                <a href="/subscription" class="btn btn-primary btn-lg me-md-2">
+                    <i class="fas fa-credit-card me-2"></i>Reprendre l'abonnement
+                </a>
+                <a href="/demo-real" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-play me-2"></i>Voir la démo
+                </a>
+            </div>
+            
+            <div class="text-center">
+                <a href="/" class="btn btn-link">
+                    <i class="fas fa-home me-1"></i>Retour à l'accueil
+                </a>
+            </div>
+            
+            <div class="mt-4 pt-3 border-top">
+                <h6>Des questions ?</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <a href="mailto:support@agriweb-pro.com" class="text-decoration-none">
+                            <i class="fas fa-envelope text-primary mb-2 d-block"></i>
+                            <small>Email</small>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="tel:+33123456789" class="text-decoration-none">
+                            <i class="fas fa-phone text-success mb-2 d-block"></i>
+                            <small>Téléphone</small>
+                        </a>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="/faq" class="text-decoration-none">
+                            <i class="fas fa-question-circle text-info mb-2 d-block"></i>
+                            <small>FAQ</small>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Compteur pour encourager à reprendre l'abonnement
+        let seconds = 30;
+        const countdownElement = document.createElement('div');
+        countdownElement.className = 'alert alert-info mt-3';
+        countdownElement.innerHTML = `
+            <i class="fas fa-clock me-2"></i>
+            Offre spéciale : Reprenez votre abonnement dans les <span id="countdown">${seconds}</span> secondes 
+            et bénéficiez de <strong>30 jours d'essai</strong> au lieu de 14 !
+        `;
+        
+        // Ajouter le compteur après 5 secondes
+        setTimeout(() => {
+            document.querySelector('.cancel-card').appendChild(countdownElement);
+            
+            const countdown = setInterval(() => {
+                seconds--;
+                document.getElementById('countdown').textContent = seconds;
+                
+                if (seconds <= 0) {
+                    countdownElement.style.display = 'none';
+                    clearInterval(countdown);
+                }
+            }, 1000);
+        }, 5000);
+        
+        // Analytics (optionnel)
+        if (typeof gtag !== 'undefined') {
+            gtag('event', 'checkout_cancelled', {
+                'event_category': 'subscription',
+                'event_label': 'payment_cancelled'
+            });
+        }
+    </script>
+</body>
+</html>

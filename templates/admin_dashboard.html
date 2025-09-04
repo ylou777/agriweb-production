@@ -258,9 +258,15 @@
                                         <td>{{ user.email }}</td>
                                         <td>
                                             {% if user.subscription_type == 'trial' %}
-                                                <span class="badge bg-warning">Essai</span>
+                                                <span class="badge bg-warning">Essai 7j</span>
+                                            {% elif user.subscription_type == 'basic' %}
+                                                <span class="badge bg-info">Basic 35€</span>
                                             {% elif user.subscription_type == 'professional' %}
-                                                <span class="badge bg-success">Professionnel</span>
+                                                <span class="badge bg-success">Pro 199€</span>
+                                            {% elif user.subscription_type == 'team' %}
+                                                <span class="badge bg-primary">Team 299€</span>
+                                            {% elif user.subscription_type == 'enterprise' %}
+                                                <span class="badge bg-dark">Entreprise</span>
                                             {% else %}
                                                 <span class="badge bg-secondary">Gratuit</span>
                                             {% endif %}

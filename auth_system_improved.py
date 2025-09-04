@@ -1,0 +1,449 @@
+# -*- coding: utf-8 -*-
+"""
+Système d'authentification amélioré avec confirmation par email
+AgriWeb 2025 - Version Production
+"""
+
+import smtplib
+import sqlite3
+import secrets
+import hashlib
+from datetime import datetime, timedelta
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from flask import Flask, request, session, jsonify, render_template_string
+import os
+import re
+
+# Configuration email
+EMAIL_CONFIG = {
+    'smtp_server': 'smtp.gmail.com',
+    'smtp_port': 587,
+    'email': os.getenv('SMTP_EMAIL', 'ylaurent.perso@gmail.com'),
+    'password': os.getenv('SMTP_PASSWORD', 'votre_mot_de_passe_app'),
+    'from_name': 'AgriWeb Pro'
+}
+
+DATABASE_PATH = "agriweb_users.db"
+
+class AuthSystem:
+    """Système d'authentification sécurisé avec confirmation email"""
+    
+    def __init__(self):
+        self.init_database()
+        
+    def init_database(self):
+        """Initialise la base de données avec les tables nécessaires"""
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Table des utilisateurs avec confirmation email
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                company TEXT,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                is_email_verified BOOLEAN DEFAULT 0,
+                email_verification_token TEXT,
+                email_verification_expires TIMESTAMP,
+                password_reset_token TEXT,
+                password_reset_expires TIMESTAMP,
+                subscription_status TEXT DEFAULT 'trial',
+                trial_start_date TIMESTAMP,
+                trial_end_date TIMESTAMP,
+                is_admin BOOLEAN DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
+                login_count INTEGER DEFAULT 0
+            )
+        ''')
+        
+        # Table des sessions
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                session_token TEXT UNIQUE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                ip_address TEXT,
+                user_agent TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+        
+        conn.commit()
+        conn.close()
+        print("✅ Base de données d'authentification initialisée")
+    
+    def hash_password(self, password, salt=None):
+        """Hash sécurisé d'un mot de passe avec sel"""
+        if salt is None:
+            salt = secrets.token_hex(32)
+        
+        # PBKDF2 avec 100,000 itérations pour sécurité renforcée
+        password_hash = hashlib.pbkdf2_hmac(
+            'sha256', 
+            password.encode('utf-8'), 
+            salt.encode('utf-8'), 
+            100000
+        )
+        return password_hash.hex(), salt
+    
+    def verify_password(self, password, stored_hash, salt):
+        """Vérifie un mot de passe"""
+        password_hash, _ = self.hash_password(password, salt)
+        return password_hash == stored_hash
+    
+    def validate_email(self, email):
+        """Valide le format de l'email"""
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        return re.match(pattern, email) is not None
+    
+    def validate_password(self, password):
+        """Valide la force du mot de passe"""
+        if len(password) < 8:
+            return False, "Le mot de passe doit contenir au moins 8 caractères"
+        if not re.search(r'[A-Z]', password):
+            return False, "Le mot de passe doit contenir au moins une majuscule"
+        if not re.search(r'[a-z]', password):
+            return False, "Le mot de passe doit contenir au moins une minuscule"
+        if not re.search(r'\d', password):
+            return False, "Le mot de passe doit contenir au moins un chiffre"
+        return True, "Mot de passe valide"
+    
+    def send_verification_email(self, email, verification_token, user_name):
+        """Envoie un email de vérification"""
+        try:
+            # Configuration du message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = "🌱 Confirmez votre compte AgriWeb Pro"
+            msg['From'] = f"{EMAIL_CONFIG['from_name']} <{EMAIL_CONFIG['email']}>"
+            msg['To'] = email
+            
+            # URL de confirmation (à adapter selon votre domaine)
+            base_url = os.getenv('BASE_URL', 'https://ample-manifestation-production-7b1a.up.railway.app')
+            verification_url = f"{base_url}/auth/verify-email?token={verification_token}"
+            
+            # Version HTML de l'email
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+                    .btn {{ display: inline-block; background: #28a745; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }}
+                    .footer {{ text-align: center; margin-top: 20px; color: #6c757d; font-size: 0.9em; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🌱 AgriWeb Pro</h1>
+                        <p>Plateforme Géospatiale Professionnelle</p>
+                    </div>
+                    <div class="content">
+                        <h2>Bonjour {user_name} ! 👋</h2>
+                        <p>Bienvenue sur AgriWeb Pro ! Pour activer votre compte et commencer votre essai gratuit de 7 jours, veuillez confirmer votre adresse email.</p>
+                        
+                        <div style="text-align: center;">
+                            <a href="{verification_url}" class="btn">
+                                ✅ Confirmer mon compte
+                            </a>
+                        </div>
+                        
+                        <p><strong>Votre essai gratuit comprend :</strong></p>
+                        <ul>
+                            <li>🗺️ Accès complet aux cartes interactives</li>
+                            <li>📊 Rapports d'analyse PVGIS illimités</li>
+                            <li>🔍 Recherche parcelles et infrastructure</li>
+                            <li>💬 Support technique dédié</li>
+                        </ul>
+                        
+                        <p style="background: #fff3cd; padding: 15px; border-radius: 5px; border-left: 4px solid #ffc107;">
+                            <strong>⏰ Important :</strong> Ce lien expire dans 24h. Si vous ne l'avez pas demandé, ignorez cet email.
+                        </p>
+                    </div>
+                    <div class="footer">
+                        <p>AgriWeb Pro - Solution géospatiale pour l'agriculture moderne</p>
+                        <p>Si le bouton ne fonctionne pas, copiez ce lien : {verification_url}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Version texte de l'email
+            text_content = f"""
+            Bonjour {user_name},
+            
+            Bienvenue sur AgriWeb Pro !
+            
+            Pour activer votre compte et commencer votre essai gratuit de 7 jours, 
+            veuillez confirmer votre adresse email en cliquant sur ce lien :
+            
+            {verification_url}
+            
+            Votre essai gratuit comprend :
+            - Accès complet aux cartes interactives
+            - Rapports d'analyse PVGIS illimités  
+            - Recherche parcelles et infrastructure
+            - Support technique dédié
+            
+            Ce lien expire dans 24h.
+            
+            Cordialement,
+            L'équipe AgriWeb Pro
+            """
+            
+            # Attacher les deux versions
+            msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+            
+            # Envoi via SMTP
+            server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
+            server.starttls()
+            server.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
+            server.send_message(msg)
+            server.quit()
+            
+            print(f"✅ Email de vérification envoyé à {email}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erreur envoi email: {e}")
+            return False
+    
+    def register_user(self, email, name, company, password):
+        """Inscription d'un nouvel utilisateur avec vérification email"""
+        try:
+            # Validation des données
+            if not self.validate_email(email):
+                return False, "Format d'email invalide"
+            
+            valid_password, password_message = self.validate_password(password)
+            if not valid_password:
+                return False, password_message
+            
+            if not name or len(name.strip()) < 2:
+                return False, "Le nom doit contenir au moins 2 caractères"
+            
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            # Vérifier si l'email existe déjà
+            cursor.execute('SELECT id, is_email_verified FROM users WHERE email = ?', (email.lower(),))
+            existing_user = cursor.fetchone()
+            
+            if existing_user:
+                if existing_user[1]:  # Email déjà vérifié
+                    return False, "Cet email est déjà enregistré et vérifié"
+                else:  # Email non vérifié, on peut réenvoyer
+                    # Supprimer l'ancien compte non vérifié
+                    cursor.execute('DELETE FROM users WHERE email = ? AND is_email_verified = 0', (email.lower(),))
+            
+            # Hash du mot de passe
+            password_hash, salt = self.hash_password(password)
+            
+            # Générer token de vérification
+            verification_token = secrets.token_urlsafe(32)
+            verification_expires = datetime.now() + timedelta(hours=24)
+            
+            # Dates d'essai
+            trial_start = datetime.now()
+            trial_end = trial_start + timedelta(days=7)
+            
+            # Insertion du nouvel utilisateur
+            cursor.execute('''
+                INSERT INTO users (
+                    email, name, company, password_hash, salt,
+                    email_verification_token, email_verification_expires,
+                    trial_start_date, trial_end_date, subscription_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                email.lower(), name.strip(), (company or '').strip(),
+                password_hash, salt, verification_token, verification_expires,
+                trial_start, trial_end, 'trial'
+            ))
+            
+            conn.commit()
+            conn.close()
+            
+            # Envoyer l'email de vérification
+            if self.send_verification_email(email, verification_token, name):
+                return True, f"Compte créé ! Vérifiez votre email {email} pour l'activer."
+            else:
+                return False, "Compte créé mais erreur lors de l'envoi de l'email de vérification"
+                
+        except Exception as e:
+            print(f"Erreur inscription: {e}")
+            return False, "Erreur lors de l'inscription"
+    
+    def verify_email(self, token):
+        """Vérifie un email avec le token de vérification"""
+        try:
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            # Rechercher le token
+            cursor.execute('''
+                SELECT id, email, name, email_verification_expires 
+                FROM users 
+                WHERE email_verification_token = ? AND is_email_verified = 0
+            ''', (token,))
+            
+            user = cursor.fetchone()
+            if not user:
+                return False, "Token de vérification invalide ou expiré"
+            
+            user_id, email, name, expires_at = user
+            
+            # Vérifier l'expiration
+            if datetime.now() > datetime.fromisoformat(expires_at):
+                return False, "Token de vérification expiré"
+            
+            # Activer le compte
+            cursor.execute('''
+                UPDATE users 
+                SET is_email_verified = 1, 
+                    email_verification_token = NULL,
+                    email_verification_expires = NULL
+                WHERE id = ?
+            ''', (user_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            return True, f"Email vérifié avec succès ! Votre compte {email} est maintenant actif."
+            
+        except Exception as e:
+            print(f"Erreur vérification email: {e}")
+            return False, "Erreur lors de la vérification"
+    
+    def authenticate_user(self, email, password):
+        """Authentifie un utilisateur (email doit être vérifié)"""
+        try:
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT id, password_hash, salt, subscription_status, trial_end_date, 
+                       name, is_admin, is_email_verified
+                FROM users 
+                WHERE email = ? AND is_active = 1
+            ''', (email.lower(),))
+            
+            user = cursor.fetchone()
+            if not user:
+                return False, None, "Email ou mot de passe incorrect"
+            
+            user_id, stored_hash, salt, subscription_status, trial_end, name, is_admin, is_verified = user
+            
+            # Vérifier que l'email est confirmé
+            if not is_verified:
+                return False, None, "Veuillez d'abord confirmer votre email avant de vous connecter"
+            
+            # Vérifier le mot de passe
+            if not self.verify_password(password, stored_hash, salt):
+                return False, None, "Email ou mot de passe incorrect"
+            
+            # Vérifier l'expiration de l'essai
+            if subscription_status == 'trial':
+                trial_end_date = datetime.fromisoformat(trial_end)
+                if datetime.now() > trial_end_date:
+                    return False, None, "Période d'essai expirée. Veuillez souscrire à un abonnement."
+            
+            # Mettre à jour les stats de connexion
+            cursor.execute('''
+                UPDATE users 
+                SET last_login = CURRENT_TIMESTAMP, login_count = login_count + 1
+                WHERE id = ?
+            ''', (user_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            return True, {
+                'id': user_id,
+                'email': email.lower(),
+                'name': name,
+                'subscription_status': subscription_status,
+                'trial_end': trial_end,
+                'is_admin': bool(is_admin)
+            }, "Connexion réussie"
+            
+        except Exception as e:
+            print(f"Erreur authentification: {e}")
+            return False, None, "Erreur lors de l'authentification"
+    
+    def create_session(self, user_id, ip_address, user_agent):
+        """Crée une nouvelle session utilisateur"""
+        try:
+            session_token = secrets.token_urlsafe(32)
+            expires_at = datetime.now() + timedelta(days=7)  # Session 7 jours
+            
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, session_token, expires_at, ip_address, user_agent))
+            
+            conn.commit()
+            conn.close()
+            
+            return session_token
+            
+        except Exception as e:
+            print(f"Erreur création session: {e}")
+            return None
+
+# Instance globale
+auth_system = AuthSystem()
+
+def setup_email_config():
+    """Configuration et test de l'email"""
+    print("\n=== Configuration Email AgriWeb ===")
+    print(f"SMTP Server: {EMAIL_CONFIG['smtp_server']}")
+    print(f"Email From: {EMAIL_CONFIG['email']}")
+    
+    # Vérifier l'email configuré
+    if not EMAIL_CONFIG['email'] or EMAIL_CONFIG['email'] == 'votre.email@gmail.com':
+        print("⚠️  Configuration email requise!")
+        print("Variables d'environnement à définir:")
+        print("- SMTP_EMAIL: votre adresse Gmail")
+        print("- SMTP_PASSWORD: mot de passe d'application Gmail")
+        print("\nGuide: https://support.google.com/accounts/answer/185833")
+        return False
+    
+    # Vérifier le mot de passe d'application
+    if not EMAIL_CONFIG['password'] or EMAIL_CONFIG['password'] == 'votre_mot_de_passe_app':
+        print("⚠️  Mot de passe d'application Gmail requis!")
+        print("Configurez: $env:SMTP_PASSWORD=\"votre_mot_de_passe_app\"")
+        return False
+    
+    print("✅ Configuration email complète")
+    return True
+
+if __name__ == "__main__":
+    # Test du système
+    setup_email_config()
+    
+    # Test d'inscription
+    success, message = auth_system.register_user(
+        "test@example.com", 
+        "Test User", 
+        "Test Company", 
+        "TestPassword123!"
+    )
+    print(f"Test inscription: {success} - {message}")
