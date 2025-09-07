@@ -53,6 +53,7 @@ static/cartes/
 # Données temporaires
 temp/
 tmp/
+.tmp.driveupload/
 *.tmp
 
 # Fichiers système

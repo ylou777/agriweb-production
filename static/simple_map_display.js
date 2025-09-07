@@ -31,14 +31,14 @@ function displayMapInIframe(carteUrl) {
         
         mapFrame.onerror = function() {
             console.error('❌ Erreur de chargement de la carte dans l\'iframe');
-            appendLog('❌ Erreur de chargement - <a href="' + newUrl + '" target="_blank" style="color: #007bff;">Cliquez ici pour voir la carte</a>');
+            appendLog('❌ Erreur de chargement - <a href="' + newUrl + '" style="color: #007bff;">Cliquez ici pour voir la carte</a>');
         };
         
         return true; // Succès
         
     } else {
-        console.warn('⚠️ Iframe mapFrame non trouvé');
-        appendLog('⚠️ Interface non disponible - <a href="' + newUrl + '" target="_blank" style="color: #007bff;">Cliquez ici pour voir la carte</a>');
+    console.warn('⚠️ Iframe mapFrame non trouvé');
+    appendLog('⚠️ Interface non disponible - <a href="' + newUrl + '" style="color: #007bff;">Cliquez ici pour voir la carte</a>');
         return false; // Échec
     }
 }

@@ -874,6 +874,14 @@ async function handleCommuneSearch(e) {
         setCommuneSearchLog('❌ Erreur : ' + data.error, 'red');
         return alert(data.error);
       }
+      // Charger la carte générée si disponible
+      if (data.carte_url) {
+        setCommuneSearchLog('🗺️ Chargement de la carte interactive...', '#198754');
+        const iframe = document.getElementById('mapFrame');
+        if (iframe) {
+          iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+        }
+      }
       setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
       window.lastCommuneSearch = { commune: commune };
       displayAllLayers(data);

@@ -10105,3 +10105,142 @@ LookupError: no exception for 204
 2025-09-01 23:02:34,526 INFO 127.0.0.1 - - [01/Sep/2025 23:02:34] "GET /static/cartes/commune_map_ahun_20250901_230201.html?t=1756760537&t=1756760554513 HTTP/1.1" 200 -
 2025-09-01 23:02:34,643 INFO 127.0.0.1 - - [01/Sep/2025 23:02:34] "GET /static/cartes/commune_map_ahun_20250901_230201.html?t=1756760537&t=1756760554513 HTTP/1.1" 200 -
 2025-09-01 23:02:36,812 INFO 127.0.0.1 - - [01/Sep/2025 23:02:36] "[36mGET /static/cartes/commune_map_ahun_20250901_230201.html?t=1756760537&t=1756760554513 HTTP/1.1[0m" 304 -
+2025-09-06 12:14:42,683 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-06 12:14:42,685 INFO [33mPress CTRL+C to quit[0m
+2025-09-06 12:19:49,130 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-06 12:19:49,130 INFO [33mPress CTRL+C to quit[0m
+2025-09-06 12:20:31,032 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-06 12:20:31,032 INFO [33mPress CTRL+C to quit[0m
+2025-09-06 12:22:50,563 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-06 12:22:50,565 INFO [33mPress CTRL+C to quit[0m
+2025-09-06 12:23:22,168 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-06 12:23:22,168 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 10:05:07,768 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 10:05:07,770 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 10:05:12,014 INFO 127.0.0.1 - - [07/Sep/2025 10:05:12] "GET / HTTP/1.1" 200 -
+2025-09-07 10:05:13,401 INFO 127.0.0.1 - - [07/Sep/2025 10:05:13] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-07 10:28:51,770 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 10:28:51,771 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 10:29:06,065 INFO 127.0.0.1 - - [07/Sep/2025 10:29:06] "GET / HTTP/1.1" 200 -
+2025-09-07 10:29:07,072 INFO 127.0.0.1 - - [07/Sep/2025 10:29:07] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-07 10:29:10,774 INFO 127.0.0.1 - - [07/Sep/2025 10:29:10] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-09-07 10:29:11,007 INFO 127.0.0.1 - - [07/Sep/2025 10:29:11] "GET /app HTTP/1.1" 200 -
+2025-09-07 10:29:11,571 INFO 127.0.0.1 - - [07/Sep/2025 10:29:11] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-07 10:29:11,691 INFO 127.0.0.1 - - [07/Sep/2025 10:29:11] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-07 10:30:08,808 INFO 127.0.0.1 - - [07/Sep/2025 10:30:08] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-07 10:30:09,221 INFO 127.0.0.1 - - [07/Sep/2025 10:30:09] "GET /static/cartes/map_1757233800_4251093277533857671.html?t=1757233804&cache=1757233808908 HTTP/1.1" 200 -
+2025-09-07 10:37:18,972 INFO 127.0.0.1 - - [07/Sep/2025 10:37:18] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 10:37:19,021 INFO 127.0.0.1 - - [07/Sep/2025 10:37:19] "GET /commune_search_sse?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 10:38:36,282 ERROR Exception on /search_by_commune [GET]
+Traceback (most recent call last):
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 6053, in search_by_commune
+    log_search_results(commune, response_data)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 72, in log_search_results
+    rpg_count = len(results.get('rpg', {}).get('features', []))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+2025-09-07 10:38:37,136 INFO 127.0.0.1 - - [07/Sep/2025 10:38:37] "[35m[1mGET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 500 -
+2025-09-07 10:38:48,548 ERROR Exception on /search_by_commune [GET]
+Traceback (most recent call last):
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Utilisateur\AppData\Roaming\Python\Python313\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 6053, in search_by_commune
+    log_search_results(commune, response_data)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 72, in log_search_results
+    rpg_count = len(results.get('rpg', {}).get('features', []))
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'get'
+2025-09-07 10:38:48,565 INFO 127.0.0.1 - - [07/Sep/2025 10:38:48] "[35m[1mGET /search_by_commune?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1[0m" 500 -
+2025-09-07 10:53:34,986 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 10:53:34,987 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 10:54:37,764 INFO 127.0.0.1 - - [07/Sep/2025 10:54:37] "GET / HTTP/1.1" 200 -
+2025-09-07 10:54:38,494 INFO 127.0.0.1 - - [07/Sep/2025 10:54:38] "GET / HTTP/1.1" 200 -
+2025-09-07 10:54:42,040 INFO 127.0.0.1 - - [07/Sep/2025 10:54:42] "GET /app HTTP/1.1" 200 -
+2025-09-07 10:54:42,403 INFO 127.0.0.1 - - [07/Sep/2025 10:54:42] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-07 10:54:42,416 INFO 127.0.0.1 - - [07/Sep/2025 10:54:42] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-07 10:55:14,926 INFO 127.0.0.1 - - [07/Sep/2025 10:55:14] "GET /commune_search_sse?commune=ahun&filter_rpg=true&rpg_min_area=5&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 10:56:17,006 INFO 127.0.0.1 - - [07/Sep/2025 10:56:17] "GET /search_by_commune?commune=ahun&filter_rpg=true&rpg_min_area=5&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 10:56:18,266 INFO 127.0.0.1 - - [07/Sep/2025 10:56:18] "GET /static/cartes/commune_map_ahun_20250907_105602.html?t=1757235369&t=1757235377850 HTTP/1.1" 200 -
+2025-09-07 10:56:18,306 INFO 127.0.0.1 - - [07/Sep/2025 10:56:18] "GET /static/cartes/commune_map_ahun_20250907_105602.html?t=1757235369&t=1757235377850 HTTP/1.1" 200 -
+2025-09-07 10:56:19,439 INFO 127.0.0.1 - - [07/Sep/2025 10:56:19] "[36mGET /static/cartes/commune_map_ahun_20250907_105602.html?t=1757235369&t=1757235377850 HTTP/1.1[0m" 304 -
+2025-09-07 10:56:44,904 INFO 127.0.0.1 - - [07/Sep/2025 10:56:44] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=150&sirene_radius=0.1&filter_rpg=true&rpg_min_area=5&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=150&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:06:10,057 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 11:06:10,057 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 11:07:15,335 INFO 127.0.0.1 - - [07/Sep/2025 11:07:15] "GET / HTTP/1.1" 200 -
+2025-09-07 11:07:19,742 INFO 127.0.0.1 - - [07/Sep/2025 11:07:19] "GET /app HTTP/1.1" 200 -
+2025-09-07 11:07:20,131 INFO 127.0.0.1 - - [07/Sep/2025 11:07:20] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-07 11:07:20,185 INFO 127.0.0.1 - - [07/Sep/2025 11:07:20] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 11:07:46,482 INFO 127.0.0.1 - - [07/Sep/2025 11:07:46] "GET /commune_search_sse?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:09:07,893 INFO 127.0.0.1 - - [07/Sep/2025 11:09:07] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:09:42,201 INFO 127.0.0.1 - - [07/Sep/2025 11:09:42] "GET /search_by_commune?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:09:42,839 INFO 127.0.0.1 - - [07/Sep/2025 11:09:42] "GET /static/cartes/commune_map_ahun_20250907_110925.html?t=1757236171&t=1757236182502 HTTP/1.1" 200 -
+2025-09-07 11:09:43,661 INFO 127.0.0.1 - - [07/Sep/2025 11:09:43] "[36mGET /static/cartes/commune_map_ahun_20250907_110925.html?t=1757236171&t=1757236182502 HTTP/1.1[0m" 304 -
+2025-09-07 11:22:14,621 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 11:22:14,624 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 11:25:15,472 INFO 127.0.0.1 - - [07/Sep/2025 11:25:15] "GET / HTTP/1.1" 200 -
+2025-09-07 11:25:15,482 INFO 127.0.0.1 - - [07/Sep/2025 11:25:15] "GET / HTTP/1.1" 200 -
+2025-09-07 11:25:20,981 INFO 127.0.0.1 - - [07/Sep/2025 11:25:20] "GET /app HTTP/1.1" 200 -
+2025-09-07 11:25:21,312 INFO 127.0.0.1 - - [07/Sep/2025 11:25:21] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 11:25:21,614 INFO 127.0.0.1 - - [07/Sep/2025 11:25:21] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-07 11:25:54,612 INFO 127.0.0.1 - - [07/Sep/2025 11:25:54] "GET /commune_search_sse?commune=vierzon&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2300&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:29:26,598 INFO 127.0.0.1 - - [07/Sep/2025 11:29:26] "GET /search_by_commune?commune=vierzon&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2300&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:29:27,716 INFO 127.0.0.1 - - [07/Sep/2025 11:29:27] "GET /search_by_commune?commune=vierzon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2300&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:29:27,718 INFO 127.0.0.1 - - [07/Sep/2025 11:29:27] "GET /static/cartes/commune_map_vierzon_20250907_112840.html?t=1757237344&t=1757237367011 HTTP/1.1" 200 -
+2025-09-07 11:29:27,727 INFO 127.0.0.1 - - [07/Sep/2025 11:29:27] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 11:36:33,306 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 11:36:33,308 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 11:36:55,404 INFO 127.0.0.1 - - [07/Sep/2025 11:36:55] "GET / HTTP/1.1" 200 -
+2025-09-07 11:36:56,303 INFO 127.0.0.1 - - [07/Sep/2025 11:36:56] "GET / HTTP/1.1" 200 -
+2025-09-07 11:36:57,123 INFO 127.0.0.1 - - [07/Sep/2025 11:36:57] "GET / HTTP/1.1" 200 -
+2025-09-07 11:36:59,186 INFO 127.0.0.1 - - [07/Sep/2025 11:36:59] "GET /app HTTP/1.1" 200 -
+2025-09-07 11:36:59,433 INFO 127.0.0.1 - - [07/Sep/2025 11:36:59] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 11:36:59,770 INFO 127.0.0.1 - - [07/Sep/2025 11:36:59] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-07 11:38:15,637 INFO 127.0.0.1 - - [07/Sep/2025 11:38:15] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=5&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 11:51:09,710 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 11:51:09,711 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 11:53:07,270 INFO 127.0.0.1 - - [07/Sep/2025 11:53:07] "GET / HTTP/1.1" 200 -
+2025-09-07 11:53:12,172 INFO 127.0.0.1 - - [07/Sep/2025 11:53:12] "GET /app HTTP/1.1" 200 -
+2025-09-07 11:53:12,435 INFO 127.0.0.1 - - [07/Sep/2025 11:53:12] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-07 11:53:12,559 INFO 127.0.0.1 - - [07/Sep/2025 11:53:12] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 11:55:19,512 INFO 127.0.0.1 - - [07/Sep/2025 11:55:19] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 12:02:50,842 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 12:02:50,842 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 12:02:52,384 INFO 127.0.0.1 - - [07/Sep/2025 12:02:52] "GET / HTTP/1.1" 200 -
+2025-09-07 12:02:53,160 INFO 127.0.0.1 - - [07/Sep/2025 12:02:53] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-07 12:02:56,268 INFO 127.0.0.1 - - [07/Sep/2025 12:02:56] "[32mPOST /login HTTP/1.1[0m" 302 -
+2025-09-07 12:02:56,333 INFO 127.0.0.1 - - [07/Sep/2025 12:02:56] "GET /app HTTP/1.1" 200 -
+2025-09-07 12:02:56,564 INFO 127.0.0.1 - - [07/Sep/2025 12:02:56] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-07 12:02:56,585 INFO 127.0.0.1 - - [07/Sep/2025 12:02:56] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-07 12:04:17,583 INFO 127.0.0.1 - - [07/Sep/2025 12:04:17] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-07 12:04:17,839 INFO 127.0.0.1 - - [07/Sep/2025 12:04:17] "GET /static/cartes/commune_map_ahun_20250907_120400.html?t=1757239448&cache=1757239457810 HTTP/1.1" 200 -

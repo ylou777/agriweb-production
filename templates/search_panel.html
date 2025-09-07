@@ -48,7 +48,7 @@
   </h2>
   <div id="acc-pane-commune" class="accordion-collapse collapse">
     <div class="accordion-body">
-      <form id="communeSearchForm" autocomplete="off">
+  <form id="communeSearchForm" autocomplete="off" data-sse-handler="true">
         <label class="form-label" for="commune">Commune :</label>
         <input id="commune" name="commune" class="form-control mb-2" placeholder="Lyon">
         <div class="mb-2">
@@ -328,6 +328,25 @@
 </div>
 
 <script>
+// Utilitaire: charge une carte dans l'iframe principale avec cache-busting
+function displayMapInIframe(carteUrl) {
+  try {
+    const iframe = document.getElementById('mapFrame');
+    if (!iframe) {
+      console.warn('displayMapInIframe: iframe #mapFrame introuvable');
+      return false;
+    }
+    const baseUrl = window.location.origin;
+    const absoluteUrl = carteUrl.startsWith('http') ? carteUrl : baseUrl + carteUrl;
+    const newUrl = absoluteUrl + (absoluteUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+    iframe.src = newUrl;
+    return true;
+  } catch (e) {
+    console.error('displayMapInIframe error:', e);
+    return false;
+  }
+}
+
 // Gestion de l'affichage des filtres selon les cases cochées
 document.addEventListener('DOMContentLoaded', function() {
   // Fonction pour toggle l'affichage des filtres
@@ -508,324 +527,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Enrichissement: logs en direct via SSE pendant la recherche commune
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('communeSearchForm');
-  const logEl = document.getElementById('communeSearchLog');
-
-  function appendLog(msg) {
-    if (!logEl) return;
-    const now = new Date();
-    const ts = now.toLocaleTimeString();
-    const line = document.createElement('div');
-    line.textContent = `[${ts}] ${msg}`;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-
-  if (form) {
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      // Reset logs
-      if (logEl) {
-        logEl.innerHTML = '';
-      }
-
-      const commune = document.getElementById('commune')?.value?.trim() || '';
-      if (!commune) {
-        appendLog('Veuillez saisir une commune.');
-        return;
-      }
-  // Mémoriser la dernière commune recherchée pour le bouton "Générer rapport commune"
-  try { if (window.setLastCommuneSearched) window.setLastCommuneSearched(commune); } catch {}
-
-      // Collecte des filtres principaux (alignés avec /rapport_commune_complet)
-      function boolVal(id, defVal=false) {
-        const el = document.getElementById(id);
-        return el ? !!el.checked : defVal;
-      }
-      function numVal(id, defVal=0) {
-        const el = document.getElementById(id);
-        const v = el ? parseFloat(el.value) : defVal;
-        return isNaN(v) ? defVal : v;
-      }
-
-      const params = new URLSearchParams();
-      params.set('commune', commune);
-      // Filtres par couche
-      params.set('filter_rpg', String(boolVal('filter_rpg_commune', true)));
-      params.set('rpg_min_area', String(numVal('rpg_min_area', 0.1)));
-      params.set('rpg_max_area', String(numVal('rpg_max_area', 50)));
-
-      params.set('filter_parkings', String(boolVal('filter_parkings_commune', false)));
-      params.set('parking_min_area', String(numVal('parking_min_area', 1500)));
-
-      params.set('filter_friches', String(boolVal('filter_friches_commune', false)));
-      params.set('friches_min_area', String(numVal('friches_min_area', 1000)));
-
-      params.set('filter_zones', String(boolVal('filter_zones_commune', false)));
-      params.set('zones_min_area', String(numVal('zones_min_area', 1000)));
-      params.set('zones_type_filter', document.getElementById('zones_type_filter')?.value || '');
-
-      params.set('filter_toitures', String(boolVal('filter_toitures_commune', false)));
-      params.set('toitures_min_surface', String(numVal('min_surface_toiture', 100)));
-
-      // Filtres distance unifiés
-      const filterByDist = document.getElementById('filter_by_distance_commune')?.checked || false;
-      params.set('filter_by_distance', String(filterByDist));
-      params.set('max_distance_bt', String(numVal('bt_max_distance_commune', 2000)));
-      params.set('max_distance_hta', String(numVal('ht_max_distance_commune', 5000)));
-      const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
-      params.set('poste_type_filter', posteType);
-
-      // Démarre EventSource
-      const url = '/commune_search_sse?' + params.toString();
-      const es = new EventSource(url);
-      appendLog('Analyse en cours…');
-
-      es.addEventListener('message', (ev) => {
-        if (ev?.data) appendLog(ev.data);
-      });
-  // Plus de redirection automatique: on conserve seulement les logs.
-  // Le rapport complet sera lancé depuis le bouton dédié.
-      es.addEventListener('error', (ev) => {
-        appendLog('Erreur pendant l’analyse.');
-        try { es.close(); } catch {}
-      });
-      es.addEventListener('done', () => {
-        appendLog('Analyse terminée.');
-        appendLog('🗺️ Génération de la carte...');
-        try { es.close(); } catch {}
-        
-        // Après la fin de l'analyse, générer automatiquement la carte
-        setTimeout(() => {
-          // CORRECTION: Utiliser les mêmes paramètres transformés que pour SSE
-          const commune = document.getElementById('commune')?.value?.trim() || '';
-          console.log('🔍 [DEBUG_COMMUNE] Commune récupérée:', commune);
-          
-          if (commune) {
-            // Reconstruire les mêmes paramètres que pour l'EventSource
-            const searchParams = new URLSearchParams();
-            searchParams.set('commune', commune);
-            
-            // Filtres par couche (IDENTIQUES à l'appel SSE)
-            searchParams.set('filter_rpg', String(boolVal('filter_rpg_commune', true)));
-            searchParams.set('rpg_min_area', String(numVal('rpg_min_area', 0.1)));
-            searchParams.set('rpg_max_area', String(numVal('rpg_max_area', 50)));
-
-            searchParams.set('filter_parkings', String(boolVal('filter_parkings_commune', false)));
-            searchParams.set('parking_min_area', String(numVal('parking_min_area', 1500)));
-
-            searchParams.set('filter_friches', String(boolVal('filter_friches_commune', false)));
-            searchParams.set('friches_min_area', String(numVal('friches_min_area', 1000)));
-
-            searchParams.set('filter_zones', String(boolVal('filter_zones_commune', false)));
-            searchParams.set('zones_min_area', String(numVal('zones_min_area', 1000)));
-            searchParams.set('zones_type_filter', document.getElementById('zones_type_filter')?.value || '');
-
-            searchParams.set('filter_toitures', String(boolVal('filter_toitures_commune', false)));
-            searchParams.set('toitures_min_surface', String(numVal('min_surface_toiture', 100)));
-
-            // Filtres distance unifiés
-            const filterByDist = document.getElementById('filter_by_distance_commune')?.checked || false;
-            searchParams.set('filter_by_distance', String(filterByDist));
-            searchParams.set('max_distance_bt', String(numVal('bt_max_distance_commune', 2000)));
-            searchParams.set('max_distance_hta', String(numVal('ht_max_distance_commune', 5000)));
-            const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
-            searchParams.set('poste_type_filter', posteType);
-            
-            console.log('🔍 [DEBUG_PARAMS] Paramètres construits:', Object.fromEntries(searchParams.entries()));
-            console.log('🔍 [DEBUG_PARAMS] URL finale:', '/search_by_commune?' + searchParams.toString());
-            
-            // Appeler la route qui génère la carte avec gestion d'erreur robuste
-            console.log('🔍 [DEBUG] Début de la requête fetch...');
-            appendLog('⏳ Génération de la carte en cours (peut prendre plusieurs minutes)...');
-            
-            const controller = new AbortController();
-            // PAS DE TIMEOUT - Laisser le temps à la carte de se générer
-            // const timeoutId = setTimeout(() => {
-            //   console.log('⏰ Timeout de 5 minutes atteint');
-            //   controller.abort();
-            // }, 300000); // 5 minutes timeout (300 secondes)
-            
-            fetch('/search_by_commune?' + searchParams.toString(), {
-              signal: controller.signal,
-              method: 'GET',
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              }
-            })
-              .then(response => {
-                // clearTimeout(timeoutId); // PAS DE TIMEOUT
-                console.log('✅ [DEBUG] Réponse reçue, status:', response.status);
-                console.log('✅ [DEBUG] Headers:', response.headers);
-                
-                if (!response.ok) {
-                  // Lire le corps de la réponse pour l'erreur 400
-                  return response.json().then(errorData => {
-                    console.error('❌ [HTTP_ERROR] Erreur 400 détails:', errorData);
-                    throw new Error(`HTTP error! status: ${response.status}, message: ${errorData.error || 'Unknown error'}`);
-                  });
-                }
-                return response.json();
-              })
-              .then(data => {
-                console.log('✅ Réponse JSON complète reçue:', data);
-                console.log('🔍 carte_url dans la réponse:', data.carte_url);
-                console.log('🔍 Type de carte_url:', typeof data.carte_url);
-                
-                if (data.carte_url) {
-                  console.log('✅ carte_url trouvée, utilisation de la fonction simplifiée...');
-                  
-                  // Utiliser notre fonction simplifiée
-                  if (typeof displayMapInIframe === 'function') {
-                    const success = displayMapInIframe(data.carte_url);
-                    if (!success) {
-                      appendLog('⚠️ Problème d\'affichage - Veuillez recharger la page');
-                    }
-                  } else {
-                    // Fallback si la fonction n'est pas disponible
-                    console.warn('❌ Fonction displayMapInIframe non disponible, utilisation du fallback');
-                    const baseUrl = window.location.origin;
-                    const absoluteUrl = data.carte_url.startsWith('http') ? data.carte_url : baseUrl + data.carte_url;
-                    const newUrl = absoluteUrl + (absoluteUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
-                    
-                    const mapFrame = document.getElementById('mapFrame');
-                    if (mapFrame) {
-                      appendLog('✅ Chargement de la carte...');
-                      mapFrame.src = newUrl;
-                    } else {
-                      appendLog('⚠️ Interface non disponible - <a href="' + newUrl + '" target="_blank" style="color: #007bff;">Voir la carte</a>');
-                    }
-                  }
-
-                  try {
-                    console.log('🚀 [FORCE_DISPLAY] Début du forçage d\'affichage de carte');
-                    
-                    // Construire l'URL complète de la carte
-                    const baseUrl = window.location.origin;
-                    const absoluteUrl = data.carte_url.startsWith('http') ? data.carte_url : baseUrl + data.carte_url;
-                    const newUrl = absoluteUrl + (absoluteUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
-                    console.log('🎯 [FORCE_DISPLAY] URL carte finale:', newUrl);
-                    
-                    // Méthode 1: Essayer toutes les méthodes d'accès à l'iframe
-                    let mapFrame = null;
-                    const iframeMethods = [
-                      () => document.getElementById('mapFrame'),
-                      () => document.querySelector('#mapFrame'),
-                      () => document.querySelector('iframe[id="mapFrame"]'),
-                      () => window.parent ? window.parent.document.getElementById('mapFrame') : null,
-                      () => window.parent ? window.parent.document.querySelector('#mapFrame') : null,
-                      () => window.top ? window.top.document.getElementById('mapFrame') : null,
-                      () => window.top ? window.top.document.querySelector('#mapFrame') : null
-                    ];
-                    
-                    for (let i = 0; i < iframeMethods.length; i++) {
-                      try {
-                        const frame = iframeMethods[i]();
-                        if (frame) {
-                          console.log(`✅ [FORCE_DISPLAY] Iframe trouvé avec méthode ${i + 1}`);
-                          mapFrame = frame;
-                          break;
-                        }
-                      } catch (e) {
-                        console.log(`❌ [FORCE_DISPLAY] Méthode ${i + 1} échouée:`, e.message);
-                      }
-                    }
-
-                    if (mapFrame) {
-                      console.log('🎯 [FORCE_DISPLAY] Mise à jour iframe trouvé');
-                      appendLog('✅ Carte générée ! Mise à jour de la carte...');
-
-                      // Forcer le rechargement de l'iframe
-                      mapFrame.src = newUrl;
-                      
-                      // Forcer le rafraîchissement
-                      setTimeout(() => {
-                        if (mapFrame.contentWindow) {
-                          try {
-                            mapFrame.contentWindow.location.reload();
-                          } catch (e) {
-                            console.log('� [FORCE_DISPLAY] Reload iframe impossible, c\'est normal');
-                          }
-                        }
-                      }, 500);
-
-                      // Vérification multiple
-                      setTimeout(() => {
-                        console.log('🔍 [FORCE_DISPLAY] Vérification iframe src:', mapFrame.src);
-                        appendLog('✅ Carte mise à jour avec succès !');
-                      }, 1000);
-
-                    } else {
-                      console.log('❌ [FORCE_DISPLAY] Aucune iframe trouvée, fallback forcé');
-                      appendLog('⚠️ Iframe non trouvée - Ouverture forcée');
-                    }
-                    
-                    // Méthode 2: TOUJOURS ouvrir dans un nouvel onglet en parallèle
-                    console.log('🔗 [FORCE_DISPLAY] Ouverture systématique dans nouvel onglet');
-                    const newWindow = window.open(newUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-                    if (newWindow) {
-                      appendLog('🔗 Carte ouverte dans un nouvel onglet');
-                      console.log('✅ [FORCE_DISPLAY] Nouvel onglet ouvert avec succès');
-                    } else {
-                      console.error('❌ [FORCE_DISPLAY] Impossible d\'ouvrir nouvel onglet');
-                    }
-                    
-                    // Méthode 3: Créer un lien de téléchargement visible
-                    console.log('📎 [FORCE_DISPLAY] Création lien de téléchargement');
-                    const linkText = `📥 Télécharger la carte: ${data.carte_url.split('/').pop()}`;
-                    appendLog(`<a href="${newUrl}" target="_blank" style="color: #007bff; text-decoration: underline;">${linkText}</a>`);
-                    
-                    // Méthode 4: Afficher l'URL directement
-                    appendLog(`🔗 URL directe: <a href="${newUrl}" target="_blank" style="color: #007bff;">${newUrl}</a>`);
-                    
-                  } catch (e) {
-                    console.error('❌ [FORCE_DISPLAY] Erreur générale:', e);
-                    appendLog('⚠️ Erreur mise à jour carte - Consultez la console');
-                    
-                    // Dernière tentative: URL brute
-                    try {
-                      const baseUrl = window.location.origin;
-                      const absoluteUrl = data.carte_url.startsWith('http') ? data.carte_url : baseUrl + data.carte_url;
-                      appendLog(`🆘 Lien de secours: <a href="${absoluteUrl}" target="_blank">${absoluteUrl}</a>`);
-                    } catch (lastErr) {
-                      console.error('❌ [FORCE_DISPLAY] Même le fallback absolu a échoué:', lastErr);
-                    }
-                  }
-                } else {
-                  console.log('❌ Pas de carte_url dans la réponse');
-                  console.log('🔍 Clés disponibles dans data:', Object.keys(data));
-                  appendLog('⚠️ Carte non générée');
-                }
-              })
-              .catch(err => {
-                // clearTimeout(timeoutId); // PAS DE TIMEOUT
-                console.error('❌ [FETCH_ERROR] Erreur détaillée:', err);
-                console.error('❌ [FETCH_ERROR] Type d\'erreur:', err.name);
-                console.error('❌ [FETCH_ERROR] Message:', err.message);
-                
-                let errorMessage = 'Erreur génération carte';
-                if (err.name === 'AbortError') {
-                  errorMessage = 'Timeout - La requête a pris trop de temps (>60s)';
-                } else if (err.message.includes('Failed to fetch')) {
-                  errorMessage = 'Erreur de connexion - Vérifiez que le serveur fonctionne';
-                } else if (err.message.includes('HTTP error')) {
-                  errorMessage = `Erreur serveur: ${err.message}`;
-                }
-                
-                appendLog(`❌ ${errorMessage}`);
-                console.log('🔍 [DEBUG] URL qui a échoué:', '/search_by_commune?' + searchParams.toString());
-              });
-          } else {
-            console.error('❌ [DEBUG_COMMUNE] Commune vide - impossible de générer la carte');
-            appendLog('❌ Erreur: Commune non trouvée pour la génération de carte');
-          }
-        }, 500);
-      });
-    });
-  }
-});
+// Remarque: La soumission du formulaire commune est gérée par static/main.js (handleCommuneSearch)
 </script>
 </div>
