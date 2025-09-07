@@ -32,6 +32,9 @@ const FRIENDLY_LABELS = {
   min_distance_bt_m: "Distance BT (m)",
   min_distance_hta_m: "Distance HTA (m)",
   min_distance_total_m: "Distance poste min (m)",
+  // Distances (commune/dept props)
+  distance_bt: "Distance BT (m)",
+  distance_hta: "Distance HTA (m)",
 
   // Surfaces
   surface_toiture_m2: "Surface toiture (m²)",
@@ -342,28 +345,45 @@ function buildPopup (properties, extra = {}) {
 
 function getMapFrame() {
   try {
-    // Vérifier si nous sommes dans une iframe ou non
-    if (window.parent && window.parent !== window) {
-      // Dans une iframe
-      const parentDoc = window.parent.document;
-      const mapElement = parentDoc.querySelector('[id^="map"]');
-      if (mapElement && mapElement.id) {
-        const mapVar = window.parent[mapElement.id];
-        if (mapVar && mapVar._container) {
-          return { map: mapVar, L: window.parent.L };
+    // 1) Accéder à l'iframe qui contient la carte
+    const iframe = document.getElementById('mapFrame');
+    if (iframe && iframe.contentWindow) {
+      const w = iframe.contentWindow;
+      // a) Cas map1.html: variable globale 'map'
+      if (w.map && w.L) {
+        return {
+          map: w.map,
+          L: w.L,
+          clearMap: w.clearMap?.bind(w),
+          setView: (lat, lon, z) => w.map.setView([lat, lon], z || w.map.getZoom?.() || 10),
+          setOverlaysControl: w.setOverlaysControl?.bind(w),
+          addGeoJsonToMap: w.addGeoJsonToMap?.bind(w),
+          getBaseLayers: () => ({ "Satellite": w.sat, "OSM": w.osm })
+        };
+      }
+      // b) Cas Folium: variable globale de type 'map_<id>'
+      for (const key of Object.keys(w)) {
+        if (key.startsWith('map_') && w[key] && w[key]._container) {
+          return {
+            map: w[key],
+            L: w.L,
+            setView: (lat, lon, z) => w[key].setView([lat, lon], z || w[key].getZoom?.() || 10),
+            getBaseLayers: () => ({})
+          };
         }
       }
     }
-    
-    // Recherche directe dans window courant
+
+    // 2) Fallback improbable: si on est directement sur une page carte (sans iframe)
+    if (window.map && window.L) {
+      return { map: window.map, L: window.L };
+    }
     for (const key of Object.keys(window)) {
       if (key.startsWith('map_') && window[key] && window[key]._container) {
         return { map: window[key], L: window.L };
       }
     }
-    
-    // Pas d'erreur dans la console - retour silencieux pour architecture iframe
-    return null;
+
     return null;
   } catch (err) {
     console.error("❌ Erreur getMapFrame:", err);
@@ -383,7 +403,8 @@ function updateLeafletLayersControl() {
   if (overlaysControl) {
     try { m.map.removeControl(overlaysControl); } catch {}
   }
-  overlaysControl = m.L.control.layers(getBaseLayers(), dynamicLayers, { position: "topright" }).addTo(m.map);
+  const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
+  overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright" }).addTo(m.map);
 }
 
 // --------- LAYER DISPLAY ---------
@@ -647,7 +668,37 @@ function displayAllLayers(data) {
     }
   });
 
+  // Rafraîchir le contrôle de couches côté parent
   updateLeafletLayersControl();
+
+  // Si la carte embarquée supporte la gestion propre des overlays, lui transmettre un snapshot
+  try {
+    const m2 = getMapFrame();
+    if (m2 && typeof m2.setOverlaysControl === 'function') {
+      const overlays = {};
+      Object.entries(dynamicLayers).forEach(([label, layer]) => {
+        try {
+          if (layer && typeof layer.toGeoJSON === 'function') {
+            const fc = layer.toGeoJSON();
+            // Déterminer une clé de couche à partir du label pour récupérer la couleur
+            let layerKeyFromLabel = Object.keys(LAYER_CONFIG).find(k => (LAYER_CONFIG[k]?.label || k) === label) || label;
+            const color = LAYER_CONFIG[layerKeyFromLabel]?.color;
+            // Taguer les features pour que map1.html détecte le type et applique les icônes
+            const features = (fc.features || []).map(f => {
+              try {
+                if (f && f.properties) f.properties._layer = layerKeyFromLabel;
+              } catch {}
+              return f;
+            });
+            overlays[label] = { type: 'FeatureCollection', features, style: color ? { color } : {} };
+          }
+        } catch {}
+      });
+      m2.setOverlaysControl(overlays, {});
+    }
+  } catch (e) {
+    console.warn('setOverlaysControl propagation failed:', e);
+  }
 }
 
 // --------- INFO PANEL ---------
@@ -905,12 +956,17 @@ function handleDeptSearch() {
     if (document.getElementById("filterHTA")?.checked) types.push("HTA");
     if (document.getElementById("filterBT")?.checked) types.push("BT");
     if (types.length === 0) return alert("Sélectionnez au moins un type de réseau.");
+    // Convertir les sliders (mètres) en kilomètres pour le backend SSE
+    const bt_m = parseFloat(document.getElementById("bt_max_distance_dept")?.value || "");
+    const ht_m = parseFloat(document.getElementById("ht_max_distance_dept")?.value || "");
+    const bt_km = isNaN(bt_m) ? "" : (bt_m / 1000);
+    const ht_km = isNaN(ht_m) ? "" : (ht_m / 1000);
     const params = {
       department: dept,
       min_area_ha: document.getElementById("minSurface")?.value || "",
       max_area_ha: document.getElementById("maxSurface")?.value || "",
-      bt_max_distance: document.getElementById("bt_max_distance_dept")?.value || "",
-      ht_max_distance: document.getElementById("ht_max_distance_dept")?.value || "",
+      bt_max_distance: bt_km,
+      ht_max_distance: ht_km,
       want_eleveurs: true,
       exclude_nature: document.getElementById("excludeNature")?.checked || false,
       exclude_historic: document.getElementById("excludeBuildings")?.checked || false,

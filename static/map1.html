@@ -57,8 +57,9 @@
     var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
     var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
     sat.addTo(map);
-    var baseMaps = { "Satellite": sat, "OSM": osm };
-    L.control.layers(baseMaps).addTo(map);
+  var baseMaps = { "Satellite": sat, "OSM": osm };
+  // Conserver une référence au control de couches pour pouvoir le recréer avec des overlays
+  window._layerControl = L.control.layers(baseMaps).addTo(map);
     window._layers = [];
 
     // Fix full size si l’iframe bouge
@@ -356,12 +357,21 @@
 
     // Overlays/LayerControl parent :
     window.setOverlaysControl = function(overlays, config) {
-      if(window._layerControl) { try { map.removeControl(window._layerControl); } catch{} }
-      const leafletOverlays = {};
-      Object.entries(overlays || {}).forEach(([label, obj]) => {
-        if(Array.isArray(obj.features)) {
-          leafletOverlays[label] = L.geoJSON(obj.features, {
-            style: obj.style || {},
+      try {
+        // Nettoyer l'ancien contrôle s'il existe
+        if (window._layerControl) {
+          try { map.removeControl(window._layerControl); } catch {}
+        }
+
+        // Construire les overlays Leaflet à partir des FeatureCollections
+        const leafletOverlays = {};
+        Object.entries(overlays || {}).forEach(([label, obj]) => {
+          if (!obj) return;
+          const fc = (obj.type === 'FeatureCollection') ? obj.features : Array.isArray(obj.features) ? obj.features : null;
+          if (!fc || fc.length === 0) return;
+          const style = obj.style || {};
+          const layer = L.geoJSON(fc, {
+            style,
             pointToLayer: function (f, latlng) {
               let typeLayer = (f.properties && f.properties._layer) ? f.properties._layer : "";
               if(typeLayer === "postes_bt") return L.marker(latlng, {icon: iconBt});
@@ -369,16 +379,29 @@
               if(typeLayer === "eleveurs") return L.marker(latlng, {icon: iconFeuille});
               if(typeLayer === "parkings") return L.marker(latlng, {icon: iconParking});
               if(typeLayer === "solaire") return L.marker(latlng, {icon: iconSolaire});
-              return L.circleMarker(latlng, { radius: 8, color: obj.style?.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
+              return L.circleMarker(latlng, { radius: 8, color: style.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
             },
-            onEachFeature: function (feat, layer) {
+            onEachFeature: function (feat, lyr) {
               let typeLayer = (feat.properties && feat.properties._layer) ? feat.properties._layer : "";
-              layer.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 360});
+              lyr.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 360});
             }
           });
-        }
-      });
-    
+          leafletOverlays[label] = layer;
+        });
+
+        // Créer et attacher le nouveau contrôle complet (fond + overlays)
+        window._layerControl = L.control.layers(baseMaps, leafletOverlays, { position: 'topright' });
+        window._layerControl.addTo(map);
+
+        // Afficher par défaut tous les overlays passés et maintenir le compteur
+        // Vider les anciennes références de couches dynamiques
+        try { window._layers.forEach(l => map.removeLayer(l)); } catch {}
+        window._layers = [];
+        Object.values(leafletOverlays).forEach(l => { l.addTo(map); window._layers.push(l); });
+        updateSummaryBar();
+      } catch (e) {
+        console.error('[map1] setOverlaysControl error:', e);
+      }
     };
 
     window.setView = function(lat, lon, zoom) {
