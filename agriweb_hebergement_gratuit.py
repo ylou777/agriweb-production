@@ -914,7 +914,8 @@ def detect_working_geoserver():
     
     # Priorité 3: URL ngrok permanente UNIQUE
     fallback_urls = [
-        "https://complete-simple-ghost.ngrok-free.app/geoserver",  # 🚀 DOMAINE PERMANENT NGROK (Pay-as-you-go)
+        "https://agriweb-prod.ngrok-free.app/geoserver",  # 🚀 Domaine ngrok réservé (fourni)
+        "https://complete-simple-ghost.ngrok-free.app/geoserver",
     ]
     
     # Tester les URLs de fallback
@@ -930,14 +931,14 @@ def detect_working_geoserver():
             continue
     
     # URL par défaut si rien ne fonctionne
-    final_fallback = "https://complete-simple-ghost.ngrok-free.app/geoserver"
+    final_fallback = "https://agriweb-prod.ngrok-free.app/geoserver"
     print(f"⚠️ Aucun GeoServer accessible, utilisation domaine permanent: {final_fallback}")
     return final_fallback
 
 # Configuration pour Railway avec détection automatique
 # FORÇAGE BRUTAL LOCALHOST - Ignorer detect_working_geoserver()
-print("🔥 [BRUTAL FORCE] Forçage localhost GeoServer - ignore toute détection automatique")
-GEOSERVER_URL = "http://localhost:8080/geoserver"
+print("🔥 [BRUTAL FORCE] Forçage domaine ngrok réservé pour GeoServer")
+GEOSERVER_URL = os.getenv("GEOSERVER_TUNNEL_URL", "https://agriweb-prod.ngrok-free.app/geoserver")
 print(f"🏠 [FORCED URL] GEOSERVER_URL forcée à: {GEOSERVER_URL}")
 GEOSERVER_USERNAME = os.getenv("GEOSERVER_USERNAME", "admin")
 GEOSERVER_PASSWORD = os.getenv("GEOSERVER_PASSWORD", "geoserver")

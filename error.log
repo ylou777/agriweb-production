@@ -10272,3 +10272,12 @@ AttributeError: 'list' object has no attribute 'get'
 2025-09-07 18:37:11,319 INFO 127.0.0.1 - - [07/Sep/2025 18:37:11] "[36mGET /static/map1.html HTTP/1.1[0m" 304 -
 2025-09-07 18:37:14,160 INFO 127.0.0.1 - - [07/Sep/2025 18:37:14] "GET /generate_reports_by_dept_sse?department=90&min_area_ha=10&max_area_ha=50&bt_max_distance=0.5&ht_max_distance=0.5&want_eleveurs=true&exclude_nature=false&exclude_historic=false&culture=&reseau_types=HTA HTTP/1.1" 200 -
 2025-09-07 18:42:06,882 INFO 127.0.0.1 - - [07/Sep/2025 18:42:06] "POST /rapport_departement_post HTTP/1.1" 200 -
+2025-09-07 18:58:15,063 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-07 18:58:15,069 INFO [33mPress CTRL+C to quit[0m
+2025-09-07 18:59:15,129 INFO 127.0.0.1 - - [07/Sep/2025 18:59:15] "GET / HTTP/1.1" 200 -
+2025-09-07 18:59:18,232 INFO 127.0.0.1 - - [07/Sep/2025 18:59:18] "GET /app HTTP/1.1" 200 -
+2025-09-07 18:59:18,430 INFO 127.0.0.1 - - [07/Sep/2025 18:59:18] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-07 18:59:18,616 INFO 127.0.0.1 - - [07/Sep/2025 18:59:18] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-07 18:59:57,457 INFO 127.0.0.1 - - [07/Sep/2025 18:59:57] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-07 18:59:57,906 INFO 127.0.0.1 - - [07/Sep/2025 18:59:57] "GET /static/cartes/map_1757264394_3373621836807066619.html?t=1757264395&cache=1757264397571 HTTP/1.1" 200 -
