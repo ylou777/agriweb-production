@@ -12,6 +12,9 @@ import os
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-production-secret-2025')
 
+# URL publique de l'app principale (Railway/Prod)
+APP_URL = os.getenv('APP_URL', 'https://agriweb-production.up.railway.app')
+
 # MODE PRODUCTION - Envoi réel d'emails
 PRODUCTION_MODE = True
 
@@ -54,7 +57,7 @@ def app_interface():
         return redirect('/?login_required=1')
     
     # Page de succès avec lien vers AgriWeb
-    return """
+    return f"""
     <!DOCTYPE html>
     <html>
     <head>
@@ -84,7 +87,7 @@ def app_interface():
                             </div>
                             
                             <div class="mt-4">
-                                <a href="http://localhost:5000" class="btn btn-success btn-lg me-3">
+                                <a href="{APP_URL}" class="btn btn-success btn-lg me-3">
                                     <i class="bi bi-box-arrow-up-right"></i> Accéder à AgriWeb Maintenant
                                 </a>
                                 <a href="/logout" class="btn btn-outline-secondary">

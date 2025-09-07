@@ -427,6 +427,21 @@ except ImportError:
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
+
+# Cookies de session sécurisés (Railway/Prod)
+COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'true').lower() in ('1','true','yes','on')
+COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')  # 'Lax' or 'None' for cross-site
+app.config['SESSION_COOKIE_SECURE'] = COOKIE_SECURE
+app.config['SESSION_COOKIE_SAMESITE'] = COOKIE_SAMESITE
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+
+# Intégration du système d'authentification (Blueprint)
+try:
+    from auth_routes import auth_bp
+    app.register_blueprint(auth_bp)
+    print("🔐 [AUTH] Blueprint d'authentification enregistré (/login, /register, /verify-email)")
+except Exception as e:
+    print(f"⚠️ [AUTH] Impossible d'enregistrer le blueprint d'auth: {e}")
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
     'parcelles': {'color': '#FF6600', 'fillColor': '#FFD700', 'fillOpacity': 0.3, 'weight': 2},

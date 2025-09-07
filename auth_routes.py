@@ -94,7 +94,15 @@ def login():
                 
                 # Stocker le token de session
                 session['session_token'] = session_token
-                resp.set_cookie('session_token', session_token, max_age=604800, httponly=True, secure=False)
+                # Cookies sécurisés en prod (Railway)
+                cookie_secure = os.getenv('COOKIE_SECURE', 'true').lower() in ('1','true','yes','on')
+                cookie_samesite = os.getenv('COOKIE_SAMESITE', 'Lax')
+                resp.set_cookie(
+                    'session_token', session_token,
+                    max_age=604800, httponly=True,
+                    secure=cookie_secure,
+                    samesite=cookie_samesite
+                )
                 
                 return resp
             else:
