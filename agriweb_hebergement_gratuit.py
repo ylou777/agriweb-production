@@ -442,6 +442,17 @@ try:
     print("🔐 [AUTH] Blueprint d'authentification enregistré (/auth/login, /auth/register, /auth/verify-email)")
 except Exception as e:
     print(f"⚠️ [AUTH] Impossible d'enregistrer le blueprint d'auth: {e}")
+
+# Redirections pour compatibilité avec les anciennes URLs
+@app.route("/register")
+def redirect_register():
+    """Redirection vers la nouvelle URL d'inscription"""
+    return redirect("/auth/register", code=301)
+
+@app.route("/login")  
+def redirect_login():
+    """Redirection vers la nouvelle URL de connexion"""
+    return redirect("/auth/login", code=301)
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
 STATIC_STYLES = {
     'parcelles': {'color': '#FF6600', 'fillColor': '#FFD700', 'fillOpacity': 0.3, 'weight': 2},
