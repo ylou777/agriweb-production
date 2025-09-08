@@ -444,12 +444,12 @@ except Exception as e:
     print(f"⚠️ [AUTH] Impossible d'enregistrer le blueprint d'auth: {e}")
 
 # Redirections pour compatibilité avec les anciennes URLs
-@app.route("/register")
+@app.route("/register", methods=["GET", "POST"])
 def redirect_register():
     """Redirection vers la nouvelle URL d'inscription"""
     return redirect("/auth/register", code=301)
 
-@app.route("/login")  
+@app.route("/login", methods=["GET", "POST"])  
 def redirect_login():
     """Redirection vers la nouvelle URL de connexion"""
     return redirect("/auth/login", code=301)
