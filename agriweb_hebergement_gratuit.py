@@ -438,8 +438,8 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Intégration du système d'authentification (Blueprint)
 try:
     from auth_routes import auth_bp
-    app.register_blueprint(auth_bp)
-    print("🔐 [AUTH] Blueprint d'authentification enregistré (/login, /register, /verify-email)")
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    print("🔐 [AUTH] Blueprint d'authentification enregistré (/auth/login, /auth/register, /auth/verify-email)")
 except Exception as e:
     print(f"⚠️ [AUTH] Impossible d'enregistrer le blueprint d'auth: {e}")
 # Styles statiques pour éviter les problèmes avec les fonctions lambda en production
@@ -1374,8 +1374,8 @@ simple_user_manager = SimpleUserManager()
 # ║                           ROUTES D'AUTHENTIFICATION                      ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
-@app.route("/register", methods=["GET", "POST"])
-def register():
+@app.route("/register_legacy", methods=["GET", "POST"])
+def register_legacy():
     """Inscription d'un nouvel utilisateur - Support GET pour formulaire et POST pour données"""
     
     # Si c'est une requête GET, afficher le formulaire d'inscription
@@ -1579,8 +1579,8 @@ def register():
             </script>
             """)
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
+@app.route("/login_legacy", methods=["GET", "POST"])
+def login_legacy():
     """Connexion d'un utilisateur - Support GET pour formulaire et POST pour données"""
     
     # Si c'est une requête GET, afficher le formulaire de connexion

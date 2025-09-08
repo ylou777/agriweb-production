@@ -11,6 +11,74 @@ import os
 # Blueprint pour les routes d'authentification
 auth_bp = Blueprint('auth', __name__)
 
+@auth_bp.route("/register", methods=["GET"])
+def register_form():
+    """Affichage du formulaire d'inscription"""
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Inscription - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .registration-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="registration-card">
+        <div class="text-center mb-4">
+            <h2 class="text-success mb-3">🚀 Inscription AgriWeb Pro</h2>
+            <p class="text-muted">Créez votre compte pour accéder à toutes les fonctionnalités</p>
+        </div>
+        <form method="POST" action="/auth/register">
+            <div class="mb-3">
+                <label for="name" class="form-label">Nom complet</label>
+                <input type="text" class="form-control" id="name" name="name" required>
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <div class="mb-3">
+                <label for="company" class="form-label">Entreprise (optionnel)</label>
+                <input type="text" class="form-control" id="company" name="company">
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Mot de passe</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100 mb-3">
+                <i class="bi bi-person-plus"></i> Créer mon compte
+            </button>
+        </form>
+        <div class="text-center">
+            <small class="text-muted">
+                Déjà un compte ? <a href="/auth/login" class="text-success">Se connecter</a>
+            </small>
+        </div>
+    </div>
+</body>
+</html>
+""")
+
 @auth_bp.route("/register", methods=["POST"])
 def register():
     """Inscription avec validation stricte et confirmation email"""
