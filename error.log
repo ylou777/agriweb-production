@@ -10398,3 +10398,323 @@ AttributeError: 'list' object has no attribute 'get'
 2025-09-08 09:42:06,818 INFO [33mPress CTRL+C to quit[0m
 2025-09-08 09:42:14,339 INFO 127.0.0.1 - - [08/Sep/2025 09:42:14] "GET / HTTP/1.1" 200 -
 2025-09-08 09:42:19,323 INFO 127.0.0.1 - - [08/Sep/2025 09:42:19] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 11:50:47,106 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 11:50:47,108 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 11:50:59,177 INFO 127.0.0.1 - - [08/Sep/2025 11:50:59] "GET / HTTP/1.1" 200 -
+2025-09-08 11:51:04,165 INFO 127.0.0.1 - - [08/Sep/2025 11:51:04] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 11:51:06,554 INFO 127.0.0.1 - - [08/Sep/2025 11:51:06] "[32mPOST /login HTTP/1.1[0m" 301 -
+2025-09-08 11:51:07,035 INFO 127.0.0.1 - - [08/Sep/2025 11:51:07] "GET /auth/login HTTP/1.1" 200 -
+2025-09-08 11:51:10,495 INFO 127.0.0.1 - - [08/Sep/2025 11:51:10] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-09-08 11:51:11,794 INFO 127.0.0.1 - - [08/Sep/2025 11:51:11] "GET /app HTTP/1.1" 200 -
+2025-09-08 11:51:12,875 INFO 127.0.0.1 - - [08/Sep/2025 11:51:12] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 11:51:13,288 INFO 127.0.0.1 - - [08/Sep/2025 11:51:13] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 11:51:18,503 INFO 127.0.0.1 - - [08/Sep/2025 11:51:18] "GET / HTTP/1.1" 200 -
+2025-09-08 11:51:24,552 INFO 127.0.0.1 - - [08/Sep/2025 11:51:24] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 11:51:44,623 INFO 127.0.0.1 - - [08/Sep/2025 11:51:44] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 11:51:48,650 INFO 127.0.0.1 - - [08/Sep/2025 11:51:48] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 11:53:43,021 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 11:53:43,021 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 11:53:52,146 INFO 127.0.0.1 - - [08/Sep/2025 11:53:52] "GET / HTTP/1.1" 200 -
+2025-09-08 11:54:00,736 INFO 127.0.0.1 - - [08/Sep/2025 11:54:00] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:02:56,241 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:02:56,247 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:03:01,917 INFO 127.0.0.1 - - [08/Sep/2025 12:03:01] "GET / HTTP/1.1" 200 -
+2025-09-08 12:03:11,287 INFO 127.0.0.1 - - [08/Sep/2025 12:03:11] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 12:19:03,497 INFO 127.0.0.1 - - [08/Sep/2025 12:19:03] "[32mGET /admin HTTP/1.1[0m" 302 -
+2025-09-08 12:19:03,585 INFO 127.0.0.1 - - [08/Sep/2025 12:19:03] "GET /?admin_required=1 HTTP/1.1" 200 -
+2025-09-08 12:19:09,445 INFO 127.0.0.1 - - [08/Sep/2025 12:19:09] "[32mGET /admin HTTP/1.1[0m" 302 -
+2025-09-08 12:19:09,457 INFO 127.0.0.1 - - [08/Sep/2025 12:19:09] "GET /?admin_required=1 HTTP/1.1" 200 -
+2025-09-08 12:19:10,246 INFO 127.0.0.1 - - [08/Sep/2025 12:19:10] "[32mGET /admin HTTP/1.1[0m" 302 -
+2025-09-08 12:19:10,280 INFO 127.0.0.1 - - [08/Sep/2025 12:19:10] "GET /?admin_required=1 HTTP/1.1" 200 -
+2025-09-08 12:19:12,266 INFO 127.0.0.1 - - [08/Sep/2025 12:19:12] "GET /app HTTP/1.1" 200 -
+2025-09-08 12:19:12,286 INFO 127.0.0.1 - - [08/Sep/2025 12:19:12] "GET /app HTTP/1.1" 200 -
+2025-09-08 12:19:12,648 INFO 127.0.0.1 - - [08/Sep/2025 12:19:12] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 12:19:12,789 INFO 127.0.0.1 - - [08/Sep/2025 12:19:12] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 12:19:16,652 INFO 127.0.0.1 - - [08/Sep/2025 12:19:16] "GET / HTTP/1.1" 200 -
+2025-09-08 12:19:24,233 INFO 127.0.0.1 - - [08/Sep/2025 12:19:24] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:22:51,154 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:22:51,155 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:22:54,785 INFO 127.0.0.1 - - [08/Sep/2025 12:22:54] "GET / HTTP/1.1" 200 -
+2025-09-08 12:23:08,046 INFO 127.0.0.1 - - [08/Sep/2025 12:23:08] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:23:08,853 INFO 127.0.0.1 - - [08/Sep/2025 12:23:08] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:23:09,750 INFO 127.0.0.1 - - [08/Sep/2025 12:23:09] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:23:46,384 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:23:46,385 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:27:48,393 INFO 127.0.0.1 - - [08/Sep/2025 12:27:48] "GET / HTTP/1.1" 200 -
+2025-09-08 12:27:50,409 INFO 127.0.0.1 - - [08/Sep/2025 12:27:50] "GET /app HTTP/1.1" 200 -
+2025-09-08 12:27:51,053 INFO 127.0.0.1 - - [08/Sep/2025 12:27:51] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 12:27:51,201 INFO 127.0.0.1 - - [08/Sep/2025 12:27:51] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 12:27:55,224 INFO 127.0.0.1 - - [08/Sep/2025 12:27:55] "GET / HTTP/1.1" 200 -
+2025-09-08 12:28:00,908 INFO 127.0.0.1 - - [08/Sep/2025 12:28:00] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:28:47,749 INFO 127.0.0.1 - - [08/Sep/2025 12:28:47] "GET /subscription HTTP/1.1" 200 -
+2025-09-08 12:28:58,961 INFO 127.0.0.1 - - [08/Sep/2025 12:28:58] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:29:03,317 INFO 127.0.0.1 - - [08/Sep/2025 12:29:03] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:30:05,907 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:30:05,908 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:30:29,606 INFO 127.0.0.1 - - [08/Sep/2025 12:30:29] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:31:36,362 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:31:36,362 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:32:02,956 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:32:02,961 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:32:05,020 INFO 127.0.0.1 - - [08/Sep/2025 12:32:05] "GET / HTTP/1.1" 200 -
+2025-09-08 12:32:15,723 INFO 127.0.0.1 - - [08/Sep/2025 12:32:15] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 12:33:00,690 INFO 127.0.0.1 - - [08/Sep/2025 12:33:00] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:33:40,523 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:33:40,523 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:35:18,038 INFO 127.0.0.1 - - [08/Sep/2025 12:35:18] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 12:37:39,244 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:37:39,244 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:37:40,728 INFO 127.0.0.1 - - [08/Sep/2025 12:37:40] "GET / HTTP/1.1" 200 -
+2025-09-08 12:46:29,455 INFO 127.0.0.1 - - [08/Sep/2025 12:46:29] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 12:46:36,323 INFO 127.0.0.1 - - [08/Sep/2025 12:46:36] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 12:47:27,440 INFO 127.0.0.1 - - [08/Sep/2025 12:47:27] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 12:47:34,190 INFO 127.0.0.1 - - [08/Sep/2025 12:47:34] "GET / HTTP/1.1" 200 -
+2025-09-08 12:47:34,312 INFO 127.0.0.1 - - [08/Sep/2025 12:47:34] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 12:48:39,674 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 12:48:39,674 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 12:49:10,298 INFO 127.0.0.1 - - [08/Sep/2025 12:49:10] "GET /subscription HTTP/1.1" 200 -
+2025-09-08 12:49:53,893 INFO 127.0.0.1 - - [08/Sep/2025 12:49:53] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 13:04:33,532 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 13:04:33,532 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 13:04:40,547 INFO 127.0.0.1 - - [08/Sep/2025 13:04:40] "GET / HTTP/1.1" 200 -
+2025-09-08 13:04:50,743 INFO 127.0.0.1 - - [08/Sep/2025 13:04:50] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 13:04:54,747 INFO 127.0.0.1 - - [08/Sep/2025 13:04:54] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 13:08:01,900 INFO 127.0.0.1 - - [08/Sep/2025 13:08:01] "[33mGET /status HTTP/1.1[0m" 404 -
+2025-09-08 13:11:47,677 INFO 127.0.0.1 - - [08/Sep/2025 13:11:47] "[33mGET /status HTTP/1.1[0m" 404 -
+2025-09-08 13:13:27,818 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 13:13:27,819 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 13:14:04,376 INFO 127.0.0.1 - - [08/Sep/2025 13:14:04] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 13:20:54,215 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 13:20:54,216 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 13:20:56,196 INFO 127.0.0.1 - - [08/Sep/2025 13:20:56] "GET / HTTP/1.1" 200 -
+2025-09-08 13:21:06,640 INFO 127.0.0.1 - - [08/Sep/2025 13:21:06] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 13:23:06,634 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 13:23:06,634 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 13:41:02,882 INFO 127.0.0.1 - - [08/Sep/2025 13:41:02] "GET / HTTP/1.1" 200 -
+2025-09-08 13:41:14,310 INFO 127.0.0.1 - - [08/Sep/2025 13:41:14] "[35m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 500 -
+2025-09-08 13:41:44,847 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 13:41:44,848 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 13:42:08,722 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 13:42:08,722 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 13:42:10,825 INFO 127.0.0.1 - - [08/Sep/2025 13:42:10] "GET / HTTP/1.1" 200 -
+2025-09-08 13:42:30,249 INFO 127.0.0.1 - - [08/Sep/2025 13:42:30] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 14:07:28,005 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 14:07:28,007 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 14:08:49,410 INFO 127.0.0.1 - - [08/Sep/2025 14:08:49] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 14:11:23,335 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 14:11:23,336 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 14:22:57,273 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 14:22:57,274 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 14:22:59,599 INFO 127.0.0.1 - - [08/Sep/2025 14:22:59] "GET / HTTP/1.1" 200 -
+2025-09-08 14:23:06,520 INFO 127.0.0.1 - - [08/Sep/2025 14:23:06] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:23:07,749 INFO 127.0.0.1 - - [08/Sep/2025 14:23:07] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:23:12,374 INFO 127.0.0.1 - - [08/Sep/2025 14:23:12] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 14:25:35,336 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 14:25:35,337 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 14:25:41,666 INFO 127.0.0.1 - - [08/Sep/2025 14:25:41] "GET / HTTP/1.1" 200 -
+2025-09-08 14:25:49,995 INFO 127.0.0.1 - - [08/Sep/2025 14:25:49] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:25:53,834 INFO 127.0.0.1 - - [08/Sep/2025 14:25:53] "GET / HTTP/1.1" 200 -
+2025-09-08 14:25:54,701 INFO 127.0.0.1 - - [08/Sep/2025 14:25:54] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 14:25:58,999 INFO 127.0.0.1 - - [08/Sep/2025 14:25:58] "GET / HTTP/1.1" 200 -
+2025-09-08 14:25:59,238 INFO 127.0.0.1 - - [08/Sep/2025 14:25:59] "GET / HTTP/1.1" 200 -
+2025-09-08 14:25:59,550 INFO 127.0.0.1 - - [08/Sep/2025 14:25:59] "GET / HTTP/1.1" 200 -
+2025-09-08 14:25:59,883 INFO 127.0.0.1 - - [08/Sep/2025 14:25:59] "GET / HTTP/1.1" 200 -
+2025-09-08 14:26:00,225 INFO 127.0.0.1 - - [08/Sep/2025 14:26:00] "GET / HTTP/1.1" 200 -
+2025-09-08 14:26:00,839 INFO 127.0.0.1 - - [08/Sep/2025 14:26:00] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 14:26:01,580 INFO 127.0.0.1 - - [08/Sep/2025 14:26:01] "GET / HTTP/1.1" 200 -
+2025-09-08 14:26:02,203 INFO 127.0.0.1 - - [08/Sep/2025 14:26:02] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 14:26:03,171 INFO 127.0.0.1 - - [08/Sep/2025 14:26:03] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:26:04,957 INFO 127.0.0.1 - - [08/Sep/2025 14:26:04] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:26:05,492 INFO 127.0.0.1 - - [08/Sep/2025 14:26:05] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:26:07,321 INFO 127.0.0.1 - - [08/Sep/2025 14:26:07] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:26:09,295 INFO 127.0.0.1 - - [08/Sep/2025 14:26:09] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:26:11,036 INFO 127.0.0.1 - - [08/Sep/2025 14:26:11] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:27:12,389 INFO 127.0.0.1 - - [08/Sep/2025 14:27:12] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:33:49,222 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 14:33:49,222 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 14:33:50,982 INFO 127.0.0.1 - - [08/Sep/2025 14:33:50] "GET / HTTP/1.1" 200 -
+2025-09-08 14:33:51,621 INFO 127.0.0.1 - - [08/Sep/2025 14:33:51] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 14:34:02,787 INFO 127.0.0.1 - - [08/Sep/2025 14:34:02] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:34:05,595 INFO 127.0.0.1 - - [08/Sep/2025 14:34:05] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:34:07,068 INFO 127.0.0.1 - - [08/Sep/2025 14:34:07] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:35:27,768 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 14:35:27,769 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 14:37:57,881 INFO 127.0.0.1 - - [08/Sep/2025 14:37:57] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 14:38:25,430 INFO 127.0.0.1 - - [08/Sep/2025 14:38:25] "GET / HTTP/1.1" 200 -
+2025-09-08 14:38:30,963 INFO 127.0.0.1 - - [08/Sep/2025 14:38:30] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:38:32,416 INFO 127.0.0.1 - - [08/Sep/2025 14:38:32] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:41:14,377 INFO 127.0.0.1 - - [08/Sep/2025 14:41:14] "GET /app HTTP/1.1" 200 -
+2025-09-08 14:41:14,860 INFO 127.0.0.1 - - [08/Sep/2025 14:41:14] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-08 14:41:14,861 INFO 127.0.0.1 - - [08/Sep/2025 14:41:14] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-08 14:41:19,238 INFO 127.0.0.1 - - [08/Sep/2025 14:41:19] "[32mGET /logout HTTP/1.1[0m" 302 -
+2025-09-08 14:41:19,263 INFO 127.0.0.1 - - [08/Sep/2025 14:41:19] "GET / HTTP/1.1" 200 -
+2025-09-08 14:41:31,017 INFO 127.0.0.1 - - [08/Sep/2025 14:41:31] "[32mPOST /login HTTP/1.1[0m" 301 -
+2025-09-08 14:41:31,028 INFO 127.0.0.1 - - [08/Sep/2025 14:41:31] "GET /auth/login HTTP/1.1" 200 -
+2025-09-08 14:41:33,412 INFO 127.0.0.1 - - [08/Sep/2025 14:41:33] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-09-08 14:41:33,445 INFO 127.0.0.1 - - [08/Sep/2025 14:41:33] "GET /app HTTP/1.1" 200 -
+2025-09-08 14:41:33,823 INFO 127.0.0.1 - - [08/Sep/2025 14:41:33] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 14:41:33,824 INFO 127.0.0.1 - - [08/Sep/2025 14:41:33] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 14:41:40,795 INFO 127.0.0.1 - - [08/Sep/2025 14:41:40] "GET / HTTP/1.1" 200 -
+2025-09-08 14:41:47,784 INFO 127.0.0.1 - - [08/Sep/2025 14:41:47] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:49:04,163 INFO 127.0.0.1 - - [08/Sep/2025 14:49:04] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:51:10,682 INFO 127.0.0.1 - - [08/Sep/2025 14:51:10] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 14:54:22,551 INFO 127.0.0.1 - - [08/Sep/2025 14:54:22] "GET / HTTP/1.1" 200 -
+2025-09-08 14:54:28,346 INFO 127.0.0.1 - - [08/Sep/2025 14:54:28] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 14:54:29,925 INFO 127.0.0.1 - - [08/Sep/2025 14:54:29] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 15:00:13,135 INFO 127.0.0.1 - - [08/Sep/2025 15:00:13] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:09:45,909 INFO 127.0.0.1 - - [08/Sep/2025 15:09:45] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:19:57,207 INFO 127.0.0.1 - - [08/Sep/2025 15:19:57] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 15:20:37,392 INFO 127.0.0.1 - - [08/Sep/2025 15:20:37] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:21:08,670 INFO 127.0.0.1 - - [08/Sep/2025 15:21:08] "GET / HTTP/1.1" 200 -
+2025-09-08 15:21:13,236 INFO 127.0.0.1 - - [08/Sep/2025 15:21:13] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 15:21:20,306 INFO 127.0.0.1 - - [08/Sep/2025 15:21:20] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 15:21:27,577 INFO 127.0.0.1 - - [08/Sep/2025 15:21:27] "GET / HTTP/1.1" 200 -
+2025-09-08 15:21:27,727 INFO 127.0.0.1 - - [08/Sep/2025 15:21:27] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 15:24:55,282 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 15:24:55,287 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 15:24:57,859 INFO 127.0.0.1 - - [08/Sep/2025 15:24:57] "GET / HTTP/1.1" 200 -
+2025-09-08 15:25:05,665 INFO 127.0.0.1 - - [08/Sep/2025 15:25:05] "[31m[1mPOST /api/stripe/create-checkout HTTP/1.1[0m" 400 -
+2025-09-08 15:28:59,041 INFO 127.0.0.1 - - [08/Sep/2025 15:28:59] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:29:58,869 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 15:29:58,870 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 15:30:02,310 INFO 127.0.0.1 - - [08/Sep/2025 15:30:02] "GET / HTTP/1.1" 200 -
+2025-09-08 15:30:15,262 INFO 127.0.0.1 - - [08/Sep/2025 15:30:15] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:30:20,961 INFO 127.0.0.1 - - [08/Sep/2025 15:30:20] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 15:30:30,630 INFO 127.0.0.1 - - [08/Sep/2025 15:30:30] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:30:52,127 INFO 127.0.0.1 - - [08/Sep/2025 15:30:52] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:32:45,440 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 15:32:45,441 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 15:32:47,298 INFO 127.0.0.1 - - [08/Sep/2025 15:32:47] "GET / HTTP/1.1" 200 -
+2025-09-08 15:32:53,532 INFO 127.0.0.1 - - [08/Sep/2025 15:32:53] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:32:59,403 INFO 127.0.0.1 - - [08/Sep/2025 15:32:59] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 15:33:02,682 INFO 127.0.0.1 - - [08/Sep/2025 15:33:02] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:38:20,834 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 15:38:20,835 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 15:38:26,301 INFO 127.0.0.1 - - [08/Sep/2025 15:38:26] "GET / HTTP/1.1" 200 -
+2025-09-08 15:41:14,041 INFO 127.0.0.1 - - [08/Sep/2025 15:41:14] "GET / HTTP/1.1" 200 -
+2025-09-08 15:41:21,335 INFO 127.0.0.1 - - [08/Sep/2025 15:41:21] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 15:41:26,931 INFO 127.0.0.1 - - [08/Sep/2025 15:41:26] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 15:41:29,546 INFO 127.0.0.1 - - [08/Sep/2025 15:41:29] "GET / HTTP/1.1" 200 -
+2025-09-08 15:41:29,660 INFO 127.0.0.1 - - [08/Sep/2025 15:41:29] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 15:44:02,139 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 15:44:02,141 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 15:44:04,758 INFO 127.0.0.1 - - [08/Sep/2025 15:44:04] "GET / HTTP/1.1" 200 -
+2025-09-08 15:44:09,919 INFO 127.0.0.1 - - [08/Sep/2025 15:44:09] "GET /app HTTP/1.1" 200 -
+2025-09-08 15:44:10,357 INFO 127.0.0.1 - - [08/Sep/2025 15:44:10] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-08 15:44:10,421 INFO 127.0.0.1 - - [08/Sep/2025 15:44:10] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-08 15:45:52,742 INFO 127.0.0.1 - - [08/Sep/2025 15:45:52] "GET /search_by_commune?commune=saint+auban&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=450&bt_max_distance=100&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2800&filter_by_distance=false&max_distance_bt=100&max_distance_hta=450&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-08 15:45:52,913 INFO 127.0.0.1 - - [08/Sep/2025 15:45:52] "GET /static/cartes/commune_map_saint_auban_20250908_154545.html?t=1757339148&cache=1757339152905 HTTP/1.1" 200 -
+2025-09-08 15:46:55,913 INFO 127.0.0.1 - - [08/Sep/2025 15:46:55] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 15:48:55,795 INFO 127.0.0.1 - - [08/Sep/2025 15:48:55] "GET /search_by_commune?commune=caderousse&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=450&bt_max_distance=100&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2800&filter_by_distance=false&max_distance_bt=100&max_distance_hta=450&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-08 15:48:56,446 INFO 127.0.0.1 - - [08/Sep/2025 15:48:56] "GET /static/cartes/commune_map__20250908_154815.html?t=1757339310&cache=1757339336421 HTTP/1.1" 200 -
+2025-09-08 15:50:54,536 INFO 127.0.0.1 - - [08/Sep/2025 15:50:54] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 15:51:10,693 INFO 127.0.0.1 - - [08/Sep/2025 15:51:10] "GET /search_by_commune?commune=caderousse&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=450&bt_max_distance=100&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2800&filter_by_distance=false&max_distance_bt=100&max_distance_hta=450&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-08 15:51:12,029 INFO 127.0.0.1 - - [08/Sep/2025 15:51:12] "GET /static/cartes/commune_map__20250908_155028.html?t=1757339442&cache=1757339471502 HTTP/1.1" 200 -
+2025-09-08 16:00:40,462 ERROR Exception on /search_by_commune [GET]
+Traceback (most recent call last):
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 7077, in search_by_commune
+    map_obj = build_map(
+        lat, lon, commune,
+    ...<16 lines>...
+        ppri_data=ppri_data
+    )
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 5641, in build_map
+    save_map_html(map_obj, f"cartes_{timestamp}.html")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 416, in save_map_html
+    map_obj.save(filepath)
+    ~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\branca\element.py", line 229, in save
+    fid.write(html.encode("utf8"))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 28] No space left on device
+2025-09-08 16:00:44,055 INFO 127.0.0.1 - - [08/Sep/2025 16:00:44] "[35m[1mGET /search_by_commune?commune=montpellier&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=450&bt_max_distance=100&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2800&filter_by_distance=true&max_distance_bt=100&max_distance_hta=450&poste_type_filter=ALL HTTP/1.1[0m" 500 -
+2025-09-08 16:01:05,195 INFO 127.0.0.1 - - [08/Sep/2025 16:01:05] "GET /app HTTP/1.1" 200 -
+2025-09-08 16:01:09,806 INFO 127.0.0.1 - - [08/Sep/2025 16:01:09] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 16:01:10,180 INFO 127.0.0.1 - - [08/Sep/2025 16:01:10] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 16:01:20,836 ERROR Exception on /search_by_commune [GET]
+Traceback (most recent call last):
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\flask\app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 7077, in search_by_commune
+    map_obj = build_map(
+        lat, lon, commune,
+    ...<16 lines>...
+        ppri_data=ppri_data
+    )
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 5641, in build_map
+    save_map_html(map_obj, f"cartes_{timestamp}.html")
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\agriweb_hebergement_gratuit.py", line 416, in save_map_html
+    map_obj.save(filepath)
+    ~~~~~~~~~~~~^^^^^^^^^^
+  File "C:\Users\Utilisateur\Desktop\AG32.1\ag3reprise\AgW3b\.venv\Lib\site-packages\branca\element.py", line 229, in save
+    fid.write(html.encode("utf8"))
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 28] No space left on device
+2025-09-08 16:01:20,873 INFO 127.0.0.1 - - [08/Sep/2025 16:01:20] "[35m[1mGET /search_by_commune?commune=montpellier&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=450&bt_max_distance=100&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1500&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2800&filter_by_distance=true&max_distance_bt=100&max_distance_hta=450&poste_type_filter=ALL HTTP/1.1[0m" 500 -
+2025-09-08 16:21:07,498 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 16:21:07,498 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 16:21:09,472 INFO 127.0.0.1 - - [08/Sep/2025 16:21:09] "GET / HTTP/1.1" 200 -
+2025-09-08 16:27:05,514 INFO 127.0.0.1 - - [08/Sep/2025 16:27:05] "GET / HTTP/1.1" 200 -
+2025-09-08 16:30:29,515 INFO 127.0.0.1 - - [08/Sep/2025 16:30:29] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:30:30,692 INFO 127.0.0.1 - - [08/Sep/2025 16:30:30] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:30:32,283 INFO 127.0.0.1 - - [08/Sep/2025 16:30:32] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:30:32,689 INFO 127.0.0.1 - - [08/Sep/2025 16:30:32] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:30:44,274 INFO 127.0.0.1 - - [08/Sep/2025 16:30:44] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:31:10,639 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 16:31:10,639 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 16:31:11,966 INFO 127.0.0.1 - - [08/Sep/2025 16:31:11] "GET / HTTP/1.1" 200 -
+2025-09-08 16:31:18,711 INFO 127.0.0.1 - - [08/Sep/2025 16:31:18] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:31:55,576 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 16:31:55,577 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 16:31:56,906 INFO 127.0.0.1 - - [08/Sep/2025 16:31:56] "GET / HTTP/1.1" 200 -
+2025-09-08 16:32:06,349 INFO 127.0.0.1 - - [08/Sep/2025 16:32:06] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 16:32:10,132 INFO 127.0.0.1 - - [08/Sep/2025 16:32:10] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -

@@ -508,12 +508,34 @@ def init_database():
             trial_end_date TIMESTAMP,
             subscription_status TEXT DEFAULT 'trial',
             subscription_type TEXT,
+            subscription_plan TEXT,
             subscription_end_date TIMESTAMP,
+            stripe_customer_id TEXT,
+            stripe_subscription_id TEXT,
             last_login TIMESTAMP,
             login_count INTEGER DEFAULT 0,
             is_active BOOLEAN DEFAULT 1
         )
     ''')
+    
+    # Ajouter les colonnes Stripe si elles n'existent pas
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN subscription_plan TEXT')
+        print("✅ Colonne subscription_plan ajoutée")
+    except sqlite3.OperationalError:
+        pass  # Colonne existe déjà
+        
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT')
+        print("✅ Colonne stripe_customer_id ajoutée")
+    except sqlite3.OperationalError:
+        pass  # Colonne existe déjà
+        
+    try:
+        cursor.execute('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT')
+        print("✅ Colonne stripe_subscription_id ajoutée")
+    except sqlite3.OperationalError:
+        pass  # Colonne existe déjà
     
     # Table des sessions actives
     cursor.execute('''
@@ -2138,16 +2160,17 @@ def profile():
 # ║                           INTÉGRATION STRIPE PAIEMENTS                   ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
-# Configuration Stripe (remplacer par vos vraies clés)
-STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', 'pk_test_YOUR_STRIPE_PUBLIC_KEY')
-STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_YOUR_STRIPE_SECRET_KEY')
+# Configuration Stripe (clés Railway)
+STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_TYooMQauvdEDq54NiTphI7jx')  # Clé de test publique
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_4eC39HqLyjWDarjtT1zdp7dc')  # Clé de test secrète
 
+stripe = None
 try:
     import stripe
     stripe.api_key = STRIPE_SECRET_KEY
     print("✅ Stripe configuré")
-except ImportError:
-    print("⚠️ Stripe non installé - pip install stripe")
+except Exception as e:
+    print(f"⚠️ Erreur configuration Stripe: {e}")
     stripe = None
 
 @app.route("/api/create-checkout-session", methods=["POST"])
@@ -2157,17 +2180,38 @@ def create_checkout_session():
         return jsonify({'error': 'Stripe non configuré'}), 500
         
     try:
-        data = request.get_json()
-        plan = data.get('plan', 'professional')
+        # Accepter JSON et données de formulaire
+        data = request.get_json(silent=True) or request.form
+        if not data:
+            return jsonify({'error': 'Aucune donnée reçue'}), 400
+            
+        plan = data.get('plan')
         
-        # Configuration des plans
+        if not plan:
+            return jsonify({'error': 'Plan requis'}), 400
+        
+        # Configuration des plans avec prix Railway
         prices = {
+            'basic': {
+                'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
+                'name': 'AgriWeb Pro - Plan Basic',
+                'amount': 3500,  # 35€ en centimes
+            },
             'professional': {
-                'price_id': 'price_YOUR_PROFESSIONAL_PRICE_ID',  # À remplacer
+                'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
                 'name': 'AgriWeb Pro - Plan Professionnel',
+                'amount': 19900,  # 199€ en centimes
+            },
+            'team': {
+                'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
+                'name': 'AgriWeb Pro - Plan Team',
                 'amount': 29900,  # 299€ en centimes
             }
         }
+        
+        # Le plan Enterprise nécessite un devis personnalisé
+        if plan == 'enterprise':
+            return jsonify({'error': 'Le plan Enterprise nécessite un devis personnalisé. Veuillez nous contacter.'}), 400
         
         if plan not in prices:
             return jsonify({'error': 'Plan invalide'}), 400
@@ -2175,35 +2219,89 @@ def create_checkout_session():
         plan_config = prices[plan]
         
         # Créer la session Stripe Checkout
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price_data': {
-                    'currency': 'eur',
-                    'product_data': {
-                        'name': plan_config['name'],
-                        'description': 'Accès mensuel à la plateforme AgriWeb Pro'
+        try:
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                line_items=[{
+                    'price_data': {
+                        'currency': 'eur',
+                        'product_data': {
+                            'name': plan_config['name'],
+                            'description': 'Accès mensuel à la plateforme AgriWeb Pro'
+                        },
+                        'unit_amount': plan_config['amount'],
                     },
-                    'unit_amount': plan_config['amount'],
-                    'recurring': {
-                        'interval': 'month'
-                    }
-                },
-                'quantity': 1,
-            }],
-            mode='subscription',
-            success_url=request.url_root + 'payment-success?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=request.url_root + '?payment_cancelled=1',
-            metadata={
-                'plan': plan
-            }
-        )
+                    'quantity': 1,
+                }],
+                mode='payment',  # Mode paiement unique pour commencer
+                success_url=request.url_root + 'payment-success?session_id={CHECKOUT_SESSION_ID}',
+                cancel_url=request.url_root + '?payment_cancelled=1',
+                metadata={
+                    'plan': plan
+                }
+            )
+        except stripe.error.AuthenticationError as e:
+            print(f"Erreur d'authentification Stripe: {e}")
+            return jsonify({'error': 'Configuration Stripe invalide - vérifiez vos clés API'}), 500
+        except stripe.error.StripeError as e:
+            print(f"Erreur Stripe: {e}")
+            return jsonify({'error': f'Erreur Stripe: {str(e)}'}), 500
         
         return jsonify({'url': checkout_session.url})
         
     except Exception as e:
-        print(f"Erreur Stripe: {e}")
+        print(f"Erreur Stripe détaillée: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Erreur lors de la création de la session de paiement'}), 500
+
+@app.route("/api/stripe/create-checkout", methods=["POST"])
+def create_stripe_checkout():
+    """Route alternative pour créer une session de paiement Stripe (compatibilité JavaScript)"""
+    try:
+        print("=== DEBUG /api/stripe/create-checkout ===")
+        print(f"Méthode: {request.method}")
+        print(f"Content-Type: {request.content_type}")
+        print(f"Headers: {dict(request.headers)}")
+        
+        # Accepter JSON et données de formulaire
+        data = request.get_json(silent=True) or request.form
+        print(f"Données reçues (JSON): {request.get_json(silent=True)}")
+        print(f"Données reçues (form): {dict(request.form)}")
+        print(f"Données finales: {data}")
+        
+        if not data:
+            print("ERREUR: Aucune donnée reçue")
+            return jsonify({'error': 'Aucune donnée reçue'}), 400
+            
+        plan = data.get('plan') or data.get('price_type')
+        print(f"Plan extrait: {plan}")
+        
+        if not plan:
+            print("ERREUR: Plan requis")
+            return jsonify({'error': 'Plan requis'}), 400
+        
+        # Configuration des liens de paiement Stripe directs
+        payment_links = {
+            'basic': 'https://buy.stripe.com/fZucN74w7cM59Z5ehL63K02',     # 35€/mois
+            'professional': 'https://buy.stripe.com/28EcN71jVdQ9c7dehL63K01', # 199€/mois  
+            'team': 'https://buy.stripe.com/dRm8wR9Qr4fz5IPb5z63K00'        # 299€/mois
+        }
+        
+        # Retourner le lien direct correspondant au plan
+        if plan in payment_links:
+            return jsonify({'url': payment_links[plan]})
+        else:
+            return jsonify({'error': f'Plan "{plan}" non reconnu'}), 400
+            
+    except Exception as e:
+        print(f"Erreur création checkout: {type(e).__name__}: {e}")
+        return jsonify({'error': 'Erreur lors de la création de la session de paiement'}), 500
+
+@app.route("/subscription")
+def subscription_page():
+    """Page de sélection des plans d'abonnement"""
+    return render_template_string(SUBSCRIPTION_TEMPLATE, stripe_public_key=STRIPE_PUBLIC_KEY)
 
 @app.route("/payment-success")
 def payment_success():
@@ -11931,7 +12029,7 @@ def revoke_session(session_token):
 @app.route("/admin", methods=["GET", "POST"])
 @require_admin
 def admin_dashboard():
-    """Tableau de bord administrateur"""
+    """Tableau de bord administrateur avec tracking Stripe"""
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     
@@ -11946,31 +12044,69 @@ def admin_dashboard():
     cursor.execute("SELECT COUNT(*) FROM users WHERE date(created_at) = date('now')")
     stats['new_users_today'] = cursor.fetchone()[0]
     
-    # Abonnements actifs
-    cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'active'")
-    stats['active_subscriptions'] = cursor.fetchone()[0]
+    # Abonnements par statut
+    cursor.execute("SELECT subscription_status, COUNT(*) FROM users GROUP BY subscription_status")
+    subscription_stats = dict(cursor.fetchall())
+    stats['active_subscriptions'] = subscription_stats.get('active', 0)
+    stats['trial_subscriptions'] = subscription_stats.get('trial', 0)
+    stats['cancelled_subscriptions'] = subscription_stats.get('cancelled', 0)
+    stats['pending_subscriptions'] = subscription_stats.get('pending', 0)
     
-    # Essais en cours
+    # Essais en cours (valides)
     cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'trial' AND datetime(trial_end_date) > datetime('now')")
     stats['active_trials'] = cursor.fetchone()[0]
     
-    # Revenus du mois (approximation basée sur les abonnements actifs)
-    stats['revenue_month'] = stats['active_subscriptions'] * 299
+    # Essais expirés
+    cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'trial' AND datetime(trial_end_date) <= datetime('now')")
+    stats['expired_trials'] = cursor.fetchone()[0]
+    
+    # Calcul revenus réels basé sur les plans
+    revenue_query = """
+        SELECT 
+            COUNT(CASE WHEN subscription_status = 'active' AND subscription_plan = 'basic' THEN 1 END) * 35 +
+            COUNT(CASE WHEN subscription_status = 'active' AND subscription_plan = 'professional' THEN 1 END) * 199 +
+            COUNT(CASE WHEN subscription_status = 'active' AND subscription_plan = 'team' THEN 1 END) * 299
+        FROM users
+    """
+    cursor.execute(revenue_query)
+    stats['revenue_month'] = cursor.fetchone()[0] or 0
     
     # Taux de conversion essai -> abonnement
     cursor.execute("SELECT COUNT(*) FROM users WHERE subscription_status = 'active' AND created_at >= date('now', '-30 days')")
     conversions = cursor.fetchone()[0]
-    total_trials = stats['active_trials'] + conversions
-    stats['trial_conversions'] = round((conversions / max(total_trials, 1)) * 100, 1)
+    cursor.execute("SELECT COUNT(*) FROM users WHERE created_at >= date('now', '-30 days')")
+    total_signups = cursor.fetchone()[0]
+    stats['trial_conversions'] = round((conversions / max(total_signups, 1)) * 100, 1)
     
-    # Vues de pages (simulation)
-    stats['page_views_today'] = stats['new_users_today'] * 5 + 47
-    stats['unique_visitors'] = stats['new_users_today'] + 12
+    # Données Stripe si disponible
+    stripe_stats = {}
+    if stripe:
+        try:
+            # Récupérer les derniers paiements
+            payments = stripe.PaymentIntent.list(limit=10)
+            stripe_stats['recent_payments'] = len([p for p in payments.data if p.status == 'succeeded'])
+            stripe_stats['failed_payments'] = len([p for p in payments.data if p.status == 'payment_failed'])
+            
+            # Calculer le total des paiements réussis aujourd'hui
+            today_payments = [p for p in payments.data 
+                            if p.status == 'succeeded' and 
+                            datetime.fromtimestamp(p.created).date() == datetime.now().date()]
+            stripe_stats['today_revenue'] = sum(p.amount for p in today_payments) / 100  # Convertir centimes en euros
+            
+        except Exception as e:
+            print(f"Erreur Stripe stats: {e}")
+            stripe_stats = {'error': str(e)}
     
-    # Liste des utilisateurs
+    stats.update(stripe_stats)
+    
+    # Vues de pages (simulation améliorée)
+    stats['page_views_today'] = stats['new_users_today'] * 8 + 47
+    stats['unique_visitors'] = stats['new_users_today'] + 23
+    
+    # Liste des utilisateurs avec infos d'abonnement
     cursor.execute("""
-        SELECT id, email, name as username, subscription_status as subscription_type, 
-               created_at, last_login, 
+        SELECT id, email, name as username, subscription_status, subscription_plan,
+               created_at, last_login, trial_end_date, stripe_customer_id,
                CASE WHEN subscription_status IN ('active', 'trial') THEN 1 ELSE 0 END as is_active
         FROM users 
         ORDER BY created_at DESC 
@@ -11983,11 +12119,31 @@ def admin_dashboard():
             'id': row[0],
             'email': row[1],
             'username': row[2],
-            'subscription_type': row[3],
-            'created_at': datetime.fromisoformat(row[4]) if row[4] else None,
-            'last_login': datetime.fromisoformat(row[5]) if row[5] else None,
-            'is_active': bool(row[6])
+            'subscription_status': row[3],
+            'subscription_plan': row[4] or 'Aucun',
+            'created_at': datetime.fromisoformat(row[5]) if row[5] else None,
+            'last_login': datetime.fromisoformat(row[6]) if row[6] else None,
+            'trial_end_date': datetime.fromisoformat(row[7]) if row[7] else None,
+            'stripe_customer_id': row[8],
+            'is_active': bool(row[9])
         }
+        
+        # Ajouter infos Stripe si disponible
+        if stripe and user['stripe_customer_id']:
+            try:
+                customer = stripe.Customer.retrieve(user['stripe_customer_id'])
+                subscriptions = stripe.Subscription.list(customer=user['stripe_customer_id'])
+                
+                if subscriptions.data:
+                    sub = subscriptions.data[0]
+                    user['stripe_subscription_id'] = sub.id
+                    user['stripe_status'] = sub.status
+                    user['current_period_end'] = datetime.fromtimestamp(sub.current_period_end)
+                    user['monthly_amount'] = sub.items.data[0].price.unit_amount / 100 if sub.items.data else 0
+                    
+            except Exception as e:
+                user['stripe_error'] = str(e)
+        
         users.append(user)
     
     conn.close()
@@ -12197,13 +12353,13 @@ def admin_export_users():
     
     c = get_db_connection().cursor()
     c.execute("""
-        SELECT email, username, subscription_status, created_at, last_login
+        SELECT email, username, subscription_status, subscription_plan, created_at, last_login, stripe_customer_id
         FROM users ORDER BY created_at DESC
     """)
     
     output = StringIO()
     writer = csv.writer(output)
-    writer.writerow(['Email', 'Nom', 'Statut', 'Inscription', 'Dernière connexion'])
+    writer.writerow(['Email', 'Nom', 'Statut', 'Plan', 'Inscription', 'Dernière connexion', 'ID Stripe'])
     
     for row in c.fetchall():
         writer.writerow(row)
@@ -12214,6 +12370,122 @@ def admin_export_users():
         mimetype='text/csv',
         headers={'Content-Disposition': 'attachment; filename=users.csv'}
     )
+
+@app.route("/admin/stripe/dashboard")
+@require_admin
+def admin_stripe_dashboard():
+    """Dashboard spécifique Stripe"""
+    if not stripe:
+        return jsonify({'error': 'Stripe non configuré'}), 500
+    
+    try:
+        # Récupérer les statistiques Stripe
+        stripe_data = {}
+        
+        # Derniers paiements
+        payments = stripe.PaymentIntent.list(limit=20)
+        stripe_data['recent_payments'] = []
+        for payment in payments.data:
+            stripe_data['recent_payments'].append({
+                'id': payment.id,
+                'amount': payment.amount / 100,
+                'currency': payment.currency.upper(),
+                'status': payment.status,
+                'created': datetime.fromtimestamp(payment.created),
+                'customer': payment.customer
+            })
+        
+        # Abonnements actifs
+        subscriptions = stripe.Subscription.list(limit=50, status='active')
+        stripe_data['active_subscriptions'] = []
+        total_mrr = 0
+        
+        for sub in subscriptions.data:
+            amount = sub.items.data[0].price.unit_amount / 100 if sub.items.data else 0
+            total_mrr += amount
+            
+            # Récupérer infos client
+            customer = stripe.Customer.retrieve(sub.customer)
+            
+            stripe_data['active_subscriptions'].append({
+                'id': sub.id,
+                'customer_email': customer.email,
+                'amount': amount,
+                'status': sub.status,
+                'current_period_end': datetime.fromtimestamp(sub.current_period_end),
+                'plan': sub.items.data[0].price.nickname if sub.items.data else 'Inconnu'
+            })
+        
+        stripe_data['total_mrr'] = total_mrr
+        stripe_data['subscription_count'] = len(stripe_data['active_subscriptions'])
+        
+        # Statistiques des paiements échoués
+        failed_payments = [p for p in payments.data if p.status == 'payment_failed']
+        stripe_data['failed_payments_count'] = len(failed_payments)
+        
+        return render_template_string(ADMIN_STRIPE_TEMPLATE, stripe_data=stripe_data)
+        
+    except Exception as e:
+        return jsonify({'error': f'Erreur Stripe: {str(e)}'}), 500
+
+@app.route("/admin/user/<int:user_id>/stripe-sync", methods=["POST"])
+@require_admin  
+def admin_sync_stripe_user(user_id):
+    """Synchroniser les données Stripe d'un utilisateur"""
+    if not stripe:
+        return jsonify({'error': 'Stripe non configuré'}), 500
+        
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Récupérer l'utilisateur
+        cursor.execute("SELECT email, stripe_customer_id FROM users WHERE id = ?", (user_id,))
+        user = cursor.fetchone()
+        
+        if not user:
+            return jsonify({'error': 'Utilisateur non trouvé'}), 404
+            
+        email, stripe_customer_id = user
+        
+        if stripe_customer_id:
+            # Récupérer les données Stripe
+            customer = stripe.Customer.retrieve(stripe_customer_id)
+            subscriptions = stripe.Subscription.list(customer=stripe_customer_id)
+            
+            if subscriptions.data:
+                sub = subscriptions.data[0]
+                
+                # Mettre à jour la base de données
+                cursor.execute("""
+                    UPDATE users SET 
+                        subscription_status = ?,
+                        subscription_plan = ?,
+                        stripe_subscription_id = ?
+                    WHERE id = ?
+                """, (
+                    'active' if sub.status == 'active' else sub.status,
+                    sub.items.data[0].price.nickname if sub.items.data else 'professional',
+                    sub.id,
+                    user_id
+                ))
+                conn.commit()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Données Stripe synchronisées',
+                    'subscription_status': sub.status,
+                    'plan': sub.items.data[0].price.nickname if sub.items.data else 'professional'
+                })
+            else:
+                return jsonify({'error': 'Aucun abonnement Stripe trouvé'}), 404
+        else:
+            return jsonify({'error': 'Aucun ID client Stripe'}), 404
+            
+    except Exception as e:
+        return jsonify({'error': f'Erreur: {str(e)}'}), 500
+    finally:
+        conn.close()
 
 @app.route("/admin/system/check")
 @require_admin
@@ -12271,6 +12543,305 @@ def create_admin_user():
     """, ('admin@test.com', 'Administrateur', admin_password, 'active', 1, datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
     c.connection.commit()
     print("✅ Utilisateur admin créé: admin@test.com / admin123")
+
+# Template pour la page de sélection des plans
+SUBSCRIPTION_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plans d'abonnement - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .pricing-card { 
+            border: 2px solid #e9ecef; border-radius: 16px; transition: all 0.3s ease; 
+            position: relative; overflow: hidden; background: white;
+        }
+        .pricing-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .pricing-card.featured { border-color: #007bff; transform: scale(1.05); }
+        .pricing-card.featured::before {
+            content: "Le plus populaire"; position: absolute; top: 0; left: 0; right: 0;
+            background: linear-gradient(135deg, #007bff, #0056b3); color: white; text-align: center;
+            padding: 8px; font-size: 0.875rem; font-weight: 600;
+        }
+        .price { font-size: 3rem; font-weight: 700; color: #007bff; }
+        .price-period { font-size: 1rem; color: #6c757d; }
+        .btn-subscribe {
+            background: linear-gradient(135deg, #007bff, #0056b3); border: none; border-radius: 12px;
+            padding: 1rem 2rem; font-weight: 600; font-size: 1.1rem; transition: all 0.3s ease;
+        }
+        .btn-subscribe:hover { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(0,123,255,0.3); }
+        .trial-badge { background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.875rem; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="text-center mb-5 text-white">
+            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan AgriWeb Pro</h1>
+            <p class="lead mb-4">Accédez à l'analyse territoriale la plus avancée pour vos projets agricoles et énergétiques</p>
+            <div class="trial-badge d-inline-block">
+                <i class="fas fa-gift me-2"></i>7 jours d'essai gratuit sur tous les plans
+            </div>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <!-- Plan Basic -->
+            <div class="col-lg-4">
+                <div class="card pricing-card h-100">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <h3 class="card-title h4 fw-bold">Basic</h3>
+                            <p class="text-muted">Pour débuter</p>
+                            <div class="price">35€<span class="price-period">/mois</span></div>
+                        </div>
+                        <ul class="list-unstyled mb-4">
+                            <li><i class="fas fa-check text-success me-2"></i>Recherche par coordonnées</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Rapports de base</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Export PDF</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Support email</li>
+                            <li><i class="fas fa-check text-success me-2"></i>1 utilisateur</li>
+                        </ul>
+                        <button class="btn btn-outline-primary btn-subscribe w-100" onclick="selectPlan('basic')" data-plan="basic">
+                            <span class="btn-text">Commencer l'essai gratuit</span>
+                            <span class="loading d-none"><i class="fas fa-spinner fa-spin"></i> Redirection...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plan Professional -->
+            <div class="col-lg-4">
+                <div class="card pricing-card featured h-100">
+                    <div class="card-body p-4" style="margin-top: 40px;">
+                        <div class="text-center mb-4">
+                            <h3 class="card-title h4 fw-bold">Professional</h3>
+                            <p class="text-muted">Le plus populaire</p>
+                            <div class="price">199€<span class="price-period">/mois</span></div>
+                        </div>
+                        <ul class="list-unstyled mb-4">
+                            <li><i class="fas fa-check text-success me-2"></i>Toutes les fonctionnalités</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Recherches illimitées</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Rapports complets</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Exports avancés</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Support prioritaire</li>
+                            <li><i class="fas fa-check text-success me-2"></i>1 poste utilisateur</li>
+                        </ul>
+                        <button class="btn btn-primary btn-subscribe w-100" onclick="selectPlan('professional')" data-plan="professional">
+                            <span class="btn-text">Commencer l'essai gratuit</span>
+                            <span class="loading d-none"><i class="fas fa-spinner fa-spin"></i> Redirection...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plan Team -->
+            <div class="col-lg-4">
+                <div class="card pricing-card h-100">
+                    <div class="card-body p-4">
+                        <div class="text-center mb-4">
+                            <h3 class="card-title h4 fw-bold">Team</h3>
+                            <p class="text-muted">Pour les équipes</p>
+                            <div class="price">299€<span class="price-period">/mois</span></div>
+                        </div>
+                        <ul class="list-unstyled mb-4">
+                            <li><i class="fas fa-check text-success me-2"></i>Tout Professional +</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Recherches illimitées</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Rapports complets</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Exports avancés</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Support prioritaire</li>
+                            <li><i class="fas fa-check text-success me-2"></i>3 postes utilisateurs</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Gestion d'équipe</li>
+                        </ul>
+                        <button class="btn btn-outline-primary btn-subscribe w-100" onclick="selectPlan('team')" data-plan="team">
+                            <span class="btn-text">Commencer l'essai gratuit</span>
+                            <span class="loading d-none"><i class="fas fa-spinner fa-spin"></i> Redirection...</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center text-white">
+            <p class="mb-2"><i class="fas fa-shield-alt me-2"></i>Paiements sécurisés par Stripe</p>
+            <p class="mb-0"><i class="fas fa-undo me-2"></i>Annulation facile à tout moment</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        async function selectPlan(plan) {
+            try {
+                const response = await fetch('/api/stripe/create-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan: plan })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.url) {
+                    // Ouvrir dans un nouvel onglet au lieu d'une redirection
+                    window.open(result.url, '_blank');
+                } else {
+                    alert('Erreur: Pas d\'URL de paiement reçue');
+                }
+                
+            } catch (error) {
+                alert('Erreur: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
+"""
+
+# Template pour le dashboard admin Stripe
+ADMIN_STRIPE_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Stripe - AgriWeb Pro Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container-fluid py-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h3"><i class="fab fa-stripe me-2"></i>Dashboard Stripe</h1>
+            <a href="/admin" class="btn btn-outline-primary">← Retour Admin</a>
+        </div>
+
+        <!-- Statistiques principales -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card text-white bg-success">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 class="card-title">{{ stripe_data.total_mrr }}€</h4>
+                                <p class="card-text">MRR Total</p>
+                            </div>
+                            <i class="fas fa-euro-sign fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-primary">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 class="card-title">{{ stripe_data.subscription_count }}</h4>
+                                <p class="card-text">Abonnements Actifs</p>
+                            </div>
+                            <i class="fas fa-users fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-info">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 class="card-title">{{ stripe_data.recent_payments|length }}</h4>
+                                <p class="card-text">Paiements Récents</p>
+                            </div>
+                            <i class="fas fa-credit-card fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-white bg-warning">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <h4 class="card-title">{{ stripe_data.failed_payments_count }}</h4>
+                                <p class="card-text">Paiements Échoués</p>
+                            </div>
+                            <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Abonnements actifs -->
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Abonnements Actifs</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Client</th>
+                                        <th>Plan</th>
+                                        <th>Montant</th>
+                                        <th>Statut</th>
+                                        <th>Prochaine facturation</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for sub in stripe_data.active_subscriptions %}
+                                    <tr>
+                                        <td>{{ sub.customer_email }}</td>
+                                        <td><span class="badge bg-primary">{{ sub.plan }}</span></td>
+                                        <td><strong>{{ sub.amount }}€</strong></td>
+                                        <td>
+                                            <span class="badge bg-success">{{ sub.status }}</span>
+                                        </td>
+                                        <td>{{ sub.current_period_end.strftime('%d/%m/%Y') }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paiements récents -->
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Paiements Récents</h5>
+                    </div>
+                    <div class="card-body">
+                        {% for payment in stripe_data.recent_payments[:10] %}
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <div class="fw-bold">{{ payment.amount }}{{ payment.currency }}</div>
+                                <small class="text-muted">{{ payment.created.strftime('%d/%m %H:%M') }}</small>
+                            </div>
+                            <span class="badge {% if payment.status == 'succeeded' %}bg-success{% elif payment.status == 'pending' %}bg-warning{% else %}bg-danger{% endif %}">
+                                {{ payment.status }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
