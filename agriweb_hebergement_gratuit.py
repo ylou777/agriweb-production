@@ -1118,6 +1118,58 @@ def debug_database():
             "database_path": DATABASE_PATH
         }), 500
 
+# Endpoint de debug pour tester la réinitialisation de mot de passe
+@app.route("/debug/password-reset", methods=["GET", "POST"])
+def debug_password_reset():
+    """Debug de la réinitialisation de mot de passe"""
+    try:
+        if request.method == "GET":
+            return jsonify({
+                "status": "ok",
+                "message": "Endpoint de debug pour la réinitialisation de mot de passe",
+                "usage": "POST avec email pour tester la réinitialisation",
+                "example": {"email": "ylaurent.perso@gmail.com"}
+            }), 200
+        
+        # POST - Tester la réinitialisation
+        data = request.get_json() if request.is_json else request.form
+        email = data.get('email', '').strip()
+        
+        if not email:
+            return jsonify({
+                "status": "error",
+                "error": "Email requis"
+            }), 400
+        
+        # Importer le système d'auth
+        from auth_system_improved import auth_system
+        
+        # Vérifier si la méthode existe
+        if not hasattr(auth_system, 'request_password_reset'):
+            return jsonify({
+                "status": "error",
+                "error": "Méthode request_password_reset non trouvée",
+                "available_methods": [method for method in dir(auth_system) if not method.startswith('_')]
+            }), 500
+        
+        # Tester la réinitialisation
+        success, message = auth_system.request_password_reset(email)
+        
+        return jsonify({
+            "status": "ok" if success else "error",
+            "email": email,
+            "success": success,
+            "message": message,
+            "timestamp": datetime.now().isoformat()
+        }), 200 if success else 400
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "traceback": str(e)
+        }), 500
+
 def get_geoserver_layers_info():
     """Récupère les informations sur les couches GeoServer via API REST"""
     try:
