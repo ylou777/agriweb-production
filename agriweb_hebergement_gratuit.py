@@ -1081,12 +1081,437 @@ def test_carte():
     return send_from_directory('.', 'test_carte_directe.html')
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                           TEMPLATES D'AUTHENTIFICATION                   ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# Templates HTML pour l'authentification qui fonctionnaient
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🌾 AgriWeb 2.0 - Connexion</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .container { 
+            background: white; 
+            padding: 3rem; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 400px; 
+            width: 100%; 
+        }
+        .logo { text-align: center; margin-bottom: 2rem; }
+        .form-group { margin: 1rem 0; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        input { 
+            width: 100%; 
+            padding: 0.8rem; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            box-sizing: border-box;
+        }
+        button { 
+            width: 100%; 
+            background: linear-gradient(45deg, #667eea, #764ba2); 
+            color: white; 
+            border: none; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            font-size: 1.1rem; 
+            cursor: pointer; 
+            margin-top: 1rem;
+        }
+        button:hover { transform: translateY(-2px); }
+        .links { text-align: center; margin-top: 1rem; }
+        .links a { color: #667eea; text-decoration: none; }
+        .demo-banner { 
+            background: #e3f2fd; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+            text-align: center; 
+            color: #1976d2; 
+        }
+        .error { 
+            background: #ffebee; 
+            color: #c62828; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>🌾 AgriWeb 2.0</h1>
+            <p>Solution d'analyse agricole professionnelle</p>
+        </div>
+        
+        <div class="demo-banner">
+            <strong>🧪 Mode Démo</strong><br>
+            Hébergement gratuit - Fonctionnalités limitées
+        </div>
+        
+        {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="email">📧 Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">🔒 Mot de passe</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit">🚀 Se connecter</button>
+        </form>
+        
+        <div class="links">
+            <a href="/register">📝 Créer un compte</a> | 
+            <a href="/admin">👑 Admin</a>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+REGISTER_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📝 Inscription - AgriWeb 2.0</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .container { 
+            background: white; 
+            padding: 3rem; 
+            border-radius: 20px; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 500px; 
+            width: 100%; 
+        }
+        .form-group { margin: 1rem 0; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; }
+        input { 
+            width: 100%; 
+            padding: 0.8rem; 
+            border: 2px solid #e0e0e0; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            box-sizing: border-box;
+        }
+        button { 
+            width: 100%; 
+            background: linear-gradient(45deg, #28a745, #20c997); 
+            color: white; 
+            border: none; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            font-size: 1.1rem; 
+            cursor: pointer; 
+            margin-top: 1rem;
+        }
+        .trial-info { 
+            background: #e8f5e8; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin: 1rem 0; 
+        }
+        .error { 
+            background: #ffebee; 
+            color: #c62828; 
+            padding: 1rem; 
+            border-radius: 8px; 
+            margin-bottom: 1rem; 
+        }
+        .links { text-align: center; margin-top: 1rem; }
+        .links a { color: #28a745; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Inscription AgriWeb 2.0</h1>
+        
+        <div class="trial-info">
+            <h3>🆓 Essai Gratuit Inclus</h3>
+            <ul>
+                <li>✅ 15 jours d'accès complet</li>
+                <li>✅ 50 recherches gratuites</li>
+                <li>✅ Toutes les fonctionnalités</li>
+            </ul>
+        </div>
+        
+        {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="name">👤 Nom complet</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">📧 Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">🔒 Mot de passe</label>
+                <input type="password" id="password" name="password" required minlength="6">
+            </div>
+            
+            <button type="submit">🚀 Créer mon compte gratuit</button>
+        </form>
+        
+        <div class="links">
+            <a href="/login">← Retour à la connexion</a>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║                     GESTIONNAIRE D'UTILISATEURS SIMPLE                   ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+import uuid
+import hashlib
+
+class SimpleUserManager:
+    """Gestionnaire d'utilisateurs simple sans envoi d'email"""
+    def __init__(self):
+        self.users = {}
+        # Créer un admin par défaut
+        admin_password = hashlib.sha256("admin123".encode()).hexdigest()
+        self.users["admin@test.com"] = {
+            'id': str(uuid.uuid4()),
+            'email': "admin@test.com",
+            'password': admin_password,
+            'name': "Administrateur",
+            'created_at': datetime.now().isoformat(),
+            'active': True,
+            'license_type': 'admin',
+            'searches_used': 0,
+            'searches_limit': 999999,
+            'is_admin': True
+        }
+        print("🔧 SimpleUserManager initialisé avec admin par défaut")
+    
+    def create_user(self, email, password, name=""):
+        """Créer un nouvel utilisateur"""
+        if email in self.users:
+            raise ValueError(f"L'utilisateur {email} existe déjà")
+        
+        user_id = str(uuid.uuid4())
+        self.users[email] = {
+            'id': user_id,
+            'email': email,
+            'password': hashlib.sha256(password.encode()).hexdigest(),
+            'name': name,
+            'created_at': datetime.now().isoformat(),
+            'active': True,
+            'license_type': 'trial',
+            'searches_used': 0,
+            'searches_limit': 50,
+            'is_admin': False
+        }
+        print(f"👤 Utilisateur créé: {email} (ID: {user_id})")
+        return user_id
+    
+    def authenticate_user(self, email, password):
+        """Authentifier un utilisateur"""
+        user = self.users.get(email)
+        if user and user['password'] == hashlib.sha256(password.encode()).hexdigest():
+            print(f"✅ Authentification réussie: {email}")
+            return user
+        print(f"❌ Authentification échouée: {email}")
+        return None
+    
+    def get_user(self, email):
+        """Récupérer un utilisateur par email"""
+        return self.users.get(email)
+    
+    def add_user(self, email, password, name=""):
+        """Alias pour create_user (compatibilité)"""
+        return self.create_user(email, password, name)
+
+# Instance du gestionnaire d'utilisateurs simple
+simple_user_manager = SimpleUserManager()
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
 # ║                           ROUTES D'AUTHENTIFICATION                      ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
-@app.route("/register", methods=["POST"])
+@app.route("/register", methods=["GET", "POST"])
 def register():
-    """Inscription d'un nouvel utilisateur"""
+    """Inscription d'un nouvel utilisateur - Support GET pour formulaire et POST pour données"""
+    
+    # Si c'est une requête GET, afficher le formulaire d'inscription
+    if request.method == "GET":
+        return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Inscription - AgriWeb 2.0</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .register-container { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            width: 100%; 
+            max-width: 450px; 
+        }
+        .logo { 
+            text-align: center; 
+            margin-bottom: 2rem; 
+            font-size: 2rem; 
+            color: #28a745; 
+        }
+        .form-group { 
+            margin-bottom: 1rem; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 0.5rem; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        input { 
+            width: 100%; 
+            padding: 0.75rem; 
+            border: 2px solid #e9ecef; 
+            border-radius: 8px; 
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        input:focus { 
+            outline: none; 
+            border-color: #28a745; 
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1); 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 0.75rem; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            cursor: pointer; 
+            transition: background 0.2s; 
+        }
+        .btn:hover { 
+            background: #218838; 
+        }
+        .error { 
+            color: #dc3545; 
+            margin-top: 0.5rem; 
+            font-size: 0.9rem; 
+        }
+        .success { 
+            color: #28a745; 
+            margin-top: 0.5rem; 
+            font-size: 0.9rem; 
+        }
+        .login-link { 
+            text-align: center; 
+            margin-top: 1.5rem; 
+        }
+        .login-link a { 
+            color: #28a745; 
+            text-decoration: none; 
+        }
+        .login-link a:hover { 
+            text-decoration: underline; 
+        }
+    </style>
+</head>
+<body>
+    <div class="register-container">
+        <div class="logo">🚀 AgriWeb 2.0</div>
+        <h2 style="text-align: center; color: #333; margin-bottom: 2rem;">Créer un compte</h2>
+        
+        <form method="POST" action="/register">
+            <div class="form-group">
+                <label for="name">Nom complet *</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email *</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="company">Entreprise/Organisation</label>
+                <input type="text" id="company" name="company">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Mot de passe * (min. 6 caractères)</label>
+                <input type="password" id="password" name="password" required minlength="6">
+            </div>
+            
+            <button type="submit" class="btn">Créer le compte</button>
+        </form>
+        
+        <div class="login-link">
+            Déjà un compte ? <a href="/login">Se connecter</a>
+        </div>
+        
+        <div class="login-link">
+            <a href="/">← Retour à l'accueil</a>
+        </div>
+    </div>
+</body>
+</html>
+        """)
+    
+    # Si c'est une requête POST, traiter l'inscription
     try:
         data = request.get_json() if request.is_json else request.form
         
@@ -1097,26 +1522,196 @@ def register():
         
         # Validation des données
         if not email or not name or not password:
-            return jsonify({'success': False, 'error': 'Tous les champs sont obligatoires'}), 400
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Tous les champs obligatoires sont requis'}), 400
+            else:
+                return render_template_string("""
+                <script>
+                    alert('Tous les champs obligatoires sont requis');
+                    window.history.back();
+                </script>
+                """)
         
         if len(password) < 6:
-            return jsonify({'success': False, 'error': 'Le mot de passe doit contenir au moins 6 caractères'}), 400
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Le mot de passe doit contenir au moins 6 caractères'}), 400
+            else:
+                return render_template_string("""
+                <script>
+                    alert('Le mot de passe doit contenir au moins 6 caractères');
+                    window.history.back();
+                </script>
+                """)
         
         # Créer l'utilisateur
         success, message = create_user(email, name, company, password)
         
         if success:
-            return jsonify({'success': True, 'message': message}), 201
+            if request.is_json:
+                return jsonify({'success': True, 'message': message}), 201
+            else:
+                return render_template_string("""
+                <script>
+                    alert('Compte créé avec succès ! Vous pouvez maintenant vous connecter.');
+                    window.location.href = '/login';
+                </script>
+                """)
         else:
-            return jsonify({'success': False, 'error': message}), 400
+            if request.is_json:
+                return jsonify({'success': False, 'error': message}), 400
+            else:
+                return render_template_string(f"""
+                <script>
+                    alert('Erreur : {message}');
+                    window.history.back();
+                </script>
+                """)
             
     except Exception as e:
         print(f"Erreur register: {e}")
-        return jsonify({'success': False, 'error': 'Erreur lors de l\'inscription'}), 500
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Erreur lors de l\'inscription'}), 500
+        else:
+            return render_template_string("""
+            <script>
+                alert('Erreur lors de l\'inscription');
+                window.history.back();
+            </script>
+            """)
 
-@app.route("/login", methods=["POST"])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    """Connexion d'un utilisateur"""
+    """Connexion d'un utilisateur - Support GET pour formulaire et POST pour données"""
+    
+    # Si c'est une requête GET, afficher le formulaire de connexion
+    if request.method == "GET":
+        return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Connexion - AgriWeb 2.0</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; 
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .login-container { 
+            background: white; 
+            padding: 2rem; 
+            border-radius: 12px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            width: 100%; 
+            max-width: 400px; 
+        }
+        .logo { 
+            text-align: center; 
+            margin-bottom: 2rem; 
+            font-size: 2rem; 
+            color: #28a745; 
+        }
+        .form-group { 
+            margin-bottom: 1rem; 
+        }
+        label { 
+            display: block; 
+            margin-bottom: 0.5rem; 
+            font-weight: 600; 
+            color: #333; 
+        }
+        input { 
+            width: 100%; 
+            padding: 0.75rem; 
+            border: 2px solid #e9ecef; 
+            border-radius: 8px; 
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        input:focus { 
+            outline: none; 
+            border-color: #28a745; 
+            box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1); 
+        }
+        .btn { 
+            width: 100%; 
+            padding: 0.75rem; 
+            background: #28a745; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 1rem; 
+            cursor: pointer; 
+            transition: background 0.2s; 
+        }
+        .btn:hover { 
+            background: #218838; 
+        }
+        .register-link { 
+            text-align: center; 
+            margin-top: 1.5rem; 
+        }
+        .register-link a { 
+            color: #28a745; 
+            text-decoration: none; 
+        }
+        .register-link a:hover { 
+            text-decoration: underline; 
+        }
+        .admin-link {
+            text-align: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e9ecef;
+        }
+        .admin-link a {
+            color: #6c757d;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">🔐 AgriWeb 2.0</div>
+        <h2 style="text-align: center; color: #333; margin-bottom: 2rem;">Connexion</h2>
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Mot de passe</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="btn">Se connecter</button>
+        </form>
+        
+        <div class="register-link">
+            Pas encore de compte ? <a href="/register">Créer un compte</a>
+        </div>
+        
+        <div class="admin-link">
+            <a href="/admin">Administration</a>
+        </div>
+        
+        <div class="register-link">
+            <a href="/">← Retour à l'accueil</a>
+        </div>
+    </div>
+</body>
+</html>
+        """)
+    
+    # Si c'est une requête POST, traiter la connexion
     try:
         data = request.get_json() if request.is_json else request.form
         
@@ -1124,7 +1719,15 @@ def login():
         password = data.get('password', '').strip()
         
         if not email or not password:
-            return jsonify({'success': False, 'error': 'Email et mot de passe requis'}), 400
+            if request.is_json:
+                return jsonify({'success': False, 'error': 'Email et mot de passe requis'}), 400
+            else:
+                return render_template_string("""
+                <script>
+                    alert('Email et mot de passe requis');
+                    window.history.back();
+                </script>
+                """)
         
         # Authentifier l'utilisateur
         success, user_data, message = authenticate_user(email, password)
@@ -1159,13 +1762,37 @@ def login():
                 
                 return resp
             else:
-                return jsonify({'success': False, 'error': 'Erreur lors de la création de session'}), 500
+                if request.is_json:
+                    return jsonify({'success': False, 'error': 'Erreur lors de la création de session'}), 500
+                else:
+                    return render_template_string("""
+                    <script>
+                        alert('Erreur lors de la création de session');
+                        window.history.back();
+                    </script>
+                    """)
         else:
-            return jsonify({'success': False, 'error': message}), 401
+            if request.is_json:
+                return jsonify({'success': False, 'error': message}), 401
+            else:
+                return render_template_string(f"""
+                <script>
+                    alert('Erreur : {message}');
+                    window.history.back();
+                </script>
+                """)
             
     except Exception as e:
         print(f"Erreur login: {e}")
-        return jsonify({'success': False, 'error': 'Erreur lors de la connexion'}), 500
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Erreur lors de la connexion'}), 500
+        else:
+            return render_template_string("""
+            <script>
+                alert('Erreur lors de la connexion');
+                window.history.back();
+            </script>
+            """)
 
 @app.route("/logout", methods=["POST", "GET"])
 def logout():

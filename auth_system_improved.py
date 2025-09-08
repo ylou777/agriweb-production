@@ -120,6 +120,21 @@ class AuthSystem:
     def send_verification_email(self, email, verification_token, user_name):
         """Envoie un email de vérification"""
         try:
+            # Vérifier si la configuration email est complète
+            if not EMAIL_CONFIG['password'] or EMAIL_CONFIG['password'] in ['votre_mot_de_passe_app', '']:
+                print(f"⚠️ Configuration email manquante - Vérification automatique pour {email}")
+                # Auto-vérifier l'email si pas de configuration SMTP
+                conn = sqlite3.connect(DATABASE_PATH)
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE users 
+                    SET is_email_verified = 1, email_verification_token = NULL 
+                    WHERE email = ?
+                ''', (email,))
+                conn.commit()
+                conn.close()
+                return True
+            
             # Configuration du message
             msg = MIMEMultipart('alternative')
             msg['Subject'] = "🌱 Confirmez votre compte AgriWeb Pro"
