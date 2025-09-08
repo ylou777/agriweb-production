@@ -24,32 +24,53 @@ def register():
         
         # Validation côté serveur
         if not email or not name or not password:
-            return jsonify({
-                'success': False, 
-                'error': 'Tous les champs obligatoires doivent être remplis'
-            }), 400
+            if request.is_json:
+                return jsonify({
+                    'success': False, 
+                    'error': 'Tous les champs obligatoires doivent être remplis'
+                }), 400
+            else:
+                return render_template_string(ERROR_PAGE_TEMPLATE,
+                                            title="Erreur d'inscription",
+                                            message="Tous les champs obligatoires doivent être remplis")
         
         # Tentative d'inscription
         success, message = auth_system.register_user(email, name, company, password)
         
         if success:
-            return jsonify({
-                'success': True, 
-                'message': message,
-                'next_step': 'check_email'
-            }), 201
+            if request.is_json:
+                return jsonify({
+                    'success': True, 
+                    'message': message,
+                    'next_step': 'check_email'
+                }), 201
+            else:
+                # Retourner une page HTML propre pour l'inscription réussie
+                return render_template_string(SUCCESS_PAGE_TEMPLATE,
+                                            title="Inscription réussie !",
+                                            message=f"Compte créé ! Vérifiez votre email {email} pour l'activer.")
         else:
-            return jsonify({
-                'success': False, 
-                'error': message
-            }), 400
+            if request.is_json:
+                return jsonify({
+                    'success': False, 
+                    'error': message
+                }), 400
+            else:
+                return render_template_string(ERROR_PAGE_TEMPLATE,
+                                            title="Erreur d'inscription",
+                                            message=message)
             
     except Exception as e:
         print(f"Erreur register: {e}")
-        return jsonify({
-            'success': False, 
-            'error': 'Erreur lors de l\'inscription'
-        }), 500
+        if request.is_json:
+            return jsonify({
+                'success': False, 
+                'error': 'Erreur lors de l\'inscription'
+            }), 500
+        else:
+            return render_template_string(ERROR_PAGE_TEMPLATE,
+                                        title="Erreur d'inscription",
+                                        message="Erreur lors de l'inscription")
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
