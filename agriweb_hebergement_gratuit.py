@@ -1048,6 +1048,7 @@ def debug_geoserver():
         "url_changed": new_url != old_url,
         "accessible": accessible,
         "test_timestamp": datetime.now().isoformat()
+    }), 200
 
 # Endpoint de debug pour la base de données
 @app.route("/debug/database", methods=["GET"])
@@ -1116,7 +1117,6 @@ def debug_database():
             "error": str(e),
             "database_path": DATABASE_PATH
         }), 500
-    }), 200
 
 def get_geoserver_layers_info():
     """Récupère les informations sur les couches GeoServer via API REST"""
