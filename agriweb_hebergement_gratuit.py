@@ -1048,6 +1048,74 @@ def debug_geoserver():
         "url_changed": new_url != old_url,
         "accessible": accessible,
         "test_timestamp": datetime.now().isoformat()
+
+# Endpoint de debug pour la base de données
+@app.route("/debug/database", methods=["GET"])
+def debug_database():
+    """Debug de la base de données pour voir les utilisateurs et tokens"""
+    try:
+        import sqlite3
+        from datetime import datetime
+        
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        # Compter les utilisateurs
+        cursor.execute('SELECT COUNT(*) FROM users')
+        user_count = cursor.fetchone()[0]
+        
+        # Lister tous les utilisateurs avec leurs tokens
+        cursor.execute('''
+            SELECT id, email, name, is_email_verified, 
+                   email_verification_token, email_verification_expires,
+                   created_at, subscription_status
+            FROM users 
+            ORDER BY created_at DESC
+        ''')
+        
+        users = cursor.fetchall()
+        users_info = []
+        
+        for user in users:
+            user_info = {
+                "id": user[0],
+                "email": user[1], 
+                "name": user[2],
+                "verified": bool(user[3]),
+                "has_token": user[4] is not None,
+                "token_preview": user[4][:20] + "..." if user[4] else None,
+                "token_expires": user[5],
+                "created": user[6],
+                "status": user[7]
+            }
+            
+            # Vérifier si le token a expiré
+            if user[5]:
+                try:
+                    expires_at = datetime.fromisoformat(user[5])
+                    user_info["token_expired"] = datetime.now() > expires_at
+                except:
+                    user_info["token_expired"] = True
+            
+            users_info.append(user_info)
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "ok",
+            "database_path": DATABASE_PATH,
+            "user_count": user_count,
+            "users": users_info,
+            "environment": "Railway" if os.getenv("RAILWAY_ENVIRONMENT") else "Local",
+            "timestamp": datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "database_path": DATABASE_PATH
+        }), 500
     }), 200
 
 def get_geoserver_layers_info():
