@@ -1170,6 +1170,107 @@ def debug_password_reset():
             "traceback": str(e)
         }), 500
 
+# Endpoint de debug pour nettoyer les tokens de vérification
+@app.route("/debug/clean-token", methods=["GET", "POST"])
+def debug_clean_verification_token():
+    """Nettoie les tokens de vérification résiduels"""
+    try:
+        if request.method == "GET":
+            return jsonify({
+                "status": "ok",
+                "message": "Endpoint pour nettoyer les tokens de vérification résiduels",
+                "usage": "POST avec email pour nettoyer le token",
+                "example": {"email": "ylaurent.perso@gmail.com"}
+            }), 200
+        
+        # POST - Nettoyer le token
+        data = request.get_json() if request.is_json else request.form
+        email = data.get('email', '').strip().lower()
+        
+        if not email:
+            return jsonify({
+                "status": "error",
+                "error": "Email requis"
+            }), 400
+        
+        import sqlite3
+        from datetime import datetime
+        
+        # Connexion à la base de données
+        conn = sqlite3.connect("agriweb_users.db")
+        cursor = conn.cursor()
+        
+        # Vérifier l'état avant
+        cursor.execute('''
+            SELECT id, email, is_email_verified, email_verification_token, 
+                   email_verification_expires, subscription_status, trial_end_date
+            FROM users WHERE email = ?
+        ''', (email,))
+        
+        user_before = cursor.fetchone()
+        if not user_before:
+            return jsonify({
+                "status": "error",
+                "error": f"Utilisateur {email} non trouvé"
+            }), 404
+        
+        user_id, user_email, is_verified, token, token_expires, sub_status, trial_end = user_before
+        
+        # Nettoyer le token de vérification et s'assurer que l'email est vérifié
+        cursor.execute('''
+            UPDATE users 
+            SET email_verification_token = NULL, 
+                email_verification_expires = NULL,
+                is_email_verified = 1
+            WHERE email = ?
+        ''', (email,))
+        
+        rows_affected = cursor.rowcount
+        conn.commit()
+        
+        # Vérifier l'état après
+        cursor.execute('''
+            SELECT id, email, is_email_verified, email_verification_token, 
+                   email_verification_expires, subscription_status, trial_end_date
+            FROM users WHERE email = ?
+        ''', (email,))
+        
+        user_after = cursor.fetchone()
+        conn.close()
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Token de vérification nettoyé pour {email}",
+            "email": email,
+            "rows_affected": rows_affected,
+            "before": {
+                "id": user_before[0],
+                "email": user_before[1],
+                "verified": bool(user_before[2]),
+                "has_token": bool(user_before[3]),
+                "token_expires": user_before[4],
+                "subscription": user_before[5],
+                "trial_end": user_before[6]
+            },
+            "after": {
+                "id": user_after[0],
+                "email": user_after[1],
+                "verified": bool(user_after[2]),
+                "has_token": bool(user_after[3]),
+                "token_expires": user_after[4],
+                "subscription": user_after[5],
+                "trial_end": user_after[6]
+            },
+            "timestamp": datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "details": f"Erreur lors du nettoyage du token: {str(e)}"
+        }), 500
+
 def get_geoserver_layers_info():
     """Récupère les informations sur les couches GeoServer via API REST"""
     try:
