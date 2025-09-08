@@ -309,20 +309,32 @@ class AuthSystem:
             conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
             
-            # Rechercher le token
+            # Rechercher le token (d'abord normal, puis fallback pour tokens résiduels)
             cursor.execute('''
-                SELECT id, email, name, email_verification_expires 
+                SELECT id, email, name, email_verification_expires, is_email_verified
                 FROM users 
-                WHERE email_verification_token = ? AND is_email_verified = 0
+                WHERE email_verification_token = ?
             ''', (token,))
             
             user = cursor.fetchone()
             if not user:
                 return False, "Token de vérification invalide ou expiré"
             
-            user_id, email, name, expires_at = user
+            user_id, email, name, expires_at, is_already_verified = user
             
-            # Vérifier l'expiration
+            # Si déjà vérifié, nettoyer le token et continuer
+            if is_already_verified:
+                cursor.execute('''
+                    UPDATE users 
+                    SET email_verification_token = NULL,
+                        email_verification_expires = NULL
+                    WHERE id = ?
+                ''', (user_id,))
+                conn.commit()
+                conn.close()
+                return True, f"Compte {email} déjà vérifié et nettoyé. Vous pouvez maintenant vous connecter."
+            
+            # Vérifier l'expiration pour les comptes non vérifiés
             if datetime.now() > datetime.fromisoformat(expires_at):
                 return False, "Token de vérification expiré"
             
