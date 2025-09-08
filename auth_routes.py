@@ -191,6 +191,13 @@ def login_form():
             </button>
         </form>
         <div class="text-center">
+            <div class="mb-2">
+                <small class="text-muted">
+                    <a href="/auth/reset-password" class="text-warning text-decoration-none">
+                        <i class="bi bi-key"></i> Mot de passe oublié ?
+                    </a>
+                </small>
+            </div>
             <small class="text-muted">
                 Pas encore de compte ? <a href="/auth/register" class="text-success">S'inscrire</a>
             </small>
@@ -432,6 +439,373 @@ ERROR_PAGE_TEMPLATE = """
         <a href="/" class="btn btn-primary">
             <i class="bi bi-house"></i> Retour à l'accueil
         </a>
+        <div class="mt-4">
+            <small class="text-muted">
+                Besoin d'aide ? Contactez notre support technique
+            </small>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
+@auth_bp.route("/reset-password", methods=["GET"])
+def reset_password_form():
+    """Formulaire de demande de réinitialisation de mot de passe"""
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔑 Réinitialiser le mot de passe - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .reset-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            width: 100%;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #6c757d, #495057);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="reset-card">
+        <div class="text-center mb-4">
+            <h2 class="text-secondary mb-3">🔑 Réinitialiser le mot de passe</h2>
+            <p class="text-muted">Entrez votre email pour recevoir un lien de réinitialisation</p>
+        </div>
+        <form method="POST" action="/auth/reset-password">
+            <div class="mb-3">
+                <label for="email" class="form-label">
+                    <i class="bi bi-envelope"></i> Email
+                </label>
+                <input type="email" class="form-control" id="email" name="email" 
+                       placeholder="votre@email.com" required>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-send"></i> Envoyer le lien de réinitialisation
+                </button>
+            </div>
+        </form>
+        <div class="text-center mt-4">
+            <a href="/auth/login" class="text-decoration-none">
+                <i class="bi bi-arrow-left"></i> Retour à la connexion
+            </a>
+        </div>
+    </div>
+</body>
+</html>
+""")
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password_request():
+    """Traitement de la demande de réinitialisation"""
+    try:
+        email = request.form.get('email', '').strip()
+        
+        if not email:
+            return render_template_string(RESET_ERROR_TEMPLATE, 
+                                          title="Email requis",
+                                          message="Veuillez saisir votre adresse email.",
+                                          back_url="/auth/reset-password")
+        
+        # Demander la réinitialisation via le système d'auth
+        success, message = auth_system.request_password_reset(email)
+        
+        if success:
+            return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ Email envoyé - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .success-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-card">
+        <div class="text-success mb-4">
+            <i class="bi bi-check-circle-fill" style="font-size: 4rem;"></i>
+        </div>
+        <h2 class="text-success mb-3">📧 Email envoyé !</h2>
+        <p class="text-muted mb-4">
+            Un lien de réinitialisation a été envoyé à <strong>{{ email }}</strong>.<br>
+            Vérifiez votre boîte mail et cliquez sur le lien pour créer un nouveau mot de passe.
+        </p>
+        <a href="/auth/login" class="btn btn-success">
+            <i class="bi bi-arrow-left"></i> Retour à la connexion
+        </a>
+    </div>
+</body>
+</html>
+""", email=email)
+        else:
+            return render_template_string(RESET_ERROR_TEMPLATE,
+                                          title="Erreur",
+                                          message=message,
+                                          back_url="/auth/reset-password")
+            
+    except Exception as e:
+        return render_template_string(RESET_ERROR_TEMPLATE,
+                                      title="Erreur système",
+                                      message="Une erreur s'est produite. Veuillez réessayer.",
+                                      back_url="/auth/reset-password")
+
+@auth_bp.route("/new-password", methods=["GET"])
+def new_password_form():
+    """Formulaire de nouveau mot de passe"""
+    token = request.args.get('token')
+    
+    if not token:
+        return render_template_string(RESET_ERROR_TEMPLATE, 
+                                      title="Token manquant",
+                                      message="Lien de réinitialisation invalide.",
+                                      back_url="/auth/login")
+    
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Nouveau mot de passe - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .password-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            width: 100%;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="password-card">
+        <div class="text-center mb-4">
+            <h2 class="text-primary mb-3">🔐 Nouveau mot de passe</h2>
+            <p class="text-muted">Choisissez un nouveau mot de passe sécurisé</p>
+        </div>
+        <form method="POST" action="/auth/new-password">
+            <input type="hidden" name="token" value="{{ token }}">
+            <div class="mb-3">
+                <label for="password" class="form-label">
+                    <i class="bi bi-lock"></i> Nouveau mot de passe
+                </label>
+                <input type="password" class="form-control" id="password" name="password" 
+                       placeholder="Au moins 8 caractères" required minlength="8">
+                <div class="form-text">
+                    Le mot de passe doit contenir au moins 8 caractères avec majuscules, minuscules et chiffres.
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="confirm_password" class="form-label">
+                    <i class="bi bi-lock-fill"></i> Confirmer le mot de passe
+                </label>
+                <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
+                       placeholder="Répétez le mot de passe" required>
+            </div>
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-check2"></i> Définir le nouveau mot de passe
+                </button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
+""", token=token)
+
+@auth_bp.route("/new-password", methods=["POST"])
+def new_password_submit():
+    """Traitement du nouveau mot de passe"""
+    try:
+        token = request.form.get('token')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if not all([token, password, confirm_password]):
+            return render_template_string(RESET_ERROR_TEMPLATE,
+                                          title="Données incomplètes",
+                                          message="Tous les champs sont requis.",
+                                          back_url="/auth/login")
+        
+        if password != confirm_password:
+            return render_template_string(RESET_ERROR_TEMPLATE,
+                                          title="Mots de passe différents",
+                                          message="Les deux mots de passe ne correspondent pas.",
+                                          back_url="/auth/new-password?token=" + token)
+        
+        # Réinitialiser le mot de passe via le système d'auth
+        success, message = auth_system.reset_password_with_token(token, password)
+        
+        if success:
+            return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ Mot de passe modifié - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .success-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-card">
+        <div class="text-success mb-4">
+            <i class="bi bi-check-circle-fill" style="font-size: 4rem;"></i>
+        </div>
+        <h2 class="text-success mb-3">🎉 Mot de passe modifié !</h2>
+        <p class="text-muted mb-4">
+            Votre mot de passe a été mis à jour avec succès.<br>
+            Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
+        </p>
+        <a href="/auth/login" class="btn btn-success">
+            <i class="bi bi-arrow-right"></i> Se connecter
+        </a>
+    </div>
+</body>
+</html>
+""")
+        else:
+            return render_template_string(RESET_ERROR_TEMPLATE,
+                                          title="Erreur de réinitialisation",
+                                          message=message,
+                                          back_url="/auth/login")
+            
+    except Exception as e:
+        return render_template_string(RESET_ERROR_TEMPLATE,
+                                      title="Erreur système",
+                                      message="Une erreur s'est produite. Veuillez réessayer.",
+                                      back_url="/auth/login")
+
+RESET_ERROR_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .error-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 500px;
+            text-align: center;
+        }
+        .error-icon {
+            font-size: 4rem;
+            color: #dc3545;
+            margin-bottom: 1rem;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            border-radius: 10px;
+            padding: 0.75rem 2rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-card">
+        <div class="error-icon">
+            <i class="bi bi-x-circle-fill"></i>
+        </div>
+        <h2 class="text-danger mb-3">{{ title }}</h2>
+        <p class="text-muted mb-4">{{ message }}</p>
+        <div class="d-grid gap-2">
+            <a href="{{ back_url or '/' }}" class="btn btn-primary">
+                <i class="bi bi-arrow-left"></i> Retour
+            </a>
+            <a href="/auth/login" class="btn btn-outline-secondary">
+                <i class="bi bi-house"></i> Connexion
+            </a>
+        </div>
         <div class="mt-4">
             <small class="text-muted">
                 Besoin d'aide ? Contactez notre support technique

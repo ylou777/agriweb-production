@@ -423,6 +423,210 @@ class AuthSystem:
             print(f"Erreur création session: {e}")
             return None
 
+    def request_password_reset(self, email):
+        """Demande de réinitialisation de mot de passe"""
+        try:
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            # Vérifier que l'utilisateur existe
+            cursor.execute('SELECT id FROM users WHERE email = ? AND is_active = 1', (email.lower(),))
+            user = cursor.fetchone()
+            
+            if not user:
+                return False, "Aucun compte n'est associé à cet email"
+            
+            user_id = user[0]
+            
+            # Générer un token de réinitialisation
+            reset_token = secrets.token_urlsafe(32)
+            reset_expires = datetime.now() + timedelta(hours=1)  # Expire dans 1 heure
+            
+            # Stocker le token
+            cursor.execute('''
+                UPDATE users 
+                SET password_reset_token = ?, password_reset_expires = ?
+                WHERE id = ?
+            ''', (reset_token, reset_expires.isoformat(), user_id))
+            
+            conn.commit()
+            conn.close()
+            
+            # Envoyer l'email de réinitialisation
+            success = self.send_password_reset_email(email, reset_token)
+            
+            if success:
+                return True, "Email de réinitialisation envoyé avec succès"
+            else:
+                return False, "Erreur lors de l'envoi de l'email"
+                
+        except Exception as e:
+            print(f"Erreur demande réinitialisation: {e}")
+            return False, "Erreur lors de la demande de réinitialisation"
+    
+    def send_password_reset_email(self, email, reset_token):
+        """Envoie l'email de réinitialisation de mot de passe"""
+        try:
+            # URL de réinitialisation
+            reset_url = f"https://ample-manifestation-production-7b1a.up.railway.app/auth/new-password?token={reset_token}"
+            
+            # Contenu de l'email
+            subject = "🔐 Réinitialisation de votre mot de passe AgriWeb"
+            
+            html_content = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Réinitialisation mot de passe AgriWeb</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }}
+        .container {{ max-width: 600px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }}
+        .header {{ text-align: center; margin-bottom: 30px; }}
+        .title {{ color: #2c3e50; font-size: 24px; margin-bottom: 10px; }}
+        .subtitle {{ color: #7f8c8d; font-size: 16px; }}
+        .content {{ margin: 20px 0; line-height: 1.6; color: #34495e; }}
+        .button {{ display: inline-block; background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }}
+        .warning {{ background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 20px 0; color: #856404; }}
+        .footer {{ text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ecf0f1; color: #7f8c8d; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🔐 Réinitialisation de mot de passe</h1>
+            <p class="subtitle">AgriWeb Pro - Plateforme Agricole</p>
+        </div>
+        
+        <div class="content">
+            <p>Bonjour,</p>
+            
+            <p>Vous avez demandé la réinitialisation de votre mot de passe pour votre compte AgriWeb (<strong>{email}</strong>).</p>
+            
+            <p>Cliquez sur le bouton ci-dessous pour créer un nouveau mot de passe :</p>
+            
+            <div style="text-align: center;">
+                <a href="{reset_url}" class="button">
+                    🔐 Réinitialiser mon mot de passe
+                </a>
+            </div>
+            
+            <div class="warning">
+                <strong>⚠️ Important :</strong>
+                <ul>
+                    <li>Ce lien expire dans <strong>1 heure</strong></li>
+                    <li>Si vous n'avez pas demandé cette réinitialisation, ignorez cet email</li>
+                    <li>Ne partagez jamais ce lien avec quelqu'un d'autre</li>
+                </ul>
+            </div>
+            
+            <p>Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :</p>
+            <p style="word-break: break-all; color: #3498db;"><a href="{reset_url}">{reset_url}</a></p>
+        </div>
+        
+        <div class="footer">
+            <p>© 2025 AgriWeb Pro - Plateforme Agricole Intelligente</p>
+            <p>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p>
+        </div>
+    </div>
+</body>
+</html>
+"""
+            
+            # Configuration SMTP
+            smtp_server = EMAIL_CONFIG['smtp_server']
+            smtp_port = EMAIL_CONFIG['smtp_port']
+            smtp_email = EMAIL_CONFIG['email']
+            smtp_password = EMAIL_CONFIG['password']
+            
+            # Vérification des credentials
+            if not smtp_email or smtp_password == 'votre_mot_de_passe_app':
+                print("⚠️ Credentials SMTP manquants - Auto-validation activée")
+                return True  # Simulation d'envoi réussi en mode développement
+            
+            # Créer le message
+            message = MIMEMultipart("alternative")
+            message["Subject"] = subject
+            message["From"] = f"{EMAIL_CONFIG['from_name']} <{smtp_email}>"
+            message["To"] = email
+            
+            # Ajouter le contenu HTML
+            html_part = MIMEText(html_content, "html", "utf-8")
+            message.attach(html_part)
+            
+            # Envoyer l'email
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(smtp_email, smtp_password)
+            server.send_message(message)
+            server.quit()
+            
+            print(f"✅ Email de réinitialisation envoyé à {email}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erreur envoi email réinitialisation: {e}")
+            return False
+    
+    def reset_password_with_token(self, token, new_password):
+        """Réinitialise le mot de passe avec un token valide"""
+        try:
+            conn = sqlite3.connect(DATABASE_PATH)
+            cursor = conn.cursor()
+            
+            # Vérifier le token et son expiration
+            cursor.execute('''
+                SELECT id, password_reset_expires 
+                FROM users 
+                WHERE password_reset_token = ? AND is_active = 1
+            ''', (token,))
+            
+            user = cursor.fetchone()
+            if not user:
+                return False, "Token de réinitialisation invalide"
+            
+            user_id, reset_expires = user
+            
+            # Vérifier l'expiration
+            if reset_expires:
+                expires_date = datetime.fromisoformat(reset_expires)
+                if datetime.now() > expires_date:
+                    return False, "Token de réinitialisation expiré"
+            
+            # Valider le nouveau mot de passe
+            if len(new_password) < 8:
+                return False, "Le mot de passe doit contenir au moins 8 caractères"
+            
+            if not re.search(r'[A-Z]', new_password):
+                return False, "Le mot de passe doit contenir au moins une majuscule"
+            
+            if not re.search(r'[a-z]', new_password):
+                return False, "Le mot de passe doit contenir au moins une minuscule"
+            
+            if not re.search(r'\d', new_password):
+                return False, "Le mot de passe doit contenir au moins un chiffre"
+            
+            # Hasher le nouveau mot de passe
+            password_hash, salt = self.hash_password(new_password)
+            
+            # Mettre à jour le mot de passe et supprimer le token
+            cursor.execute('''
+                UPDATE users 
+                SET password_hash = ?, salt = ?, 
+                    password_reset_token = NULL, password_reset_expires = NULL
+                WHERE id = ?
+            ''', (password_hash, salt, user_id))
+            
+            conn.commit()
+            conn.close()
+            
+            print(f"✅ Mot de passe réinitialisé pour l'utilisateur ID {user_id}")
+            return True, "Mot de passe réinitialisé avec succès"
+            
+        except Exception as e:
+            print(f"Erreur réinitialisation mot de passe: {e}")
+            return False, "Erreur lors de la réinitialisation du mot de passe"
+
 # Instance globale
 auth_system = AuthSystem()
 
