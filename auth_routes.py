@@ -140,6 +140,66 @@ def register():
                                         title="Erreur d'inscription",
                                         message="Erreur lors de l'inscription")
 
+@auth_bp.route("/login", methods=["GET"])
+def login_form():
+    """Affichage du formulaire de connexion"""
+    return render_template_string("""
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 Connexion - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .login-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 3rem;
+            max-width: 450px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="text-center mb-4">
+            <h2 class="text-success mb-3">🔐 Connexion AgriWeb Pro</h2>
+            <p class="text-muted">Connectez-vous à votre compte</p>
+        </div>
+        <form method="POST" action="/auth/login">
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Mot de passe</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-success w-100 mb-3">
+                <i class="bi bi-box-arrow-in-right"></i> Se connecter
+            </button>
+        </form>
+        <div class="text-center">
+            <small class="text-muted">
+                Pas encore de compte ? <a href="/auth/register" class="text-success">S'inscrire</a>
+            </small>
+        </div>
+    </div>
+</body>
+</html>
+""")
+
 @auth_bp.route("/login", methods=["POST"])
 def login():
     """Connexion avec vérification email obligatoire"""
