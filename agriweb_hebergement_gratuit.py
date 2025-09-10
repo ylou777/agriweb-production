@@ -5946,6 +5946,77 @@ def search_by_commune():
     from shapely.geometry import shape, Point
     from shapely.ops import transform as shp_transform
     from pyproj import Transformer
+    import hashlib
+    import time
+    
+    # ╔══════════════════════════════════════════════════════════════════════════╗
+    # ║                          PROTECTION ANTI-LOOP COMPLÈTE                  ║
+    # ╚══════════════════════════════════════════════════════════════════════════╝
+    
+    # Cache global pour éviter les requêtes en loop
+    if not hasattr(search_by_commune, 'anti_loop_cache'):
+        search_by_commune.anti_loop_cache = {}
+        
+    # 1️⃣ GÉNÉRATION SIGNATURE UNIQUE DE LA REQUÊTE
+    request_params = dict(flask_request.values)
+    request_signature = hashlib.md5(
+        json.dumps(request_params, sort_keys=True).encode('utf-8')
+    ).hexdigest()
+    
+    current_time = time.time()
+    cache_window = 8  # Protection de 8 secondes
+    
+    print(f"🛡️ [ANTI-LOOP] === VÉRIFICATION PROTECTION ANTI-LOOP ===")
+    print(f"🛡️ [SIGNATURE] Signature requête: {request_signature}")
+    print(f"🛡️ [CACHE] Taille cache actuel: {len(search_by_commune.anti_loop_cache)}")
+    print(f"🛡️ [TIME] Temps actuel: {current_time}")
+    
+    # 2️⃣ VÉRIFICATION CACHE HIT/MISS
+    if request_signature in search_by_commune.anti_loop_cache:
+        last_request_time = search_by_commune.anti_loop_cache[request_signature]
+        time_diff = current_time - last_request_time
+        
+        print(f"🛡️ [CACHE_HIT] Signature trouvée dans le cache")
+        print(f"🛡️ [TIMING] Dernière requête: {last_request_time}")
+        print(f"🛡️ [TIMING] Différence temps: {time_diff:.2f}s")
+        print(f"🛡️ [WINDOW] Fenêtre protection: {cache_window}s")
+        
+        if time_diff < cache_window:
+            print(f"🚫 [PROTECTION_ACTIVE] REQUÊTE BLOQUÉE - Trop récente ({time_diff:.2f}s < {cache_window}s)")
+            print(f"🚫 [LOOP_DETECTED] Protection anti-loop activée pour: {request_params.get('commune', 'COMMUNE_INCONNUE')}")
+            
+            return jsonify({
+                'error': 'Protection anti-loop activée',
+                'message': f'Attendez {cache_window - time_diff:.1f}s avant de relancer la recherche',
+                'retry_after': cache_window - time_diff,
+                'commune': request_params.get('commune', ''),
+                'protection_active': True
+            }), 429
+        else:
+            print(f"✅ [CACHE_EXPIRED] Protection expirée, requête autorisée")
+    else:
+        print(f"🆕 [CACHE_MISS] Nouvelle signature, pas de protection")
+    
+    # 3️⃣ ENREGISTREMENT DANS LE CACHE
+    search_by_commune.anti_loop_cache[request_signature] = current_time
+    print(f"📝 [CACHE_UPDATE] Signature enregistrée dans le cache")
+    
+    # 4️⃣ NETTOYAGE PÉRIODIQUE DU CACHE
+    # Supprimer les entrées expirées pour éviter une croissance infinie
+    expired_keys = [
+        key for key, timestamp in search_by_commune.anti_loop_cache.items()
+        if current_time - timestamp > cache_window * 2  # Garder 2x la fenêtre
+    ]
+    
+    for key in expired_keys:
+        del search_by_commune.anti_loop_cache[key]
+        
+    if expired_keys:
+        print(f"🧹 [CLEANUP] {len(expired_keys)} entrées expirées supprimées du cache")
+    
+    print(f"🛡️ [PROTECTION] === FIN VÉRIFICATION - REQUÊTE AUTORISÉE ===")
+    print(f"📊 [STATS] Cache final: {len(search_by_commune.anti_loop_cache)} entrées")
+    print("="*80)
     
     # Log immédiat pour diagnostiquer si la requête arrive
     print(f"🚨 [DEBUG_FETCH] Requête reçue sur /search_by_commune")
