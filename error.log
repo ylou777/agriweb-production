@@ -10718,3 +10718,401 @@ OSError: [Errno 28] No space left on device
 2025-09-08 16:31:56,906 INFO 127.0.0.1 - - [08/Sep/2025 16:31:56] "GET / HTTP/1.1" 200 -
 2025-09-08 16:32:06,349 INFO 127.0.0.1 - - [08/Sep/2025 16:32:06] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
 2025-09-08 16:32:10,132 INFO 127.0.0.1 - - [08/Sep/2025 16:32:10] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-08 17:10:10,097 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 17:10:10,099 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 17:10:12,325 INFO 127.0.0.1 - - [08/Sep/2025 17:10:12] "GET / HTTP/1.1" 200 -
+2025-09-08 17:10:21,856 INFO 127.0.0.1 - - [08/Sep/2025 17:10:21] "GET /app HTTP/1.1" 200 -
+2025-09-08 17:10:22,371 INFO 127.0.0.1 - - [08/Sep/2025 17:10:22] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 17:10:22,381 INFO 127.0.0.1 - - [08/Sep/2025 17:10:22] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 17:10:27,444 INFO 127.0.0.1 - - [08/Sep/2025 17:10:27] "GET / HTTP/1.1" 200 -
+2025-09-08 17:10:33,053 INFO 127.0.0.1 - - [08/Sep/2025 17:10:33] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 17:13:19,394 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 17:13:19,394 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 17:13:58,307 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 17:13:58,308 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 17:34:11,984 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 17:34:11,985 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 17:34:13,003 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 17:34:13,003 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 17:34:42,987 INFO 127.0.0.1 - - [08/Sep/2025 17:34:42] "[35m[1mPOST /api/create-checkout-session HTTP/1.1[0m" 500 -
+2025-09-08 17:57:27,362 INFO 127.0.0.1 - - [08/Sep/2025 17:57:27] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 17:57:41,372 INFO 127.0.0.1 - - [08/Sep/2025 17:57:41] "[33mGET /demo-real HTTP/1.1[0m" 404 -
+2025-09-08 18:02:27,040 INFO 127.0.0.1 - - [08/Sep/2025 18:02:27] "[33mGET /demo-real HTTP/1.1[0m" 404 -
+2025-09-08 18:22:54,911 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 18:22:54,911 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 18:22:57,933 INFO 127.0.0.1 - - [08/Sep/2025 18:22:57] "GET / HTTP/1.1" 200 -
+2025-09-08 18:23:05,915 INFO 127.0.0.1 - - [08/Sep/2025 18:23:05] "[33mGET /demo-real HTTP/1.1[0m" 404 -
+2025-09-08 18:23:11,336 INFO 127.0.0.1 - - [08/Sep/2025 18:23:11] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 18:23:15,052 INFO 127.0.0.1 - - [08/Sep/2025 18:23:15] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 18:23:16,539 INFO 127.0.0.1 - - [08/Sep/2025 18:23:16] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 18:29:42,743 INFO 127.0.0.1 - - [08/Sep/2025 18:29:42] "[33mGET /demo-real?id=51943945-ec12-4e24-be85-79edef2fc3dc&vscodeBrowserReqId=1757348982385 HTTP/1.1[0m" 404 -
+2025-09-08 18:31:23,018 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 18:31:23,018 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 18:32:44,147 INFO 127.0.0.1 - - [08/Sep/2025 18:32:44] "[33mGET /demo-real HTTP/1.1[0m" 404 -
+2025-09-08 18:33:54,411 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 18:33:54,411 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 18:33:54,755 INFO 127.0.0.1 - - [08/Sep/2025 18:33:54] "[32mGET /demo-real HTTP/1.1[0m" 302 -
+2025-09-08 18:33:54,993 INFO 127.0.0.1 - - [08/Sep/2025 18:33:54] "POST /api/create-checkout-session HTTP/1.1" 200 -
+2025-09-08 18:33:55,211 INFO 127.0.0.1 - - [08/Sep/2025 18:33:55] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 18:34:47,227 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 18:34:47,228 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 18:34:49,675 INFO 127.0.0.1 - - [08/Sep/2025 18:34:49] "GET / HTTP/1.1" 200 -
+2025-09-08 18:35:04,052 INFO 127.0.0.1 - - [08/Sep/2025 18:35:04] "[32mGET /demo-real HTTP/1.1[0m" 302 -
+2025-09-08 18:35:06,140 INFO 127.0.0.1 - - [08/Sep/2025 18:35:06] "GET /?demo=1 HTTP/1.1" 200 -
+2025-09-08 18:36:21,228 INFO 127.0.0.1 - - [08/Sep/2025 18:36:21] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:21,948 INFO 127.0.0.1 - - [08/Sep/2025 18:36:21] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 18:36:27,182 INFO 127.0.0.1 - - [08/Sep/2025 18:36:27] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:27,655 INFO 127.0.0.1 - - [08/Sep/2025 18:36:27] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 18:36:27,690 INFO 127.0.0.1 - - [08/Sep/2025 18:36:27] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:28,036 INFO 127.0.0.1 - - [08/Sep/2025 18:36:28] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:28,367 INFO 127.0.0.1 - - [08/Sep/2025 18:36:28] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:28,660 INFO 127.0.0.1 - - [08/Sep/2025 18:36:28] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:28,836 INFO 127.0.0.1 - - [08/Sep/2025 18:36:28] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:29,026 INFO 127.0.0.1 - - [08/Sep/2025 18:36:29] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:29,223 INFO 127.0.0.1 - - [08/Sep/2025 18:36:29] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:29,639 INFO 127.0.0.1 - - [08/Sep/2025 18:36:29] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-08 18:36:32,227 INFO 127.0.0.1 - - [08/Sep/2025 18:36:32] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:50,155 INFO 127.0.0.1 - - [08/Sep/2025 18:36:50] "GET / HTTP/1.1" 200 -
+2025-09-08 18:36:54,372 INFO 127.0.0.1 - - [08/Sep/2025 18:36:54] "GET /app HTTP/1.1" 200 -
+2025-09-08 18:36:54,762 INFO 127.0.0.1 - - [08/Sep/2025 18:36:54] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-08 18:36:54,808 INFO 127.0.0.1 - - [08/Sep/2025 18:36:54] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-08 18:36:57,097 INFO 127.0.0.1 - - [08/Sep/2025 18:36:57] "GET / HTTP/1.1" 200 -
+2025-09-08 18:37:02,054 INFO 127.0.0.1 - - [08/Sep/2025 18:37:02] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-08 18:37:04,455 INFO 127.0.0.1 - - [08/Sep/2025 18:37:04] "[32mGET /demo-real HTTP/1.1[0m" 302 -
+2025-09-08 18:37:04,486 INFO 127.0.0.1 - - [08/Sep/2025 18:37:04] "GET /?demo=1 HTTP/1.1" 200 -
+2025-09-08 18:37:19,203 INFO 127.0.0.1 - - [08/Sep/2025 18:37:19] "[32mGET /demo-real HTTP/1.1[0m" 302 -
+2025-09-08 18:37:19,218 INFO 127.0.0.1 - - [08/Sep/2025 18:37:19] "GET /?demo=1 HTTP/1.1" 200 -
+2025-09-08 21:45:36,632 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-08 21:45:36,632 INFO [33mPress CTRL+C to quit[0m
+2025-09-08 22:39:22,220 INFO 127.0.0.1 - - [08/Sep/2025 22:39:22] "[32mGET /demo-real?id=51943945-ec12-4e24-be85-79edef2fc3dc&vscodeBrowserReqId=1757363961485 HTTP/1.1[0m" 302 -
+2025-09-08 22:39:22,295 INFO 127.0.0.1 - - [08/Sep/2025 22:39:22] "GET /?demo=1 HTTP/1.1" 200 -
+2025-09-09 07:56:02,492 INFO 127.0.0.1 - - [09/Sep/2025 07:56:02] "GET /app HTTP/1.1" 200 -
+2025-09-09 07:56:02,868 INFO 127.0.0.1 - - [09/Sep/2025 07:56:02] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 07:56:03,006 INFO 127.0.0.1 - - [09/Sep/2025 07:56:03] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:00:53,992 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 08:00:53,992 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 08:00:55,951 INFO 127.0.0.1 - - [09/Sep/2025 08:00:55] "GET / HTTP/1.1" 200 -
+2025-09-09 08:00:59,678 INFO 127.0.0.1 - - [09/Sep/2025 08:00:59] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:01:00,500 INFO 127.0.0.1 - - [09/Sep/2025 08:01:00] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 08:01:00,721 INFO 127.0.0.1 - - [09/Sep/2025 08:01:00] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:01:59,235 INFO 127.0.0.1 - - [09/Sep/2025 08:01:59] "GET /search_by_address?address=chalon+sur+saone&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:01:59,339 INFO 127.0.0.1 - - [09/Sep/2025 08:01:59] "GET /static/cartes/map_1757397713_254099545918755030.html?t=1757397716&cache=1757397719323 HTTP/1.1" 200 -
+2025-09-09 08:03:33,222 INFO 127.0.0.1 - - [09/Sep/2025 08:03:33] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:04:37,666 INFO 127.0.0.1 - - [09/Sep/2025 08:04:37] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:04:41,156 INFO 127.0.0.1 - - [09/Sep/2025 08:04:41] "GET /static/cartes/map_1757397847_4127298208480701206.html?t=1757397861&cache=1757397881019 HTTP/1.1" 200 -
+2025-09-09 08:05:30,529 INFO 127.0.0.1 - - [09/Sep/2025 08:05:30] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:05:30,666 INFO 127.0.0.1 - - [09/Sep/2025 08:05:30] "GET /static/cartes/map_1757397917_4127298208480701206.html?t=1757397923&cache=1757397930658 HTTP/1.1" 200 -
+2025-09-09 08:06:19,245 INFO 127.0.0.1 - - [09/Sep/2025 08:06:19] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:06:19,327 INFO 127.0.0.1 - - [09/Sep/2025 08:06:19] "GET /static/cartes/map_1757397968_4127298208480701206.html?t=1757397973&cache=1757397979320 HTTP/1.1" 200 -
+2025-09-09 08:07:01,418 INFO 127.0.0.1 - - [09/Sep/2025 08:07:01] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:07:01,494 INFO 127.0.0.1 - - [09/Sep/2025 08:07:01] "GET /static/cartes/map_1757398008_4127298208480701206.html?t=1757398014&cache=1757398021487 HTTP/1.1" 200 -
+2025-09-09 08:07:46,402 INFO 127.0.0.1 - - [09/Sep/2025 08:07:46] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:07:46,505 INFO 127.0.0.1 - - [09/Sep/2025 08:07:46] "GET /static/cartes/map_1757398051_4127298208480701206.html?t=1757398060&cache=1757398066495 HTTP/1.1" 200 -
+2025-09-09 08:08:28,298 INFO 127.0.0.1 - - [09/Sep/2025 08:08:28] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:08:28,392 INFO 127.0.0.1 - - [09/Sep/2025 08:08:28] "GET /static/cartes/map_1757398097_4127298208480701206.html?t=1757398102&cache=1757398108384 HTTP/1.1" 200 -
+2025-09-09 08:09:09,487 INFO 127.0.0.1 - - [09/Sep/2025 08:09:09] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:09:09,590 INFO 127.0.0.1 - - [09/Sep/2025 08:09:09] "GET /static/cartes/map_1757398137_4127298208480701206.html?t=1757398143&cache=1757398149581 HTTP/1.1" 200 -
+2025-09-09 08:10:03,825 INFO 127.0.0.1 - - [09/Sep/2025 08:10:03] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:10:14,613 INFO 127.0.0.1 - - [09/Sep/2025 08:10:14] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:10:14,726 INFO 127.0.0.1 - - [09/Sep/2025 08:10:14] "GET /static/cartes/map_1757398194_4127298208480701206.html?t=1757398205&cache=1757398214705 HTTP/1.1" 200 -
+2025-09-09 08:10:35,057 INFO 127.0.0.1 - - [09/Sep/2025 08:10:35] "GET /search_by_address?address=1530+Rte+des+Foucaudies,+24330+Bassillac+et+Auberoche&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:10:35,242 INFO 127.0.0.1 - - [09/Sep/2025 08:10:35] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:10:36,250 INFO 127.0.0.1 - - [09/Sep/2025 08:10:36] "GET /static/cartes/map_1757398234_3629259778538683497.html?t=1757398234&cache=1757398235124 HTTP/1.1" 200 -
+2025-09-09 08:10:38,942 INFO 127.0.0.1 - - [09/Sep/2025 08:10:38] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 08:10:39,042 INFO 127.0.0.1 - - [09/Sep/2025 08:10:39] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:11:22,851 INFO 127.0.0.1 - - [09/Sep/2025 08:11:22] "GET /search_by_address?address=1530+Rte+des+Foucaudies,+24330+Bassillac+et+Auberoche&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:11:27,908 INFO 127.0.0.1 - - [09/Sep/2025 08:11:27] "GET /search_by_address?address=1530+Rte+des+Foucaudies,+24330+Bassillac+et+Auberoche&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:11:28,156 INFO 127.0.0.1 - - [09/Sep/2025 08:11:28] "GET /static/cartes/map_1757398286_3629259778538683497.html?t=1757398287&cache=1757398288078 HTTP/1.1" 200 -
+2025-09-09 08:27:15,928 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 08:27:15,931 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 08:27:19,639 INFO 127.0.0.1 - - [09/Sep/2025 08:27:19] "GET / HTTP/1.1" 200 -
+2025-09-09 08:27:47,050 INFO 127.0.0.1 - - [09/Sep/2025 08:27:47] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:27:47,970 INFO 127.0.0.1 - - [09/Sep/2025 08:27:47] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 08:27:48,036 INFO 127.0.0.1 - - [09/Sep/2025 08:27:48] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:28:46,601 INFO 127.0.0.1 - - [09/Sep/2025 08:28:46] "GET /search_by_address?address=avignon&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:28:46,740 INFO 127.0.0.1 - - [09/Sep/2025 08:28:46] "GET /static/cartes/map_1757399312_7425201404002868203.html?t=1757399321&cache=1757399326720 HTTP/1.1" 200 -
+2025-09-09 08:29:13,187 INFO 127.0.0.1 - - [09/Sep/2025 08:29:13] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:29:52,351 INFO 127.0.0.1 - - [09/Sep/2025 08:29:52] "GET /search_by_address?address=avignon&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:29:52,569 INFO 127.0.0.1 - - [09/Sep/2025 08:29:52] "GET /static/cartes/map_1757399383_7425201404002868203.html?t=1757399387&cache=1757399392452 HTTP/1.1" 200 -
+2025-09-09 08:30:27,475 INFO 127.0.0.1 - - [09/Sep/2025 08:30:27] "GET /search_by_address?address=avignon&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:30:27,553 INFO 127.0.0.1 - - [09/Sep/2025 08:30:27] "GET /static/cartes/map_1757399419_7425201404002868203.html?t=1757399423&cache=1757399427539 HTTP/1.1" 200 -
+2025-09-09 08:30:29,937 INFO 127.0.0.1 - - [09/Sep/2025 08:30:29] "[33mGET /search_by_address?address=43.949312,4.805425,&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1[0m" 404 -
+2025-09-09 08:30:37,589 INFO 127.0.0.1 - - [09/Sep/2025 08:30:37] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:31:08,944 INFO 127.0.0.1 - - [09/Sep/2025 08:31:08] "GET /search_by_address?lat=43.949312&lon=4.805425&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:31:09,041 INFO 127.0.0.1 - - [09/Sep/2025 08:31:09] "GET /static/cartes/map_1757399461_7032088489720374008.html?t=1757399465&cache=1757399469036 HTTP/1.1" 200 -
+2025-09-09 08:31:46,952 INFO 127.0.0.1 - - [09/Sep/2025 08:31:46] "GET /search_by_address?lat=43.949312&lon=4.805425&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:31:47,042 INFO 127.0.0.1 - - [09/Sep/2025 08:31:47] "GET /static/cartes/map_1757399499_7032088489720374008.html?t=1757399503&cache=1757399507034 HTTP/1.1" 200 -
+2025-09-09 08:32:21,426 INFO 127.0.0.1 - - [09/Sep/2025 08:32:21] "GET /search_by_address?lat=43.949312&lon=4.805425&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:32:21,534 INFO 127.0.0.1 - - [09/Sep/2025 08:32:21] "GET /static/cartes/map_1757399534_7032088489720374008.html?t=1757399537&cache=1757399541515 HTTP/1.1" 200 -
+2025-09-09 08:33:08,990 INFO 127.0.0.1 - - [09/Sep/2025 08:33:08] "GET /search_by_address?lat=43.949312&lon=4.805425&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:33:09,285 INFO 127.0.0.1 - - [09/Sep/2025 08:33:09] "GET /static/cartes/map_1757399570_7032088489720374008.html?t=1757399578&cache=1757399589211 HTTP/1.1" 200 -
+2025-09-09 08:36:03,226 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 08:36:03,228 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 08:36:06,228 INFO 127.0.0.1 - - [09/Sep/2025 08:36:06] "GET / HTTP/1.1" 200 -
+2025-09-09 08:36:11,375 INFO 127.0.0.1 - - [09/Sep/2025 08:36:11] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:36:11,519 INFO 127.0.0.1 - - [09/Sep/2025 08:36:11] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:36:12,687 INFO 127.0.0.1 - - [09/Sep/2025 08:36:12] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 08:36:12,726 INFO 127.0.0.1 - - [09/Sep/2025 08:36:12] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 08:37:20,893 INFO 127.0.0.1 - - [09/Sep/2025 08:37:20] "GET /search_by_address?address=carnon&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 08:37:21,077 INFO 127.0.0.1 - - [09/Sep/2025 08:37:21] "GET /static/cartes/map_1757399836_2137835104767169969.html?t=1757399837&cache=1757399841011 HTTP/1.1" 200 -
+2025-09-09 08:39:32,235 INFO 127.0.0.1 - - [09/Sep/2025 08:39:32] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:42:52,559 INFO 127.0.0.1 - - [09/Sep/2025 08:42:52] "GET /search_by_commune?commune=palavas+les+flots&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=1500&bt_max_distance=350&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2250&filter_by_distance=false&max_distance_bt=350&max_distance_hta=1500&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-09 08:42:53,636 INFO 127.0.0.1 - - [09/Sep/2025 08:42:53] "GET /static/cartes/commune_map__20250909_084201.html?t=1757400139&cache=1757400173459 HTTP/1.1" 200 -
+2025-09-09 08:45:33,978 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 08:45:33,979 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 08:45:36,461 INFO 127.0.0.1 - - [09/Sep/2025 08:45:36] "GET / HTTP/1.1" 200 -
+2025-09-09 08:48:48,348 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 08:48:48,348 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 08:48:50,960 INFO 127.0.0.1 - - [09/Sep/2025 08:48:50] "GET / HTTP/1.1" 200 -
+2025-09-09 08:48:53,624 INFO 127.0.0.1 - - [09/Sep/2025 08:48:53] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:48:54,872 INFO 127.0.0.1 - - [09/Sep/2025 08:48:54] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 08:48:54,922 INFO 127.0.0.1 - - [09/Sep/2025 08:48:54] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 08:52:46,085 INFO 127.0.0.1 - - [09/Sep/2025 08:52:46] "GET /search_by_commune?commune=palavas+les+flots&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=300&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 08:52:53,610 INFO 127.0.0.1 - - [09/Sep/2025 08:52:53] "GET /static/cartes/commune_map__20250909_085154.html?t=1757400735&cache=1757400767757 HTTP/1.1" 200 -
+2025-09-09 08:59:54,063 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 08:59:54,064 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 08:59:55,800 INFO 127.0.0.1 - - [09/Sep/2025 08:59:55] "GET / HTTP/1.1" 200 -
+2025-09-09 08:59:59,422 INFO 127.0.0.1 - - [09/Sep/2025 08:59:59] "GET /app HTTP/1.1" 200 -
+2025-09-09 08:59:59,969 INFO 127.0.0.1 - - [09/Sep/2025 08:59:59] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 08:59:59,996 INFO 127.0.0.1 - - [09/Sep/2025 08:59:59] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 09:07:17,662 INFO 127.0.0.1 - - [09/Sep/2025 09:07:17] "GET /search_by_commune?commune=perpignan&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=3000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 09:07:19,026 INFO 127.0.0.1 - - [09/Sep/2025 09:07:19] "GET /static/cartes/commune_map__20250909_090632.html?t=1757401609&cache=1757401638587 HTTP/1.1" 200 -
+2025-09-09 09:08:34,005 INFO 127.0.0.1 - - [09/Sep/2025 09:08:34] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 09:19:21,041 INFO 127.0.0.1 - - [09/Sep/2025 09:19:21] "GET /search_by_commune?commune=perpignan&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=3000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 09:19:25,685 INFO 127.0.0.1 - - [09/Sep/2025 09:19:25] "GET /static/cartes/commune_map__20250909_091753.html?t=1757402311&cache=1757402364466 HTTP/1.1" 200 -
+2025-09-09 09:19:54,794 INFO 127.0.0.1 - - [09/Sep/2025 09:19:54] "GET /search_by_commune?commune=perpignan&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=3000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 09:19:55,586 INFO 127.0.0.1 - - [09/Sep/2025 09:19:55] "GET /static/cartes/commune_map__20250909_091837.html?t=1757402347&cache=1757402395462 HTTP/1.1" 200 -
+2025-09-09 09:21:24,360 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 09:21:24,362 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 09:21:27,093 INFO 127.0.0.1 - - [09/Sep/2025 09:21:27] "GET / HTTP/1.1" 200 -
+2025-09-09 09:24:46,424 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 09:24:46,425 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 09:24:48,675 INFO 127.0.0.1 - - [09/Sep/2025 09:24:48] "GET / HTTP/1.1" 200 -
+2025-09-09 09:24:54,023 INFO 127.0.0.1 - - [09/Sep/2025 09:24:54] "GET /app HTTP/1.1" 200 -
+2025-09-09 09:24:54,499 INFO 127.0.0.1 - - [09/Sep/2025 09:24:54] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 09:24:54,508 INFO 127.0.0.1 - - [09/Sep/2025 09:24:54] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 09:29:40,241 INFO 127.0.0.1 - - [09/Sep/2025 09:29:40] "GET /search_by_commune?commune=vierzon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=300&bt_max_distance=400&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3175&filter_by_distance=false&max_distance_bt=400&max_distance_hta=300&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 09:29:41,163 INFO 127.0.0.1 - - [09/Sep/2025 09:29:41] "GET /static/cartes/commune_map__20250909_092840.html?t=1757402945&cache=1757402980983 HTTP/1.1" 200 -
+2025-09-09 09:39:57,229 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 09:39:57,236 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 09:40:41,720 INFO 127.0.0.1 - - [09/Sep/2025 09:40:41] "GET / HTTP/1.1" 200 -
+2025-09-09 09:40:42,172 INFO 127.0.0.1 - - [09/Sep/2025 09:40:42] "GET / HTTP/1.1" 200 -
+2025-09-09 09:40:42,344 INFO 127.0.0.1 - - [09/Sep/2025 09:40:42] "GET / HTTP/1.1" 200 -
+2025-09-09 09:40:42,701 INFO 127.0.0.1 - - [09/Sep/2025 09:40:42] "GET / HTTP/1.1" 200 -
+2025-09-09 09:40:46,279 INFO 127.0.0.1 - - [09/Sep/2025 09:40:46] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-09 09:40:49,626 INFO 127.0.0.1 - - [09/Sep/2025 09:40:49] "GET /app HTTP/1.1" 200 -
+2025-09-09 09:40:50,197 INFO 127.0.0.1 - - [09/Sep/2025 09:40:50] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 09:40:50,588 INFO 127.0.0.1 - - [09/Sep/2025 09:40:50] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 09:56:59,896 INFO 127.0.0.1 - - [09/Sep/2025 09:56:59] "GET /search_by_commune?commune=nice&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=400&bt_max_distance=100&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=100&max_distance_hta=400&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 09:57:03,717 INFO 127.0.0.1 - - [09/Sep/2025 09:57:03] "GET /static/cartes/commune_map__20250909_095204.html?t=1757404448&cache=1757404622800 HTTP/1.1" 200 -
+2025-09-09 10:35:31,670 INFO 127.0.0.1 - - [09/Sep/2025 10:35:31] "GET / HTTP/1.1" 200 -
+2025-09-09 16:19:05,174 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 16:19:05,174 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 16:19:10,127 INFO 127.0.0.1 - - [09/Sep/2025 16:19:10] "GET / HTTP/1.1" 200 -
+2025-09-09 16:19:14,450 INFO 127.0.0.1 - - [09/Sep/2025 16:19:14] "GET /app HTTP/1.1" 200 -
+2025-09-09 16:19:14,832 INFO 127.0.0.1 - - [09/Sep/2025 16:19:14] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 16:19:14,860 INFO 127.0.0.1 - - [09/Sep/2025 16:19:14] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 16:19:16,305 INFO 127.0.0.1 - - [09/Sep/2025 16:19:16] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-09 16:20:07,869 INFO 127.0.0.1 - - [09/Sep/2025 16:20:07] "GET /search_by_address?address=orbey&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 16:20:08,009 INFO 127.0.0.1 - - [09/Sep/2025 16:20:08] "GET /static/cartes/map_1757427605_2615829447772410662.html?t=1757427606&cache=1757427607985 HTTP/1.1" 200 -
+2025-09-09 16:28:33,421 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 16:28:33,421 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 16:28:34,936 INFO 127.0.0.1 - - [09/Sep/2025 16:28:34] "GET / HTTP/1.1" 200 -
+2025-09-09 16:28:39,091 INFO 127.0.0.1 - - [09/Sep/2025 16:28:39] "GET /app HTTP/1.1" 200 -
+2025-09-09 16:28:39,721 INFO 127.0.0.1 - - [09/Sep/2025 16:28:39] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 16:28:39,888 INFO 127.0.0.1 - - [09/Sep/2025 16:28:39] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 16:29:23,675 INFO 127.0.0.1 - - [09/Sep/2025 16:29:23] "GET /search_by_address?address=biarritz&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 16:29:23,847 INFO 127.0.0.1 - - [09/Sep/2025 16:29:23] "GET /static/cartes/map_1757428159_4330855778919073433.html?t=1757428161&cache=1757428163721 HTTP/1.1" 200 -
+2025-09-09 16:31:29,352 INFO 127.0.0.1 - - [09/Sep/2025 16:31:29] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 16:42:55,004 INFO 127.0.0.1 - - [09/Sep/2025 16:42:54] "GET /search_by_commune?commune=biarritz&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2750&filter_by_distance=true&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 16:42:56,736 INFO 127.0.0.1 - - [09/Sep/2025 16:42:56] "GET /static/cartes/commune_map__20250909_163742.html?t=1757428803&cache=1757428976498 HTTP/1.1" 200 -
+2025-09-09 16:47:15,031 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 16:47:15,031 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 16:47:17,081 INFO 127.0.0.1 - - [09/Sep/2025 16:47:17] "GET / HTTP/1.1" 200 -
+2025-09-09 16:47:19,553 INFO 127.0.0.1 - - [09/Sep/2025 16:47:19] "GET /app HTTP/1.1" 200 -
+2025-09-09 16:47:20,013 INFO 127.0.0.1 - - [09/Sep/2025 16:47:20] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 16:47:20,167 INFO 127.0.0.1 - - [09/Sep/2025 16:47:20] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 17:01:08,815 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 17:01:08,819 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 17:01:11,021 INFO 127.0.0.1 - - [09/Sep/2025 17:01:11] "GET / HTTP/1.1" 200 -
+2025-09-09 17:01:14,090 INFO 127.0.0.1 - - [09/Sep/2025 17:01:14] "GET /app HTTP/1.1" 200 -
+2025-09-09 17:01:14,644 INFO 127.0.0.1 - - [09/Sep/2025 17:01:14] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 17:01:14,651 INFO 127.0.0.1 - - [09/Sep/2025 17:01:14] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 17:06:00,535 INFO 127.0.0.1 - - [09/Sep/2025 17:06:00] "GET /search_by_commune?commune=vierzon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=350&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3075&filter_by_distance=false&max_distance_bt=350&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-09 17:06:01,213 INFO 127.0.0.1 - - [09/Sep/2025 17:06:01] "GET /static/cartes/commune_map__20250909_170435.html?t=1757430312&cache=1757430361197 HTTP/1.1" 200 -
+2025-09-09 17:14:22,677 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 17:14:22,677 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 17:14:24,084 INFO 127.0.0.1 - - [09/Sep/2025 17:14:24] "GET / HTTP/1.1" 200 -
+2025-09-09 17:14:33,592 INFO 127.0.0.1 - - [09/Sep/2025 17:14:33] "GET /app HTTP/1.1" 200 -
+2025-09-09 17:14:33,803 INFO 127.0.0.1 - - [09/Sep/2025 17:14:33] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 17:14:33,824 INFO 127.0.0.1 - - [09/Sep/2025 17:14:33] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 17:19:45,133 INFO 127.0.0.1 - - [09/Sep/2025 17:19:45] "GET /search_by_commune?commune=vierzon&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=400&bt_max_distance=250&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2000&filter_by_distance=true&max_distance_bt=250&max_distance_hta=400&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 17:19:45,641 INFO 127.0.0.1 - - [09/Sep/2025 17:19:45] "GET /static/cartes/commune_map__20250909_171820.html?t=1757431137&cache=1757431185627 HTTP/1.1" 200 -
+2025-09-09 17:36:54,787 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 17:36:54,788 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 17:36:58,267 INFO 127.0.0.1 - - [09/Sep/2025 17:36:58] "GET / HTTP/1.1" 200 -
+2025-09-09 17:37:01,011 INFO 127.0.0.1 - - [09/Sep/2025 17:37:01] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-09 17:37:04,278 INFO 127.0.0.1 - - [09/Sep/2025 17:37:04] "GET /app HTTP/1.1" 200 -
+2025-09-09 17:37:04,594 INFO 127.0.0.1 - - [09/Sep/2025 17:37:04] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 17:37:04,634 INFO 127.0.0.1 - - [09/Sep/2025 17:37:04] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 17:44:16,389 INFO 127.0.0.1 - - [09/Sep/2025 17:44:16] "GET /search_by_commune?commune=la+rochelle&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3275&filter_by_distance=false&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 17:44:17,078 INFO 127.0.0.1 - - [09/Sep/2025 17:44:17] "GET /static/cartes/commune_map__20250909_174308.html?t=1757432618&cache=1757432657071 HTTP/1.1" 200 -
+2025-09-09 17:53:33,124 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 17:53:33,124 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 17:53:34,625 INFO 127.0.0.1 - - [09/Sep/2025 17:53:34] "GET / HTTP/1.1" 200 -
+2025-09-09 17:53:38,238 INFO 127.0.0.1 - - [09/Sep/2025 17:53:38] "GET /app HTTP/1.1" 200 -
+2025-09-09 17:53:38,569 INFO 127.0.0.1 - - [09/Sep/2025 17:53:38] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 17:53:38,592 INFO 127.0.0.1 - - [09/Sep/2025 17:53:38] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 17:56:13,415 INFO 127.0.0.1 - - [09/Sep/2025 17:56:13] "GET /search_by_commune?commune=manduel&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=550&bt_max_distance=250&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1975&filter_by_distance=true&max_distance_bt=250&max_distance_hta=550&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 17:56:13,744 INFO 127.0.0.1 - - [09/Sep/2025 17:56:13] "GET /static/cartes/commune_map__20250909_175541.html?t=1757433355&cache=1757433373706 HTTP/1.1" 200 -
+2025-09-09 17:58:33,410 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 17:58:33,410 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 17:58:34,811 INFO 127.0.0.1 - - [09/Sep/2025 17:58:34] "GET / HTTP/1.1" 200 -
+2025-09-09 17:58:43,436 INFO 127.0.0.1 - - [09/Sep/2025 17:58:43] "GET /app HTTP/1.1" 200 -
+2025-09-09 17:58:43,502 INFO 127.0.0.1 - - [09/Sep/2025 17:58:43] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 17:58:43,706 INFO 127.0.0.1 - - [09/Sep/2025 17:58:43] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 18:00:13,563 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 18:00:13,563 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 18:00:19,972 INFO 127.0.0.1 - - [09/Sep/2025 18:00:19] "GET / HTTP/1.1" 200 -
+2025-09-09 18:00:21,408 INFO 127.0.0.1 - - [09/Sep/2025 18:00:21] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-09 18:00:28,177 INFO 127.0.0.1 - - [09/Sep/2025 18:00:28] "GET /app HTTP/1.1" 200 -
+2025-09-09 18:00:28,376 INFO 127.0.0.1 - - [09/Sep/2025 18:00:28] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 18:00:28,398 INFO 127.0.0.1 - - [09/Sep/2025 18:00:28] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 18:02:51,909 INFO 127.0.0.1 - - [09/Sep/2025 18:02:51] "GET /search_by_commune?commune=manduel&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1400&filter_by_distance=false&max_distance_bt=200&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 18:02:52,249 INFO 127.0.0.1 - - [09/Sep/2025 18:02:52] "GET /static/cartes/commune_map__20250909_180227.html?t=1757433757&cache=1757433772239 HTTP/1.1" 200 -
+2025-09-09 19:35:00,819 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 19:35:00,820 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 19:35:02,369 INFO 127.0.0.1 - - [09/Sep/2025 19:35:02] "GET / HTTP/1.1" 200 -
+2025-09-09 19:35:04,846 INFO 127.0.0.1 - - [09/Sep/2025 19:35:04] "GET /app HTTP/1.1" 200 -
+2025-09-09 19:35:05,805 INFO 127.0.0.1 - - [09/Sep/2025 19:35:05] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 19:35:06,029 INFO 127.0.0.1 - - [09/Sep/2025 19:35:06] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 19:35:41,535 INFO 127.0.0.1 - - [09/Sep/2025 19:35:41] "[35m[1mGET /search_by_address?address=vitry&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1[0m" 500 -
+2025-09-09 19:40:30,511 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 19:40:30,512 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 19:40:32,062 INFO 127.0.0.1 - - [09/Sep/2025 19:40:32] "GET / HTTP/1.1" 200 -
+2025-09-09 19:40:35,471 INFO 127.0.0.1 - - [09/Sep/2025 19:40:35] "GET /app HTTP/1.1" 200 -
+2025-09-09 19:40:36,186 INFO 127.0.0.1 - - [09/Sep/2025 19:40:36] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-09 19:40:36,226 INFO 127.0.0.1 - - [09/Sep/2025 19:40:36] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-09 19:41:43,171 INFO 127.0.0.1 - - [09/Sep/2025 19:41:43] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 19:41:43,632 INFO 127.0.0.1 - - [09/Sep/2025 19:41:43] "GET /static/cartes/map_1757439681_4925544144855804046.html?t=1757439687&cache=1757439703619 HTTP/1.1" 200 -
+2025-09-09 19:44:50,524 INFO 127.0.0.1 - - [09/Sep/2025 19:44:50] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 19:45:40,118 INFO 127.0.0.1 - - [09/Sep/2025 19:45:40] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=1100&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1350&filter_by_distance=false&max_distance_bt=300&max_distance_hta=1100&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 19:45:40,328 INFO 127.0.0.1 - - [09/Sep/2025 19:45:40] "GET /static/cartes/commune_map_ahun_20250909_194529.html?t=1757439934&cache=1757439940305 HTTP/1.1" 200 -
+2025-09-09 19:46:36,222 INFO 127.0.0.1 - - [09/Sep/2025 19:46:36] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=1100&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1350&filter_by_distance=false&max_distance_bt=300&max_distance_hta=1100&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 19:46:36,429 INFO 127.0.0.1 - - [09/Sep/2025 19:46:36] "GET /static/cartes/commune_map_ahun_20250909_194626.html?t=1757439990&cache=1757439996406 HTTP/1.1" 200 -
+2025-09-09 19:47:27,840 INFO 127.0.0.1 - - [09/Sep/2025 19:47:27] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=1100&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1350&filter_by_distance=false&max_distance_bt=300&max_distance_hta=1100&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 19:47:28,092 INFO 127.0.0.1 - - [09/Sep/2025 19:47:28] "GET /static/cartes/commune_map_ahun_20250909_194717.html?t=1757440042&cache=1757440048044 HTTP/1.1" 200 -
+2025-09-09 19:48:18,618 INFO 127.0.0.1 - - [09/Sep/2025 19:48:18] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=1100&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1350&filter_by_distance=false&max_distance_bt=300&max_distance_hta=1100&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 19:48:18,846 INFO 127.0.0.1 - - [09/Sep/2025 19:48:18] "GET /static/cartes/commune_map_ahun_20250909_194808.html?t=1757440093&cache=1757440098770 HTTP/1.1" 200 -
+2025-09-09 19:49:13,828 INFO 127.0.0.1 - - [09/Sep/2025 19:49:13] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=1100&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1350&filter_by_distance=false&max_distance_bt=300&max_distance_hta=1100&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 19:49:14,200 INFO 127.0.0.1 - - [09/Sep/2025 19:49:14] "GET /static/cartes/commune_map_ahun_20250909_194901.html?t=1757440147&cache=1757440154053 HTTP/1.1" 200 -
+2025-09-09 21:51:29,169 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 21:51:29,169 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 21:51:32,415 INFO 127.0.0.1 - - [09/Sep/2025 21:51:32] "GET / HTTP/1.1" 200 -
+2025-09-09 21:51:39,274 INFO 127.0.0.1 - - [09/Sep/2025 21:51:39] "GET /app HTTP/1.1" 200 -
+2025-09-09 21:51:39,490 INFO 127.0.0.1 - - [09/Sep/2025 21:51:39] "GET /app HTTP/1.1" 200 -
+2025-09-09 21:51:40,110 INFO 127.0.0.1 - - [09/Sep/2025 21:51:40] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 21:51:40,207 INFO 127.0.0.1 - - [09/Sep/2025 21:51:40] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 21:52:43,971 INFO 127.0.0.1 - - [09/Sep/2025 21:52:43] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-09 21:52:44,166 INFO 127.0.0.1 - - [09/Sep/2025 21:52:44] "GET /static/cartes/map_1757447555_1659787281859996298.html?t=1757447559&cache=1757447564154 HTTP/1.1" 200 -
+2025-09-09 21:53:54,117 INFO 127.0.0.1 - - [09/Sep/2025 21:53:54] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 21:58:02,913 INFO 127.0.0.1 - - [09/Sep/2025 21:58:02] "GET /search_by_commune?commune=chamonix&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=800&bt_max_distance=400&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2725&filter_by_distance=false&max_distance_bt=400&max_distance_hta=800&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 21:58:03,669 INFO 127.0.0.1 - - [09/Sep/2025 21:58:03] "GET /static/cartes/commune_map__20250909_215648.html?t=1757447842&cache=1757447883646 HTTP/1.1" 200 -
+2025-09-09 22:00:00,092 INFO 127.0.0.1 - - [09/Sep/2025 22:00:00] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-09-09 22:04:59,558 INFO 127.0.0.1 - - [09/Sep/2025 22:04:59] "GET /search_by_commune?commune=chamonix&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=800&bt_max_distance=400&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2725&filter_by_distance=false&max_distance_bt=400&max_distance_hta=800&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 22:05:00,625 INFO 127.0.0.1 - - [09/Sep/2025 22:05:00] "GET /static/cartes/commune_map__20250909_220338.html?t=1757448257&cache=1757448300577 HTTP/1.1" 200 -
+2025-09-09 22:14:46,442 INFO 127.0.0.1 - - [09/Sep/2025 22:14:46] "GET /search_by_commune?commune=chamonix&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=800&bt_max_distance=400&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2725&filter_by_distance=false&max_distance_bt=400&max_distance_hta=800&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 22:14:49,382 INFO 127.0.0.1 - - [09/Sep/2025 22:14:49] "GET /static/cartes/commune_map__20250909_221312.html?t=1757448828&cache=1757448889182 HTTP/1.1" 200 -
+2025-09-09 22:19:55,341 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-09 22:19:55,342 INFO [33mPress CTRL+C to quit[0m
+2025-09-09 22:20:00,611 INFO 127.0.0.1 - - [09/Sep/2025 22:20:00] "GET / HTTP/1.1" 200 -
+2025-09-09 22:20:11,953 INFO 127.0.0.1 - - [09/Sep/2025 22:20:11] "GET /app HTTP/1.1" 200 -
+2025-09-09 22:20:12,780 INFO 127.0.0.1 - - [09/Sep/2025 22:20:12] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-09 22:20:12,784 INFO 127.0.0.1 - - [09/Sep/2025 22:20:12] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-09 22:20:13,356 INFO 127.0.0.1 - - [09/Sep/2025 22:20:13] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-09 22:26:55,773 INFO 127.0.0.1 - - [09/Sep/2025 22:26:55] "GET /search_by_commune?commune=fontainebleau&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=false&max_distance_bt=200&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-09 22:26:57,104 INFO 127.0.0.1 - - [09/Sep/2025 22:26:57] "GET /static/cartes/commune_map__20250909_222517.html?t=1757449558&cache=1757449617003 HTTP/1.1" 200 -
+2025-09-10 11:30:14,924 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 11:30:14,926 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 11:30:18,079 INFO 127.0.0.1 - - [10/Sep/2025 11:30:18] "GET / HTTP/1.1" 200 -
+2025-09-10 11:30:28,851 INFO 127.0.0.1 - - [10/Sep/2025 11:30:28] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-10 11:30:48,075 INFO 127.0.0.1 - - [10/Sep/2025 11:30:48] "GET /app HTTP/1.1" 200 -
+2025-09-10 11:30:49,191 INFO 127.0.0.1 - - [10/Sep/2025 11:30:49] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-10 11:30:49,287 INFO 127.0.0.1 - - [10/Sep/2025 11:30:49] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-10 11:31:46,360 INFO 127.0.0.1 - - [10/Sep/2025 11:31:46] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-10 11:31:46,652 INFO 127.0.0.1 - - [10/Sep/2025 11:31:46] "GET /static/cartes/map_1757496689_5279484777677765377.html?t=1757496694&cache=1757496706637 HTTP/1.1" 200 -
+2025-09-10 11:38:19,195 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 11:38:19,196 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 11:38:21,008 INFO 127.0.0.1 - - [10/Sep/2025 11:38:21] "GET / HTTP/1.1" 200 -
+2025-09-10 11:38:31,021 INFO 127.0.0.1 - - [10/Sep/2025 11:38:31] "[32mGET /demo-real HTTP/1.1[0m" 302 -
+2025-09-10 11:38:31,168 INFO 127.0.0.1 - - [10/Sep/2025 11:38:31] "GET /app?demo=1 HTTP/1.1" 200 -
+2025-09-10 11:38:31,891 INFO 127.0.0.1 - - [10/Sep/2025 11:38:31] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-10 11:38:31,994 INFO 127.0.0.1 - - [10/Sep/2025 11:38:31] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-10 11:39:32,763 INFO 127.0.0.1 - - [10/Sep/2025 11:39:32] "GET /search_by_address?address=gordes&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-10 11:39:33,106 INFO 127.0.0.1 - - [10/Sep/2025 11:39:33] "GET /static/cartes/map_1757497162_772393720767942310.html?t=1757497166&cache=1757497173089 HTTP/1.1" 200 -
+2025-09-10 11:40:13,283 INFO 127.0.0.1 - - [10/Sep/2025 11:40:13] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 11:40:49,985 INFO 127.0.0.1 - - [10/Sep/2025 11:40:49] "GET /search_by_address?address=nancy&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-10 11:40:50,057 INFO 127.0.0.1 - - [10/Sep/2025 11:40:50] "GET /static/cartes/map_1757497243_3772581170174389079.html?t=1757497247&cache=1757497250042 HTTP/1.1" 200 -
+2025-09-10 11:41:28,954 INFO 127.0.0.1 - - [10/Sep/2025 11:41:28] "GET /search_by_address?address=nancy&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-10 11:41:29,048 INFO 127.0.0.1 - - [10/Sep/2025 11:41:29] "GET /static/cartes/map_1757497279_3772581170174389079.html?t=1757497282&cache=1757497289026 HTTP/1.1" 200 -
+2025-09-10 11:45:17,584 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 11:45:17,585 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 11:45:19,258 INFO 127.0.0.1 - - [10/Sep/2025 11:45:19] "GET / HTTP/1.1" 200 -
+2025-09-10 11:45:23,624 INFO 127.0.0.1 - - [10/Sep/2025 11:45:23] "GET /app HTTP/1.1" 200 -
+2025-09-10 11:45:24,074 INFO 127.0.0.1 - - [10/Sep/2025 11:45:24] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-10 11:45:24,221 INFO 127.0.0.1 - - [10/Sep/2025 11:45:24] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 11:46:13,890 INFO 127.0.0.1 - - [10/Sep/2025 11:46:13] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-10 11:46:14,102 INFO 127.0.0.1 - - [10/Sep/2025 11:46:14] "GET /static/cartes/map_1757497563_5668599080738780769.html?t=1757497568&cache=1757497574091 HTTP/1.1" 200 -
+2025-09-10 11:48:16,742 INFO 127.0.0.1 - - [10/Sep/2025 11:48:16] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 11:50:03,577 INFO 127.0.0.1 - - [10/Sep/2025 11:50:03] "GET /search_by_commune?commune=vouziers&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-10 11:50:04,362 INFO 127.0.0.1 - - [10/Sep/2025 11:50:04] "GET /static/cartes/commune_map__20250910_114930.html?t=1757497782&cache=1757497804285 HTTP/1.1" 200 -
+2025-09-10 11:52:05,090 INFO 127.0.0.1 - - [10/Sep/2025 11:52:05] "GET /search_by_commune?commune=vouziers&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=150&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=150&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-10 11:52:05,890 INFO 127.0.0.1 - - [10/Sep/2025 11:52:05] "GET /static/cartes/commune_map__20250910_115133.html?t=1757497904&cache=1757497925858 HTTP/1.1" 200 -
+2025-09-10 12:00:29,099 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 12:00:29,099 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 12:01:03,682 INFO 127.0.0.1 - - [10/Sep/2025 12:01:03] "GET / HTTP/1.1" 200 -
+2025-09-10 12:01:07,628 INFO 127.0.0.1 - - [10/Sep/2025 12:01:07] "GET /app HTTP/1.1" 200 -
+2025-09-10 12:01:07,874 INFO 127.0.0.1 - - [10/Sep/2025 12:01:07] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-10 12:01:07,903 INFO 127.0.0.1 - - [10/Sep/2025 12:01:07] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 12:05:37,575 INFO 127.0.0.1 - - [10/Sep/2025 12:05:37] "GET /search_by_commune?commune=limonest&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3200&filter_by_distance=false&max_distance_bt=200&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-10 12:05:38,494 INFO 127.0.0.1 - - [10/Sep/2025 12:05:38] "GET /static/cartes/commune_map__20250910_120422.html?t=1757498698&cache=1757498738472 HTTP/1.1" 200 -
+2025-09-10 12:21:41,792 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 12:21:41,792 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 12:21:43,733 INFO 127.0.0.1 - - [10/Sep/2025 12:21:43] "GET / HTTP/1.1" 200 -
