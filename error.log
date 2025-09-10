@@ -11116,3 +11116,8 @@ OSError: [Errno 28] No space left on device
  * Running on http://127.0.0.1:5000
 2025-09-10 12:21:41,792 INFO [33mPress CTRL+C to quit[0m
 2025-09-10 12:21:43,733 INFO 127.0.0.1 - - [10/Sep/2025 12:21:43] "GET / HTTP/1.1" 200 -
+2025-09-10 13:00:36,839 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 13:00:36,840 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 13:00:40,844 INFO 127.0.0.1 - - [10/Sep/2025 13:00:40] "GET / HTTP/1.1" 200 -
+2025-09-10 13:00:44,439 INFO 127.0.0.1 - - [10/Sep/2025 13:00:44] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
