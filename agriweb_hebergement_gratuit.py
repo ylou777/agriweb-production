@@ -5213,9 +5213,26 @@ def build_map(
                             elif name == "Parkings":
                                 icon = "🅿️"
                                 text = "Voir le parking"
+                                
+                                # Lien Pages Jaunes spécifique pour les parkings
+                                adresse = props.get("adresse")
+                                if adresse and adresse != "Adresse non trouvée" and adresse != "Erreur géocodage":
+                                    from urllib.parse import quote_plus
+                                    adresse_encoded = quote_plus(adresse)
+                                    pages_jaunes_url = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=parking&ou={adresse_encoded}&univers=pagesjaunes&idOu="
+                                    pages_jaunes_link = f"<br><a href='{pages_jaunes_url}' target='_blank' style='color: #ff8c00; text-decoration: none; padding: 4px 8px; background: #fff8dc; border-radius: 4px; display: inline-block;'>📞 Pages Jaunes - Parkings</a>"
+                                
                             else:  # Friches
                                 icon = "🌾"
                                 text = "Voir la friche"
+                                
+                                # Lien Pages Jaunes spécifique pour les friches
+                                adresse = props.get("adresse")
+                                if adresse and adresse != "Adresse non trouvée" and adresse != "Erreur géocodage":
+                                    from urllib.parse import quote_plus
+                                    adresse_encoded = quote_plus(adresse)
+                                    pages_jaunes_url = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=terrain&ou={adresse_encoded}&univers=pagesjaunes&idOu="
+                                    pages_jaunes_link = f"<br><a href='{pages_jaunes_url}' target='_blank' style='color: #ff8c00; text-decoration: none; padding: 4px 8px; background: #fff8dc; border-radius: 4px; display: inline-block;'>📞 Pages Jaunes - Terrains</a>"
                                 
                             street_view_link = f"<br><br><a href='{street_view_url}' target='_blank' style='color: #1474fa; text-decoration: none; padding: 4px 8px; background: #f0f8ff; border-radius: 4px; display: inline-block;'>{icon} {text}</a>"
                         except Exception as e:
@@ -5226,59 +5243,93 @@ def build_map(
                         cadastre_refs = props.get("parcelles_cadastrales", [])
                         print(f"🏛️ [DEBUG {name}] Feature avec {len(cadastre_refs)} références cadastrales")
                     
-                    # Traitement spécial pour les toitures (Potentiel Solaire)
-                    if name == "Potentiel Solaire":
-                        # Affichage prioritaire de l'adresse pour les toitures
-                        adresse = props.get("adresse")
-                        if adresse and adresse != "Adresse non trouvée" and adresse != "Erreur géocodage":
-                            tooltip_lines.append(f"<b>📍 Adresse:</b> {adresse}")
+                    # Traitement uniforme et complet pour toutes les couches avec adresses et liens
+                    if name in ["Potentiel Solaire", "Parkings", "Friches"]:
+                        # 📍 ADRESSE (priorité 1) - Essayer plusieurs clés possibles
+                        adresse = props.get("adresse") or props.get("addr:full") or props.get("addr:street")
+                        if adresse and adresse not in ["Adresse non trouvée", "Erreur géocodage", "", "N/A"]:
+                            emoji = "🏠" if name == "Potentiel Solaire" else ("🅿️" if name == "Parkings" else "🌾")
+                            tooltip_lines.append(f"<b>{emoji} Adresse:</b> {adresse}")
                             
                             # Informations complémentaires sur l'adresse
-                            distance = props.get("adresse_distance")
-                            score = props.get("adresse_score")
+                            distance = props.get("adresse_distance") or props.get("addr_distance")
+                            score = props.get("adresse_score") or props.get("addr_score")
                             if distance is not None:
-                                tooltip_lines.append(f"<b>Distance adresse:</b> {distance}m")
+                                tooltip_lines.append(f"<b>📏 Distance adresse:</b> {distance}m")
                             if score:
-                                tooltip_lines.append(f"<b>Précision:</b> {score:.1f}")
+                                tooltip_lines.append(f"<b>🎯 Précision:</b> {score:.1f}")
                         
-                        # Surface de la toiture
-                        surface = props.get("area", props.get("surface"))
+                        # Essayer aussi d'autres champs d'adresse OSM
+                        ville = props.get("ville") or props.get("addr:city") or props.get("addr:municipality")
+                        code_postal = props.get("code_postal") or props.get("addr:postcode")
+                        if ville and ville not in ["", "N/A"]:
+                            tooltip_lines.append(f"<b>�️ Ville:</b> {ville}")
+                        if code_postal and code_postal not in ["", "N/A"]:
+                            tooltip_lines.append(f"<b>📮 Code postal:</b> {code_postal}")
+                        
+                        # 📐 SURFACE (priorité 2)
+                        surface = props.get("area") or props.get("surface") or props.get("surface_m2")
                         if surface:
-                            tooltip_lines.append(f"<b>🏠 Surface toiture:</b> {surface:.0f} m²")
+                            type_label = "toiture" if name == "Potentiel Solaire" else ("parking" if name == "Parkings" else "terrain")
+                            emoji = "🏠" if name == "Potentiel Solaire" else ("🅿️" if name == "Parkings" else "🌾")
+                            tooltip_lines.append(f"<b>{emoji} Surface {type_label}:</b> {surface:.0f} m²")
                         
-                        # Références cadastrales
+                        # 🏛️ RÉFÉRENCES CADASTRALES (priorité 3)
                         refs_cadastrales = props.get("parcelles_cadastrales", [])
-                        if refs_cadastrales:
+                        if refs_cadastrales and isinstance(refs_cadastrales, list):
                             tooltip_lines.append(f"<b>🏛️ Parcelles cadastrales ({len(refs_cadastrales)}):</b>")
-                            for ref in refs_cadastrales:  # Affiche toutes les références
+                            for ref in refs_cadastrales[:5]:  # Limite à 5 pour éviter les pop-ups trop longs
                                 if isinstance(ref, dict):
                                     ref_complete = ref.get('reference_complete', 'N/A')
                                     tooltip_lines.append(f"  • {ref_complete}")
+                                else:
+                                    tooltip_lines.append(f"  • {str(ref)}")
+                            if len(refs_cadastrales) > 5:
+                                tooltip_lines.append(f"  ... et {len(refs_cadastrales)-5} autres")
                         
-                        # Autres propriétés importantes pour les toitures
+                        # ⚡ DISTANCES AUX POSTES (priorité 4)
+                        dist_bt = props.get("distance_poste_bt") or props.get("min_poste_distance_m")
+                        dist_hta = props.get("distance_poste_hta")
+                        if dist_bt is not None:
+                            tooltip_lines.append(f"<b>⚡ Distance poste BT:</b> {dist_bt:.0f}m" if isinstance(dist_bt, (int, float)) else f"<b>⚡ Distance poste BT:</b> {dist_bt}")
+                        if dist_hta is not None:
+                            tooltip_lines.append(f"<b>⚡ Distance poste HTA:</b> {dist_hta:.0f}m" if isinstance(dist_hta, (int, float)) else f"<b>⚡ Distance poste HTA:</b> {dist_hta}")
+                        
+                        # 📊 AUTRES PROPRIÉTÉS IMPORTANTES
+                        excluded_keys = {
+                            "adresse", "addr:full", "addr:street", "addr:city", "addr:municipality", "addr:postcode",
+                            "adresse_distance", "addr_distance", "adresse_score", "addr_score", 
+                            "ville", "code_postal", "code_commune", "area", "surface", "surface_m2",
+                            "parcelles_cadastrales", "nb_parcelles_cadastrales", 
+                            "distance_poste_bt", "distance_poste_hta", "min_poste_distance_m"
+                        }
+                        
                         for k, v in props.items():
-                            if k not in ["adresse", "adresse_distance", "adresse_score", "code_postal", "ville", "code_commune", 
-                                       "parcelles_cadastrales", "nb_parcelles_cadastrales", "area", "surface"]:
-                                if k in ["distance_poste_bt", "distance_poste_hta"]:
-                                    tooltip_lines.append(f"<b>⚡ {k}:</b> {v:.0f}m" if isinstance(v, (int, float)) else f"<b>{k}:</b> {v}")
+                            if k not in excluded_keys and v not in [None, "", "N/A", "Erreur géocodage", "Adresse non trouvée"]:
+                                # Formatage spécial pour certaines clés importantes
+                                if "distance" in k.lower():
+                                    tooltip_lines.append(f"<b>📏 {k}:</b> {v:.0f}m" if isinstance(v, (int, float)) else f"<b>📏 {k}:</b> {v}")
+                                elif k in ["puissance", "power", "watt"]:
+                                    tooltip_lines.append(f"<b>⚡ {k}:</b> {v}")
+                                elif k in ["type", "category", "amenity"]:
+                                    tooltip_lines.append(f"<b>🏷️ {k}:</b> {v}")
                                 else:
                                     tooltip_lines.append(f"<b>{k}:</b> {v}")
                     
                     else:
-                        # Traitement standard pour parkings et friches
+                        # Traitement standard pour les autres couches
                         for k, v in props.items():
                             if k == "parcelles_cadastrales" and isinstance(v, list) and v:
-                                # Affichage formaté des références cadastrales
-                                tooltip_lines.append(f"<b>Références cadastrales ({len(v)}):</b>")
-                                for ref in v:  # Affiche toutes les références pour la lisibilité
+                                tooltip_lines.append(f"<b>🏛️ Références cadastrales ({len(v)}):</b>")
+                                for ref in v[:5]:
                                     if isinstance(ref, dict):
                                         ref_complete = ref.get('reference_complete', 'N/A')
                                         tooltip_lines.append(f"  • {ref_complete}")
                                     else:
                                         tooltip_lines.append(f"  • {str(ref)}")
-                            elif k == "nb_parcelles_cadastrales":
-                                tooltip_lines.append(f"<b>{k}:</b> {v}")
-                            elif k not in ["parcelles_cadastrales"]:  # Exclure la liste brute
+                                if len(v) > 5:
+                                    tooltip_lines.append(f"  ... et {len(v)-5} autres")
+                            elif k not in ["parcelles_cadastrales", "nb_parcelles_cadastrales"] and v not in [None, "", "N/A"]:
                                 tooltip_lines.append(f"<b>{k}:</b> {v}")
                     
                     tooltip_text = "<br>".join(tooltip_lines)
@@ -5433,14 +5484,62 @@ def build_map(
     # Capacités réseau HTA
     caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=True)
     for item in capacites_reseau:
-        popup = "<br>".join(f"{k}: {v}" for k, v in item['properties'].items())
+        props = item.get('properties', {})
+        
+        # ⚡ POPUP FORMATÉ POUR CAPACITÉS RÉSEAU
+        popup_content = f"<div style='max-width: 350px; font-family: Arial, sans-serif;'>"
+        popup_content += f"<h5 style='color: #6f42c1; margin-bottom: 15px;'><i class='fa fa-bolt'></i> ⚡ Poste HTA</h5>"
+        
+        # Informations principales
+        if 'nom_station' in props or 'nom_poste' in props or 'libelle' in props:
+            nom = props.get('nom_station') or props.get('nom_poste') or props.get('libelle', 'Poste HTA')
+            popup_content += f"<p><strong>📍 Nom:</strong> {nom}</p>"
+        
+        if 'capacite_accueil' in props:
+            capacite = props['capacite_accueil']
+            popup_content += f"<p><strong>⚡ Capacité d'accueil:</strong> <span style='color: #28a745; font-weight: bold;'>{capacite} MW</span></p>"
+        
+        if 'tension' in props:
+            tension = props['tension']
+            popup_content += f"<p><strong>🔌 Tension:</strong> {tension} kV</p>"
+        
+        if 'commune' in props:
+            commune = props['commune']
+            popup_content += f"<p><strong>🏘️ Commune:</strong> {commune}</p>"
+        
+        if 'gestionnaire' in props:
+            gestionnaire = props['gestionnaire']
+            popup_content += f"<p><strong>🏢 Gestionnaire:</strong> {gestionnaire}</p>"
+        
+        # Distance si disponible
+        if 'distance_m' in props:
+            distance = props['distance_m']
+            if distance < 1000:
+                popup_content += f"<p><strong>📏 Distance:</strong> <span style='color: #007bff;'>{distance:.0f}m</span></p>"
+            else:
+                popup_content += f"<p><strong>📏 Distance:</strong> <span style='color: #007bff;'>{distance/1000:.1f}km</span></p>"
+        
+        # Informations techniques supplémentaires
+        tech_info = []
+        for key, value in props.items():
+            if key not in ['nom_station', 'nom_poste', 'libelle', 'capacite_accueil', 'tension', 'commune', 'gestionnaire', 'distance_m', 'geometry']:
+                if str(value).strip() and str(value) not in ['None', 'null', '']:
+                    tech_info.append(f"<small><strong>{key.replace('_', ' ').title()}:</strong> {value}</small>")
+        
+        if tech_info:
+            popup_content += "<hr style='margin: 10px 0;'>"
+            popup_content += "<h6 style='color: #6c757d;'>Informations techniques:</h6>"
+            popup_content += "<br>".join(tech_info[:5])  # Limiter à 5 infos techniques
+        
+        popup_content += "</div>"
+        
         # Attention : parfois la géométrie peut être un dict ou un shapely, adapte si besoin
         try:
             lon_c, lat_c = shape(item['geometry']).centroid.coords[0]
         except Exception:
             coords = item.get("geometry", {}).get("coordinates", [0, 0])
             lon_c, lat_c = coords[0], coords[1]
-        folium.Marker([lat_c, lon_c], popup=popup, icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
+        folium.Marker([lat_c, lon_c], popup=folium.Popup(popup_content, max_width=400), icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
     map_obj.add_child(caps_group)
 
     # Sirene - Couche décochée par défaut pour éviter l'encombrement
@@ -6512,6 +6611,36 @@ def search_by_commune():
                     parking["properties"]["parcelles_cadastrales"] = []
                     parking["properties"]["nb_parcelles_cadastrales"] = 0
                     print(f"      ❌ Aucune parcelle cadastrale trouvée")
+                
+                # 🏠 ENRICHISSEMENT ADRESSE IGN pour le parking
+                print(f"      🔍 [DEBUG_ADRESSE] Début enrichissement adresse parking {i+1}")
+                geom = parking.get("geometry", {})
+                print(f"      🔍 [DEBUG_ADRESSE] Géométrie: {geom.get('type') if geom else 'None'}")
+                if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
+                    try:
+                        # Calculer le centroïde du parking pour obtenir lat/lon
+                        from shapely.geometry import shape
+                        shp_geom = shape(geom)
+                        centroid = shp_geom.centroid
+                        
+                        # Géocodage inverse IGN
+                        adresse_info = get_address_from_coordinates(centroid.y, centroid.x)
+                        
+                        if adresse_info and adresse_info.get('address'):
+                            parking["properties"]["adresse"] = adresse_info['address']
+                            parking["properties"]["adresse_distance"] = adresse_info.get('distance', 0)
+                            parking["properties"]["adresse_score"] = adresse_info.get('score', 0)
+                            parking["properties"]["code_postal"] = adresse_info.get('postcode', '')
+                            parking["properties"]["ville"] = adresse_info.get('city', '')
+                            parking["properties"]["code_commune"] = adresse_info.get('citycode', '')
+                            print(f"      🏠 [ADRESSE] {adresse_info['address']}")
+                        else:
+                            parking["properties"]["adresse"] = "Adresse non trouvée"
+                            print(f"      ❌ [ADRESSE] Géocodage inverse impossible pour ce parking")
+                            
+                    except Exception as e:
+                        parking["properties"]["adresse"] = "Erreur géocodage"
+                        print(f"      🔴 [ADRESSE] Erreur géocodage parking: {e}")
             
             print(f"✅ [CADASTRE-PARKINGS] Enrichissement terminé pour tous les parkings")
     else:
