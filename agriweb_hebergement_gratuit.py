@@ -2161,8 +2161,8 @@ def profile():
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
 # Configuration Stripe (clés Railway)
-STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', 'pk_test_TYooMQauvdEDq54NiTphI7jx')  # Clé de test publique
-STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_4eC39HqLyjWDarjtT1zdp7dc')  # Clé de test secrète
+STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY')  # Clé publique via variables d'environnement
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')  # Clé secrète via variables d'environnement
 
 stripe = None
 try:
