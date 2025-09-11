@@ -11121,3 +11121,143 @@ OSError: [Errno 28] No space left on device
 2025-09-10 13:00:36,840 INFO [33mPress CTRL+C to quit[0m
 2025-09-10 13:00:40,844 INFO 127.0.0.1 - - [10/Sep/2025 13:00:40] "GET / HTTP/1.1" 200 -
 2025-09-10 13:00:44,439 INFO 127.0.0.1 - - [10/Sep/2025 13:00:44] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-10 13:35:16,080 INFO 127.0.0.1 - - [10/Sep/2025 13:35:16] "GET / HTTP/1.1" 200 -
+2025-09-10 13:35:43,069 INFO 127.0.0.1 - - [10/Sep/2025 13:35:43] "GET /app HTTP/1.1" 200 -
+2025-09-10 13:35:43,560 INFO 127.0.0.1 - - [10/Sep/2025 13:35:43] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-10 13:35:43,563 INFO 127.0.0.1 - - [10/Sep/2025 13:35:43] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-10 13:37:11,155 INFO 127.0.0.1 - - [10/Sep/2025 13:37:11] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=700&bt_max_distance=250&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2650&filter_by_distance=true&max_distance_bt=250&max_distance_hta=700&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-10 13:37:11,352 INFO 127.0.0.1 - - [10/Sep/2025 13:37:11] "GET /static/cartes/commune_map__20250910_133658.html?t=1757504224&cache=1757504231327 HTTP/1.1" 200 -
+2025-09-10 13:47:59,736 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 13:47:59,736 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 13:48:01,460 INFO 127.0.0.1 - - [10/Sep/2025 13:48:01] "GET / HTTP/1.1" 200 -
+2025-09-10 13:48:13,622 INFO 127.0.0.1 - - [10/Sep/2025 13:48:13] "GET /app HTTP/1.1" 200 -
+2025-09-10 13:48:14,019 INFO 127.0.0.1 - - [10/Sep/2025 13:48:14] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-10 13:48:14,148 INFO 127.0.0.1 - - [10/Sep/2025 13:48:14] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 13:49:59,770 INFO 127.0.0.1 - - [10/Sep/2025 13:49:59] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=800&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1200&filter_by_distance=true&max_distance_bt=300&max_distance_hta=800&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-10 13:50:00,169 INFO 127.0.0.1 - - [10/Sep/2025 13:50:00] "GET /static/cartes/commune_map__20250910_134939.html?t=1757504987&cache=1757505000152 HTTP/1.1" 200 -
+2025-09-10 14:03:33,748 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 14:03:33,749 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 14:03:36,424 INFO 127.0.0.1 - - [10/Sep/2025 14:03:36] "GET / HTTP/1.1" 200 -
+2025-09-10 14:03:40,314 INFO 127.0.0.1 - - [10/Sep/2025 14:03:40] "GET /app HTTP/1.1" 200 -
+2025-09-10 14:03:41,981 INFO 127.0.0.1 - - [10/Sep/2025 14:03:41] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-10 14:03:41,985 INFO 127.0.0.1 - - [10/Sep/2025 14:03:41] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 14:03:54,077 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 14:03:54,077 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 14:05:57,061 INFO 127.0.0.1 - - [10/Sep/2025 14:05:57] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=450&bt_max_distance=350&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=950&filter_by_distance=false&max_distance_bt=350&max_distance_hta=450&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:05:57,286 INFO 127.0.0.1 - - [10/Sep/2025 14:05:57] "GET /static/cartes/commune_map__20250910_140536.html?t=1757505944&cache=1757505957265 HTTP/1.1" 200 -
+2025-09-10 14:08:18,345 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 14:08:18,346 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 14:08:25,617 INFO 127.0.0.1 - - [10/Sep/2025 14:08:25] "GET / HTTP/1.1" 200 -
+2025-09-10 14:08:28,611 INFO 127.0.0.1 - - [10/Sep/2025 14:08:28] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-10 14:08:29,901 INFO 127.0.0.1 - - [10/Sep/2025 14:08:29] "GET /app HTTP/1.1" 200 -
+2025-09-10 14:08:31,730 INFO 127.0.0.1 - - [10/Sep/2025 14:08:31] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-10 14:08:32,169 INFO 127.0.0.1 - - [10/Sep/2025 14:08:32] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 14:12:31,912 INFO 127.0.0.1 - - [10/Sep/2025 14:12:31] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:12:34,247 INFO 127.0.0.1 - - [10/Sep/2025 14:12:34] "GET /static/cartes/commune_map__20250910_141148.html?t=1757506323&cache=1757506352868 HTTP/1.1" 200 -
+2025-09-10 14:17:48,882 INFO 127.0.0.1 - - [10/Sep/2025 14:17:48] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 14:19:38,870 INFO 127.0.0.1 - - [10/Sep/2025 14:19:38] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:19:39,831 INFO 127.0.0.1 - - [10/Sep/2025 14:19:39] "GET /static/cartes/commune_map__20250910_141925.html?t=1757506771&cache=1757506779440 HTTP/1.1" 200 -
+2025-09-10 14:21:26,674 INFO 127.0.0.1 - - [10/Sep/2025 14:21:26] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:21:27,801 INFO 127.0.0.1 - - [10/Sep/2025 14:21:27] "GET /static/cartes/commune_map__20250910_142111.html?t=1757506879&cache=1757506887484 HTTP/1.1" 200 -
+2025-09-10 14:22:37,564 INFO 127.0.0.1 - - [10/Sep/2025 14:22:37] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:22:38,410 INFO 127.0.0.1 - - [10/Sep/2025 14:22:38] "GET /static/cartes/commune_map__20250910_142223.html?t=1757506950&cache=1757506958086 HTTP/1.1" 200 -
+2025-09-10 14:24:24,106 INFO 127.0.0.1 - - [10/Sep/2025 14:24:24] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:24:25,152 INFO 127.0.0.1 - - [10/Sep/2025 14:24:25] "GET /static/cartes/commune_map__20250910_142406.html?t=1757507052&cache=1757507064765 HTTP/1.1" 200 -
+2025-09-10 14:27:01,503 INFO 127.0.0.1 - - [10/Sep/2025 14:27:01] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:27:02,259 INFO 127.0.0.1 - - [10/Sep/2025 14:27:02] "GET /static/cartes/commune_map__20250910_142636.html?t=1757507207&cache=1757507221936 HTTP/1.1" 200 -
+2025-09-10 14:29:33,696 INFO 127.0.0.1 - - [10/Sep/2025 14:29:33] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:29:34,458 INFO 127.0.0.1 - - [10/Sep/2025 14:29:34] "GET /static/cartes/commune_map__20250910_142905.html?t=1757507357&cache=1757507374141 HTTP/1.1" 200 -
+2025-09-10 14:32:07,122 INFO 127.0.0.1 - - [10/Sep/2025 14:32:07] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=200&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=775&filter_by_distance=false&max_distance_bt=200&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:32:07,920 INFO 127.0.0.1 - - [10/Sep/2025 14:32:07] "GET /static/cartes/commune_map__20250910_143143.html?t=1757507514&cache=1757507527584 HTTP/1.1" 200 -
+2025-09-10 14:48:48,215 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 14:48:48,215 INFO [33mPress CTRL+C to quit[0m
+2025-09-10 14:52:19,728 INFO 127.0.0.1 - - [10/Sep/2025 14:52:19] "GET / HTTP/1.1" 200 -
+2025-09-10 14:52:25,949 INFO 127.0.0.1 - - [10/Sep/2025 14:52:25] "GET /app HTTP/1.1" 200 -
+2025-09-10 14:52:27,085 INFO 127.0.0.1 - - [10/Sep/2025 14:52:27] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-10 14:52:27,205 INFO 127.0.0.1 - - [10/Sep/2025 14:52:27] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-10 14:54:58,182 INFO 127.0.0.1 - - [10/Sep/2025 14:54:58] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-10 14:54:58,722 INFO 127.0.0.1 - - [10/Sep/2025 14:54:58] "GET /static/cartes/commune_map__20250910_145433.html?t=1757508884&cache=1757508898339 HTTP/1.1" 200 -
+2025-09-10 18:07:00,777 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-10 18:07:00,778 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:09:36,520 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:09:36,522 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:10:09,246 INFO 127.0.0.1 - - [11/Sep/2025 10:10:09] "GET / HTTP/1.1" 200 -
+2025-09-11 10:10:09,265 INFO 127.0.0.1 - - [11/Sep/2025 10:10:09] "GET / HTTP/1.1" 200 -
+2025-09-11 10:10:17,982 INFO 127.0.0.1 - - [11/Sep/2025 10:10:17] "GET /app HTTP/1.1" 200 -
+2025-09-11 10:10:19,130 INFO 127.0.0.1 - - [11/Sep/2025 10:10:19] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-11 10:10:19,295 INFO 127.0.0.1 - - [11/Sep/2025 10:10:19] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-11 10:10:20,513 INFO 127.0.0.1 - - [11/Sep/2025 10:10:20] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-11 10:11:56,012 INFO 127.0.0.1 - - [11/Sep/2025 10:11:56] "GET /search_by_address?address=nice&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-11 10:11:56,865 INFO 127.0.0.1 - - [11/Sep/2025 10:11:56] "GET /static/cartes/map_1757578287_1563136641349481931.html?t=1757578292&cache=1757578316380 HTTP/1.1" 200 -
+2025-09-11 10:15:31,311 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:15:31,313 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:16:11,524 INFO 127.0.0.1 - - [11/Sep/2025 10:16:11] "GET / HTTP/1.1" 200 -
+2025-09-11 10:16:11,584 INFO 127.0.0.1 - - [11/Sep/2025 10:16:11] "GET / HTTP/1.1" 200 -
+2025-09-11 10:16:12,750 INFO 127.0.0.1 - - [11/Sep/2025 10:16:12] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-11 10:16:17,323 INFO 127.0.0.1 - - [11/Sep/2025 10:16:17] "GET /app HTTP/1.1" 200 -
+2025-09-11 10:16:17,469 INFO 127.0.0.1 - - [11/Sep/2025 10:16:17] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-11 10:16:17,505 INFO 127.0.0.1 - - [11/Sep/2025 10:16:17] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-11 10:22:03,723 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:22:03,723 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:34:16,437 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:34:16,438 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:35:38,285 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:35:38,286 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:44:03,543 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:44:03,543 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:48:04,854 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 10:48:04,854 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 10:48:11,780 INFO 127.0.0.1 - - [11/Sep/2025 10:48:11] "GET / HTTP/1.1" 200 -
+2025-09-11 10:48:12,899 INFO 127.0.0.1 - - [11/Sep/2025 10:48:12] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-11 10:48:16,237 INFO 127.0.0.1 - - [11/Sep/2025 10:48:16] "GET /app HTTP/1.1" 200 -
+2025-09-11 10:48:16,668 INFO 127.0.0.1 - - [11/Sep/2025 10:48:16] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-11 10:48:16,738 INFO 127.0.0.1 - - [11/Sep/2025 10:48:16] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-11 10:49:24,704 INFO 127.0.0.1 - - [11/Sep/2025 10:49:24] "GET /search_by_address?address=genay&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-11 10:49:25,508 INFO 127.0.0.1 - - [11/Sep/2025 10:49:25] "GET /static/cartes/map_1757580564_1429581645959484264.html?t=1757580564&cache=1757580564781 HTTP/1.1" 200 -
+2025-09-11 10:50:56,972 INFO 127.0.0.1 - - [11/Sep/2025 10:50:56] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-11 10:52:20,683 INFO 127.0.0.1 - - [11/Sep/2025 10:52:20] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:52:21,325 INFO 127.0.0.1 - - [11/Sep/2025 10:52:21] "GET /static/cartes/commune_map_buissiere_20250911_105205.html?t=1757580732&cache=1757580740996 HTTP/1.1" 200 -
+2025-09-11 10:53:27,834 INFO 127.0.0.1 - - [11/Sep/2025 10:53:27] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:53:28,486 INFO 127.0.0.1 - - [11/Sep/2025 10:53:28] "GET /static/cartes/commune_map_buissiere_20250911_105313.html?t=1757580799&cache=1757580808167 HTTP/1.1" 200 -
+2025-09-11 10:54:26,153 INFO 127.0.0.1 - - [11/Sep/2025 10:54:26] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:54:26,779 INFO 127.0.0.1 - - [11/Sep/2025 10:54:26] "GET /static/cartes/commune_map_buissiere_20250911_105411.html?t=1757580857&cache=1757580866456 HTTP/1.1" 200 -
+2025-09-11 10:55:36,435 INFO 127.0.0.1 - - [11/Sep/2025 10:55:36] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:55:37,153 INFO 127.0.0.1 - - [11/Sep/2025 10:55:37] "GET /static/cartes/commune_map_buissiere_20250911_105512.html?t=1757580921&cache=1757580936751 HTTP/1.1" 200 -
+2025-09-11 10:56:44,722 INFO 127.0.0.1 - - [11/Sep/2025 10:56:44] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:56:45,453 INFO 127.0.0.1 - - [11/Sep/2025 10:56:45] "GET /static/cartes/commune_map_buissiere_20250911_105629.html?t=1757580995&cache=1757581005124 HTTP/1.1" 200 -
+2025-09-11 10:57:52,320 INFO 127.0.0.1 - - [11/Sep/2025 10:57:52] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:57:53,018 INFO 127.0.0.1 - - [11/Sep/2025 10:57:53] "GET /static/cartes/commune_map_buissiere_20250911_105735.html?t=1757581061&cache=1757581072688 HTTP/1.1" 200 -
+2025-09-11 10:59:03,617 INFO 127.0.0.1 - - [11/Sep/2025 10:59:03] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 10:59:04,340 INFO 127.0.0.1 - - [11/Sep/2025 10:59:04] "GET /static/cartes/commune_map_buissiere_20250911_105846.html?t=1757581134&cache=1757581144007 HTTP/1.1" 200 -
+2025-09-11 11:00:02,749 INFO 127.0.0.1 - - [11/Sep/2025 11:00:02] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:00:03,508 INFO 127.0.0.1 - - [11/Sep/2025 11:00:03] "GET /static/cartes/commune_map_buissiere_20250911_105948.html?t=1757581194&cache=1757581203170 HTTP/1.1" 200 -
+2025-09-11 11:01:09,747 INFO 127.0.0.1 - - [11/Sep/2025 11:01:09] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:01:10,456 INFO 127.0.0.1 - - [11/Sep/2025 11:01:10] "GET /static/cartes/commune_map_buissiere_20250911_110053.html?t=1757581260&cache=1757581270140 HTTP/1.1" 200 -
+2025-09-11 11:02:09,693 INFO 127.0.0.1 - - [11/Sep/2025 11:02:09] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:02:10,405 INFO 127.0.0.1 - - [11/Sep/2025 11:02:10] "GET /static/cartes/commune_map_buissiere_20250911_110153.html?t=1757581320&cache=1757581330074 HTTP/1.1" 200 -
+2025-09-11 11:03:07,832 INFO 127.0.0.1 - - [11/Sep/2025 11:03:07] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:03:08,488 INFO 127.0.0.1 - - [11/Sep/2025 11:03:08] "GET /static/cartes/commune_map_buissiere_20250911_110252.html?t=1757581379&cache=1757581388165 HTTP/1.1" 200 -
+2025-09-11 11:04:22,393 INFO 127.0.0.1 - - [11/Sep/2025 11:04:22] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:04:23,043 INFO 127.0.0.1 - - [11/Sep/2025 11:04:23] "GET /static/cartes/commune_map_buissiere_20250911_110406.html?t=1757581452&cache=1757581462719 HTTP/1.1" 200 -
+2025-09-11 11:05:26,826 INFO 127.0.0.1 - - [11/Sep/2025 11:05:26] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:05:27,512 INFO 127.0.0.1 - - [11/Sep/2025 11:05:27] "GET /static/cartes/commune_map_buissiere_20250911_110511.html?t=1757581517&cache=1757581527198 HTTP/1.1" 200 -
+2025-09-11 11:06:27,063 INFO 127.0.0.1 - - [11/Sep/2025 11:06:27] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:06:27,806 INFO 127.0.0.1 - - [11/Sep/2025 11:06:27] "GET /static/cartes/commune_map_buissiere_20250911_110611.html?t=1757581578&cache=1757581587407 HTTP/1.1" 200 -
+2025-09-11 11:07:36,348 INFO 127.0.0.1 - - [11/Sep/2025 11:07:36] "GET /search_by_commune?commune=buissiere&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1375&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 11:07:37,040 INFO 127.0.0.1 - - [11/Sep/2025 11:07:37] "GET /static/cartes/commune_map_buissiere_20250911_110715.html?t=1757581644&cache=1757581656719 HTTP/1.1" 200 -
+2025-09-11 11:22:19,747 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 11:22:19,747 INFO [33mPress CTRL+C to quit[0m

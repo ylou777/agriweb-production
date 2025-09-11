@@ -59,8 +59,12 @@ def log_search_start(commune, params):
     print(f"{'='*80}")
 
 def log_data_collection(step, details):
-    """Log détaillé de la collecte de données"""
-    print(f"📊 [COLLECTE] {step}: {details}")
+    """Log détaillé de la collecte de données - optimisé pour performance"""
+    # Réduire la verbosité des logs pour éviter les loops infinies
+    if "✅" in details and ("récupérées" in details or "trouvées" in details):
+        # Log seulement les résultats finaux, pas les étapes intermédiaires
+        print(f"📊 [COLLECTE] {step}: {details}")
+    # Ignorer les logs "Récupération" pour réduire la verbosité
 
 def ensure_json_safe(value, _depth=0):
     """Convertit récursivement une structure Python en types JSON-sérialisables.
@@ -3681,7 +3685,7 @@ def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
                 minx, miny, maxx, maxy = commune_poly.bounds
                 bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
                 
-                print(f"🔍 [POLYGON_SEARCH] {layer_name}: bbox {bbox}")
+                # print(f"🔍 [POLYGON_SEARCH] {layer_name}: bbox {bbox}")  # Optimisé pour performance
                 features = fetch_wfs_data(layer_name, bbox)
                 
                 # Filtrage géométrique précis
@@ -3698,7 +3702,7 @@ def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
                                 filtered.append(f)
                         except Exception as e:
                             continue
-                    print(f"✅ [POLYGON_SEARCH] {layer_name}: {len(filtered)}/{len(features)} features dans la commune")
+                    # print(f"✅ [POLYGON_SEARCH] {layer_name}: {len(filtered)}/{len(features)} features dans la commune")  # Optimisé pour performance
                     return filtered
                 return features
         else:
@@ -3708,13 +3712,13 @@ def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
                 "_limit": 1000
             }
             
-            print(f"🔍 [API_CARTO] {api_endpoint} avec géométrie commune")
+            # print(f"🔍 [API_CARTO] {api_endpoint} avec géométrie commune")  # Optimisé pour performance
             resp = requests.get(api_endpoint, params=params, timeout=30)
             
             if resp.status_code == 200:
                 data = resp.json()
                 features = data.get('features', [])
-                print(f"✅ [API_CARTO] {api_endpoint}: {len(features)} features trouvées")
+                # print(f"✅ [API_CARTO] {api_endpoint}: {len(features)} features trouvées")  # Optimisé pour performance
                 return features
             else:
                 print(f"⚠️ [API_CARTO] {api_endpoint}: erreur {resp.status_code}")
@@ -6148,10 +6152,10 @@ def search_by_commune():
         rpg_min_area = float(flask_request.values.get("rpg_min_area", 1.0))
         rpg_max_area = float(flask_request.values.get("rpg_max_area", 1000.0))
         
-        # DEBUG: Log des paramètres RPG reçus
-        print(f"🚨 [DEBUG_RPG] filter_rpg reçu: '{flask_request.values.get('filter_rpg', 'PAS_TROUVE')}' -> {filter_rpg}")
-        print(f"🚨 [DEBUG_RPG] rpg_min_area: {rpg_min_area}, rpg_max_area: {rpg_max_area}")
-        print(f"🚨 [DEBUG_RPG] Tous paramètres reçus: {dict(flask_request.values)}")
+        # DEBUG: Log des paramètres RPG reçus (optimisé pour performance)
+        # print(f"🚨 [DEBUG_RPG] filter_rpg reçu: '{flask_request.values.get('filter_rpg', 'PAS_TROUVE')}' -> {filter_rpg}")
+        # print(f"🚨 [DEBUG_RPG] rpg_min_area: {rpg_min_area}, rpg_max_area: {rpg_max_area}")
+        # print(f"🚨 [DEBUG_RPG] Tous paramètres reçus: {dict(flask_request.values)}")
 
         filter_parkings = flask_request.values.get("filter_parkings", "false").lower() == "true"
         parking_min_area = float(flask_request.values.get("parking_min_area", 1500.0))
@@ -6382,7 +6386,7 @@ def search_by_commune():
             return geom
     
     # Récupération enrichie des données API avec optimisation géométrique
-    print(f"🔍 [COMMUNE] Utilisation du polygone pour les APIs avec optimisation anti-414")
+    # print(f"🔍 [COMMUNE] Utilisation du polygone pour les APIs avec optimisation anti-414")
     contour_optimise = optimize_geometry_for_api(contour)
     
     api_cadastre   = get_api_cadastre_data(contour_optimise)  # Utilise le polygone optimisé
@@ -6391,7 +6395,7 @@ def search_by_commune():
     
     # Enrichissement des données si l'option zones est activée
     if filter_zones and api_urbanisme.get("success"):
-        print(f"🔍 [COMMUNE] Enrichissement des détails de zones GPU pour {commune}")
+        # print(f"🔍 [COMMUNE] Enrichissement des détails de zones GPU pour {commune}")
         # Ajouter des informations détaillées sur les zones trouvées
         zones_summary = {}
         if api_urbanisme.get("details"):
@@ -6408,7 +6412,21 @@ def search_by_commune():
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
 
     final_rpg = []
+    rejected_surface_count = 0
+    rejected_distance_count = 0
+    processed_count = 0
+    
+    total_rpg = len(rpg_raw or [])
+    # print(f"🔍 [RPG] Début filtrage sur {total_rpg} parcelles")  # Optimisé pour performance
+    
     for feat in (rpg_raw or []):
+        processed_count += 1
+        
+        # Limite de sécurité pour éviter les loops infinies
+        if processed_count > 1000:
+            print(f"⚠️ [RPG] Limite de sécurité atteinte: {processed_count} parcelles traitées")
+            break
+            
         dec   = decode_rpg_feature(feat)
         poly  = shape(dec["geometry"])
         props = dec["properties"]
@@ -6420,7 +6438,7 @@ def search_by_commune():
         # b) surface (ha) - CORRECTION: Utiliser les paramètres RPG spécifiques
         ha = shp_transform(to_l93, poly).area / 10_000.0
         if ha < rpg_min_area or ha > rpg_max_area:
-            print(f"🚨 [DEBUG_RPG] Parcelle rejetée: {ha:.2f}ha (hors limites {rpg_min_area}-{rpg_max_area}ha)")
+            rejected_surface_count += 1
             continue
 
         # c) distances réseaux : utiliser la logique unifiée de filtrage par distance
@@ -6442,7 +6460,7 @@ def search_by_commune():
                 distance_ok = bt_ok or hta_ok
                 
             if not distance_ok:
-                print(f"🚨 [DEBUG_RPG] Parcelle rejetée: distance BT={d_bt:.1f}m, HTA={d_hta if d_hta else 'N/A'}, limites BT<={max_distance_bt}m, HTA<={max_distance_hta}m")
+                rejected_distance_count += 1
                 continue
 
         props.update({
@@ -6456,6 +6474,11 @@ def search_by_commune():
             "properties": props
         })
 
+    # Résumé du filtrage RPG
+    accepted_count = len(final_rpg)
+    total_rejected = rejected_surface_count + rejected_distance_count
+    print(f"✅ [RPG] Filtrage terminé: {accepted_count} gardées, {total_rejected} rejetées ({rejected_surface_count} surface, {rejected_distance_count} distance)")
+
     # Filtrage avancé pour les nouvelles couches
     
     # Initialisation des listes filtrées
@@ -6466,9 +6489,9 @@ def search_by_commune():
     
     # 5b) Filtrage des parkings selon les critères (utilise les sliders unifiés)
     if filter_parkings and parkings_data:
-        log_data_collection("FILTRAGE PARKINGS", f"Début filtrage sur {len(parkings_data)} parkings")
-        print(f"🔍 [PARKINGS] Filtrage: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
-        print(f"🔍 [PARKINGS] Parkings bruts récupérés: {len(parkings_data)}")
+        log_data_collection("FILTRAGE PARKINGS", f"✅ Début filtrage sur {len(parkings_data)} parkings")
+        # print(f"🔍 [PARKINGS] Filtrage: >{parking_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        # print(f"🔍 [PARKINGS] Parkings bruts récupérés: {len(parkings_data)}")
         
         surfaces_rejetees = 0
         distances_rejetees = 0
@@ -7272,7 +7295,7 @@ def search_by_commune():
             toitures_data = []
     
     print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
-    print(f"🌾 [DEBUG_RPG] Parcelles RPG passées à build_map: {len(final_rpg)}")
+    # print(f"🌾 [DEBUG_RPG] Parcelles RPG passées à build_map: {len(final_rpg)}")
     
     map_obj = build_map(
         lat, lon, commune,
@@ -7317,7 +7340,7 @@ def search_by_commune():
         eleveurs_with_layer.append(eleveur)
     
     # 7) Réponse JSON avec données filtrées
-    print(f"🔧 [DEBUG_RPG_PARCELLES] Création response_data avec filter_rpg={filter_rpg}, final_rpg count={len(final_rpg) if final_rpg else 0}")
+    # print(f"🔧 [DEBUG_RPG_PARCELLES] Création response_data avec filter_rpg={filter_rpg}, final_rpg count={len(final_rpg) if final_rpg else 0}")
     response_data = {
         "lat": lat, "lon": lon,
         "rpg": final_rpg if filter_rpg else [],
@@ -7356,13 +7379,13 @@ def search_by_commune():
         }
     }
     
-    # DEBUG: Vérifier le contenu de response_data
-    print(f"🔧 [DEBUG_RPG_PARCELLES] response_data créé avec clés: {list(response_data.keys())}")
-    if 'rpg_parcelles' in response_data:
-        rpg_p = response_data['rpg_parcelles']
-        print(f"✅ [DEBUG_RPG_PARCELLES] rpg_parcelles présent, type: {type(rpg_p)}, features: {len(rpg_p.get('features', [])) if isinstance(rpg_p, dict) else 'N/A'}")
-    else:
-        print(f"❌ [DEBUG_RPG_PARCELLES] rpg_parcelles MANQUANT dans response_data!")
+    # DEBUG: Vérifier le contenu de response_data (optimisé)
+    # print(f"🔧 [DEBUG_RPG_PARCELLES] response_data créé avec clés: {list(response_data.keys())}")
+    # if 'rpg_parcelles' in response_data:
+    #     rpg_p = response_data['rpg_parcelles']
+    #     print(f"✅ [DEBUG_RPG_PARCELLES] rpg_parcelles présent, type: {type(rpg_p)}, features: {len(rpg_p.get('features', [])) if isinstance(rpg_p, dict) else 'N/A'}")
+    # else:
+    #     print(f"❌ [DEBUG_RPG_PARCELLES] rpg_parcelles MANQUANT dans response_data!")
     
     # Log final détaillé des résultats de recherche
     log_search_results(commune, response_data)
