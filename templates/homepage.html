@@ -504,15 +504,14 @@
                     return;
                 }
                 
-                // Redirection vers Stripe Checkout
-                const result = await stripe.redirectToCheckout({
-                    sessionId: session.session_id
-                });
-                
-                if (result.error) {
-                    showAlert(result.error.message, 'danger');
+                // Redirection directe vers l'URL Stripe
+                if (session.url) {
+                    window.location.href = session.url;
+                } else {
+                    showAlert('URL de paiement non reçue', 'danger');
                 }
             } catch (error) {
+                console.error('Erreur:', error);
                 showAlert('Erreur de connexion au serveur', 'danger');
             }
         }

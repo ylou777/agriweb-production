@@ -11261,3 +11261,44 @@ OSError: [Errno 28] No space left on device
 2025-09-11 11:22:19,747 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
  * Running on http://127.0.0.1:5000
 2025-09-11 11:22:19,747 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 11:32:23,628 INFO 127.0.0.1 - - [11/Sep/2025 11:32:23] "GET / HTTP/1.1" 200 -
+2025-09-11 11:32:23,668 INFO 127.0.0.1 - - [11/Sep/2025 11:32:23] "GET / HTTP/1.1" 200 -
+2025-09-11 11:32:23,988 INFO 127.0.0.1 - - [11/Sep/2025 11:32:23] "GET / HTTP/1.1" 200 -
+2025-09-11 11:32:24,447 INFO 127.0.0.1 - - [11/Sep/2025 11:32:24] "GET / HTTP/1.1" 200 -
+2025-09-11 11:32:25,585 INFO 127.0.0.1 - - [11/Sep/2025 11:32:25] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-11 11:32:33,489 INFO 127.0.0.1 - - [11/Sep/2025 11:32:33] "GET /app HTTP/1.1" 200 -
+2025-09-11 11:32:33,860 INFO 127.0.0.1 - - [11/Sep/2025 11:32:33] "GET /static/main.js HTTP/1.1" 200 -
+2025-09-11 11:32:33,882 INFO 127.0.0.1 - - [11/Sep/2025 11:32:33] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-11 11:35:05,577 INFO 127.0.0.1 - - [11/Sep/2025 11:35:05] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=5000&filter_zones=true&zones_min_area=5000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1300&filter_by_distance=true&max_distance_bt=200&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-11 11:35:06,101 INFO 127.0.0.1 - - [11/Sep/2025 11:35:06] "GET /static/cartes/commune_map__20250911_113448.html?t=1757583297&cache=1757583305785 HTTP/1.1" 200 -
+2025-09-11 12:57:26,779 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 12:57:26,784 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 13:06:42,457 INFO 127.0.0.1 - - [11/Sep/2025 13:06:42] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-11 13:08:21,689 INFO 127.0.0.1 - - [11/Sep/2025 13:08:21] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=5000&filter_zones=true&zones_min_area=5000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1300&filter_by_distance=true&max_distance_bt=200&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-11 13:08:22,323 INFO 127.0.0.1 - - [11/Sep/2025 13:08:22] "GET /static/cartes/commune_map__20250911_130800.html?t=1757588887&cache=1757588902001 HTTP/1.1" 200 -
+2025-09-11 13:10:02,047 INFO 127.0.0.1 - - [11/Sep/2025 13:10:02] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=200&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=5000&filter_zones=true&zones_min_area=5000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1300&filter_by_distance=true&max_distance_bt=200&max_distance_hta=500&poste_type_filter=ALL HTTP/1.1" 200 -
+2025-09-11 13:10:02,846 INFO 127.0.0.1 - - [11/Sep/2025 13:10:02] "GET /static/cartes/commune_map__20250911_130942.html?t=1757588993&cache=1757589002462 HTTP/1.1" 200 -
+2025-09-11 13:25:34,531 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 13:25:34,533 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 13:29:35,709 INFO 127.0.0.1 - - [11/Sep/2025 13:29:35] "GET / HTTP/1.1" 200 -
+2025-09-11 13:29:38,264 INFO 127.0.0.1 - - [11/Sep/2025 13:29:38] "GET /app HTTP/1.1" 200 -
+2025-09-11 13:29:38,980 INFO 127.0.0.1 - - [11/Sep/2025 13:29:38] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-11 13:29:39,064 INFO 127.0.0.1 - - [11/Sep/2025 13:29:39] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-11 13:31:24,984 INFO 127.0.0.1 - - [11/Sep/2025 13:31:24] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=3000&filter_by_distance=true&max_distance_bt=300&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-11 13:31:25,531 INFO 127.0.0.1 - - [11/Sep/2025 13:31:25] "GET /static/cartes/commune_map__20250911_133108.html?t=1757590276&cache=1757590285184 HTTP/1.1" 200 -
+2025-09-11 15:39:19,529 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 15:39:19,531 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 15:39:38,564 INFO 127.0.0.1 - - [11/Sep/2025 15:39:38] "[33mGET /status HTTP/1.1[0m" 404 -
+2025-09-11 15:40:07,621 INFO 127.0.0.1 - - [11/Sep/2025 15:40:07] "GET / HTTP/1.1" 200 -
+2025-09-11 15:40:46,469 INFO 127.0.0.1 - - [11/Sep/2025 15:40:46] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-11 15:44:32,277 INFO 127.0.0.1 - - [11/Sep/2025 15:44:32] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-11 15:45:20,300 INFO 127.0.0.1 - - [11/Sep/2025 15:45:20] "GET /?id=4d313a58-0a1f-452c-8166-cb026c6fa07e&vscodeBrowserReqId=1757598319802 HTTP/1.1" 200 -
+2025-09-11 15:45:26,525 INFO 127.0.0.1 - - [11/Sep/2025 15:45:26] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-11 15:45:45,044 INFO 127.0.0.1 - - [11/Sep/2025 15:45:45] "GET / HTTP/1.1" 200 -
+2025-09-11 15:45:45,443 INFO 127.0.0.1 - - [11/Sep/2025 15:45:45] "GET / HTTP/1.1" 200 -
+2025-09-11 15:45:45,909 INFO 127.0.0.1 - - [11/Sep/2025 15:45:45] "GET / HTTP/1.1" 200 -
+2025-09-11 15:45:51,838 INFO 127.0.0.1 - - [11/Sep/2025 15:45:51] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-11 15:45:52,620 INFO 127.0.0.1 - - [11/Sep/2025 15:45:52] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
