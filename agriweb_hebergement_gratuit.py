@@ -14,37 +14,47 @@ def safe_print(*args, **kwargs):
 
 def log_search_start(commune, params):
     """Log détaillé du début d'une recherche"""
-    print(f"\n{'='*80}")
-    print(f"🔍 [RECHERCHE COMMUNE] === DÉBUT RECHERCHE POUR '{commune.upper()}' ===")
-    print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"📍 Commune: {commune}")
-    print(f"🎯 Filtres actifs:")
+    # print(f"\n{'='*80}")  # Optimisé pour production multi-user
+    # print(f"🔍 [RECHERCHE COMMUNE] === DÉBUT RECHERCHE POUR '{commune.upper()}' ===")  # Optimisé pour production multi-user
+    # print(f"📅 Date/Heure: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")  # Optimisé pour production multi-user
+    # print(f"📍 Commune: {commune}")  # Optimisé pour production multi-user
+    # print(f"🎯 Filtres actifs:")  # Optimisé pour production multi-user
     
     if params['filter_rpg']:
-        print(f"   🌾 RPG: OUI (surface {params['rpg_min_area']}-{params['rpg_max_area']} ha)")
+        # print(f"   🌾 RPG: OUI (surface {params['rpg_min_area']}-{params['rpg_max_area']} ha)")  # Optimisé pour production multi-user
+        pass
     else:
-        print(f"   🌾 RPG: NON")
+        # print(f"   🌾 RPG: NON")  # Optimisé pour production multi-user
+        pass
         
     if params['filter_parkings']:
-        print(f"   🅿️ Parkings: OUI (surface min {params['parking_min_area']} m²)")
+        # print(f"   🅿️ Parkings: OUI (surface min {params['parking_min_area']} m²)")  # Optimisé pour production multi-user
+        pass
     else:
-        print(f"   🅿️ Parkings: NON")
+        # print(f"   🅿️ Parkings: NON")  # Optimisé pour production multi-user
+        pass
         
     if params['filter_friches']:
-        print(f"   🏚️ Friches: OUI (surface min {params['friches_min_area']} m²)")
+        # print(f"   🏚️ Friches: OUI (surface min {params['friches_min_area']} m²)")  # Optimisé pour production multi-user
+        pass
     else:
-        print(f"   🏚️ Friches: NON")
+        # print(f"   🏚️ Friches: NON")  # Optimisé pour production multi-user
+        pass
         
     if params['filter_zones']:
         type_zone = params['zones_type_filter'] or 'toutes'
-        print(f"   🏗️ Zones urbanisme: OUI (type: {type_zone}, surface min {params['zones_min_area']} m²)")
+        # print(f"   🏗️ Zones urbanisme: OUI (type: {type_zone}, surface min {params['zones_min_area']} m²)")  # Optimisé pour production multi-user
+        pass
     else:
-        print(f"   🏗️ Zones urbanisme: NON")
+        # print(f"   🏗️ Zones urbanisme: NON")  # Optimisé pour production multi-user
+        pass
         
     if params['filter_toitures']:
-        print(f"   🏠 Toitures: OUI (surface min {params['toitures_min_surface']} m²)")
+        # print(f"   🏠 Toitures: OUI (surface min {params['toitures_min_surface']} m²)")  # Optimisé pour production multi-user
+        pass
     else:
-        print(f"   🏠 Toitures: NON")
+        # print(f"   🏠 Toitures: NON")  # Optimisé pour production multi-user
+        pass
         
     if params['filter_by_distance']:
         logic = "ET" if params['distance_logic'] == 'AND' else "OU"
@@ -162,9 +172,9 @@ def log_search_results(commune, results):
         except Exception:
             return 0
 
-    print(f"\n{'='*80}")
-    print(f"✅ [RÉSULTATS] === RECHERCHE TERMINÉE POUR '{commune.upper()}' ===")
-    print(f"📊 Données collectées:")
+    # print(f"\n{'='*80}")  # Optimisé pour production multi-user
+    # print(f"✅ [RÉSULTATS] === RECHERCHE TERMINÉE POUR '{commune.upper()}' ===")  # Optimisé pour production multi-user
+    # print(f"📊 Données collectées:")  # Optimisé pour production multi-user
 
     # Compter les éléments trouvés, qu'ils soient en liste ou en FeatureCollection
     rpg_count = count_features(results.get('rpg')) or count_features(results.get('rpg_parcelles'))
@@ -178,37 +188,39 @@ def log_search_results(commune, results):
     postes_hta_count = count_features(results.get('postes_hta'))
     sirene_count = count_features(results.get('sirene'))
 
-    print(f"   🌾 Parcelles RPG: {rpg_count}")
-    print(f"   🅿️ Parkings: {parkings_count}")
-    print(f"   🏚️ Friches: {friches_count}")
-    print(f"   🏠 Toitures: {toitures_count}")
-    print(f"   🏗️ Zones d'urbanisme: {zones_count}")
-    print(f"   📐 Parcelles dans zones: {parcelles_zones_count}")
-    print(f"   🐄 Éleveurs: {eleveurs_count}")
-    print(f"   ⚡ Postes BT: {postes_bt_count}")
-    print(f"   🔌 Postes HTA: {postes_hta_count}")
-    print(f"   🏢 Entreprises SIRENE: {sirene_count}")
+    # print(f"   🌾 Parcelles RPG: {rpg_count}")  # Optimisé pour production multi-user
+    # print(f"   🅿️ Parkings: {parkings_count}")  # Optimisé pour production multi-user
+    # print(f"   🏚️ Friches: {friches_count}")  # Optimisé pour production multi-user
+    # print(f"   🏠 Toitures: {toitures_count}")  # Optimisé pour production multi-user
+    # print(f"   🏗️ Zones d'urbanisme: {zones_count}")  # Optimisé pour production multi-user
+    # print(f"   📐 Parcelles dans zones: {parcelles_zones_count}")  # Optimisé pour production multi-user
+    # print(f"   🐄 Éleveurs: {eleveurs_count}")  # Optimisé pour production multi-user
+    # print(f"   ⚡ Postes BT: {postes_bt_count}")  # Optimisé pour production multi-user
+    # print(f"   🔌 Postes HTA: {postes_hta_count}")  # Optimisé pour production multi-user
+    # print(f"   🏢 Entreprises SIRENE: {sirene_count}")  # Optimisé pour production multi-user
 
     total_elements = (rpg_count + parkings_count + friches_count +
                       toitures_count + zones_count + eleveurs_count)
-    print(f"📈 Total éléments géographiques: {total_elements}")
+    # print(f"📈 Total éléments géographiques: {total_elements}")  # Optimisé pour production multi-user
     try:
         active_filters = [f for f in (results.get('filters_applied') or {}).values() if isinstance(f, dict) and f.get('active', False)]
-        print(f"🎯 Filtres appliqués: {len(active_filters)}")
+        # print(f"🎯 Filtres appliqués: {len(active_filters)}")  # Optimisé pour production multi-user
+        pass
     except Exception:
-        print(f"🎯 Filtres appliqués: N/A")
-    print(f"⏱️ Recherche terminée: {datetime.now().strftime('%H:%M:%S')}")
-    print(f"{'='*80}\n")
+        # print(f"🎯 Filtres appliqués: N/A")  # Optimisé pour production multi-user
+        pass
+    # print(f"⏱️ Recherche terminée: {datetime.now().strftime('%H:%M:%S')}")  # Optimisé pour production multi-user
+    # print(f"{'='*80}\n")  # Optimisé pour production multi-user
 def fetch_georisques_risks(lat, lon):
     """
     Appelle l'API GeoRisques pour obtenir les risques naturels et technologiques pour un point.
     Utilise tous les endpoints disponibles dans l'API v1.
     Voir doc: https://www.georisques.gouv.fr/doc-api
     """
-    safe_print(f"🔍 [GEORISQUES] === DÉBUT APPEL GEORISQUES pour point {lat}, {lon} ===")
+    # safe_print(f"🔍 [GEORISQUES] === DÉBUT APPEL GEORISQUES pour point {lat}, {lon} ===")  # Optimisé pour production multi-user
     risques = {}
     latlon = f"{lon},{lat}"  # Format longitude,latitude pour l'API
-    print(f"🔍 [GEORISQUES] Format latlon: {latlon}")
+    # print(f"🔍 [GEORISQUES] Format latlon: {latlon}")  # Optimisé pour production multi-user
     
     # 1. Zonage sismique
     try:
@@ -330,7 +342,7 @@ def fetch_georisques_risks(lat, lon):
         print(f"[GeoRisques Nucléaire] Exception: {e}")
         risques["nucleaire"] = []
 
-    print(f"🔍 [GEORISQUES] Risques récupérés pour {lat},{lon}: {len(risques)} catégories")
+    # print(f"🔍 [GEORISQUES] Risques récupérés pour {lat},{lon}: {len(risques)} catégories")  # Optimisé pour production multi-user
     
     # Comptons le nombre total de risques
     total_risks = 0
@@ -338,9 +350,10 @@ def fetch_georisques_risks(lat, lon):
         if risks and isinstance(risks, list):
             count = len(risks)
             total_risks += count
-            print(f"🔍 [GEORISQUES] - {category}: {count} risque(s)")
+            # print(f"🔍 [GEORISQUES] - {category}: {count} risque(s)")  # Optimisé pour production multi-user
         else:
-            print(f"🔍 [GEORISQUES] - {category}: 0 risque(s)")
+            # print(f"🔍 [GEORISQUES] - {category}: 0 risque(s)")  # Optimisé pour production multi-user
+            pass
     
     print(f"🔍 [GEORISQUES] === TOTAL: {total_risks} risques trouvés ===")
     return risques
@@ -997,11 +1010,11 @@ GEOSERVER_PASSWORD = os.getenv("GEOSERVER_PASSWORD", "geoserver")
 PORT = int(os.getenv("PORT", 5000))
 DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
-print(f"🚀 Configuration Railway:")
-print(f"   - GeoServer URL: {GEOSERVER_URL}")
-print(f"   - GeoServer Auth: {GEOSERVER_USERNAME}:{'*' * len(GEOSERVER_PASSWORD)}")
-print(f"   - Port: {PORT}")
-print(f"   - Debug: {DEBUG}")
+# print(f"🚀 Configuration Railway:")  # Optimisé pour production multi-user
+# print(f"   - GeoServer URL: {GEOSERVER_URL}")  # Optimisé pour production multi-user
+# print(f"   - GeoServer Auth: {GEOSERVER_USERNAME}:{'*' * len(GEOSERVER_PASSWORD)}")  # Optimisé pour production multi-user
+# print(f"   - Port: {PORT}")  # Optimisé pour production multi-user
+# print(f"   - Debug: {DEBUG}")  # Optimisé pour production multi-user
 
 # Fonction d'authentification GeoServer
 def get_geoserver_auth():
@@ -5245,7 +5258,7 @@ def build_map(
                     # Debug : Vérifier si on a des références cadastrales
                     if name in ["Parkings", "Friches", "Potentiel Solaire"]:
                         cadastre_refs = props.get("parcelles_cadastrales", [])
-                        print(f"🏛️ [DEBUG {name}] Feature avec {len(cadastre_refs)} références cadastrales")
+                        # print(f"🏛️ [DEBUG {name}] Feature avec {len(cadastre_refs)} références cadastrales")  # Optimisé pour production multi-user
                     
                     # Traitement uniforme et complet pour toutes les couches avec adresses et liens
                     if name in ["Potentiel Solaire", "Parkings", "Friches"]:
@@ -6350,15 +6363,15 @@ def search_by_commune():
     solaire_data = get_solaire_info_by_polygon(contour)
     log_data_collection("SOLAIRE", f"✅ {len(solaire_data)} données solaires récupérées")
     
-    # 🏠 ENRICHISSEMENT ADRESSES pour solaire_data (toitures) 
+    # 🏠 ENRICHISSEMENT ADRESSES pour solaire_data (toitures) - OPTIMISÉ PRODUCTION
     if solaire_data:
-        print(f"🏠 [SOLAIRE-ADRESSES] Enrichissement de {len(solaire_data)} toitures avec adresses IGN")
+        # print(f"🏠 [SOLAIRE-ADRESSES] Enrichissement de {len(solaire_data)} toitures avec adresses IGN")  # Optimisé pour production
         from urllib.parse import quote_plus
         
         for i, toiture in enumerate(solaire_data):
-            # Log de progression moins verbeux  
-            if (i + 1) % 20 == 0 or i == 0:
-                print(f"    📍 [SOLAIRE] Progression adresses: {i+1}/{len(solaire_data)} toitures...")
+            # Log de progression réduit pour production
+            # if (i + 1) % 20 == 0 or i == 0:
+            #     print(f"    📍 [SOLAIRE] Progression adresses: {i+1}/{len(solaire_data)} toitures...")
             
             # Enrichissement avec l'adresse IGN (géocodage inverse)
             geom = toiture.get("geometry", {})
@@ -6391,10 +6404,10 @@ def search_by_commune():
                         toiture["properties"]["adresse_distance"] = None
                         toiture["properties"]["adresse_score"] = 0
                 except Exception as e:
-                    print(f"🔴 [SOLAIRE-ADRESSE] Erreur enrichissement toiture {i}: {e}")
+                    # print(f"🔴 [SOLAIRE-ADRESSE] Erreur enrichissement toiture {i}: {e}")  # Optimisé pour production
                     toiture["properties"]["adresse"] = "Erreur géocodage"
         
-        print(f"✅ [SOLAIRE-ADRESSES] Enrichissement terminé pour {len(solaire_data)} toitures")
+        # print(f"✅ [SOLAIRE-ADRESSES] Enrichissement terminé pour {len(solaire_data)} toitures")  # Optimisé pour production
     
     log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
     sirene_data = get_sirene_info_by_polygon(contour)
@@ -6619,7 +6632,7 @@ def search_by_commune():
         
         # 5b-bis) Récupération optimisée des références cadastrales pour les parkings sélectionnés
         if filtered_parkings:
-            print(f"🏛️ [CADASTRE-PARKINGS] Récupération des références cadastrales pour {len(filtered_parkings)} parkings...")
+            # print(f"🏛️ [CADASTRE-PARKINGS] Récupération des références cadastrales pour {len(filtered_parkings)} parkings...")  # Optimisé pour production multi-user
             
             def get_parcelles_for_parking(parking_geometry):
                 """Récupère les parcelles cadastrales intersectant un parking spécifique"""
@@ -6643,17 +6656,17 @@ def search_by_commune():
             
             # Enrichir chaque parking avec ses références cadastrales
             for i, parking in enumerate(filtered_parkings):
-                print(f"    📍 Parking {i+1}/{len(filtered_parkings)}: recherche cadastre...")
+                # print(f"    📍 Parking {i+1}/{len(filtered_parkings)}: recherche cadastre...")  # Optimisé pour production multi-user
                 parcelles_parking = get_parcelles_for_parking(parking["geometry"])
                 
                 if parcelles_parking:
-                    print(f"      🔍 [DEBUG] Structure API cadastre - première parcelle: {parcelles_parking[0] if parcelles_parking else 'Aucune'}")
+                    # print(f"      🔍 [DEBUG] Structure API cadastre - première parcelle: {parcelles_parking[0] if parcelles_parking else 'Aucune'}")  # Optimisé pour production multi-user
                     
                     # Extraire les références cadastrales
                     refs_cadastrales = []
                     for parcelle in parcelles_parking:
                         props = parcelle.get('properties', {})
-                        print(f"      🔍 [DEBUG] Propriétés parcelle: {props}")
+                        # print(f"      🔍 [DEBUG] Propriétés parcelle: {props}")  # Optimisé pour production multi-user
                         
                         # Tester différents noms d'attributs possibles selon l'API
                         numero = props.get('numero') or props.get('numero_parcelle') or props.get('num_parc') or ''
@@ -6681,10 +6694,10 @@ def search_by_commune():
                     parking["properties"]["nb_parcelles_cadastrales"] = 0
                     print(f"      ❌ Aucune parcelle cadastrale trouvée")
                 
-                # 🏠 ENRICHISSEMENT ADRESSE IGN pour le parking
-                print(f"      🔍 [DEBUG_ADRESSE] Début enrichissement adresse parking {i+1}")
+                # 🏠 ENRICHISSEMENT ADRESSE IGN pour le parking - OPTIMISÉ PRODUCTION
+                # print(f"      🔍 [DEBUG_ADRESSE] Début enrichissement adresse parking {i+1}")  # Optimisé pour production
                 geom = parking.get("geometry", {})
-                print(f"      🔍 [DEBUG_ADRESSE] Géométrie: {geom.get('type') if geom else 'None'}")
+                # print(f"      🔍 [DEBUG_ADRESSE] Géométrie: {geom.get('type') if geom else 'None'}")  # Optimisé pour production
                 if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
                     try:
                         # Calculer le centroïde du parking pour obtenir lat/lon
@@ -6702,16 +6715,16 @@ def search_by_commune():
                             parking["properties"]["code_postal"] = adresse_info.get('postcode', '')
                             parking["properties"]["ville"] = adresse_info.get('city', '')
                             parking["properties"]["code_commune"] = adresse_info.get('citycode', '')
-                            print(f"      🏠 [ADRESSE] {adresse_info['address']}")
+                            # print(f"      🏠 [ADRESSE] {adresse_info['address']}")  # Optimisé pour production
                         else:
                             parking["properties"]["adresse"] = "Adresse non trouvée"
-                            print(f"      ❌ [ADRESSE] Géocodage inverse impossible pour ce parking")
+                            # print(f"      ❌ [ADRESSE] Géocodage inverse impossible pour ce parking")  # Optimisé pour production
                             
                     except Exception as e:
                         parking["properties"]["adresse"] = "Erreur géocodage"
-                        print(f"      🔴 [ADRESSE] Erreur géocodage parking: {e}")
+                        # print(f"      🔴 [ADRESSE] Erreur géocodage parking: {e}")  # Optimisé pour production
             
-            print(f"✅ [CADASTRE-PARKINGS] Enrichissement terminé pour tous les parkings")
+            # print(f"✅ [CADASTRE-PARKINGS] Enrichissement terminé pour tous les parkings")  # Optimisé pour production multi-user
     else:
         print(f"⚠️ [PARKINGS] Filtre parkings non activé ou aucune donnée: filter_parkings={filter_parkings}, parkings_data={len(parkings_data) if parkings_data else 0}")
     
@@ -6800,7 +6813,7 @@ def search_by_commune():
         
         # 5c-bis) Récupération optimisée des références cadastrales pour les friches sélectionnées
         if filtered_friches:
-            print(f"🏛️ [CADASTRE-FRICHES] Récupération des références cadastrales pour {len(filtered_friches)} friches...")
+            # print(f"🏛️ [CADASTRE-FRICHES] Récupération des références cadastrales pour {len(filtered_friches)} friches...")  # Optimisé pour production multi-user
             
             def get_parcelles_for_friche(friche_geometry):
                 """Récupère les parcelles cadastrales intersectant une friche spécifique"""
@@ -7234,8 +7247,8 @@ def search_by_commune():
                 # ENRICHISSEMENT COMPLET: Traitement de toutes les toitures de la commune
                 toitures_a_enrichir = toitures_data  # Traitement complet sans limitation
                 
-                print(f"🏛️ [CADASTRE-TOITURES] Enrichissement complet : {len(toitures_a_enrichir)} toitures")
-                print(f"🔍 [CADASTRE-TOITURES] Traitement individuel optimisé avec limite 1000")
+                # print(f"🏛️ [CADASTRE-TOITURES] Enrichissement complet : {len(toitures_a_enrichir)} toitures")  # Optimisé pour production multi-user
+                # print(f"🔍 [CADASTRE-TOITURES] Traitement individuel optimisé avec limite 1000")  # Optimisé pour production multi-user
                 
                 def get_parcelles_for_toiture(toiture_geometry):
                     """Récupère les parcelles cadastrales intersectant une toiture spécifique avec limite optimisée"""
@@ -7260,9 +7273,10 @@ def search_by_commune():
                 total_erreurs = 0
                 
                 for i, toiture in enumerate(toitures_a_enrichir):
-                    # Log de progression moins verbeux
-                    if (i + 1) % 50 == 0 or i == 0:
-                        print(f"    📍 Progression: {i+1}/{len(toitures_a_enrichir)} toitures traitées...")
+                    # Log de progression moins verbeux - seulement chaque 100
+                    if (i + 1) % 100 == 0 or i == 0:
+                        # print(f"    📍 Progression: {i+1}/{len(toitures_a_enrichir)} toitures traitées...")  # Optimisé pour production multi-user
+                        pass
                     
                     # 1. Enrichissement cadastral
                     parcelles_toiture = get_parcelles_for_toiture(toiture["geometry"])
@@ -7437,10 +7451,10 @@ def search_by_commune():
     log_search_results(commune, response_data)
     
     # Ajouter cache bust comme dans search_by_address - DIAGNOSTIC DÉTAILLÉ
-    print(f"🔍 [DEBUG_FINAL] carte_url avant traitement: '{carte_url}' (type: {type(carte_url)})")
+    # print(f"🔍 [DEBUG_FINAL] carte_url avant traitement: '{carte_url}' (type: {type(carte_url)})")  # Optimisé pour production multi-user
     if carte_url and "commune_map_" in carte_url:
         response_data["carte_url"] = f"/static/{carte_url}?t={int(time.time())}"
-        print(f"✅ [DEBUG_FINAL] URL carte avec cache bust: {response_data['carte_url']}")
+        # print(f"✅ [DEBUG_FINAL] URL carte avec cache bust: {response_data['carte_url']}")  # Optimisé pour production multi-user
     elif carte_url:
         response_data["carte_url"] = f"/static/{carte_url}"
         print(f"✅ [DEBUG_FINAL] URL carte finale: {response_data['carte_url']}")
@@ -7593,7 +7607,7 @@ def search_toitures_commune_polygon():
                 "surface_commune_ha": surface_commune_ha
             }), 404
 
-        print(f"📍 [TOITURES POLYGON] {len(batiments_data['features'])} bâtiments trouvés")
+        # print(f"📍 [TOITURES POLYGON] {len(batiments_data['features'])} bâtiments trouvés")  # Optimisé pour production multi-user
 
         # 6) Filtrage et enrichissement des toitures avec intersection commune
         to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
@@ -8037,7 +8051,7 @@ def search_toitures_commune():
             "method": "openstreetmap_overpass"
         }), 404
 
-    print(f"📍 [TOITURES] {len(batiments_data['features'])} bâtiments trouvés via méthode chunk optimisée")
+    # print(f"📍 [TOITURES] {len(batiments_data['features'])} bâtiments trouvés via méthode chunk optimisée")  # Optimisé pour production multi-user
 
     # 6) Filtrage et enrichissement des toitures avec intersection géométrique précise
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
@@ -8578,10 +8592,10 @@ def rapport_map_point():
                 log_step("CONTEXT", f"✅ Capacités HTA enrichies: {len(hta_enriched)}", "SUCCESS")
                 
                 # Debug: affichage des capacités enrichies
-                print(f"🔍 [DEBUG HTA] Capacités HTA enrichies pour le rapport:")
-                for i, cap in enumerate(hta_enriched[:3]):  # Afficher les 3 premières
-                    print(f"🔍 [DEBUG HTA] Capacité {i+1}: {cap.get('Nom', 'N/A')} - Distance: {cap.get('distance', 'N/A')}m")
-                    print(f"🔍 [DEBUG HTA] - Capacité: {cap.get('Capacité', 'N/A')} - S3REnR: {cap.get('S3REnR', 'N/A')}")
+                # print(f"🔍 [DEBUG HTA] Capacités HTA enrichies pour le rapport:")  # Optimisé pour production multi-user
+                # for i, cap in enumerate(hta_enriched[:3]):  # Afficher les 3 premières
+                    # print(f"🔍 [DEBUG HTA] Capacité {i+1}: {cap.get('Nom', 'N/A')} - Distance: {cap.get('distance', 'N/A')}m")  # Optimisé pour production multi-user
+                    # print(f"🔍 [DEBUG HTA] - Capacité: {cap.get('Capacité', 'N/A')} - S3REnR: {cap.get('S3REnR', 'N/A')}")  # Optimisé pour production multi-user
             else:
                 report_data["hta"] = []
                 log_step("CONTEXT", "⚠️ Aucune capacité HTA trouvée après tous les tests", "WARNING")
@@ -8902,17 +8916,17 @@ def rapport_map_point():
             try:
                 log_step("CONTEXT", "🌿 Collecte données API Nature...", "INFO")
                 # Debug: afficher les coordonnées utilisées
-                print(f"🔍 [DEBUG RAPPORT] Coordonnées pour API Nature: lat={lat_float}, lon={lon_float}")
+                # print(f"🔍 [DEBUG RAPPORT] Coordonnées pour API Nature: lat={lat_float}, lon={lon_float}")  # Optimisé pour production multi-user
                 
                 # Créer une géométrie point pour l'API Nature - CORRECTION: utiliser float au lieu de string
                 geom = {"type": "Point", "coordinates": [lon_float, lat_float]}
-                print(f"🔍 [DEBUG RAPPORT] Géométrie API Nature: {geom}")
+                # print(f"🔍 [DEBUG RAPPORT] Géométrie API Nature: {geom}")  # Optimisé pour production multi-user
                 
                 nature_data = get_all_api_nature_data(geom)
-                print(f"🔍 [DEBUG RAPPORT] Résultat get_all_api_nature_data: {type(nature_data)}")
+                # print(f"🔍 [DEBUG RAPPORT] Résultat get_all_api_nature_data: {type(nature_data)}")  # Optimisé pour production multi-user
                 
                 if nature_data and "features" in nature_data and nature_data["features"]:
-                    print(f"🔍 [DEBUG RAPPORT] API Nature SUCCESS: {len(nature_data['features'])} features trouvées")
+                    # print(f"🔍 [DEBUG RAPPORT] API Nature SUCCESS: {len(nature_data['features'])} features trouvées")  # Optimisé pour production multi-user
                     api_details["nature"]["success"] = True
                     api_details["nature"]["data"] = nature_data
                     api_details["nature"]["count"] = len(nature_data["features"])
