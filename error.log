@@ -11333,3 +11333,12 @@ OSError: [Errno 28] No space left on device
 2025-09-11 19:15:46,942 INFO [33mPress CTRL+C to quit[0m
 2025-09-11 19:15:48,575 INFO 127.0.0.1 - - [11/Sep/2025 19:15:48] "GET / HTTP/1.1" 200 -
 2025-09-11 19:15:50,733 INFO 127.0.0.1 - - [11/Sep/2025 19:15:50] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-09-11 19:53:01,177 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 19:53:01,180 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 19:53:59,537 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-11 19:53:59,537 INFO [33mPress CTRL+C to quit[0m
+2025-09-11 19:54:01,771 INFO 127.0.0.1 - - [11/Sep/2025 19:54:01] "GET / HTTP/1.1" 200 -
+2025-09-11 19:54:21,842 INFO 127.0.0.1 - - [11/Sep/2025 19:54:21] "POST /api/stripe/create-checkout HTTP/1.1" 200 -
+2025-09-11 19:54:36,531 INFO 127.0.0.1 - - [11/Sep/2025 19:54:36] "POST /api/stripe/create-checkout HTTP/1.1" 200 -

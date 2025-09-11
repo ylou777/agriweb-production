@@ -2302,7 +2302,8 @@ def create_stripe_checkout():
         payment_links = {
             'basic': 'https://buy.stripe.com/fZucN74w7cM59Z5ehL63K02',     # 35€/mois
             'professional': 'https://buy.stripe.com/28EcN71jVdQ9c7dehL63K01', # 199€/mois  
-            'team': 'https://buy.stripe.com/dRm8wR9Qr4fz5IPb5z63K00'        # 299€/mois
+            'team': 'https://buy.stripe.com/dRm8wR9Qr4fz5IPb5z63K00',        # 299€/mois
+            'enterprise': 'https://buy.stripe.com/00w3cx0fR3bv5IPddH63K03'    # 1620€/an (Crowdfunding -50%)
         }
         
         # Retourner le lien direct correspondant au plan
