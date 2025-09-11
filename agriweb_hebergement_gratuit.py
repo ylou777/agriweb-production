@@ -6350,6 +6350,52 @@ def search_by_commune():
     solaire_data = get_solaire_info_by_polygon(contour)
     log_data_collection("SOLAIRE", f"✅ {len(solaire_data)} données solaires récupérées")
     
+    # 🏠 ENRICHISSEMENT ADRESSES pour solaire_data (toitures) 
+    if solaire_data:
+        print(f"🏠 [SOLAIRE-ADRESSES] Enrichissement de {len(solaire_data)} toitures avec adresses IGN")
+        from urllib.parse import quote_plus
+        
+        for i, toiture in enumerate(solaire_data):
+            # Log de progression moins verbeux  
+            if (i + 1) % 20 == 0 or i == 0:
+                print(f"    📍 [SOLAIRE] Progression adresses: {i+1}/{len(solaire_data)} toitures...")
+            
+            # Enrichissement avec l'adresse IGN (géocodage inverse)
+            geom = toiture.get("geometry", {})
+            if geom and geom.get("type") in ["Polygon", "MultiPolygon"]:
+                try:
+                    # Calculer le centroïde de la toiture pour obtenir lat/lon
+                    from shapely.geometry import shape
+                    shp_geom = shape(geom)
+                    centroid = shp_geom.centroid
+                    
+                    # Géocodage inverse IGN
+                    adresse_info = get_address_from_coordinates(centroid.y, centroid.x)
+                    
+                    if adresse_info and adresse_info.get('address'):
+                        toiture["properties"]["adresse"] = adresse_info['address']
+                        toiture["properties"]["adresse_distance"] = adresse_info.get('distance', 0)
+                        toiture["properties"]["adresse_score"] = adresse_info.get('score', 0)
+                        toiture["properties"]["code_postal"] = adresse_info.get('postcode', '')
+                        toiture["properties"]["ville"] = adresse_info.get('city', '')
+                        toiture["properties"]["code_commune"] = adresse_info.get('citycode', '')
+                        # Lien Pages Jaunes spécifique pour les toitures avec adresse complète
+                        try:
+                            adresse_complete = adresse_info.get('address', '')
+                            adresse_encoded = quote_plus(adresse_complete)
+                            toiture["properties"]["lien_annuaire"] = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={adresse_encoded}&univers=pagesjaunes&idOu="
+                        except Exception:
+                            pass
+                    else:
+                        toiture["properties"]["adresse"] = "Adresse non trouvée"
+                        toiture["properties"]["adresse_distance"] = None
+                        toiture["properties"]["adresse_score"] = 0
+                except Exception as e:
+                    print(f"🔴 [SOLAIRE-ADRESSE] Erreur enrichissement toiture {i}: {e}")
+                    toiture["properties"]["adresse"] = "Erreur géocodage"
+        
+        print(f"✅ [SOLAIRE-ADRESSES] Enrichissement terminé pour {len(solaire_data)} toitures")
+    
     log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
     sirene_data = get_sirene_info_by_polygon(contour)
     log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
