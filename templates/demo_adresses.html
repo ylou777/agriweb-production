@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exemples d'Adresses - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-section {
+            padding: 3rem 0;
+            color: white;
+            text-align: center;
+        }
+        
+        .content-section {
+            background: white;
+            margin: 2rem 0;
+            padding: 3rem 0;
+        }
+        
+        .address-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s;
+            border-left: 5px solid #007bff;
+        }
+        
+        .address-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+        
+        .try-button {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .try-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,123,255,0.4);
+            color: white;
+        }
+        
+        .breadcrumb-custom {
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            padding: 0.75rem 1.5rem;
+        }
+        
+        .breadcrumb-custom a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .breadcrumb-custom a:hover {
+            color: #ffc107;
+        }
+        
+        .feature-tag {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="hero-section">
+        <div class="container">
+            <nav class="breadcrumb-custom mb-4">
+                <a href="/">🏠 Accueil</a> / <a href="/demo-real">Démo</a> / <span class="text-white">Exemples d'Adresses</span>
+            </nav>
+            
+            <h1 class="display-4 fw-bold mb-3">📍 Exemples d'Adresses</h1>
+            <p class="lead mb-4">Testez AgriWeb Pro avec des adresses réelles et découvrez les analyses détaillées</p>
+        </div>
+    </div>
+
+    <!-- Exemples d'adresses -->
+    <div class="content-section">
+        <div class="container">
+            <div class="row">
+                <!-- Exemple 1: Beauce -->
+                <div class="col-lg-6">
+                    <div class="address-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-primary">🌾 Terrain Agricole - Beauce</h4>
+                            <span class="feature-tag">Céréales</span>
+                        </div>
+                        <p class="h6 mb-3"><i class="bi bi-geo-alt text-primary me-2"></i>Route de Chartres, 28000 Chartres</p>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">Coordonnées</small><br>
+                                <strong>48.4469°N, 1.4851°E</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Type de terrain</small><br>
+                                <strong>Grande culture</strong>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Analyses disponibles :</strong>
+                            <ul class="list-unstyled mt-2">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel solaire PVGIS</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Cadastre RPG (cultures)</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructure électrique</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Géorisques naturels</li>
+                            </ul>
+                        </div>
+                        <a href="/app?lat=48.4469&lon=1.4851&address=Route de Chartres, Chartres" class="try-button">
+                            <i class="bi bi-play-circle me-2"></i>Analyser ce terrain
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Exemple 2: Bordeaux -->
+                <div class="col-lg-6">
+                    <div class="address-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-success">🍇 Zone Viticole - Bordeaux</h4>
+                            <span class="feature-tag">Viticulture</span>
+                        </div>
+                        <p class="h6 mb-3"><i class="bi bi-geo-alt text-success me-2"></i>Château Margaux, 33460 Margaux</p>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">Coordonnées</small><br>
+                                <strong>45.0436°N, -0.6544°W</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Type de terrain</small><br>
+                                <strong>Vignoble</strong>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Analyses disponibles :</strong>
+                            <ul class="list-unstyled mt-2">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Appellation AOC</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Conditions climatiques</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Topographie détaillée</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel agrivoltaïque</li>
+                            </ul>
+                        </div>
+                        <a href="/app?lat=45.0436&lon=-0.6544&address=Château Margaux, Margaux" class="try-button">
+                            <i class="bi bi-play-circle me-2"></i>Analyser ce vignoble
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Exemple 3: Chamonix -->
+                <div class="col-lg-6">
+                    <div class="address-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-warning">⛰️ Terrain Montagnard - Alpes</h4>
+                            <span class="feature-tag">Montagne</span>
+                        </div>
+                        <p class="h6 mb-3"><i class="bi bi-geo-alt text-warning me-2"></i>Route de la Vallée, 74400 Chamonix</p>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">Coordonnées</small><br>
+                                <strong>45.9237°N, 6.8694°E</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Type de terrain</small><br>
+                                <strong>Zone alpine</strong>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Analyses disponibles :</strong>
+                            <ul class="list-unstyled mt-2">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel hydroélectrique</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Zones d'avalanches</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Altitude et pentes</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Enneigement moyen</li>
+                            </ul>
+                        </div>
+                        <a href="/app?lat=45.9237&lon=6.8694&address=Route de la Vallée, Chamonix" class="try-button">
+                            <i class="bi bi-play-circle me-2"></i>Analyser ce terrain
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Exemple 4: Provence -->
+                <div class="col-lg-6">
+                    <div class="address-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-info">🌻 Zone Méditerranéenne - Provence</h4>
+                            <span class="feature-tag">Solaire</span>
+                        </div>
+                        <p class="h6 mb-3"><i class="bi bi-geo-alt text-info me-2"></i>Route des Lavandes, 84220 Gordes</p>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <small class="text-muted">Coordonnées</small><br>
+                                <strong>43.9109°N, 5.1989°E</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Type de terrain</small><br>
+                                <strong>Culture spécialisée</strong>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <strong>Analyses disponibles :</strong>
+                            <ul class="list-unstyled mt-2">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Irradiation solaire élevée</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Cultures de lavande</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel agrivoltaïque optimal</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Protection paysagère</li>
+                            </ul>
+                        </div>
+                        <a href="/app?lat=43.9109&lon=5.1989&address=Route des Lavandes, Gordes" class="try-button">
+                            <i class="bi bi-play-circle me-2"></i>Analyser ce terrain
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section navigation -->
+            <div class="text-center mt-5">
+                <h3 class="fw-bold mb-4">Découvrez d'autres exemples</h3>
+                <div class="d-flex justify-content-center flex-wrap gap-3">
+                    <a href="/demo/communes" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-building me-2"></i>Exemples de Communes
+                    </a>
+                    <a href="/demo/departements" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-map me-2"></i>Exemples de Départements
+                    </a>
+                    <a href="/demo/rapports" class="btn btn-outline-primary btn-lg">
+                        <i class="bi bi-file-earmark-bar-graph me-2"></i>Exemples de Rapports
+                    </a>
+                </div>
+                <div class="mt-3">
+                    <a href="/demo-real" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>Retour à la démo générale
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

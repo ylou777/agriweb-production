@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Démo - Agriweb Pro</title>
+    <title>Démo AgriWeb Pro - Exemples Concrets</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -22,7 +22,8 @@
         
         .demo-section {
             background: white;
-            padding: 4rem 0;
+            margin: 2rem 0;
+            padding: 3rem 0;
         }
         
         .demo-card {
@@ -32,388 +33,282 @@
             overflow: hidden;
             margin-bottom: 2rem;
             transition: all 0.3s;
+            border: 2px solid #e9ecef;
         }
         
         .demo-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+            border-color: #007bff;
         }
         
         .demo-image {
             width: 100%;
-            height: 300px;
+            height: 250px;
             background: linear-gradient(135deg, #e3f2fd, #bbdefb);
             display: flex;
             align-items: center;
             justify-content: center;
-            border-bottom: 3px solid #2196f3;
+            border-bottom: 3px solid #007bff;
             position: relative;
             overflow: hidden;
         }
         
         .demo-image::before {
-            content: '';
+            content: "";
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
             bottom: 0;
-            background: linear-gradient(45deg, #2196f3 25%, transparent 25%, transparent 75%, #2196f3 75%),
-                        linear-gradient(45deg, #2196f3 25%, transparent 25%, transparent 75%, #2196f3 75%);
+            background: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%), 
+                        linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.1) 75%), 
+                        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.1) 75%);
             background-size: 20px 20px;
-            background-position: 0 0, 10px 10px;
-            opacity: 0.1;
-        }
-        
-        .map-demo {
-            background: linear-gradient(135deg, #4caf50, #8bc34a);
-        }
-        
-        .report-demo {
-            background: linear-gradient(135deg, #ff9800, #ffc107);
-        }
-        
-        .analysis-demo {
-            background: linear-gradient(135deg, #9c27b0, #e91e63);
-        }
-        
-        .stats-demo {
-            background: linear-gradient(135deg, #00bcd4, #009688);
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
         
         .demo-icon {
             font-size: 4rem;
-            color: white;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-            z-index: 1;
+            color: #007bff;
+            z-index: 2;
             position: relative;
         }
         
-        .feature-list {
-            list-style: none;
-            padding: 0;
+        .demo-content {
+            padding: 2rem;
         }
         
-        .feature-list li {
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .feature-list li:last-child {
-            border-bottom: none;
-        }
-        
-        .btn-demo {
+        .feature-badge {
             background: linear-gradient(135deg, #28a745, #20c997);
-            border: none;
-            border-radius: 12px;
-            padding: 0.75rem 1.5rem;
             color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        
+        .try-button {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
             font-weight: 600;
             transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
         }
         
-        .btn-demo:hover {
-            background: linear-gradient(135deg, #218838, #1c7873);
+        .try-button:hover {
             transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,123,255,0.4);
             color: white;
         }
         
-        .screenshot-placeholder {
+        .example-list {
             background: #f8f9fa;
-            border: 2px dashed #dee2e6;
             border-radius: 10px;
-            height: 200px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #6c757d;
+            padding: 1.5rem;
             margin: 1rem 0;
         }
         
-        .table-demo {
-            font-size: 0.9rem;
+        .example-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
         }
         
-        .badge-demo {
-            font-size: 0.8rem;
+        .example-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .breadcrumb-custom {
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            padding: 0.75rem 1.5rem;
+        }
+        
+        .breadcrumb-custom a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .breadcrumb-custom a:hover {
+            color: #ffc107;
         }
     </style>
 </head>
 <body>
-    <!-- Section Hero -->
+    <!-- Header avec navigation -->
     <div class="hero-section">
         <div class="container">
-            <div class="row align-items-center">
-                <div class="col-lg-8 mx-auto">
-                    <h1 class="display-4 fw-bold mb-4">🎯 Démo Agriweb Pro</h1>
-                    <p class="lead mb-4">
-                        Découvrez en détail les fonctionnalités et capacités d'analyse de notre plateforme SIG
-                    </p>
-                    <a href="/" class="btn btn-light btn-lg me-3">
-                        <i class="bi bi-arrow-left"></i> Retour à l'accueil
-                    </a>
-                    <a href="#demo-content" class="btn btn-outline-light btn-lg">
-                        <i class="bi bi-play-circle"></i> Voir la démo
-                    </a>
-                </div>
-            </div>
+            <nav class="breadcrumb-custom mb-4">
+                <a href="/">🏠 Accueil</a> / <span class="text-white">Démo AgriWeb Pro</span>
+            </nav>
+            
+            <h1 class="display-4 fw-bold mb-3">🚀 Démo AgriWeb Pro</h1>
+            <p class="lead mb-4">Découvrez la puissance d'AgriWeb Pro avec des exemples concrets</p>
+            <p class="h5 mb-0">📍 Recherches par adresse • 🏘️ Analyses par commune • 📊 Rapports départementaux</p>
         </div>
     </div>
-    
-    <!-- Section Démo -->
-    <div class="demo-section" id="demo-content">
+
+    <!-- Section Recherche par Adresse -->
+    <div class="demo-section">
         <div class="container">
-            <!-- Cartographie Interactive -->
-            <div class="row mb-5">
-                <div class="col-12">
+            <div class="row">
+                <div class="col-lg-6">
                     <div class="demo-card">
-                        <div class="demo-image map-demo">
-                            <i class="bi bi-map demo-icon"></i>
+                        <div class="demo-image">
+                            <i class="bi bi-geo-alt demo-icon"></i>
                         </div>
-                        <div class="p-4">
-                            <h3 class="fw-bold text-success mb-3">
-                                <i class="bi bi-geo-alt-fill me-2"></i>Cartographie Interactive
-                            </h3>
-                            <div class="row">
-                                <div class="col-lg-6">
-                                    <h5>Fonctionnalités cartographiques</h5>
-                                    <ul class="feature-list">
-                                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Visualisation des parcelles agricoles (RPG)</li>
-                                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Overlay des postes électriques BT/HTA</li>
-                                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Zones réglementaires (PLU, PPRi, Natura 2000)</li>
-                                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Identification des toitures solaires</li>
-                                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Friches industrielles disponibles</li>
-                                        <li><i class="bi bi-check-circle-fill text-success me-2"></i> Calcul automatique des distances</li>
-                                    </ul>
-                                </div>
-                                <div class="col-lg-6">
-                                    <h5>Exemple d'analyse</h5>
-                                    <div class="screenshot-placeholder">
-                                        <div class="text-center">
-                                            <i class="bi bi-image" style="font-size: 3rem;"></i>
-                                            <p class="mt-2">Carte interactive avec superposition<br>des couches de données</p>
-                                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🎯 Recherche Précise</div>
+                            <h3 class="fw-bold mb-3">Recherche par Adresse</h3>
+                            <p class="text-muted mb-3">Analysez n'importe quel terrain en France en saisissant simplement son adresse</p>
+                            
+                            <div class="example-list">
+                                <h6 class="fw-bold mb-3">Exemples d'adresses à tester :</h6>
+                                <div class="example-item">
+                                    <i class="bi bi-pin-map-fill text-primary me-3"></i>
+                                    <div>
+                                        <strong>Terrain agricole - Beauce</strong><br>
+                                        <small class="text-muted">Route de Chartres, 28000 Chartres</small>
                                     </div>
-                                    <div class="alert alert-info">
-                                        <strong>Zone analysée :</strong> Département de l'Hérault<br>
-                                        <strong>Parcelles identifiées :</strong> 1,247 sites potentiels<br>
-                                        <strong>Potentiel total :</strong> 45.6 MW
+                                </div>
+                                <div class="example-item">
+                                    <i class="bi bi-pin-map-fill text-success me-3"></i>
+                                    <div>
+                                        <strong>Zone viticole - Bordeaux</strong><br>
+                                        <small class="text-muted">Château Margaux, 33460 Margaux</small>
+                                    </div>
+                                </div>
+                                <div class="example-item">
+                                    <i class="bi bi-pin-map-fill text-warning me-3"></i>
+                                    <div>
+                                        <strong>Terrain montagnard - Alpes</strong><br>
+                                        <small class="text-muted">Route de la Vallée, 74400 Chamonix</small>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Rapports Automatisés -->
-            <div class="row mb-5">
-                <div class="col-12">
-                    <div class="demo-card">
-                        <div class="demo-image report-demo">
-                            <i class="bi bi-file-earmark-text demo-icon"></i>
-                        </div>
-                        <div class="p-4">
-                            <h3 class="fw-bold text-warning mb-3">
-                                <i class="bi bi-file-earmark-pdf-fill me-2"></i>Rapports Automatisés
-                            </h3>
-                            <div class="row">
-                                <div class="col-lg-8">
-                                    <h5>Exemple de rapport de faisabilité</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-striped table-demo">
-                                            <thead class="table-success">
-                                                <tr>
-                                                    <th>Critère</th>
-                                                    <th>Valeur</th>
-                                                    <th>Statut</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td>Surface disponible</td>
-                                                    <td>2.4 hectares</td>
-                                                    <td><span class="badge bg-success badge-demo">Excellent</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Distance au poste HTA</td>
-                                                    <td>850 mètres</td>
-                                                    <td><span class="badge bg-success badge-demo">Favorable</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Capacité de raccordement</td>
-                                                    <td>12 MW disponibles</td>
-                                                    <td><span class="badge bg-success badge-demo">Disponible</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Contraintes réglementaires</td>
-                                                    <td>Zone agricole (A)</td>
-                                                    <td><span class="badge bg-warning badge-demo">À vérifier</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td>Potentiel énergétique</td>
-                                                    <td>3.6 MW crête</td>
-                                                    <td><span class="badge bg-success badge-demo">Élevé</span></td>
-                                                </tr>
-                                                <tr>
-                                                    <td>ROI estimé</td>
-                                                    <td>7.2 ans</td>
-                                                    <td><span class="badge bg-success badge-demo">Rentable</span></td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                <div class="col-lg-4">
-                                    <h5>Synthèse du projet</h5>
-                                    <div class="alert alert-success">
-                                        <h6><i class="bi bi-check-circle-fill me-2"></i>Projet VIABLE</h6>
-                                        <hr>
-                                        <p class="mb-2"><strong>Investissement :</strong> 2.8M€</p>
-                                        <p class="mb-2"><strong>Production :</strong> 4,320 MWh/an</p>
-                                        <p class="mb-2"><strong>Revenus :</strong> 389k€/an</p>
-                                        <p class="mb-0"><strong>CO₂ évité :</strong> 1,728t/an</p>
-                                    </div>
-                                    <button class="btn btn-outline-warning w-100">
-                                        <i class="bi bi-download me-2"></i>Télécharger PDF
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Analyses Multicritères -->
-            <div class="row mb-5">
-                <div class="col-md-6">
-                    <div class="demo-card">
-                        <div class="demo-image analysis-demo">
-                            <i class="bi bi-graph-up demo-icon"></i>
-                        </div>
-                        <div class="p-4">
-                            <h4 class="fw-bold text-danger mb-3">
-                                <i class="bi bi-bar-chart-fill me-2"></i>Analyses Multicritères
-                            </h4>
-                            <h6>Critères d'évaluation :</h6>
-                            <div class="progress mb-2" style="height: 20px;">
-                                <div class="progress-bar bg-success" style="width: 85%">Exposition solaire (85%)</div>
-                            </div>
-                            <div class="progress mb-2" style="height: 20px;">
-                                <div class="progress-bar bg-info" style="width: 70%">Accessibilité (70%)</div>
-                            </div>
-                            <div class="progress mb-2" style="height: 20px;">
-                                <div class="progress-bar bg-warning" style="width: 60%">Raccordement électrique (60%)</div>
-                            </div>
-                            <div class="progress mb-3" style="height: 20px;">
-                                <div class="progress-bar bg-danger" style="width: 40%">Contraintes environnementales (40%)</div>
-                            </div>
-                            <div class="alert alert-primary">
-                                <strong>Score global : 73/100</strong><br>
-                                <small>Site recommandé pour développement solaire</small>
-                            </div>
+                            
+                            <a href="/demo/adresses" class="try-button">
+                                <i class="bi bi-play-circle me-2"></i>Voir tous les exemples
+                            </a>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-6">
+                <div class="col-lg-6">
                     <div class="demo-card">
-                        <div class="demo-image stats-demo">
-                            <i class="bi bi-pie-chart demo-icon"></i>
+                        <div class="demo-image">
+                            <i class="bi bi-building demo-icon"></i>
                         </div>
-                        <div class="p-4">
-                            <h4 class="fw-bold text-info mb-3">
-                                <i class="bi bi-graph-down me-2"></i>Statistiques Territoriales
-                            </h4>
-                            <h6>Répartition par type de site :</h6>
-                            <div class="row text-center mb-3">
-                                <div class="col-6">
-                                    <div class="border rounded p-2 mb-2">
-                                        <h5 class="text-success">847</h5>
-                                        <small>Toitures</small>
+                        <div class="demo-content">
+                            <div class="feature-badge">🏘️ Analyse Territoriale</div>
+                            <h3 class="fw-bold mb-3">Recherche par Commune</h3>
+                            <p class="text-muted mb-3">Obtenez une vue d'ensemble complète d'une commune entière avec ses caractéristiques agricoles</p>
+                            
+                            <div class="example-list">
+                                <h6 class="fw-bold mb-3">Communes d'exemple :</h6>
+                                <div class="example-item">
+                                    <i class="bi bi-building text-primary me-3"></i>
+                                    <div>
+                                        <strong>Reims (51)</strong><br>
+                                        <small class="text-muted">Zone viticole • Champagne • 180k habitants</small>
                                     </div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="border rounded p-2 mb-2">
-                                        <h5 class="text-primary">156</h5>
-                                        <small>Parkings</small>
+                                <div class="example-item">
+                                    <i class="bi bi-building text-success me-3"></i>
+                                    <div>
+                                        <strong>Toulouse (31)</strong><br>
+                                        <small class="text-muted">Métropole • Agriculture périurbaine • 475k habitants</small>
                                     </div>
                                 </div>
-                                <div class="col-6">
-                                    <div class="border rounded p-2 mb-2">
-                                        <h5 class="text-warning">89</h5>
-                                        <small>Friches</small>
-                                    </div>
-                                </div>
-                                <div class="col-6">
-                                    <div class="border rounded p-2 mb-2">
-                                        <h5 class="text-danger">43</h5>
-                                        <small>Agrivoltaïque</small>
+                                <div class="example-item">
+                                    <i class="bi bi-building text-info me-3"></i>
+                                    <div>
+                                        <strong>Angers (49)</strong><br>
+                                        <small class="text-muted">Zone horticole • Loire • 150k habitants</small>
                                     </div>
                                 </div>
                             </div>
-                            <div class="alert alert-info">
-                                <strong>Potentiel total département :</strong><br>
-                                156.8 MW · 187 GWh/an
-                            </div>
+                            
+                            <a href="/demo/communes" class="try-button">
+                                <i class="bi bi-search me-2"></i>Voir tous les exemples
+                            </a>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Section API et Intégration -->
-            <div class="row mb-5">
-                <div class="col-12">
-                    <div class="demo-card">
-                        <div class="p-4">
-                            <h3 class="fw-bold text-primary mb-4">
-                                <i class="bi bi-code-square me-2"></i>API et Intégrations
-                            </h3>
-                            <div class="row">
-                                <div class="col-lg-6">
-                                    <h5>Endpoints API disponibles</h5>
-                                    <div class="bg-dark text-light p-3 rounded">
-                                        <code>
-                                            GET /api/parcelles?lat=43.6&lon=3.8<br>
-                                            GET /api/postes-electriques?rayon=5km<br>
-                                            GET /api/contraintes?commune=34172<br>
-                                            POST /api/analyse-faisabilite<br>
-                                            GET /api/rapport-pdf/{id}
-                                        </code>
-                                    </div>
-                                </div>
-                                <div class="col-lg-6">
-                                    <h5>Formats d'export</h5>
-                                    <ul class="feature-list">
-                                        <li><i class="bi bi-filetype-json text-primary me-2"></i> JSON (API REST)</li>
-                                        <li><i class="bi bi-filetype-csv text-success me-2"></i> CSV (données tabulaires)</li>
-                                        <li><i class="bi bi-filetype-pdf text-danger me-2"></i> PDF (rapports)</li>
-                                        <li><i class="bi bi-map text-info me-2"></i> GeoJSON (données géographiques)</li>
-                                        <li><i class="bi bi-filetype-xlsx text-warning me-2"></i> Excel (analyses détaillées)</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Call to Action -->
+        </div>
+    </div>
+
+    <!-- Section Recherche par Département -->
+    <div class="demo-section" style="background: #f8f9fa;">
+        <div class="container">
             <div class="row">
-                <div class="col-12 text-center">
-                    <div class="demo-card" style="background: linear-gradient(135deg, #28a745, #20c997); color: white;">
-                        <div class="p-5">
-                            <h2 class="fw-bold mb-4">🚀 Prêt à tester Agriweb Pro ?</h2>
-                            <p class="lead mb-4">
-                                Démarrez votre essai gratuit de 7 jours et découvrez le potentiel solaire de votre territoire
-                            </p>
-                            <div class="d-flex justify-content-center gap-3 flex-wrap">
-                                <a href="/" class="btn btn-light btn-lg">
-                                    <i class="bi bi-lightning-charge me-2"></i>Essai Gratuit
-                                </a>
-                                <a href="/" class="btn btn-outline-light btn-lg">
-                                    <i class="bi bi-envelope me-2"></i>Nous Contacter
+                <div class="col-lg-8 mx-auto">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-map demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">📊 Vision Macro</div>
+                            <h3 class="fw-bold mb-3">Analyse par Département</h3>
+                            <p class="text-muted mb-3">Découvrez les caractéristiques agricoles et énergétiques de départements entiers</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="example-list">
+                                        <h6 class="fw-bold mb-3">Départements agricoles :</h6>
+                                        <div class="example-item">
+                                            <i class="bi bi-map text-success me-3"></i>
+                                            <div>
+                                                <strong>Eure-et-Loir (28)</strong><br>
+                                                <small class="text-muted">Céréales • Beauce</small>
+                                            </div>
+                                        </div>
+                                        <div class="example-item">
+                                            <i class="bi bi-map text-warning me-3"></i>
+                                            <div>
+                                                <strong>Gironde (33)</strong><br>
+                                                <small class="text-muted">Viticulture • Bordeaux</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="example-list">
+                                        <h6 class="fw-bold mb-3">Potentiel énergétique :</h6>
+                                        <div class="example-item">
+                                            <i class="bi bi-sun text-warning me-3"></i>
+                                            <div>
+                                                <strong>Solaire</strong><br>
+                                                <small class="text-muted">Ensoleillement • PVGIS</small>
+                                            </div>
+                                        </div>
+                                        <div class="example-item">
+                                            <i class="bi bi-wind text-info me-3"></i>
+                                            <div>
+                                                <strong>Éolien</strong><br>
+                                                <small class="text-muted">Vents • Topographie</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <a href="/demo/departements" class="try-button me-3">
+                                    <i class="bi bi-graph-up me-2"></i>Voir tous les exemples
                                 </a>
                             </div>
                         </div>
@@ -422,49 +317,101 @@
             </div>
         </div>
     </div>
-    
-    <!-- Footer -->
-    <footer class="bg-dark text-light py-4">
+
+    <!-- Section Rapports -->
+    <div class="demo-section">
         <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="display-5 fw-bold">📊 Exemples de Rapports</h2>
+                <p class="lead text-muted">Rapports automatisés avec données officielles</p>
+            </div>
+            
             <div class="row">
-                <div class="col-md-6">
-                    <h5>🌱 Agriweb Pro</h5>
-                    <p class="mb-0">La solution SIG pour les projets solaires et agrivoltaïques</p>
+                <div class="col-lg-4">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-file-earmark-text demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🎯 Analyse Parcellaire</div>
+                            <h5 class="fw-bold mb-3">Rapport de Point</h5>
+                            <p class="text-muted mb-3">Analyse détaillée d'un point géographique précis</p>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Coordonnées GPS</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Données PVGIS</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Cadastre RPG</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructure électrique</li>
+                            </ul>
+                            <a href="/demo/rapports" class="try-button">
+                                <i class="bi bi-download me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-6 text-md-end">
-                    <p class="mb-0">
-                        <a href="/" class="text-light text-decoration-none">Accueil</a> · 
-                        <a href="/demo" class="text-light text-decoration-none">Démo</a> · 
-                        <a href="mailto:contact@agriweb-pro.fr" class="text-light text-decoration-none">Contact</a>
-                    </p>
+                
+                <div class="col-lg-4">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-file-earmark-bar-graph demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🏘️ Synthèse Locale</div>
+                            <h5 class="fw-bold mb-3">Rapport de Commune</h5>
+                            <p class="text-muted mb-3">Vue d'ensemble d'une commune avec statistiques</p>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Superficie totale</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Répartition des cultures</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel énergétique</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructures</li>
+                            </ul>
+                            <a href="/demo/rapports" class="try-button">
+                                <i class="bi bi-graph-up me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-file-earmark-spreadsheet demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">📊 Vision Macro</div>
+                            <h5 class="fw-bold mb-3">Rapport Départemental</h5>
+                            <p class="text-muted mb-3">Analyse complète d'un département</p>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Données agricoles</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Statistiques démographiques</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel renouvelable</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Cartographie</li>
+                            </ul>
+                            <a href="/demo/rapports" class="try-button">
+                                <i class="bi bi-map me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </footer>
-    
+    </div>
+
+    <!-- Section CTA -->
+    <div class="demo-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <div class="container text-center">
+            <h2 class="display-5 fw-bold mb-3">Prêt à commencer ?</h2>
+            <p class="lead mb-4">Créez votre compte et bénéficiez de 7 jours d'essai gratuit</p>
+            <div class="d-flex justify-content-center flex-wrap gap-3">
+                <a href="/" class="btn btn-light btn-lg">
+                    <i class="bi bi-person-plus me-2"></i>Créer un compte gratuit
+                </a>
+                <a href="/app" class="btn btn-outline-light btn-lg">
+                    <i class="bi bi-play-circle me-2"></i>Accès direct (mode démo)
+                </a>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Animation au scroll
-        window.addEventListener('scroll', function() {
-            const cards = document.querySelectorAll('.demo-card');
-            cards.forEach(card => {
-                const rect = card.getBoundingClientRect();
-                if (rect.top < window.innerHeight && rect.bottom > 0) {
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0)';
-                }
-            });
-        });
-        
-        // Initialisation
-        document.addEventListener('DOMContentLoaded', function() {
-            const cards = document.querySelectorAll('.demo-card');
-            cards.forEach(card => {
-                card.style.opacity = '0.8';
-                card.style.transform = 'translateY(20px)';
-                card.style.transition = 'all 0.5s ease';
-            });
-        });
-    </script>
 </body>
 </html>

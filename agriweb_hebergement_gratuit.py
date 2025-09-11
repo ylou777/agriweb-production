@@ -2321,6 +2321,31 @@ def subscription_page():
     """Page de sélection des plans d'abonnement"""
     return render_template_string(SUBSCRIPTION_TEMPLATE, stripe_public_key=STRIPE_PUBLIC_KEY)
 
+@app.route("/demo-real")
+def demo_page():
+    """Page de démonstration avec exemples concrets"""
+    return render_template("demo.html")
+
+@app.route("/demo/adresses")
+def demo_adresses():
+    """Page démo avec exemples d'adresses"""
+    return render_template("demo_adresses.html")
+
+@app.route("/demo/communes")
+def demo_communes():
+    """Page démo avec exemples de communes"""
+    return render_template("demo_communes.html")
+
+@app.route("/demo/departements")
+def demo_departements():
+    """Page démo avec exemples de départements"""
+    return render_template("demo_departements.html")
+
+@app.route("/demo/rapports")
+def demo_rapports():
+    """Page démo avec exemples de rapports"""
+    return render_template("demo_rapports.html")
+
 @app.route("/payment-success")
 def payment_success():
     """Page de confirmation de paiement réussi"""
