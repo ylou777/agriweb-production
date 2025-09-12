@@ -389,19 +389,25 @@
                 
                 <!-- Plan Enterprise -->
                 <div class="col-lg-3 col-md-6">
-                    <div class="card h-100 border-0 shadow-sm">
+                    <div class="card h-100 border-0 shadow-sm border-warning">
                         <div class="card-body text-center p-4">
+                            <div class="badge bg-warning mb-2">🚀 Offre exceptionnelle crowdfunding</div>
                             <h5 class="card-title fw-bold">Entreprise</h5>
-                            <div class="display-6 fw-bold text-primary mb-3">Sur mesure</div>
-                            <p class="text-muted">Utilisateurs illimités</p>
-                            <ul class="list-unstyled text-start mb-4">
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Tout du plan Team</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Personnalisation complète</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Formation équipe</li>
-                                <li class="mb-2"><i class="bi bi-check-circle-fill text-success me-2"></i> Support dédié</li>
+                            <div class="text-center mb-3">
+                                <div class="h6 text-warning">🔥 Les 10 premières entreprises qui participent bénéficient d'un abonnement Entreprise annuel à -50 % !</div>
+                            </div>
+                            <ul class="list-unstyled text-start mb-3">
+                                <li class="mb-2"><i class="bi bi-briefcase text-warning me-2"></i> 💼 3 postes inclus (ordinateurs ou mobiles) pour vos équipes</li>
+                                <li class="mb-2"><i class="bi bi-star-fill text-warning me-2"></i> ✨ Toutes les fonctionnalités premium activées</li>
+                                <li class="mb-2"><i class="bi bi-arrow-repeat text-warning me-2"></i> 🔄 Mises à jour offertes pendant 1 an</li>
                             </ul>
-                            <button class="btn btn-outline-primary w-100" onclick="contactSales()">
-                                Nous contacter
+                            <div class="text-center mb-3">
+                                <div class="text-decoration-line-through text-muted">3 240 €</div>
+                                <div class="display-6 fw-bold text-warning">1 620 €</div>
+                                <small class="text-muted">💰 Tarif spécial crowdfunding</small>
+                            </div>
+                            <button class="btn btn-warning w-100" onclick="createCheckout('enterprise')">
+                                Profiter de l'offre
                             </button>
                         </div>
                     </div>
@@ -504,15 +510,14 @@
                     return;
                 }
                 
-                // Redirection vers Stripe Checkout
-                const result = await stripe.redirectToCheckout({
-                    sessionId: session.session_id
-                });
-                
-                if (result.error) {
-                    showAlert(result.error.message, 'danger');
+                // Redirection directe vers l'URL Stripe
+                if (session.url) {
+                    window.location.href = session.url;
+                } else {
+                    showAlert('URL de paiement non reçue', 'danger');
                 }
             } catch (error) {
+                console.error('Erreur:', error);
                 showAlert('Erreur de connexion au serveur', 'danger');
             }
         }
