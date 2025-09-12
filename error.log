@@ -11528,3 +11528,40 @@ OSError: [Errno 28] No space left on device
 2025-09-12 12:48:14,945 INFO 127.0.0.1 - - [12/Sep/2025 12:48:14] "GET / HTTP/1.1" 200 -
 2025-09-12 12:49:41,269 INFO 127.0.0.1 - - [12/Sep/2025 12:49:41] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=0&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=2500&zones_type_filter=U&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=300&max_distance_hta=0&poste_type_filter=BT HTTP/1.1" 200 -
 2025-09-12 12:49:43,270 INFO 127.0.0.1 - - [12/Sep/2025 12:49:43] "GET /static/cartes/commune_map_ahun_20250912_124914.html?t=1757674172&cache=1757674182904 HTTP/1.1" 200 -
+2025-09-12 12:51:15,329 INFO 127.0.0.1 - - [12/Sep/2025 12:51:15] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=0&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=2500&zones_type_filter=U&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=300&max_distance_hta=0&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-12 12:51:16,261 INFO 127.0.0.1 - - [12/Sep/2025 12:51:16] "GET /static/cartes/commune_map_ahun_20250912_125055.html?t=1757674264&cache=1757674275793 HTTP/1.1" 200 -
+2025-09-12 12:52:52,482 INFO 127.0.0.1 - - [12/Sep/2025 12:52:52] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=0&bt_max_distance=300&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=2500&zones_type_filter=U&filter_toitures=false&toitures_min_surface=100&filter_by_distance=true&max_distance_bt=300&max_distance_hta=0&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-12 12:52:53,237 INFO 127.0.0.1 - - [12/Sep/2025 12:52:53] "GET /static/cartes/commune_map_ahun_20250912_125232.html?t=1757674362&cache=1757674372886 HTTP/1.1" 200 -
+2025-09-12 12:53:48,630 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-12 12:53:48,631 INFO [33mPress CTRL+C to quit[0m
+2025-09-12 12:53:51,395 INFO 127.0.0.1 - - [12/Sep/2025 12:53:51] "GET / HTTP/1.1" 200 -
+2025-09-12 12:53:57,832 INFO 127.0.0.1 - - [12/Sep/2025 12:53:57] "GET /app HTTP/1.1" 200 -
+2025-09-12 12:53:59,788 INFO 127.0.0.1 - - [12/Sep/2025 12:53:59] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-12 12:53:59,792 INFO 127.0.0.1 - - [12/Sep/2025 12:53:59] "GET /static/map.html HTTP/1.1" 200 -
+2025-09-12 12:55:32,952 INFO 127.0.0.1 - - [12/Sep/2025 12:55:32] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=450&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=2500&zones_type_filter=U&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=450&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-12 12:55:33,176 INFO 127.0.0.1 - - [12/Sep/2025 12:55:33] "GET /static/cartes/commune_map_ahun_20250912_125515.html?t=1757674521&cache=1757674533166 HTTP/1.1" 200 -
+2025-09-12 12:56:32,856 INFO 127.0.0.1 - - [12/Sep/2025 12:56:32] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-12 12:56:55,134 INFO 127.0.0.1 - - [12/Sep/2025 12:56:55] "GET /search_by_address?address=trigastel&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-12 12:56:55,897 INFO 127.0.0.1 - - [12/Sep/2025 12:56:55] "GET /static/cartes/map_1757674615_4621437784497860745.html?t=1757674615&cache=1757674615150 HTTP/1.1" 200 -
+2025-09-12 12:57:12,695 INFO 127.0.0.1 - - [12/Sep/2025 12:57:12] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-12 12:57:21,415 INFO 127.0.0.1 - - [12/Sep/2025 12:57:21] "GET /search_by_address?address=trigastel&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-12 12:57:21,654 INFO 127.0.0.1 - - [12/Sep/2025 12:57:21] "GET /static/cartes/map_1757674641_4621437784497860745.html?t=1757674641&cache=1757674641425 HTTP/1.1" 200 -
+2025-09-12 12:57:33,533 INFO 127.0.0.1 - - [12/Sep/2025 12:57:33] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-12 12:57:58,454 INFO 127.0.0.1 - - [12/Sep/2025 12:57:58] "GET /search_by_address?address=brest&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-12 12:57:58,762 INFO 127.0.0.1 - - [12/Sep/2025 12:57:58] "GET /static/cartes/map_1757674663_3808055854331950352.html?t=1757674672&cache=1757674678618 HTTP/1.1" 200 -
+2025-09-12 12:58:45,116 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-12 12:58:45,116 INFO [33mPress CTRL+C to quit[0m
+2025-09-12 12:58:46,570 INFO 127.0.0.1 - - [12/Sep/2025 12:58:46] "GET / HTTP/1.1" 200 -
+2025-09-12 13:17:58,883 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-09-12 13:17:58,884 INFO [33mPress CTRL+C to quit[0m
+2025-09-12 13:19:40,800 INFO 127.0.0.1 - - [12/Sep/2025 13:19:40] "GET /app HTTP/1.1" 200 -
+2025-09-12 13:19:41,113 INFO 127.0.0.1 - - [12/Sep/2025 13:19:41] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-09-12 13:19:41,137 INFO 127.0.0.1 - - [12/Sep/2025 13:19:41] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-12 13:20:18,778 INFO 127.0.0.1 - - [12/Sep/2025 13:20:18] "GET /search_by_address?address=ahun&sirene_radius=0.1&ht_radius=3.5&bt_radius=0.5 HTTP/1.1" 200 -
+2025-09-12 13:20:19,879 INFO 127.0.0.1 - - [12/Sep/2025 13:20:19] "GET /static/cartes/map_1757676017_7601106700871838980.html?t=1757676018&cache=1757676018874 HTTP/1.1" 200 -
+2025-09-12 13:21:20,881 INFO 127.0.0.1 - - [12/Sep/2025 13:21:20] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-09-12 13:22:45,404 INFO 127.0.0.1 - - [12/Sep/2025 13:22:45] "GET /search_by_commune?commune=ahun&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=250&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=false&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=2500&zones_type_filter=U&filter_toitures=false&toitures_min_surface=100&filter_by_distance=false&max_distance_bt=250&max_distance_hta=5000&poste_type_filter=BT HTTP/1.1" 200 -
+2025-09-12 13:22:45,609 INFO 127.0.0.1 - - [12/Sep/2025 13:22:45] "GET /static/cartes/commune_map_ahun_20250912_132225.html?t=1757676153&cache=1757676165594 HTTP/1.1" 200 -

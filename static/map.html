@@ -123,101 +123,13 @@
       }
       // --- Nature & Urbanisme (API IGN)
       if (typeLayer === "api_nature" || typeLayer === "api_urbanisme") {
-        if (typeLayer === "api_urbanisme") {
-          // Pop-up améliorée pour les zones d'urbanisme
-          let html = `<div class='custom-popup'>
-            <div class='popup-title' style="color:#0000FF; border-bottom: 2px solid #0000FF; padding-bottom: 5px; margin-bottom: 10px;">
-              🏗️ Zone d'Urbanisme
-            </div>
-            <table style="width: 100%;">`;
-          
-          // Type de zone avec description explicite
-          let typeZone = props.typezone || props.type || props.zone || "Non spécifié";
-          let zoneDescription = "";
-          
-          if (typeZone.toUpperCase().startsWith('U')) {
-            zoneDescription = "Zone urbaine - Constructions autorisées";
-          } else if (typeZone.toUpperCase().startsWith('AU')) {
-            zoneDescription = "Zone à urbaniser - Développement futur";
-          } else if (typeZone.toUpperCase().startsWith('A')) {
-            zoneDescription = "Zone agricole - Protection des terres";
-          } else if (typeZone.toUpperCase().startsWith('N')) {
-            zoneDescription = "Zone naturelle - Protection environnementale";
-          } else {
-            zoneDescription = "Zone spécifique";
-          }
-          
-          html += row("🎯 Type de zone", `<strong>${typeZone}</strong>`);
-          html += row("📋 Classification", zoneDescription);
-          
-          // Libellé de la zone si disponible
-          if (props.libelle || props.nom || props.name) {
-            html += row("📍 Designation", props.libelle || props.nom || props.name);
-          }
-          
-          // Commune si disponible
-          if (props.commune || props.nom_commune) {
-            html += row("🏘️ Commune", props.commune || props.nom_commune);
-          }
-          
-          // Surface si disponible (calculée ou fournie)
-          if (props.surface || props.area || props.superficie) {
-            let surface = props.surface || props.area || props.superficie;
-            if (typeof surface === 'number') {
-              if (surface > 10000) {
-                surface = `${(surface / 10000).toFixed(2)} ha`;
-              } else {
-                surface = `${surface.toFixed(0)} m²`;
-              }
-            }
-            html += row("📐 Surface", surface);
-          }
-          
-          // Statut d'approbation si disponible
-          if (props.etat || props.statut || props.status) {
-            let statut = props.etat || props.statut || props.status;
-            let statutColor = statut.toLowerCase().includes('approuv') ? '#28a745' : '#ffc107';
-            html += row("⚖️ Statut", `<span style="color: ${statutColor}; font-weight: bold;">${statut}</span>`);
-          }
-          
-          // Date si disponible
-          if (props.date_approbation || props.date || props.dateappro) {
-            let date = props.date_approbation || props.date || props.dateappro;
-            html += row("📅 Date d'approbation", date);
-          }
-          
-          // Lien vers le document PLU si disponible
-          if (props.url || props.lien || props.url_reglement) {
-            let url = props.url || props.lien || props.url_reglement;
-            html += row("📄 Règlement", `<a href="${url}" class="popup-link" target="_blank">Consulter le PLU</a>`);
-          }
-          
-          // Informations complémentaires selon le type
-          if (typeZone.toUpperCase().startsWith('U') || typeZone.toUpperCase().startsWith('AU')) {
-            html += row("💡 Potentiel", "Zone favorable pour projets urbains et énergétiques");
-          } else if (typeZone.toUpperCase().startsWith('A')) {
-            html += row("🌾 Potentiel", "Zone adaptée pour l'agrivoltaïsme et projets agricoles");
-          } else if (typeZone.toUpperCase().startsWith('N')) {
-            html += row("🌿 Contraintes", "Zone protégée - Réglementation stricte");
-          }
-          
-          html += `</table>
-            <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.85em; color: #666;">
-              💼 <strong>Source :</strong> Géoportail de l'Urbanisme (GPU)
-            </div>
-          </div>`;
-          
-          return html;
-        } else {
-          // Pop-up pour les zones naturelles (inchangée)
-          return `<div class='custom-popup'><div class='popup-title' style="color:#22AA22">
-            🌿 Zone Naturelle</div>
-          <table>
-            ${row("Type",props.type||props.nature||props.nom)}
-            ${row("Description",props.description)}
-            ${row("Lien",props.url?`<a href="${props.url}" class="popup-link" target="_blank">Voir fiche</a>`:"")}
-          </table></div>`;
-        }
+        return `<div class='custom-popup'><div class='popup-title' style="color:${typeLayer==="api_nature"?"#22AA22":"#0000FF"}">
+          ${typeLayer==="api_nature"?"Zone Naturelle":"Zone Urbanisme"}</div>
+        <table>
+          ${row("Type",props.type||props.nature||props.nom)}
+          ${row("Description",props.description)}
+          ${row("Lien",props.url?`<a href="${props.url}" class="popup-link" target="_blank">Voir fiche</a>`:"")}
+        </table></div>`;
       }
       // --- Postes HTA
       if (typeLayer === "postes_hta") {
