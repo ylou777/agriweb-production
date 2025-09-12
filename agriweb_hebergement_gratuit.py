@@ -4871,17 +4871,66 @@ def build_simple_map(
                 files = item.get("files", [])
                 archive_url = item.get("archive_url", "")
                 
-                popup_html = f"<b>Zone PLU</b><br>"
-                popup_html += f"<b>Type:</b> {typeref}<br>"
-                popup_html += f"<b>INSEE:</b> {insee}<br>"
+                popup_html = f"""
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 350px;">
+                  <div style="color: #0000FF; border-bottom: 2px solid #0000FF; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold;">
+                    🏗️ Zone d'Urbanisme
+                  </div>
+                  <table style="width: 100%; border-collapse: collapse;">
+                """
+                
+                # Type de zone avec description explicite
+                zone_description = ""
+                if typeref.upper().startswith('U'):
+                    zone_description = "Zone urbaine - Constructions autorisées"
+                elif typeref.upper().startswith('AU'):
+                    zone_description = "Zone à urbaniser - Développement futur"
+                elif typeref.upper().startswith('A'):
+                    zone_description = "Zone agricole - Protection des terres"
+                elif typeref.upper().startswith('N'):
+                    zone_description = "Zone naturelle - Protection environnementale"
+                else:
+                    zone_description = "Zone spécifique"
+                
+                popup_html += f"""
+                  <tr><td style="font-weight: bold; padding: 3px;">🎯 Type de zone:</td><td style="padding: 3px;"><strong>{typeref}</strong></td></tr>
+                  <tr><td style="font-weight: bold; padding: 3px;">📋 Classification:</td><td style="padding: 3px;">{zone_description}</td></tr>
+                  <tr><td style="font-weight: bold; padding: 3px;">🏘️ Code INSEE:</td><td style="padding: 3px;">{insee}</td></tr>
+                """
+                
+                # Potentiel selon le type
+                if typeref.upper().startswith('U') or typeref.upper().startswith('AU'):
+                    popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>💡 Potentiel:</td><td style='padding: 3px;'>Zone favorable pour projets urbains et énergétiques</td></tr>"
+                elif typeref.upper().startswith('A'):
+                    popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>🌾 Potentiel:</td><td style='padding: 3px;'>Zone adaptée pour l'agrivoltaïsme et projets agricoles</td></tr>"
+                elif typeref.upper().startswith('N'):
+                    popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>🌿 Contraintes:</td><td style='padding: 3px;'>Zone protégée - Réglementation stricte</td></tr>"
                 
                 if files:
-                    popup_html += f"<b>Documents:</b><br>"
-                    for file in files[:5]:  # Limite à 5 documents
-                        popup_html += f"- {file}<br>"
+                    popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>📄 Documents:</td><td style='padding: 3px;'>"
+                    for file in files[:3]:  # Limite à 3 documents
+                        popup_html += f"• {file}<br>"
+                    if len(files) > 3:
+                        popup_html += f"... et {len(files) - 3} autres<br>"
+                    popup_html += "</td></tr>"
+                
+                popup_html += "</table>"
                 
                 if archive_url:
-                    popup_html += f"<a href='{archive_url}' target='_blank'>Voir les documents PLU</a>"
+                    popup_html += f"""
+                    <div style="margin-top: 10px; text-align: center;">
+                      <a href='{archive_url}' target='_blank' style="background: #007bff; color: white; padding: 5px 10px; text-decoration: none; border-radius: 4px; font-size: 0.9em;">
+                        📋 Consulter le PLU
+                      </a>
+                    </div>
+                    """
+                
+                popup_html += f"""
+                  <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.85em; color: #666;">
+                    💼 <strong>Source :</strong> Géoportail de l'Urbanisme (GPU)
+                  </div>
+                </div>
+                """
                 
                 folium.GeoJson(
                     item.get("geometry"),
@@ -5190,7 +5239,66 @@ def build_map(
     plu_group = folium.FeatureGroup(name="PLU", show=True)
     for item in plu_info:
         if item.get("geometry"):
-            folium.GeoJson(item.get("geometry"), style_function=lambda _: {"color": "red", "weight": 2}, tooltip="<br>".join(f"{k}: {v}" for k, v in item.items())).add_to(plu_group)
+            # Créer une pop-up améliorée pour les zones PLU
+            props = item.get("properties", {})
+            typeref = props.get("typezone", props.get("type", "N/A"))
+            insee = props.get("insee", "N/A")
+            commune = props.get("commune", props.get("nom_commune", ""))
+            
+            popup_html = f"""
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 300px;">
+              <div style="color: #0000FF; border-bottom: 2px solid #0000FF; padding-bottom: 5px; margin-bottom: 10px; font-weight: bold;">
+                🏗️ Zone d'Urbanisme
+              </div>
+              <table style="width: 100%; border-collapse: collapse;">
+            """
+            
+            # Type de zone avec description explicite
+            zone_description = ""
+            if typeref.upper().startswith('U'):
+                zone_description = "Zone urbaine - Constructions autorisées"
+            elif typeref.upper().startswith('AU'):
+                zone_description = "Zone à urbaniser - Développement futur"
+            elif typeref.upper().startswith('A'):
+                zone_description = "Zone agricole - Protection des terres"
+            elif typeref.upper().startswith('N'):
+                zone_description = "Zone naturelle - Protection environnementale"
+            else:
+                zone_description = "Zone spécifique"
+            
+            popup_html += f"""
+              <tr><td style="font-weight: bold; padding: 3px;">🎯 Type de zone:</td><td style="padding: 3px;"><strong>{typeref}</strong></td></tr>
+              <tr><td style="font-weight: bold; padding: 3px;">📋 Classification:</td><td style="padding: 3px;">{zone_description}</td></tr>
+            """
+            
+            if commune:
+                popup_html += f'<tr><td style="font-weight: bold; padding: 3px;">🏘️ Commune:</td><td style="padding: 3px;">{commune}</td></tr>'
+            
+            if insee != "N/A":
+                popup_html += f'<tr><td style="font-weight: bold; padding: 3px;">🏘️ Code INSEE:</td><td style="padding: 3px;">{insee}</td></tr>'
+            
+            # Potentiel selon le type
+            if typeref.upper().startswith('U') or typeref.upper().startswith('AU'):
+                popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>💡 Potentiel:</td><td style='padding: 3px;'>Zone favorable pour projets urbains et énergétiques</td></tr>"
+            elif typeref.upper().startswith('A'):
+                popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>🌾 Potentiel:</td><td style='padding: 3px;'>Zone adaptée pour l'agrivoltaïsme et projets agricoles</td></tr>"
+            elif typeref.upper().startswith('N'):
+                popup_html += f"<tr><td style='font-weight: bold; padding: 3px;'>🌿 Contraintes:</td><td style='padding: 3px;'>Zone protégée - Réglementation stricte</td></tr>"
+            
+            popup_html += f"""
+              </table>
+              <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 0.85em; color: #666;">
+                💼 <strong>Source :</strong> Géoportail de l'Urbanisme (GPU)
+              </div>
+            </div>
+            """
+            
+            folium.GeoJson(
+                item.get("geometry"), 
+                style_function=lambda _: {"color": "red", "weight": 2, "fillColor": "lavender", "fillOpacity": 0.4},
+                tooltip=f"Zone PLU - {typeref}",
+                popup=folium.Popup(popup_html, max_width=350)
+            ).add_to(plu_group)
     map_obj.add_child(plu_group)
 
     # Autres couches simples
@@ -10789,6 +10897,10 @@ def open_browser():
 
 def main():
     try:
+        # Import des utilisateurs existants au démarrage
+        print("🔄 Import des utilisateurs existants...")
+        import_existing_users()
+        
         print("Routes disponibles:")
         pprint.pprint(list(app.url_map.iter_rules()))
         
@@ -13151,6 +13263,103 @@ ADMIN_STRIPE_TEMPLATE = """
 </body>
 </html>
 """
+
+def import_existing_users():
+    """Import des utilisateurs existants pour préserver leurs authentifications"""
+    existing_users = [
+        {
+            'id': 16,
+            'email': 'ismailolafimihan@gmail.com',
+            'name': 'Olaf Ismail',
+            'company': '',
+            'created_at': '2025-09-12',
+            'last_login': '2025-09-12 09:31',
+            'subscription_status': 'active'
+        },
+        {
+            'id': 15,
+            'email': 'lilian.bortolotto@techniquesolaire.com',
+            'name': 'LILIAN BORTOLOTTO',
+            'company': 'Technique Solaire',
+            'created_at': '2025-09-12',
+            'last_login': '2025-09-12 09:30',
+            'subscription_status': 'active'
+        },
+        {
+            'id': 14,
+            'email': 'bappel@energiesdeloire.com',
+            'name': 'BÉRÉNICE APPEL',
+            'company': 'Énergies de Loire',
+            'created_at': '2025-09-12',
+            'last_login': '2025-09-12 07:54',
+            'subscription_status': 'active'
+        },
+        {
+            'id': 13,
+            'email': 'farid.moucer@enoe-energie.fr',
+            'name': 'Farid MOUCER',
+            'company': 'ENOE Énergie',
+            'created_at': '2025-09-12',
+            'last_login': '2025-09-12 07:22',
+            'subscription_status': 'active'
+        },
+        {
+            'id': 12,
+            'email': 'demo@test.com',
+            'name': 'Utilisateur Demo',
+            'company': 'Demo',
+            'created_at': '2025-09-08',
+            'last_login': None,
+            'subscription_status': 'active'
+        },
+        {
+            'id': 3,
+            'email': 'admin@test.com',
+            'name': 'Administrateur',
+            'company': 'Admin',
+            'created_at': '2025-08-20',
+            'last_login': '2025-09-11 19:41',
+            'subscription_status': 'active'
+        }
+    ]
+    
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        
+        for user in existing_users:
+            # Vérifier si l'utilisateur existe déjà
+            cursor.execute('SELECT id FROM users WHERE email = ?', (user['email'],))
+            existing = cursor.fetchone()
+            
+            if not existing:
+                # Créer un hash de mot de passe temporaire (ils devront le changer)
+                temp_password = f"temp_{user['id']}_password"
+                password_hash, salt = hash_password(temp_password)
+                
+                # Insérer l'utilisateur avec l'ID spécifique
+                cursor.execute('''
+                    INSERT OR IGNORE INTO users 
+                    (id, email, name, company, password_hash, salt, created_at, 
+                     last_login, subscription_status, is_active, login_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 
+                            CASE WHEN ? IS NULL THEN 0 ELSE 1 END)
+                ''', (
+                    user['id'], user['email'], user['name'], user['company'],
+                    password_hash, salt, user['created_at'], user['last_login'],
+                    user['subscription_status'], user['last_login']
+                ))
+                
+                print(f"✅ Utilisateur importé: {user['name']} ({user['email']})")
+            else:
+                print(f"ℹ️ Utilisateur existe déjà: {user['email']}")
+        
+        conn.commit()
+        conn.close()
+        print("🎉 Import des utilisateurs existants terminé!")
+        
+    except Exception as e:
+        print(f"❌ Erreur lors de l'import des utilisateurs: {e}")
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
