@@ -40,7 +40,7 @@
     sat.addTo(map);
 
     var baseMaps = { "Satellite": sat, "OSM": osm };
-    L.control.layers(baseMaps).addTo(map);
+    window._layerControl = L.control.layers(baseMaps).addTo(map); // Réactivé pour la synchronisation
 
     window._layers = [];
 

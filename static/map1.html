@@ -59,7 +59,8 @@
     sat.addTo(map);
   var baseMaps = { "Satellite": sat, "OSM": osm };
   // Conserver une référence au control de couches pour pouvoir le recréer avec des overlays
-  window._layerControl = L.control.layers(baseMaps).addTo(map);
+  // window._layerControl = L.control.layers(baseMaps).addTo(map); // Désactivé pour éviter duplication avec le contrôle parent
+  window._layerControl = null; // Référence vide pour compatibilité
     window._layers = [];
 
     // Fix full size si l’iframe bouge
@@ -390,8 +391,9 @@
         });
 
         // Créer et attacher le nouveau contrôle complet (fond + overlays)
-        window._layerControl = L.control.layers(baseMaps, leafletOverlays, { position: 'topright' });
-        window._layerControl.addTo(map);
+        // window._layerControl = L.control.layers(baseMaps, leafletOverlays, { position: 'topright' }); // Désactivé pour éviter duplication
+        // window._layerControl.addTo(map); // Désactivé pour éviter duplication
+        window._layerControl = null; // Référence vide pour compatibilité
 
         // Afficher par défaut tous les overlays passés et maintenir le compteur
         // Vider les anciennes références de couches dynamiques

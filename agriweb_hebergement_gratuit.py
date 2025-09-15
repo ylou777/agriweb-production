@@ -6206,8 +6206,10 @@ def commune_search_sse():
 
 @app.route("/search_by_commune", methods=["GET", "POST"])
 def search_by_commune():
+    import uuid
+    call_id = str(uuid.uuid4())[:8]
     print("="*80)
-    print("🚨🚨🚨 DEBUT SEARCH_BY_COMMUNE - VERSION MODIFIEE 🚨🚨🚨")
+    print(f"🚨🚨🚨 DEBUT SEARCH_BY_COMMUNE #{call_id} - PROTECTION RENFORCÉE 🚨🚨🚨")
     print("="*80)
     
     import requests
@@ -6219,18 +6221,80 @@ def search_by_commune():
     from pyproj import Transformer
     import hashlib
     import time
+    import traceback
+    
+    # Affichage de la stack trace pour voir d'où vient l'appel
+    print(f"📞 [CALL #{call_id}] Stack trace de l'appel:")
+    for line in traceback.format_stack():
+        print(f"    {line.strip()}")
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
-    # ║                    PROTECTION ANTI-LOOP OPTIMISÉE                       ║
+    # ║                    CIRCUIT BREAKER ANTI-LOOP ULTRA-ROBUSTE              ║
     # ╚══════════════════════════════════════════════════════════════════════════╝
     
-    print("🛡️ [ANTI-LOOP] Protection intelligente activée")
+    # Compteur global de requêtes par IP
+    if not hasattr(search_by_commune, 'request_counter'):
+        search_by_commune.request_counter = {}
+    if not hasattr(search_by_commune, 'blocked_ips'):
+        search_by_commune.blocked_ips = {}
+    
+    # Récupération IP client
+    client_ip = flask_request.environ.get('HTTP_X_FORWARDED_FOR', 
+                                        flask_request.environ.get('REMOTE_ADDR', 'unknown'))
+    if ',' in client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    
+    current_time = time.time()
+    
+    # Vérifier si IP est bloquée
+    if client_ip in search_by_commune.blocked_ips:
+        block_time, block_reason = search_by_commune.blocked_ips[client_ip]
+        if current_time - block_time < 300:  # 5 minutes de blocage
+            print(f"� [BLOCKED_IP] IP {client_ip} bloquée pour: {block_reason}")
+            return jsonify({
+                "error": "IP temporairement bloquée - loop détecté",
+                "retry_after": 300 - (current_time - block_time),
+                "blocked_reason": block_reason
+            }), 429
+        else:
+            # Débloquer après 5 minutes
+            del search_by_commune.blocked_ips[client_ip]
+            print(f"🔓 [UNBLOCKED] IP {client_ip} débloquée après timeout")
+    
+    # Compter les requêtes par IP
+    if client_ip not in search_by_commune.request_counter:
+        search_by_commune.request_counter[client_ip] = []
+    
+    # Nettoyer les requêtes anciennes (> 60 secondes)
+    search_by_commune.request_counter[client_ip] = [
+        req_time for req_time in search_by_commune.request_counter[client_ip]
+        if current_time - req_time < 60
+    ]
+    
+    # Ajouter la requête actuelle
+    search_by_commune.request_counter[client_ip].append(current_time)
+    
+    # Vérifier le nombre de requêtes
+    request_count = len(search_by_commune.request_counter[client_ip])
+    print(f"🔍 [IP_TRACKING] IP: {client_ip}, Requêtes/minute: {request_count}")
+    
+    # Bloquer si trop de requêtes (plus de 10 par minute = suspect)
+    if request_count > 10:
+        search_by_commune.blocked_ips[client_ip] = (current_time, f"Trop de requêtes: {request_count}/min")
+        print(f"🚫 [AUTO_BLOCK] IP {client_ip} bloquée automatiquement")
+        return jsonify({
+            "error": "Trop de requêtes détectées - IP bloquée temporairement",
+            "retry_after": 300,
+            "requests_detected": request_count
+        }), 429
+    
+    print("🛡️ [CIRCUIT_BREAKER] Protection active - requête autorisée")
     
     # Récupération des paramètres de base
     request_params = dict(flask_request.values)
     print(f"📋 [PARAMS] Paramètres reçus: {request_params}")
     
-    # === PROTECTION ANTI-LOOP INTELLIGENTE ===
+    # === PROTECTION ANTI-LOOP STANDARD (en plus du circuit breaker) ===
     # Cache global pour éviter les requêtes en loop
     if not hasattr(search_by_commune, 'anti_loop_cache'):
         search_by_commune.anti_loop_cache = {}
@@ -6240,10 +6304,9 @@ def search_by_commune():
         json.dumps(request_params, sort_keys=True).encode('utf-8')
     ).hexdigest()
     
-    current_time = time.time()
-    cache_window = 1  # Protection de 1 seconde seulement (plus permissif)
+    cache_window = 2  # 2 secondes pour être plus restrictif
     
-    print(f"🛡️ [ANTI-LOOP] === PROTECTION ACTIVE ===")
+    print(f"🛡️ [ANTI-LOOP] === PROTECTION DOUBLE ACTIVE ===")
     print(f"🛡️ [SIGNATURE] Signature requête: {request_signature}")
     print(f"🛡️ [CACHE] Taille cache actuel: {len(search_by_commune.anti_loop_cache)}")
     
@@ -7389,13 +7452,21 @@ def search_by_commune():
 
             print(f"✅ [TOITURES] {len(toitures_data)} toitures filtrées trouvées (méthode polygone)")
             
-            # Enrichissement cadastral OPTIMISÉ avec limite
+            # Enrichissement cadastral OPTIMISÉ avec limite intelligente
             if toitures_data:
-                # ENRICHISSEMENT COMPLET: Traitement de toutes les toitures de la commune
-                toitures_a_enrichir = toitures_data  # Traitement complet sans limitation
+                # OPTIMISATION PERFORMANCE: Limitation intelligente pour éviter les timeouts
+                max_toitures_enrichissement = 50  # Limite raisonnable pour de bonnes performances
                 
-                # print(f"🏛️ [CADASTRE-TOITURES] Enrichissement complet : {len(toitures_a_enrichir)} toitures")  # Optimisé pour production multi-user
-                # print(f"🔍 [CADASTRE-TOITURES] Traitement individuel optimisé avec limite 1000")  # Optimisé pour production multi-user
+                if len(toitures_data) > max_toitures_enrichissement:
+                    print(f"⚡ [OPTIMISATION] Limitation à {max_toitures_enrichissement} toitures pour performance optimale")
+                    # Prendre les plus grandes toitures d'abord
+                    toitures_triees = sorted(toitures_data, key=lambda x: x['properties']['surface_toiture_m2'], reverse=True)
+                    toitures_a_enrichir = toitures_triees[:max_toitures_enrichissement]
+                else:
+                    toitures_a_enrichir = toitures_data
+                
+                print(f"🏛️ [CADASTRE-TOITURES] Enrichissement optimisé : {len(toitures_a_enrichir)} toitures")
+                print(f"🔍 [CADASTRE-TOITURES] Traitement individuel avec timeout réduit")
                 
                 def get_parcelles_for_toiture(toiture_geometry):
                     """Récupère les parcelles cadastrales intersectant une toiture spécifique avec limite optimisée"""
@@ -7403,10 +7474,10 @@ def search_by_commune():
                         api_url = "https://apicarto.ign.fr/api/cadastre/parcelle"
                         params = {
                             "geom": json.dumps(toiture_geometry),
-                            "_limit": 1000  # Limite maximale au lieu de 3
+                            "_limit": 5  # Limite réduite pour plus de rapidité
                         }
                         
-                        resp = requests.get(api_url, params=params, timeout=10)
+                        resp = requests.get(api_url, params=params, timeout=3)  # Timeout réduit
                         if resp.status_code == 200:
                             data = resp.json()
                             return data.get('features', [])
@@ -7504,26 +7575,36 @@ def search_by_commune():
     print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
     # print(f"🌾 [DEBUG_RPG] Parcelles RPG passées à build_map: {len(final_rpg)}")
     
-    map_obj = build_map(
-        lat, lon, commune,
-        parcelle_props={}, parcelles_data=parcelles_data,
-        postes_data=postes_bt_data,
-        ht_postes_data=postes_hta_data,
-        plu_info=plu_info,
-        parkings_data=filtered_parkings,
-        friches_data=filtered_friches,
-        potentiel_solaire_data=toitures_data if filter_toitures else solaire_data,  # Remplacer temporairement par les toitures
-        zaer_data=zaer_data,
-        rpg_data=final_rpg,
-        sirene_data=sirene_data,
-        search_radius=0.1,
-        ht_radius_deg=ht_max_km/111.0,
-        api_cadastre=api_cadastre,
-        api_nature=api_nature,
-        api_urbanisme=api_urbanisme,
-        eleveurs_data=eleveurs_data,
-        ppri_data=ppri_data
-    )
+    print(f"🎯 [DEBUG] AVANT appel build_map...")
+    
+    try:
+        map_obj = build_map(
+            lat, lon, commune,
+            parcelle_props={}, parcelles_data=parcelles_data,
+            postes_data=postes_bt_data,
+            ht_postes_data=postes_hta_data,
+            plu_info=plu_info,
+            parkings_data=filtered_parkings,
+            friches_data=filtered_friches,
+            potentiel_solaire_data=toitures_data if filter_toitures else solaire_data,  # Remplacer temporairement par les toitures
+            zaer_data=zaer_data,
+            rpg_data=final_rpg,
+            sirene_data=sirene_data,
+            search_radius=0.1,
+            ht_radius_deg=ht_max_km/111.0,
+            api_cadastre=api_cadastre,
+            api_nature=api_nature,
+            api_urbanisme=api_urbanisme,
+            eleveurs_data=eleveurs_data,
+            ppri_data=ppri_data
+        )
+        print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")
+    except Exception as e:
+        print(f"❌ [ERREUR] Exception dans build_map: {str(e)}")
+        print(f"❌ [ERREUR] Type d'erreur: {type(e)}")
+        import traceback
+        print(f"❌ [ERREUR] Traceback: {traceback.format_exc()}")
+        map_obj = None
     
     # Récupérer le HTML de la carte pour l'ajouter à la réponse
     carte_html = map_obj._repr_html_() if map_obj else ""
