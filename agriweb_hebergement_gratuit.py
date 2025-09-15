@@ -2669,6 +2669,27 @@ def qr_code_page():
 def index():
     """Page d'accueil avec authentification commerciale - Collecte emails et essais gratuits"""
     
+    # Version simplifiée pour diagnostiquer le timeout
+    try:
+        return render_template("homepage.html", 
+                             stripe_public_key=STRIPE_PUBLIC_KEY or "", 
+                             is_admin=False,
+                             current_user=None)
+    except Exception as e:
+        print(f"❌ [INDEX] Erreur dans index(): {e}")
+        return f"Erreur page d'accueil: {e}", 500
+
+# Route de test simple
+@app.route("/test")
+def test_route():
+    """Route de test simple pour vérifier que le serveur fonctionne"""
+    return "✅ Serveur fonctionne correctement"
+
+# Page d'accueil ORIGINALE (temporairement commentée)
+@app.route("/index_original")
+def index_original():
+    """Page d'accueil avec authentification commerciale - Version originale"""
+    
     # Vérifier si l'utilisateur est déjà connecté
     session_token = session.get('session_token') or request.cookies.get('session_token')
     is_admin = False
@@ -2685,9 +2706,9 @@ def index():
             admin_result = cursor.fetchone()
             is_admin = bool(admin_result[0]) if admin_result else False
             conn.close()
-    
+
     return render_template("homepage.html", 
-                         stripe_public_key=STRIPE_PUBLIC_KEY, 
+                         stripe_public_key=STRIPE_PUBLIC_KEY or "", 
                          is_admin=is_admin,
                          current_user=current_user)
 
@@ -6200,72 +6221,65 @@ def search_by_commune():
     import time
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
-    # ║                          PROTECTION ANTI-LOOP COMPLÈTE                  ║
+    # ║                    PROTECTION ANTI-LOOP TEMPORAIREMENT DÉSACTIVÉE       ║
     # ╚══════════════════════════════════════════════════════════════════════════╝
     
+    # DÉSACTIVÉ POUR DEBUG - La protection anti-loop causait des timeouts
+    print("⚠️ [DEBUG] Protection anti-loop DÉSACTIVÉE temporairement")
+    
+    # Récupération des paramètres de base
+    request_params = dict(flask_request.values)
+    print(f"📋 [PARAMS] Paramètres reçus: {request_params}")
+    
+    # === PROTECTION ANTI-LOOP RÉACTIVÉE TEMPORAIREMENT ===
     # Cache global pour éviter les requêtes en loop
     if not hasattr(search_by_commune, 'anti_loop_cache'):
         search_by_commune.anti_loop_cache = {}
         
     # 1️⃣ GÉNÉRATION SIGNATURE UNIQUE DE LA REQUÊTE
-    request_params = dict(flask_request.values)
     request_signature = hashlib.md5(
         json.dumps(request_params, sort_keys=True).encode('utf-8')
     ).hexdigest()
     
     current_time = time.time()
-    cache_window = 8  # Protection de 8 secondes
+    cache_window = 3  # Protection de 3 secondes seulement
     
-    print(f"🛡️ [ANTI-LOOP] === VÉRIFICATION PROTECTION ANTI-LOOP ===")
+    print(f"🛡️ [ANTI-LOOP] === PROTECTION RÉACTIVÉE ===")
     print(f"🛡️ [SIGNATURE] Signature requête: {request_signature}")
     print(f"🛡️ [CACHE] Taille cache actuel: {len(search_by_commune.anti_loop_cache)}")
-    print(f"🛡️ [TIME] Temps actuel: {current_time}")
     
     # 2️⃣ VÉRIFICATION CACHE HIT/MISS
     if request_signature in search_by_commune.anti_loop_cache:
         last_request_time = search_by_commune.anti_loop_cache[request_signature]
         time_diff = current_time - last_request_time
         
-        print(f"🛡️ [CACHE_HIT] Signature trouvée dans le cache")
-        print(f"🛡️ [TIMING] Dernière requête: {last_request_time}")
+        print(f"🛡️ [CACHE_HIT] Requête identique détectée!")
         print(f"🛡️ [TIMING] Différence temps: {time_diff:.2f}s")
-        print(f"🛡️ [WINDOW] Fenêtre protection: {cache_window}s")
         
         if time_diff < cache_window:
-            print(f"🚫 [PROTECTION_ACTIVE] REQUÊTE BLOQUÉE - Trop récente ({time_diff:.2f}s < {cache_window}s)")
-            print(f"🚫 [LOOP_DETECTED] Protection anti-loop activée pour: {request_params.get('commune', 'COMMUNE_INCONNUE')}")
-            
+            print(f"🚫 [BLOCKED] Requête bloquée (< {cache_window}s)")
             return jsonify({
-                'error': 'Protection anti-loop activée',
-                'message': f'Attendez {cache_window - time_diff:.1f}s avant de relancer la recherche',
-                'retry_after': cache_window - time_diff,
-                'commune': request_params.get('commune', ''),
-                'protection_active': True
+                "error": "Requête trop rapprochée - protection anti-spam", 
+                "retry_after": cache_window - time_diff
             }), 429
         else:
-            print(f"✅ [CACHE_EXPIRED] Protection expirée, requête autorisée")
+            print(f"✅ [ALLOWED] Requête autorisée (> {cache_window}s)")
     else:
-        print(f"🆕 [CACHE_MISS] Nouvelle signature, pas de protection")
+        print(f"🛡️ [CACHE_MISS] Nouvelle signature - requête autorisée")
     
-    # 3️⃣ ENREGISTREMENT DANS LE CACHE
+    # 3️⃣ ENREGISTREMENT DE LA REQUÊTE ACTUELLE
     search_by_commune.anti_loop_cache[request_signature] = current_time
-    print(f"📝 [CACHE_UPDATE] Signature enregistrée dans le cache")
     
-    # 4️⃣ NETTOYAGE PÉRIODIQUE DU CACHE
-    # Supprimer les entrées expirées pour éviter une croissance infinie
-    expired_keys = [
-        key for key, timestamp in search_by_commune.anti_loop_cache.items()
-        if current_time - timestamp > cache_window * 2  # Garder 2x la fenêtre
-    ]
+    # 4️⃣ NETTOYAGE DU CACHE (garde seulement les 10 dernières)
+    if len(search_by_commune.anti_loop_cache) > 10:
+        oldest_keys = sorted(
+            search_by_commune.anti_loop_cache.items(), 
+            key=lambda x: x[1]
+        )[:5]  # Retire les 5 plus anciennes
+        for key, _ in oldest_keys:
+            del search_by_commune.anti_loop_cache[key]
     
-    for key in expired_keys:
-        del search_by_commune.anti_loop_cache[key]
-        
-    if expired_keys:
-        print(f"🧹 [CLEANUP] {len(expired_keys)} entrées expirées supprimées du cache")
-    
-    print(f"🛡️ [PROTECTION] === FIN VÉRIFICATION - REQUÊTE AUTORISÉE ===")
-    print(f"📊 [STATS] Cache final: {len(search_by_commune.anti_loop_cache)} entrées")
+    print(f"🛡️ [STATS] Cache final: {len(search_by_commune.anti_loop_cache)} entrées")
     print("="*80)
     
     # Log immédiat pour diagnostiquer si la requête arrive

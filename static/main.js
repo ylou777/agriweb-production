@@ -400,21 +400,52 @@ function getBaseLayers() {
 function updateLeafletLayersControl() {
   const m = getMapFrame();
   if (!m || !m.L || !m.map) return;
-  if (overlaysControl) {
-    try { m.map.removeControl(overlaysControl); } catch {}
+  
+  // Vérifier s'il existe déjà un contrôle sur la carte
+  if (m._layerControl) {
+    console.log("[DEBUG] Utilisation du contrôle Leaflet existant de l'iframe");
+    
+    // Ajouter les calques dynamiques au contrôle existant
+    Object.entries(dynamicLayers).forEach(([layerName, layer]) => {
+      const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
+      const label = config.label || layerName;
+      
+      // Ajouter le calque au contrôle s'il n'y est pas déjà
+      if (!m._layerControl._layers || !Object.values(m._layerControl._layers).find(l => l.layer === layer)) {
+        m._layerControl.addOverlay(layer, label);
+      }
+    });
+    
+    overlaysControl = m._layerControl; // Référence pour compatibilité
+  } else {
+    console.log("[DEBUG] Aucun contrôle Leaflet trouvé dans l'iframe, création d'un nouveau");
+    
+    // Créer un nouveau contrôle car l'iframe a été rechargée
+    const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
+    overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright" }).addTo(m.map);
+    
+    // Sauvegarder la référence dans l'iframe pour les prochaines fois
+    m._layerControl = overlaysControl;
   }
-  const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
-  overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright" }).addTo(m.map);
+  
+  // Plus besoin de synchronisation car la sidebar des calques a été supprimée
+  console.log("[DEBUG] Contrôle Leaflet configuré sans synchronisation sidebar");
 }
 
 // --------- LAYER DISPLAY ---------
 function displayAllLayers(data) {
+  console.log("[DEBUG] displayAllLayers appelée avec data:", data);
   const m = getMapFrame();
-  if (!m || !m.L || !m.map) return;
+  if (!m || !m.L || !m.map) {
+    console.log("[DEBUG] Map frame non accessible");
+    return;
+  }
+  console.log("[DEBUG] Suppression des anciens calques...");
   Object.values(dynamicLayers).forEach(l => { try { m.map.removeLayer(l); } catch {} });
   dynamicLayers = {};
 
   Object.entries(data).forEach(([layerKey, val]) => {
+    console.log("[DEBUG] Traitement calque:", layerKey, "valeur:", val);
     try {
       console.log(`[displayAllLayers] Traitement de ${layerKey}:`, val);
       
@@ -435,6 +466,7 @@ function displayAllLayers(data) {
                 if (popup) layer.bindPopup(popup);
               }
             });
+            console.log("[DEBUG] Calque créé:", subLayerName, "ajouté à dynamicLayers et carte");
             dynamicLayers[subLayerName] = leafletLayer;
             leafletLayer.addTo(m.map);
           } catch (subErr) {
@@ -669,7 +701,7 @@ function displayAllLayers(data) {
   });
 
   // Rafraîchir le contrôle de couches côté parent
-  updateLeafletLayersControl();
+  updateLeafletLayersControl(); // Réactivé pour la synchronisation
 
   // Si la carte embarquée supporte la gestion propre des overlays, lui transmettre un snapshot
   try {
@@ -703,20 +735,84 @@ function displayAllLayers(data) {
 
 // --------- INFO PANEL ---------
 function updateInfoPanel(arr) {
-  let c = arr.length, p = 0, e = 0;
-  arr.forEach(r => {
-    for (const [key, val] of Object.entries(r)) {
-      if (key === "eleveurs") {
-        if (Array.isArray(val)) e += val.length;
-        else if (val && val.type === "FeatureCollection" && Array.isArray(val.features)) e += val.features.length;
-      }
-      if (val && val.type === "FeatureCollection" && Array.isArray(val.features)) p += val.features.length;
-      if (Array.isArray(val) && val[0] && val[0].type === "Feature") p += val.length;
-      if (Array.isArray(val) && typeof val[0] === "object" && val[0] && (val[0].coords || val[0].geometry)) p += val.length;
+  if (!arr || arr.length === 0) {
+    document.getElementById("info-panel").innerHTML = 
+      `<div class="alert alert-secondary mb-0">Aucune donnée disponible</div>`;
+    return;
+  }
+
+  let html = '';
+  let totalObjects = 0;
+  const layerCounts = {};
+  
+  // Analyser les données pour chaque commune/résultat
+  arr.forEach((data, index) => {
+    const commune = data.commune || data.address || `Résultat ${index + 1}`;
+    html += `<h6 class="text-primary mt-3 mb-2"><i class="fas fa-map-marker-alt"></i> ${commune}</h6>`;
+    
+    // Coordonnées si disponibles
+    if (data.lat && data.lon) {
+      html += `<p class="mb-2 small text-muted"><strong>Coordonnées:</strong> ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)}</p>`;
     }
+    
+    let localCount = 0;
+    
+    // Analyser chaque type de données
+    Object.entries(data).forEach(([key, val]) => {
+      if (!val || key === 'lat' || key === 'lon' || key === 'commune' || key === 'address' || key === 'carte_url') return;
+      
+      let count = 0;
+      let label = LAYER_CONFIG[key]?.label || key;
+      
+      // Compter les objets selon le type
+      if (val.type === "FeatureCollection" && Array.isArray(val.features)) {
+        count = val.features.length;
+      } else if (Array.isArray(val)) {
+        count = val.length;
+      } else if (typeof val === 'object' && val !== null) {
+        count = 1;
+      }
+      
+      if (count > 0) {
+        const color = LAYER_CONFIG[key]?.color || '#007bff';
+        html += `<div class="d-flex justify-content-between align-items-center py-1">`;
+        html += `<span><i class="fas fa-layer-group" style="color: ${color}"></i> ${label}</span>`;
+        html += `<span class="badge bg-primary">${count}</span>`;
+        html += `</div>`;
+        
+        localCount += count;
+        layerCounts[label] = (layerCounts[label] || 0) + count;
+      }
+    });
+    
+    if (localCount === 0) {
+      html += `<p class="text-muted small">Aucune donnée trouvée pour cette zone</p>`;
+    }
+    
+    totalObjects += localCount;
   });
-  document.getElementById("info-panel").innerHTML =
-    `<div class="alert alert-info mb-0">Communes : ${c} – Objets : ${p} – Éleveurs : ${e}</div>`;
+  
+  // Résumé global en haut
+  let summary = `<div class="alert alert-info mb-3">`;
+  summary += `<h6 class="mb-2"><i class="fas fa-info-circle"></i> Résumé de la recherche</h6>`;
+  summary += `<div class="row">`;
+  summary += `<div class="col-4 text-center"><strong>${arr.length}</strong><br><small>Zone(s)</small></div>`;
+  summary += `<div class="col-4 text-center"><strong>${totalObjects}</strong><br><small>Objets total</small></div>`;
+  summary += `<div class="col-4 text-center"><strong>${Object.keys(layerCounts).length}</strong><br><small>Types de données</small></div>`;
+  summary += `</div></div>`;
+  
+  document.getElementById("info-panel").innerHTML = summary + html;
+  
+  // Auto-ouverture désactivée pour éviter les boucles
+  // if (totalObjects > 0) {
+  //   const infoCollapse = document.getElementById("infoCollapse");
+  //   if (infoCollapse && !infoCollapse.classList.contains("show")) {
+  //     const infoButton = document.querySelector('[data-bs-target="#infoCollapse"]');
+  //     if (infoButton) {
+  //       infoButton.click();
+  //     }
+  //   }
+  // }
 }
 
 // --------- FUSION DES RÉSULTATS SSE ---------
@@ -937,6 +1033,7 @@ async function handleCommuneSearch(e) {
       window.lastCommuneSearch = { commune: commune };
       displayAllLayers(data);
       updateInfoPanel([data]);
+      
       const m = getMapFrame();
       if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
       setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
