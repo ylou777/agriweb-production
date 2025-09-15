@@ -6221,17 +6221,16 @@ def search_by_commune():
     import time
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
-    # ║                    PROTECTION ANTI-LOOP TEMPORAIREMENT DÉSACTIVÉE       ║
+    # ║                    PROTECTION ANTI-LOOP OPTIMISÉE                       ║
     # ╚══════════════════════════════════════════════════════════════════════════╝
     
-    # DÉSACTIVÉ POUR DEBUG - La protection anti-loop causait des timeouts
-    print("⚠️ [DEBUG] Protection anti-loop DÉSACTIVÉE temporairement")
+    print("🛡️ [ANTI-LOOP] Protection intelligente activée")
     
     # Récupération des paramètres de base
     request_params = dict(flask_request.values)
     print(f"📋 [PARAMS] Paramètres reçus: {request_params}")
     
-    # === PROTECTION ANTI-LOOP RÉACTIVÉE TEMPORAIREMENT ===
+    # === PROTECTION ANTI-LOOP INTELLIGENTE ===
     # Cache global pour éviter les requêtes en loop
     if not hasattr(search_by_commune, 'anti_loop_cache'):
         search_by_commune.anti_loop_cache = {}
@@ -6242,9 +6241,9 @@ def search_by_commune():
     ).hexdigest()
     
     current_time = time.time()
-    cache_window = 3  # Protection de 3 secondes seulement
+    cache_window = 1  # Protection de 1 seconde seulement (plus permissif)
     
-    print(f"🛡️ [ANTI-LOOP] === PROTECTION RÉACTIVÉE ===")
+    print(f"🛡️ [ANTI-LOOP] === PROTECTION ACTIVE ===")
     print(f"🛡️ [SIGNATURE] Signature requête: {request_signature}")
     print(f"🛡️ [CACHE] Taille cache actuel: {len(search_by_commune.anti_loop_cache)}")
     
@@ -6257,9 +6256,9 @@ def search_by_commune():
         print(f"🛡️ [TIMING] Différence temps: {time_diff:.2f}s")
         
         if time_diff < cache_window:
-            print(f"🚫 [BLOCKED] Requête bloquée (< {cache_window}s)")
+            print(f"🚫 [BLOCKED] Loop détecté - requête bloquée (< {cache_window}s)")
             return jsonify({
-                "error": "Requête trop rapprochée - protection anti-spam", 
+                "error": "Loop détecté - veuillez patienter", 
                 "retry_after": cache_window - time_diff
             }), 429
         else:
