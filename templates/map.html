@@ -469,7 +469,21 @@
             risques: {
                 name: 'Zones à risques',
                 url: '/proxy/wms',
-                layers: 'gpu:zones_risques',
+                layers: 'gpu:ZONES_RISQUES',
+                format: 'image/png',
+                transparent: true
+            },
+            hta_aerienne: {
+                name: 'HTA Aériennes',
+                url: '/proxy/wms',
+                layers: 'gpu:HTA_AERIENNE',
+                format: 'image/png',
+                transparent: true
+            },
+            hta_souterraine: {
+                name: 'HTA Souterraines',
+                url: '/proxy/wms',
+                layers: 'gpu:HTA_SOUTERRAINE',
                 format: 'image/png',
                 transparent: true
             }

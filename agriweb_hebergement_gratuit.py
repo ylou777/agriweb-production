@@ -381,6 +381,13 @@ from flask import (
 )
 import folium
 from folium.plugins import Draw, MeasureControl, MarkerCluster, Search
+
+# Ajout import pour la route HTA lignes
+try:
+    from enedis_integration import get_lignes_hta
+    ENEDIS_MODULE_OK = True
+except Exception:
+    ENEDIS_MODULE_OK = False
 from shapely.geometry import shape, mapping, Point
 from shapely.ops import transform as shp_transform
 from shapely.errors import GEOSException
@@ -445,6 +452,10 @@ app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
+# Marqueur de version diagnostic pour vérifier que ce fichier (avec la route /api/hta-lignes) est bien chargé
+AGRIWEB_HTA_VERSION = "hta-lignes-v1.0-2025-09-18"
+print(f"🔧 [HTA] Chargement serveur avec version: {AGRIWEB_HTA_VERSION}")
+
 # Cookies de session sécurisés (Railway/Prod)
 COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'true').lower() in ('1','true','yes','on')
 COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'Lax')  # 'Lax' or 'None' for cross-site
@@ -498,6 +509,115 @@ def after_request(response):
     response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
     response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
     return response
+
+# ──────────────────────────────────────────────────────────────
+# API: Lignes HTA (aériennes / souterraines) Enedis Open Data
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/hta-lignes', methods=['GET'])
+def api_lignes_hta():
+    if not ENEDIS_MODULE_OK:
+        return jsonify({"error": "Module Enedis indisponible"}), 503
+
+    department = request.args.get('department')
+    bbox_raw = request.args.get('bbox')  # format: minx,miny,maxx,maxy (EPSG:4326)
+    include_aerienne = request.args.get('include_aerienne', 'true').lower() in ('1','true','yes','on')
+    include_souterraine = request.args.get('include_souterraine', 'true').lower() in ('1','true','yes','on')
+    limit = request.args.get('limit', type=int, default=1000)
+
+    if not department and not bbox_raw:
+        return jsonify({"error": "Paramètre requis: department ou bbox"}), 400
+
+    bbox = None
+    if bbox_raw:
+        parts = bbox_raw.split(',')
+        if len(parts) != 4:
+            return jsonify({"error": "bbox mal formée. Format attendu: minx,miny,maxx,maxy"}), 400
+        try:
+            bbox = [float(p.strip()) for p in parts]
+        except ValueError:
+            return jsonify({"error": "bbox contient des valeurs non numériques"}), 400
+
+    try:
+        result = get_lignes_hta(
+            department=department,
+            bbox=bbox,
+            include_aerienne=include_aerienne,
+            include_souterraine=include_souterraine,
+            limit=limit
+        )
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Endpoint debug: liste toutes les routes chargées
+@app.route('/_debug/routes')
+def debug_list_routes():
+    routes = []
+    for rule in app.url_map.iter_rules():
+        methods = sorted(m for m in rule.methods if m not in ('HEAD','OPTIONS'))
+        routes.append({"rule": str(rule), "endpoint": rule.endpoint, "methods": methods})
+    return jsonify({"count": len(routes), "routes": routes})
+
+# Endpoint de diagnostic HTA
+@app.route('/api/hta-diagnostic', methods=['GET'])
+def api_hta_diagnostic():
+    """Endpoint de diagnostic pour tester l'API HTA"""
+    department = request.args.get('department', '83')  # Var par défaut
+    
+    diagnostic = {
+        "timestamp": datetime.now().isoformat(),
+        "department_requested": department,
+        "enedis_module_status": ENEDIS_MODULE_OK,
+        "api_version": AGRIWEB_HTA_VERSION
+    }
+    
+    if not ENEDIS_MODULE_OK:
+        diagnostic["error"] = "Module Enedis non disponible"
+        diagnostic["suggestion"] = "Vérifier l'installation du module enedis_integration"
+        return jsonify(diagnostic), 503
+    
+    try:
+        # Test avec un département spécifique et une limite faible
+        test_result = get_lignes_hta(
+            department=department,
+            bbox=None,
+            include_aerienne=True,
+            include_souterraine=True,
+            limit=10  # Limite faible pour test
+        )
+        
+        diagnostic["test_result"] = {
+            "success": True,
+            "aerienne_count": len(test_result.get("aerienne", {}).get("features", [])) if test_result.get("aerienne") else 0,
+            "souterraine_count": len(test_result.get("souterraine", {}).get("features", [])) if test_result.get("souterraine") else 0,
+            "total_features": len(test_result.get("aerienne", {}).get("features", [])) + len(test_result.get("souterraine", {}).get("features", [])),
+            "summary": test_result.get("summary", "Pas de résumé"),
+            "raw_keys": list(test_result.keys()) if test_result else []
+        }
+        
+        # Ajouter un échantillon de données si disponible
+        if test_result.get("aerienne", {}).get("features"):
+            sample_aerienne = test_result["aerienne"]["features"][0]
+            diagnostic["sample_aerienne"] = {
+                "properties": sample_aerienne.get("properties", {}),
+                "geometry_type": sample_aerienne.get("geometry", {}).get("type", "Unknown")
+            }
+            
+        if test_result.get("souterraine", {}).get("features"):
+            sample_souterraine = test_result["souterraine"]["features"][0]
+            diagnostic["sample_souterraine"] = {
+                "properties": sample_souterraine.get("properties", {}),
+                "geometry_type": sample_souterraine.get("geometry", {}).get("type", "Unknown")
+            }
+        
+    except Exception as e:
+        diagnostic["test_result"] = {
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }
+        
+    return jsonify(diagnostic)
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
 # ║                    SYSTÈME D'AUTHENTIFICATION COMMERCIAL                 ║
@@ -4970,6 +5090,15 @@ def build_simple_map(
     ).add_to(map_obj)
     
     # Contrôle des couches - AJOUT EXPLICITE AVEC PARAMÈTRES
+    # Placeholders HTA pour la version simple
+    try:
+        hta_a_simple = folium.FeatureGroup(name="HTA Aériennes", show=True)
+        hta_s_simple = folium.FeatureGroup(name="HTA Souterraines", show=True)
+        map_obj.add_child(hta_a_simple)
+        map_obj.add_child(hta_s_simple)
+    except Exception as _e:
+        print('[HTA][build_simple_map] Impossible d\'ajouter placeholders:', _e)
+
     layer_control = folium.LayerControl(position='topright', collapsed=False)
     layer_control.add_to(map_obj)
     print("🎛️ [LAYER CONTROL] Ajouté en position topright, non collapsed")
@@ -4977,6 +5106,141 @@ def build_simple_map(
     # Zoom approprié
     map_obj.fit_bounds([[lat-0.002, lon-0.002], [lat+0.002, lon+0.002]])
     
+    # Injection dynamique HTA si non déjà présent (version simple)
+    try:
+        from folium import Element
+        helper_js_hta_simple = """
+        <script>(function(){
+        if (window.__HTA_DYNAMIC_SIMPLE__) { return; }
+        window.__HTA_DYNAMIC_SIMPLE__ = true;
+        var mapInstance = (function(){ for (var k in window){ if(window[k] instanceof L.Map){ return window[k]; } } return null; })();
+        if(!mapInstance){ console.warn('[HTA][simple] map introuvable'); return; }
+        function detectDepartmentFromContext(){ 
+            // Cette fonction n'est plus utilisée - on utilise maintenant les coordonnées de la commune directement
+            console.log('[HTA] detectDepartmentFromContext() désactivée - utilisation des coordonnées de commune');
+            return null; 
+        }
+        function styleHta(f){ var t=f&&f.properties&&f.properties.type_ligne; if(t==='aerienne') return {color:'#ff6600',weight:2,opacity:0.9}; if(t==='souterraine') return {color:'#0055ff',weight:2,opacity:0.8,dashArray:'4,4'}; return {color:'#888',weight:1}; }
+        function popupHta(f,l){ var p=(f&&f.properties)||{}; l.bindPopup('<strong>Ligne HTA '+(p.type_ligne||'?')+'</strong><br/>'+'Commune: '+(p.nom_commune||'–')+'<br/>'+'Département: '+(p.code_departement||'–')); }
+    async function loadHtaDynamic(){ 
+        console.log('[HTA][simple] start loadHtaDynamic pour commune recherchée'); 
+        try { 
+            const center = mapInstance.getCenter();
+            const bounds = mapInstance.getBounds();
+            const bbox = bounds.getSouth() + ',' + bounds.getWest() + ',' + bounds.getNorth() + ',' + bounds.getEast();
+            console.log('[HTA][simple] Recherche pour commune - bbox:', bbox);
+            const url='/api/hta-lignes?bbox='+encodeURIComponent(bbox)+'&include_aerienne=true&include_souterraine=true&limit=800'; 
+            const r=await fetch(url); 
+            if(!r.ok) throw new Error('HTTP '+r.status); 
+            const data=await r.json(); 
+            function findGroup(name){ 
+                var g=null; 
+                mapInstance.eachLayer(function(l){ 
+                    if(l && l.options && l.options.name===name){ g=l; } 
+                }); 
+                return g; 
+            } 
+            var grpA=findGroup('HTA Aériennes')||L.featureGroup(); 
+            var grpS=findGroup('HTA Souterraines')||L.featureGroup(); 
+            try{ grpA.clearLayers(); }catch(_){ } 
+            try{ grpS.clearLayers(); }catch(_){ } 
+            if(!mapInstance.hasLayer(grpA)) grpA.addTo(mapInstance); 
+            if(!mapInstance.hasLayer(grpS)) grpS.addTo(mapInstance); 
+            if(data.aerienne&&data.aerienne.features){ 
+                L.geoJSON(data.aerienne,{style:styleHta,onEachFeature:popupHta}).addTo(grpA); 
+            } 
+            if(data.souterraine&&data.souterraine.features){ 
+                L.geoJSON(data.souterraine,{style:styleHta,onEachFeature:popupHta}).addTo(grpS); 
+            } 
+            var countA=data.aerienne&&data.aerienne.features?data.aerienne.features.length:0; 
+            var countS=data.souterraine&&data.souterraine.features?data.souterraine.features.length:0; 
+            var total=countA+countS; 
+            function updateLabels(){ 
+                var lc=document.querySelector('.leaflet-control-layers-overlays'); 
+                if(!lc) return; 
+                lc.querySelectorAll('label').forEach(function(l){ 
+                    var t=l.textContent.trim(); 
+                    if(t.startsWith('HTA Aériennes')){ 
+                        l.childNodes.forEach(n=>{ if(n.nodeType===3) n.textContent='HTA Aériennes ('+countA+')'; }); 
+                    } 
+                    if(t.startsWith('HTA Souterraines')){ 
+                        l.childNodes.forEach(n=>{ if(n.nodeType===3) n.textContent='HTA Souterraines ('+countS+')'; }); 
+                    } 
+                }); 
+            }
+            updateLabels();
+            
+            // Marquer comme chargé
+            if (!window.htaLoadState) window.htaLoadState = { aerienne: false, souterraine: false };
+            window.htaLoadState.aerienne = true;
+            window.htaLoadState.souterraine = true;
+            
+            window.refreshHtaLayersSimple=function(){ 
+                try{ mapInstance.removeLayer(grpA); }catch(_){ } 
+                try{ mapInstance.removeLayer(grpS); }catch(_){ } 
+                setTimeout(loadHtaDynamic,50); 
+            };
+            console.log('[HTA][simple] OK', data.summary); 
+        } catch(e){ 
+            console.error('[HTA][simple] erreur', e); 
+        } 
+    }
+    
+    // Initialisation des placeholders avec chargement à la demande
+    function initHtaPlaceholdersSimple() {
+        console.log('[HTA][simple] Initialisation placeholders avec chargement à la demande');
+        
+        function findGroup(name){ 
+            var g=null; 
+            mapInstance.eachLayer(function(l){ 
+                if(l && l.options && l.options.name===name){ g=l; } 
+            }); 
+            return g; 
+        } 
+        
+        var grpA=findGroup('HTA Aériennes')||L.featureGroup(); 
+        var grpS=findGroup('HTA Souterraines')||L.featureGroup(); 
+        
+        if(!mapInstance.hasLayer(grpA)) grpA.addTo(mapInstance); 
+        if(!mapInstance.hasLayer(grpS)) grpS.addTo(mapInstance);
+        
+        // Ajouter les handlers de clic
+        setTimeout(function() {
+            var lc=document.querySelector('.leaflet-control-layers-overlays'); 
+            if(!lc) return;
+            
+            lc.querySelectorAll('label').forEach(function(l){ 
+                var t=l.textContent.trim(); 
+                var input = l.querySelector('input[type="checkbox"]');
+                
+                if(input && t.startsWith('HTA Aériennes') && !t.includes('(')){
+                    l.childNodes.forEach(n=>{ if(n.nodeType===3) n.textContent='HTA Aériennes (cliquez pour charger)'; });
+                    input.addEventListener('change', function(e) {
+                        if (e.target.checked && (!window.htaLoadState || !window.htaLoadState.aerienne)) {
+                            loadHtaDynamic();
+                        }
+                    });
+                } 
+                if(input && t.startsWith('HTA Souterraines') && !t.includes('(')){
+                    l.childNodes.forEach(n=>{ if(n.nodeType===3) n.textContent='HTA Souterraines (cliquez pour charger)'; });
+                    input.addEventListener('change', function(e) {
+                        if (e.target.checked && (!window.htaLoadState || !window.htaLoadState.souterraine)) {
+                            loadHtaDynamic();
+                        }
+                    });
+                }
+            }); 
+        }, 300);
+    }
+    
+    setTimeout(initHtaPlaceholdersSimple, 200);
+        })();</script>
+        """
+        map_obj.get_root().html.add_child(Element(helper_js_hta_simple))
+    except Exception as _e:
+        try: print('[HTA] Injection build_simple_map échouée', _e)
+        except Exception: pass
+
     return map_obj
 
 def build_map(
@@ -4989,7 +5253,8 @@ def build_map(
     api_cadastre=None, api_nature=None, api_urbanisme=None,
     eleveurs_data=None,
     capacites_reseau=None,
-    ppri_data=None  # Ajout PPRI
+    ppri_data=None,  # Ajout PPRI
+    hta_lignes_data=None  # Ajout lignes HTA
 ):
     import folium
     from folium.plugins import Draw, MeasureControl, MarkerCluster
@@ -5018,6 +5283,8 @@ def build_map(
         rpg_data = []
     if sirene_data is None:
         sirene_data = []
+    if hta_lignes_data is None:
+        hta_lignes_data = {"aerienne": {"features": []}, "souterraine": {"features": []}}
     if api_cadastre is None or not isinstance(api_cadastre, dict):
         api_cadastre = {"type": "FeatureCollection", "features": []}
     if api_nature is None or not isinstance(api_nature, dict):
@@ -5846,6 +6113,72 @@ def build_map(
         
         map_obj.add_child(nat_grp)
 
+    # --- Placeholders HTA (affichés immédiatement dans LayerControl) ---
+    try:
+        hta_a_fg = folium.FeatureGroup(name="HTA Aériennes", show=True)
+        hta_s_fg = folium.FeatureGroup(name="HTA Souterraines", show=True)
+        map_obj.add_child(hta_a_fg)
+        map_obj.add_child(hta_s_fg)
+        
+        # --- Ajout des lignes HTA réelles si disponibles ---
+        if hta_lignes_data:
+            # Lignes aériennes
+            aerienne_features = hta_lignes_data.get("aerienne", {}).get("features", [])
+            for feature in aerienne_features:
+                try:
+                    if feature.get("geometry") and feature["geometry"]["type"] == "LineString":
+                        coords = feature["geometry"]["coordinates"]
+                        # Convertir en format Leaflet [lat, lon]
+                        leaflet_coords = [[coord[1], coord[0]] for coord in coords]
+                        
+                        props = feature.get("properties", {})
+                        popup_content = f"<b>🔌 Ligne HTA Aérienne</b><br>"
+                        popup_content += f"Type: {props.get('type', 'N/A')}<br>"
+                        popup_content += f"Tension: {props.get('tension', 'N/A')}<br>"
+                        popup_content += f"ID: {props.get('id', 'N/A')}"
+                        
+                        folium.PolyLine(
+                            locations=leaflet_coords,
+                            color='red',
+                            weight=3,
+                            opacity=0.8,
+                            popup=folium.Popup(popup_content, max_width=300),
+                            tooltip="Ligne HTA Aérienne"
+                        ).add_to(hta_a_fg)
+                except Exception as e:
+                    print(f"[HTA] Erreur ajout ligne aérienne: {e}")
+            
+            # Lignes souterraines
+            souterraine_features = hta_lignes_data.get("souterraine", {}).get("features", [])
+            for feature in souterraine_features:
+                try:
+                    if feature.get("geometry") and feature["geometry"]["type"] == "LineString":
+                        coords = feature["geometry"]["coordinates"]
+                        # Convertir en format Leaflet [lat, lon]
+                        leaflet_coords = [[coord[1], coord[0]] for coord in coords]
+                        
+                        props = feature.get("properties", {})
+                        popup_content = f"<b>🔌 Ligne HTA Souterraine</b><br>"
+                        popup_content += f"Type: {props.get('type', 'N/A')}<br>"
+                        popup_content += f"Tension: {props.get('tension', 'N/A')}<br>"
+                        popup_content += f"ID: {props.get('id', 'N/A')}"
+                        
+                        folium.PolyLine(
+                            locations=leaflet_coords,
+                            color='blue',
+                            weight=3,
+                            opacity=0.8,
+                            popup=folium.Popup(popup_content, max_width=300),
+                            tooltip="Ligne HTA Souterraine"
+                        ).add_to(hta_s_fg)
+                except Exception as e:
+                    print(f"[HTA] Erreur ajout ligne souterraine: {e}")
+            
+            print(f"[HTA] Ajouté {len(aerienne_features)} lignes aériennes et {len(souterraine_features)} lignes souterraines")
+        
+    except Exception as _e:
+        print("[HTA][build_map] Impossible d'ajouter placeholders:", _e)
+
     if not mode_light:
         folium.LayerControl().add_to(map_obj)
 
@@ -5894,6 +6227,319 @@ def build_map(
         try { dynLayer.clearLayers(); } catch(e) {}
     };
     window.fetchAndDisplayGeoJson = function () {/* rien ici */};
+    // ──────────────────────────────────────────────────────────────
+    // Chargement dynamique Lignes HTA (aériennes / souterraines)
+    // ──────────────────────────────────────────────────────────────
+    function detectDepartmentFromContext() {
+        // Cette fonction n'est plus utilisée pour HTA - on utilise maintenant les coordonnées de la commune directement
+        console.log('[HTA] detectDepartmentFromContext() désactivée - utilisation des coordonnées de commune');
+        return null;
+    }
+
+    function styleHta(f) {
+        const t = f && f.properties && f.properties.type_ligne;
+        if (t === 'aerienne') return { color: '#ff6600', weight: 2, opacity: 0.9 };
+        if (t === 'souterraine') return { color: '#0055ff', weight: 2, opacity: 0.8, dashArray: '4,4' };
+        return { color: '#888', weight: 1 };
+    }
+    function popupHta(f, layer) {
+        const p = (f && f.properties) || {};
+        layer.bindPopup('<strong>Ligne HTA ' + (p.type_ligne||'?') + '</strong><br/>' +
+            'Commune: ' + (p.nom_commune||'–') + '<br/>' +
+            'Département: ' + (p.code_departement||'–'));
+    }
+
+    async function loadHtaDynamic() {
+        try {
+            console.log('[HTA] start loadHtaDynamic pour commune recherchée');
+            
+            // Afficher un message de chargement
+            function updateHtaLabels(aerienneText, souterraineText) {
+                var lcEl = document.querySelector('.leaflet-control-layers-overlays');
+                if (lcEl) {
+                    var labels = lcEl.querySelectorAll('label');
+                    labels.forEach(function(l) {
+                        var t = l.textContent.trim();
+                        if (t.startsWith('HTA Aériennes')) {
+                            l.childNodes.forEach(function(n){ if(n.nodeType===3){ n.textContent = aerienneText; }});
+                        } else if (t.startsWith('HTA Souterraines')) {
+                            l.childNodes.forEach(function(n){ if(n.nodeType===3){ n.textContent = souterraineText; }});
+                        }
+                    });
+                }
+            }
+            
+            // Message de chargement
+            updateHtaLabels('HTA Aériennes (chargement...)', 'HTA Souterraines (chargement...)');
+            
+            // Utiliser les coordonnées de la commune recherchée au lieu d'un département
+            const center = mapInstance.getCenter();
+            const bounds = mapInstance.getBounds();
+            const bbox = bounds.getSouth() + ',' + bounds.getWest() + ',' + bounds.getNorth() + ',' + bounds.getEast();
+            
+            console.log('[HTA] Recherche pour commune - bbox:', bbox);
+            const url = '/api/hta-lignes?bbox=' + encodeURIComponent(bbox) + '&include_aerienne=true&include_souterraine=true&limit=800';
+            const r = await fetch(url);
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const data = await r.json();
+            
+            // Vérifier s'il y a des données
+            var countA = (data.aerienne && data.aerienne.features) ? data.aerienne.features.length : 0;
+            var countS = (data.souterraine && data.souterraine.features) ? data.souterraine.features.length : 0;
+            var totalHTA = countA + countS;
+            
+            console.log('[HTA] Données reçues:', { aerienne: countA, souterraine: countS, total: totalHTA, bbox: bbox });
+            
+            // Réutiliser les placeholders HTA existants créés côté serveur
+            function findGroupByName(name){
+                var found = null;
+                mapInstance.eachLayer(function(l){
+                    if (l && l.options && l.options.name === name) { found = l; }
+                });
+                return found;
+            }
+            var grpAerienne = findGroupByName('HTA Aériennes') || L.featureGroup();
+            var grpSouterraine = findGroupByName('HTA Souterraines') || L.featureGroup();
+            
+            // Nettoyer les couches existantes
+            try { grpAerienne.clearLayers(); } catch(_){ }
+            try { grpSouterraine.clearLayers(); } catch(_){ }
+            if (!mapInstance.hasLayer(grpAerienne)) grpAerienne.addTo(mapInstance);
+            if (!mapInstance.hasLayer(grpSouterraine)) grpSouterraine.addTo(mapInstance);
+            
+            // Ajouter les données si disponibles
+            if (data.aerienne && data.aerienne.features && data.aerienne.features.length > 0) {
+                L.geoJSON(data.aerienne, { style: styleHta, onEachFeature: popupHta }).addTo(grpAerienne);
+            }
+            if (data.souterraine && data.souterraine.features && data.souterraine.features.length > 0) {
+                L.geoJSON(data.souterraine, { style: styleHta, onEachFeature: popupHta }).addTo(grpSouterraine);
+            }
+            
+            // Mettre à jour les labels avec les vrais compteurs ou des messages appropriés
+            if (totalHTA === 0) {
+                // Aucune donnée HTA trouvée
+                updateHtaLabels(
+                    'HTA Aériennes (aucune donnée)', 
+                    'HTA Souterraines (aucune donnée)'
+                );
+                console.log('[HTA] Aucune donnée HTA trouvée pour la zone recherchée');
+            } else {
+                // Données trouvées
+                updateHtaLabels(
+                    'HTA Aériennes (' + countA + ')', 
+                    'HTA Souterraines (' + countS + ')'
+                );
+                console.log('[HTA] Données HTA chargées avec succès:', totalHTA, 'lignes pour la zone recherchée');
+            }
+
+            // Intégrer dans LayerControl existant (ajout dynamique) + mise à jour labels
+            function ensureInLayerControl(){
+                // Rechercher l'instance de LayerControl
+                var lcEl = document.querySelector('.leaflet-control-layers-overlays');
+                if (!lcEl) return false;
+                // Ajouter entrées si absentes
+                function addOverlayOnce(group, labelBase){
+                    // Vérifie si déjà présent
+                    var exists = Array.from(lcEl.querySelectorAll('span, label')).some(e=>e.textContent && e.textContent.trim().startsWith(labelBase));
+                    if (!exists) {
+                        // Utilise API Leaflet si possible
+                        try { mapInstance.addLayer(group); } catch(_){ }
+                        // Insertion DOM bricolée: on laisse Leaflet générer via addOverlay côté Python normalement
+                        // Ici on se contente de laisser le groupe actif; sans re-générer le panneau (Leaflet ne reconstruit pas). Option alternative: custom control déjà remplacé.
+                        // Fallback DOM: si l'entrée n'apparaît toujours pas, on crée un label manuel
+                        setTimeout(function(){
+                            var stillMissing = !Array.from(lcEl.querySelectorAll('span, label')).some(e=>e.textContent && e.textContent.trim().startsWith(labelBase));
+                            if(stillMissing){
+                                try {
+                                    var label = document.createElement('label');
+                                    label.style.display='block';
+                                    var input = document.createElement('input');
+                                    input.type='checkbox';
+                                    input.checked = true;
+                                    input.onchange = function(){ if(this.checked){ mapInstance.addLayer(group); } else { mapInstance.removeLayer(group); } };
+                                    var span = document.createElement('span');
+                                    span.appendChild(document.createTextNode(labelBase));
+                                    label.appendChild(input); label.appendChild(span);
+                                    lcEl.appendChild(label);
+                                } catch(err){ console.warn('[HTA][fallback] erreur creation label', err); }
+                            }
+                        },60);
+                    }
+                }
+                addOverlayOnce(grpAerienne, 'HTA Aériennes');
+                addOverlayOnce(grpSouterraine, 'HTA Souterraines');
+                // Mise à jour/ajout des compteurs dans labels existants
+                var labels = lcEl.querySelectorAll('label');
+                labels.forEach(function(l){
+                    var t = l.textContent.trim();
+                    if (t.startsWith('HTA Aériennes')) {
+                        l.childNodes.forEach(function(n){ if(n.nodeType===3){ n.textContent = 'HTA Aériennes ('+countA+')'; }});
+                    } else if (t.startsWith('HTA Souterraines')) {
+                        l.childNodes.forEach(function(n){ if(n.nodeType===3){ n.textContent = 'HTA Souterraines ('+countS+')'; }});
+                    }
+                });
+                return true;
+            }
+            ensureInLayerControl();
+
+            // NOUVELLE GESTION ÉVÉNEMENTS CLIC - Connecter les clics LayerControl au chargement HTA
+            function setupClickHandlers() {
+                console.log('[HTA] Configuration des gestionnaires de clic LayerControl');
+                
+                // Stocker l'état de chargement
+                if (!window.htaLoadState) {
+                    window.htaLoadState = { aerienne: false, souterraine: false };
+                }
+                
+                // Fonction pour détecter et gérer les clics sur les checkboxes HTA
+                function handleLayerControlClick() {
+                    setTimeout(function() {
+                        var lcEl = document.querySelector('.leaflet-control-layers-overlays');
+                        if (!lcEl) return;
+                        
+                        var labels = lcEl.querySelectorAll('label');
+                        labels.forEach(function(label) {
+                            var input = label.querySelector('input[type="checkbox"]');
+                            var text = label.textContent.trim();
+                            
+                            if (input && (text.startsWith('HTA Aériennes') || text.startsWith('HTA Souterraines'))) {
+                                // Supprimer les anciens listeners pour éviter les doublons
+                                input.removeEventListener('change', input._htaHandler);
+                                
+                                // Créer le nouveau handler
+                                input._htaHandler = function(e) {
+                                    var isChecked = e.target.checked;
+                                    var layerName = text.startsWith('HTA Aériennes') ? 'aerienne' : 'souterraine';
+                                    var groupRef = layerName === 'aerienne' ? grpAerienne : grpSouterraine;
+                                    
+                                    console.log('[HTA] Clic détecté:', layerName, 'checked:', isChecked);
+                                    
+                                    if (isChecked) {
+                                        // Charger les données si pas encore fait
+                                        if (!window.htaLoadState[layerName]) {
+                                            console.log('[HTA] Premier chargement de', layerName);
+                                            loadHtaDynamic(); // Recharger toutes les données HTA
+                                            window.htaLoadState[layerName] = true;
+                                        } else {
+                                            // Réafficher la couche déjà chargée
+                                            if (!mapInstance.hasLayer(groupRef)) {
+                                                mapInstance.addLayer(groupRef);
+                                            }
+                                        }
+                                    } else {
+                                        // Masquer la couche
+                                        if (mapInstance.hasLayer(groupRef)) {
+                                            mapInstance.removeLayer(groupRef);
+                                        }
+                                    }
+                                };
+                                
+                                // Attacher le nouveau listener
+                                input.addEventListener('change', input._htaHandler);
+                                console.log('[HTA] Handler configuré pour:', text);
+                            }
+                        });
+                    }, 100); // Délai pour s'assurer que le LayerControl est bien rendu
+                }
+                
+                // Appeler une première fois
+                handleLayerControlClick();
+                
+                // Observer les changements dans le LayerControl au cas où il se regenere
+                var observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.type === 'childList') {
+                            handleLayerControlClick();
+                        }
+                    });
+                });
+                
+                var lcContainer = document.querySelector('.leaflet-control-layers');
+                if (lcContainer) {
+                    observer.observe(lcContainer, { childList: true, subtree: true });
+                }
+            }
+            
+            // Configurer les handlers après un délai pour s'assurer que tout est rendu
+            setTimeout(setupClickHandlers, 200);
+
+            // Expose un rafraîchissement global
+            window.refreshHtaLayers = function(){
+                try { mapInstance.removeLayer(grpAerienne); } catch(_){ }
+                try { mapInstance.removeLayer(grpSouterraine); } catch(_){ }
+                setTimeout(loadHtaDynamic, 50);
+            };
+            // Ajouter un hotkey (R) pour refresh HTA (optionnel)
+            window.addEventListener('keydown', function(ev){ if(ev.key==='R' && ev.altKey){ window.refreshHtaLayers(); } });
+            console.log('[HTA] intégrées LayerControl', {a:countA,s:countS,total:totalHTA});
+            console.log('[HTA] dynamique OK', data.summary);
+        } catch(e) {
+            console.error('[HTA] dynamique erreur', e);
+        }
+    }
+    
+    // MODIFICATION: Chargement à la demande plutôt qu'automatique
+    // Initialiser d'abord les placeholders vides, le chargement se fera au clic
+    function initHtaPlaceholders() {
+        console.log('[HTA] Initialisation des placeholders vides');
+        
+        // Créer les groupes vides s'ils n'existent pas
+        var grpAerienne = findGroupByName('HTA Aériennes') || L.featureGroup();
+        var grpSouterraine = findGroupByName('HTA Souterraines') || L.featureGroup();
+        
+        // S'assurer qu'ils sont dans le LayerControl mais vides
+        if (!mapInstance.hasLayer(grpAerienne)) grpAerienne.addTo(mapInstance);
+        if (!mapInstance.hasLayer(grpSouterraine)) grpSouterraine.addTo(mapInstance);
+        
+        // Mettre à jour les labels avec (0) initialement
+        setTimeout(function() {
+            var lcEl = document.querySelector('.leaflet-control-layers-overlays');
+            if (lcEl) {
+                var labels = lcEl.querySelectorAll('label');
+                labels.forEach(function(l) {
+                    var t = l.textContent.trim();
+                    if (t.startsWith('HTA Aériennes') && !t.includes('(')) {
+                        l.childNodes.forEach(function(n){ if(n.nodeType===3){ n.textContent = 'HTA Aériennes (cliquez pour charger)'; }});
+                    } else if (t.startsWith('HTA Souterraines') && !t.includes('(')) {
+                        l.childNodes.forEach(function(n){ if(n.nodeType===3){ n.textContent = 'HTA Souterraines (cliquez pour charger)'; }});
+                    }
+                });
+            }
+        }, 300);
+        
+        // Configurer les handlers de clic immédiatement
+        setTimeout(function() {
+            var lcEl = document.querySelector('.leaflet-control-layers-overlays');
+            if (lcEl) {
+                var labels = lcEl.querySelectorAll('label');
+                labels.forEach(function(label) {
+                    var input = label.querySelector('input[type="checkbox"]');
+                    var text = label.textContent.trim();
+                    
+                    if (input && (text.startsWith('HTA Aériennes') || text.startsWith('HTA Souterraines'))) {
+                        input.addEventListener('change', function(e) {
+                            if (e.target.checked) {
+                                console.log('[HTA] Chargement déclenché pour:', text);
+                                loadHtaDynamic(); // Charger les données à la demande
+                            }
+                        });
+                    }
+                });
+            }
+        }, 400);
+    }
+    
+    // Utiliser l'initialisation des placeholders au lieu du chargement automatique
+    setTimeout(initHtaPlaceholders, 200);
+    
+    // Fonction helper pour trouver les groupes par nom
+    function findGroupByName(name){
+        var found = null;
+        mapInstance.eachLayer(function(l){
+            if (l && l.options && l.options.name === name) { found = l; }
+        });
+        return found;
+    }
     })();
     </script>
     """
@@ -6101,6 +6747,12 @@ from flask import Flask, Response
 
 from flask import url_for, redirect
 
+# Import HTA integration (diagnostic)
+try:
+    from enedis_integration import get_lignes_hta
+except Exception as _e_imp:
+    print('[HTA][import] Impossible d\'importer get_lignes_hta:', _e_imp)
+
 @app.route("/commune_search_sse")
 def commune_search_sse():
     """
@@ -6224,9 +6876,23 @@ def search_by_commune():
     import traceback
     
     # Affichage de la stack trace pour voir d'où vient l'appel
-    print(f"📞 [CALL #{call_id}] Stack trace de l'appel:")
-    for line in traceback.format_stack():
-        print(f"    {line.strip()}")
+    # Stack trace rendue conditionnelle pour réduire le bruit et le coût I/O
+    try:
+        import os
+        from flask import request as _r
+        debug_stack = (
+            os.environ.get("AGRIWEB_DEBUG_STACK", "0") == "1" or
+            _r.args.get("debug_stack") == "1"
+        )
+    except Exception:
+        debug_stack = False
+    if debug_stack:
+        lines = traceback.format_stack(limit=40)
+        print(f"📞 [CALL #{call_id}] Stack trace (activée) lignes={len(lines)}")
+        for line in lines:
+            print("    " + line.strip())
+    else:
+        print(f"📞 [CALL #{call_id}] Stack trace désactivée (set AGRIWEB_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
     # ║                    CIRCUIT BREAKER ANTI-LOOP ULTRA-ROBUSTE              ║
@@ -6490,9 +7156,20 @@ def search_by_commune():
     lat, lon = centre["coordinates"][1], centre["coordinates"][0]
 
     # 3) Emprise bbox englobant le polygone (pour limiter la requête WFS)
-    commune_poly = shape(contour)
-    minx, miny, maxx, maxy = commune_poly.bounds
-    bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+    try:
+        commune_poly = shape(contour)
+        minx, miny, maxx, maxy = commune_poly.bounds
+        bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+        print(f"✅ [BBOX] Bbox calculée: {bbox}")
+    except Exception as e:
+        print(f"⚠️ [BBOX] Erreur calcul bbox: {e}")
+        # Fallback avec des coordonnées par défaut autour du centre
+        margin = 0.01  # ~1km de marge
+        minx, maxx = lon - margin, lon + margin
+        miny, maxy = lat - margin, lat + margin
+        bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
+        print(f"🔄 [BBOX] Fallback bbox: {bbox}")
+        commune_poly = None
 
     # 4) Récupère toutes les features dans le bbox puis filtre par intersection avec le polygone
     def filter_in_commune(features):
@@ -6537,6 +7214,26 @@ def search_by_commune():
     postes_bt_data = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
     postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
     log_data_collection("POSTES", f"✅ {len(postes_bt_data)} postes BT, {len(postes_hta_data)} postes HTA")
+    
+    # Récupération des lignes HTA (aériennes et souterraines)
+    log_data_collection("LIGNES HTA", "Récupération des lignes électriques HTA")
+    hta_lignes_data = {"aerienne": {"features": []}, "souterraine": {"features": []}}
+    try:
+        from enedis_integration import get_lignes_hta
+        
+        # Utiliser le bbox pour récupérer les lignes HTA
+        hta_lignes_data = get_lignes_hta(
+            bbox=[minx, miny, maxx, maxy],
+            include_aerienne=True,
+            include_souterraine=True,
+            limit=800
+        )
+        aerienne_count = len(hta_lignes_data.get("aerienne", {}).get("features", []))
+        souterraine_count = len(hta_lignes_data.get("souterraine", {}).get("features", []))
+        log_data_collection("LIGNES HTA", f"✅ {aerienne_count} lignes aériennes, {souterraine_count} lignes souterraines")
+    except Exception as e:
+        log_data_collection("LIGNES HTA", f"❌ Erreur récupération: {e}")
+        print(f"⚠️ [LIGNES HTA] Erreur lors de la récupération: {e}")
     
     log_data_collection("ÉLEVEURS", "Récupération des données éleveurs")
     eleveurs_data = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
@@ -7596,9 +8293,11 @@ def search_by_commune():
             api_nature=api_nature,
             api_urbanisme=api_urbanisme,
             eleveurs_data=eleveurs_data,
-            ppri_data=ppri_data
+            ppri_data=ppri_data,
+            hta_lignes_data=hta_lignes_data  # Ajout des lignes HTA
         )
         print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")
+        
     except Exception as e:
         print(f"❌ [ERREUR] Exception dans build_map: {str(e)}")
         print(f"❌ [ERREUR] Type d'erreur: {type(e)}")
@@ -7636,6 +8335,7 @@ def search_by_commune():
         "eleveurs": eleveurs_with_layer,
         "postes_bt": postes_bt_data,
         "postes_hta": postes_hta_data,
+        "hta_lignes": hta_lignes_data,  # Ajout des lignes HTA pour le frontend
         "parcelles": parcelles_data,
         "api_cadastre": api_cadastre,
         "api_nature": api_nature,
