@@ -6133,9 +6133,10 @@ def build_map(
                         
                         props = feature.get("properties", {})
                         popup_content = f"<b>🔌 Ligne HTA Aérienne</b><br>"
-                        popup_content += f"Type: {props.get('type', 'N/A')}<br>"
-                        popup_content += f"Tension: {props.get('tension', 'N/A')}<br>"
-                        popup_content += f"ID: {props.get('id', 'N/A')}"
+                        popup_content += f"Commune: {props.get('nom_commune', 'N/A')}<br>"
+                        popup_content += f"Département: {props.get('nom_departement', 'N/A')} ({props.get('code_departement', 'N/A')})<br>"
+                        popup_content += f"Région: {props.get('nom_region', 'N/A')}<br>"
+                        popup_content += f"Source: {props.get('source', 'ENEDIS')}"
                         
                         folium.PolyLine(
                             locations=leaflet_coords,
@@ -6159,9 +6160,10 @@ def build_map(
                         
                         props = feature.get("properties", {})
                         popup_content = f"<b>🔌 Ligne HTA Souterraine</b><br>"
-                        popup_content += f"Type: {props.get('type', 'N/A')}<br>"
-                        popup_content += f"Tension: {props.get('tension', 'N/A')}<br>"
-                        popup_content += f"ID: {props.get('id', 'N/A')}"
+                        popup_content += f"Commune: {props.get('nom_commune', 'N/A')}<br>"
+                        popup_content += f"Département: {props.get('nom_departement', 'N/A')} ({props.get('code_departement', 'N/A')})<br>"
+                        popup_content += f"Région: {props.get('nom_region', 'N/A')}<br>"
+                        popup_content += f"Source: {props.get('source', 'ENEDIS')}"
                         
                         folium.PolyLine(
                             locations=leaflet_coords,
