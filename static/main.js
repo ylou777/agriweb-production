@@ -17,7 +17,9 @@ const LAYER_CONFIG = {
   friches:        { label: "Friches", color: "brown" },
   solaire:        { label: "Potentiel Solaire", color: "gold" },
   zaer:           { label: "ZAER", color: "cyan" },
-  sirene:         { label: "Entreprises Sirene", color: "darkred" }
+  sirene:         { label: "Entreprises Sirene", color: "darkred" },
+  hta_lignes_aeriennes:     { label: "Lignes HTA Aériennes", color: "orange" },
+  hta_lignes_souterraines:  { label: "Lignes HTA Souterraines", color: "purple" }
   // Ne pas mettre ici les sous-couches urbanisme (dynamiques)
 };
 
@@ -401,35 +403,189 @@ function updateLeafletLayersControl() {
   const m = getMapFrame();
   if (!m || !m.L || !m.map) return;
   
-  // Vérifier s'il existe déjà un contrôle sur la carte
-  if (m._layerControl) {
-    console.log("[DEBUG] Utilisation du contrôle Leaflet existant de l'iframe");
+  // Détecter d'abord s'il existe déjà un contrôle sur la carte
+  let existingControl = m._layerControl;
+  
+  if (!existingControl) {
+    // Méthode plus robuste : chercher dans le DOM ET dans les contrôles de la carte
+    const layerControlElements = m.map._container.querySelectorAll('.leaflet-control-layers');
+    
+    if (layerControlElements.length > 0) {
+      console.log("[DEBUG] Contrôle de calques trouvé dans le DOM, recherche de l'objet correspondant");
+      
+      // Chercher le contrôle dans la carte Leaflet en parcourant tous les contrôles
+      m.map.eachLayer && m.map.eachLayer((layer) => {
+        // Cette méthode ne fonctionne pas pour les contrôles, essayons autre chose
+      });
+      
+      // Méthode alternative : chercher dans ._controlLayers de Leaflet
+      if (m.map._controlLayers) {
+        existingControl = m.map._controlLayers;
+        console.log("[DEBUG] Contrôle trouvé via _controlLayers");
+      } else {
+        // Dernière méthode : utiliser le registre global des contrôles
+        console.log("[DEBUG] Recherche dans le registre global des contrôles");
+        if (window.leafletLayersControl && typeof window.leafletLayersControl.addOverlay === 'function') {
+          existingControl = window.leafletLayersControl;
+          console.log("[DEBUG] Contrôle trouvé via registre global");
+        }
+      }
+    }
+  }
+  
+  // Utiliser le contrôle existant ou en créer un nouveau
+  if (existingControl) {
+    console.log("[DEBUG] Utilisation du contrôle Leaflet existant");
+    
+    // Conserver une liste des labels déjà ajoutés pour éviter les doublons
+    if (!existingControl._addedLabels) {
+      existingControl._addedLabels = new Set();
+    }
     
     // Ajouter les calques dynamiques au contrôle existant
     Object.entries(dynamicLayers).forEach(([layerName, layer]) => {
       const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
       const label = config.label || layerName;
       
-      // Ajouter le calque au contrôle s'il n'y est pas déjà
-      if (!m._layerControl._layers || !Object.values(m._layerControl._layers).find(l => l.layer === layer)) {
-        m._layerControl.addOverlay(layer, label);
+      // Vérifier si le label n'a pas déjà été ajouté
+      if (!existingControl._addedLabels.has(label)) {
+        existingControl.addOverlay(layer, label);
+        existingControl._addedLabels.add(label);
+        console.log(`[DEBUG] Ajout du calque "${label}" au contrôle existant`);
+      } else {
+        console.log(`[DEBUG] Calque "${label}" déjà présent dans le contrôle, ignoré`);
       }
     });
     
-    overlaysControl = m._layerControl; // Référence pour compatibilité
-  } else {
-    console.log("[DEBUG] Aucun contrôle Leaflet trouvé dans l'iframe, création d'un nouveau");
+    // Sauvegarder la référence pour les prochaines fois
+    m._layerControl = existingControl;
+    overlaysControl = existingControl;
     
-    // Créer un nouveau contrôle car l'iframe a été rechargée
+    // Sauvegarder aussi dans le registre global
+    window.leafletLayersControl = existingControl;
+  } else {
+    console.log("[DEBUG] Aucun contrôle Leaflet trouvé, création d'un nouveau");
+    
+    // Créer un nouveau contrôle
     const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
     overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright" }).addTo(m.map);
     
+    // Initialiser la liste des labels ajoutés
+    overlaysControl._addedLabels = new Set(Object.keys(dynamicLayers).map(layerName => {
+      const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
+      return config.label || layerName;
+    }));
+    
     // Sauvegarder la référence dans l'iframe pour les prochaines fois
     m._layerControl = overlaysControl;
+    
+    // Sauvegarder aussi dans le registre global
+    window.leafletLayersControl = overlaysControl;
+    
+    // Sauvegarder dans la carte Leaflet elle-même
+    m.map._controlLayers = overlaysControl;
   }
   
-  // Plus besoin de synchronisation car la sidebar des calques a été supprimée
-  console.log("[DEBUG] Contrôle Leaflet configuré sans synchronisation sidebar");
+  // NOUVELLE FONCTIONNALITÉ: Gestion des événements de cochage/décochage
+  // Ajouter les écouteurs d'événements seulement s'ils n'existent pas déjà
+  if (!m.map._layersControlEventsBound) {
+    console.log("[DEBUG] Configuration des événements de contrôle des couches");
+    
+    // Événement décochage : retirer la couche de la carte
+    m.map.on('overlayremove', function(e) {
+      console.log(`[DEBUG] Couche décochée: "${e.name}" - retrait de la carte`);
+      
+      // Retirer la couche du dynamicLayers si elle existe
+      if (dynamicLayers[e.name]) {
+        console.log(`[DEBUG] Suppression de "${e.name}" des couches dynamiques`);
+        delete dynamicLayers[e.name];
+      }
+      
+      // La couche est automatiquement retirée de la carte par Leaflet
+      // Nous n'avons rien d'autre à faire ici
+    });
+    
+    // Événement cochage : ajouter la couche à la carte
+    m.map.on('overlayadd', function(e) {
+      console.log(`[DEBUG] Couche cochée: "${e.name}" - ajout sur la carte`);
+      
+      // La couche est automatiquement ajoutée à la carte par Leaflet
+      // Nous pouvons ajouter d'autres logiques ici si nécessaire
+      
+      // S'assurer que la couche est dans dynamicLayers
+      if (!dynamicLayers[e.name]) {
+        dynamicLayers[e.name] = e.layer;
+        console.log(`[DEBUG] Ajout de "${e.name}" aux couches dynamiques`);
+      }
+    });
+    
+    // Marquer que les événements sont configurés pour éviter la duplication
+    m.map._layersControlEventsBound = true;
+  }
+  
+  console.log("[DEBUG] Contrôle Leaflet configuré avec", Object.keys(dynamicLayers).length, "calques");
+}
+
+// --------- MISE À JOUR INCRÉMENTALE ---------
+function addIncrementalData(newData) {
+  console.log("[DEBUG] Mise à jour incrémentale avec nouvelles données:", newData);
+  
+  Object.entries(newData).forEach(([layerKey, val]) => {
+    if (!val || (Array.isArray(val) && val.length === 0)) return;
+    
+    try {
+      console.log(`[INCREMENTAL] Traitement de ${layerKey}:`, val);
+      
+      // Traitement spécial pour hta_lignes
+      if (layerKey === "hta_lignes" && val && typeof val === "object" && !Array.isArray(val) && !val.type) {
+        // Lignes aériennes
+        if (val.aerienne && val.aerienne.features && val.aerienne.features.length > 0) {
+          const existingLayer = dynamicLayers["Lignes HTA Aériennes"];
+          if (existingLayer && typeof existingLayer.addData === 'function') {
+            existingLayer.addData(val.aerienne);
+            console.log(`[INCREMENTAL] ${val.aerienne.features.length} lignes aériennes ajoutées au calque existant`);
+          } else {
+            // Créer le calque s'il n'existe pas
+            console.log("[INCREMENTAL] Création nouveau calque lignes aériennes");
+            displayAllLayers({hta_lignes: val});
+          }
+        }
+        
+        // Lignes souterraines
+        if (val.souterraine && val.souterraine.features && val.souterraine.features.length > 0) {
+          const existingLayer = dynamicLayers["Lignes HTA Souterraines"];
+          if (existingLayer && typeof existingLayer.addData === 'function') {
+            existingLayer.addData(val.souterraine);
+            console.log(`[INCREMENTAL] ${val.souterraine.features.length} lignes souterraines ajoutées au calque existant`);
+          } else {
+            // Créer le calque s'il n'existe pas
+            console.log("[INCREMENTAL] Création nouveau calque lignes souterraines");
+            displayAllLayers({hta_lignes: val});
+          }
+        }
+        return;
+      }
+      
+      // Traitement standard pour les autres couches
+      if (val.type === "FeatureCollection" && val.features && val.features.length > 0) {
+        const label = LAYER_CONFIG[layerKey]?.label || layerKey;
+        const existingLayer = dynamicLayers[label];
+        
+        if (existingLayer && typeof existingLayer.addData === 'function') {
+          existingLayer.addData(val);
+          console.log(`[INCREMENTAL] ${val.features.length} features ajoutées au calque "${label}"`);
+        } else {
+          // Créer le calque s'il n'existe pas
+          console.log(`[INCREMENTAL] Création nouveau calque "${label}"`);
+          const singleLayerData = {};
+          singleLayerData[layerKey] = val;
+          displayAllLayers(singleLayerData);
+        }
+      }
+    } catch (err) {
+      console.error(`[INCREMENTAL] Erreur traitement ${layerKey}:`, err);
+    }
+  });
 }
 
 // --------- LAYER DISPLAY ---------
@@ -440,9 +596,12 @@ function displayAllLayers(data) {
     console.log("[DEBUG] Map frame non accessible");
     return;
   }
-  console.log("[DEBUG] Suppression des anciens calques...");
-  Object.values(dynamicLayers).forEach(l => { try { m.map.removeLayer(l); } catch {} });
-  dynamicLayers = {};
+  
+  // MODIFICATION: Ne plus supprimer toutes les couches, mais les enrichir
+  // Cela permet de préserver l'état coché/décoché des couches dans le contrôle
+  console.log("[DEBUG] Enrichissement des calques existants...");
+  
+  // Note: On ne vide plus dynamicLayers pour préserver les couches existantes
 
   Object.entries(data).forEach(([layerKey, val]) => {
     console.log("[DEBUG] Traitement calque:", layerKey, "valeur:", val);
@@ -466,13 +625,63 @@ function displayAllLayers(data) {
                 if (popup) layer.bindPopup(popup);
               }
             });
-            console.log("[DEBUG] Calque créé:", subLayerName, "ajouté à dynamicLayers et carte");
-            dynamicLayers[subLayerName] = leafletLayer;
-            leafletLayer.addTo(m.map);
+            console.log("[DEBUG] Calque créé:", subLayerName, "utilisation de addOrMergeLayer pour éviter la superposition");
+            // Utiliser la même logique de fusion que les autres calques
+            addOrMergeLayer(subkey, subLayerName, leafletLayer);
           } catch (subErr) {
             console.error(`[displayAllLayers] Erreur sous-couche ${subkey}:`, subErr);
           }
         });
+        return;
+      }
+
+      // Lignes HTA (structure spéciale avec aerienne et souterraine)
+      if (layerKey === "hta_lignes" && val && typeof val === "object" && !Array.isArray(val) && !val.type) {
+        console.log("[DEBUG] Traitement des lignes HTA:", val);
+        
+        // Traiter les lignes aériennes
+        if (val.aerienne && val.aerienne.features && val.aerienne.features.length > 0) {
+          try {
+            const leafletLayerAer = m.L.geoJSON(val.aerienne, {
+              style: { color: "orange", weight: 3, opacity: 0.9 },
+              onEachFeature: function (feature, layer) {
+                let popup = "<b>🔌 Ligne HTA Aérienne</b><br>";
+                if (feature.properties) {
+                  for (const [k, v] of Object.entries(feature.properties)) {
+                    popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+                  }
+                }
+                layer.bindPopup(popup);
+              }
+            });
+            addOrMergeLayer("hta_lignes_aeriennes", "Lignes HTA Aériennes", leafletLayerAer);
+            console.log("[DEBUG] Lignes HTA aériennes ajoutées:", val.aerienne.features.length);
+          } catch (aerErr) {
+            console.error("[displayAllLayers] Erreur lignes aériennes:", aerErr);
+          }
+        }
+        
+        // Traiter les lignes souterraines
+        if (val.souterraine && val.souterraine.features && val.souterraine.features.length > 0) {
+          try {
+            const leafletLayerSout = m.L.geoJSON(val.souterraine, {
+              style: { color: "purple", weight: 3, opacity: 0.8, dashArray: "10,5" },
+              onEachFeature: function (feature, layer) {
+                let popup = "<b>🔌 Ligne HTA Souterraine</b><br>";
+                if (feature.properties) {
+                  for (const [k, v] of Object.entries(feature.properties)) {
+                    popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+                  }
+                }
+                layer.bindPopup(popup);
+              }
+            });
+            addOrMergeLayer("hta_lignes_souterraines", "Lignes HTA Souterraines", leafletLayerSout);
+            console.log("[DEBUG] Lignes HTA souterraines ajoutées:", val.souterraine.features.length);
+          } catch (soutErr) {
+            console.error("[displayAllLayers] Erreur lignes souterraines:", soutErr);
+          }
+        }
         return;
       }
 
@@ -514,6 +723,69 @@ function displayAllLayers(data) {
     const label = LAYER_CONFIG[layerKey]?.label || layerKey;
     const style = LAYER_CONFIG[layerKey]?.color ? { color: LAYER_CONFIG[layerKey].color } : {};
 
+    // Fonction helper pour fusionner ou créer un calque (VERSION SIMPLIFIÉE)
+    function addOrMergeLayer(layerKey, label, newLeafletLayer) {
+      // Vérifier si un calque du même type existe déjà
+      const existingLayer = dynamicLayers[label];
+      
+      if (existingLayer && typeof existingLayer.addData === 'function') {
+        console.log(`[DEBUG] Fusion des nouvelles features avec le calque existant "${label}"`);
+        
+        // Extraire les features GeoJSON du nouveau calque
+        const newFeatures = [];
+        newLeafletLayer.eachLayer(function(layer) {
+          if (layer.feature) {
+            newFeatures.push(layer.feature);
+          }
+        });
+        
+        // Ajouter les nouvelles features au calque existant
+        // Cette méthode utilise les mêmes fonctions de style du calque existant
+        if (newFeatures.length > 0) {
+          const newGeoJSON = {
+            type: "FeatureCollection",
+            features: newFeatures
+          };
+          existingLayer.addData(newGeoJSON);
+          console.log(`[DEBUG] ${newFeatures.length} features ajoutées au calque existant "${label}" avec le même style`);
+        }
+        
+        // IMPORTANT : Supprimer le nouveau calque de la carte pour éviter la superposition
+        if (m.map.hasLayer(newLeafletLayer)) {
+          m.map.removeLayer(newLeafletLayer);
+          console.log(`[DEBUG] Nouveau calque temporaire "${label}" supprimé de la carte après fusion`);
+        }
+        
+        return false; // Indique qu'on a fusionné, pas créé
+      } else {
+        console.log(`[DEBUG] Création d'un nouveau calque "${label}"`);
+        // Créer un nouveau calque
+        dynamicLayers[label] = newLeafletLayer;
+        
+        // S'assurer que le calque est ajouté à la carte
+        if (!m.map.hasLayer(newLeafletLayer)) {
+          newLeafletLayer.addTo(m.map);
+        }
+        
+        // Ajouter le calque au contrôle s'il existe
+        const control = m._layerControl || overlaysControl;
+        if (control && typeof control.addOverlay === 'function') {
+          // Vérifier si ce label n'est pas déjà dans le contrôle
+          if (!control._addedLabels || !control._addedLabels.has(label)) {
+            control.addOverlay(newLeafletLayer, label);
+            if (control._addedLabels) {
+              control._addedLabels.add(label);
+            }
+            console.log(`[DEBUG] Nouveau calque "${label}" ajouté au contrôle`);
+          }
+        }
+        
+        return true; // Indique qu'on a créé un nouveau calque
+      }
+    }
+    
+
+
     // ----------- Postes BT ----------- (icône 1 éclair jaune)
     if (layerKey === "postes_bt") {
       const leafletLayer = m.L.geoJSON(geojson, {
@@ -531,14 +803,13 @@ function displayAllLayers(data) {
           let popup = "";
           if (feature.properties) {
             for (const [k, v] of Object.entries(feature.properties)) {
-              popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+              popup += `<b>${k}:</b> ${v}<br>`;
             }
           }
           if (popup) layer.bindPopup(popup);
         }
       });
-      dynamicLayers[label] = leafletLayer;
-      leafletLayer.addTo(m.map);
+      addOrMergeLayer(layerKey, label, leafletLayer);
       return;
     }
 
@@ -559,14 +830,13 @@ function displayAllLayers(data) {
           let popup = "";
           if (feature.properties) {
             for (const [k, v] of Object.entries(feature.properties)) {
-              popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+              popup += `<b>${k}:</b> ${v}<br>`;
             }
           }
           if (popup) layer.bindPopup(popup);
         }
       });
-      dynamicLayers[label] = leafletLayer;
-      leafletLayer.addTo(m.map);
+      addOrMergeLayer(layerKey, label, leafletLayer);
       return;
     }
 
@@ -586,10 +856,7 @@ function displayAllLayers(data) {
         onEachFeature: function (feature, layer) {
           const props = feature.properties || {};
           
-          // DEBUG: Voir les propriétés disponibles
-          console.log("🔍 DEBUG Éleveur - Propriétés disponibles:", props);
-          
-          // Construction du nom complet (avec les vrais noms de champs)
+          // Construction du nom complet
           let nomComplet = "";
           if (props.prenom1Uni && props.nomUniteLe) {
             nomComplet = `${props.prenom1Uni} ${props.nomUniteLe}`;
@@ -597,30 +864,6 @@ function displayAllLayers(data) {
             nomComplet = props.nomUniteLe;
           } else if (props.denominati) {
             nomComplet = props.denominati;
-          } else if (props.nomUsageUn) {
-            nomComplet = props.nomUsageUn;
-          }
-          
-          console.log("🔍 DEBUG - Nom complet construit:", nomComplet);
-          console.log("🔍 DEBUG - Nom complet construit:", nomComplet);
-          
-          // Construction de l'adresse complète (avec les vrais noms de champs)
-          let adresseComplete = "";
-          const numeroVoie = props.numeroVoie || props.numeroVo_1 || "";
-          const typeVoie = props.typeVoieEt || props.typeVoie2E || "";
-          const libelleVoie = props.libelleVoi || props.libelleV_1 || "";
-          const codePostal = props.codePostal || props.codePost_1 || "";
-          const commune = props.libelleCom || props.libelleC_1 || "";
-          
-          console.log("🔍 DEBUG - Éléments adresse:", {numeroVoie, typeVoie, libelleVoie, codePostal, commune});
-          
-          if (numeroVoie || typeVoie || libelleVoie) {
-            adresseComplete = [numeroVoie, typeVoie, libelleVoie].filter(x => x).join(" ");
-            if (codePostal || commune) {
-              adresseComplete += ", " + [codePostal, commune].filter(x => x).join(" ");
-            }
-          } else if (codePostal || commune) {
-            adresseComplete = [codePostal, commune].filter(x => x).join(" ");
           }
           
           // Construction du popup personnalisé
@@ -632,69 +875,34 @@ function displayAllLayers(data) {
             return val ? `<tr><th style="text-align: left; color: #28616a; font-weight: 500; min-width: 95px;">${label}</th><td style="color: #2d2d2d; max-width:200px; word-break: break-word;">${val}</td></tr>` : ""; 
           }
           
-          // Informations principales (avec les vrais noms de champs)
           if (nomComplet) popup += row("Nom", nomComplet);
-          if (props.denominati && props.denominati !== nomComplet) popup += row("Dénomination", props.denominati);
-          if (adresseComplete) popup += row("Adresse", adresseComplete);
           if (props.siret) popup += row("SIRET", props.siret);
-          if (props.activite_1) popup += row("Activité principale", props.activite_1);
-          if (props.dateCreati) popup += row("Date de création", props.dateCreati);
           
-          // Liens vers les annuaires d'entreprises (avec les vrais noms de champs)
-          if (props.siret) {
-            const siret = props.siret;
-            const siren = props.siren || siret.substring(0, 9);
-            
-            // Lien Societe.com avec format spécifique
-            const denominationUrl = (props.denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html`;
-            popup += row("Societe.com", `<a href="${societeUrl}" target="_blank" style="color: #1474fa; text-decoration: underline;">Voir la fiche entreprise</a>`);
-            
-            // Lien Pages Jaunes
-            const denomination = encodeURIComponent(props.denominati || nomComplet || "");
-            const ville = encodeURIComponent(commune || "");
-            const codePostalFormatted = encodeURIComponent(codePostal ? `(${codePostal})` : "");
-            const pagesJaunesUrl = `https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${denomination}&ou=${ville}+${codePostalFormatted}&univers=pagesjaunes&idOu=`;
-            popup += row("Pages Jaunes", `<a href="${pagesJaunesUrl}" target="_blank" style="color: #1474fa; text-decoration: underline;">Consulter l'annuaire</a>`);
-          }
-          
-          popup += `</table>`;
-          
-          // DEBUG: Si pas d'infos, afficher toutes les propriétés
-          if (!nomComplet && !adresseComplete && !props.siret) {
-            popup += `<hr><strong>DEBUG - Toutes les propriétés:</strong><br>`;
-            for (const [k, v] of Object.entries(props)) {
-              if (v !== null && v !== undefined && v !== "") {
-                popup += `<b>${k}:</b> ${v}<br>`;
-              }
-            }
-          }
-          
-          popup += `</div>`;
+          popup += `</table></div>`;
           layer.bindPopup(popup, {maxWidth: 400});
         }
       });
-      dynamicLayers[label] = leafletLayer;
-      leafletLayer.addTo(m.map);
+      addOrMergeLayer(layerKey, label, leafletLayer);
       return;
     }
 
-    // --------- CAS GENERAL ---------
-    const leafletLayer = m.L.geoJSON(geojson, {
-      style,
+    // ----------- Cas par défaut pour autres types -----------
+    const config = LAYER_CONFIG[layerKey] || {};
+    const defaultStyle = config.color ? { color: config.color } : {};
+    const leafletLayer = m.L.geoJSON(geojson, { 
+      style: defaultStyle,
       onEachFeature: function (feature, layer) {
-        let popup = "";
+        let popup = `<b>${label || layerKey}</b><br>`;
         if (feature.properties) {
           for (const [k, v] of Object.entries(feature.properties)) {
-            popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+            popup += `<b>${k}:</b> ${v}<br>`;
           }
         }
-        if (popup) layer.bindPopup(popup);
+        layer.bindPopup(popup);
       }
     });
-    dynamicLayers[label] = leafletLayer;
-    leafletLayer.addTo(m.map);
-    
+    addOrMergeLayer(layerKey, label, leafletLayer);
+
     } catch (layerErr) {
       console.error(`[displayAllLayers] Erreur traitement couche ${layerKey}:`, layerErr);
     }
@@ -820,8 +1028,24 @@ function mergeResults(arr) {
   const expectedKeys = Object.keys(LAYER_CONFIG);
   const res = {};
   expectedKeys.forEach(k => { res[k] = []; });
+  
+  // Structure spéciale pour hta_lignes
+  res.hta_lignes = { aerienne: { features: [] }, souterraine: { features: [] } };
+  
   arr.forEach(obj => {
     for (const [k, v] of Object.entries(obj)) {
+      // Traitement spécial pour hta_lignes
+      if (k === "hta_lignes" && v && typeof v === "object") {
+        if (v.aerienne && v.aerienne.features && Array.isArray(v.aerienne.features)) {
+          res.hta_lignes.aerienne.features = res.hta_lignes.aerienne.features.concat(v.aerienne.features);
+        }
+        if (v.souterraine && v.souterraine.features && Array.isArray(v.souterraine.features)) {
+          res.hta_lignes.souterraine.features = res.hta_lignes.souterraine.features.concat(v.souterraine.features);
+        }
+        continue;
+      }
+      
+      // Traitement standard pour les autres couches
       if (!res[k]) res[k] = [];
       if (v?.type === "FeatureCollection" && Array.isArray(v.features)) {
         res[k] = res[k].concat(v.features);
@@ -830,8 +1054,15 @@ function mergeResults(arr) {
       }
     }
   });
+  
   Object.keys(res).forEach(k => {
-    res[k] = { type: "FeatureCollection", features: res[k] };
+    if (k === "hta_lignes") {
+      // Garder la structure spéciale pour hta_lignes
+      res[k].aerienne.type = "FeatureCollection";
+      res[k].souterraine.type = "FeatureCollection";
+    } else {
+      res[k] = { type: "FeatureCollection", features: res[k] };
+    }
   });
   return res;
 }
@@ -1092,14 +1323,15 @@ function handleDeptSearch() {
     es.addEventListener("result", e => {
       const r = JSON.parse(e.data);
       results.push(r);
-      const merged = mergeResults(results);
-      displayAllLayers(merged);
+      // Mise à jour incrémentale : ajouter seulement les nouvelles données
+      addIncrementalData(r);
       updateInfoPanel(results);
       const m = getMapFrame();
       if (r.lat && r.lon && m?.setView) m.setView(r.lat, r.lon, 11);
     });
     es.addEventListener("end", e => {
       if (logEl) logEl.textContent += e.data + "\n";
+      console.log("[DEBUG] Fin SSE, aucun traitement supplémentaire nécessaire (mise à jour incrémentale)");
       es.close();
     });
     es.onerror = () => {

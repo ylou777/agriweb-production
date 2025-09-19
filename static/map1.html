@@ -314,11 +314,23 @@
       if(s && s.color === "cyan") return "zaer";
       if(s && s.color === "darkred") return "sirene";
       if(s && s.color === "#800080") return "capacites_reseau";
+      if(s && s.color === "blue") return "hta_lignes_aerienne";
+      if(s && s.color === "gray") return "hta_lignes_souterraine";
       if(f.properties && (f.properties.nomUniteLe || f.properties.denomination)) return "eleveurs";
       if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
         let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
         if (name.includes('hta')) return "postes_hta";
         if (name.includes('bt')) return "postes_bt";
+      }
+      // Détection pour les lignes HTA basée sur le type de géométrie et les propriétés
+      if(f.geometry && f.geometry.type === "LineString") {
+        if(f.properties && f.properties.type_ligne) {
+          if(f.properties.type_ligne.toLowerCase().includes('aerien')) return "hta_lignes_aerienne";
+          if(f.properties.type_ligne.toLowerCase().includes('souterrain')) return "hta_lignes_souterraine";
+        }
+        if(f.properties && f.properties.source && f.properties.source.toLowerCase().includes('enedis')) {
+          return "hta_lignes_aerienne"; // Par défaut aérienne si pas d'info type
+        }
       }
       return "";
     }

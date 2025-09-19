@@ -10499,6 +10499,30 @@ def compute_commune_report(
             print(f"⚠️ [WARN] Erreur capacités réseau: {e}")
             result["hta_capacites"] = {"type": "FeatureCollection", "features": []}
 
+        # 6b) Lignes HTA (aériennes et souterraines)
+        try:
+            from enedis_integration import get_lignes_hta
+            
+            # Calculer bbox pour la commune (rayon plus large pour capturer les lignes)
+            margin = 0.02  # ~2km de marge
+            bbox_lignes = [lon - margin, lat - margin, lon + margin, lat + margin]
+            
+            hta_lignes_data = get_lignes_hta(
+                bbox=bbox_lignes,
+                include_aerienne=True,
+                include_souterraine=True,
+                limit=500
+            )
+            result["hta_lignes"] = hta_lignes_data
+            
+            aerienne_count = len(hta_lignes_data.get("aerienne", {}).get("features", []))
+            souterraine_count = len(hta_lignes_data.get("souterraine", {}).get("features", []))
+            print(f"🔌 [DEBUG] Lignes HTA: {aerienne_count} aériennes, {souterraine_count} souterraines")
+            
+        except Exception as e:
+            print(f"⚠️ [WARN] Erreur lignes HTA: {e}")
+            result["hta_lignes"] = {"aerienne": {"features": []}, "souterraine": {"features": []}}
+
         # 7) RPG
         result["rpg_parcelles"] = rpg_fc
 
@@ -10548,6 +10572,8 @@ def generate_reports_by_dept_sse():
             all_postes_bt = fc_init()
             all_postes_hta = fc_init()
             all_eleveurs = fc_init()
+            all_hta_lignes_aerienne = fc_init()
+            all_hta_lignes_souterraine = fc_init()
 
             communes_avec_donnees = 0
             communes_avec_erreurs = 0
@@ -10590,6 +10616,19 @@ def generate_reports_by_dept_sse():
                             fc_var["features"].extend(layer["features"])
                             print(f"📊 [SSE CUMUL] {fc_key}: +{len(layer['features'])} features")
 
+                    # CUMULER les lignes HTA (structure spéciale)
+                    hta_lignes = rpt.get("hta_lignes", {})
+                    if hta_lignes:
+                        aerienne_data = hta_lignes.get("aerienne", {})
+                        if aerienne_data and aerienne_data.get("features"):
+                            all_hta_lignes_aerienne["features"].extend(aerienne_data["features"])
+                            print(f"📊 [SSE CUMUL] hta_lignes_aerienne: +{len(aerienne_data['features'])} features")
+                        
+                        souterraine_data = hta_lignes.get("souterraine", {})
+                        if souterraine_data and souterraine_data.get("features"):
+                            all_hta_lignes_souterraine["features"].extend(souterraine_data["features"])
+                            print(f"📊 [SSE CUMUL] hta_lignes_souterraine: +{len(souterraine_data['features'])} features")
+
                     yield f"event: progress\ndata: [{idx}/{total}] {nom} ✓\n\n"
                     yield f"event: result\ndata: {json.dumps(rpt, ensure_ascii=False)}\n\n"
                     
@@ -10602,6 +10641,7 @@ def generate_reports_by_dept_sse():
             # Résumé final
             print(f"✅ [SSE SUMMARY] {communes_avec_donnees} communes traitées, {communes_avec_erreurs} erreurs")
             print(f"📊 [SSE SUMMARY] Total features - RPG: {len(all_rpg['features'])}, Postes BT: {len(all_postes_bt['features'])}, Postes HTA: {len(all_postes_hta['features'])}, Éleveurs: {len(all_eleveurs['features'])}")
+            print(f"🔌 [SSE SUMMARY] Lignes HTA - Aériennes: {len(all_hta_lignes_aerienne['features'])}, Souterraines: {len(all_hta_lignes_souterraine['features'])}")
             
             yield f"event: end\ndata: Traitement terminé: {communes_avec_donnees} communes, {communes_avec_erreurs} erreurs\n\n"
             
@@ -10723,6 +10763,37 @@ def rapport_commune():
                 icon=folium.Icon(color="green", icon="leaf", prefix="fa"),
                 tooltip=eleveur["properties"].get("nom", "Éleveur")
             ).add_to(m)
+
+    # Lignes HTA (aériennes en bleu, souterraines en gris)
+    hta_lignes = report.get("hta_lignes", {})
+    
+    # Lignes aériennes
+    aerienne_data = hta_lignes.get("aerienne", {})
+    if aerienne_data and aerienne_data.get("features"):
+        for ligne in aerienne_data["features"]:
+            if ligne.get("geometry") and ligne["geometry"].get("type") == "LineString":
+                props = ligne.get("properties", {})
+                folium.PolyLine(
+                    locations=[[coord[1], coord[0]] for coord in ligne["geometry"]["coordinates"]],
+                    color="blue",
+                    weight=2,
+                    opacity=0.8,
+                    tooltip=f"Ligne HTA Aérienne - {props.get('nom_commune', 'N/A')}"
+                ).add_to(m)
+    
+    # Lignes souterraines  
+    souterraine_data = hta_lignes.get("souterraine", {})
+    if souterraine_data and souterraine_data.get("features"):
+        for ligne in souterraine_data["features"]:
+            if ligne.get("geometry") and ligne["geometry"].get("type") == "LineString":
+                props = ligne.get("properties", {})
+                folium.PolyLine(
+                    locations=[[coord[1], coord[0]] for coord in ligne["geometry"]["coordinates"]],
+                    color="gray",
+                    weight=2,
+                    opacity=0.6,
+                    tooltip=f"Ligne HTA Souterraine - {props.get('nom_commune', 'N/A')}"
+                ).add_to(m)
 
     # Sauvegarde et URL de la carte
     carte_path = save_map_html(m, f"carte_{commune}.html")
