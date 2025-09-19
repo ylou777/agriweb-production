@@ -10715,6 +10715,7 @@ def compute_commune_report(
                         nom_url = (nom + " " + denomination).strip().replace(" ", "+")
                         siret = props.get("siret", "")
                         eleveur_props = {
+                            # Nouvelles propriétés (normalisées)
                             "nom": nom,
                             "prenom": prenom,
                             "denomination": denomination,
@@ -10723,7 +10724,14 @@ def compute_commune_report(
                             "commune": commune_name,
                             "lien_annuaire": f"https://www.pagesjaunes.fr/recherche/{ville_url}/{nom_url}" if nom else "",
                             "lien_entreprise": f"https://annuaire-entreprises.data.gouv.fr/etablissement/{siret}" if siret else "",
-                            "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}"
+                            "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}",
+                            
+                            # Propriétés de compatibilité (pour JavaScript)
+                            "nomUniteLe": nom,
+                            "prenom1Uni": prenom, 
+                            "denominati": denomination,
+                            "activite_1": activite,
+                            "siret": siret
                         }
                         eleveurs_fc["features"].append({
                             "type": "Feature",
@@ -12183,6 +12191,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 siret = props.get("siret", "")
                 
                 eleveur_props = {
+                    # Nouveaux noms (normalisés)
                     "nom": nom,
                     "prenom": prenom,
                     "denomination": denomination,
@@ -12191,7 +12200,13 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     "siret": siret,
                     "lien_annuaire": f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui={nom_url}&ou={ville_url}&univers=pagesjaunes&idOu=" if nom or prenom or denomination else "",
                     "lien_entreprise": f"https://www.societe.com/societe/{denomination.lower().replace(' ', '-')}-{siret[:9]}.html#__establishments" if siret and denomination and len(siret) >= 9 else "",
-                    "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}" if nom or prenom else ""
+                    "lien_pages_blanches": f"https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui={nom}+{prenom}&ou={props.get('libelleCom','')}" if nom or prenom else "",
+                    
+                    # Anciens noms (compatibilité JavaScript)
+                    "nomUniteLe": nom,
+                    "prenom1Uni": prenom,
+                    "denominati": denomination,
+                    "activite_1": activite
                 }
                 
                 # Debug: afficher le lien généré
