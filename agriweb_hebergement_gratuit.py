@@ -4102,6 +4102,46 @@ def calculate_min_distance(centroid, postes):
         for poste in postes
     ]
     return min(distances) if distances else None
+
+def calculate_min_distance_to_lines(centroid, lines_features):
+    """
+    Calcule la distance minimale d'un point (centroïde) aux lignes HTA.
+    
+    Args:
+        centroid: [longitude, latitude] du point
+        lines_features: Liste des features de lignes (GeoJSON LineString)
+    
+    Returns:
+        float: Distance minimale en mètres, ou None si pas de lignes
+    """
+    if not lines_features:
+        return None
+    
+    from pyproj import Transformer
+    from shapely.ops import transform as shp_transform
+    
+    # Transformer pour projection métrique (EPSG:2154 pour la France)
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+    
+    point_wgs84 = Point(centroid)
+    point_metric = shp_transform(transformer.transform, point_wgs84)
+    
+    distances = []
+    
+    for line_feature in lines_features:
+        try:
+            line_geom_wgs84 = shape(line_feature["geometry"])
+            # Transformer la ligne en coordonnées métriques
+            line_geom_metric = shp_transform(transformer.transform, line_geom_wgs84)
+            # Calcul de la distance en mètres (projection métrique)
+            dist_meters = line_geom_metric.distance(point_metric)
+            distances.append(dist_meters)
+        except Exception as e:
+            print(f"⚠️ Erreur calcul distance ligne: {e}")
+            continue
+    
+    return min(distances) if distances else None
+
 def flatten_gpu_dict_to_featurecollection(gpu_dict):
     features = []
     for key, value in gpu_dict.items():
@@ -7901,6 +7941,10 @@ def search_by_commune():
                     min_distance_hta = None
                     min_distance_total = None
                     
+                    # Nouvelles variables pour les distances aux lignes HTA
+                    min_distance_hta_aerial = None
+                    min_distance_hta_underground = None
+                    
                     try:
                         # Calculer le centroïde de la parcelle
                         centroid = shape(geometry).centroid.coords[0]
@@ -7908,6 +7952,28 @@ def search_by_commune():
                         # Calculer les distances minimales aux postes
                         min_distance_bt = calculate_min_distance(centroid, postes_bt_data)
                         min_distance_hta = calculate_min_distance(centroid, postes_hta_data)
+                        
+                        # Calculer les distances minimales aux lignes HTA
+                        if hta_lignes_data and isinstance(hta_lignes_data, dict):
+                            # Lignes aériennes
+                            if 'aerienne' in hta_lignes_data and hta_lignes_data['aerienne'].get('features'):
+                                min_distance_hta_aerial = calculate_min_distance_to_lines(
+                                    centroid, hta_lignes_data['aerienne']['features']
+                                )
+                                print(f"        📏 [HTA DEBUG] Distance aérienne calculée: {min_distance_hta_aerial}m")
+                            else:
+                                print(f"        ⚠️ [HTA DEBUG] Pas de lignes aériennes disponibles")
+                            
+                            # Lignes souterraines
+                            if 'souterraine' in hta_lignes_data and hta_lignes_data['souterraine'].get('features'):
+                                min_distance_hta_underground = calculate_min_distance_to_lines(
+                                    centroid, hta_lignes_data['souterraine']['features']
+                                )
+                                print(f"        📏 [HTA DEBUG] Distance souterraine calculée: {min_distance_hta_underground}m")
+                            else:
+                                print(f"        ⚠️ [HTA DEBUG] Pas de lignes souterraines disponibles")
+                        else:
+                            print(f"        ⚠️ [HTA DEBUG] hta_lignes_data non disponible: {type(hta_lignes_data)}")
                         
                         # Distance minimale globale (le poste le plus proche, qu'il soit BT ou HTA)
                         distances = [d for d in [min_distance_bt, min_distance_hta] if d is not None]
@@ -7940,7 +8006,49 @@ def search_by_commune():
                             print(f"        ⚠️ Erreur calcul distance: {e}")
                             distance_ok = True  # En cas d'erreur, on garde la parcelle
                     
-                    if not distance_ok:
+                    # Filtrage additionnel par distance aux lignes HTA (même logique que les postes)
+                    hta_lines_distance_ok = True
+                    
+                    # Appliquer le filtrage HTA lignes seulement si activé par les checkboxes
+                    if filter_hta_lines_aerial or filter_hta_lines_underground:
+                        try:
+                            aerial_ok = True
+                            underground_ok = True
+                            
+                            # Vérifier les lignes aériennes si le filtre est activé
+                            if filter_hta_lines_aerial:
+                                max_distance_aerial_m = hta_aerial_max_km * 1000
+                                aerial_ok = (min_distance_hta_aerial is not None and min_distance_hta_aerial <= max_distance_aerial_m)
+                                print(f"        🔍 [HTA AERIAL] Distance: {min_distance_hta_aerial}m, Max: {max_distance_aerial_m}m, OK: {aerial_ok}")
+                            
+                            # Vérifier les lignes souterraines si le filtre est activé
+                            if filter_hta_lines_underground:
+                                max_distance_underground_m = hta_underground_max_km * 1000
+                                underground_ok = (min_distance_hta_underground is not None and min_distance_hta_underground <= max_distance_underground_m)
+                                print(f"        🔍 [HTA UNDERGROUND] Distance: {min_distance_hta_underground}m, Max: {max_distance_underground_m}m, OK: {underground_ok}")
+                            
+                            # Si les deux filtres sont activés, il faut que les deux soient OK
+                            # Si un seul filtre est activé, il faut juste que celui-ci soit OK
+                            if filter_hta_lines_aerial and filter_hta_lines_underground:
+                                hta_lines_distance_ok = aerial_ok and underground_ok
+                                print(f"        🔍 [HTA BOTH] Final OK: {hta_lines_distance_ok} (aerial: {aerial_ok}, underground: {underground_ok})")
+                            elif filter_hta_lines_aerial:
+                                hta_lines_distance_ok = aerial_ok
+                                print(f"        🔍 [HTA AERIAL ONLY] Final OK: {hta_lines_distance_ok}")
+                            elif filter_hta_lines_underground:
+                                hta_lines_distance_ok = underground_ok
+                                print(f"        🔍 [HTA UNDERGROUND ONLY] Final OK: {hta_lines_distance_ok}")
+                                
+                        except Exception as e:
+                            print(f"        ⚠️ Erreur calcul distance lignes HTA: {e}")
+                            hta_lines_distance_ok = True  # En cas d'erreur, on garde la parcelle
+                    
+                    # Condition finale : respecter les deux types de filtres
+                    if not distance_ok or not hta_lines_distance_ok:
+                        if not distance_ok:
+                            print(f"        ❌ [RPG REJECTED] Parcelle rejetée - distance postes: {distance_ok}")
+                        if not hta_lines_distance_ok:
+                            print(f"        ❌ [RPG REJECTED] Parcelle rejetée - distance lignes HTA: {hta_lines_distance_ok}")
                         continue
                     
                     # Enrichir les propriétés avec les informations systématiques
@@ -7953,7 +8061,10 @@ def search_by_commune():
                         # Distances systématiques
                         'min_distance_bt_m': round(min_distance_bt, 2) if min_distance_bt is not None else None,
                         'min_distance_hta_m': round(min_distance_hta, 2) if min_distance_hta is not None else None,
-                        'min_distance_total_m': round(min_distance_total, 2) if min_distance_total is not None else None
+                        'min_distance_total_m': round(min_distance_total, 2) if min_distance_total is not None else None,
+                        # Distances aux lignes HTA
+                        'min_distance_hta_aerial_m': round(min_distance_hta_aerial, 2) if min_distance_hta_aerial is not None else None,
+                        'min_distance_hta_underground_m': round(min_distance_hta_underground, 2) if min_distance_hta_underground is not None else None
                     })
                     
                     # Calcul de la surface libre si demandé
@@ -10224,9 +10335,14 @@ def compute_commune_report(
     max_area_ha: float,
     ht_max_km: float = 5.0,
     bt_max_km: float = 5.0,
+    hta_aerial_max_km: float = 3.0,
+    hta_underground_max_km: float = 1.5,
+    filter_hta_lines_aerial: bool = False,
+    filter_hta_lines_underground: bool = False,
     sirene_km: float = 5.0,
     want_eleveurs: bool = False,
-    reseau_types: list = ["HTA", "BT"]
+    reseau_types: list = ["HTA", "BT"],
+    commune_geometry: dict = None
 ) -> dict:
     """Calcule le rapport pour une commune avec gestion d'erreur renforcée"""
     try:
@@ -10273,7 +10389,101 @@ def compute_commune_report(
             print(f"❌ [ERREUR] Récupération parcelles: {e}")
             parcelles = []
 
-        # 3) Parcelles RPG filtrées avec gestion d'erreur
+        # 3) Récupération des lignes HTA AVANT le traitement des parcelles RPG
+        hta_lignes_data = {"aerienne": {"features": []}, "souterraine": {"features": []}}
+        try:
+            from enedis_integration import get_lignes_hta
+            from shapely.geometry import Point, LineString
+            from shapely.ops import nearest_points
+            
+            # Utiliser le polygone de la commune pour un filtrage précis
+            if commune_geometry:
+                commune_shape = shape(commune_geometry)
+                minx, miny, maxx, maxy = commune_shape.bounds
+                
+                print(f"🏛️ [DEBUG] Commune {commune_name}: polygone type={commune_shape.geom_type}, bounds=({minx:.4f},{miny:.4f},{maxx:.4f},{maxy:.4f})")
+                print(f"🏛️ [DEBUG] Commune {commune_name}: area={commune_shape.area:.6f}°², valid={commune_shape.is_valid}")
+                
+                # Utiliser un bbox large basé sur les bounds de la commune + marge généreuse
+                # pour être sûr de capturer toutes les lignes qui pourraient traverser la commune
+                margin_large = 0.02  # ~2km de marge pour capturer les lignes qui traversent
+                bbox_lignes = [minx - margin_large, miny - margin_large, maxx + margin_large, maxy + margin_large]
+                print(f"🗺️ [DEBUG] Bbox large pour commune {commune_name}: {minx-margin_large:.4f},{miny-margin_large:.4f},{maxx+margin_large:.4f},{maxy+margin_large:.4f}")
+                
+                # Récupérer toutes les lignes dans le bbox large
+                print(f"📡 [DEBUG] Requête lignes HTA dans bbox: {bbox_lignes}")
+                hta_lignes_raw = get_lignes_hta(
+                    bbox=bbox_lignes,
+                    include_aerienne=True,
+                    include_souterraine=True,
+                    limit=2000  # Limite haute car on filtre ensuite par intersection
+                )
+                print(f"📦 [DEBUG] Lignes HTA reçues de l'API: {len(hta_lignes_raw.get('aerienne', {}).get('features', []))} aériennes, {len(hta_lignes_raw.get('souterraine', {}).get('features', []))} souterraines")
+                
+                # Fonction pour filtrer les lignes qui intersectent réellement la commune
+                def filter_lignes_in_commune(lignes_features):
+                    filtered = []
+                    for i, feature in enumerate(lignes_features):
+                        if "geometry" not in feature:
+                            continue
+                        try:
+                            ligne_geom = shape(feature["geometry"])
+                            if not ligne_geom.is_valid:
+                                ligne_geom = ligne_geom.buffer(0)
+                                if not ligne_geom.is_valid:
+                                    continue
+                            
+                            # Vérifier l'intersection avec le polygone réel de la commune
+                            if ligne_geom.intersects(commune_shape):
+                                filtered.append(feature)
+                                # Log pour debug : quelle ligne intersecte
+                                ligne_id = feature.get("properties", {}).get("id", f"ligne_{i}")
+                                print(f"✅ [DEBUG LIGNE] Ligne {ligne_id} intersecte la commune {commune_name}")
+                            else:
+                                ligne_id = feature.get("properties", {}).get("id", f"ligne_{i}")
+                                print(f"❌ [DEBUG LIGNE] Ligne {ligne_id} N'intersecte PAS la commune {commune_name}")
+                        except Exception as e:
+                            print(f"⚠️ [DEBUG LIGNE] Erreur traitement ligne: {e}")
+                            continue
+                    return filtered
+                
+                # Filtrer les lignes par intersection réelle avec le polygone de la commune
+                lignes_aeriennes_raw = hta_lignes_raw.get("aerienne", {}).get("features", [])
+                lignes_souterraines_raw = hta_lignes_raw.get("souterraine", {}).get("features", [])
+                
+                lignes_aeriennes_filtered = filter_lignes_in_commune(lignes_aeriennes_raw)
+                lignes_souterraines_filtered = filter_lignes_in_commune(lignes_souterraines_raw)
+                
+                hta_lignes_data = {
+                    "aerienne": {"features": lignes_aeriennes_filtered},
+                    "souterraine": {"features": lignes_souterraines_filtered}
+                }
+                
+                aerienne_count = len(lignes_aeriennes_filtered)
+                souterraine_count = len(lignes_souterraines_filtered) 
+                print(f"🔌 [DEBUG] Lignes HTA qui intersectent la commune {commune_name}: {aerienne_count} aériennes, {souterraine_count} souterraines")
+                print(f"📊 [DEBUG] Avant filtrage par polygone: {len(lignes_aeriennes_raw)} aériennes, {len(lignes_souterraines_raw)} souterraines")
+            else:
+                # Fallback vers bbox approximatif si pas de géométrie
+                margin = 0.02  # ~2km de marge
+                bbox_lignes = [lon - margin, lat - margin, lon + margin, lat + margin]
+                print(f"🗺️ [DEBUG] Bbox approximatif commune {commune_name}: {bbox_lignes}")
+                
+                hta_lignes_data = get_lignes_hta(
+                    bbox=bbox_lignes,
+                    include_aerienne=True,
+                    include_souterraine=True,
+                    limit=500
+                )
+                
+                aerienne_count = len(hta_lignes_data.get("aerienne", {}).get("features", []))
+                souterraine_count = len(hta_lignes_data.get("souterraine", {}).get("features", []))
+                print(f"🔌 [DEBUG] Lignes HTA récupérées (bbox approx): {aerienne_count} aériennes, {souterraine_count} souterraines")
+            
+        except Exception as e:
+            print(f"⚠️ [WARN] Erreur lignes HTA: {e}")
+
+        # 4) Parcelles RPG filtrées avec gestion d'erreur et accès aux lignes HTA
         proj_metric = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
         rpg_features = []
         
@@ -10295,19 +10505,55 @@ def compute_commune_report(
                     d_bt = calculate_min_distance(cent, postes_bt) if "BT" in reseau_types else None
                     d_hta = calculate_min_distance(cent, postes_hta) if "HTA" in reseau_types else None
 
+                    # Distance aux lignes HTA (nouveau filtrage)
+                    d_ligne_aerienne = None
+                    d_ligne_souterraine = None
+                    
+                    if filter_hta_lines_aerial and hta_lignes_data.get("aerienne", {}).get("features"):
+                        d_ligne_aerienne = calculate_min_distance_to_lines(cent, hta_lignes_data["aerienne"]["features"])
+                        print(f"🔧 [DEBUG RPG] Distance ligne aérienne: {d_ligne_aerienne:.1f}m (seuil: {hta_aerial_max_km*1000}m)")
+                        
+                    if filter_hta_lines_underground and hta_lignes_data.get("souterraine", {}).get("features"):
+                        d_ligne_souterraine = calculate_min_distance_to_lines(cent, hta_lignes_data["souterraine"]["features"])
+                        print(f"🔧 [DEBUG RPG] Distance ligne souterraine: {d_ligne_souterraine:.1f}m (seuil: {hta_underground_max_km*1000}m)")
+
                     # Filtrage selon le(s) type(s) de réseau sélectionné(s)
+                    # Logique OU : la parcelle est retenue SI elle respecte AU MOINS UN critère
+                    reseau_standard = [t for t in reseau_types if t in ["BT", "HTA"]]
+                    reseau_lignes = [t for t in reseau_types if t.startswith("HTA_LINES_")]
+                    
                     ok = False
-                    if "BT" in reseau_types and "HTA" not in reseau_types:
-                        if d_bt is not None and d_bt <= bt_max_km * 1000:
+                    raisons_ok = []
+                    
+                    # Vérification des réseaux standards (postes)
+                    if reseau_standard:
+                        if "BT" in reseau_standard:
+                            if d_bt is not None and d_bt <= bt_max_km * 1000:
+                                ok = True
+                                raisons_ok.append(f"BT:{d_bt:.0f}m")
+                        if "HTA" in reseau_standard:
+                            if d_hta is not None and d_hta <= ht_max_km * 1000:
+                                ok = True
+                                raisons_ok.append(f"HTA:{d_hta:.0f}m")
+                    
+                    # Vérification des lignes HTA (critères additionnels OU)
+                    if filter_hta_lines_aerial and d_ligne_aerienne is not None:
+                        if d_ligne_aerienne <= hta_aerial_max_km * 1000:
                             ok = True
-                    elif "HTA" in reseau_types and "BT" not in reseau_types:
-                        if d_hta is not None and d_hta <= ht_max_km * 1000:
+                            raisons_ok.append(f"LigneAér:{d_ligne_aerienne:.0f}m")
+                            
+                    if filter_hta_lines_underground and d_ligne_souterraine is not None:
+                        if d_ligne_souterraine <= hta_underground_max_km * 1000:
                             ok = True
-                    elif "BT" in reseau_types and "HTA" in reseau_types:
-                        if (d_bt is not None and d_bt <= bt_max_km * 1000) or (d_hta is not None and d_hta <= ht_max_km * 1000):
-                            ok = True
-                    if not reseau_types or not ok:
+                            raisons_ok.append(f"LigneSout:{d_ligne_souterraine:.0f}m")
+                    
+                    if not ok:
+                        print(f"❌ [DEBUG RPG] Parcelle éliminée: aucun critère respecté (BT:{d_bt}, HTA:{d_hta}, LigneAér:{d_ligne_aerienne}, LigneSout:{d_ligne_souterraine})")
                         continue
+                    else:
+                        print(f"✅ [DEBUG RPG] Parcelle retenue: critères OK → {', '.join(raisons_ok)}")
+
+                    # Plus besoin du filtrage additionnel car intégré dans la logique OU ci-dessus
 
                     # Croisement API Cadastre avec gestion d'erreur
                     try:
@@ -10341,6 +10587,8 @@ def compute_commune_report(
                         "coords": [cent[1], cent[0]],
                         "distance_bt": round(d_bt, 2) if d_bt is not None else None,
                         "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+                        "distance_ligne_aerienne": round(d_ligne_aerienne, 2) if d_ligne_aerienne is not None else None,
+                        "distance_ligne_souterraine": round(d_ligne_souterraine, 2) if d_ligne_souterraine is not None else None,
                         "commune": commune_name
                     })
                     rpg_features.append({
@@ -10499,29 +10747,8 @@ def compute_commune_report(
             print(f"⚠️ [WARN] Erreur capacités réseau: {e}")
             result["hta_capacites"] = {"type": "FeatureCollection", "features": []}
 
-        # 6b) Lignes HTA (aériennes et souterraines)
-        try:
-            from enedis_integration import get_lignes_hta
-            
-            # Calculer bbox pour la commune (rayon plus large pour capturer les lignes)
-            margin = 0.02  # ~2km de marge
-            bbox_lignes = [lon - margin, lat - margin, lon + margin, lat + margin]
-            
-            hta_lignes_data = get_lignes_hta(
-                bbox=bbox_lignes,
-                include_aerienne=True,
-                include_souterraine=True,
-                limit=500
-            )
-            result["hta_lignes"] = hta_lignes_data
-            
-            aerienne_count = len(hta_lignes_data.get("aerienne", {}).get("features", []))
-            souterraine_count = len(hta_lignes_data.get("souterraine", {}).get("features", []))
-            print(f"🔌 [DEBUG] Lignes HTA: {aerienne_count} aériennes, {souterraine_count} souterraines")
-            
-        except Exception as e:
-            print(f"⚠️ [WARN] Erreur lignes HTA: {e}")
-            result["hta_lignes"] = {"aerienne": {"features": []}, "souterraine": {"features": []}}
+        # 6b) Ajout des lignes HTA au résultat (déjà récupérées plus tôt)
+        result["hta_lignes"] = hta_lignes_data
 
         # 7) RPG
         result["rpg_parcelles"] = rpg_fc
@@ -10553,12 +10780,21 @@ def generate_reports_by_dept_sse():
             max_area = float(request.args.get("rpg_max_area", request.args.get("max_area_ha", 99999)))
             ht_max_km = float(request.args.get("ht_max_distance", 10))
             bt_max_km = float(request.args.get("bt_max_distance", 10))
+            hta_aerial_max_km = float(request.args.get("hta_aerial_max_distance", 5))
+            hta_underground_max_km = float(request.args.get("hta_underground_max_distance", 2))
+            
+            # Paramètres d'activation des filtres HTA lignes
+            filter_hta_lines_aerial = request.args.get("filter_hta_lines_aerial", "false").lower() == "true"
+            filter_hta_lines_underground = request.args.get("filter_hta_lines_underground", "false").lower() == "true"
+            
             sirene_km = float(request.args.get("sirene_radius", 5))
             want_elev = request.args.get("want_eleveurs", "false").lower() == "true"
             reseau_types_str = request.args.get("reseau_types", "HTA,BT")
             reseau_types = [t.strip().upper() for t in reseau_types_str.split(",") if t.strip()]
             
             print(f"📊 [SSE PARAMS] Culture: {culture}, Area: {min_area}-{max_area}, Eleveurs: {want_elev}, Réseaux: {reseau_types}")
+            print(f"📏 [SSE DISTANCES] HTA postes: {ht_max_km}km, BT: {bt_max_km}km, Lignes HTA aér: {hta_aerial_max_km}km, Lignes HTA sout: {hta_underground_max_km}km")
+            print(f"🔲 [SSE FILTERS] Filtres HTA lignes: aériennes={filter_hta_lines_aerial}, souterraines={filter_hta_lines_underground}")
 
             communes = get_communes_for_dept(department)
             total = len(communes)
@@ -10583,13 +10819,21 @@ def generate_reports_by_dept_sse():
                 print(f"🔍 [SSE COMMUNE {idx}/{total}] Traitement de {nom}")
                 
                 try:
+                    # Récupérer la géométrie de la commune pour calculer le bbox réel
+                    commune_geom = feat.get("geometry")
+                    
                     rpt = compute_commune_report(
                         commune_name=nom,
+                        commune_geometry=commune_geom,
                         culture=culture,
                         min_area_ha=min_area,
                         max_area_ha=max_area,
                         ht_max_km=ht_max_km,
                         bt_max_km=bt_max_km,
+                        hta_aerial_max_km=hta_aerial_max_km,
+                        hta_underground_max_km=hta_underground_max_km,
+                        filter_hta_lines_aerial=filter_hta_lines_aerial,
+                        filter_hta_lines_underground=filter_hta_lines_underground,
                         sirene_km=sirene_km,
                         want_eleveurs=want_elev,
                         reseau_types=reseau_types

@@ -146,6 +146,8 @@ function setupSliders() {
     ["ht_max_distance_dept", "htMaxValDept", " m"],
     ["bt_max_distance_dept", "btMaxValDept", " m"],
     ["capacite_max_distance_dept", "capaciteMaxValDept", " m"],
+    ["hta_lines_aerial_distance_dept", "htaLinesAerialMaxValDept", " m"],
+    ["hta_lines_underground_distance_dept", "htaLinesUndergroundMaxValDept", " m"],
   // Sliders pour les toitures (uniquement surface, distances via contrôle global)
   ["min_surface_toiture", "minSurfaceToitureVal", " m²"],
   ].forEach(([id, out, unit]) => {
@@ -1283,18 +1285,28 @@ function handleDeptSearch() {
     const types = [];
     if (document.getElementById("filterHTA")?.checked) types.push("HTA");
     if (document.getElementById("filterBT")?.checked) types.push("BT");
+    if (document.getElementById("filterHtaLinesAerial")?.checked) types.push("HTA_LINES_AERIAL");
+    if (document.getElementById("filterHtaLinesUnderground")?.checked) types.push("HTA_LINES_UNDERGROUND");
     if (types.length === 0) return alert("Sélectionnez au moins un type de réseau.");
     // Convertir les sliders (mètres) en kilomètres pour le backend SSE
     const bt_m = parseFloat(document.getElementById("bt_max_distance_dept")?.value || "");
     const ht_m = parseFloat(document.getElementById("ht_max_distance_dept")?.value || "");
+    const hta_aerial_m = parseFloat(document.getElementById("hta_lines_aerial_distance_dept")?.value || "");
+    const hta_underground_m = parseFloat(document.getElementById("hta_lines_underground_distance_dept")?.value || "");
     const bt_km = isNaN(bt_m) ? "" : (bt_m / 1000);
     const ht_km = isNaN(ht_m) ? "" : (ht_m / 1000);
+    const hta_aerial_km = isNaN(hta_aerial_m) ? "" : (hta_aerial_m / 1000);
+    const hta_underground_km = isNaN(hta_underground_m) ? "" : (hta_underground_m / 1000);
     const params = {
       department: dept,
       min_area_ha: document.getElementById("minSurface")?.value || "",
       max_area_ha: document.getElementById("maxSurface")?.value || "",
       bt_max_distance: bt_km,
       ht_max_distance: ht_km,
+      hta_aerial_max_distance: hta_aerial_km,
+      hta_underground_max_distance: hta_underground_km,
+      filter_hta_lines_aerial: document.getElementById("filterHtaLinesAerial")?.checked || false,
+      filter_hta_lines_underground: document.getElementById("filterHtaLinesUnderground")?.checked || false,
       want_eleveurs: true,
       exclude_nature: document.getElementById("excludeNature")?.checked || false,
       exclude_historic: document.getElementById("excludeBuildings")?.checked || false,

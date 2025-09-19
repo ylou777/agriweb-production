@@ -298,6 +298,22 @@
         <label class="form-label" for="ht_max_distance_dept">Distance HTA (m) <span id="htMaxValDept" class="slider-value"></span></label>
         <input id="ht_max_distance_dept" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
       </div>
+      <div class="mb-2">
+        <label class="form-label" for="hta_lines_aerial_distance_dept">Distance lignes HTA aériennes (m) <span id="htaLinesAerialMaxValDept" class="slider-value"></span></label>
+        <input id="hta_lines_aerial_distance_dept" type="range" class="form-range" min="0" max="3000" step="50" value="1000">
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" id="filterHtaLinesAerial">
+          <label class="form-check-label" for="filterHtaLinesAerial">Activer le filtre distance lignes aériennes</label>
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="hta_lines_underground_distance_dept">Distance lignes HTA souterraines (m) <span id="htaLinesUndergroundMaxValDept" class="slider-value"></span></label>
+        <input id="hta_lines_underground_distance_dept" type="range" class="form-range" min="0" max="1500" step="50" value="500">
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" id="filterHtaLinesUnderground">
+          <label class="form-check-label" for="filterHtaLinesUnderground">Activer le filtre distance lignes souterraines</label>
+        </div>
+      </div>
       <!-- Filtrage dynamique HTA/BT -->
       <div class="mb-2">
         <label class="form-label">Types de réseaux à filtrer :</label>
