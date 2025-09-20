@@ -2789,12 +2789,33 @@ def qr_code_page():
 def index():
     """Page d'accueil avec authentification commerciale - Collecte emails et essais gratuits"""
     
+    # Vérifier si l'utilisateur est déjà connecté
+    session_token = session.get('session_token') or request.cookies.get('session_token')
+    is_admin = False
+    current_user = None
+    
+    if session_token:
+        user = get_user_by_session(session_token)
+        if user:
+            current_user = user
+            # Vérifier si l'utilisateur est admin
+            try:
+                conn = sqlite3.connect(DATABASE_PATH)
+                cursor = conn.cursor()
+                cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user['id'],))
+                admin_result = cursor.fetchone()
+                is_admin = bool(admin_result[0]) if admin_result else False
+                conn.close()
+            except Exception as e:
+                print(f"[WARN] Erreur vérification admin: {e}")
+                is_admin = False
+    
     # Version simplifiée pour diagnostiquer le timeout
     try:
         return render_template("homepage.html", 
                              stripe_public_key=STRIPE_PUBLIC_KEY or "", 
-                             is_admin=False,
-                             current_user=None)
+                             is_admin=is_admin,
+                             current_user=current_user)
     except Exception as e:
         print(f"❌ [INDEX] Erreur dans index(): {e}")
         return f"Erreur page d'accueil: {e}", 500
