@@ -3613,10 +3613,75 @@ def wrap_geometry_as_feature(geom):
 # Fonctions utilitaires
 ##############################
 def geocode_address(address):
-    geolocator = Nominatim(user_agent="geoapp", timeout=10)
-    location = geolocator.geocode(address)
-    if location:
-        return location.latitude, location.longitude
+    """
+    Géocodage avec double sécurité : API IGN française puis fallback Nominatim
+    Validation de cohérence pour éviter les résultats incorrects
+    """
+    
+    def extract_city_from_address(addr):
+        """Extrait le nom de la ville depuis une adresse"""
+        # Patterns courants : "..., Ville" ou "Ville" en fin
+        addr_clean = addr.strip().lower()
+        for separator in [',', ' - ', ' / ']:
+            if separator in addr_clean:
+                parts = addr_clean.split(separator)
+                return parts[-1].strip()
+        return addr_clean
+    
+    def is_result_relevant(result_label, search_address):
+        """Vérifie si le résultat trouvé correspond à l'adresse recherchée"""
+        search_city = extract_city_from_address(search_address)
+        result_lower = result_label.lower()
+        
+        # Vérifie si la ville recherchée apparaît dans le résultat
+        return search_city in result_lower
+    
+    # Tentative 1: API IGN Géoplateforme (optimisée pour la France)
+    try:
+        url = "https://data.geopf.fr/geocodage/search"
+        params = {
+            "q": address,
+            "limit": 3,  # Plus de résultats pour validation
+            "index": "address"
+        }
+        response = requests.get(url, params=params, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            features = data.get("features", [])
+            
+            # Cherche le meilleur résultat avec validation
+            for feature in features:
+                coords = feature["geometry"]["coordinates"]
+                props = feature["properties"]
+                result_label = props.get('label', '')
+                
+                if is_result_relevant(result_label, address):
+                    print(f"[DEBUG] Geocodage IGN validé: {result_label} -> {coords[1]:.6f}, {coords[0]:.6f}")
+                    return coords[1], coords[0]  # lat, lon
+            
+            # Si aucun résultat validé, prend le premier (fallback)
+            if features:
+                feature = features[0]
+                coords = feature["geometry"]["coordinates"]
+                props = feature["properties"]
+                print(f"[DEBUG] Geocodage IGN (non validé): {props.get('label', address)} -> {coords[1]:.6f}, {coords[0]:.6f}")
+                # Ne retourne pas le résultat non validé, passe à Nominatim
+                
+    except Exception as e:
+        print(f"[WARN] Erreur API IGN geocodage: {e}")
+    
+    # Tentative 2: Fallback vers Nominatim avec restriction France
+    try:
+        geolocator = Nominatim(user_agent="geoapp", timeout=10)
+        location = geolocator.geocode(f"{address}, France", country_codes="fr")
+        if location:
+            print(f"[DEBUG] Geocodage Nominatim: {location.address} -> {location.latitude:.6f}, {location.longitude:.6f}")
+            return location.latitude, location.longitude
+        
+    except Exception as e:
+        print(f"[WARN] Erreur Nominatim geocodage: {e}")
+    
+    print(f"[ERROR] Aucun geocodage trouve pour: {address}")
     return None
 
 def get_address_from_coordinates(lat, lon):
