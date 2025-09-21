@@ -1240,7 +1240,13 @@ async function handleCommuneSearch(e) {
     filter_by_distance: document.getElementById("filter_by_distance_commune")?.checked || false,
     max_distance_bt: document.getElementById("bt_max_distance_commune")?.value || 2000,
     max_distance_hta: document.getElementById("ht_max_distance_commune")?.value || 5000,
-  poste_type_filter: (document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL')
+    distance_logic: (document.querySelector('input[name="distance_logic"]:checked')?.value || 'OR'),
+    poste_type_filter: (document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL'),
+    // Filtres HTA aériens/souterrains
+    filter_hta_lines_aerial: document.getElementById("filter_hta_lines_aerial")?.checked || false,
+    filter_hta_lines_underground: document.getElementById("filter_hta_lines_underground")?.checked || false,
+    hta_aerial_max_km: document.getElementById("hta_aerial_max_km")?.value || 1000,
+    hta_underground_max_km: document.getElementById("hta_underground_max_km")?.value || 500
     });
     try {
       setCommuneSearchLog('📦 Traitement des données reçues...', '#0a58ca');
