@@ -12433,9 +12433,67 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     except Exception as _e:
                         continue
                 print(f"    ✅ Toitures retenues après filtres: {len(toitures_data)}")
+                
+                # Enrichissement cadastral des toitures (méthode simplifiée - comme zones urbaines)
+                if toitures_data:
+                    print(f"🏛️ [CADASTRE-TOITURES] Enrichissement : {len(toitures_data)} toitures")
+                    
+                    for i, toiture in enumerate(toitures_data):
+                        try:
+                            geom_toiture = toiture.get("geometry")
+                            if not geom_toiture:
+                                continue
+                            
+                            # Récupération directe des parcelles via API (même méthode que zones urbaines)
+                            parcelles_cadastrales = get_parcelles_for_feature(geom_toiture)
+                            
+                            # Ajouter les parcelles aux propriétés de la toiture
+                            if parcelles_cadastrales:
+                                toiture['properties']['parcelles_cadastrales'] = parcelles_cadastrales
+                                toiture['properties']['nb_parcelles_cadastrales'] = len(parcelles_cadastrales)
+                            
+                            # Debug occasionnel
+                            if (i + 1) <= 3 or parcelles_cadastrales:
+                                print(f"      🏛️ Toiture {i+1}: {len(parcelles_cadastrales)} parcelles trouvées")
+                                
+                        except Exception as e:
+                            print(f"      ⚠️ Toiture {i+1}: {e}")
+                            continue
+                    
+                    print(f"✅ [CADASTRE-TOITURES] Enrichissement terminé")
+                
             except Exception as e:
                 print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur génération toitures: {e}")
                 toitures_data = []
+
+        # Récupération du cadastre - FONCTION UTILITAIRE pour enrichissement individuel
+        print(f"🏛️ [CADASTRE] Préparation de la fonction d'enrichissement cadastral...")
+        
+        def get_parcelles_for_feature(geom):
+            """
+            Récupère les parcelles cadastrales pour une géométrie donnée
+            (même logique que pour les zones urbaines qui fonctionne bien)
+            """
+            parcelles = []
+            try:
+                cadastre_data = get_api_cadastre_data(geom)
+                if cadastre_data and cadastre_data.get("features"):
+                    for parcelle_feat in cadastre_data["features"]:
+                        parcelle_props = parcelle_feat.get("properties", {})
+                        ref_cadastrale = f"{parcelle_props.get('section', '')}{parcelle_props.get('numero', '')}"
+                        if ref_cadastrale.strip():
+                            parcelles.append({
+                                "section": parcelle_props.get("section", ""),
+                                "numero": parcelle_props.get("numero", ""),
+                                "ref": ref_cadastrale,
+                                "commune": parcelle_props.get("commune", ""),
+                                "prefixe": parcelle_props.get("prefixe", "")
+                            })
+            except Exception as e:
+                pass  # Silent - pas besoin d'afficher chaque erreur
+            return parcelles
+        
+        print(f"🏛️ [CADASTRE] Fonction d'enrichissement cadastral prête")
 
         # Appliquer filtres de surface et de distance sur parkings/friches si demandé
         filter_by_distance = bool(filters.get("filter_by_distance", False))
@@ -12489,6 +12547,34 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 except Exception:
                     continue
             parkings_data = filtered_pk
+            
+            # Enrichissement cadastral des parkings (méthode simplifiée - comme zones urbaines)
+            if parkings_data:
+                print(f"🏛️ [CADASTRE-PARKINGS] Enrichissement : {len(parkings_data)} parkings")
+                
+                for i, parking in enumerate(parkings_data):
+                    try:
+                        geom_parking = parking.get("geometry")
+                        if not geom_parking:
+                            continue
+                        
+                        # Récupération directe des parcelles via API (même méthode que zones urbaines)
+                        parcelles_cadastrales = get_parcelles_for_feature(geom_parking)
+                        
+                        # Ajouter les parcelles aux propriétés
+                        if parcelles_cadastrales:
+                            parking['properties']['parcelles_cadastrales'] = parcelles_cadastrales
+                            parking['properties']['nb_parcelles_cadastrales'] = len(parcelles_cadastrales)
+                        
+                        # Debug occasionnel
+                        if (i + 1) <= 3 or parcelles_cadastrales:
+                            print(f"      🏛️ Parking {i+1}: {len(parcelles_cadastrales)} parcelles trouvées")
+                            
+                    except Exception as e:
+                        print(f"      ⚠️ Parking {i+1}: {e}")
+                        continue
+                
+                print(f"✅ [CADASTRE-PARKINGS] Enrichissement terminé")
 
         # Friches: surface minimale et distance
         if friches_data:
@@ -12525,6 +12611,34 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 except Exception:
                     continue
             friches_data = filtered_fr
+            
+            # Enrichissement cadastral des friches (méthode simplifiée - comme zones urbaines)
+            if friches_data:
+                print(f"🏛️ [CADASTRE-FRICHES] Enrichissement : {len(friches_data)} friches")
+                
+                for i, friche in enumerate(friches_data):
+                    try:
+                        geom_friche = friche.get("geometry")
+                        if not geom_friche:
+                            continue
+                        
+                        # Récupération directe des parcelles via API (même méthode que zones urbaines)
+                        parcelles_cadastrales = get_parcelles_for_feature(geom_friche)
+                        
+                        # Ajouter les parcelles aux propriétés
+                        if parcelles_cadastrales:
+                            friche['properties']['parcelles_cadastrales'] = parcelles_cadastrales
+                            friche['properties']['nb_parcelles_cadastrales'] = len(parcelles_cadastrales)
+                        
+                        # Debug occasionnel
+                        if (i + 1) <= 3 or parcelles_cadastrales:
+                            print(f"      🏛️ Friche {i+1}: {len(parcelles_cadastrales)} parcelles trouvées")
+                            
+                    except Exception as e:
+                        print(f"      ⚠️ Friche {i+1}: {e}")
+                        continue
+                
+                print(f"✅ [CADASTRE-FRICHES] Enrichissement terminé")
 
         sirene_data = get_sirene_info_by_polygon(contour)
 
@@ -12535,8 +12649,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
         except Exception:
             pvgis_kwh_per_kwc = None
         
-        # APIs enrichies
-        api_cadastre = get_api_cadastre_data(contour_optimise)
+        # APIs enrichies (api_cadastre déjà récupéré plus haut pour l'enrichissement)
         api_nature = get_all_api_nature_data(contour_optimise)
         api_urbanisme = get_all_gpu_data(contour_optimise)
 
@@ -12727,10 +12840,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 return {}
 
-        # Préparer un index simple des parcelles de la commune si disponible, pour associer par centroïde
-        cadastre_features = []
-        if isinstance(api_cadastre, dict):
-            cadastre_features = (api_cadastre or {}).get('features', []) or []
+        # Note: cadastre_features déjà récupéré plus haut pour l'enrichissement
 
         def _parcelles_for_point(lon: float, lat: float, max_match: int = 3) -> list:
             out = []
@@ -12854,12 +12964,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'parcelles': (
-                        feat.get('properties', {}).get('parcelles_cadastrales')
-                        or _parcelles_for_geom(geom)
-                        or _parcelles_for_point(lon_c, lat_c)
-                        or _parcelles_from_api_near(lon_c, lat_c)
-                    ),
+                    'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt,
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
                 }
@@ -12891,12 +12996,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'parcelles': (
-                        feat.get('properties', {}).get('parcelles_cadastrales')
-                        or _parcelles_for_geom(geom)
-                        or _parcelles_for_point(lon_c, lat_c)
-                        or _parcelles_from_api_near(lon_c, lat_c)
-                    ),
+                    'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt,
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
                 }
@@ -12932,12 +13032,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'parcelles': (
-                        props.get('parcelles_cadastrales')
-                        or _parcelles_for_geom(geom)
-                        or _parcelles_for_point(lon_c, lat_c)
-                        or _parcelles_from_api_near(lon_c, lat_c)
-                    ),
+                    'parcelles': props.get('parcelles_cadastrales', []),
                     'lien_streetview': props.get('lien_streetview') or f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}",
                     'lien_annuaire': _build_annuaire_link(addr_txt),
                     'osm_id': props.get('osm_id'),
@@ -12987,8 +13082,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                     
-                    # Références cadastrales
-                    parcelles_refs = _parcelles_for_geom(parcelle["geometry"]) or _parcelles_for_point(lon_c, lat_c) or _parcelles_from_api_near(lon_c, lat_c)
+                    # Références cadastrales (méthode simplifiée - comme zones urbaines)
+                    parcelles_refs = get_parcelles_for_feature(parcelle["geometry"])
                     
                     # Décodage de la culture
                     code_culture = props.get("CODE_CULTU", "")

@@ -17247,3 +17247,37 @@ OSError: [Errno 28] No space left on device
 2025-10-06 05:02:51,852 INFO 127.0.0.1 - - [06/Oct/2025 05:02:51] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
 2025-10-06 05:03:05,058 INFO 127.0.0.1 - - [06/Oct/2025 05:03:05] "GET /search_by_commune?commune=gueret&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=350&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1750&filter_by_distance=true&max_distance_bt=350&max_distance_hta=500&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=350&hta_underground_max_km=300 HTTP/1.1" 200 -
 2025-10-06 05:03:05,462 INFO 127.0.0.1 - - [06/Oct/2025 05:03:05] "GET /static/cartes/commune_map__20251006_050141.html?t=1759719738&cache=1759719785446 HTTP/1.1" 200 -
+2025-10-06 05:26:11,928 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 05:26:11,933 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 05:26:14,299 INFO 127.0.0.1 - - [06/Oct/2025 05:26:14] "GET / HTTP/1.1" 200 -
+2025-10-06 05:26:18,616 INFO 127.0.0.1 - - [06/Oct/2025 05:26:18] "GET /app HTTP/1.1" 200 -
+2025-10-06 05:26:18,888 INFO 127.0.0.1 - - [06/Oct/2025 05:26:18] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 05:26:18,900 INFO 127.0.0.1 - - [06/Oct/2025 05:26:18] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 05:26:18,984 INFO 127.0.0.1 - - [06/Oct/2025 05:26:18] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 05:27:30,031 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.527074 43.724339, 4.655258 43.724339, 4.655258 43.838722, 4.527074 43.838722, 4.527074 43.724339) )')"}
+2025-10-06 05:27:30,945 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-hta)
+2025-10-06 05:27:30,948 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.527074 43.724339, 4.655258 43.724339, 4.655258 43.838722, 4.527074 43.838722, 4.527074 43.724339) )')"}
+2025-10-06 05:27:31,878 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-souterrain-hta)
+2025-10-06 05:27:31,880 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=400 souterraine=400 total=800
+2025-10-06 05:32:28,555 INFO 127.0.0.1 - - [06/Oct/2025 05:32:28] "GET /search_by_commune?commune=beaucaire&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=300&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=10000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1625&filter_by_distance=true&max_distance_bt=250&max_distance_hta=300&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=300&hta_underground_max_km=300 HTTP/1.1" 200 -
+2025-10-06 05:32:29,543 INFO 127.0.0.1 - - [06/Oct/2025 05:32:29] "GET /static/cartes/commune_map__20251006_053035.html?t=1759721495&cache=1759721549499 HTTP/1.1" 200 -
+2025-10-06 05:42:34,609 INFO 127.0.0.1 - - [06/Oct/2025 05:42:34] "GET /rapport_commune_complet?commune=beaucaire&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=10000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1625&filter_by_distance=true&max_distance_bt=250&max_distance_hta=300&poste_type_filter=ALL&export_format=html HTTP/1.1" 200 -
+2025-10-06 05:42:37,057 INFO 127.0.0.1 - - [06/Oct/2025 05:42:37] "GET /generated_map HTTP/1.1" 200 -
+2025-10-06 05:51:22,903 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 05:51:22,904 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 05:51:26,190 INFO 127.0.0.1 - - [06/Oct/2025 05:51:26] "GET / HTTP/1.1" 200 -
+2025-10-06 05:51:30,524 INFO 127.0.0.1 - - [06/Oct/2025 05:51:30] "GET /app HTTP/1.1" 200 -
+2025-10-06 05:51:31,009 INFO 127.0.0.1 - - [06/Oct/2025 05:51:31] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 05:51:31,011 INFO 127.0.0.1 - - [06/Oct/2025 05:51:31] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 05:51:31,109 INFO 127.0.0.1 - - [06/Oct/2025 05:51:31] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 05:52:35,766 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.974446 46.055188, 2.073676 46.055188, 2.073676 46.128241, 1.974446 46.128241, 1.974446 46.055188) )')"}
+2025-10-06 05:52:36,579 INFO \u2705 [ENEDIS] 111 features récupérées (reseau-hta)
+2025-10-06 05:52:36,581 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.974446 46.055188, 2.073676 46.055188, 2.073676 46.128241, 1.974446 46.128241, 1.974446 46.055188) )')"}
+2025-10-06 05:52:37,339 INFO \u2705 [ENEDIS] 152 features récupérées (reseau-souterrain-hta)
+2025-10-06 05:52:37,342 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=111 souterraine=152 total=263
+2025-10-06 05:54:29,187 INFO 127.0.0.1 - - [06/Oct/2025 05:54:29] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=300&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=10000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1875&filter_by_distance=true&max_distance_bt=300&max_distance_hta=300&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=300&hta_underground_max_km=300 HTTP/1.1" 200 -
+2025-10-06 05:54:29,398 INFO 127.0.0.1 - - [06/Oct/2025 05:54:29] "GET /static/cartes/commune_map__20251006_055410.html?t=1759722858&cache=1759722869390 HTTP/1.1" 200 -
+2025-10-06 06:02:10,316 INFO 127.0.0.1 - - [06/Oct/2025 06:02:10] "GET /rapport_commune_complet?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=10000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1875&filter_by_distance=true&max_distance_bt=300&max_distance_hta=300&poste_type_filter=ALL&export_format=html HTTP/1.1" 200 -
+2025-10-06 06:02:10,662 INFO 127.0.0.1 - - [06/Oct/2025 06:02:10] "GET /generated_map HTTP/1.1" 200 -
