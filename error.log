@@ -17281,3 +17281,52 @@ OSError: [Errno 28] No space left on device
 2025-10-06 05:54:29,398 INFO 127.0.0.1 - - [06/Oct/2025 05:54:29] "GET /static/cartes/commune_map__20251006_055410.html?t=1759722858&cache=1759722869390 HTTP/1.1" 200 -
 2025-10-06 06:02:10,316 INFO 127.0.0.1 - - [06/Oct/2025 06:02:10] "GET /rapport_commune_complet?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=10000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1875&filter_by_distance=true&max_distance_bt=300&max_distance_hta=300&poste_type_filter=ALL&export_format=html HTTP/1.1" 200 -
 2025-10-06 06:02:10,662 INFO 127.0.0.1 - - [06/Oct/2025 06:02:10] "GET /generated_map HTTP/1.1" 200 -
+2025-10-06 06:24:27,009 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 06:24:27,009 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 06:24:30,111 INFO 127.0.0.1 - - [06/Oct/2025 06:24:30] "GET / HTTP/1.1" 200 -
+2025-10-06 06:24:34,028 INFO 127.0.0.1 - - [06/Oct/2025 06:24:34] "GET /app HTTP/1.1" 200 -
+2025-10-06 06:24:34,329 INFO 127.0.0.1 - - [06/Oct/2025 06:24:34] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 06:24:34,429 INFO 127.0.0.1 - - [06/Oct/2025 06:24:34] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 06:24:34,521 INFO 127.0.0.1 - - [06/Oct/2025 06:24:34] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 06:25:23,473 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.974446 46.055188, 2.073676 46.055188, 2.073676 46.128241, 1.974446 46.128241, 1.974446 46.055188) )')"}
+2025-10-06 06:25:24,088 INFO \u2705 [ENEDIS] 111 features récupérées (reseau-hta)
+2025-10-06 06:25:24,093 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.974446 46.055188, 2.073676 46.055188, 2.073676 46.128241, 1.974446 46.128241, 1.974446 46.055188) )')"}
+2025-10-06 06:25:24,751 INFO \u2705 [ENEDIS] 152 features récupérées (reseau-souterrain-hta)
+2025-10-06 06:25:24,753 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=111 souterraine=152 total=263
+2025-10-06 06:26:43,207 INFO 127.0.0.1 - - [06/Oct/2025 06:26:43] "GET /search_by_commune?commune=ahun&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=300&bt_max_distance=250&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2075&filter_by_distance=true&max_distance_bt=250&max_distance_hta=300&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=250&hta_underground_max_km=250 HTTP/1.1" 200 -
+2025-10-06 06:26:43,511 INFO 127.0.0.1 - - [06/Oct/2025 06:26:43] "GET /static/cartes/commune_map__20251006_062626.html?t=1759724793&cache=1759724803477 HTTP/1.1" 200 -
+2025-10-06 06:37:08,192 INFO 127.0.0.1 - - [06/Oct/2025 06:37:08] "[35m[1mGET /rapport_commune_complet?commune=ahun&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=2075&filter_by_distance=true&max_distance_bt=250&max_distance_hta=300&poste_type_filter=ALL&export_format=html HTTP/1.1[0m" 500 -
+2025-10-06 06:46:19,148 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 06:46:19,149 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 06:46:21,969 INFO 127.0.0.1 - - [06/Oct/2025 06:46:21] "GET / HTTP/1.1" 200 -
+2025-10-06 06:46:25,651 INFO 127.0.0.1 - - [06/Oct/2025 06:46:25] "GET /app HTTP/1.1" 200 -
+2025-10-06 06:46:25,964 INFO 127.0.0.1 - - [06/Oct/2025 06:46:25] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 06:46:25,966 INFO 127.0.0.1 - - [06/Oct/2025 06:46:25] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 06:46:26,116 INFO 127.0.0.1 - - [06/Oct/2025 06:46:26] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 06:47:40,060 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.235795 43.741435, 4.449922 43.741435, 4.449922 43.922876, 4.235795 43.922876, 4.235795 43.741435) )')"}
+2025-10-06 06:47:40,851 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-hta)
+2025-10-06 06:47:40,853 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.235795 43.741435, 4.449922 43.741435, 4.449922 43.922876, 4.235795 43.922876, 4.235795 43.741435) )')"}
+2025-10-06 06:47:41,859 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-souterrain-hta)
+2025-10-06 06:47:41,861 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=400 souterraine=400 total=800
+2025-10-06 07:01:42,492 INFO 127.0.0.1 - - [06/Oct/2025 07:01:42] "GET /search_by_commune?commune=nimes&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=300&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1725&filter_by_distance=true&max_distance_bt=300&max_distance_hta=500&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=200&hta_underground_max_km=250 HTTP/1.1" 200 -
+2025-10-06 07:01:45,546 INFO 127.0.0.1 - - [06/Oct/2025 07:01:45] "GET /static/cartes/commune_map__20251006_065820.html?t=1759726796&cache=1759726905386 HTTP/1.1" 200 -
+2025-10-06 07:26:31,136 INFO 127.0.0.1 - - [06/Oct/2025 07:26:31] "[35m[1mGET /rapport_commune_complet?commune=nimes&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=true&friches_min_area=1000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1725&filter_by_distance=true&max_distance_bt=300&max_distance_hta=500&poste_type_filter=ALL&export_format=html HTTP/1.1[0m" 500 -
+2025-10-06 07:57:55,026 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 07:57:55,026 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 07:57:57,375 INFO 127.0.0.1 - - [06/Oct/2025 07:57:57] "GET / HTTP/1.1" 200 -
+2025-10-06 07:58:09,614 INFO 127.0.0.1 - - [06/Oct/2025 07:58:09] "GET /app HTTP/1.1" 200 -
+2025-10-06 07:58:10,079 INFO 127.0.0.1 - - [06/Oct/2025 07:58:10] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 07:58:10,083 INFO 127.0.0.1 - - [06/Oct/2025 07:58:10] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 07:58:10,129 INFO 127.0.0.1 - - [06/Oct/2025 07:58:10] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 07:59:11,180 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.838252 46.113164, 1.902697 46.113164, 1.902697 46.203772, 1.838252 46.203772, 1.838252 46.113164) )')"}
+2025-10-06 07:59:11,758 INFO \u2705 [ENEDIS] 60 features récupérées (reseau-hta)
+2025-10-06 07:59:11,763 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.838252 46.113164, 1.902697 46.113164, 1.902697 46.203772, 1.838252 46.203772, 1.838252 46.113164) )')"}
+2025-10-06 07:59:12,444 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-souterrain-hta)
+2025-10-06 07:59:12,446 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=60 souterraine=400 total=460
+2025-10-06 08:03:09,647 INFO 127.0.0.1 - - [06/Oct/2025 08:03:09] "GET /search_by_commune?commune=gueret&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=300&bt_max_distance=350&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1650&filter_by_distance=true&max_distance_bt=350&max_distance_hta=300&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=150&hta_underground_max_km=200 HTTP/1.1" 200 -
+2025-10-06 08:03:10,034 INFO 127.0.0.1 - - [06/Oct/2025 08:03:10] "GET /static/cartes/commune_map__20251006_080211.html?t=1759730557&cache=1759730590006 HTTP/1.1" 200 -
+2025-10-06 08:08:03,145 INFO 127.0.0.1 - - [06/Oct/2025 08:08:03] "GET /rapport_commune_complet?commune=gueret&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=true&zones_min_area=10000&zones_type_filter=U&filter_toitures=true&toitures_min_surface=1650&filter_by_distance=true&max_distance_bt=350&max_distance_hta=300&poste_type_filter=ALL&export_format=html HTTP/1.1" 200 -
+2025-10-06 08:08:03,991 INFO 127.0.0.1 - - [06/Oct/2025 08:08:03] "GET /generated_map HTTP/1.1" 200 -

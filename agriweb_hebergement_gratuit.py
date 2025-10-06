@@ -12364,6 +12364,38 @@ def generate_integrated_commune_report(commune_name, filters=None):
         
         sirene_data = get_sirene_info_by_polygon(contour)
         
+        # =========================================================================
+        # 🏛️ FONCTION UTILITAIRE ENRICHISSEMENT CADASTRAL
+        # (Définie ici pour être disponible pour toitures, parkings, friches, RPG)
+        # =========================================================================
+        print(f"🏛️ [CADASTRE] Préparation de la fonction d'enrichissement cadastral...")
+        
+        def get_parcelles_for_feature(geom):
+            """
+            Récupère les parcelles cadastrales pour une géométrie donnée
+            (même logique que pour les zones urbaines qui fonctionne bien)
+            """
+            parcelles = []
+            try:
+                cadastre_data = get_api_cadastre_data(geom)
+                if cadastre_data and cadastre_data.get("features"):
+                    for parcelle_feat in cadastre_data["features"]:
+                        parcelle_props = parcelle_feat.get("properties", {})
+                        ref_cadastrale = f"{parcelle_props.get('section', '')}{parcelle_props.get('numero', '')}"
+                        if ref_cadastrale.strip():
+                            parcelles.append({
+                                "section": parcelle_props.get("section", ""),
+                                "numero": parcelle_props.get("numero", ""),
+                                "ref": ref_cadastrale,
+                                "commune": parcelle_props.get("commune", ""),
+                                "prefixe": parcelle_props.get("prefixe", "")
+                            })
+            except Exception as e:
+                pass  # Silent - pas besoin d'afficher chaque erreur
+            return parcelles
+        
+        print(f"🏛️ [CADASTRE] Fonction d'enrichissement cadastral prête")
+        
         # Toitures: utiliser OSM bâtiments + filtres surface/distance au lieu du WFS "POTENTIEL_SOLAIRE"
         toitures_data = []
         if filters.get("filter_toitures", False):
@@ -12466,34 +12498,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur génération toitures: {e}")
                 toitures_data = []
 
-        # Récupération du cadastre - FONCTION UTILITAIRE pour enrichissement individuel
-        print(f"🏛️ [CADASTRE] Préparation de la fonction d'enrichissement cadastral...")
-        
-        def get_parcelles_for_feature(geom):
-            """
-            Récupère les parcelles cadastrales pour une géométrie donnée
-            (même logique que pour les zones urbaines qui fonctionne bien)
-            """
-            parcelles = []
-            try:
-                cadastre_data = get_api_cadastre_data(geom)
-                if cadastre_data and cadastre_data.get("features"):
-                    for parcelle_feat in cadastre_data["features"]:
-                        parcelle_props = parcelle_feat.get("properties", {})
-                        ref_cadastrale = f"{parcelle_props.get('section', '')}{parcelle_props.get('numero', '')}"
-                        if ref_cadastrale.strip():
-                            parcelles.append({
-                                "section": parcelle_props.get("section", ""),
-                                "numero": parcelle_props.get("numero", ""),
-                                "ref": ref_cadastrale,
-                                "commune": parcelle_props.get("commune", ""),
-                                "prefixe": parcelle_props.get("prefixe", "")
-                            })
-            except Exception as e:
-                pass  # Silent - pas besoin d'afficher chaque erreur
-            return parcelles
-        
-        print(f"🏛️ [CADASTRE] Fonction d'enrichissement cadastral prête")
+        # Initialisation vide pour compatibilité avec les anciennes fonctions helper
+        # (qui ne sont plus utilisées mais existent encore dans le code)
+        cadastre_features = []
 
         # Appliquer filtres de surface et de distance sur parkings/friches si demandé
         filter_by_distance = bool(filters.get("filter_by_distance", False))
@@ -12649,7 +12656,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
         except Exception:
             pvgis_kwh_per_kwc = None
         
-        # APIs enrichies (api_cadastre déjà récupéré plus haut pour l'enrichissement)
+        # APIs enrichies pour le rapport (données cadastrales, nature, urbanisme)
+        api_cadastre = get_api_cadastre_data(contour_optimise)
         api_nature = get_all_api_nature_data(contour_optimise)
         api_urbanisme = get_all_gpu_data(contour_optimise)
 
