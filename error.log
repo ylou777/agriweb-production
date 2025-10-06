@@ -17096,3 +17096,154 @@ OSError: [Errno 28] No space left on device
 2025-09-19 12:17:59,828 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((6.780822000000001 47.577793, 6.860592 47.577793, 6.860592 47.636617, 6.780822000000001 47.636617, 6.780822000000001 47.577793) )')"}
 2025-09-19 12:18:00,825 INFO \u2705 [ENEDIS] 617 features récupérées (reseau-souterrain-hta)
 2025-09-19 12:18:00,829 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=96 souterraine=617 total=713
+2025-10-06 04:17:39,837 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 04:17:39,840 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 04:17:41,754 INFO 127.0.0.1 - - [06/Oct/2025 04:17:41] "GET / HTTP/1.1" 200 -
+2025-10-06 04:17:45,942 INFO 127.0.0.1 - - [06/Oct/2025 04:17:45] "[32mPOST /login HTTP/1.1[0m" 301 -
+2025-10-06 04:17:45,956 INFO 127.0.0.1 - - [06/Oct/2025 04:17:45] "GET /auth/login HTTP/1.1" 200 -
+2025-10-06 04:17:48,085 INFO 127.0.0.1 - - [06/Oct/2025 04:17:48] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-10-06 04:17:48,404 INFO 127.0.0.1 - - [06/Oct/2025 04:17:48] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:17:49,556 INFO 127.0.0.1 - - [06/Oct/2025 04:17:49] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 04:17:49,570 INFO 127.0.0.1 - - [06/Oct/2025 04:17:49] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 04:17:49,632 INFO 127.0.0.1 - - [06/Oct/2025 04:17:49] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 04:25:35,859 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 04:25:35,861 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 04:25:38,360 INFO 127.0.0.1 - - [06/Oct/2025 04:25:38] "GET / HTTP/1.1" 200 -
+2025-10-06 04:25:41,842 INFO 127.0.0.1 - - [06/Oct/2025 04:25:41] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:25:42,459 INFO 127.0.0.1 - - [06/Oct/2025 04:25:42] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 04:25:42,557 INFO 127.0.0.1 - - [06/Oct/2025 04:25:42] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 04:25:42,639 INFO 127.0.0.1 - - [06/Oct/2025 04:25:42] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 04:26:38,458 INFO 127.0.0.1 - - [06/Oct/2025 04:26:38] "GET /static/map1.html HTTP/1.1" 200 -
+2025-10-06 04:26:53,063 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.484488 43.197818, 2.587269 43.197818, 2.587269 43.270198, 2.484488 43.270198, 2.484488 43.197818) )')"}
+2025-10-06 04:26:53,764 INFO \u2705 [ENEDIS] 122 features récupérées (reseau-hta)
+2025-10-06 04:26:53,766 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.484488 43.197818, 2.587269 43.197818, 2.587269 43.270198, 2.484488 43.270198, 2.484488 43.197818) )')"}
+2025-10-06 04:26:54,594 INFO \u2705 [ENEDIS] 153 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:26:54,597 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=122 souterraine=153 total=275
+2025-10-06 04:27:00,938 INFO 127.0.0.1 - - [06/Oct/2025 04:27:00] "GET /generate_reports_by_dept_sse?department=11&min_area_ha=4&max_area_ha=50&bt_max_distance=0.2&ht_max_distance=0.4&hta_aerial_max_distance=1&hta_underground_max_distance=0.5&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&want_eleveurs=true&exclude_nature=false&exclude_historic=false&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&reseau_types=HTA,HTA_LINES_AERIAL,HTA_LINES_UNDERGROUND HTTP/1.1" 200 -
+2025-10-06 04:27:09,718 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.835324 43.331807999999995, 1.9125670000000001 43.331807999999995, 1.9125670000000001 43.401598, 1.835324 43.401598, 1.835324 43.331807999999995) )')"}
+2025-10-06 04:27:10,308 INFO \u2705 [ENEDIS] 175 features récupérées (reseau-hta)
+2025-10-06 04:27:10,316 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.835324 43.331807999999995, 1.9125670000000001 43.331807999999995, 1.9125670000000001 43.401598, 1.835324 43.401598, 1.835324 43.331807999999995) )')"}
+2025-10-06 04:27:10,956 INFO \u2705 [ENEDIS] 76 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:27:10,959 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=175 souterraine=76 total=251
+2025-10-06 04:27:21,073 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.093506 43.014297, 2.181073 43.014297, 2.181073 43.07522, 2.093506 43.07522, 2.093506 43.014297) )')"}
+2025-10-06 04:27:22,272 INFO \u2705 [ENEDIS] 127 features récupérées (reseau-hta)
+2025-10-06 04:27:22,282 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.093506 43.014297, 2.181073 43.014297, 2.181073 43.07522, 2.093506 43.07522, 2.093506 43.014297) )')"}
+2025-10-06 04:27:23,227 INFO \u2705 [ENEDIS] 75 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:27:23,229 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=127 souterraine=75 total=202
+2025-10-06 04:27:32,960 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.034933 43.048731999999994, 2.14238 43.048731999999994, 2.14238 43.141069, 2.034933 43.141069, 2.034933 43.048731999999994) )')"}
+2025-10-06 04:27:33,767 INFO \u2705 [ENEDIS] 216 features récupérées (reseau-hta)
+2025-10-06 04:27:33,770 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.034933 43.048731999999994, 2.14238 43.048731999999994, 2.14238 43.141069, 2.034933 43.141069, 2.034933 43.048731999999994) )')"}
+2025-10-06 04:27:34,388 INFO \u2705 [ENEDIS] 105 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:27:34,390 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=216 souterraine=105 total=321
+2025-10-06 04:27:46,491 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.186993 43.141487, 2.290397 43.141487, 2.290397 43.228054, 2.186993 43.228054, 2.186993 43.141487) )')"}
+2025-10-06 04:27:47,192 INFO \u2705 [ENEDIS] 176 features récupérées (reseau-hta)
+2025-10-06 04:27:47,199 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.186993 43.141487, 2.290397 43.141487, 2.290397 43.228054, 2.186993 43.228054, 2.186993 43.141487) )')"}
+2025-10-06 04:27:47,875 INFO \u2705 [ENEDIS] 220 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:27:47,877 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=176 souterraine=220 total=396
+2025-10-06 04:27:59,503 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.666298 42.962213999999996, 2.79924 42.962213999999996, 2.79924 43.047029, 2.666298 43.047029, 2.666298 42.962213999999996) )')"}
+2025-10-06 04:28:00,278 INFO \u2705 [ENEDIS] 45 features récupérées (reseau-hta)
+2025-10-06 04:28:00,285 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.666298 42.962213999999996, 2.79924 42.962213999999996, 2.79924 43.047029, 2.666298 43.047029, 2.666298 42.962213999999996) )')"}
+2025-10-06 04:28:00,864 INFO \u2705 [ENEDIS] 22 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:28:00,867 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=45 souterraine=22 total=67
+2025-10-06 04:28:07,228 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.385149 42.908474999999996, 2.508881 42.908474999999996, 2.508881 42.981831, 2.385149 42.981831, 2.385149 42.908474999999996) )')"}
+2025-10-06 04:28:08,321 INFO \u2705 [ENEDIS] 65 features récupérées (reseau-hta)
+2025-10-06 04:28:08,322 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.385149 42.908474999999996, 2.508881 42.908474999999996, 2.508881 42.981831, 2.385149 42.981831, 2.385149 42.908474999999996) )')"}
+2025-10-06 04:28:09,551 INFO \u2705 [ENEDIS] 91 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:28:09,557 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=65 souterraine=91 total=156
+2025-10-06 04:28:22,549 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.205114 42.939439, 2.318502 42.939439, 2.318502 43.043297, 2.205114 43.043297, 2.205114 42.939439) )')"}
+2025-10-06 04:28:23,076 INFO \u2705 [ENEDIS] 154 features récupérées (reseau-hta)
+2025-10-06 04:28:23,079 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.205114 42.939439, 2.318502 42.939439, 2.318502 43.043297, 2.205114 43.043297, 2.205114 42.939439) )')"}
+2025-10-06 04:28:23,672 INFO \u2705 [ENEDIS] 162 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:28:23,676 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=154 souterraine=162 total=316
+2025-10-06 04:28:38,862 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.111488 43.213809, 2.224865 43.213809, 2.224865 43.323775000000005, 2.111488 43.323775000000005, 2.111488 43.213809) )')"}
+2025-10-06 04:28:39,617 INFO \u2705 [ENEDIS] 307 features récupérées (reseau-hta)
+2025-10-06 04:28:39,620 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.111488 43.213809, 2.224865 43.213809, 2.224865 43.323775000000005, 2.111488 43.323775000000005, 2.111488 43.213809) )')"}
+2025-10-06 04:28:40,348 INFO \u2705 [ENEDIS] 346 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:28:40,350 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=307 souterraine=346 total=653
+2025-10-06 04:28:46,934 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.172133 42.924246, 2.262636 42.924246, 2.262636 43.001225000000005, 2.172133 43.001225000000005, 2.172133 42.924246) )')"}
+2025-10-06 04:28:47,465 INFO \u2705 [ENEDIS] 106 features récupérées (reseau-hta)
+2025-10-06 04:28:47,470 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.172133 42.924246, 2.262636 42.924246, 2.262636 43.001225000000005, 2.172133 43.001225000000005, 2.172133 42.924246) )')"}
+2025-10-06 04:28:48,070 INFO \u2705 [ENEDIS] 205 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:28:48,073 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=106 souterraine=205 total=311
+2025-10-06 04:28:53,639 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.235759 43.251757, 2.370158 43.251757, 2.370158 43.343, 2.235759 43.343, 2.235759 43.251757) )')"}
+2025-10-06 04:28:54,607 INFO \u2705 [ENEDIS] 203 features récupérées (reseau-hta)
+2025-10-06 04:28:54,611 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.235759 43.251757, 2.370158 43.251757, 2.370158 43.343, 2.235759 43.343, 2.235759 43.251757) )')"}
+2025-10-06 04:28:55,859 INFO \u2705 [ENEDIS] 517 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:28:55,861 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=203 souterraine=517 total=720
+2025-10-06 04:29:12,453 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.861531 43.271823999999995, 2.965949 43.271823999999995, 2.965949 43.346231, 2.861531 43.346231, 2.861531 43.271823999999995) )')"}
+2025-10-06 04:29:13,257 INFO \u2705 [ENEDIS] 83 features récupérées (reseau-hta)
+2025-10-06 04:29:13,265 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.861531 43.271823999999995, 2.965949 43.271823999999995, 2.965949 43.346231, 2.861531 43.346231, 2.861531 43.271823999999995) )')"}
+2025-10-06 04:29:14,192 INFO \u2705 [ENEDIS] 319 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:29:14,195 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=83 souterraine=319 total=402
+2025-10-06 04:29:22,078 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.732443 43.21384, 2.806035 43.21384, 2.806035 43.277735, 2.732443 43.277735, 2.732443 43.21384) )')"}
+2025-10-06 04:29:22,593 INFO \u2705 [ENEDIS] 57 features récupérées (reseau-hta)
+2025-10-06 04:29:22,597 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.732443 43.21384, 2.806035 43.21384, 2.806035 43.277735, 2.732443 43.277735, 2.732443 43.21384) )')"}
+2025-10-06 04:29:23,156 INFO \u2705 [ENEDIS] 74 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:29:23,158 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=57 souterraine=74 total=131
+2025-10-06 04:29:28,580 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((3.032582 43.153594999999996, 3.145036 43.153594999999996, 3.145036 43.223998, 3.032582 43.223998, 3.032582 43.153594999999996) )')"}
+2025-10-06 04:29:29,401 INFO \u2705 [ENEDIS] 8 features récupérées (reseau-hta)
+2025-10-06 04:29:29,404 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((3.032582 43.153594999999996, 3.145036 43.153594999999996, 3.145036 43.223998, 3.032582 43.223998, 3.032582 43.153594999999996) )')"}
+2025-10-06 04:29:30,844 INFO \u2705 [ENEDIS] 218 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:29:30,849 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=8 souterraine=218 total=226
+2025-10-06 04:29:36,222 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.333318 42.897059999999996, 2.442359 42.897059999999996, 2.442359 42.992028000000005, 2.333318 42.992028000000005, 2.333318 42.897059999999996) )')"}
+2025-10-06 04:29:36,968 INFO \u2705 [ENEDIS] 87 features récupérées (reseau-hta)
+2025-10-06 04:29:36,972 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 1000, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((2.333318 42.897059999999996, 2.442359 42.897059999999996, 2.442359 42.992028000000005, 2.333318 42.992028000000005, 2.333318 42.897059999999996) )')"}
+2025-10-06 04:29:37,750 INFO \u2705 [ENEDIS] 54 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:29:37,753 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=87 souterraine=54 total=141
+2025-10-06 04:38:11,512 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 04:38:11,512 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 04:38:13,347 INFO 127.0.0.1 - - [06/Oct/2025 04:38:13] "GET / HTTP/1.1" 200 -
+2025-10-06 04:38:15,308 INFO 127.0.0.1 - - [06/Oct/2025 04:38:15] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:38:15,502 INFO 127.0.0.1 - - [06/Oct/2025 04:38:15] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 04:38:15,506 INFO 127.0.0.1 - - [06/Oct/2025 04:38:15] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 04:38:15,551 INFO 127.0.0.1 - - [06/Oct/2025 04:38:15] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 04:42:34,739 INFO 127.0.0.1 - - [06/Oct/2025 04:42:34] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:42:34,798 INFO 127.0.0.1 - - [06/Oct/2025 04:42:34] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 04:42:34,802 INFO 127.0.0.1 - - [06/Oct/2025 04:42:34] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 04:42:34,841 INFO 127.0.0.1 - - [06/Oct/2025 04:42:34] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 04:43:02,810 INFO 127.0.0.1 - - [06/Oct/2025 04:43:02] "GET / HTTP/1.1" 200 -
+2025-10-06 04:43:05,709 INFO 127.0.0.1 - - [06/Oct/2025 04:43:05] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-10-06 04:43:07,463 INFO 127.0.0.1 - - [06/Oct/2025 04:43:07] "[32mPOST /login HTTP/1.1[0m" 301 -
+2025-10-06 04:43:07,494 INFO 127.0.0.1 - - [06/Oct/2025 04:43:07] "GET /auth/login HTTP/1.1" 200 -
+2025-10-06 04:43:10,127 INFO 127.0.0.1 - - [06/Oct/2025 04:43:10] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-10-06 04:43:10,200 INFO 127.0.0.1 - - [06/Oct/2025 04:43:10] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:43:10,287 INFO 127.0.0.1 - - [06/Oct/2025 04:43:10] "GET /static/main.js HTTP/1.1" 200 -
+2025-10-06 04:43:10,287 INFO 127.0.0.1 - - [06/Oct/2025 04:43:10] "GET /static/advanced_layer_control.css HTTP/1.1" 200 -
+2025-10-06 04:43:10,416 INFO 127.0.0.1 - - [06/Oct/2025 04:43:10] "GET /static/map.html HTTP/1.1" 200 -
+2025-10-06 04:46:26,022 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 04:46:26,022 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 04:46:29,542 INFO 127.0.0.1 - - [06/Oct/2025 04:46:29] "GET / HTTP/1.1" 200 -
+2025-10-06 04:46:32,101 INFO 127.0.0.1 - - [06/Oct/2025 04:46:32] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-10-06 04:46:33,838 INFO 127.0.0.1 - - [06/Oct/2025 04:46:33] "[32mPOST /login HTTP/1.1[0m" 301 -
+2025-10-06 04:46:33,857 INFO 127.0.0.1 - - [06/Oct/2025 04:46:33] "GET /auth/login HTTP/1.1" 200 -
+2025-10-06 04:46:35,309 INFO 127.0.0.1 - - [06/Oct/2025 04:46:35] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-10-06 04:46:35,367 INFO 127.0.0.1 - - [06/Oct/2025 04:46:35] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:46:35,605 INFO 127.0.0.1 - - [06/Oct/2025 04:46:35] "[36mGET /static/main.js HTTP/1.1[0m" 304 -
+2025-10-06 04:46:35,607 INFO 127.0.0.1 - - [06/Oct/2025 04:46:35] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 04:46:35,665 INFO 127.0.0.1 - - [06/Oct/2025 04:46:35] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 04:56:54,445 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-06 04:56:54,445 INFO [33mPress CTRL+C to quit[0m
+2025-10-06 04:56:56,289 INFO 127.0.0.1 - - [06/Oct/2025 04:56:56] "GET / HTTP/1.1" 200 -
+2025-10-06 04:57:00,198 INFO 127.0.0.1 - - [06/Oct/2025 04:57:00] "[32mGET /login HTTP/1.1[0m" 301 -
+2025-10-06 04:57:00,212 INFO 127.0.0.1 - - [06/Oct/2025 04:57:00] "GET /auth/login HTTP/1.1" 200 -
+2025-10-06 04:57:01,868 INFO 127.0.0.1 - - [06/Oct/2025 04:57:01] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-10-06 04:57:01,932 INFO 127.0.0.1 - - [06/Oct/2025 04:57:01] "GET /app HTTP/1.1" 200 -
+2025-10-06 04:57:02,112 INFO 127.0.0.1 - - [06/Oct/2025 04:57:02] "GET /static/main.js HTTP/1.1" 200 -
+2025-10-06 04:57:02,115 INFO 127.0.0.1 - - [06/Oct/2025 04:57:02] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 04:57:02,203 INFO 127.0.0.1 - - [06/Oct/2025 04:57:02] "[36mGET /static/map.html HTTP/1.1[0m" 304 -
+2025-10-06 04:58:20,596 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.838252 46.113164, 1.902697 46.113164, 1.902697 46.203772, 1.838252 46.203772, 1.838252 46.113164) )')"}
+2025-10-06 04:58:21,256 INFO \u2705 [ENEDIS] 60 features récupérées (reseau-hta)
+2025-10-06 04:58:21,261 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((1.838252 46.113164, 1.902697 46.113164, 1.902697 46.203772, 1.838252 46.203772, 1.838252 46.113164) )')"}
+2025-10-06 04:58:22,165 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-souterrain-hta)
+2025-10-06 04:58:22,167 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=60 souterraine=400 total=460
+2025-10-06 05:02:25,229 INFO 127.0.0.1 - - [06/Oct/2025 05:02:25] "[32mGET /app HTTP/1.1[0m" 302 -
+2025-10-06 05:02:25,803 INFO 127.0.0.1 - - [06/Oct/2025 05:02:25] "GET /?session_expired=1 HTTP/1.1" 200 -
+2025-10-06 05:02:51,820 INFO 127.0.0.1 - - [06/Oct/2025 05:02:51] "[33mGET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1[0m" 404 -
+2025-10-06 05:02:51,852 INFO 127.0.0.1 - - [06/Oct/2025 05:02:51] "[36mGET /static/advanced_layer_control.css HTTP/1.1[0m" 304 -
+2025-10-06 05:03:05,058 INFO 127.0.0.1 - - [06/Oct/2025 05:03:05] "GET /search_by_commune?commune=gueret&culture=Prairie+permanente+-+herbe+prédominante+(ressources+fourragères+ligneuses+absentes+ou+peu+présentes)&min_area_ha=10&max_area_ha=50&ht_max_distance=500&bt_max_distance=350&sirene_radius=0.1&filter_rpg=true&rpg_min_area=2&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1750&filter_by_distance=true&max_distance_bt=350&max_distance_hta=500&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=350&hta_underground_max_km=300 HTTP/1.1" 200 -
+2025-10-06 05:03:05,462 INFO 127.0.0.1 - - [06/Oct/2025 05:03:05] "GET /static/cartes/commune_map__20251006_050141.html?t=1759719738&cache=1759719785446 HTTP/1.1" 200 -

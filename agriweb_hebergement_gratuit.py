@@ -1178,6 +1178,32 @@ def debug_auth():
         "environment": "Railway" if os.getenv("RAILWAY_ENVIRONMENT") else "Local"
     }), 200
 
+# Route pour vérifier l'authentification (utilisée par le système de cartes)
+@app.route("/check_auth", methods=["GET"])
+def check_auth():
+    """Vérifie si l'utilisateur est authentifié"""
+    try:
+        # Vérifier si l'utilisateur est connecté
+        if 'user_id' in session and session.get('user_id'):
+            return jsonify({
+                "authenticated": True,
+                "user_id": session.get('user_id'),
+                "username": session.get('username', 'Utilisateur'),
+                "timestamp": datetime.now().isoformat()
+            }), 200
+        else:
+            return jsonify({
+                "authenticated": False,
+                "message": "Utilisateur non connecté",
+                "timestamp": datetime.now().isoformat()
+            }), 200
+    except Exception as e:
+        return jsonify({
+            "authenticated": False,
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
+
 # Endpoint pour re-détecter GeoServer
 @app.route("/debug/geoserver", methods=["GET"])
 def debug_geoserver():
@@ -6005,15 +6031,19 @@ def build_map(
                 surf_ha = str(surf_ha)
             code_cultu = props.get("CODE_CULTU", "N/A")
             culture_label = props.get("Culture", code_cultu)
-            dist_bt = props.get("min_distance_bt_m", "N/A")
-            dist_hta = props.get("min_distance_hta_m", "N/A")
+            dist_bt = props.get("min_distance_bt_m", props.get("distance_bt", "N/A"))
+            dist_hta = props.get("min_distance_hta_m", props.get("distance_hta", "N/A"))
+            dist_hta_aerial = props.get("min_distance_hta_aerial_m", props.get("distance_ligne_aerienne", "N/A"))
+            dist_hta_underground = props.get("min_distance_hta_underground_m", props.get("distance_ligne_souterraine", "N/A"))
             popup_html = (
                 f"<b>ID Parcelle :</b> {id_parcel}<br>"
                 f"<b>Surface :</b> {surf_ha}<br>"
                 f"<b>Code culture :</b> {code_cultu}<br>"
                 f"<b>Culture :</b> {culture_label}<br>"
                 f"<b>Distance au poste BT :</b> {dist_bt} m<br>"
-                f"<b>Distance au poste HTA :</b> {dist_hta} m"
+                f"<b>Distance au poste HTA :</b> {dist_hta} m<br>"
+                f"<b>Distance ligne HTA aérienne :</b> {dist_hta_aerial} m<br>"
+                f"<b>Distance ligne HTA souterraine :</b> {dist_hta_underground} m"
             )
             valid_geom = False
             if geom and isinstance(geom, dict):
@@ -7205,6 +7235,12 @@ def search_by_commune():
         # Nouveau filtre pour calculer la surface non bâtie
         calculate_surface_libre = flask_request.values.get("calculate_surface_libre", "false").lower() == "true"
         
+        # Filtres pour les lignes HTA aériennes et souterraines
+        filter_hta_lines_aerial = flask_request.values.get("filter_hta_lines_aerial", "false").lower() == "true"
+        filter_hta_lines_underground = flask_request.values.get("filter_hta_lines_underground", "false").lower() == "true"
+        hta_aerial_max_km = float(flask_request.values.get("hta_aerial_max_km", 2.0))
+        hta_underground_max_km = float(flask_request.values.get("hta_underground_max_km", 2.0))
+        
         # Log détaillé du début de la recherche
         params_log = {
             'filter_rpg': filter_rpg, 'rpg_min_area': rpg_min_area, 'rpg_max_area': rpg_max_area,
@@ -7248,6 +7284,10 @@ def search_by_commune():
         distance_logic = "OR"
         poste_type_filter = "ALL"
         calculate_surface_libre = False
+        filter_hta_lines_aerial = False
+        filter_hta_lines_underground = False
+        hta_aerial_max_km = 2.0
+        hta_underground_max_km = 2.0
 
     if not commune:
         return jsonify({"error": "Veuillez fournir une commune."}), 400
@@ -7540,6 +7580,16 @@ def search_by_commune():
         d_bt = calculate_min_distance(cent, postes_bt_data)
         d_hta = calculate_min_distance(cent, postes_hta_data)
 
+        # Calcul des distances aux lignes HTA (pour affichage dans les popups)
+        d_ligne_aerienne = None
+        d_ligne_souterraine = None
+        
+        if hta_lignes_data.get("aerienne", {}).get("features"):
+            d_ligne_aerienne = calculate_min_distance_to_lines(cent, hta_lignes_data["aerienne"]["features"])
+            
+        if hta_lignes_data.get("souterraine", {}).get("features"):
+            d_ligne_souterraine = calculate_min_distance_to_lines(cent, hta_lignes_data["souterraine"]["features"])
+
         # Appliquer le filtrage par distance unifié (même logique que les autres éléments)
         if filter_by_distance:
             # Logique de filtrage par type de poste (BT/HTA/Tous)
@@ -7561,6 +7611,8 @@ def search_by_commune():
             "SURF_HA": round(ha, 3),
             "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
             "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None,
+            "min_distance_hta_aerial_m": round(d_ligne_aerienne, 2) if d_ligne_aerienne is not None else None,
+            "min_distance_hta_underground_m": round(d_ligne_souterraine, 2) if d_ligne_souterraine is not None else None,
         })
         final_rpg.append({
             "type":       "Feature",
