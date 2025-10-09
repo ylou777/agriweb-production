@@ -11339,6 +11339,178 @@ def autocomplete_address():
         return jsonify({'suggestions': [], 'error': str(e)})
 
 
+@app.route("/api/get_parcel_coords", methods=["GET"])
+def get_parcel_coords():
+    """
+    Récupère les coordonnées du centroïde de la parcelle cadastrale 
+    la plus proche d'un point d'adresse donné.
+    
+    Cette API corrige le problème où l'adresse pointe dans la rue
+    au lieu de pointer sur la parcelle.
+    
+    Paramètres:
+    - lat: latitude du point d'adresse (depuis BAN)
+    - lon: longitude du point d'adresse (depuis BAN)
+    - buffer: distance de recherche en mètres (défaut: 20m)
+    
+    Retourne:
+    - parcel_lat: latitude du centroïde de la parcelle
+    - parcel_lon: longitude du centroïde de la parcelle
+    - parcel_id: identifiant de la parcelle
+    - distance: distance entre le point d'origine et la parcelle
+    """
+    try:
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        buffer_meters = request.args.get('buffer', 20, type=int)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'Paramètres lat et lon requis'}), 400
+        
+        # Étape 1: Interroger l'API Cadastre pour trouver les parcelles proches
+        # API WFS du cadastre (service gratuit IGN)
+        wfs_url = "https://data.geopf.fr/wfs"
+        
+        # Créer un buffer en degrés (approximatif: 1° ≈ 111km)
+        # Pour 20m, buffer ≈ 0.0002 degrés
+        buffer_deg = buffer_meters / 111000.0
+        
+        # BBox autour du point
+        bbox = f"{lon - buffer_deg},{lat - buffer_deg},{lon + buffer_deg},{lat + buffer_deg}"
+        
+        params = {
+            'SERVICE': 'WFS',
+            'VERSION': '2.0.0',
+            'REQUEST': 'GetFeature',
+            'TYPENAME': 'CADASTRALPARCELS.PARCELLAIRE_EXPRESS:parcelle',
+            'OUTPUTFORMAT': 'application/json',
+            'SRSNAME': 'EPSG:4326',
+            'BBOX': bbox,
+            'COUNT': 10  # Limiter à 10 parcelles max
+        }
+        
+        response = requests.get(wfs_url, params=params, timeout=5)
+        
+        if response.status_code != 200:
+            print(f"[PARCEL_COORDS] Erreur WFS: {response.status_code}")
+            # Fallback: retourner les coordonnées d'origine
+            return jsonify({
+                'parcel_lat': lat,
+                'parcel_lon': lon,
+                'parcel_id': None,
+                'distance': 0,
+                'fallback': True,
+                'message': 'Utilisation des coordonnées d\'adresse (parcelle non trouvée)'
+            })
+        
+        data = response.json()
+        features = data.get('features', [])
+        
+        if not features:
+            print(f"[PARCEL_COORDS] Aucune parcelle trouvée près de {lat},{lon}")
+            # Fallback: retourner les coordonnées d'origine
+            return jsonify({
+                'parcel_lat': lat,
+                'parcel_lon': lon,
+                'parcel_id': None,
+                'distance': 0,
+                'fallback': True,
+                'message': 'Aucune parcelle trouvée à proximité'
+            })
+        
+        # Étape 2: Trouver la parcelle la plus proche du point d'adresse
+        from math import radians, cos, sin, asin, sqrt
+        
+        def haversine(lon1, lat1, lon2, lat2):
+            """Calcule la distance en mètres entre deux points GPS"""
+            lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1
+            dlat = lat2 - lat1
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * asin(sqrt(a))
+            r = 6371000  # Rayon de la Terre en mètres
+            return c * r
+        
+        closest_parcel = None
+        min_distance = float('inf')
+        
+        for feature in features:
+            geom = feature.get('geometry', {})
+            geom_type = geom.get('type', '')
+            
+            # Calculer le centroïde de la parcelle
+            if geom_type == 'Polygon':
+                coords = geom.get('coordinates', [[]])[0]
+            elif geom_type == 'MultiPolygon':
+                coords = geom.get('coordinates', [[[]]])[0][0]
+            else:
+                continue
+            
+            if not coords:
+                continue
+            
+            # Centroïde simple (moyenne des coordonnées)
+            centroid_lon = sum(c[0] for c in coords) / len(coords)
+            centroid_lat = sum(c[1] for c in coords) / len(coords)
+            
+            # Distance du point d'adresse au centroïde de la parcelle
+            distance = haversine(lon, lat, centroid_lon, centroid_lat)
+            
+            if distance < min_distance:
+                min_distance = distance
+                closest_parcel = {
+                    'lat': centroid_lat,
+                    'lon': centroid_lon,
+                    'id': feature.get('id', ''),
+                    'properties': feature.get('properties', {}),
+                    'distance': distance
+                }
+        
+        if not closest_parcel:
+            # Fallback
+            return jsonify({
+                'parcel_lat': lat,
+                'parcel_lon': lon,
+                'parcel_id': None,
+                'distance': 0,
+                'fallback': True,
+                'message': 'Impossible de calculer le centroïde'
+            })
+        
+        print(f"[PARCEL_COORDS] ✅ Parcelle trouvée à {closest_parcel['distance']:.1f}m")
+        print(f"[PARCEL_COORDS]    ID: {closest_parcel['id']}")
+        print(f"[PARCEL_COORDS]    Centroïde: {closest_parcel['lat']:.6f}, {closest_parcel['lon']:.6f}")
+        
+        return jsonify({
+            'parcel_lat': closest_parcel['lat'],
+            'parcel_lon': closest_parcel['lon'],
+            'parcel_id': closest_parcel['id'],
+            'distance': round(closest_parcel['distance'], 2),
+            'fallback': False,
+            'original_lat': lat,
+            'original_lon': lon,
+            'message': f'Parcelle trouvée à {round(closest_parcel["distance"], 1)}m de l\'adresse'
+        })
+        
+    except Exception as e:
+        print(f"[PARCEL_COORDS] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Fallback: retourner les coordonnées d'origine
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        return jsonify({
+            'parcel_lat': lat or 0,
+            'parcel_lon': lon or 0,
+            'parcel_id': None,
+            'distance': 0,
+            'fallback': True,
+            'error': str(e),
+            'message': 'Erreur lors de la recherche de parcelle'
+        })
+
+
 @app.route("/api/autocomplete/commune", methods=["GET"])
 def autocomplete_commune():
     """

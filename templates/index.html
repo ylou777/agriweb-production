@@ -376,19 +376,70 @@
         new Autocomplete(searchInput, {
           type: 'address',
           minChars: 3,
-          onSelect: function(suggestion) {
-            console.log('🏠 Adresse sélectionnée:', suggestion);
-            // Remplir les champs cachés
-            const latInput = document.getElementById('latitude');
-            const lonInput = document.getElementById('longitude');
-            const addressInput = document.getElementById('address');
-            
-            if (latInput && suggestion.geometry && suggestion.geometry.coordinates) {
-              lonInput.value = suggestion.geometry.coordinates[0];
-              latInput.value = suggestion.geometry.coordinates[1];
+          onSelect: async function(suggestion) {
+            // Protection contre les appels multiples simultanés
+            const addressSearchKey = 'addressParcelSearchInProgress';
+            if (sessionStorage.getItem(addressSearchKey) === 'true') {
+              console.log('🔄 Recherche de parcelle déjà en cours, annulation');
+              return;
             }
-            if (addressInput) {
-              addressInput.value = suggestion.properties.label;
+            
+            sessionStorage.setItem(addressSearchKey, 'true');
+            
+            try {
+              console.log('🏠 Adresse sélectionnée:', suggestion);
+              
+              const latInput = document.getElementById('latitude');
+              const lonInput = document.getElementById('longitude');
+              const addressInput = document.getElementById('address');
+              
+              // Coordonnées de l'adresse (point dans la rue)
+              const addressLat = suggestion.geometry?.coordinates?.[1];
+              const addressLon = suggestion.geometry?.coordinates?.[0];
+              
+              if (!addressLat || !addressLon) {
+                console.warn('⚠️ Coordonnées manquantes dans la suggestion');
+                return;
+              }
+              
+              console.log('📍 Coordonnées adresse (rue):', addressLat, addressLon);
+              
+              try {
+                // Appeler l'API pour obtenir les coordonnées de la parcelle
+                console.log('🔄 Recherche de la parcelle cadastrale...');
+                const parcelResponse = await fetch(`/api/get_parcel_coords?lat=${addressLat}&lon=${addressLon}&buffer=20`);
+                const parcelData = await parcelResponse.json();
+                
+                if (parcelData.fallback) {
+                  console.warn('⚠️ Parcelle non trouvée, utilisation des coordonnées d\'adresse');
+                  console.log('   Raison:', parcelData.message);
+                  // Utiliser les coordonnées d'adresse
+                  if (latInput) latInput.value = addressLat;
+                  if (lonInput) lonInput.value = addressLon;
+                } else {
+                  console.log('✅ Parcelle trouvée !');
+                  console.log('   📍 Centroïde parcelle:', parcelData.parcel_lat, parcelData.parcel_lon);
+                  console.log('   🆔 ID parcelle:', parcelData.parcel_id);
+                  console.log('   📏 Distance:', parcelData.distance, 'm');
+                  
+                  // Utiliser les coordonnées de la parcelle (centroïde)
+                  if (latInput) latInput.value = parcelData.parcel_lat;
+                  if (lonInput) lonInput.value = parcelData.parcel_lon;
+                }
+              } catch (error) {
+                console.error('❌ Erreur lors de la recherche de parcelle:', error);
+                // Fallback: utiliser les coordonnées d'adresse
+                if (latInput) latInput.value = addressLat;
+                if (lonInput) lonInput.value = addressLon;
+              }
+              
+              // Remplir le champ adresse
+              if (addressInput) {
+                addressInput.value = suggestion.properties.label;
+              }
+            } finally {
+              // Toujours nettoyer le flag, même en cas d'erreur
+              sessionStorage.removeItem(addressSearchKey);
             }
           }
         });

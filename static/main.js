@@ -1070,8 +1070,22 @@ function mergeResults(arr) {
 }
 
 // --------- RECHERCHE UNIFIÉE (ADRESSE / COORDONNÉES) ---------
+// Variable globale pour le debouncing
+let lastAddressSearchTime = 0;
+
 async function handleUnifiedSearch(e) {
-  e.preventDefault();
+  e?.preventDefault?.();
+  
+  // Protection contre les exécutions multiples rapides (debouncing)
+  const now = Date.now();
+  const minDelay = 1000; // 1 seconde minimum entre deux recherches
+  
+  if (now - lastAddressSearchTime < minDelay) {
+    console.log('🔄 Recherche trop rapide, annulation (debouncing)');
+    return;
+  }
+  
+  lastAddressSearchTime = now;
   
   // Obtenir les éléments de l'interface
   const submitBtn = e.target.querySelector('button[type="submit"]');
