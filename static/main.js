@@ -1072,20 +1072,28 @@ function mergeResults(arr) {
 // --------- RECHERCHE UNIFIÉE (ADRESSE / COORDONNÉES) ---------
 // Variable globale pour le debouncing
 let lastAddressSearchTime = 0;
+let isSearchInProgress = false;
 
 async function handleUnifiedSearch(e) {
   e?.preventDefault?.();
   
-  // Protection contre les exécutions multiples rapides (debouncing)
+  // Protection contre les exécutions concurrentes (une seule recherche à la fois)
+  if (isSearchInProgress) {
+    console.log('🔄 Recherche déjà en cours, annulation');
+    return;
+  }
+  
+  // Protection légère contre les doubles clics (300ms)
   const now = Date.now();
-  const minDelay = 1000; // 1 seconde minimum entre deux recherches
+  const minDelay = 300; // 300ms minimum entre deux recherches (au lieu de 1s)
   
   if (now - lastAddressSearchTime < minDelay) {
-    console.log('🔄 Recherche trop rapide, annulation (debouncing)');
+    console.log('🔄 Double clic détecté, annulation');
     return;
   }
   
   lastAddressSearchTime = now;
+  isSearchInProgress = true;
   
   // Obtenir les éléments de l'interface
   const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -1203,6 +1211,9 @@ async function handleUnifiedSearch(e) {
     } finally {
       // Restaurer l'état du bouton
       setSearchStatus('idle', submitBtn, originalBtnText);
+      
+      // Libérer le flag de recherche en cours
+      isSearchInProgress = false;
       
       // Effacer les logs après quelques secondes si succès
       setTimeout(() => {
