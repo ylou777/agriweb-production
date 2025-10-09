@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Démo Autocomplétion - AgriWeb</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='autocomplete.css') }}">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .demo-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .demo-section h2 {
+            color: #667eea;
+            margin-top: 0;
+            font-size: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px 15px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        .info-box {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            border-left: 4px solid #2196f3;
+        }
+        .info-box h3 {
+            margin-top: 0;
+            color: #1976d2;
+            font-size: 16px;
+        }
+        .info-box p {
+            margin: 5px 0;
+            color: #555;
+            font-size: 14px;
+        }
+        .examples {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            border-left: 4px solid #ffc107;
+        }
+        .examples h4 {
+            margin-top: 0;
+            color: #856404;
+            font-size: 14px;
+        }
+        .examples ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .examples li {
+            color: #856404;
+            font-size: 13px;
+            margin: 5px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #28a745;
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .selected-info {
+            margin-top: 15px;
+            padding: 15px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 6px;
+            display: none;
+        }
+        .selected-info.active {
+            display: block;
+        }
+        .selected-info h4 {
+            margin-top: 0;
+            color: #155724;
+        }
+        .selected-info p {
+            margin: 5px 0;
+            color: #155724;
+            font-size: 14px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Démo Autocomplétion AgriWeb</h1>
+        <p class="subtitle">
+            <span class="badge">PRODUCTION READY</span>
+            Testez la recherche intelligente avec tolérance aux fautes de frappe
+        </p>
+
+        <!-- Section Adresses -->
+        <div class="demo-section">
+            <h2>📍 Recherche d'Adresses</h2>
+            <div class="form-group">
+                <label for="demo-address">Tapez une adresse (min 3 caractères) :</label>
+                <input 
+                    type="text" 
+                    id="demo-address" 
+                    placeholder="Essayez: montiers d'ahun, verdun 55, 10 rue paix paris..."
+                    autocomplete="off"
+                >
+            </div>
+            
+            <div id="address-selected" class="selected-info">
+                <h4>✅ Adresse sélectionnée</h4>
+                <p><strong>Label:</strong> <span id="address-label"></span></p>
+                <p><strong>Code postal:</strong> <span id="address-postcode"></span></p>
+                <p><strong>Ville:</strong> <span id="address-city"></span></p>
+                <p><strong>Coordonnées:</strong> <span id="address-coords"></span></p>
+            </div>
+
+            <div class="examples">
+                <h4>💡 Exemples à essayer :</h4>
+                <ul>
+                    <li><code>montiers d'ahun</code> → trouve <strong>Moutiers-d'Ahun</strong> (faute corrigée)</li>
+                    <li><code>verdun 55</code> → trouve les adresses à <strong>Verdun (55)</strong></li>
+                    <li><code>10 rue paix pari</code> → trouve <strong>10 Rue de la Paix Paris</strong></li>
+                    <li><code>lyon</code> → trouve des adresses à <strong>Lyon</strong></li>
+                    <li><code>75001</code> → trouve des adresses dans le <strong>1er arrondissement</strong></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Section Communes -->
+        <div class="demo-section">
+            <h2>🏛️ Recherche de Communes</h2>
+            <div class="form-group">
+                <label for="demo-commune">Tapez une commune (min 2 caractères) :</label>
+                <input 
+                    type="text" 
+                    id="demo-commune" 
+                    placeholder="Essayez: montiers, verdun, 23150, lyon..."
+                    autocomplete="off"
+                >
+            </div>
+            
+            <div id="commune-selected" class="selected-info">
+                <h4>✅ Commune sélectionnée</h4>
+                <p><strong>Nom:</strong> <span id="commune-nom"></span></p>
+                <p><strong>Code postal:</strong> <span id="commune-cp"></span></p>
+                <p><strong>Département:</strong> <span id="commune-dept"></span></p>
+                <p><strong>Population:</strong> <span id="commune-pop"></span></p>
+                <p><strong>Coordonnées:</strong> <span id="commune-coords"></span></p>
+            </div>
+
+            <div class="examples">
+                <h4>💡 Exemples à essayer :</h4>
+                <ul>
+                    <li><code>montiers</code> → trouve <strong>Moutiers-d'Ahun</strong> et autres</li>
+                    <li><code>verdun</code> → trouve <strong>Verdun (55)</strong>, <strong>Verdun-sur-Garonne (82)</strong>, etc.</li>
+                    <li><code>23150</code> → trouve la commune avec ce <strong>code postal</strong></li>
+                    <li><code>saint etienne</code> → trouve <strong>Saint-Étienne</strong> (accent ajouté)</li>
+                    <li><code>paris 15</code> → trouve <strong>Paris 15e Arrondissement</strong></li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Info Box -->
+        <div class="info-box">
+            <h3>ℹ️ Comment ça marche ?</h3>
+            <p><strong>🎯 Navigation clavier :</strong> Utilisez ↑↓ pour naviguer, Entrée pour sélectionner, Escape pour fermer</p>
+            <p><strong>⚡ Debouncing :</strong> Le système attend 300ms après votre dernière frappe avant de rechercher</p>
+            <p><strong>🌐 APIs officielles :</strong> Utilise la Base Adresse Nationale (BAN) et l'API Geo du gouvernement français</p>
+            <p><strong>💪 Tolérance aux fautes :</strong> Correction automatique des fautes de frappe courantes</p>
+        </div>
+
+        <div class="footer">
+            <p>🚀 <strong>AgriWeb</strong> - Système d'autocomplétion intelligent v1.0.0</p>
+            <p>Octobre 2025 • Production Ready</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='autocomplete.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Autocomplétion Adresses
+            const addressInput = document.getElementById('demo-address');
+            if (addressInput) {
+                new Autocomplete(addressInput, {
+                    apiEndpoint: '/api/autocomplete/address',
+                    minChars: 3,
+                    onSelect: function(suggestion) {
+                        // Afficher les infos de sélection
+                        document.getElementById('address-label').textContent = suggestion.label || 'N/A';
+                        document.getElementById('address-postcode').textContent = suggestion.postcode || 'N/A';
+                        document.getElementById('address-city').textContent = suggestion.city || 'N/A';
+                        document.getElementById('address-coords').textContent = 
+                            suggestion.lat && suggestion.lon 
+                            ? `${suggestion.lat.toFixed(6)}, ${suggestion.lon.toFixed(6)}`
+                            : 'N/A';
+                        
+                        document.getElementById('address-selected').classList.add('active');
+                        
+                        console.log('✅ Adresse sélectionnée:', suggestion);
+                    }
+                });
+            }
+
+            // Autocomplétion Communes
+            const communeInput = document.getElementById('demo-commune');
+            if (communeInput) {
+                new Autocomplete(communeInput, {
+                    apiEndpoint: '/api/autocomplete/commune',
+                    minChars: 2,
+                    onSelect: function(suggestion) {
+                        // Afficher les infos de sélection
+                        document.getElementById('commune-nom').textContent = suggestion.nom || 'N/A';
+                        document.getElementById('commune-cp').textContent = suggestion.code_postal || 'N/A';
+                        document.getElementById('commune-dept').textContent = suggestion.code_departement || 'N/A';
+                        
+                        const pop = suggestion.population || 0;
+                        document.getElementById('commune-pop').textContent = 
+                            pop > 0 ? `${pop.toLocaleString('fr-FR')} habitants` : 'N/A';
+                        
+                        document.getElementById('commune-coords').textContent = 
+                            suggestion.lat && suggestion.lon 
+                            ? `${suggestion.lat.toFixed(6)}, ${suggestion.lon.toFixed(6)}`
+                            : 'N/A';
+                        
+                        document.getElementById('commune-selected').classList.add('active');
+                        
+                        console.log('✅ Commune sélectionnée:', suggestion);
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

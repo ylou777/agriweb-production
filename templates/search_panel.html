@@ -11,7 +11,9 @@
     <div class="accordion-body">
       <form id="unifiedSearchForm" autocomplete="off">
         <label class="form-label" for="search_input">Adresse, coordonnées ou GeoJSON :</label>
-        <input id="search_input" class="form-control mb-2" placeholder='48.85,2.35 ou {"type":"Point",...}'>
+        <div class="autocomplete-wrapper">
+          <input id="search_input" class="form-control" placeholder='48.85,2.35 ou {"type":"Point",...}'>
+        </div>
 
         <div class="mb-2">
           <label class="form-label" for="sirene_radius">Rayon Sirène <span id="sirene_radius_val" class="slider-value"></span></label>
@@ -52,7 +54,9 @@
     <div class="accordion-body">
   <form id="communeSearchForm" autocomplete="off">
         <label class="form-label" for="commune">Commune :</label>
-        <input id="commune" name="commune" class="form-control mb-2" placeholder="Lyon">
+        <div class="autocomplete-wrapper">
+          <input id="commune" name="commune" class="form-control" placeholder="Lyon">
+        </div>
         <div class="mb-2">
           <label class="form-label" for="sirene_radius_commune">Rayon Sirène <span id="sireneCommVal" class="slider-value"></span></label>
           <input id="sirene_radius_commune" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">

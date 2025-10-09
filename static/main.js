@@ -1201,8 +1201,21 @@ async function handleUnifiedSearch(e) {
 }
 
 // --------- RECHERCHE PAR COMMUNE ---------
+let lastCommuneSearchTime = 0;
 async function handleCommuneSearch(e) {
   e?.preventDefault?.();
+  
+  // Protection contre les boucles infinies avec debouncing
+  const now = Date.now();
+  const minDelay = 1000; // Minimum 1 seconde entre deux recherches
+  
+  if (now - lastCommuneSearchTime < minDelay) {
+    console.log('🔄 Recherche commune trop rapide, annulation (debouncing)');
+    return;
+  }
+  
+  lastCommuneSearchTime = now;
+  
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
   switchMap("/static/map.html", async () => {
     const commune = document.getElementById("commune")?.value.trim();
@@ -1210,6 +1223,7 @@ async function handleCommuneSearch(e) {
       setCommuneSearchLog('❗️ Veuillez saisir une commune.', 'red');
       return alert("Commune requise.");
     }
+    
     setCommuneSearchLog('🔄 Envoi de la requête... Calculs en cours...', '#0a58ca');
     const ps = new URLSearchParams({
       commune,

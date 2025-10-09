@@ -11,6 +11,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="static/advanced_layer_control.css">
+  <!-- Autocomplétion adresses et communes -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='autocomplete.css') }}">
   <style>
     html, body {
       height: 100%;
@@ -319,7 +321,17 @@
     // Gestion du zoom automatique depuis les paramètres d'URL
     {% if zoom_lat and zoom_lon %}
     document.addEventListener('DOMContentLoaded', function() {
+        // Vérifier si on a déjà fait la recherche automatique (éviter la boucle)
+        const autoSearchDone = sessionStorage.getItem('autoSearchDone');
+        if (autoSearchDone === 'true') {
+            console.log('🔄 Recherche automatique déjà effectuée, annulation');
+            return;
+        }
+        
         console.log('🎯 Zoom automatique demandé:', {{ zoom_lat }}, {{ zoom_lon }}, '{{ zoom_address }}');
+        
+        // Marquer que la recherche auto a été faite
+        sessionStorage.setItem('autoSearchDone', 'true');
         
         // Attendre que la carte soit chargée avant de faire la recherche
         setTimeout(function() {
@@ -351,6 +363,51 @@
         }, 2000);
     });
     {% endif %}
+  </script>
+  
+  <!-- Autocomplétion pour adresses et communes -->
+  <script src="{{ url_for('static', filename='autocomplete.js') }}"></script>
+  <script>
+    // Initialisation de l'autocomplete pour les adresses et communes
+    document.addEventListener('DOMContentLoaded', function() {
+      // Autocomplete pour le champ de recherche d'adresse
+      const searchInput = document.getElementById('search_input');
+      if (searchInput) {
+        new Autocomplete(searchInput, {
+          type: 'address',
+          minChars: 3,
+          onSelect: function(suggestion) {
+            console.log('🏠 Adresse sélectionnée:', suggestion);
+            // Remplir les champs cachés
+            const latInput = document.getElementById('latitude');
+            const lonInput = document.getElementById('longitude');
+            const addressInput = document.getElementById('address');
+            
+            if (latInput && suggestion.geometry && suggestion.geometry.coordinates) {
+              lonInput.value = suggestion.geometry.coordinates[0];
+              latInput.value = suggestion.geometry.coordinates[1];
+            }
+            if (addressInput) {
+              addressInput.value = suggestion.properties.label;
+            }
+          }
+        });
+      }
+      
+      // Autocomplete pour le champ de recherche par commune
+      const communeInput = document.getElementById('commune');
+      if (communeInput) {
+        new Autocomplete(communeInput, {
+          type: 'commune',
+          minChars: 2,
+          onSelect: function(suggestion) {
+            console.log('🏘️ Commune sélectionnée:', suggestion);
+            // La valeur est déjà définie dans l'input par la classe Autocomplete
+            // On peut déclencher la recherche automatiquement si souhaité
+          }
+        });
+      }
+    });
   </script>
 </body>
 </html>

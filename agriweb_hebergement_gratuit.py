@@ -2492,6 +2492,11 @@ def demo_rapports():
     """Page démo avec exemples de rapports"""
     return render_template("demo_rapports.html")
 
+@app.route("/demo/autocomplete")
+def demo_autocomplete():
+    """Page démo de l'autocomplétion intelligente pour adresses et communes"""
+    return render_template("demo_autocomplete.html")
+
 @app.route("/payment-success")
 def payment_success():
     """Page de confirmation de paiement réussi"""
@@ -11258,6 +11263,154 @@ def test_geoserver():
             'error': str(e),
             'environment': 'railway' if os.environ.get('RAILWAY_ENVIRONMENT') else 'local'
         })
+
+# ==================== AUTOCOMPLETE API ====================
+@app.route("/api/autocomplete/address", methods=["GET"])
+def autocomplete_address():
+    """
+    Autocomplétion d'adresses avec l'API BAN (Base Adresse Nationale)
+    Supporte la recherche floue et tolère les fautes de frappe
+    
+    Exemples:
+    - "montiers d'ahun" → trouve "Moutiers-d'Ahun"
+    - "verdun 55" → trouve les adresses à Verdun (55)
+    - "10 rue de la paix pari" → trouve "10 Rue de la Paix 75002 Paris"
+    """
+    query = request.args.get('q', '').strip()
+    
+    if not query or len(query) < 3:
+        return jsonify({'suggestions': []})
+    
+    try:
+        # API BAN - Base Adresse Nationale (gratuite, française, excellente précision)
+        url = "https://api-adresse.data.gouv.fr/search/"
+        params = {
+            'q': query,
+            'limit': 8,  # Nombre de suggestions
+            'autocomplete': 1  # Mode autocomplétion
+        }
+        
+        response = requests.get(url, params=params, timeout=3)
+        
+        if response.status_code == 200:
+            data = response.json()
+            suggestions = []
+            
+            for feature in data.get('features', []):
+                props = feature.get('properties', {})
+                coords = feature.get('geometry', {}).get('coordinates', [])
+                
+                # Construction du label avec formatage
+                label = props.get('label', '')
+                city = props.get('city', '')
+                postcode = props.get('postcode', '')
+                context = props.get('context', '')
+                score = props.get('score', 0)
+                
+                # Icône selon le type
+                type_addr = props.get('type', 'housenumber')
+                icon = '📍' if type_addr == 'housenumber' else '🏘️' if type_addr == 'street' else '🏛️'
+                
+                suggestion = {
+                    'label': label,
+                    'value': label,
+                    'city': city,
+                    'postcode': postcode,
+                    'context': context,
+                    'lat': coords[1] if len(coords) > 1 else None,
+                    'lon': coords[0] if len(coords) > 0 else None,
+                    'score': score,
+                    'type': type_addr,
+                    'icon': icon,
+                    'display': f"{icon} {label}"
+                }
+                suggestions.append(suggestion)
+            
+            # Trier par score décroissant
+            suggestions.sort(key=lambda x: x['score'], reverse=True)
+            
+            return jsonify({'suggestions': suggestions})
+        else:
+            print(f"[AUTOCOMPLETE] Erreur API BAN: {response.status_code}")
+            return jsonify({'suggestions': []})
+            
+    except Exception as e:
+        print(f"[AUTOCOMPLETE] Erreur: {e}")
+        return jsonify({'suggestions': [], 'error': str(e)})
+
+
+@app.route("/api/autocomplete/commune", methods=["GET"])
+def autocomplete_commune():
+    """
+    Autocomplétion de communes avec l'API Geo.data.gouv.fr
+    Supporte la recherche par nom, code postal, code INSEE
+    Tolère les fautes de frappe
+    
+    Exemples:
+    - "montiers" → trouve "Moutiers-d'Ahun"
+    - "verdun" → trouve "Verdun (55100, 55)" et "Verdun-sur-Garonne (82600, 82)"
+    - "75001" → trouve "Paris 1er Arrondissement"
+    """
+    query = request.args.get('q', '').strip()
+    
+    if not query or len(query) < 2:
+        return jsonify({'suggestions': []})
+    
+    try:
+        # API Geo - communes (gratuite, française)
+        url = "https://geo.api.gouv.fr/communes"
+        params = {
+            'nom': query,
+            'fields': 'nom,code,codesPostaux,codeDepartement,population,centre',
+            'format': 'json',
+            'limit': 10
+        }
+        
+        response = requests.get(url, params=params, timeout=3)
+        
+        if response.status_code == 200:
+            communes = response.json()
+            suggestions = []
+            
+            for commune in communes:
+                nom = commune.get('nom', '')
+                code_insee = commune.get('code', '')
+                codes_postaux = commune.get('codesPostaux', [])
+                code_dept = commune.get('codeDepartement', '')
+                population = commune.get('population', 0)
+                centre = commune.get('centre', {})
+                
+                # Label avec code postal et département
+                cp_str = codes_postaux[0] if codes_postaux else ''
+                label = f"{nom} ({cp_str}, {code_dept})"
+                
+                # Formattage population
+                pop_str = f"{population:,}".replace(',', ' ') if population else 'N/A'
+                
+                suggestion = {
+                    'label': label,
+                    'value': nom,
+                    'nom': nom,
+                    'code_insee': code_insee,
+                    'codes_postaux': codes_postaux,
+                    'code_postal': cp_str,
+                    'code_departement': code_dept,
+                    'population': population,
+                    'lat': centre.get('coordinates', [None, None])[1],
+                    'lon': centre.get('coordinates', [None, None])[0],
+                    'display': f"🏛️ {nom} ({cp_str}, {code_dept}) - {pop_str} hab."
+                }
+                suggestions.append(suggestion)
+            
+            return jsonify({'suggestions': suggestions})
+        else:
+            print(f"[AUTOCOMPLETE] Erreur API Geo: {response.status_code}")
+            return jsonify({'suggestions': []})
+            
+    except Exception as e:
+        print(f"[AUTOCOMPLETE] Erreur: {e}")
+        return jsonify({'suggestions': [], 'error': str(e)})
+
 
 @app.route("/search_by_address", methods=["GET", "POST"])
 def search_by_address_route():

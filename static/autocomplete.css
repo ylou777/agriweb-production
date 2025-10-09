@@ -1,0 +1,148 @@
+/**
+ * Styles pour l'autocomplétion d'adresses et communes
+ */
+
+/* Wrapper pour positionner correctement les suggestions */
+.autocomplete-wrapper {
+    position: relative;
+    margin-bottom: 0.5rem; /* Équivalent à mb-2 */
+}
+
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: white;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    max-height: 320px;
+    overflow-y: auto;
+    margin-top: -1px;
+}
+
+.autocomplete-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background-color: #f0f7ff;
+}
+
+.autocomplete-item strong {
+    color: #007bff;
+    font-weight: 600;
+}
+
+.autocomplete-context {
+    display: block;
+    color: #666;
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+/* Scrollbar personnalisée */
+.autocomplete-suggestions::-webkit-scrollbar {
+    width: 8px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* Animation d'apparition */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.autocomplete-suggestions {
+    animation: slideDown 0.2s ease;
+}
+
+/* Indicateur de chargement */
+.autocomplete-loading {
+    position: relative;
+}
+
+.autocomplete-loading::after {
+    content: '';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #007bff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translateY(-50%) rotate(0deg); }
+    100% { transform: translateY(-50%) rotate(360deg); }
+}
+
+/* Message "Aucun résultat" */
+.autocomplete-no-results {
+    padding: 12px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 576px) {
+    .autocomplete-suggestions {
+        font-size: 13px;
+        max-height: 240px;
+    }
+    
+    .autocomplete-item {
+        padding: 8px 10px;
+    }
+}
+
+/* Focus sur l'input avec suggestions */
+input:focus + .autocomplete-suggestions {
+    border-color: #007bff;
+}
+
+/* Amélioration visuelle pour les icônes emoji */
+.autocomplete-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.autocomplete-item strong {
+    flex: 1;
+}
