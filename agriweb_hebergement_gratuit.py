@@ -216,11 +216,24 @@ def fetch_georisques_risks(lat, lon):
     Appelle l'API GeoRisques pour obtenir les risques naturels et technologiques pour un point.
     Utilise tous les endpoints disponibles dans l'API v1.
     Voir doc: https://www.georisques.gouv.fr/doc-api
+    
+    Modifications 2025:
+    - Radon nécessite maintenant code_insee au lieu de latlon
+    - Installations: endpoint est "installations_classees" (pas "installations")
+    - Argiles: utilise gaspar/risques avec code_insee
     """
-    # safe_print(f"🔍 [GEORISQUES] === DÉBUT APPEL GEORISQUES pour point {lat}, {lon} ===")  # Optimisé pour production multi-user
     risques = {}
     latlon = f"{lon},{lat}"  # Format longitude,latitude pour l'API
-    # print(f"🔍 [GEORISQUES] Format latlon: {latlon}")  # Optimisé pour production multi-user
+    
+    # Obtenir le code INSEE de la commune via géocodage inversé
+    code_insee = None
+    try:
+        geo_info = get_address_from_coordinates(lat, lon)
+        if geo_info and geo_info.get('citycode'):
+            code_insee = geo_info['citycode']
+            print(f"[GeoRisques] Code INSEE récupéré: {code_insee}")
+    except Exception as e:
+        print(f"[GeoRisques] Impossible de récupérer le code INSEE: {e}")
     
     # 1. Zonage sismique
     try:
@@ -235,7 +248,7 @@ def fetch_georisques_risks(lat, lon):
             risques["sismique"] = []
     except Exception as e:
         print(f"[GeoRisques Sismique] Exception: {e}")
-                    # cleaned corrupted pasted text block removed
+        risques["sismique"] = []
 
     # 8. CATNAT - Catastrophes naturelles
     try:
@@ -282,39 +295,54 @@ def fetch_georisques_risks(lat, lon):
         print(f"[GeoRisques MVT] Exception: {e}")
         risques["mvt"] = []
 
-    # 11. Retrait gonflement des argiles
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/argiles"
-        params = {"latlon": latlon}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["argiles"] = data.get("data", [])
-        else:
-            print(f"[GeoRisques Argiles] Erreur: {resp.status_code}")
+    # 11. Retrait gonflement des argiles - Via gaspar/risques avec code_insee
+    if code_insee:
+        try:
+            url = "https://www.georisques.gouv.fr/api/v1/gaspar/risques"
+            params = {"code_insee": code_insee}
+            resp = requests.get(url, params=params, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("data", [])
+                # Extraire les risques liés aux argiles/RGA
+                argiles_risks = []
+                for item in results:
+                    for risk in item.get('risques_detail', []):
+                        if 'argile' in risk.get('libelle_risque_long', '').lower() or \
+                           'tassement' in risk.get('libelle_risque_long', '').lower():
+                            argiles_risks.append(risk)
+                risques["argiles"] = argiles_risks
+            else:
+                print(f"[GeoRisques Argiles] Erreur: {resp.status_code}")
+                risques["argiles"] = []
+        except Exception as e:
+            print(f"[GeoRisques Argiles] Exception: {e}")
             risques["argiles"] = []
-    except Exception as e:
-        print(f"[GeoRisques Argiles] Exception: {e}")
+    else:
         risques["argiles"] = []
 
-    # 12. Radon
-    try:
-        url = "https://www.georisques.gouv.fr/api/v1/radon"
-        params = {"latlon": latlon}
-        resp = requests.get(url, params=params, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            risques["radon"] = data.get("data", [])
-        else:
-            print(f"[GeoRisques Radon] Erreur: {resp.status_code}")
+    # 12. Radon - Nécessite code_insee
+    if code_insee:
+        try:
+            url = "https://www.georisques.gouv.fr/api/v1/radon"
+            params = {"code_insee": code_insee}
+            resp = requests.get(url, params=params, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                risques["radon"] = data.get("data", [])
+            else:
+                print(f"[GeoRisques Radon] Erreur: {resp.status_code}")
+                risques["radon"] = []
+        except Exception as e:
+            print(f"[GeoRisques Radon] Exception: {e}")
             risques["radon"] = []
-    except Exception as e:
-        print(f"[GeoRisques Radon] Exception: {e}")
+    else:
+        print("[GeoRisques Radon] Code INSEE manquant, impossible de récupérer les données radon")
         risques["radon"] = []
 
-    # 13. Installations classées
+    # 13. Installations classées - Endpoint corrigé
     try:
-        url = "https://www.georisques.gouv.fr/api/v1/installations"
+        url = "https://www.georisques.gouv.fr/api/v1/installations_classees"
         params = {"latlon": latlon, "rayon": 2000}  # Rayon plus large pour les installations
         resp = requests.get(url, params=params, timeout=10)
         if resp.status_code == 200:
@@ -341,8 +369,6 @@ def fetch_georisques_risks(lat, lon):
     except Exception as e:
         print(f"[GeoRisques Nucléaire] Exception: {e}")
         risques["nucleaire"] = []
-
-    # print(f"🔍 [GEORISQUES] Risques récupérés pour {lat},{lon}: {len(risques)} catégories")  # Optimisé pour production multi-user
     
     # Comptons le nombre total de risques
     total_risks = 0
@@ -350,10 +376,6 @@ def fetch_georisques_risks(lat, lon):
         if risks and isinstance(risks, list):
             count = len(risks)
             total_risks += count
-            # print(f"🔍 [GEORISQUES] - {category}: {count} risque(s)")  # Optimisé pour production multi-user
-        else:
-            # print(f"🔍 [GEORISQUES] - {category}: 0 risque(s)")  # Optimisé pour production multi-user
-            pass
     
     print(f"🔍 [GEORISQUES] === TOTAL: {total_risks} risques trouvés ===")
     return risques
@@ -5029,17 +5051,17 @@ def build_simple_map(
     if api_cadastre is None or not isinstance(api_cadastre, dict):
         api_cadastre = {"type": "FeatureCollection", "features": []}
     
-    # Création de la carte
-    map_obj = folium.Map(location=[lat, lon], zoom_start=16, tiles=None)
+    # Création de la carte avec zoom étendu
+    map_obj = folium.Map(location=[lat, lon], zoom_start=16, tiles=None, max_zoom=22)
     
     # Fonds de carte
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery",
         name="Satellite",
-        overlay=False, control=True, show=True
+        overlay=False, control=True, show=True, max_zoom=22
     ).add_to(map_obj)
-    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
+    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False, max_zoom=19).add_to(map_obj)
     
     # Outils
     from folium.plugins import Draw
@@ -5454,17 +5476,17 @@ def build_map(
     if ppri_data is None or not isinstance(ppri_data, dict):
         ppri_data = {"type": "FeatureCollection", "features": []}
     
-    # === CRÉATION DE LA CARTE (doit être fait avant toute utilisation) ===
-    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+    # === CRÉATION DE LA CARTE avec zoom étendu ===
+    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None, max_zoom=22)
     
     # Ajouter les couches de base
     folium.TileLayer(
         tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         attr="Esri World Imagery",
         name="Satellite",
-        overlay=False, control=True, show=True
+        overlay=False, control=True, show=True, max_zoom=22
     ).add_to(map_obj)
-    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
+    folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False, max_zoom=19).add_to(map_obj)
     
     # --- PPRI ---
     if ppri_data.get("features"):
@@ -11847,16 +11869,16 @@ def search_by_address_route():
     if not carte_url:
         print(f"[WARNING] Génération carte échouée, retry avec carte simple...")
         try:
-            # Régénérer une carte Folium avec au moins les données de base
+            # Régénérer une carte Folium avec au moins les données de base et zoom étendu
             import folium
-            simple_map = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+            simple_map = folium.Map(location=[lat, lon], zoom_start=13, tiles=None, max_zoom=22)
             
             # Fonds de carte
             folium.TileLayer(
                 tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-                attr="Esri World Imagery", name="Satellite", overlay=False, control=True, show=True
+                attr="Esri World Imagery", name="Satellite", overlay=False, control=True, show=True, max_zoom=22
             ).add_to(simple_map)
-            folium.TileLayer("OpenStreetMap", name="OSM", overlay=False, control=True, show=False).add_to(simple_map)
+            folium.TileLayer("OpenStreetMap", name="OSM", overlay=False, control=True, show=False, max_zoom=19).add_to(simple_map)
             
             # Point de recherche
             folium.Marker([lat, lon], popup=f"📍 {address}").add_to(simple_map)
@@ -11893,7 +11915,7 @@ def search_by_address_route():
 @app.route("/rapport_departement", methods=["POST"])
 def rapport_departement_post():
     """
-    Route POST corrigée pour le rapport départemental
+    Route POST corrigée pour le rapport départemental avec limitation de données
     """
     import time
     
@@ -11912,28 +11934,75 @@ def rapport_departement_post():
         
         print(f"[RAPPORT_DEPT] Département détecté: {dept}")
         
+        # LIMITATION: Réduire les données dans chaque rapport pour éviter HTTP/2 protocol error
+        # Ne garder que les premières parcelles de chaque commune (max 20)
+        limited_reports = []
+        for rpt in reports:
+            limited_rpt = rpt.copy()
+            
+            # Limiter les parcelles RPG
+            if "rpg_parcelles" in limited_rpt and isinstance(limited_rpt["rpg_parcelles"], dict):
+                features = limited_rpt["rpg_parcelles"].get("features", [])
+                if len(features) > 20:
+                    limited_rpt["rpg_parcelles"]["features"] = features[:20]
+                    print(f"[RAPPORT_DEPT] {rpt.get('commune', 'N/A')}: Limité à 20 parcelles (sur {len(features)})")
+            
+            # Limiter les éleveurs
+            if "eleveurs" in limited_rpt and isinstance(limited_rpt["eleveurs"], dict):
+                features = limited_rpt["eleveurs"].get("features", [])
+                if len(features) > 10:
+                    limited_rpt["eleveurs"]["features"] = features[:10]
+                    print(f"[RAPPORT_DEPT] {rpt.get('commune', 'N/A')}: Limité à 10 éleveurs (sur {len(features)})")
+            
+            # Limiter les postes BT
+            if "postes_bt" in limited_rpt and isinstance(limited_rpt["postes_bt"], dict):
+                features = limited_rpt["postes_bt"].get("features", [])
+                if len(features) > 10:
+                    limited_rpt["postes_bt"]["features"] = features[:10]
+            
+            # Limiter les postes HTA
+            if "postes_hta" in limited_rpt and isinstance(limited_rpt["postes_hta"], dict):
+                features = limited_rpt["postes_hta"].get("features", [])
+                if len(features) > 10:
+                    limited_rpt["postes_hta"]["features"] = features[:10]
+            
+            # Limiter les capacités HTA
+            if "hta_capacites" in limited_rpt and isinstance(limited_rpt["hta_capacites"], dict):
+                features = limited_rpt["hta_capacites"].get("features", [])
+                if len(features) > 10:
+                    limited_rpt["hta_capacites"]["features"] = features[:10]
+            
+            limited_reports.append(limited_rpt)
+        
         # Utilisation de la fonction synthese_departement corrigée
-        synthese = synthese_departement(reports)
+        synthese = synthese_departement(limited_reports)
         
         # Enrichissement SIRET pour les éleveurs dans le TOP 50
         def enrich_eleveurs_with_siret(eleveurs_features):
-            """Enrichit les éleveurs avec les données SIRET"""
+            """Enrichit les éleveurs avec les données SIRET (max 50 pour éviter timeout)"""
             enriched = []
+            count = 0
+            max_enrich = 50
+            
             for feat in eleveurs_features:
                 props = feat.get("properties", {})
                 
-                # Tentative d'enrichissement SIRET
-                siret = props.get("siret") or props.get("SIRET")
-                if siret:
-                    try:
-                        sirene_info = fetch_sirene_info(siret)
-                        if sirene_info:
-                            props.update(sirene_info)
-                            props["siret_enriched"] = True
-                        else:
+                # Limiter l'enrichissement SIRET à 50 pour éviter timeout
+                if count < max_enrich:
+                    siret = props.get("siret") or props.get("SIRET")
+                    if siret:
+                        try:
+                            sirene_info = fetch_sirene_info(siret)
+                            if sirene_info:
+                                props.update(sirene_info)
+                                props["siret_enriched"] = True
+                            else:
+                                props["siret_enriched"] = False
+                            count += 1
+                        except Exception as e:
+                            print(f"[RAPPORT_DEPT] Erreur enrichissement SIRET {siret}: {e}")
                             props["siret_enriched"] = False
-                    except Exception as e:
-                        print(f"[RAPPORT_DEPT] Erreur enrichissement SIRET {siret}: {e}")
+                    else:
                         props["siret_enriched"] = False
                 else:
                     props["siret_enriched"] = False
@@ -11973,12 +12042,17 @@ def rapport_departement_post():
         top50_corrected = fix_distances_in_top50(synthese["top50_parcelles"])
         synthese["top50_parcelles"] = top50_corrected
         
-        # Enrichissement des éleveurs du département
+        # Enrichissement des éleveurs du département (limité)
         all_eleveurs = []
-        for rpt in reports:
+        for rpt in limited_reports:
             fc_e = rpt.get("eleveurs", {})
             if fc_e and isinstance(fc_e, dict) and "features" in fc_e:
                 all_eleveurs.extend(fc_e.get("features", []))
+        
+        # Limiter à 100 éleveurs max pour l'enrichissement
+        if len(all_eleveurs) > 100:
+            print(f"[RAPPORT_DEPT] Limitation des éleveurs: {len(all_eleveurs)} -> 100")
+            all_eleveurs = all_eleveurs[:100]
         
         all_eleveurs_enriched = enrich_eleveurs_with_siret(all_eleveurs)
         
@@ -12011,17 +12085,60 @@ def rapport_departement_post():
         print(f"[RAPPORT_DEPT] nb_agriculteurs: {synthese.get('nb_agriculteurs')}")
         print(f"[RAPPORT_DEPT] nb_parcelles: {synthese.get('nb_parcelles')}")
         print(f"[RAPPORT_DEPT] Transmission au template: synthese={bool(synthese)}, dept={dept}")
+        print(f"[RAPPORT_DEPT] Nombre de rapports limités: {len(limited_reports)}")
         
-        return render_template(
-            "rapport_departement_complet.html",
-            reports=reports,
-            dept=dept,
-            synthese=synthese,
-            eleveurs_enriched=all_eleveurs_enriched
-        )
+        # Générer le rapport avec données limitées
+        try:
+            html = render_template(
+                "rapport_departement_complet.html",
+                reports=limited_reports,
+                dept=dept,
+                synthese=synthese,
+                eleveurs_enriched=all_eleveurs_enriched
+            )
+            
+            # Vérifier la taille du HTML généré
+            html_size_mb = len(html.encode('utf-8')) / (1024 * 1024)
+            print(f"[RAPPORT_DEPT] Taille HTML générée: {html_size_mb:.2f} MB")
+            
+            if html_size_mb > 10:
+                print(f"[RAPPORT_DEPT] ATTENTION: HTML très volumineux ({html_size_mb:.2f} MB)")
+                # Si trop volumineux, générer un rapport simplifié
+                return render_template(
+                    "rapport_departement_simple.html",
+                    reports=limited_reports,
+                    dept=dept,
+                    synthese=synthese
+                )
+            
+            return html
+            
+        except Exception as template_error:
+            print(f"[RAPPORT_DEPT] Erreur template: {template_error}")
+            import traceback
+            traceback.print_exc()
+            
+            # Fallback: Rapport minimal en cas d'erreur
+            return f"""
+            <!DOCTYPE html>
+            <html lang="fr">
+            <head>
+                <meta charset="UTF-8">
+                <title>Rapport département {dept or ''}</title>
+            </head>
+            <body>
+                <h1>Rapport du département {dept or ''}</h1>
+                <p><strong>Erreur lors de la génération du rapport détaillé.</strong></p>
+                <p>Nombre de communes: {len(limited_reports)}</p>
+                <p>Total parcelles: {synthese.get('total_parcelles', 0)}</p>
+                <p>Total agriculteurs: {synthese.get('total_eleveurs', 0)}</p>
+                <p>Erreur: {str(template_error)}</p>
+            </body>
+            </html>
+            """
         
     except Exception as e:
-        print(f"[RAPPORT_DEPT] Erreur: {e}")
+        print(f"[RAPPORT_DEPT] Erreur globale: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
@@ -13692,14 +13809,14 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 # On saute la (re)génération d'une autre carte
                 raise StopIteration()
 
-            m = folium.Map(location=[lat, lon], zoom_start=13, tiles=None)
+            m = folium.Map(location=[lat, lon], zoom_start=13, tiles=None, max_zoom=22)
             folium.TileLayer(
                 tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                 attr="Esri World Imagery",
                 name="Satellite",
-                overlay=False, control=True, show=True
+                overlay=False, control=True, show=True, max_zoom=22
             ).add_to(m)
-            folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(m)
+            folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False, max_zoom=19).add_to(m)
 
             # Lightweight reverse geocode using BAN for nicer popups (guarded + timeout)
             import requests as _rq
