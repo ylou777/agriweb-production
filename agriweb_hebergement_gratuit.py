@@ -468,6 +468,40 @@ def clean_filename(text, max_length=50):
         text = text[:max_length]
     return text
 
+def generate_secure_filename(prefix, description="", extension=".html"):
+    """
+    🔒 Génère un nom de fichier sécurisé avec token UUID pour éviter les collisions
+    et empêcher la découverte par énumération.
+    
+    Format: {prefix}_{description}_{uuid8}_{timestamp}.{extension}
+    Exemple: recherche_15-rue-paris_a3f8d2c1_20251010_150623.html
+    
+    Args:
+        prefix: Type de fichier (recherche, rapport, commune, etc.)
+        description: Description courte (adresse, commune, etc.) - optionnel
+        extension: Extension du fichier (défaut: .html)
+    
+    Returns:
+        str: Nom de fichier sécurisé et unique
+    """
+    import uuid
+    from datetime import datetime
+    
+    # Générer un token UUID court (8 premiers caractères)
+    token = str(uuid.uuid4())[:8]
+    
+    # Timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Nettoyer la description
+    if description:
+        clean_desc = clean_filename(description, max_length=30)
+        filename = f"{prefix}_{clean_desc}_{token}_{timestamp}{extension}"
+    else:
+        filename = f"{prefix}_{token}_{timestamp}{extension}"
+    
+    return filename
+
 # --- Utility: Save Folium map to static/cartes/ and return relative path ---
 def save_map_html(map_obj, filename):
     """
@@ -8693,8 +8727,8 @@ def search_by_commune():
     carte_url = None
     if map_obj:
         from datetime import datetime
-        clean_commune = clean_filename(commune)
-        carte_filename = f"commune_{clean_commune}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        # 🔒 Utilisation du nom de fichier sécurisé avec UUID
+        carte_filename = generate_secure_filename("commune", commune)
         carte_path = save_map_html(map_obj, carte_filename)
         carte_url = carte_path  # Utiliser directement le chemin retourné
         print(f"✅ [CARTE] Carte sauvegardée: {carte_path}, carte_url: {carte_url}")
@@ -10412,9 +10446,8 @@ def rapport_map_point():
                 ppri_data=ppri_data
             )
             
-            # Créer un nom de fichier descriptif avec l'adresse
-            clean_addr = clean_filename(address)
-            carte_filename = f"rapport_{clean_addr}_{timestamp}.html"
+            # 🔒 Créer un nom de fichier sécurisé avec UUID
+            carte_filename = generate_secure_filename("rapport", address)
             carte_path = os.path.join(app.root_path, "static", "cartes")
             os.makedirs(carte_path, exist_ok=True)
             
@@ -11949,10 +11982,8 @@ def search_by_address_route():
             capacites_reseau=ensure_feature_list(capacites_reseau)
         )
         
-        # Créer un nom de fichier descriptif avec l'adresse
-        clean_addr = clean_filename(address)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        carte_filename = f"recherche_{clean_addr}_{timestamp}.html"
+        # 🔒 Créer un nom de fichier sécurisé avec UUID
+        carte_filename = generate_secure_filename("recherche", address)
         
         try:
             carte_url = save_map_html(map_obj, carte_filename)
