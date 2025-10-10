@@ -129,14 +129,73 @@
             padding: 1rem;
         }
         
+        /* Styles pour l'impression PDF */
         @media print {
-            .main-header { background: #007bff !important; }
-            .metric-card { break-inside: avoid; }
-            .card { break-inside: avoid; margin-bottom: 1rem; }
+            /* Masquer les éléments d'interface */
+            button, .btn, .action-buttons, nav, .navbar, .breadcrumb {
+                display: none !important;
+            }
+            
+            /* Optimiser le layout pour le PDF */
+            body {
+                background: white !important;
+                color: black !important;
+                font-size: 11pt;
+            }
+            
+            .main-header { 
+                background: #007bff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                color: white !important;
+            }
+            
+            /* Éviter les coupures de page */
+            .metric-card, .card, .table-responsive, .info-section {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            
+            .card {
+                margin-bottom: 1rem;
+                border: 1px solid #ddd !important;
+            }
+            
+            /* S'assurer que les couleurs sont imprimées */
+            .badge, .alert, .bg-primary, .bg-success, .bg-warning, .bg-danger {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            
+            /* Forcer le format A4 */
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+            
+            /* Numérotation des pages */
+            @page :first {
+                margin-top: 10mm;
+            }
+            
+            /* Optimiser les tableaux */
+            table {
+                font-size: 10pt;
+            }
+            
+            thead {
+                display: table-header-group;
+            }
+            
+            tr {
+                page-break-inside: avoid;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Wrapper pour export PDF -->
+    <div id="reportContent">
     <!-- En-tête principal -->
     <div class="main-header">
         <div class="container-fluid">
@@ -1410,14 +1469,11 @@
         <!-- Boutons d'action -->
         <div class="row mt-4">
             <div class="col-12 text-center">
-                <button class="btn btn-primary me-2" onclick="window.print()">
-                    <i class="bi bi-printer"></i> Imprimer le rapport
+                <button class="btn btn-primary me-2" onclick="generatePDF()">
+                    <i class="bi bi-file-pdf"></i> Exporter en PDF
                 </button>
-                <button class="btn btn-outline-secondary me-2" onclick="history.back()">
-                    <i class="bi bi-arrow-left"></i> Retour
-                </button>
-                <button class="btn btn-outline-info me-2" onclick="generatePDF()">
-                    <i class="bi bi-file-pdf"></i> Exporter PDF
+                <button class="btn btn-outline-secondary me-2" onclick="window.close(); return false;">
+                    <i class="bi bi-x-circle"></i> Fermer
                 </button>
                 <button class="btn btn-outline-success" onclick="window.open('{{ report.carte_url }}', '_blank')">
                     <i class="bi bi-map"></i> Carte plein écran
@@ -1442,13 +1498,34 @@
             </p>
         </footer>
     </div>
+    </div><!-- Fin #reportContent pour export PDF -->
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Fonction pour générer un PDF (placeholder)
+        // Fonction pour générer un PDF via l'impression du navigateur
         function generatePDF() {
-            alert('Fonctionnalité d\'export PDF en développement');
+            // Masquer temporairement les boutons pour l'impression
+            const buttons = document.querySelectorAll('button, .btn, .action-buttons');
+            const originalDisplay = [];
+            
+            buttons.forEach((btn, index) => {
+                originalDisplay[index] = btn.style.display;
+                btn.style.display = 'none';
+            });
+
+            // Ajouter une classe pour l'impression
+            document.body.classList.add('printing');
+
+            // Déclencher l'impression du navigateur
+            window.print();
+
+            // Restaurer les boutons après l'impression
+            buttons.forEach((btn, index) => {
+                btn.style.display = originalDisplay[index];
+            });
+            
+            document.body.classList.remove('printing');
         }
 
         // Amélioration de l'affichage des métriques avec animations

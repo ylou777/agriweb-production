@@ -1083,12 +1083,12 @@ async function handleUnifiedSearch(e) {
     return;
   }
   
-  // Protection légère contre les doubles clics (300ms)
+  // Protection contre les doubles clics et recherches multiples (2s)
   const now = Date.now();
-  const minDelay = 300; // 300ms minimum entre deux recherches (au lieu de 1s)
+  const minDelay = 2000; // 2 secondes minimum entre deux recherches
   
   if (now - lastAddressSearchTime < minDelay) {
-    console.log('🔄 Double clic détecté, annulation');
+    console.log('🔄 Recherche en cours ou trop rapide, annulation');
     return;
   }
   
@@ -1628,6 +1628,13 @@ function switchMap(target = "/static/map.html", onReady) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Protection contre l'ajout multiple de listeners
+    if (window.listenersAttached) {
+        console.log('⚠️ Listeners déjà attachés, skip');
+        return;
+    }
+    window.listenersAttached = true;
+    
     // Branche sliders si tu utilises
     setupSliders();
     // Branche formulaires
