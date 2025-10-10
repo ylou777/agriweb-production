@@ -448,6 +448,26 @@ except ImportError as e:
     print(f"⚠️ [RAPPORT] Module de rapport complet non disponible: {e}")
     RAPPORT_COMPLET_AVAILABLE = False
 
+# --- Utility: Clean filename for safe file naming ---
+def clean_filename(text, max_length=50):
+    """
+    Nettoie un texte pour en faire un nom de fichier valide.
+    Supprime les caractères spéciaux, remplace les espaces par des underscores.
+    """
+    import re
+    # Supprimer les accents
+    import unicodedata
+    text = unicodedata.normalize('NFKD', text)
+    text = text.encode('ascii', 'ignore').decode('ascii')
+    # Remplacer les espaces et caractères spéciaux par des underscores
+    text = re.sub(r'[^\w\s-]', '', text)
+    text = re.sub(r'[\s]+', '_', text)
+    text = text.strip('_')
+    # Limiter la longueur
+    if len(text) > max_length:
+        text = text[:max_length]
+    return text
+
 # --- Utility: Save Folium map to static/cartes/ and return relative path ---
 def save_map_html(map_obj, filename):
     """
@@ -8673,7 +8693,8 @@ def search_by_commune():
     carte_url = None
     if map_obj:
         from datetime import datetime
-        carte_filename = f"commune_map_{commune.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+        clean_commune = clean_filename(commune)
+        carte_filename = f"commune_{clean_commune}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
         carte_path = save_map_html(map_obj, carte_filename)
         carte_url = carte_path  # Utiliser directement le chemin retourné
         print(f"✅ [CARTE] Carte sauvegardée: {carte_path}, carte_url: {carte_url}")
@@ -10391,7 +10412,9 @@ def rapport_map_point():
                 ppri_data=ppri_data
             )
             
-            carte_filename = f"rapport_point_{timestamp}.html"
+            # Créer un nom de fichier descriptif avec l'adresse
+            clean_addr = clean_filename(address)
+            carte_filename = f"rapport_{clean_addr}_{timestamp}.html"
             carte_path = os.path.join(app.root_path, "static", "cartes")
             os.makedirs(carte_path, exist_ok=True)
             
@@ -11925,7 +11948,12 @@ def search_by_address_route():
             eleveurs_data=None,
             capacites_reseau=ensure_feature_list(capacites_reseau)
         )
-        carte_filename = f"map_{int(time.time())}_{abs(hash((lat, lon, address)))}.html"
+        
+        # Créer un nom de fichier descriptif avec l'adresse
+        clean_addr = clean_filename(address)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        carte_filename = f"recherche_{clean_addr}_{timestamp}.html"
+        
         try:
             carte_url = save_map_html(map_obj, carte_filename)
             print(f"[DEBUG] Carte Folium sauvée: {carte_url}")
@@ -15271,6 +15299,113 @@ def import_existing_users():
         
     except Exception as e:
         print(f"❌ Erreur lors de l'import des utilisateurs: {e}")
+
+# ========== API POUR GESTION DES CARTES SAUVEGARDÉES ==========
+
+@app.route("/saved_maps")
+def saved_maps_page():
+    """Page pour gérer les cartes sauvegardées"""
+    return render_template("saved_maps.html")
+
+@app.route("/api/list_saved_maps")
+def list_saved_maps():
+    """Liste toutes les cartes HTML sauvegardées dans static/cartes/"""
+    import os
+    import time
+    
+    cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+    
+    if not os.path.exists(cartes_dir):
+        return jsonify({"maps": []})
+    
+    maps = []
+    for filename in os.listdir(cartes_dir):
+        if filename.endswith('.html'):
+            filepath = os.path.join(cartes_dir, filename)
+            stat = os.stat(filepath)
+            
+            # Formater la date
+            mtime = time.localtime(stat.st_mtime)
+            date_formatted = time.strftime("%d/%m/%Y %H:%M", mtime)
+            date_iso = time.strftime("%Y-%m-%d %H:%M:%S", mtime)
+            
+            # Nom d'affichage
+            display_name = filename.replace('.html', '').replace('_', ' ')
+            if len(display_name) > 30:
+                display_name = display_name[:27] + '...'
+            
+            maps.append({
+                "name": filename,
+                "displayName": display_name,
+                "url": f"/static/cartes/{filename}",
+                "size": stat.st_size,
+                "date": date_iso,
+                "dateFormatted": date_formatted,
+                "timestamp": stat.st_mtime
+            })
+    
+    return jsonify({"maps": maps, "total": len(maps)})
+
+@app.route("/api/delete_saved_map", methods=["POST"])
+def delete_saved_map():
+    """Supprimer une carte sauvegardée"""
+    import os
+    
+    data = request.get_json()
+    filename = data.get("filename")
+    
+    if not filename or not filename.endswith('.html'):
+        return jsonify({"success": False, "error": "Nom de fichier invalide"})
+    
+    cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+    filepath = os.path.join(cartes_dir, filename)
+    
+    # Sécurité: vérifier que le fichier est bien dans le dossier cartes
+    if not filepath.startswith(cartes_dir):
+        return jsonify({"success": False, "error": "Accès non autorisé"})
+    
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Fichier introuvable"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route("/api/clean_old_maps", methods=["POST"])
+def clean_old_maps():
+    """Supprimer les cartes de plus de X jours"""
+    import os
+    import time
+    
+    data = request.get_json()
+    days = data.get("days", 7)
+    
+    cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+    
+    if not os.path.exists(cartes_dir):
+        return jsonify({"success": True, "deleted": 0})
+    
+    now = time.time()
+    cutoff = now - (days * 24 * 60 * 60)
+    deleted = 0
+    
+    for filename in os.listdir(cartes_dir):
+        if filename.endswith('.html'):
+            filepath = os.path.join(cartes_dir, filename)
+            mtime = os.path.getmtime(filepath)
+            
+            if mtime < cutoff:
+                try:
+                    os.remove(filepath)
+                    deleted += 1
+                except Exception as e:
+                    print(f"Erreur suppression {filename}: {e}")
+    
+    return jsonify({"success": True, "deleted": deleted})
+
+# ========== FIN API CARTES SAUVEGARDÉES ==========
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()

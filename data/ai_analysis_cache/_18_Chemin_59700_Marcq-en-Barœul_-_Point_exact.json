@@ -1,0 +1,14 @@
+{
+  "error": "'NoneType' object has no attribute 'chat'",
+  "status": "error",
+  "provider": "openai",
+  "from_cache": false,
+  "address": "18 Chemin 59700 Marcq-en-Barœul - Point exact",
+  "commune": "Marcq-en-Barœul",
+  "department": "N/A",
+  "insee": "",
+  "data_sources": {
+    "gpu": true,
+    "georisques": false
+  }
+}

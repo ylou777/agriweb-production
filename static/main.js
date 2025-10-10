@@ -1537,27 +1537,51 @@ function generateReport() {
 
 // Rapport par département
 function generateDeptReport() {
+  console.log("[generateDeptReport] Début");
+  console.log("[generateDeptReport] window.lastDeptResults:", window.lastDeptResults);
+  
   if (!window.lastDeptResults || window.lastDeptResults.length === 0) {
     alert("Faites d'abord une recherche départementale !");
     return;
   }
+  
+  console.log("[generateDeptReport] Nombre de rapports:", window.lastDeptResults.length);
+  
   const w = window.open("", "_blank");
   if (!w) {
     alert("Impossible d'ouvrir un nouvel onglet. Vérifiez que les popups ne sont pas bloqués.");
     return;
   }
+  
+  // Afficher un message de chargement dans la fenêtre
+  w.document.write('<html><body><h2>Génération du rapport en cours...</h2><p>Veuillez patienter.</p></body></html>');
+  
+  console.log("[generateDeptReport] Envoi requête POST");
+  
   fetch('/rapport_departement_post', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: window.lastDeptResults })
   })
-    .then(res => res.text())
+    .then(res => {
+      console.log("[generateDeptReport] Réponse reçue, status:", res.status);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      return res.text();
+    })
     .then(html => {
+      console.log("[generateDeptReport] HTML reçu, taille:", html.length, "caractères");
+      if (html.length < 100) {
+        console.warn("[generateDeptReport] HTML suspicieusement court:", html);
+      }
       w.document.open();
       w.document.write(html);
       w.document.close();
+      console.log("[generateDeptReport] Rapport affiché avec succès");
     })
     .catch(err => {
+      console.error("[generateDeptReport] Erreur:", err);
       w.close();
       alert("Erreur lors de la génération du rapport : " + err);
     });

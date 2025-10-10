@@ -33,10 +33,24 @@
     const iconParking = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x="4" y="8" width="24" height="16" rx="6" fill="#2ecc71" stroke="#166838" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial" font-weight="bold">P</text></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-12]});
     const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
 
-    // Carte Leaflet avec fond satellite par défaut
-    var map = L.map('map').setView([46.8, 2], 6);
-    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
-    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
+    // Carte Leaflet avec fond satellite par défaut et zoom étendu
+    var map = L.map('map', {
+      maxZoom: 22,  // Zoom maximum très élevé (par défaut: 18)
+      minZoom: 3    // Zoom minimum
+    }).setView([46.8, 2], 6);
+    
+    // Exposer explicitement la carte à window pour l'accessibilité depuis iframe parent
+    window.map = map;
+    
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
+      attribution: "OSM",
+      maxZoom: 19  // OSM supporte jusqu'à 19
+    });
+    
+    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { 
+      attribution: "Esri Satellite",
+      maxZoom: 22  // Satellite Esri supporte jusqu'à 22
+    });
     sat.addTo(map);
 
     var baseMaps = { "Satellite": sat, "OSM": osm };
