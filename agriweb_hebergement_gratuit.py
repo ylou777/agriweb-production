@@ -3809,15 +3809,98 @@ def get_address_from_coordinates(lat, lon):
         safe_print(f"🔴 [ADRESSE IGN] Erreur géocodage inverse: {e}")
         return None
     
-def fetch_sirene_info(siret):
-    try:
-        url = f"https://entreprise.data.gouv.fr/api/sirene/v3/etablissements/{siret}"
-        response = http_session.get(url, timeout=5)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"[Sirene] Erreur SIRET {siret} : {e}")
+# Cache pour les résultats Sirene (éviter appels répétés)
+_sirene_cache = {}
+_sirene_failures = set()  # SIRET qui ont échoué (ne pas réessayer)
+
+def fetch_sirene_info(siret, max_retries=0, timeout=0.5):
+    """
+    Récupère les infos Sirene avec la NOUVELLE API Recherche Entreprises
+    https://recherche-entreprises.api.gouv.fr
+    
+    Optimisé pour être RAPIDE: timeout court et pas de retry par défaut
+    
+    Args:
+        siret: Numéro SIRET à rechercher
+        max_retries: Nombre de tentatives (défaut: 0 = 1 seule tentative)
+        timeout: Timeout en secondes (défaut: 0.5s)
+    
+    Returns:
+        dict: Données Sirene ou None si erreur
+    """
+    # Vérifier le cache
+    if siret in _sirene_cache:
+        return _sirene_cache[siret]
+    
+    # Ne pas réessayer les SIRET qui ont échoué
+    if siret in _sirene_failures:
         return None
+    
+    # NOUVELLE API: recherche-entreprises.api.gouv.fr
+    # On recherche par SIRET dans le paramètre q
+    url = f"https://recherche-entreprises.api.gouv.fr/search?q={siret}"
+    
+    for attempt in range(max_retries + 1):
+        try:
+            response = http_session.get(url, timeout=timeout)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Vérifier si on a des résultats
+                if data.get('total_results', 0) > 0 and data.get('results'):
+                    result = data['results'][0]
+                    
+                    # Adapter la structure au format attendu par le code
+                    # (compatibilité avec l'ancienne API Sirene)
+                    formatted_data = {
+                        'etablissement': {
+                            'siret': result.get('siege', {}).get('siret', siret),
+                            'siren': result.get('siren', siret[:9] if len(siret) >= 9 else ''),
+                            'uniteLegale': {
+                                'denominationUniteLegale': result.get('nom_complet') or result.get('nom_raison_sociale'),
+                                'activitePrincipaleUniteLegale': result.get('activite_principale'),
+                                'categorieJuridiqueUniteLegale': result.get('nature_juridique'),
+                            },
+                            'adresseEtablissement': result.get('siege', {}).get('adresse', '')
+                        }
+                    }
+                    
+                    # Mettre en cache le succès
+                    _sirene_cache[siret] = formatted_data
+                    return formatted_data
+                else:
+                    # Aucun résultat = SIRET invalide ou non trouvé
+                    _sirene_failures.add(siret)
+                    return None
+                    
+            elif response.status_code == 404:
+                # 404 = SIRET invalide, ne pas réessayer
+                _sirene_failures.add(siret)
+                return None
+            else:
+                # Autre erreur HTTP
+                _sirene_failures.add(siret)
+                return None
+                
+        except requests.exceptions.Timeout:
+            # Timeout = API lente ou down, ne pas réessayer
+            _sirene_failures.add(siret)
+            return None
+            
+        except requests.exceptions.ConnectionError:
+            # Connexion impossible, ne pas réessayer
+            _sirene_failures.add(siret)
+            return None
+            
+        except Exception:
+            # Erreur autre, ne pas réessayer
+            _sirene_failures.add(siret)
+            return None
+    
+    # Si on arrive ici, aucune tentative n'a réussi
+    _sirene_failures.add(siret)
+    return None
 
 # Par exemple, à la fin de la fusion des rapports:
 def fusion_communes(communes_reports):
@@ -11977,37 +12060,56 @@ def rapport_departement_post():
         # Utilisation de la fonction synthese_departement corrigée
         synthese = synthese_departement(limited_reports)
         
-        # Enrichissement SIRET pour les éleveurs dans le TOP 50
+        # Enrichissement SIRET limité (max 10 pour éviter timeout)
         def enrich_eleveurs_with_siret(eleveurs_features):
-            """Enrichit les éleveurs avec les données SIRET (max 50 pour éviter timeout)"""
-            enriched = []
-            count = 0
-            max_enrich = 50
+            """
+            Enrichit les éleveurs avec les données SIRET
+            Utilise le threading pour paralléliser les appels (beaucoup plus rapide)
+            """
+            from concurrent.futures import ThreadPoolExecutor, as_completed
             
-            for feat in eleveurs_features:
+            print(f"[RAPPORT_DEPT] Début enrichissement SIRET pour {len(eleveurs_features)} éleveurs")
+            start_time = time.time()
+            
+            def enrich_one(feat):
+                """Enrichit un seul éleveur (appelé en parallèle)"""
                 props = feat.get("properties", {})
+                siret = props.get("siret") or props.get("SIRET")
                 
-                # Limiter l'enrichissement SIRET à 50 pour éviter timeout
-                if count < max_enrich:
-                    siret = props.get("siret") or props.get("SIRET")
-                    if siret:
-                        try:
-                            sirene_info = fetch_sirene_info(siret)
-                            if sirene_info:
-                                props.update(sirene_info)
-                                props["siret_enriched"] = True
-                            else:
-                                props["siret_enriched"] = False
-                            count += 1
-                        except Exception as e:
-                            print(f"[RAPPORT_DEPT] Erreur enrichissement SIRET {siret}: {e}")
+                if siret:
+                    try:
+                        # Timeout très court (0.5s) et pas de retry
+                        sirene_info = fetch_sirene_info(siret, max_retries=0, timeout=0.5)
+                        if sirene_info:
+                            props.update(sirene_info)
+                            props["siret_enriched"] = True
+                            return feat, True
+                        else:
                             props["siret_enriched"] = False
-                    else:
+                    except Exception:
                         props["siret_enriched"] = False
                 else:
                     props["siret_enriched"] = False
-                    
-                enriched.append(feat)
+                
+                return feat, False
+            
+            enriched = []
+            success_count = 0
+            
+            # Utiliser 20 threads pour paralléliser (20 appels simultanés)
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                # Soumettre tous les enrichissements
+                future_to_feat = {executor.submit(enrich_one, feat): feat for feat in eleveurs_features}
+                
+                # Récupérer les résultats au fur et à mesure
+                for future in as_completed(future_to_feat):
+                    feat, success = future.result()
+                    enriched.append(feat)
+                    if success:
+                        success_count += 1
+            
+            elapsed = time.time() - start_time
+            print(f"[RAPPORT_DEPT] Enrichissement terminé: {success_count}/{len(eleveurs_features)} en {elapsed:.1f}s")
             return enriched
         
         # Correction des distances "N/A m" dans le TOP 50
