@@ -1649,4 +1649,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById("deptReportCarteBtn")?.addEventListener("click", generateDeptReport);
     // Branche bouton save map si besoin
     // document.getElementById("saveMapBtn")?.addEventListener("click", () => saveCurrentMap("mon_export.html"));
+    
+    // 🚀 AUTO-SEARCH depuis URL (démo integration)
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchQuery = urlParams.get('search');
+    if (searchQuery && !window.autoSearchTriggered) {
+        console.log('🔍 Auto-search détecté:', searchQuery);
+        window.autoSearchTriggered = true; // Protection contre la boucle
+        
+        const addressInput = document.getElementById('search_input');
+        if (addressInput) {
+            addressInput.value = searchQuery;
+            // Trigger search automatiquement après 500ms
+            setTimeout(() => {
+                console.log('🎯 Lancement auto-search pour:', searchQuery);
+                const searchForm = document.getElementById('unifiedSearchForm');
+                if (searchForm) {
+                    searchForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+            }, 500);
+        }
+    }
 });
