@@ -2543,9 +2543,15 @@ def subscription_page():
     """Page de sélection des plans d'abonnement"""
     return render_template_string(SUBSCRIPTION_TEMPLATE, stripe_public_key=STRIPE_PUBLIC_KEY)
 
+@app.route("/demo")
 @app.route("/demo-real")
 def demo_page():
-    """Page de démonstration avec exemples concrets"""
+    """Page de démonstration ultra-moderne et interactive"""
+    return render_template("demo_new.html")
+
+@app.route("/demo-old")
+def demo_page_old():
+    """Ancienne page de démonstration (backup)"""
     return render_template("demo.html")
 
 @app.route("/demo/adresses")
@@ -2572,6 +2578,82 @@ def demo_rapports():
 def demo_autocomplete():
     """Page démo de l'autocomplétion intelligente pour adresses et communes"""
     return render_template("demo_autocomplete.html")
+
+# === ROUTES DEMO INSTANTANÉES AVEC CARTES PRÉ-GÉNÉRÉES ===
+
+@app.route("/demo/exemple/adresse")
+def demo_exemple_adresse():
+    """Exemple de recherche par adresse - Carte pré-générée pour 15 Rue de Nice, Toulouse"""
+    # Carte pré-générée spécifique
+    carte_demo = "recherche_15_Rue_de_Nice_31400_Toulouse_f6c02eb1_20251010_181958.html"
+    cartes_dir = os.path.join(app.static_folder, 'cartes')
+    
+    # Vérifier que la carte existe
+    carte_path = os.path.join(cartes_dir, carte_demo)
+    if os.path.exists(carte_path):
+        return send_from_directory(cartes_dir, carte_demo)
+    
+    # Fallback: chercher n'importe quelle carte de recherche
+    if os.path.exists(cartes_dir):
+        cartes_recherche = [f for f in os.listdir(cartes_dir) if f.startswith('recherche_') and f.endswith('.html')]
+        if cartes_recherche:
+            return send_from_directory(cartes_dir, cartes_recherche[0])
+    
+    # Si pas de carte, rediriger vers /app avec recherche
+    return redirect("/app?search=15 Rue de Nice, Toulouse")
+
+@app.route("/demo/exemple/commune-carte")
+def demo_exemple_commune_carte():
+    """Exemple de carte par commune - Carte pré-générée pour Toulouse"""
+    exemple_commune = "Toulouse"
+    
+    # Chercher une carte commune existante
+    cartes_dir = os.path.join(app.static_folder, 'cartes')
+    if os.path.exists(cartes_dir):
+        cartes = [f for f in os.listdir(cartes_dir) if f.endswith('.html')]
+        if len(cartes) >= 2:
+            # Retourner la 2ème carte comme exemple de commune
+            return send_from_directory(cartes_dir, cartes[1])
+    
+    return redirect(f"/app?search={exemple_commune}")
+
+@app.route("/demo/exemple/commune-rapport")
+def demo_exemple_commune_rapport():
+    """Exemple de rapport par commune - Rapport pré-généré pour Bordeaux"""
+    exemple_commune = "Bordeaux"
+    
+    # Chercher un rapport existant dans static/cartes/
+    cartes_dir = os.path.join(app.static_folder, 'cartes')
+    if os.path.exists(cartes_dir):
+        rapports = [f for f in os.listdir(cartes_dir) if 'rapport' in f.lower() and f.endswith('.html')]
+        if rapports:
+            return send_from_directory(cartes_dir, rapports[0])
+        
+        # Sinon, prendre n'importe quelle carte comme exemple
+        cartes = [f for f in os.listdir(cartes_dir) if f.endswith('.html')]
+        if len(cartes) >= 3:
+            return send_from_directory(cartes_dir, cartes[2])
+    
+    return redirect(f"/app?search={exemple_commune}")
+
+@app.route("/demo/exemple/departement")
+def demo_exemple_departement():
+    """Exemple d'analyse départementale - Rapport pré-généré pour la Gironde"""
+    exemple_dept = "Gironde"
+    
+    # Chercher un rapport de département
+    cartes_dir = os.path.join(app.static_folder, 'cartes')
+    if os.path.exists(cartes_dir):
+        rapports_dept = [f for f in os.listdir(cartes_dir) if 'departement' in f.lower() and f.endswith('.html')]
+        if rapports_dept:
+            return send_from_directory(cartes_dir, rapports_dept[0])
+        
+        # Sinon, prendre une carte comme exemple
+        cartes = [f for f in os.listdir(cartes_dir) if f.endswith('.html')]
+        if len(cartes) >= 4:
+            return send_from_directory(cartes_dir, cartes[3])
+    
+    return redirect(f"/app?search={exemple_dept}")
 
 @app.route("/payment-success")
 def payment_success():
@@ -11887,6 +11969,32 @@ def search_by_address_route():
     # 8. GeoRisques: fetch risks for this point
     georisques_risks = fetch_georisques_risks(lat, lon)
 
+    # 8b. Récupération des lignes HTA (aériennes et souterraines) - comme dans search_by_commune
+    print(f"🔌 [HTA] Récupération des lignes HTA pour l'adresse {address}")
+    hta_lignes_data = {"aerienne": {"features": []}, "souterraine": {"features": []}}
+    try:
+        from enedis_integration import get_lignes_hta
+        
+        # Calculer une bbox autour du point de recherche
+        delta_hta = 0.05  # Environ 5 km de rayon
+        minx = lon - delta_hta
+        maxx = lon + delta_hta
+        miny = lat - delta_hta
+        maxy = lat + delta_hta
+        
+        # Récupérer les lignes HTA dans cette zone
+        hta_lignes_data = get_lignes_hta(
+            bbox=[minx, miny, maxx, maxy],
+            include_aerienne=True,
+            include_souterraine=True,
+            limit=800
+        )
+        aerienne_count = len(hta_lignes_data.get("aerienne", {}).get("features", []))
+        souterraine_count = len(hta_lignes_data.get("souterraine", {}).get("features", []))
+        print(f"✅ [HTA] {aerienne_count} lignes aériennes, {souterraine_count} lignes souterraines récupérées")
+    except Exception as e:
+        print(f"⚠️ [HTA] Erreur lors de la récupération: {e}")
+
     # 9. Réponse complète
     info_response = {
         "lat": lat, "lon": lon, "address": address,
@@ -11902,6 +12010,7 @@ def search_by_address_route():
         "postes_bt": postes_bt,
         "postes_hta": postes_hta,
         "capacites_reseau": capacites_reseau,
+        "hta_lignes": hta_lignes_data,  # 🔌 Ajout des lignes HTA pour le frontend
         "plu": to_feature_collection(plu_info),
         "parkings": to_feature_collection(parkings),
         "friches": to_feature_collection(friches),
@@ -11960,6 +12069,7 @@ def search_by_address_route():
         print(f"  - Parkings: {len(ensure_feature_list(parkings))}")
         print(f"  - Friches: {len(ensure_feature_list(friches))}")
         print(f"  - Solaire: {len(ensure_feature_list(solaire))}")
+        print(f"  - Lignes HTA: {len(hta_lignes_data.get('aerienne', {}).get('features', []))} aériennes, {len(hta_lignes_data.get('souterraine', {}).get('features', []))} souterraines")
         
         map_obj = build_map(
             lat, lon, address,
@@ -11979,7 +12089,8 @@ def search_by_address_route():
             api_nature=api_nature,
             api_urbanisme=api_urbanisme,
             eleveurs_data=None,
-            capacites_reseau=ensure_feature_list(capacites_reseau)
+            capacites_reseau=ensure_feature_list(capacites_reseau),
+            hta_lignes_data=hta_lignes_data  # 🔌 Ajout des lignes HTA comme dans search_by_commune
         )
         
         # 🔒 Créer un nom de fichier sécurisé avec UUID
