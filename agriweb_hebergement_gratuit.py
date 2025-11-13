@@ -8894,6 +8894,25 @@ def search_by_commune():
     carte_url = None
     if map_obj:
         from datetime import datetime
+        import glob
+        
+        # 🧹 NETTOYAGE: Supprimer les anciennes cartes de cette commune
+        cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+        commune_clean = clean_filename(commune, max_length=30)
+        
+        # Rechercher toutes les cartes existantes pour cette commune
+        pattern = os.path.join(cartes_dir, f"commune_{commune_clean}_*.html")
+        old_maps = glob.glob(pattern)
+        
+        if old_maps:
+            print(f"🧹 [CLEANUP] Suppression de {len(old_maps)} ancienne(s) carte(s) pour {commune}")
+            for old_map in old_maps:
+                try:
+                    os.remove(old_map)
+                    print(f"   ✓ Supprimé: {os.path.basename(old_map)}")
+                except Exception as e:
+                    print(f"   ⚠️ Erreur suppression {os.path.basename(old_map)}: {e}")
+        
         # 🔒 Utilisation du nom de fichier sécurisé avec UUID
         carte_filename = generate_secure_filename("commune", commune)
         carte_path = save_map_html(map_obj, carte_filename)
@@ -10614,10 +10633,26 @@ def rapport_map_point():
                 ppri_data=ppri_data
             )
             
-            # 🔒 Créer un nom de fichier sécurisé avec UUID
-            carte_filename = generate_secure_filename("rapport", address)
+            # 🧹 NETTOYAGE: Supprimer les anciens rapports pour cette adresse
+            import glob
             carte_path = os.path.join(app.root_path, "static", "cartes")
             os.makedirs(carte_path, exist_ok=True)
+            
+            address_clean = clean_filename(address, max_length=30)
+            pattern = os.path.join(carte_path, f"rapport_{address_clean}_*.html")
+            old_reports = glob.glob(pattern)
+            
+            if old_reports:
+                print(f"🧹 [CLEANUP] Suppression de {len(old_reports)} ancien(s) rapport(s) pour {address}")
+                for old_report in old_reports:
+                    try:
+                        os.remove(old_report)
+                        print(f"   ✓ Supprimé: {os.path.basename(old_report)}")
+                    except Exception as e:
+                        print(f"   ⚠️ Erreur suppression {os.path.basename(old_report)}: {e}")
+            
+            # 🔒 Créer un nom de fichier sécurisé avec UUID
+            carte_filename = generate_secure_filename("rapport", address)
             
             carte_fullpath = os.path.join(carte_path, carte_filename)
             map_obj.save(carte_fullpath)
@@ -15557,10 +15592,34 @@ def list_saved_maps():
             date_formatted = time.strftime("%d/%m/%Y %H:%M", mtime)
             date_iso = time.strftime("%Y-%m-%d %H:%M:%S", mtime)
             
-            # Nom d'affichage
-            display_name = filename.replace('.html', '').replace('_', ' ')
-            if len(display_name) > 30:
-                display_name = display_name[:27] + '...'
+            # Nom d'affichage amélioré
+            # Format fichier: commune_NomCommune_uuid_timestamp.html ou rapport_Adresse_uuid_timestamp.html
+            display_name = filename.replace('.html', '')
+            
+            # Extraire le nom lisible (entre le type et l'UUID)
+            parts = display_name.split('_')
+            if len(parts) >= 3:
+                # parts[0] = type (commune/rapport)
+                # parts[1...-2] = nom de la commune/adresse
+                # parts[-2] = UUID (8 caractères)
+                # parts[-1] = timestamp
+                type_carte = parts[0].capitalize()
+                
+                # Reconstruire le nom sans UUID et timestamp
+                # On prend tout sauf le premier (type), les 2 derniers (UUID + timestamp)
+                if len(parts) > 3:
+                    nom_lieu = ' '.join(parts[1:-2])
+                else:
+                    nom_lieu = parts[1] if len(parts) > 1 else display_name
+                
+                display_name = f"{type_carte}: {nom_lieu}"
+            else:
+                # Fallback: simple remplacement underscores
+                display_name = display_name.replace('_', ' ')
+            
+            # Limiter la longueur
+            if len(display_name) > 40:
+                display_name = display_name[:37] + '...'
             
             maps.append({
                 "name": filename,

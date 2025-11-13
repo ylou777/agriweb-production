@@ -1238,7 +1238,7 @@ async function handleCommuneSearch(e) {
   
   // PROTECTION 2: Éviter les recherches simultanées
   if (isCommuneSearchRunning) {
-    console.log('🔄 Recherche commune déjà en cours, annulation');
+    console.log('🔄 [PROTECTION] Recherche commune déjà en cours, annulation');
     return;
   }
   
@@ -1247,18 +1247,56 @@ async function handleCommuneSearch(e) {
   const minDelay = 1000;
   
   if (now - lastCommuneSearchTime < minDelay) {
-    console.log('🔄 Recherche commune trop rapide, annulation (debouncing)');
+    console.log('🔄 [DEBOUNCE] Recherche commune trop rapide, annulation');
     return;
   }
   
+  console.log('✅ [START] Démarrage recherche commune');
   lastCommuneSearchTime = now;
   isCommuneSearchRunning = true;
   
+  // PROTECTION 4: Bloquer le bouton de recherche
+  const searchBtn = document.querySelector('#communeSearchForm button[type="submit"]');
+  const originalBtnText = searchBtn ? searchBtn.innerHTML : '';
+  if (searchBtn) {
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Recherche en cours...';
+    searchBtn.style.opacity = '0.6';
+  }
+  
+  // PROTECTION 5: Timeout de sécurité - réinitialiser après 30 secondes maximum
+  const safetyTimeout = setTimeout(() => {
+    if (isCommuneSearchRunning) {
+      console.warn('⚠️ [TIMEOUT] Réinitialisation forcée du flag après 30s');
+      isCommuneSearchRunning = false;
+      if (searchBtn) {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = originalBtnText;
+        searchBtn.style.opacity = '1';
+      }
+    }
+  }, 30000);
+  
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
+  
+  // Fonction de nettoyage
+  const cleanup = () => {
+    clearTimeout(safetyTimeout);
+    isCommuneSearchRunning = false;
+    // Réactiver le bouton
+    if (searchBtn) {
+      searchBtn.disabled = false;
+      searchBtn.innerHTML = originalBtnText;
+      searchBtn.style.opacity = '1';
+    }
+    console.log('🧹 [CLEANUP] Flag réinitialisé et bouton réactivé');
+  };
+  
   switchMap("/static/map.html", async () => {
     const commune = document.getElementById("commune")?.value.trim();
     if (!commune) {
       setCommuneSearchLog('❗️ Veuillez saisir une commune.', 'red');
+      cleanup();
       return alert("Commune requise.");
     }
     
@@ -1329,15 +1367,17 @@ async function handleCommuneSearch(e) {
       if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
       setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
       
-      // Réinitialiser le flag
-      isCommuneSearchRunning = false;
+      // Réinitialiser le flag et nettoyer
+      console.log('✅ [SUCCESS] Recherche terminée');
+      cleanup();
       
     } catch (err) {
       setCommuneSearchLog('❌ Erreur lors de la recherche : ' + err, 'red');
       alert("Erreur lors de la recherche par commune : " + err);
       
       // Réinitialiser le flag en cas d'erreur aussi
-      isCommuneSearchRunning = false;
+      console.error('❌ [ERROR] Erreur recherche:', err);
+      cleanup();
     }
   });
 }
@@ -1655,11 +1695,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     window.listenersAttached = true;
     
+    console.log('🔧 [INIT] Attachement des event listeners');
+    
     // Branche sliders si tu utilises
     setupSliders();
+    
     // Branche formulaires
     document.getElementById("unifiedSearchForm")?.addEventListener("submit", handleUnifiedSearch);
-    document.getElementById("communeSearchForm")?.addEventListener("submit", handleCommuneSearch);
+    
+    // FORMULAIRE COMMUNE : Protection maximale
+    const communeForm = document.getElementById("communeSearchForm");
+    if (communeForm) {
+        // Retirer tout listener précédent (au cas où)
+        communeForm.removeEventListener("submit", handleCommuneSearch);
+        // Ajouter avec capture pour intercepter avant tout
+        communeForm.addEventListener("submit", handleCommuneSearch, { capture: true });
+        console.log('✅ [INIT] Listener commune attaché avec capture');
+    }
+    
     // Branche recherche départementale si tu as un bouton
     document.getElementById("deptSearchBtn")?.addEventListener("click", handleDeptSearch);
     // Branche boutons de rapport
