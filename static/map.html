@@ -39,9 +39,6 @@
       minZoom: 3    // Zoom minimum
     }).setView([46.8, 2], 6);
     
-    // Exposer explicitement la carte à window pour l'accessibilité depuis iframe parent
-    window.map = map;
-    
     var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
       attribution: "OSM",
       maxZoom: 19  // OSM supporte jusqu'à 19

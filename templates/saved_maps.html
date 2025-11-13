@@ -3,466 +3,177 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mes Cartes Sauvegardées - AgriWeb</title>
+    <title>Cartes Sauvegardées - AgriWeb</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <style>
         body {
+            padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
         }
         .container {
-            max-width: 1400px;
-        }
-        .card {
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 20px;
-        }
-        .map-card {
-            transition: transform 0.2s, box-shadow 0.2s;
-            cursor: pointer;
-            height: 100%;
-        }
-        .map-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
-        }
-        .map-preview {
-            height: 200px;
-            background: linear-gradient(135deg, #e0f7fa 0%, #80deea 100%);
-            border-radius: 15px 15px 0 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 48px;
-            color: #0277bd;
-        }
-        .map-info {
-            padding: 15px;
-        }
-        .badge-custom {
-            font-size: 0.75rem;
-            padding: 5px 10px;
-            border-radius: 10px;
-        }
-        .btn-action {
-            margin: 2px;
-        }
-        .search-box {
+            max-width: 1200px;
             background: white;
             border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .map-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        .map-card:hover {
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
         }
-        .modal-fullscreen-custom {
-            width: 100vw;
-            height: 100vh;
-            margin: 0;
-            max-width: 100%;
-        }
-        .modal-fullscreen-custom .modal-content {
-            height: 100vh;
-            border-radius: 0;
-        }
-        .modal-fullscreen-custom iframe {
+        .map-preview {
             width: 100%;
-            height: calc(100vh - 60px);
-            border: none;
+            height: 300px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 10px;
         }
-        .stats-card {
+        .btn-view {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            border-radius: 15px;
-            padding: 20px;
+            border: none;
+        }
+        .btn-view:hover {
+            opacity: 0.9;
+            color: white;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 30px;
+        }
+        .no-maps {
             text-align: center;
-            margin-bottom: 20px;
-        }
-        .stats-card h3 {
-            font-size: 2.5rem;
-            margin: 0;
-        }
-        .filter-btn {
-            margin: 5px;
+            padding: 50px;
+            color: #999;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
-        <div class="text-center text-white mb-4">
-            <h1 class="display-4 mb-2">
-                <i class="bi bi-map-fill"></i> Mes Cartes Sauvegardées
-            </h1>
-            <p class="lead">Retrouvez et ouvrez vos cartes de recherches précédentes</p>
-            <a href="/" class="btn btn-light btn-lg">
-                <i class="bi bi-house-fill"></i> Retour à l'accueil
-            </a>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>📂 Cartes Sauvegardées</h1>
+            <a href="/" class="btn btn-secondary">← Retour à l'accueil</a>
         </div>
-
-        <!-- Statistiques -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="stats-card">
-                    <h3 id="totalMaps">0</h3>
-                    <p class="mb-0">Cartes totales</p>
+        
+        <div id="mapsContainer">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
                 </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stats-card">
-                    <h3 id="todayMaps">0</h3>
-                    <p class="mb-0">Aujourd'hui</p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="stats-card">
-                    <h3 id="weekMaps">0</h3>
-                    <p class="mb-0">Cette semaine</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Recherche et filtres -->
-        <div class="search-box">
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-search"></i></span>
-                        <input type="text" id="searchInput" class="form-control" placeholder="Rechercher une carte...">
-                    </div>
-                </div>
-                <div class="col-md-6 mb-3">
-                    <div class="btn-group w-100" role="group">
-                        <button type="button" class="btn btn-outline-primary filter-btn" data-filter="all">
-                            <i class="bi bi-collection"></i> Toutes
-                        </button>
-                        <button type="button" class="btn btn-outline-primary filter-btn" data-filter="today">
-                            <i class="bi bi-calendar-check"></i> Aujourd'hui
-                        </button>
-                        <button type="button" class="btn btn-outline-primary filter-btn" data-filter="week">
-                            <i class="bi bi-calendar-week"></i> Semaine
-                        </button>
-                        <button type="button" class="btn btn-outline-primary filter-btn" data-filter="commune">
-                            <i class="bi bi-pin-map"></i> Communes
-                        </button>
-                        <button type="button" class="btn btn-outline-primary filter-btn" data-filter="rapport">
-                            <i class="bi bi-file-text"></i> Rapports
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="row">
-                <div class="col-md-12">
-                    <button class="btn btn-danger" onclick="cleanOldMaps()">
-                        <i class="bi bi-trash"></i> Nettoyer anciennes cartes (>7 jours)
-                    </button>
-                    <button class="btn btn-warning" onclick="downloadAllList()">
-                        <i class="bi bi-download"></i> Télécharger la liste
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Loading -->
-        <div id="loading" class="text-center text-white">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Chargement...</span>
-            </div>
-            <p class="mt-3">Chargement des cartes...</p>
-        </div>
-
-        <!-- Grille des cartes -->
-        <div id="mapsGrid" class="row" style="display: none;">
-            <!-- Les cartes seront insérées ici -->
-        </div>
-
-        <!-- Message vide -->
-        <div id="emptyMessage" class="text-center text-white" style="display: none;">
-            <i class="bi bi-inbox" style="font-size: 4rem;"></i>
-            <h3>Aucune carte trouvée</h3>
-            <p>Effectuez une recherche pour créer votre première carte</p>
-            <a href="/" class="btn btn-primary btn-lg">
-                <i class="bi bi-search"></i> Faire une recherche
-            </a>
-        </div>
-    </div>
-
-    <!-- Modal pour afficher la carte -->
-    <div class="modal fade" id="mapModal" tabindex="-1">
-        <div class="modal-dialog modal-fullscreen-custom">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="mapModalTitle">Carte</h5>
-                    <div>
-                        <button type="button" class="btn btn-primary me-2" onclick="openInNewTab()">
-                            <i class="bi bi-box-arrow-up-right"></i> Ouvrir dans un nouvel onglet
-                        </button>
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                            <i class="bi bi-x-lg"></i> Fermer
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-body p-0">
-                    <iframe id="mapIframe" src=""></iframe>
-                </div>
+                <p class="mt-2">Chargement des cartes...</p>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let allMaps = [];
-        let currentMapUrl = '';
-        let currentFilter = 'all';
-
-        // Charger les cartes au démarrage
+        // Charger la liste des cartes
         async function loadMaps() {
             try {
                 const response = await fetch('/api/list_saved_maps');
                 const data = await response.json();
                 
-                allMaps = data.maps || [];
-                updateStats();
-                renderMaps();
+                const container = document.getElementById('mapsContainer');
                 
-                document.getElementById('loading').style.display = 'none';
-                
-                if (allMaps.length > 0) {
-                    document.getElementById('mapsGrid').style.display = 'flex';
-                } else {
-                    document.getElementById('emptyMessage').style.display = 'block';
+                if (data.maps.length === 0) {
+                    container.innerHTML = `
+                        <div class="no-maps">
+                            <h3>📭 Aucune carte sauvegardée</h3>
+                            <p>Les cartes générées apparaîtront ici.</p>
+                            <a href="/" class="btn btn-primary mt-3">Créer une carte</a>
+                        </div>
+                    `;
+                    return;
                 }
+                
+                // Trier par date (plus récentes en premier)
+                data.maps.sort((a, b) => b.timestamp - a.timestamp);
+                
+                let html = `<div class="row g-3">`;
+                
+                data.maps.forEach(map => {
+                    const sizeKB = (map.size / 1024).toFixed(0);
+                    const sizeMB = (map.size / 1024 / 1024).toFixed(2);
+                    const displaySize = map.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+                    
+                    html += `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="map-card">
+                                <iframe src="${map.url}" class="map-preview" frameborder="0"></iframe>
+                                <h5 class="mb-2">${map.displayName}</h5>
+                                <p class="text-muted mb-2">
+                                    <small>
+                                        📅 ${map.dateFormatted}<br>
+                                        💾 ${displaySize}
+                                    </small>
+                                </p>
+                                <div class="d-flex gap-2">
+                                    <a href="${map.url}" target="_blank" class="btn btn-view btn-sm flex-grow-1">
+                                        Ouvrir
+                                    </a>
+                                    <button onclick="deleteMap('${map.name}')" class="btn btn-danger btn-sm">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                html += `<div class="mt-4 text-center text-muted"><small>Total: ${data.total} carte(s) sauvegardée(s)</small></div>`;
+                
+                container.innerHTML = html;
+                
             } catch (error) {
-                console.error('Erreur de chargement:', error);
-                document.getElementById('loading').innerHTML = `
+                console.error('Erreur chargement cartes:', error);
+                document.getElementById('mapsContainer').innerHTML = `
                     <div class="alert alert-danger">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        Erreur de chargement des cartes: ${error.message}
+                        ❌ Erreur lors du chargement des cartes: ${error.message}
                     </div>
                 `;
             }
         }
-
-        // Calculer les statistiques
-        function updateStats() {
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-            let todayCount = 0;
-            let weekCount = 0;
-
-            allMaps.forEach(map => {
-                const mapDate = new Date(map.date);
-                if (mapDate >= today) todayCount++;
-                if (mapDate >= weekAgo) weekCount++;
-            });
-
-            document.getElementById('totalMaps').textContent = allMaps.length;
-            document.getElementById('todayMaps').textContent = todayCount;
-            document.getElementById('weekMaps').textContent = weekCount;
-        }
-
-        // Afficher les cartes
-        function renderMaps(filter = 'all', searchTerm = '') {
-            const grid = document.getElementById('mapsGrid');
-            grid.innerHTML = '';
-
-            let filteredMaps = allMaps;
-
-            // Appliquer le filtre
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-            if (filter === 'today') {
-                filteredMaps = allMaps.filter(m => new Date(m.date) >= today);
-            } else if (filter === 'week') {
-                filteredMaps = allMaps.filter(m => new Date(m.date) >= weekAgo);
-            } else if (filter === 'commune') {
-                filteredMaps = allMaps.filter(m => m.name.includes('commune_map'));
-            } else if (filter === 'rapport') {
-                filteredMaps = allMaps.filter(m => m.name.includes('rapport_point'));
-            }
-
-            // Appliquer la recherche
-            if (searchTerm) {
-                filteredMaps = filteredMaps.filter(m => 
-                    m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    m.dateFormatted.toLowerCase().includes(searchTerm.toLowerCase())
-                );
-            }
-
-            // Trier par date décroissante
-            filteredMaps.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-            // Créer les cartes
-            filteredMaps.forEach(map => {
-                const col = document.createElement('div');
-                col.className = 'col-md-4 col-lg-3 mb-4';
-                
-                const icon = getMapIcon(map.name);
-                const badge = getMapBadge(map.name);
-                
-                col.innerHTML = `
-                    <div class="card map-card" onclick="openMap('${map.url}', '${map.name}')">
-                        <div class="map-preview">
-                            <i class="bi ${icon}"></i>
-                        </div>
-                        <div class="map-info">
-                            <h6 class="card-title text-truncate" title="${map.name}">
-                                ${map.displayName}
-                            </h6>
-                            <p class="card-text text-muted small mb-2">
-                                <i class="bi bi-calendar3"></i> ${map.dateFormatted}
-                            </p>
-                            <div class="mb-2">
-                                <span class="badge ${badge.class} badge-custom">
-                                    ${badge.text}
-                                </span>
-                                <span class="badge bg-secondary badge-custom">
-                                    ${(map.size / 1024).toFixed(1)} KB
-                                </span>
-                            </div>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-primary flex-fill btn-action" onclick="event.stopPropagation(); openMap('${map.url}', '${map.name}')">
-                                    <i class="bi bi-eye"></i> Voir
-                                </button>
-                                <button class="btn btn-sm btn-success btn-action" onclick="event.stopPropagation(); openInNewTab('${map.url}')">
-                                    <i class="bi bi-box-arrow-up-right"></i>
-                                </button>
-                                <button class="btn btn-sm btn-danger btn-action" onclick="event.stopPropagation(); deleteMap('${map.name}')">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                
-                grid.appendChild(col);
-            });
-
-            if (filteredMaps.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-12 text-center text-white">
-                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                        <h4>Aucune carte ne correspond aux critères</h4>
-                    </div>
-                `;
-            }
-        }
-
-        // Obtenir l'icône selon le type de carte
-        function getMapIcon(name) {
-            if (name.includes('commune_map')) return 'bi-pin-map-fill';
-            if (name.includes('rapport_point')) return 'bi-file-text-fill';
-            return 'bi-map-fill';
-        }
-
-        // Obtenir le badge selon le type
-        function getMapBadge(name) {
-            if (name.includes('commune_map')) return { class: 'bg-info', text: 'Commune' };
-            if (name.includes('rapport_point')) return { class: 'bg-warning', text: 'Rapport' };
-            if (name.includes('cartes_')) return { class: 'bg-primary', text: 'Recherche' };
-            return { class: 'bg-secondary', text: 'Autre' };
-        }
-
-        // Ouvrir une carte dans la modal
-        function openMap(url, name) {
-            currentMapUrl = url;
-            document.getElementById('mapModalTitle').textContent = name;
-            document.getElementById('mapIframe').src = url;
-            const modal = new bootstrap.Modal(document.getElementById('mapModal'));
-            modal.show();
-        }
-
-        // Ouvrir dans un nouvel onglet
-        function openInNewTab(url = null) {
-            window.open(url || currentMapUrl, '_blank');
-        }
-
+        
         // Supprimer une carte
         async function deleteMap(filename) {
-            if (!confirm(`Voulez-vous vraiment supprimer la carte "${filename}" ?`)) {
+            if (!confirm(`Voulez-vous vraiment supprimer cette carte ?\n\n${filename}`)) {
                 return;
             }
-
+            
             try {
                 const response = await fetch('/api/delete_saved_map', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ filename })
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename: filename })
                 });
-
+                
                 const data = await response.json();
                 
                 if (data.success) {
-                    alert('✅ Carte supprimée avec succès');
-                    loadMaps(); // Recharger
+                    alert('✅ Carte supprimée avec succès !');
+                    loadMaps(); // Recharger la liste
                 } else {
                     alert('❌ Erreur: ' + data.error);
                 }
             } catch (error) {
-                alert('❌ Erreur de suppression: ' + error.message);
+                console.error('Erreur suppression:', error);
+                alert('❌ Erreur lors de la suppression');
             }
         }
-
-        // Nettoyer les anciennes cartes
-        async function cleanOldMaps() {
-            if (!confirm('Voulez-vous supprimer toutes les cartes de plus de 7 jours ?')) {
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/clean_old_maps', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ days: 7 })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`✅ ${data.deleted} carte(s) supprimée(s)`);
-                    loadMaps(); // Recharger
-                } else {
-                    alert('❌ Erreur: ' + data.error);
-                }
-            } catch (error) {
-                alert('❌ Erreur: ' + error.message);
-            }
-        }
-
-        // Télécharger la liste
-        function downloadAllList() {
-            const text = allMaps.map(m => `${m.dateFormatted} - ${m.name} - ${m.url}`).join('\n');
-            const blob = new Blob([text], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `liste_cartes_${new Date().toISOString().slice(0,10)}.txt`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Recherche
-        document.getElementById('searchInput').addEventListener('input', (e) => {
-            renderMaps(currentFilter, e.target.value);
-        });
-
-        // Filtres
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                currentFilter = this.dataset.filter;
-                renderMaps(currentFilter, document.getElementById('searchInput').value);
-            });
-        });
-
-        // Initialiser
+        
+        // Charger au démarrage
         loadMaps();
     </script>
 </body>

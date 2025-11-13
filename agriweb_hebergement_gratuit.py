@@ -468,6 +468,51 @@ def clean_filename(text, max_length=50):
         text = text[:max_length]
     return text
 
+def sanitize_popup_html(html_content):
+    """
+    Nettoie et échappe le contenu HTML des popups pour éviter les erreurs JavaScript.
+    Supprime les séquences d'échappement octales qui causent des erreurs dans les template strings.
+    """
+    if not html_content:
+        return ""
+    
+    import html
+    # Pas besoin d'échapper car folium.IFrame le fait déjà
+    # Mais on doit remplacer les backslashes qui causent des problèmes
+    cleaned = str(html_content)  # S'assurer que c'est une string
+    cleaned = cleaned.replace('\\', '\\\\')  # Double les backslashes
+    cleaned = cleaned.replace('\n', ' ')  # Supprime les retours à la ligne
+    cleaned = cleaned.replace('\r', '')   # Supprime les retours chariot
+    cleaned = cleaned.replace('\t', ' ')  # Remplace les tabulations
+    # Supprime les séquences d'échappement octales (\0-\7)
+    cleaned = re.sub(r'\\[0-7]{1,3}', '', cleaned)
+    return cleaned
+
+def safe_folium_popup(content, max_width=300):
+    """
+    Crée un popup Folium avec nettoyage automatique du contenu.
+    Utilise IFrame pour éviter les problèmes d'échappement avec hauteur adaptative.
+    """
+    if not content:
+        return None
+    
+    # Nettoyer le contenu
+    clean_content = sanitize_popup_html(content)
+    
+    # Calculer une hauteur adaptative basée sur le contenu
+    # Estimation: ~20px par <br>, minimum 150px, maximum 400px
+    br_count = clean_content.count('<br>') + clean_content.count('<BR>')
+    estimated_height = max(150, min(400, 80 + (br_count * 25)))
+    
+    # Utiliser IFrame pour isolation complète avec hauteur adaptative
+    try:
+        iframe = folium.IFrame(html=clean_content, width=max_width, height=estimated_height)
+        return folium.Popup(iframe, max_width=max_width)
+    except Exception as e:
+        # Fallback sans IFrame
+        print(f"⚠️ [POPUP] Erreur IFrame: {e}, utilisation Popup direct")
+        return folium.Popup(clean_content, max_width=max_width)
+
 def generate_secure_filename(prefix, description="", extension=".html"):
     """
     🔒 Génère un nom de fichier sécurisé avec token UUID pour éviter les collisions
@@ -4204,6 +4249,50 @@ def get_zaer_info(lat, lon, radius=0.03):
     bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
     return fetch_wfs_data(ZAER_LAYER, bbox)
 
+def get_friches_specialisees(lat, lon, radius=0.05):
+    """
+    Récupère les données des 3 couches spécialisées de friches pour recherche par département
+    - gpu:L_FRICHES_AGRI_DDT_2020_S_019 : Friches agricoles DDT 2020
+    - gpu:friches-standard : Friches standard
+    - gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93 : Potentiel solaire sur friches
+    """
+    bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
+    
+    friches_data = {
+        'friches_agri_ddt': [],
+        'friches_standard': [],
+        'friches_solaires': []
+    }
+    
+    try:
+        # Couche 1: Friches agricoles DDT 2020
+        print(f"🏚️ [FRICHES] Récupération friches agricoles DDT...")
+        friches_data['friches_agri_ddt'] = fetch_wfs_data("gpu:L_FRICHES_AGRI_DDT_2020_S_019", bbox) or []
+        print(f"   → {len(friches_data['friches_agri_ddt'])} friches agricoles DDT trouvées")
+    except Exception as e:
+        print(f"⚠️ [WARN] Erreur friches agricoles DDT: {e}")
+    
+    try:
+        # Couche 2: Friches standard
+        print(f"🏚️ [FRICHES] Récupération friches standard...")
+        friches_data['friches_standard'] = fetch_wfs_data("gpu:friches-standard", bbox) or []
+        print(f"   → {len(friches_data['friches_standard'])} friches standard trouvées")
+    except Exception as e:
+        print(f"⚠️ [WARN] Erreur friches standard: {e}")
+    
+    try:
+        # Couche 3: Potentiel solaire sur friches
+        print(f"☀️ [SOLAIRE] Récupération potentiel solaire friches...")
+        friches_data['friches_solaires'] = fetch_wfs_data("gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93", bbox) or []
+        print(f"   → {len(friches_data['friches_solaires'])} sites à potentiel solaire trouvés")
+    except Exception as e:
+        print(f"⚠️ [WARN] Erreur potentiel solaire friches: {e}")
+    
+    total = len(friches_data['friches_agri_ddt']) + len(friches_data['friches_standard']) + len(friches_data['friches_solaires'])
+    print(f"✅ [FRICHES] Total: {total} éléments récupérés")
+    
+    return friches_data
+
 # ===== NOUVELLES FONCTIONS POUR RECHERCHE PAR POLYGONE COMMUNE =====
 def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
     """
@@ -5475,7 +5564,7 @@ def build_simple_map(
                     item.get("geometry"),
                     style_function=lambda _: {"color": "red", "weight": 2, "fillColor": "lavender", "fillOpacity": 0.4},
                     tooltip=f"Zone PLU - {typeref}",
-                    popup=folium.Popup(popup_html, max_width=300)
+                    popup=safe_folium_popup(popup_html, max_width=300)
                 ).add_to(plu_group)
         
         map_obj.add_child(plu_group)
@@ -5906,12 +5995,15 @@ def build_map(
             if links_html:
                 popup_html += "<br>" + " ".join(links_html)
 
+            # Nettoyer le HTML pour éviter les erreurs JavaScript
+            popup_html = sanitize_popup_html(popup_html)
+
             # Utiliser un IFrame pour éviter les problèmes de quotes dans le JS généré par Folium
             try:
                 iframe = folium.IFrame(html=popup_html, width=300, height=150)
-                popup_obj = folium.Popup(iframe, max_width=300)
+                popup_obj = safe_folium_popup(iframe, max_width=300)
             except Exception:
-                popup_obj = folium.Popup(popup_html, max_width=300)
+                popup_obj = safe_folium_popup(popup_html, max_width=300)
 
             folium.Marker(
                 [lat_e, lon_e],
@@ -5983,7 +6075,7 @@ def build_map(
                 item.get("geometry"), 
                 style_function=lambda _: {"color": "red", "weight": 2, "fillColor": "lavender", "fillOpacity": 0.4},
                 tooltip=f"Zone PLU - {typeref}",
-                popup=folium.Popup(popup_html, max_width=350)
+                popup=safe_folium_popup(popup_html, max_width=350)
             ).add_to(plu_group)
     map_obj.add_child(plu_group)
 
@@ -6188,7 +6280,7 @@ def build_map(
                         geom, 
                         style_function=style_func,
                         tooltip=tooltip_text,
-                        popup=folium.Popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
+                        popup=safe_folium_popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
                     ).add_to(group)
                 except Exception as e:
                     print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
@@ -6247,7 +6339,7 @@ def build_map(
         # Ajouter un marker central avec la liste
         folium.Marker(
             [lat, lon],
-            popup=folium.Popup(info_popup, max_width=400),
+            popup=safe_folium_popup(info_popup, max_width=400),
             icon=folium.Icon(color="purple", icon="list", prefix="fa")
         ).add_to(cadastre_filtered_group)
         
@@ -6380,7 +6472,7 @@ def build_map(
         except Exception:
             coords = item.get("geometry", {}).get("coordinates", [0, 0])
             lon_c, lat_c = coords[0], coords[1]
-        folium.Marker([lat_c, lon_c], popup=folium.Popup(popup_content, max_width=400), icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
+        folium.Marker([lat_c, lon_c], popup=safe_folium_popup(popup_content, max_width=400), icon=folium.Icon(color="purple", icon="flash")).add_to(caps_group)
     map_obj.add_child(caps_group)
 
     # Sirene - Couche décochée par défaut pour éviter l'encombrement
@@ -6444,7 +6536,7 @@ def build_map(
                         geom,
                         style_function=make_style(color),
                         tooltip=props.get("libelle", layer_label) or layer_label,
-                        popup=folium.Popup(popup_html, max_width=400)
+                        popup=safe_folium_popup(popup_html, max_width=400)
                     ).add_to(group)
                 except Exception as e:
                     print(f"[ERROR] Exception while adding GPU geometry for {ep}: {e}\nGeom: {geom}")
@@ -6509,7 +6601,7 @@ def build_map(
                         "fillOpacity": 0.4,
                         "fillColor": c
                     },
-                    popup=folium.Popup(popup_content, max_width=400),
+                    popup=safe_folium_popup(popup_content, max_width=400),
                     tooltip=f"🌿 {props.get('NOM', 'Zone naturelle')} ({type_protection})"
                 ).add_to(nat_grp)
         
@@ -6545,7 +6637,7 @@ def build_map(
                             color='red',
                             weight=3,
                             opacity=0.8,
-                            popup=folium.Popup(popup_content, max_width=300),
+                            popup=safe_folium_popup(popup_content, max_width=300),
                             tooltip="Ligne HTA Aérienne"
                         ).add_to(hta_a_fg)
                 except Exception as e:
@@ -6572,7 +6664,7 @@ def build_map(
                             color='blue',
                             weight=3,
                             opacity=0.8,
-                            popup=folium.Popup(popup_content, max_width=300),
+                            popup=safe_folium_popup(popup_content, max_width=300),
                             tooltip="Ligne HTA Souterraine"
                         ).add_to(hta_s_fg)
                 except Exception as e:
@@ -8648,16 +8740,9 @@ def search_by_commune():
             
             # Enrichissement cadastral OPTIMISÉ avec limite intelligente
             if toitures_data:
-                # OPTIMISATION PERFORMANCE: Limitation intelligente pour éviter les timeouts
-                max_toitures_enrichissement = 50  # Limite raisonnable pour de bonnes performances
-                
-                if len(toitures_data) > max_toitures_enrichissement:
-                    print(f"⚡ [OPTIMISATION] Limitation à {max_toitures_enrichissement} toitures pour performance optimale")
-                    # Prendre les plus grandes toitures d'abord
-                    toitures_triees = sorted(toitures_data, key=lambda x: x['properties']['surface_toiture_m2'], reverse=True)
-                    toitures_a_enrichir = toitures_triees[:max_toitures_enrichissement]
-                else:
-                    toitures_a_enrichir = toitures_data
+                # OPTIMISATION PERFORMANCE: Toutes les toitures sont enrichies
+                # Note: Peut être lent pour les grandes communes (>500 toitures)
+                toitures_a_enrichir = toitures_data  # Toutes les toitures
                 
                 print(f"🏛️ [CADASTRE-TOITURES] Enrichissement optimisé : {len(toitures_a_enrichir)} toitures")
                 print(f"🔍 [CADASTRE-TOITURES] Traitement individuel avec timeout réduit")
@@ -8802,8 +8887,8 @@ def search_by_commune():
         print(f"❌ [ERREUR] Traceback: {traceback.format_exc()}")
         map_obj = None
     
-    # Récupérer le HTML de la carte pour l'ajouter à la réponse
-    carte_html = map_obj._repr_html_() if map_obj else ""
+    # ⚠️ Ne plus générer carte_html (inutile et très lourd)
+    # carte_html = map_obj._repr_html_() if map_obj else ""
     
     # Sauvegarder la carte comme dans rapport_commune qui fonctionne
     carte_url = None
@@ -8846,8 +8931,9 @@ def search_by_commune():
         "solaire": toitures_data if filter_toitures else solaire_data,
         "zaer": zaer_data,
         "sirene": sirene_data,
-        "carte_html": carte_html,  # HTML de la carte avec les popups
-        "carte_url": carte_url,    # URL de la carte sauvée
+        # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
+        # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
+        "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe
         # Métadonnées de filtrage
         "filters_applied": {
             "rpg": {"active": filter_rpg, "count": len(final_rpg) if filter_rpg else 0},
@@ -8877,10 +8963,10 @@ def search_by_commune():
     log_search_results(commune, response_data)
     
     # Ajouter cache bust comme dans search_by_address - DIAGNOSTIC DÉTAILLÉ
-    # print(f"🔍 [DEBUG_FINAL] carte_url avant traitement: '{carte_url}' (type: {type(carte_url)})")  # Optimisé pour production multi-user
-    if carte_url and "commune_map_" in carte_url:
+    print(f"🔍 [DEBUG_FINAL] carte_url avant traitement: '{carte_url}' (type: {type(carte_url)})")
+    if carte_url and "commune_" in carte_url:  # ⚠️ CORRECTION: "commune_" au lieu de "commune_map_"
         response_data["carte_url"] = f"/static/{carte_url}?t={int(time.time())}"
-        # print(f"✅ [DEBUG_FINAL] URL carte avec cache bust: {response_data['carte_url']}")  # Optimisé pour production multi-user
+        print(f"✅ [DEBUG_FINAL] URL carte avec cache bust: {response_data['carte_url']}")
     elif carte_url:
         response_data["carte_url"] = f"/static/{carte_url}"
         print(f"✅ [DEBUG_FINAL] URL carte finale: {response_data['carte_url']}")
@@ -12494,7 +12580,7 @@ def carte_risques():
                     folium.CircleMarker(
                         location=[geom['coordinates'][1], geom['coordinates'][0]],
                         radius=8,
-                        popup=folium.Popup(popup_content, max_width=250),
+                        popup=safe_folium_popup(popup_content, max_width=250),
                         color=color,
                         fillColor=color,
                         fillOpacity=0.7,
@@ -12509,7 +12595,7 @@ def carte_risques():
                             coords = [[coord[1], coord[0]] for coord in geom['coordinates'][0]]
                             folium.Polygon(
                                 locations=coords,
-                                popup=folium.Popup(popup_content, max_width=250),
+                                popup=safe_folium_popup(popup_content, max_width=250),
                                 color=color,
                                 fillColor=color,
                                 fillOpacity=0.3,
@@ -12520,7 +12606,7 @@ def carte_risques():
                                 coords = [[coord[1], coord[0]] for coord in polygon[0]]
                                 folium.Polygon(
                                     locations=coords,
-                                    popup=folium.Popup(popup_content, max_width=250),
+                                    popup=safe_folium_popup(popup_content, max_width=250),
                                     color=color,
                                     fillColor=color,
                                     fillOpacity=0.3,

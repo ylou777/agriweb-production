@@ -26089,3 +26089,71 @@ shapely.errors.GEOSException: TopologyException: side location conflict at 2.413
 2025-10-10 14:57:32,902 INFO 127.0.0.1 - - [10/Oct/2025 14:57:32] "GET /api/list_saved_maps HTTP/1.1" 200 -
 2025-10-10 14:58:12,541 INFO 127.0.0.1 - - [10/Oct/2025 14:58:12] "[36mGET /static/cartes/rapport_Nice_20251010_145629.html HTTP/1.1[0m" 304 -
 2025-10-10 14:58:27,581 INFO 127.0.0.1 - - [10/Oct/2025 14:58:27] "GET /static/cartes/rapport_Nice_20251010_145629.html HTTP/1.1" 200 -
+2025-10-11 18:52:14,890 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-10-11 18:52:14,891 INFO [33mPress CTRL+C to quit[0m
+2025-11-10 14:02:55,749 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-11-10 14:02:55,753 INFO [33mPress CTRL+C to quit[0m
+2025-11-10 14:02:57,650 INFO 127.0.0.1 - - [10/Nov/2025 14:02:57] "GET / HTTP/1.1" 200 -
+2025-11-10 14:03:01,324 INFO 127.0.0.1 - - [10/Nov/2025 14:03:01] "[32mGET /login HTTP/1.1[0m" 301 -
+2025-11-10 14:03:01,341 INFO 127.0.0.1 - - [10/Nov/2025 14:03:01] "GET /auth/login HTTP/1.1" 200 -
+2025-11-10 14:03:03,349 INFO 127.0.0.1 - - [10/Nov/2025 14:03:03] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-11-10 14:03:03,706 INFO 127.0.0.1 - - [10/Nov/2025 14:03:03] "GET /app HTTP/1.1" 200 -
+2025-11-10 14:03:04,431 INFO 127.0.0.1 - - [10/Nov/2025 14:03:04] "GET /static/autocomplete.css HTTP/1.1" 200 -
+2025-11-10 14:03:04,459 INFO 127.0.0.1 - - [10/Nov/2025 14:03:04] "GET /static/advanced_layer_control.css HTTP/1.1" 200 -
+2025-11-10 14:03:04,499 INFO 127.0.0.1 - - [10/Nov/2025 14:03:04] "GET /static/autocomplete.js HTTP/1.1" 200 -
+2025-11-10 14:03:04,532 INFO 127.0.0.1 - - [10/Nov/2025 14:03:04] "GET /static/main.js HTTP/1.1" 200 -
+2025-11-10 14:03:04,745 INFO 127.0.0.1 - - [10/Nov/2025 14:03:04] "GET /static/map.html HTTP/1.1" 200 -
+2025-11-11 08:55:07,627 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-11-11 08:55:07,629 INFO [33mPress CTRL+C to quit[0m
+2025-11-12 17:56:11,383 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-11-12 17:56:11,385 INFO [33mPress CTRL+C to quit[0m
+2025-11-12 17:56:12,782 INFO 127.0.0.1 - - [12/Nov/2025 17:56:12] "GET / HTTP/1.1" 200 -
+2025-11-12 17:56:15,975 INFO 127.0.0.1 - - [12/Nov/2025 17:56:15] "GET /auth/login HTTP/1.1" 200 -
+2025-11-12 17:56:17,636 INFO 127.0.0.1 - - [12/Nov/2025 17:56:17] "[31m[1mPOST /auth/login HTTP/1.1[0m" 401 -
+2025-11-12 17:56:24,573 INFO 127.0.0.1 - - [12/Nov/2025 17:56:24] "GET / HTTP/1.1" 200 -
+2025-11-12 17:56:27,378 INFO 127.0.0.1 - - [12/Nov/2025 17:56:27] "GET /auth/login HTTP/1.1" 200 -
+2025-11-12 17:56:30,551 INFO 127.0.0.1 - - [12/Nov/2025 17:56:30] "[31m[1mPOST /auth/login HTTP/1.1[0m" 401 -
+2025-11-12 17:56:40,071 INFO 127.0.0.1 - - [12/Nov/2025 17:56:40] "[31m[1mPOST /auth/login HTTP/1.1[0m" 401 -
+2025-11-12 17:56:55,369 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-11-12 17:56:55,433 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "GET /app HTTP/1.1" 200 -
+2025-11-12 17:56:55,749 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "GET /static/autocomplete.css HTTP/1.1" 200 -
+2025-11-12 17:56:55,750 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "GET /static/main.js HTTP/1.1" 200 -
+2025-11-12 17:56:55,757 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "GET /static/advanced_layer_control.css HTTP/1.1" 200 -
+2025-11-12 17:56:55,767 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "GET /static/autocomplete.js HTTP/1.1" 200 -
+2025-11-12 17:56:55,842 INFO 127.0.0.1 - - [12/Nov/2025 17:56:55] "GET /static/map.html HTTP/1.1" 200 -
+2025-11-12 17:57:03,635 INFO 127.0.0.1 - - [12/Nov/2025 17:57:03] "GET /api/autocomplete/commune?q=saint%20etienne HTTP/1.1" 200 -
+2025-11-12 17:57:03,658 INFO 127.0.0.1 - - [12/Nov/2025 17:57:03] "GET /api/autocomplete/address?q=saint%20etienne HTTP/1.1" 200 -
+2025-11-12 17:57:26,684 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.244056 45.371477, 4.488878 45.371477, 4.488878 45.47673, 4.244056 45.47673, 4.244056 45.371477) )')"}
+2025-11-12 17:57:27,459 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-hta)
+2025-11-12 17:57:27,464 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.244056 45.371477, 4.488878 45.371477, 4.488878 45.47673, 4.244056 45.47673, 4.244056 45.371477) )')"}
+2025-11-12 17:57:28,081 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-souterrain-hta)
+2025-11-12 17:57:28,083 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=400 souterraine=400 total=800
+2025-11-12 18:03:07,636 INFO 127.0.0.1 - - [12/Nov/2025 18:03:07] "GET /search_by_commune?commune=Saint-Étienne&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=2000&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1575&filter_by_distance=false&max_distance_bt=2000&max_distance_hta=5000&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=1000&hta_underground_max_km=500 HTTP/1.1" 200 -
+2025-11-12 18:03:09,074 INFO 127.0.0.1 - - [12/Nov/2025 18:03:09] "GET /static/cartes/commune_36e9bd34_20251112_180044.html?cache=1762966989047 HTTP/1.1" 200 -
+2025-11-12 18:10:36,663 INFO 127.0.0.1 - - [12/Nov/2025 18:10:36] "[32mGET /app HTTP/1.1[0m" 302 -
+2025-11-12 18:10:36,831 INFO 127.0.0.1 - - [12/Nov/2025 18:10:36] "GET /?login_required=1 HTTP/1.1" 200 -
+2025-11-12 18:10:40,743 INFO 127.0.0.1 - - [12/Nov/2025 18:10:40] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-11-12 18:10:42,558 INFO 127.0.0.1 - - [12/Nov/2025 18:10:42] "[32mGET /login HTTP/1.1[0m" 301 -
+2025-11-12 18:10:42,606 INFO 127.0.0.1 - - [12/Nov/2025 18:10:42] "GET /auth/login HTTP/1.1" 200 -
+2025-11-12 18:10:44,441 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-11-12 18:10:44,511 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "GET /app HTTP/1.1" 200 -
+2025-11-12 18:10:44,552 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "GET /static/autocomplete.css HTTP/1.1" 200 -
+2025-11-12 18:10:44,561 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "GET /static/advanced_layer_control.css HTTP/1.1" 200 -
+2025-11-12 18:10:44,567 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "GET /static/autocomplete.js HTTP/1.1" 200 -
+2025-11-12 18:10:44,567 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "GET /static/main.js HTTP/1.1" 200 -
+2025-11-12 18:10:44,651 INFO 127.0.0.1 - - [12/Nov/2025 18:10:44] "GET /static/map.html HTTP/1.1" 200 -
+2025-11-12 18:10:51,788 INFO 127.0.0.1 - - [12/Nov/2025 18:10:51] "GET /api/autocomplete/commune?q=saint%20etienne HTTP/1.1" 200 -
+2025-11-12 18:10:52,002 INFO 127.0.0.1 - - [12/Nov/2025 18:10:52] "GET /api/autocomplete/address?q=saint%20etienne HTTP/1.1" 200 -
+2025-11-12 18:11:16,238 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.244056 45.371477, 4.488878 45.371477, 4.488878 45.47673, 4.244056 45.47673, 4.244056 45.371477) )')"}
+2025-11-12 18:11:16,934 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-hta)
+2025-11-12 18:11:16,935 INFO \U0001f50c [ENEDIS] Requête dataset=reseau-souterrain-hta params={'limit': 400, 'timezone': 'UTC', 'where': "intersects(geo_shape, geom'POLYGON((4.244056 45.371477, 4.488878 45.371477, 4.488878 45.47673, 4.244056 45.47673, 4.244056 45.371477) )')"}
+2025-11-12 18:11:17,489 INFO \u2705 [ENEDIS] 400 features récupérées (reseau-souterrain-hta)
+2025-11-12 18:11:17,496 INFO \U0001f50e [ENEDIS_HTA] Récap aérienne=400 souterraine=400 total=800
+2025-11-12 18:17:29,819 INFO 127.0.0.1 - - [12/Nov/2025 18:17:29] "GET /search_by_commune?commune=Saint-Étienne&culture=&min_area_ha=10&max_area_ha=50&ht_max_distance=5000&bt_max_distance=2000&sirene_radius=0.1&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1775&filter_by_distance=false&max_distance_bt=2000&max_distance_hta=5000&distance_logic=OR&poste_type_filter=ALL&filter_hta_lines_aerial=true&filter_hta_lines_underground=true&hta_aerial_max_km=1000&hta_underground_max_km=500 HTTP/1.1" 200 -
+2025-11-12 18:22:55,734 INFO 127.0.0.1 - - [12/Nov/2025 18:22:55] "GET /static/cartes/commune_073839ae_20251112_181506.html?cache=1762968175700 HTTP/1.1" 200 -
+2025-11-12 18:34:24,234 INFO 127.0.0.1 - - [12/Nov/2025 18:34:24] "GET /rapport_commune_complet?commune=Saint-Étienne&filter_rpg=false&rpg_min_area=0.1&rpg_max_area=50&filter_parkings=true&parking_min_area=1500&filter_friches=false&friches_min_area=1000&filter_zones=false&zones_min_area=1000&zones_type_filter=&filter_toitures=true&toitures_min_surface=1775&filter_by_distance=false&max_distance_bt=2000&max_distance_hta=5000&poste_type_filter=ALL&export_format=html HTTP/1.1" 200 -
+2025-11-12 18:34:33,429 INFO 127.0.0.1 - - [12/Nov/2025 18:34:33] "GET /generated_map HTTP/1.1" 200 -

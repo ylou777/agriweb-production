@@ -1227,12 +1227,24 @@ async function handleUnifiedSearch(e) {
 
 // --------- RECHERCHE PAR COMMUNE ---------
 let lastCommuneSearchTime = 0;
+let isCommuneSearchRunning = false; // Flag pour éviter les recherches simultanées
+
 async function handleCommuneSearch(e) {
-  e?.preventDefault?.();
+  // PROTECTION 1: Empêcher le comportement par défaut du formulaire
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
   
-  // Protection contre les boucles infinies avec debouncing
+  // PROTECTION 2: Éviter les recherches simultanées
+  if (isCommuneSearchRunning) {
+    console.log('🔄 Recherche commune déjà en cours, annulation');
+    return;
+  }
+  
+  // PROTECTION 3: Debouncing - minimum 1 seconde entre deux recherches
   const now = Date.now();
-  const minDelay = 1000; // Minimum 1 seconde entre deux recherches
+  const minDelay = 1000;
   
   if (now - lastCommuneSearchTime < minDelay) {
     console.log('🔄 Recherche commune trop rapide, annulation (debouncing)');
@@ -1240,6 +1252,7 @@ async function handleCommuneSearch(e) {
   }
   
   lastCommuneSearchTime = now;
+  isCommuneSearchRunning = true;
   
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
   switchMap("/static/map.html", async () => {
@@ -1315,9 +1328,16 @@ async function handleCommuneSearch(e) {
       const m = getMapFrame();
       if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
       setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
+      
+      // Réinitialiser le flag
+      isCommuneSearchRunning = false;
+      
     } catch (err) {
       setCommuneSearchLog('❌ Erreur lors de la recherche : ' + err, 'red');
       alert("Erreur lors de la recherche par commune : " + err);
+      
+      // Réinitialiser le flag en cas d'erreur aussi
+      isCommuneSearchRunning = false;
     }
   });
 }
