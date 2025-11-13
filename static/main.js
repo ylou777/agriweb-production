@@ -1446,10 +1446,39 @@ function handleDeptSearch() {
       const m = getMapFrame();
       if (r.lat && r.lon && m?.setView) m.setView(r.lat, r.lon, 11);
     });
-    es.addEventListener("end", e => {
+    es.addEventListener("end", async e => {
       if (logEl) logEl.textContent += e.data + "\n";
       console.log("[DEBUG] Fin SSE, aucun traitement supplémentaire nécessaire (mise à jour incrémentale)");
       es.close();
+      
+      // 🗺️ SAUVEGARDE AUTO: Générer une carte département avec toutes les données
+      if (results.length > 0) {
+        console.log(`✅ [DEPT] Recherche terminée: ${results.length} résultats. Génération carte...`);
+        const deptNum = params.department || dept;
+        
+        try {
+          // Envoyer une requête pour générer la carte finale
+          const saveResponse = await fetch('/api/save_dept_map', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              department: deptNum,
+              results: results,
+              params: params
+            })
+          });
+          
+          const saveData = await saveResponse.json();
+          if (saveData.success) {
+            console.log(`✅ [DEPT] Carte sauvegardée: ${saveData.filename}`);
+            if (logEl) logEl.textContent += `\n✅ Carte sauvegardée: ${saveData.filename}\n`;
+          } else {
+            console.warn(`⚠️ [DEPT] Erreur sauvegarde carte: ${saveData.error}`);
+          }
+        } catch (err) {
+          console.error(`❌ [DEPT] Erreur lors de la sauvegarde:`, err);
+        }
+      }
     });
     es.onerror = () => {
       if (logEl) logEl.textContent += "❌ Erreur SSE\n";

@@ -15660,6 +15660,124 @@ def delete_saved_map():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
+@app.route("/api/save_dept_map", methods=["POST"])
+def save_dept_map():
+    """
+    Générer et sauvegarder une carte pour une recherche départementale
+    """
+    import glob
+    
+    try:
+        data = request.get_json()
+        department = data.get("department")
+        results = data.get("results", [])
+        
+        if not department or not results:
+            return jsonify({"success": False, "error": "Données manquantes"})
+        
+        print(f"🗺️ [SAVE_DEPT] Génération carte département {department} avec {len(results)} résultats")
+        
+        # Agréger toutes les données de toutes les communes
+        all_parcelles = []
+        all_postes_bt = []
+        all_postes_hta = []
+        all_hta_lignes = []
+        center_lat, center_lon = None, None
+        
+        for result in results:
+            if result.get("rpg"):
+                all_parcelles.extend(result["rpg"])
+            if result.get("postes_bt"):
+                all_postes_bt.extend(result["postes_bt"])
+            if result.get("postes_hta"):
+                all_postes_hta.extend(result["postes_hta"])
+            if result.get("hta_lignes"):
+                all_hta_lignes.extend(result["hta_lignes"])
+            
+            # Utiliser la première coordonnée comme centre
+            if center_lat is None and result.get("lat"):
+                center_lat = result["lat"]
+                center_lon = result["lon"]
+        
+        if center_lat is None:
+            center_lat, center_lon = 46.5, 2.5  # Centre France par défaut
+        
+        # Créer une carte simple avec toutes les données
+        map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10, tiles="OpenStreetMap")
+        
+        # Ajouter les couches (simplifié)
+        if all_parcelles:
+            parcelles_group = folium.FeatureGroup(name="Parcelles RPG")
+            for p in all_parcelles[:1000]:  # Limiter à 1000 pour performance
+                if p.get("geometry"):
+                    folium.GeoJson(p, style_function=lambda x: {"color": "green", "weight": 1}).add_to(parcelles_group)
+            map_obj.add_child(parcelles_group)
+        
+        if all_postes_bt:
+            bt_group = folium.FeatureGroup(name="Postes BT")
+            for poste in all_postes_bt[:500]:  # Limiter
+                if poste.get("lat") and poste.get("lon"):
+                    folium.CircleMarker(
+                        [poste["lat"], poste["lon"]],
+                        radius=5,
+                        color="orange",
+                        fill=True
+                    ).add_to(bt_group)
+            map_obj.add_child(bt_group)
+        
+        if all_postes_hta:
+            hta_group = folium.FeatureGroup(name="Postes HTA")
+            for poste in all_postes_hta[:500]:
+                if poste.get("lat") and poste.get("lon"):
+                    folium.CircleMarker(
+                        [poste["lat"], poste["lon"]],
+                        radius=7,
+                        color="red",
+                        fill=True
+                    ).add_to(hta_group)
+            map_obj.add_child(hta_group)
+        
+        # Ajouter contrôle des couches
+        folium.LayerControl().add_to(map_obj)
+        
+        # 🧹 Nettoyage: supprimer anciennes cartes du même département
+        cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+        os.makedirs(cartes_dir, exist_ok=True)
+        
+        pattern = os.path.join(cartes_dir, f"departement_{department}_*.html")
+        old_maps = glob.glob(pattern)
+        
+        for old_map in old_maps:
+            try:
+                os.remove(old_map)
+                print(f"   ✓ Supprimé ancienne carte: {os.path.basename(old_map)}")
+            except Exception as e:
+                print(f"   ⚠️ Erreur suppression: {e}")
+        
+        # Sauvegarder avec nom sécurisé
+        filename = generate_secure_filename("departement", department)
+        filepath = os.path.join(cartes_dir, filename)
+        map_obj.save(filepath)
+        
+        print(f"✅ [SAVE_DEPT] Carte sauvegardée: {filename}")
+        
+        return jsonify({
+            "success": True,
+            "filename": filename,
+            "url": f"/static/cartes/{filename}",
+            "features_count": {
+                "parcelles": len(all_parcelles),
+                "postes_bt": len(all_postes_bt),
+                "postes_hta": len(all_postes_hta)
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ [SAVE_DEPT] Erreur: {e}")
+        print(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route("/api/clean_old_maps", methods=["POST"])
 def clean_old_maps():
     """Supprimer les cartes de plus de X jours"""
