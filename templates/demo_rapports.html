@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Exemples de Rapports - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #fd7e14 0%, #dc3545 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-section {
+            padding: 3rem 0;
+            color: white;
+            text-align: center;
+        }
+        
+        .content-section {
+            background: white;
+            margin: 2rem 0;
+            padding: 3rem 0;
+        }
+        
+        .report-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+            transition: all 0.3s;
+            border-left: 5px solid #fd7e14;
+        }
+        
+        .report-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+        
+        .report-preview {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border: 2px dashed #dee2e6;
+        }
+        
+        .data-source {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            display: inline-block;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .try-button {
+            background: linear-gradient(135deg, #fd7e14, #dc3545);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .try-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(253,126,20,0.4);
+            color: white;
+        }
+        
+        .download-button {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            border: none;
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 0.9rem;
+        }
+        
+        .download-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(40,167,69,0.3);
+            color: white;
+        }
+        
+        .breadcrumb-custom {
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            padding: 0.75rem 1.5rem;
+        }
+        
+        .breadcrumb-custom a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .breadcrumb-custom a:hover {
+            color: #ffc107;
+        }
+        
+        .feature-tag {
+            background: linear-gradient(135deg, #6f42c1, #e83e8c);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="hero-section">
+        <div class="container">
+            <nav class="breadcrumb-custom mb-4">
+                <a href="/">🏠 Accueil</a> / <a href="/demo-real">Démo</a> / <span class="text-white">Exemples de Rapports</span>
+            </nav>
+            
+            <h1 class="display-4 fw-bold mb-3">📊 Exemples de Rapports</h1>
+            <p class="lead mb-4">Découvrez nos rapports automatisés avec données officielles et analyses détaillées</p>
+        </div>
+    </div>
+
+    <!-- Exemples de rapports -->
+    <div class="content-section">
+        <div class="container">
+            <div class="row">
+                <!-- Rapport de Point -->
+                <div class="col-lg-6">
+                    <div class="report-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-primary">📍 Rapport de Point</h4>
+                            <span class="feature-tag">Analyse Parcellaire</span>
+                        </div>
+                        <p class="text-muted mb-3">Analyse détaillée d'un point géographique précis avec toutes les données disponibles</p>
+                        
+                        <div class="report-preview">
+                            <h6 class="fw-bold mb-3">Contenu du rapport :</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Coordonnées GPS exactes</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Données PVGIS (potentiel solaire)</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Cadastre RPG (cultures)</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructure électrique</li>
+                                    </ul>
+                                </div>
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Géorisques naturels</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Topographie détaillée</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Zonages réglementaires</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel agrivoltaïque</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Sources de données :</strong><br>
+                            <span class="data-source">IGN</span>
+                            <span class="data-source">PVGIS</span>
+                            <span class="data-source">RPG</span>
+                            <span class="data-source">BRGM</span>
+                            <span class="data-source">ENEDIS</span>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="/app?lat=48.8566&lon=2.3522&address=Paris" class="try-button">
+                                <i class="bi bi-play-circle me-2"></i>Générer exemple
+                            </a>
+                            <a href="#" class="download-button">
+                                <i class="bi bi-download me-2"></i>PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rapport de Commune -->
+                <div class="col-lg-6">
+                    <div class="report-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-success">🏘️ Rapport de Commune</h4>
+                            <span class="feature-tag">Synthèse Locale</span>
+                        </div>
+                        <p class="text-muted mb-3">Vue d'ensemble complète d'une commune avec statistiques et potentiel</p>
+                        
+                        <div class="report-preview">
+                            <h6 class="fw-bold mb-3">Contenu du rapport :</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Superficie et démographie</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Répartition des cultures</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel solaire moyen</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructure électrique</li>
+                                    </ul>
+                                </div>
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Zonages environnementaux</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Risques naturels</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Cartographie détaillée</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Recommandations</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Sources de données :</strong><br>
+                            <span class="data-source">INSEE</span>
+                            <span class="data-source">RPG</span>
+                            <span class="data-source">PVGIS</span>
+                            <span class="data-source">IGN</span>
+                            <span class="data-source">DREAL</span>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="/app?commune=51454" class="try-button">
+                                <i class="bi bi-graph-up me-2"></i>Voir exemple
+                            </a>
+                            <a href="#" class="download-button">
+                                <i class="bi bi-download me-2"></i>PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rapport Départemental -->
+                <div class="col-lg-6">
+                    <div class="report-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-info">🗺️ Rapport Départemental</h4>
+                            <span class="feature-tag">Vision Macro</span>
+                        </div>
+                        <p class="text-muted mb-3">Analyse complète d'un département avec statistiques agricoles et énergétiques</p>
+                        
+                        <div class="report-preview">
+                            <h6 class="fw-bold mb-3">Contenu du rapport :</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Statistiques démographiques</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Production agricole globale</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel énergétique total</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Réseaux électriques</li>
+                                    </ul>
+                                </div>
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Zones protégées</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Risques climatiques</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Cartographie synthèse</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Stratégie territoriale</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Sources de données :</strong><br>
+                            <span class="data-source">AGRESTE</span>
+                            <span class="data-source">RTE</span>
+                            <span class="data-source">ADEME</span>
+                            <span class="data-source">METEO</span>
+                            <span class="data-source">DRAAF</span>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="/app?departement=28" class="try-button">
+                                <i class="bi bi-map me-2"></i>Explorer
+                            </a>
+                            <a href="#" class="download-button">
+                                <i class="bi bi-download me-2"></i>PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Rapport de Faisabilité -->
+                <div class="col-lg-6">
+                    <div class="report-card">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <h4 class="fw-bold text-warning">⚡ Rapport de Faisabilité</h4>
+                            <span class="feature-tag">Étude Technique</span>
+                        </div>
+                        <p class="text-muted mb-3">Étude de faisabilité complète pour projet agrivoltaïque ou énergies renouvelables</p>
+                        
+                        <div class="report-preview">
+                            <h6 class="fw-bold mb-3">Contenu du rapport :</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Dimensionnement technique</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Productible énergétique</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Analyse financière</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Raccordement électrique</li>
+                                    </ul>
+                                </div>
+                                <div class="col-6">
+                                    <ul class="list-unstyled">
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Contraintes réglementaires</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Impact environnemental</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Planning de réalisation</li>
+                                        <li><i class="bi bi-check-circle text-success me-2"></i>Rentabilité ROI</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <strong>Sources de données :</strong><br>
+                            <span class="data-source">PVGIS</span>
+                            <span class="data-source">ENEDIS</span>
+                            <span class="data-source">CRE</span>
+                            <span class="data-source">ADEME</span>
+                            <span class="data-source">ICPE</span>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <a href="/app?projet=agrivoltaique" class="try-button">
+                                <i class="bi bi-calculator me-2"></i>Calculer
+                            </a>
+                            <a href="#" class="download-button">
+                                <i class="bi bi-download me-2"></i>PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section formats -->
+            <div class="mt-5">
+                <div class="text-center mb-4">
+                    <h3 class="fw-bold">📁 Formats de Rapports Disponibles</h3>
+                    <p class="text-muted">Exportez vos rapports dans le format qui vous convient</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-center p-3 border rounded">
+                            <i class="bi bi-filetype-pdf text-danger" style="font-size: 2rem;"></i>
+                            <h6 class="fw-bold mt-2">PDF</h6>
+                            <small class="text-muted">Rapport détaillé prêt à imprimer</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 border rounded">
+                            <i class="bi bi-filetype-docx text-primary" style="font-size: 2rem;"></i>
+                            <h6 class="fw-bold mt-2">DOCX</h6>
+                            <small class="text-muted">Document Word modifiable</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 border rounded">
+                            <i class="bi bi-filetype-xlsx text-success" style="font-size: 2rem;"></i>
+                            <h6 class="fw-bold mt-2">XLSX</h6>
+                            <small class="text-muted">Données brutes Excel</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center p-3 border rounded">
+                            <i class="bi bi-code-square text-info" style="font-size: 2rem;"></i>
+                            <h6 class="fw-bold mt-2">JSON</h6>
+                            <small class="text-muted">API et intégration</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Section navigation -->
+            <div class="text-center mt-5">
+                <h3 class="fw-bold mb-4">Découvrez d'autres exemples</h3>
+                <div class="d-flex justify-content-center flex-wrap gap-3">
+                    <a href="/demo/adresses" class="btn btn-outline-warning btn-lg">
+                        <i class="bi bi-geo-alt me-2"></i>Exemples d'Adresses
+                    </a>
+                    <a href="/demo/communes" class="btn btn-outline-warning btn-lg">
+                        <i class="bi bi-building me-2"></i>Exemples de Communes
+                    </a>
+                    <a href="/demo/departements" class="btn btn-outline-warning btn-lg">
+                        <i class="bi bi-map me-2"></i>Exemples de Départements
+                    </a>
+                </div>
+                <div class="mt-3">
+                    <a href="/demo-real" class="btn btn-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>Retour à la démo générale
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

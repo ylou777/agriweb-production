@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Carte interactive (map.html)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    html, body, #map { height:100%; margin:0; padding:0; }
+    .custom-popup { font-family: 'Poppins', Arial, sans-serif; font-size: 15px; min-width: 250px; max-width: 355px;}
+    .custom-popup th { text-align: left; color: #28616a; font-weight: 500; min-width: 95px;}
+    .custom-popup td { color: #2d2d2d; max-width:200px; word-break: break-word;}
+    .popup-title { font-weight: 700; font-size: 18px; margin-bottom: 4px; letter-spacing: 0.3px; }
+    .popup-link { color: #1474fa; text-decoration: underline; }
+    
+    .summary-bar {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(255,255,255,0.9);
+      padding: 8px 12px;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      font-size: 14px;
+      z-index: 1000;
+      color: #333;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="summary-bar" id="summaryBar" style="display:none"></div>
+  
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Icônes personnalisées
+    const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
+    const iconHta = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><polygon points='28,4 8,28 24,28 20,44 40,20 24,20' fill='#D12322' stroke='#b61a13' stroke-width='2'/></svg>`),iconSize:[38,38],iconAnchor:[19,38],popupAnchor:[0,-28]});
+    const iconFeuille = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 4 Q29 13 18 29 Q7 22 16 4 Z' fill='#34ad41' stroke='#258633' stroke-width='2'/></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-18]});
+    const iconParking = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x="4" y="8" width="24" height="16" rx="6" fill="#2ecc71" stroke="#166838" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial" font-weight="bold">P</text></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-12]});
+    const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
+
+    // Carte Leaflet avec fond satellite par défaut
+    var map = L.map('map').setView([46.8, 2], 8);
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
+    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
+    sat.addTo(map);
+
+    var baseMaps = { "Satellite": sat, "OSM": osm };
+    L.control.layers(baseMaps).addTo(map);
+
+    window._layers = [];
+
+    // Résumé dynamique (ex : nb objets)
+    function updateSummaryBar() {
+      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0);
+      let communes = new Set();
+      window._layers.forEach(l => l.eachLayer?.(lyr => {
+        if(lyr.feature?.properties?.commune) communes.add(lyr.feature.properties.commune);
+        if(lyr.feature?.properties?.libelleCom) communes.add(lyr.feature.properties.libelleCom);
+      }));
+      let bar = document.getElementById('summaryBar');
+      bar.innerHTML = `<b>Objets affichés :</b> ${n}${communes.size>0?` &nbsp;|&nbsp; <b>Communes :</b> ${communes.size}`:""}`;
+      bar.style.display = n>0 ? "" : "none";
+    }
+
+    window.clearMap = function() {
+      window._layers.forEach(l => map.removeLayer(l));
+      window._layers = [];
+      updateSummaryBar();
+    };
+
+    console.log('✅ Carte de base initialisée avec succès');
+  </script>
+</body>
+</html>

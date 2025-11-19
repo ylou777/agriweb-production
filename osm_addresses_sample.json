@@ -1,0 +1,399 @@
+{
+  "analysis_info": {
+    "zone": "lat=43.6767, lon=4.6298, rayon=0.02°",
+    "total_buildings_with_addresses": 447,
+    "address_attributes_found": 9
+  },
+  "address_statistics": {
+    "addr:city": 151,
+    "addr:postcode": 155,
+    "addr:street": 446,
+    "addr:housenumber": 421,
+    "addr:housename": 3,
+    "contact:phone": 2,
+    "addr:country": 2,
+    "addr:full": 1,
+    "contact:facebook": 1
+  },
+  "sample_buildings": [
+    {
+      "id": 102057680,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "hotel",
+      "address_attrs": {
+        "addr:city": "Arles",
+        "addr:postcode": "13200",
+        "addr:street": "Rue des Fourches"
+      },
+      "all_tags": {
+        "addr:city": "Arles",
+        "addr:postcode": "13200",
+        "addr:street": "Rue des Fourches",
+        "brand": "Kyriad",
+        "brand:wikidata": "Q11751808",
+        "brand:wikipedia": "pl:Kyriad",
+        "building": "hotel",
+        "name": "Kyriad",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011",
+        "tourism": "hotel"
+      }
+    },
+    {
+      "id": 102057708,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "apartments",
+      "address_attrs": {
+        "addr:city": "Arles",
+        "addr:housenumber": "12",
+        "addr:postcode": "13200",
+        "addr:street": "Rue des Porcelets"
+      },
+      "all_tags": {
+        "addr:city": "Arles",
+        "addr:housenumber": "12",
+        "addr:postcode": "13200",
+        "addr:street": "Rue des Porcelets",
+        "building": "apartments",
+        "building:levels": "4",
+        "roof:levels": "0",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102057999,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "house",
+      "address_attrs": {
+        "addr:housenumber": "11",
+        "addr:street": "Rue Gaston Luppe"
+      },
+      "all_tags": {
+        "addr:housenumber": "11",
+        "addr:street": "Rue Gaston Luppe",
+        "building": "house",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102058041,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "house",
+      "address_attrs": {
+        "addr:housenumber": "16",
+        "addr:street": "Impasse du Champ de Course"
+      },
+      "all_tags": {
+        "addr:housenumber": "16",
+        "addr:street": "Impasse du Champ de Course",
+        "building": "house",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102058757,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "house",
+      "address_attrs": {
+        "addr:housenumber": "46",
+        "addr:street": "Rue Pierre Renaudel"
+      },
+      "all_tags": {
+        "addr:housenumber": "46",
+        "addr:street": "Rue Pierre Renaudel",
+        "building": "house",
+        "roof:shape": "gabled",
+        "source": "Arles Crau Camargue Montagnette - 02/2013"
+      }
+    },
+    {
+      "id": 102058778,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "yes",
+      "address_attrs": {
+        "addr:housenumber": "5 Bis",
+        "addr:street": "Rue Jean Jaurès"
+      },
+      "all_tags": {
+        "addr:housenumber": "5 Bis",
+        "addr:street": "Rue Jean Jaurès",
+        "building": "yes",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102058786,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "house",
+      "address_attrs": {
+        "addr:housenumber": "26",
+        "addr:street": "Impasse du Champ de Course"
+      },
+      "all_tags": {
+        "addr:housenumber": "26",
+        "addr:street": "Impasse du Champ de Course",
+        "building": "house",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102058948,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "detached",
+      "address_attrs": {
+        "addr:housenumber": "18",
+        "addr:street": "Rue Jacques Claude Aubert"
+      },
+      "all_tags": {
+        "addr:housenumber": "18",
+        "addr:street": "Rue Jacques Claude Aubert",
+        "building": "detached",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102058954,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "yes",
+      "address_attrs": {
+        "addr:housenumber": "11",
+        "addr:street": "Rue Pierre Renaudel"
+      },
+      "all_tags": {
+        "addr:housenumber": "11",
+        "addr:street": "Rue Pierre Renaudel",
+        "building": "yes",
+        "source": "Arles Crau Camargue Montagnette - 02/2013"
+      }
+    },
+    {
+      "id": 102059200,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "house",
+      "address_attrs": {
+        "addr:housenumber": "1",
+        "addr:street": "Impasse du Champ de Course"
+      },
+      "all_tags": {
+        "addr:housenumber": "1",
+        "addr:street": "Impasse du Champ de Course",
+        "building": "house",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102059205,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "yes",
+      "address_attrs": {
+        "addr:housenumber": "23",
+        "addr:postcode": "13200",
+        "addr:street": "Rue Waldeck Rousseau"
+      },
+      "all_tags": {
+        "addr:housenumber": "23",
+        "addr:postcode": "13200",
+        "addr:street": "Rue Waldeck Rousseau",
+        "building": "yes",
+        "guest_house": "guest_house",
+        "name": "L'Aubergine Rouge",
+        "name:fr": "L'Aubergine Rouge",
+        "phone": "+33 7 81 15 95 82",
+        "rooms": "3",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011",
+        "tourism": "guest_house",
+        "website": "https://www.lauberginerouge.com/"
+      }
+    },
+    {
+      "id": 102059350,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "yes",
+      "address_attrs": {
+        "addr:housenumber": "58",
+        "addr:street": "Rue Pierre Renaudel"
+      },
+      "all_tags": {
+        "addr:housenumber": "58",
+        "addr:street": "Rue Pierre Renaudel",
+        "building": "yes",
+        "source": "Arles Crau Camargue Montagnette - 02/2013"
+      }
+    },
+    {
+      "id": 102059364,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "apartments",
+      "address_attrs": {
+        "addr:housenumber": "3",
+        "addr:street": "Rue des Porcelets"
+      },
+      "all_tags": {
+        "addr:housenumber": "3",
+        "addr:street": "Rue des Porcelets",
+        "building": "apartments",
+        "building:levels": "4",
+        "roof:levels": "0",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102059374,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "apartments",
+      "address_attrs": {
+        "addr:housenumber": "8",
+        "addr:street": "Rue de la Rotonde"
+      },
+      "all_tags": {
+        "addr:housenumber": "8",
+        "addr:street": "Rue de la Rotonde",
+        "building": "apartments",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102059833,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "yes",
+      "address_attrs": {
+        "addr:housenumber": "14",
+        "addr:street": "Impasse Henri Bosco"
+      },
+      "all_tags": {
+        "addr:housenumber": "14",
+        "addr:street": "Impasse Henri Bosco",
+        "building": "yes",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102060180,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "apartments",
+      "address_attrs": {
+        "addr:city": "Arles",
+        "addr:housenumber": "4",
+        "addr:postcode": "13200",
+        "addr:street": "Place Paul Doumer"
+      },
+      "all_tags": {
+        "addr:city": "Arles",
+        "addr:housenumber": "4",
+        "addr:postcode": "13200",
+        "addr:street": "Place Paul Doumer",
+        "building": "apartments",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102060390,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "detached",
+      "address_attrs": {
+        "addr:housenumber": "9",
+        "addr:street": "Rue Jacques Claude Aubert"
+      },
+      "all_tags": {
+        "addr:housenumber": "9",
+        "addr:street": "Rue Jacques Claude Aubert",
+        "building": "detached",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102060743,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "retail",
+      "address_attrs": {
+        "addr:housenumber": "12",
+        "addr:street": "Rue Gaston Luppe"
+      },
+      "all_tags": {
+        "addr:housenumber": "12",
+        "addr:street": "Rue Gaston Luppe",
+        "building": "retail",
+        "roof:shape": "gabled",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011"
+      }
+    },
+    {
+      "id": 102060752,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "church",
+      "address_attrs": {
+        "addr:city": "Arles",
+        "addr:postcode": "13200",
+        "addr:street": "Boulevard des Lices"
+      },
+      "all_tags": {
+        "addr:city": "Arles",
+        "addr:postcode": "13200",
+        "addr:street": "Boulevard des Lices",
+        "amenity": "place_of_worship",
+        "building": "church",
+        "check_date": "2025-06-13",
+        "denomination": "protestant",
+        "heritage": "3",
+        "heritage:operator": "mhs",
+        "mhs:inscription_date": "1945-04-30",
+        "name": "Temple de la Rotonde",
+        "ref:mhs": "PA00081187",
+        "religion": "christian",
+        "service_times": "Su 10:30",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre. Mise à jour : 2011",
+        "source:heritage": "data.gouv.fr:Ministère de la Culture - 04/2015",
+        "website": "https://www.eglise-protestante-unie.fr/pays-d-arles-p60115",
+        "wheelchair": "no",
+        "wikidata": "Q3517685",
+        "wikipedia": "fr:Temple protestant d'Arles"
+      }
+    },
+    {
+      "id": 102060831,
+      "type": "way",
+      "surface_m2": null,
+      "building_type": "house",
+      "address_attrs": {
+        "addr:housenumber": "2",
+        "addr:street": "Rue Pierre Renaudel"
+      },
+      "all_tags": {
+        "addr:housenumber": "2",
+        "addr:street": "Rue Pierre Renaudel",
+        "building": "house",
+        "building:levels": "2",
+        "roof:levels": "0",
+        "roof:shape": "gabled",
+        "source": "Arles Crau Camargue Montagnette - 02/2013"
+      }
+    }
+  ]
+}

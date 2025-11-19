@@ -1,0 +1,330 @@
+/* ====== MOBILE-FIRST RESPONSIVE DESIGN 2025 ====== */
+
+/* Breakpoints modernes */
+:root {
+  --mobile-breakpoint: 768px;
+  --tablet-breakpoint: 1024px;
+  --desktop-breakpoint: 1440px;
+}
+
+/* ====== MOBILE LAYOUT ====== */
+@media (max-width: 768px) {
+  .main-container {
+    flex-direction: column !important;
+    position: relative !important;
+    height: 100vh !important;
+  }
+
+  /* Sidebar mobile moderne avec slide-up */
+  #sidebar {
+    position: fixed !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    height: 40vh !important;
+    max-height: 80vh !important;
+    background: var(--glass-bg) !important;
+    -webkit-backdrop-filter: blur(25px);
+    backdrop-filter: blur(25px);
+    border-radius: 25px 25px 0 0 !important;
+    border: 1px solid var(--glass-border);
+    border-bottom: none;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
+    transform: translateY(60%) !important;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+    z-index: 1000 !important;
+    overflow: hidden;
+  }
+
+  /* Sidebar étendue */
+  #sidebar.expanded {
+    transform: translateY(0) !important;
+    height: 80vh !important;
+  }
+
+  /* Handle pour glisser */
+  #sidebar::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 2px;
+    z-index: 1001;
+  }
+
+  /* Carte mobile */
+  #mapFrame {
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100vh !important;
+    z-index: 1 !important;
+  }
+
+  /* Container pour le contenu de la sidebar */
+  .sidebar-content {
+    padding: 2rem 1rem 1rem 1rem;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Accordéons mobiles compacts */
+  .accordion-item {
+    margin-bottom: 0.5rem;
+    border-radius: 16px !important;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .accordion-button {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.9rem !important;
+    font-weight: 600;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-primary) !important;
+  }
+
+  .accordion-body {
+    padding: 1rem !important;
+  }
+
+  /* Sliders mobiles plus grands */
+  .modern-range-slider {
+    height: 12px !important;
+  }
+
+  .modern-range-slider::-webkit-slider-thumb {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .modern-range-slider::-moz-range-thumb {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  /* Boutons mobiles */
+  .modern-btn {
+    padding: 1rem 2rem !important;
+    font-size: 1rem !important;
+    border-radius: 20px !important;
+    width: 100%;
+    margin: 1rem 0;
+  }
+
+  /* Toggle switches plus grands */
+  .modern-toggle-switch {
+    width: 70px !important;
+    height: 36px !important;
+  }
+
+  .toggle-handle {
+    width: 30px !important;
+    height: 30px !important;
+    top: 3px !important;
+    left: 3px !important;
+  }
+
+  .modern-toggle-switch.active .toggle-handle {
+    transform: translateX(34px) !important;
+  }
+
+  /* Cards mobiles */
+  .modern-card {
+    padding: 1rem !important;
+    margin: 0.75rem 0 !important;
+    border-radius: 16px !important;
+  }
+
+  .modern-card-header {
+    font-size: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .modern-card-icon {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 1.1rem !important;
+  }
+
+  /* Input fields mobiles */
+  .form-control {
+    padding: 0.75rem 1rem !important;
+    font-size: 1rem !important;
+    border-radius: 12px !important;
+    border: 2px solid rgba(255, 255, 255, 0.2) !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: var(--text-primary) !important;
+  }
+
+  .form-control:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+}
+
+/* ====== TABLET LAYOUT ====== */
+@media (min-width: 769px) and (max-width: 1024px) {
+  #sidebar {
+    width: 320px !important;
+    min-width: 320px !important;
+    max-width: 320px !important;
+  }
+
+  #mapFrame {
+    left: 320px !important;
+    width: calc(100% - 320px) !important;
+  }
+
+  .modern-card {
+    padding: 1.25rem !important;
+  }
+
+  .accordion-button {
+    font-size: 0.95rem !important;
+  }
+}
+
+/* ====== DESKTOP LARGE ====== */
+@media (min-width: 1441px) {
+  #sidebar {
+    width: 400px !important;
+    min-width: 400px !important;
+    max-width: 400px !important;
+  }
+
+  #mapFrame {
+    left: 400px !important;
+    width: calc(100% - 400px) !important;
+  }
+
+  .modern-card {
+    padding: 2rem !important;
+  }
+
+  .modern-card-header {
+    font-size: 1.2rem !important;
+  }
+}
+
+/* ====== SWIPE GESTURES POUR MOBILE ====== */
+@media (max-width: 768px) {
+  .swipe-indicator {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.2);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    z-index: 1001;
+    animation: swipePulse 2s infinite;
+    pointer-events: none;
+  }
+
+  @keyframes swipePulse {
+    0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+    50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+  }
+
+  /* Animation de glissement */
+  .sidebar-sliding {
+    transition: transform 0.2s ease-out !important;
+  }
+}
+
+/* ====== OPTIMISATIONS PERFORMANCE ====== */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.modern-range-slider,
+.modern-toggle-switch,
+.modern-btn {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* ====== ANIMATIONS TOUCH-FRIENDLY ====== */
+@media (max-width: 768px) {
+  .modern-btn:active {
+    transform: scale(0.98) !important;
+  }
+
+  .modern-toggle-switch:active {
+    transform: scale(0.95);
+  }
+
+  .accordion-button:active {
+    transform: scale(0.99);
+  }
+
+  /* Feedback visuel pour le touch */
+  .touch-feedback {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .touch-feedback::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s;
+  }
+
+  .touch-feedback:active::after {
+    width: 200px;
+    height: 200px;
+  }
+}
+
+/* ====== DARK MODE MOBILE ====== */
+@media (max-width: 768px) and (prefers-color-scheme: dark) {
+  #sidebar {
+    background: rgba(0, 0, 0, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .accordion-item {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  .form-control {
+    background: rgba(0, 0, 0, 0.2) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #ecf0f1 !important;
+  }
+
+  .swipe-indicator {
+    background: rgba(0, 0, 0, 0.3) !important;
+    color: #ecf0f1 !important;
+  }
+}

@@ -1,0 +1,40 @@
+# Flask Web Framework
+flask==3.1.2
+flask-cors==6.0.1
+flask-limiter==4.0.0
+gunicorn==20.1.0
+
+# Database
+psycopg2-binary==2.9.9
+
+# Geospatial Libraries
+shapely==2.0.2
+geopandas==0.14.1
+geopy==2.4.1
+folium==0.15.1
+pyproj==3.6.1
+branca==0.6.0
+
+# Data Processing
+pandas==2.1.4
+numpy==1.26.2
+
+# Validation & Security
+email-validator==2.1.0
+bcrypt==4.1.2
+pyjwt==2.8.0
+
+# Payment Processing
+stripe==7.9.0
+
+# Document Generation
+python-docx==1.1.0
+reportlab==4.0.8
+fpdf2==2.7.7
+matplotlib==3.8.2
+seaborn==0.13.1
+openpyxl==3.1.2
+
+# Utilities
+requests==2.31.0
+python-dotenv==1.0.0

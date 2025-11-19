@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Carte Départementale dynamique (map1)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Feuilles de style Leaflet, Draw, Measure -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-measure@3.3.0/dist/leaflet-measure.css"/>
+  <link rel="icon" href="https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png">
+  <style>
+    html, body { width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden;}
+    #map { position: absolute; left: 0; top: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; z-index: 1; }
+    .summary-bar {
+      position: absolute; top: 8px; left: 55px; z-index: 1001; background: #fff5;
+      padding: 6px 18px; font-size: 16px; font-family: Poppins,Arial,sans-serif; border-radius: 8px;
+      box-shadow: 0 2px 10px #0002; min-width: 200px; pointer-events: none;
+    }
+    .custom-popup { font-family: 'Poppins', Arial, sans-serif; font-size: 15px; min-width: 250px; max-width: 375px;}
+    .custom-popup th { text-align: left; color: #28616a; font-weight: 500; min-width: 95px;}
+    .custom-popup td { color: #2d2d2d; max-width:210px; word-break: break-word;}
+    .popup-title { font-weight: 700; font-size: 18px; margin-bottom: 4px; letter-spacing: 0.3px; }
+    .popup-link { color: #1474fa; text-decoration: underline; }
+    .popup-link:hover { color: #0e4a92; }
+    .leaflet-popup-content { padding: 6px 10px 4px 10px !important; }
+    .popup-label { background: #eaf5fa; color: #28616a; font-size: 12px; font-weight: 700; padding: 2px 6px; border-radius: 8px; margin-bottom: 6px; display: inline-block;}
+    .popup-block {margin-bottom: 10px;}
+    .popup-details { font-size: 12px; color: #777; margin-top: 10px; border-top:1px solid #ddd; padding-top:6px;}
+    .popup-details th { color: #888; font-weight: 400;}
+    .popup-details td { color: #444;}
+    @media (max-width: 600px) {
+      .summary-bar { font-size: 13px; min-width: 120px; padding: 4px 10px; }
+      .custom-popup { font-size: 13px; min-width: 140px; max-width: 98vw; }
+    }
+    .leaflet-draw-toolbar-top { top: 68px !important; }
+    .leaflet-control-measure { margin-top: 6px !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="summary-bar" id="summaryBar" style="display:none"></div>
+  <!-- JS (attention à bien utiliser leaflet-measure@3.3.0) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/leaflet-measure@3.1.0/dist/leaflet-measure.js"></script>
+  <script>
+    // Icônes personnalisées
+    const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
+    const iconHta = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><polygon points='28,4 8,28 24,28 20,44 40,20 24,20' fill='#D12322' stroke='#b61a13' stroke-width='2'/></svg>`),iconSize:[38,38],iconAnchor:[19,38],popupAnchor:[0,-28]});
+    const iconFeuille = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 4 Q29 13 18 29 Q7 22 16 4 Z' fill='#34ad41' stroke='#258633' stroke-width='2'/></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-18]});
+    const iconParking = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x="4" y="8" width="24" height="16" rx="6" fill="#2ecc71" stroke="#166838" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial" font-weight="bold">P</text></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-12]});
+    const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
+
+    // Init carte plein écran
+    var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([46.8, 2], 8);
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
+    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
+    sat.addTo(map);
+    var baseMaps = { "Satellite": sat, "OSM": osm };
+    window._layers = [];
+
+    // Fix full size si l’iframe bouge
+    function resizeMap() {
+      var el = document.getElementById("map");
+      el.style.height = window.innerHeight + "px";
+      el.style.width = window.innerWidth + "px";
+      map.invalidateSize();
+    }
+    window.addEventListener("resize", resizeMap);
+    setTimeout(resizeMap, 60);
+
+    // === LEAFLET DRAW
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    const drawControl = new L.Control.Draw({
+      edit: { featureGroup: drawnItems },
+      draw: {
+        polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#2b7a78' }},
+        polyline: { shapeOptions: { color: '#2b7a78' }},
+        rectangle: { shapeOptions: { color: '#3a506b' }},
+        circle: { shapeOptions: { color: '#f4b860' }},
+        marker: { icon: iconFeuille }
+      }
+    });
+    map.addControl(drawControl);
+
+    // MESURE
+    L.control.measure({
+      primaryLengthUnit: 'meters',
+      secondaryLengthUnit: 'kilometers',
+      primaryAreaUnit: 'sqmeters',
+      secondaryAreaUnit: 'hectares',
+      activeColor: '#2b7a78',
+      completedColor: '#ca3c25',
+      localization: 'fr',
+      position: 'topright'
+    }).addTo(map);
+
+    // --- Events dessin
+    map.on(L.Draw.Event.CREATED, function (e) {
+      const layer = e.layer;
+      drawnItems.addLayer(layer);
+      let gtype = e.layerType.charAt(0).toUpperCase() + e.layerType.slice(1);
+      layer.bindPopup(
+        `<div class="custom-popup">
+          <div class="popup-title" style="color:#2b7a78">${gtype} dessiné</div>
+          <div class="popup-block">Vous pouvez éditer ou supprimer cette forme.<br>
+          <button onclick="exportDrawnGeoJSON()" class="btn btn-sm btn-outline-success mt-2">Exporter en GeoJSON</button></div>
+        </div>`, {maxWidth: 300}
+      );
+    });
+    map.on('draw:deleted', updateSummaryBar);
+    drawnItems.on('layeradd', updateSummaryBar);
+    drawnItems.on('layerremove', updateSummaryBar);
+
+    // Export GeoJSON des dessins utilisateur
+    window.exportDrawnGeoJSON = function() {
+      const data = drawnItems.toGeoJSON();
+      const txt = JSON.stringify(data, null, 2);
+      const blob = new Blob([txt], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "dessins_leaflet.geojson";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    // Résumé dynamique (nb objets)
+    function updateSummaryBar() {
+      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0) +
+                drawnItems.getLayers().length;
+      let communes = new Set();
+      window._layers.forEach(l => l.eachLayer?.(lyr => {
+        if(lyr.feature?.properties?.commune) communes.add(lyr.feature.properties.commune);
+        if(lyr.feature?.properties?.libelleCom) communes.add(lyr.feature.properties.libelleCom);
+      }));
+      drawnItems.eachLayer(l => {
+        if (l.feature?.properties?.commune) communes.add(l.feature.properties.commune);
+      });
+      let bar = document.getElementById('summaryBar');
+      bar.innerHTML = `<b>Objets affichés :</b> ${n}${communes.size>0?` &nbsp;|&nbsp; <b>Communes :</b> ${communes.size}`:""}`
+      bar.style.display = n>0 ? "" : "none";
+    }
+
+    // Nettoyage complet
+    window.clearMap = function() {
+      window._layers.forEach(l => map.removeLayer(l));
+      window._layers = [];
+      drawnItems.clearLayers();
+      updateSummaryBar();
+    };
+
+    // Helpers popups enrichies (idem plus haut)
+    function tableRows(obj, prefix="") {
+      let html = "";
+      for (const [k, v] of Object.entries(obj)) {
+        if (v === null || v === undefined) continue;
+        if (typeof v === "object" && !Array.isArray(v)) {
+          html += `<tr><th colspan="2" style="color:#888">${prefix}${k}</th></tr>`;
+          html += tableRows(v, prefix + k + ".");
+        } else if (Array.isArray(v)) {
+          html += `<tr><th>${prefix}${k}</th><td>[${v.map(x=>typeof x==="object"?JSON.stringify(x):x).join(", ")}]</td></tr>`;
+        } else if (typeof v === "string" && v.startsWith("http")) {
+          html += `<tr><th>${prefix}${k}</th><td><a href="${v}" target="_blank" class="popup-link">${v.replace(/^https?:\/\//,'')}</a></td></tr>`;
+        } else {
+          html += `<tr><th>${prefix}${k}</th><td>${v}</td></tr>`;
+        }
+      }
+      return html;
+    }
+
+    // Popups enrichies
+    function makePopupContent(props, typeLayer) {
+      let color = "#28616a";
+      if(typeLayer==="postes_hta") color="#d12322";
+      if(typeLayer==="postes_bt") color="#b6a800";
+      if(typeLayer==="eleveurs") color="#258633";
+      if(typeLayer==="solaire") color="#FFD700";
+      if(typeLayer==="api_cadastre"||typeLayer==="parcelles"||typeLayer==="rpg") color="#FF6600";
+      if(typeLayer==="parkings") color="darkgreen";
+      if(typeLayer==="plu") color="#880000";
+      if(typeLayer==="friches") color="brown";
+      if(typeLayer==="zaer") color="cyan";
+      if(typeLayer==="sirene") color="darkred";
+      if(typeLayer==="api_nature") color="#22AA22";
+      if(typeLayer==="api_urbanisme") color="#0000FF";
+      if(typeLayer==="capacites_reseau") color="#800080";
+      let mainHtml = "";
+      switch(typeLayer) {
+        case "eleveurs":
+          mainHtml += `<tr><th>Nom</th><td>${props.denomination || props.nomUniteLe || ""}</td></tr>
+          <tr><th>Prénom</th><td>${props.prenom1Uni||""}</td></tr>
+          <tr><th>SIRET</th><td>${props.siret||""}</td></tr>
+          <tr><th>Activité</th><td>${props.activite_1||""}</td></tr>
+          <tr><th>Date création</th><td>${props.dateCreati||""}</td></tr>
+          <tr><th>Adresse</th><td>${props.adresse||""}</td></tr>
+          <tr><th>Commune</th><td>${props.libelleCom||props.commune||""}</td></tr>`;
+          break;
+        case "postes_hta":
+          mainHtml += `<tr><th>Nom</th><td>${props.Nom||props.nom||""}</td></tr>
+          <tr><th>Code</th><td>${props.Code||props.code||""}</td></tr>
+          <tr><th>Puissance</th><td>${props.Puissance||props.puissance||""}</td></tr>
+          <tr><th>Tension av</th><td>${props["Tension av"]||props.tension_av||""}</td></tr>
+          <tr><th>S3REnR</th><td>${props.S3REnR||props.s3renr||""}</td></tr>
+          <tr><th>Capacité</th><td>${props.Capacité||props.capacite||""}</td></tr>`;
+          break;
+        case "postes_bt":
+          mainHtml += `<tr><th>Nom</th><td>${props.NOM||props.nom||props.Nom||""}</td></tr>
+          <tr><th>Capacité</th><td>${props.CAPACITE||props.capacite||""}</td></tr>
+          <tr><th>Tension</th><td>${props.TENSION||props.tension||""}</td></tr>`;
+          break;
+        case "parcelles": case "api_cadastre": case "rpg":
+          mainHtml += `<tr><th>Section</th><td>${props.section||""}</td></tr>
+          <tr><th>Numéro</th><td>${props.numero||""}</td></tr>
+          <tr><th>Surface (ha)</th><td>${props.surface_ha||""}</td></tr>
+          <tr><th>Adresse</th><td>${props.adresse||""}</td></tr>
+          <tr><th>Commune</th><td>${props.commune||props.nomcommune||""}</td></tr>
+          <tr><th>Propriétaire</th><td>${props.proprietaire||props.nomproprietaire||""}</td></tr>
+          <tr><th>Nature culture</th><td>${props.culture||""}</td></tr>`;
+          break;
+      }
+      let mainBlock = mainHtml ? `<div class="popup-block"><table>${mainHtml}</table></div>` : "";
+      let detailsBlock = `<div class="popup-details"><b>Détails techniques</b><table>${tableRows(props)}</table></div>`;
+      return `<div class="custom-popup">
+        <div class="popup-title" style="color:${color}">${typeLayer||"Informations"}</div>
+        ${mainBlock}${detailsBlock}
+      </div>`;
+    }
+
+    // Détection type de couche
+    function detectTypeLayer(f, s) {
+      if(f.properties && f.properties._layer) return f.properties._layer;
+      if(s && s.color === "orange") return "postes_bt";
+      if(s && s.color === "red") return "postes_hta";
+      if(s && s.color === "purple") return "eleveurs";
+      if(s && s.color === "#FF6600") return "api_cadastre";
+      if(s && s.color === "#22AA22") return "api_nature";
+      if(s && s.color === "#0000FF") return "api_urbanisme";
+      if(s && s.color === "darkgreen") return "parkings";
+      if(s && s.color === "gold") return "solaire";
+      if(s && s.color === "cyan") return "zaer";
+      if(s && s.color === "darkred") return "sirene";
+      if(s && s.color === "#800080") return "capacites_reseau";
+      if(f.properties && (f.properties.nomUniteLe || f.properties.denomination)) return "eleveurs";
+      if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
+        let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
+        if (name.includes('hta')) return "postes_hta";
+        if (name.includes('bt')) return "postes_bt";
+      }
+      return "";
+    }
+
+    // Ajout sur la carte + popups enrichies + icônes
+    window.addGeoJsonToMap = function(feature, style) {
+      if (!feature) return;
+      let fc;
+      if(Array.isArray(feature)) {
+        fc = { type: "FeatureCollection", features: feature };
+      } else if(feature.type === "FeatureCollection") {
+        fc = feature;
+      } else if(feature.type === "Feature") {
+        fc = { type: "FeatureCollection", features: [feature] };
+      } else {
+        return;
+      }
+      var gj = L.geoJSON(fc, {
+        style: style || {},
+        pointToLayer: function (f, latlng) {
+          let typeLayer = detectTypeLayer(f, style);
+          if(typeLayer === "postes_bt") return L.marker(latlng, {icon: iconBt});
+          if(typeLayer === "postes_hta") return L.marker(latlng, {icon: iconHta});
+          if(typeLayer === "eleveurs") return L.marker(latlng, {icon: iconFeuille});
+          if(typeLayer === "parkings") return L.marker(latlng, {icon: iconParking});
+          if(typeLayer === "solaire") return L.marker(latlng, {icon: iconSolaire});
+          return L.circleMarker(latlng, { radius: 8, color: style?.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
+        },
+        onEachFeature: function (feat, layer) {
+          let typeLayer = detectTypeLayer(feat, style);
+          layer.bindPopup(makePopupContent(feat.properties, typeLayer), { maxWidth: 360 });
+        }
+      }).addTo(map);
+      window._layers.push(gj);
+      updateSummaryBar();
+    };
+
+    // Overlays/LayerControl parent :
+    window.setOverlaysControl = function(overlays, config) {
+      if(window._layerControl) { try { map.removeControl(window._layerControl); } catch{} }
+      const leafletOverlays = {};
+      Object.entries(overlays || {}).forEach(([label, obj]) => {
+        if(Array.isArray(obj.features)) {
+          leafletOverlays[label] = L.geoJSON(obj.features, {
+            style: obj.style || {},
+            pointToLayer: function (f, latlng) {
+              let typeLayer = (f.properties && f.properties._layer) ? f.properties._layer : "";
+              if(typeLayer === "postes_bt") return L.marker(latlng, {icon: iconBt});
+              if(typeLayer === "postes_hta") return L.marker(latlng, {icon: iconHta});
+              if(typeLayer === "eleveurs") return L.marker(latlng, {icon: iconFeuille});
+              if(typeLayer === "parkings") return L.marker(latlng, {icon: iconParking});
+              if(typeLayer === "solaire") return L.marker(latlng, {icon: iconSolaire});
+              return L.circleMarker(latlng, { radius: 8, color: obj.style?.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
+            },
+            onEachFeature: function (feat, layer) {
+              let typeLayer = (feat.properties && feat.properties._layer) ? feat.properties._layer : "";
+              layer.bindPopup(makePopupContent(feat.properties, typeLayer), {maxWidth: 360});
+            }
+          });
+        }
+      });
+    
+    };
+
+    window.setView = function(lat, lon, zoom) {
+      map.setView([lat, lon], zoom || 10);
+    };
+    window._leaflet_ready = true;
+  </script>
+</body>
+</html>

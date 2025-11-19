@@ -1,0 +1,10 @@
+# Configuration ngrok pour GeoServer
+authtoken: 31UrhBFN9GpDYlr8yORTQkwedNI_29vvhqzAb5naKvH8hRV9d
+version: 2
+
+tunnels:
+  geoserver:
+    proto: http
+    addr: localhost:8080
+    host_header: rewrite
+    inspect: false

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paiement réussi - AgriWeb Pro</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .success-container {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .success-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            padding: 3rem;
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        
+        .success-icon {
+            font-size: 4rem;
+            color: #28a745;
+            margin-bottom: 2rem;
+            animation: bounceIn 1s ease-out;
+        }
+        
+        @keyframes bounceIn {
+            0%, 20%, 40%, 60%, 80% {
+                animation-timing-function: cubic-bezier(0.215, 0.610, 0.355, 1.000);
+            }
+            0% {
+                opacity: 0;
+                transform: scale3d(.3, .3, .3);
+            }
+            20% {
+                transform: scale3d(1.1, 1.1, 1.1);
+            }
+            40% {
+                transform: scale3d(.9, .9, .9);
+            }
+            60% {
+                opacity: 1;
+                transform: scale3d(1.03, 1.03, 1.03);
+            }
+            80% {
+                transform: scale3d(.97, .97, .97);
+            }
+            100% {
+                opacity: 1;
+                transform: scale3d(1, 1, 1);
+            }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,123,255,0.3);
+        }
+        
+        .trial-info {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            border-left: 4px solid #2196f3;
+        }
+        
+        .feature-highlight {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="success-card">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            
+            <h1 class="h2 mb-3">Félicitations ! 🎉</h1>
+            <p class="lead text-muted mb-4">
+                Votre abonnement AgriWeb Pro a été activé avec succès
+            </p>
+            
+            {% if subscription_info %}
+            <div class="trial-info">
+                <h5><i class="fas fa-gift text-primary me-2"></i>Période d'essai gratuite</h5>
+                <p class="mb-2">
+                    Vous bénéficiez de <strong>14 jours gratuits</strong> pour découvrir toutes les fonctionnalités.
+                </p>
+                <p class="mb-0 small text-muted">
+                    Plan: <strong>{{ subscription_info.plan|title }}</strong> | 
+                    Fin d'essai: <strong>{{ subscription_info.trial_end_formatted }}</strong>
+                </p>
+            </div>
+            {% endif %}
+            
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="feature-highlight">
+                        <i class="fas fa-map text-primary mb-2"></i>
+                        <h6>Cartes interactives</h6>
+                        <small class="text-muted">Explorez vos données</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="feature-highlight">
+                        <i class="fas fa-download text-success mb-2"></i>
+                        <h6>Exports avancés</h6>
+                        <small class="text-muted">PDF, Excel, shapefile</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="feature-highlight">
+                        <i class="fas fa-solar-panel text-warning mb-2"></i>
+                        <h6>Analyse solaire</h6>
+                        <small class="text-muted">Potentiel photovoltaïque</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="feature-highlight">
+                        <i class="fas fa-headset text-info mb-2"></i>
+                        <h6>Support expert</h6>
+                        <small class="text-muted">Aide personnalisée</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-grid gap-2 d-md-block">
+                <a href="/app" class="btn btn-primary btn-lg me-md-2">
+                    <i class="fas fa-rocket me-2"></i>Commencer l'exploration
+                </a>
+                <a href="/profile" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-user me-2"></i>Mon profil
+                </a>
+            </div>
+            
+            <div class="mt-4 pt-3 border-top">
+                <p class="small text-muted mb-2">
+                    <i class="fas fa-envelope me-1"></i>
+                    Un email de confirmation a été envoyé à votre adresse
+                </p>
+                <p class="small text-muted mb-0">
+                    <i class="fas fa-question-circle me-1"></i>
+                    Besoin d'aide ? <a href="mailto:support@agriweb-pro.com">Contactez notre support</a>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Animation de confettis (optionnel)
+        function createConfetti() {
+            const colors = ['#007bff', '#28a745', '#ffc107', '#dc3545', '#6f42c1'];
+            const confettiContainer = document.createElement('div');
+            confettiContainer.style.position = 'fixed';
+            confettiContainer.style.top = '0';
+            confettiContainer.style.left = '0';
+            confettiContainer.style.width = '100%';
+            confettiContainer.style.height = '100%';
+            confettiContainer.style.pointerEvents = 'none';
+            confettiContainer.style.zIndex = '9999';
+            document.body.appendChild(confettiContainer);
+            
+            for (let i = 0; i < 50; i++) {
+                const confetti = document.createElement('div');
+                confetti.style.position = 'absolute';
+                confetti.style.width = '10px';
+                confetti.style.height = '10px';
+                confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                confetti.style.left = Math.random() * 100 + '%';
+                confetti.style.animationDuration = (Math.random() * 2 + 1) + 's';
+                confetti.style.animationTimingFunction = 'ease-out';
+                confetti.style.animationName = 'fall';
+                confetti.style.animationIterationCount = '1';
+                confetti.style.animationFillMode = 'forwards';
+                confettiContainer.appendChild(confetti);
+            }
+            
+            // Nettoyer après 3 secondes
+            setTimeout(() => {
+                document.body.removeChild(confettiContainer);
+            }, 3000);
+        }
+        
+        // Ajouter l'animation CSS pour les confettis
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes fall {
+                0% {
+                    transform: translateY(-100vh) rotate(0deg);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translateY(100vh) rotate(360deg);
+                    opacity: 0;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // Déclencher les confettis au chargement
+        setTimeout(createConfetti, 500);
+    </script>
+</body>
+</html>

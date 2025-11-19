@@ -1,0 +1,108 @@
+{
+  "diagnostic": "AVEC_RESERVES_MAJEURES",
+  "score_faisabilite": 45,
+  "zone_urbanisme": "U",
+  "type_zone": "U",
+  "description_zone": "Zone urbaine favorable à l'installation photovoltaïque, sous réserve de respecter les prescriptions architecturales et les servitudes.",
+  "hauteur_max": "null",
+  "regles_applicables": [
+    "Article 11: prescriptions sur l'aspect extérieur des constructions",
+    "Article 6: règles de hauteur et d'implantation",
+    "Article 10: intégration paysagère"
+  ],
+  "servitudes_critiques": {
+    "ac1_ac2_present": true,
+    "ppri_present": true,
+    "liste_servitudes": [
+      "AC1: Monuments Historiques classés",
+      "AC2: Monuments Historiques inscrits",
+      "I3: PPRI inondations"
+    ],
+    "impact_global": "La présence de servitudes AC1 et AC2 impose un avis de l'ABF, ce qui peut entraîner un refus ou des prescriptions strictes. Le PPRI nécessite des mesures d'étanchéité et d'ancrage."
+  },
+  "contraintes_abf": {
+    "avis_abf_obligatoire": true,
+    "raison": "Présence de monuments historiques classés et inscrits à proximité (AC1/AC2).",
+    "delai_estime": "4-6 mois",
+    "risque_refus": "élevé",
+    "prescriptions_probables": [
+      "Intégration au bâti",
+      "Couleur sombre",
+      "Matériaux mats"
+    ]
+  },
+  "prescriptions_bloquantes": [
+    "Prescriptions architecturales strictes liées aux monuments historiques",
+    "Règles sur l'aspect extérieur des toitures"
+  ],
+  "risques_identifies": [
+    "Inondations: PPRI élevé",
+    "Mouvements de terrain: Risque majeur"
+  ],
+  "impact_risques": "fort",
+  "points_positifs": [
+    "Zone urbaine favorable à l'installation",
+    "Potentiel d'irradiation solaire acceptable",
+    "Engagement vers les énergies renouvelables"
+  ],
+  "points_attention": [
+    "⚠️ Contrainte majeure liée à l'avis ABF obligatoire",
+    "⚠️ Risque d'inondation nécessitant des mesures spécifiques",
+    "⚠️ Mouvements de terrain nécessitant une étude géotechnique"
+  ],
+  "points_bloquants": [
+    "🚨 Blocage potentiel dû à la nécessité d'un avis ABF avec un risque de refus élevé",
+    "🚨 Blocage potentiel lié aux prescriptions PPRI"
+  ],
+  "demarches_administratives": [
+    "Dossier ABF obligatoire: 4-6 mois, coût estimé entre 1500 et 3000 euros pour l'architecte",
+    "Déclaration préalable pour les installations en zone U: 1-2 mois",
+    "Consultation du service urbanisme pour vérification des règlements PLU"
+  ],
+  "recommandations_techniques": [
+    "Réaliser une étude géotechnique pour évaluer les risques de mouvements de terrain",
+    "Prévoir des mesures d'étanchéité renforcées en raison du PPRI",
+    "Consulter un architecte pour l'intégration des panneaux solaires dans le bâti"
+  ],
+  "cout_demarches_estime": "3000",
+  "delai_global_estime": "6-8 mois",
+  "taux_reussite_estime": "40%",
+  "synthese_detaillee": "Le projet d'installation photovoltaïque au 15 Grande Rue à Château-Gontier-sur-Mayenne se heurte à plusieurs contraintes majeures. La zone est classée U, ce qui est favorable pour des installations photovoltaïques, mais la présence de servitudes d'utilité publique, notamment AC1 et AC2, impose un avis de l'Architecte des Bâtiments de France (ABF). Ce processus peut prendre entre 4 et 6 mois et comporte un risque de refus élevé, ce qui complique considérablement la faisabilité du projet. De plus, le périmètre de protection des monuments historiques nécessite une attention particulière sur l'intégration des panneaux solaires, tant sur le plan esthétique que technique. Les prescriptions architecturales pourraient imposer des contraintes sur les matériaux et les couleurs des panneaux. En outre, la commune a connu plusieurs événements d'inondation, ce qui soulève des préoccupations quant à la nécessité de mesures d'étanchéité et d'ancrage pour les installations. Les mouvements de terrain identifiés dans la région représentent également un risque majeur, rendant une étude géotechnique obligatoire. En résumé, bien que la zone soit urbanisée et potentiellement favorable, les contraintes patrimoniales et les risques naturels rendent le projet très difficile à réaliser sans modifications significatives et des études approfondies. Des solutions alternatives pourraient inclure l'exploration de toitures adaptées ou des installations sur des bâtiments existants, mais chaque option devra être soigneusement évaluée pour sa conformité aux règlements en vigueur.",
+  "verifications_complementaires": [
+    "Vérification du règlement PLU détaillé pour les articles 1, 2, 6, 7, 10, 11",
+    "Consultation de l'INPN pour les zones environnementales protégées",
+    "Vérification de la distance aux monuments historiques via l'Atlas Patrimoines"
+  ],
+  "prochaines_etapes": [
+    "Étape 1: Consultation du service urbanisme pour vérifier le règlement PLU - Délai 1 mois",
+    "Étape 2: Réalisation d'une étude géotechnique - Délai 2 mois",
+    "Étape 3: Préparation et dépôt du dossier ABF - Délai 4-6 mois"
+  ],
+  "contacts_utiles": [
+    "Service urbanisme mairie: Vérification règlement PLU Article 11",
+    "ABF (si applicable): Pré-consultation informelle recommandée",
+    "Enedis: Devis raccordement et faisabilité technique"
+  ],
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "timestamp": "2025-10-09T22:28:07.182223",
+  "status": "success",
+  "from_cache": false,
+  "address": "15 Grande Rue 53200 Château-Gontier-sur-Mayenne - Point exact",
+  "commune": "Château-Gontier-sur-Mayenne",
+  "department": "N/A",
+  "insee": "",
+  "scoring": {
+    "score": 100,
+    "score_initial": 100,
+    "diagnostic": "FAVORABLE",
+    "couleur": "#4CAF50",
+    "interpretation": "Faisabilité bonne. Contraintes gérables.",
+    "deductions": [],
+    "svg_badge": "<svg width=\"120\" height=\"120\" viewBox=\"0 0 120 120\" xmlns=\"http://www.w3.org/2000/svg\">\n  <!-- Cercle de fond (gris clair) -->\n  <circle cx=\"60\" cy=\"60\" r=\"45\" \n          fill=\"none\" stroke=\"#E0E0E0\" stroke-width=\"8\"/>\n  \n  <!-- Cercle de progression (coloré selon score) -->\n  <circle cx=\"60\" cy=\"60\" r=\"45\" \n          fill=\"none\" stroke=\"#4CAF50\" stroke-width=\"8\"\n          stroke-dasharray=\"282.74309999999997\"\n          stroke-dashoffset=\"0.0\"\n          stroke-linecap=\"round\"\n          transform=\"rotate(-90 60 60)\"\n          style=\"transition: stroke-dashoffset 0.5s ease;\"/>\n  \n  <!-- Texte du score -->\n  <text x=\"60\" y=\"55\" \n        font-family=\"Arial, sans-serif\" font-size=\"28\" font-weight=\"bold\"\n        text-anchor=\"middle\" fill=\"#4CAF50\">\n    100\n  </text>\n  <text x=\"60\" y=\"75\" \n        font-family=\"Arial, sans-serif\" font-size=\"14\"\n        text-anchor=\"middle\" fill=\"#666\">\n    /100\n  </text>\n</svg>"
+  },
+  "data_sources": {
+    "gpu": true,
+    "georisques": true
+  }
+}

@@ -1,0 +1,10 @@
+version: 3
+region: eu
+
+tunnels:
+  geoserver:
+    proto: http
+    addr: 8080
+    domain: agriweb-prod.ngrok-free.app
+    host_header: rewrite
+    schemes: [https]

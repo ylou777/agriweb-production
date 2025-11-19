@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Rapport Département</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .summary { background: #f0f8ff; padding: 15px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <h1>Rapport par Département</h1>
+  <div style="background: #fff3cd; padding: 10px; border: 1px solid #ffeaa7; border-radius: 5px; margin: 10px 0;">
+    ⚠️ <strong>Version temporaire</strong> - Template simplifié en attendant la correction du template complet
+  </div>
+
+  {% if synthese %}
+  <div class="summary">
+    <h2>Synthèse départementale</h2>
+    <p>Nombre total d'agriculteurs : <b>{{ synthese.nb_agriculteurs }}</b></p>
+    <p>Nombre total de parcelles RPG : <b>{{ synthese.nb_parcelles }}</b></p>
+  </div>
+  {% endif %}
+
+  {% for report in reports %}
+  <div>
+    <h2>Commune : {{ report.nom or report.commune or 'N/A' }}</h2>
+    <p>Nombre d'éleveurs : {{ report.nb_eleveurs or 0 }}</p>
+    <p>Nombre de parcelles : {{ (report.data.parcelles|length) if report.data and report.data.parcelles else 0 }}</p>
+  </div>
+  {% endfor %}
+
+</body>
+</html>

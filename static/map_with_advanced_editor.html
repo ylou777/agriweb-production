@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Carte interactive (map.html)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  <!-- Éditeur de couches avancé -->
+  <link rel="stylesheet" href="/static/advanced_layer_control.css">
+  <style>
+    html, body, #map { height:100%; margin:0; padding:0; }
+    .custom-popup { font-family: 'Poppins', Arial, sans-serif; font-size: 15px; min-width: 250px; max-width: 355px;}
+    .custom-popup th { text-align: left; color: #28616a; font-weight: 500; min-width: 95px;}
+    .custom-popup td { color: #2d2d2d; max-width:200px; word-break: break-word;}
+    .popup-title { font-weight: 700; font-size: 18px; margin-bottom: 4px; letter-spacing: 0.3px; }
+    .popup-link { color: #1474fa; text-decoration: underline; }
+    .popup-link:hover { color: #0e4a92; }
+    .leaflet-popup-content { padding: 6px 10px 4px 10px !important; }
+    .summary-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(255, 255, 255, 0.95);
+      border-top: 2px solid #007bff;
+      padding: 8px 16px;
+      font-family: 'Poppins', Arial, sans-serif;
+      font-size: 14px;
+      box-shadow: 0 -2px 6px rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+
+    /* Outils de dessin simples */
+    .drawing-tools {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 200px;
+    }
+
+    .drawing-tools h4 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      color: #333;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 4px;
+    }
+
+    .tool-group {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .tool-button {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 6px 8px;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+      flex: 1;
+      justify-content: center;
+      min-width: 90px;
+    }
+
+    .tool-button:hover {
+      background: #e9ecef;
+      border-color: #adb5bd;
+    }
+
+    .tool-button.active {
+      background: #007bff;
+      color: white;
+      border-color: #0056b3;
+    }
+
+    .clear-button {
+      background: #dc3545 !important;
+      color: white !important;
+      border-color: #c82333 !important;
+    }
+
+    .measurement-result {
+      background: #e8f4f8;
+      border: 1px solid #bee5eb;
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin-top: 4px;
+      font-size: 12px;
+      color: #0c5460;
+      text-align: center;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="summary-bar" id="summaryBar" style="display:none"></div>
+  
+  <!-- Outils de dessin simples -->
+  <div class="drawing-tools" id="drawingTools">
+    <h4><i class="fas fa-tools"></i> Outils de dessin</h4>
+    
+    <div class="tool-group">
+      <button class="tool-button" id="drawPoint" title="Dessiner un point">
+        <i class="fas fa-map-pin"></i> Point
+      </button>
+      <button class="tool-button" id="measureDistance" title="Mesurer une distance">
+        <i class="fas fa-ruler"></i> Distance
+      </button>
+    </div>
+    
+    <div class="tool-group">
+      <button class="tool-button" id="drawPolygon" title="Dessiner un polygone">
+        <i class="fas fa-draw-polygon"></i> Polygone
+      </button>
+      <button class="tool-button" id="measureArea" title="Mesurer une surface">
+        <i class="fas fa-crop-alt"></i> Surface
+      </button>
+    </div>
+    
+    <div class="tool-group">
+      <button class="tool-button clear-button" id="clearDrawings" title="Effacer tous les dessins">
+        <i class="fas fa-trash"></i> Effacer
+      </button>
+    </div>
+    
+    <div class="measurement-result" id="measurementResult"></div>
+  </div>
+  
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- SortableJS pour le drag & drop des couches -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <!-- Éditeur de couches avancé -->
+  <script src="/static/advanced_layer_control.js"></script>
+  <script>
+    // Icônes personnalisées
+    const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
+    const iconHta = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><polygon points='28,4 8,28 24,28 20,44 40,20 24,20' fill='#D12322' stroke='#b61a13' stroke-width='2'/></svg>`),iconSize:[38,38],iconAnchor:[19,38],popupAnchor:[0,-28]});
+    const iconFeuille = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M16 4 Q29 13 18 29 Q7 22 16 4 Z' fill='#34ad41' stroke='#258633' stroke-width='2'/></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-18]});
+    const iconParking = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x="4" y="8" width="24" height="16" rx="6" fill="#2ecc71" stroke="#166838" stroke-width="2"/><text x="16" y="23" text-anchor="middle" font-size="14" fill="#fff" font-family="Arial" font-weight="bold">P</text></svg>`),iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-12]});
+    const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
+
+    // Carte Leaflet avec fond satellite par défaut
+    var map = L.map('map').setView([46.8, 2], 8);
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
+    var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
+    sat.addTo(map);
+
+    var baseMaps = { "Satellite": sat, "OSM": osm };
+    L.control.layers(baseMaps).addTo(map);
+
+    window._layers = [];
+    
+    // Créer des couches de données pour tester l'éditeur avancé
+    var cadastreLayer = L.featureGroup([], {name: 'Cadastre (WFS)'});
+    var postesLayer = L.featureGroup([], {name: 'Postes BT'});
+    var htaLayer = L.featureGroup([], {name: 'Postes HTA'});
+    var natureLayer = L.featureGroup([], {name: 'API Nature IGN'});
+    var pprLayer = L.featureGroup([], {name: 'PPR - Plans de Prévention'});
+    var urbanismeLayer = L.featureGroup([], {name: 'Urbanisme - Zone urba'});
+    
+    // Ajouter quelques données simulées pour tester
+    var testPoints = [
+      {lat: 46.8, lng: 2.0, type: 'bt', name: 'Poste BT-001'},
+      {lat: 46.82, lng: 2.05, type: 'hta', name: 'Poste HTA-001'},
+      {lat: 46.85, lng: 2.1, type: 'nature', name: 'Zone naturelle'},
+      {lat: 46.75, lng: 1.95, type: 'urbanisme', name: 'Zone urbaine'},
+    ];
+    
+    testPoints.forEach(point => {
+      var marker;
+      var layer;
+      
+      switch(point.type) {
+        case 'bt':
+          marker = L.marker([point.lat, point.lng], {icon: iconBt});
+          layer = postesLayer;
+          break;
+        case 'hta':
+          marker = L.marker([point.lat, point.lng], {icon: iconHta});  
+          layer = htaLayer;
+          break;
+        case 'nature':
+          marker = L.marker([point.lat, point.lng], {icon: iconFeuille});
+          layer = natureLayer;
+          break;
+        case 'urbanisme':
+          marker = L.circleMarker([point.lat, point.lng], {
+            radius: 10,
+            fillColor: '#3498db',
+            color: '#2980b9',
+            weight: 2,
+            fillOpacity: 0.7
+          });
+          layer = urbanismeLayer;
+          break;
+      }
+      
+      if (marker && layer) {
+        marker.bindPopup(`<b>${point.name}</b><br>Type: ${point.type}`);
+        marker.addTo(layer);
+      }
+    });
+    
+    // Ajouter toutes les couches à la carte et à la liste globale
+    [cadastreLayer, postesLayer, htaLayer, natureLayer, pprLayer, urbanismeLayer].forEach(layer => {
+      map.addLayer(layer);
+      window._layers.push(layer);
+    });
+
+    // === OUTILS DE DESSIN SIMPLES ===
+    var drawingGroup = new L.FeatureGroup();
+    map.addLayer(drawingGroup);
+    
+    var currentTool = null;
+    var measurePoints = [];
+    var polygonPoints = [];
+    
+    // Styles
+    var pointStyle = { color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.8, radius: 8 };
+    var lineStyle = { color: '#f39c12', weight: 3, opacity: 0.9 };
+    var polygonStyle = { color: '#2ecc71', weight: 2, opacity: 0.8, fillOpacity: 0.3, fillColor: '#2ecc71' };
+    
+    // Fonctions utilitaires
+    function formatDistance(distance) {
+      return distance < 1000 ? Math.round(distance * 100) / 100 + ' m' : Math.round(distance / 10) / 100 + ' km';
+    }
+    
+    function formatArea(area) {
+      return area < 10000 ? Math.round(area * 100) / 100 + ' m²' : Math.round(area / 10000 * 100) / 100 + ' ha';
+    }
+    
+    function calculatePolygonArea(latlngs) {
+      var area = 0;
+      var n = latlngs.length;
+      for (var i = 0; i < n; i++) {
+        var j = (i + 1) % n;
+        area += latlngs[i].lat * latlngs[j].lng - latlngs[j].lat * latlngs[i].lng;
+      }
+      area = Math.abs(area) / 2;
+      var lat = latlngs[0].lat;
+      var meters_per_degree = 111320 * Math.cos(lat * Math.PI / 180);
+      return area * meters_per_degree * meters_per_degree;
+    }
+    
+    function showResult(text) {
+      var resultDiv = document.getElementById('measurementResult');
+      resultDiv.textContent = text;
+      resultDiv.style.display = 'block';
+      setTimeout(() => { resultDiv.style.display = 'none'; }, 5000);
+    }
+    
+    // Gestionnaires d'outils
+    document.getElementById('drawPoint').addEventListener('click', function() {
+      currentTool = currentTool === 'point' ? null : 'point';
+      updateToolButtons();
+      map.getContainer().style.cursor = currentTool ? 'crosshair' : '';
+    });
+    
+    document.getElementById('measureDistance').addEventListener('click', function() {
+      currentTool = currentTool === 'distance' ? null : 'distance';
+      measurePoints = [];
+      updateToolButtons();
+      map.getContainer().style.cursor = currentTool ? 'crosshair' : '';
+    });
+    
+    document.getElementById('drawPolygon').addEventListener('click', function() {
+      if (tempLine) {
+        drawingGroup.removeLayer(tempLine);
+        tempLine = null;
+      }
+      currentTool = currentTool === 'polygon' ? null : 'polygon';
+      polygonPoints = [];
+      updateToolButtons();
+      map.getContainer().style.cursor = currentTool ? 'crosshair' : '';
+    });
+    
+    document.getElementById('measureArea').addEventListener('click', function() {
+      if (tempLine) {
+        drawingGroup.removeLayer(tempLine);
+        tempLine = null;
+      }
+      currentTool = currentTool === 'area' ? null : 'area';
+      polygonPoints = [];
+      updateToolButtons();
+      map.getContainer().style.cursor = currentTool ? 'crosshair' : '';
+    });
+    
+    document.getElementById('clearDrawings').addEventListener('click', function() {
+      drawingGroup.clearLayers();
+      if (tempLine) {
+        drawingGroup.removeLayer(tempLine);
+        tempLine = null;
+      }
+      currentTool = null;
+      measurePoints = [];
+      polygonPoints = [];
+      updateToolButtons();
+      map.getContainer().style.cursor = '';
+      document.getElementById('measurementResult').style.display = 'none';
+    });
+    
+    function updateToolButtons() {
+      document.querySelectorAll('.tool-button').forEach(btn => btn.classList.remove('active'));
+      if (currentTool) {
+        var activeBtn = '';
+        switch(currentTool) {
+          case 'point': activeBtn = 'drawPoint'; break;
+          case 'distance': activeBtn = 'measureDistance'; break;
+          case 'polygon': activeBtn = 'drawPolygon'; break;
+          case 'area': activeBtn = 'measureArea'; break;
+        }
+        if (activeBtn) document.getElementById(activeBtn).classList.add('active');
+      }
+    }
+    
+    // Gestion des clics sur la carte
+    var tempLine = null;
+    
+    map.on('click', function(e) {
+      if (!currentTool) return;
+      
+      if (currentTool === 'point') {
+        L.circleMarker(e.latlng, pointStyle)
+          .bindPopup('📍 Point dessiné<br>Coordonnées: ' + e.latlng.lat.toFixed(6) + ', ' + e.latlng.lng.toFixed(6))
+          .addTo(drawingGroup);
+        currentTool = null;
+        updateToolButtons();
+        map.getContainer().style.cursor = '';
+      }
+      
+      if (currentTool === 'distance') {
+        measurePoints.push(e.latlng);
+        
+        if (measurePoints.length === 1) {
+          // Premier point
+          L.circleMarker(e.latlng, { color: '#f39c12', fillColor: '#f39c12', radius: 5 }).addTo(drawingGroup);
+          showResult('Cliquez sur un deuxième point pour mesurer la distance');
+        } else if (measurePoints.length === 2) {
+          // Deuxième point - calcul de distance
+          L.circleMarker(e.latlng, { color: '#f39c12', fillColor: '#f39c12', radius: 5 }).addTo(drawingGroup);
+          
+          var distance = map.distance(measurePoints[0], measurePoints[1]);
+          var line = L.polyline(measurePoints, lineStyle).addTo(drawingGroup);
+          line.bindPopup('📏 Distance: ' + formatDistance(distance));
+          
+          showResult('Distance: ' + formatDistance(distance));
+          
+          currentTool = null;
+          measurePoints = [];
+          updateToolButtons();
+          map.getContainer().style.cursor = '';
+        }
+      }
+      
+      if (currentTool === 'polygon' || currentTool === 'area') {
+        polygonPoints.push(e.latlng);
+        
+        // Ajouter un marqueur pour chaque point
+        L.circleMarker(e.latlng, { color: '#2ecc71', fillColor: '#2ecc71', radius: 4 }).addTo(drawingGroup);
+        
+        if (polygonPoints.length === 1) {
+          showResult('Ajoutez des points en cliquant, double-cliquez pour terminer le polygone');
+        } else {
+          // Mettre à jour la ligne temporaire
+          if (tempLine) {
+            drawingGroup.removeLayer(tempLine);
+          }
+          tempLine = L.polyline(polygonPoints, { color: '#2ecc71', weight: 2, opacity: 0.6, dashArray: '5, 5' });
+          tempLine.addTo(drawingGroup);
+        }
+      }
+    });
+    
+    map.on('dblclick', function(e) {
+      if (currentTool === 'polygon' || currentTool === 'area') {
+        if (polygonPoints.length >= 3) {
+          // Enlever la ligne temporaire
+          if (tempLine) {
+            drawingGroup.removeLayer(tempLine);
+            tempLine = null;
+          }
+          
+          // Créer le polygone final
+          var polygon = L.polygon(polygonPoints, polygonStyle).addTo(drawingGroup);
+          
+          if (currentTool === 'area') {
+            // Calculer et afficher la surface
+            var area = calculatePolygonArea(polygonPoints);
+            var areaText = formatArea(area);
+            polygon.bindPopup('📐 Surface: ' + areaText);
+            showResult('Surface: ' + areaText);
+          } else {
+            polygon.bindPopup('📐 Polygone dessiné');
+            showResult('Polygone terminé');
+          }
+          
+          // Réinitialiser
+          currentTool = null;
+          polygonPoints = [];
+          updateToolButtons();
+          map.getContainer().style.cursor = '';
+        } else {
+          showResult('Il faut au moins 3 points pour créer un polygone');
+        }
+      }
+    });
+
+    // Résumé dynamique (ex : nb objets)
+    function updateSummaryBar() {
+      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0);
+      let communes = new Set();
+      window._layers.forEach(l => l.eachLayer?.(lyr => {
+        if(lyr.feature?.properties?.commune) communes.add(lyr.feature.properties.commune);
+        if(lyr.feature?.properties?.libelleCom) communes.add(lyr.feature.properties.libelleCom);
+      }));
+      let bar = document.getElementById('summaryBar');
+      bar.innerHTML = `<b>Objets affichés :</b> ${n}${communes.size>0?` &nbsp;|&nbsp; <b>Communes :</b> ${communes.size}`:""}`;
+      bar.style.display = n>0 ? "" : "none";
+    }
+
+    window.clearMap = function() {
+      window._layers.forEach(l => map.removeLayer(l));
+      window._layers = [];
+      updateSummaryBar();
+    };
+
+    // Test d'affichage
+    console.log('✅ Carte initialisée avec succès');
+    console.log('Map container:', map.getContainer());
+    console.log('Map center:', map.getCenter());
+    
+    // Ajouter un marqueur de test
+    L.marker([46.8, 2]).addTo(map)
+      .bindPopup('📍 Carte fonctionnelle!')
+      .openPopup();
+    
+    // Initialiser l'éditeur de couches avancé
+    setTimeout(function() {
+      console.log('🎨 Initialisation éditeur de couches avancé');
+      if (typeof initAdvancedLayerControl === 'function') {
+        window.layerControl = initAdvancedLayerControl(map);
+        console.log('✅ Éditeur de couches avancé initialisé');
+      } else {
+        console.error('❌ Fonction initAdvancedLayerControl non trouvée');
+      }
+    }, 1000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+
+# DANS VOTRE FICHIER agriweb_hebergement_gratuit.py
+# Ajoutez ces lignes au début du fichier :
+
+try:
+    from agriweb_crm_bridge import integrate_agriweb_search_to_crm, is_crm_available
+    CRM_AVAILABLE = True
+except ImportError:
+    CRM_AVAILABLE = False
+
+# DANS VOTRE FONCTION DE RECHERCHE EXISTANTE
+# (probablement dans une route comme /search_by_address)
+
+@app.route("/search_by_address", methods=["GET", "POST"])
+def search_by_address():
+    # ... votre code existant ...
+    
+    # Après avoir récupéré tous vos résultats :
+    search_response = {
+        "sirene": sirene_data,
+        "batiments": batiments_data, 
+        "rpg": rpg_data,
+        # ... autres données
+    }
+    
+    search_params = {
+        "commune": commune,
+        "timestamp": datetime.now().isoformat(),
+        # ... autres paramètres
+    }
+    
+    # NOUVELLE PARTIE : Intégration CRM
+    if CRM_AVAILABLE and 'user_id' in session:
+        try:
+            crm_result = integrate_agriweb_search_to_crm(
+                search_response, 
+                search_params, 
+                session
+            )
+            
+            # Ajouter le résultat CRM à votre réponse
+            search_response['crm_integration'] = crm_result
+            
+        except Exception as e:
+            print(f"Erreur CRM: {e}")
+    
+    # ... retourner votre réponse normale avec en plus les données CRM
+    return jsonify(search_response)
+
+# DANS VOTRE TEMPLATE HTML
+# Ajoutez un bouton pour afficher les prospects créés :
+
+<div class="crm-section" id="crmResults" style="display: none;">
+    <h4>🎯 Prospects CRM Créés</h4>
+    <div id="crmProspectsList"></div>
+    <a href="/crm/dashboard" class="btn btn-success">Voir Dashboard CRM</a>
+</div>
+
+<script>
+// JavaScript pour afficher les résultats CRM
+function displayCRMResults(response) {
+    if (response.crm_integration && response.crm_integration.success) {
+        const crmSection = document.getElementById('crmResults');
+        const prospectsList = document.getElementById('crmProspectsList');
+        
+        const summary = response.crm_integration.summary;
+        prospectsList.innerHTML = `
+            <p>✅ ${summary.prospects_created} prospects créés automatiquement</p>
+            <p>⏭️ ${summary.prospects_skipped} prospects déjà existants</p>
+        `;
+        
+        crmSection.style.display = 'block';
+    }
+}
+</script>

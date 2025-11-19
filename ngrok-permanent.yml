@@ -1,0 +1,10 @@
+version: "2"
+authtoken: 31UrhBFN9GpDYlr8yORTQkwedNI_29vvhqzAb5naKvH8hRV9d
+
+tunnels:
+  geoserver:
+    proto: http
+    addr: 8080
+    host_header: localhost:8080
+    # bind_tls: true
+    inspect: true

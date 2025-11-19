@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartes Sauvegardées - AgriWeb</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .map-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        .map-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .map-preview {
+            width: 100%;
+            height: 300px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .btn-view {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+        }
+        .btn-view:hover {
+            opacity: 0.9;
+            color: white;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 30px;
+        }
+        .no-maps {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>📂 Cartes Sauvegardées</h1>
+            <a href="/" class="btn btn-secondary">← Retour à l'accueil</a>
+        </div>
+        
+        <div id="mapsContainer">
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+                <p class="mt-2">Chargement des cartes...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Charger la liste des cartes
+        async function loadMaps() {
+            try {
+                const response = await fetch('/api/list_saved_maps');
+                const data = await response.json();
+                
+                const container = document.getElementById('mapsContainer');
+                
+                if (data.maps.length === 0) {
+                    container.innerHTML = `
+                        <div class="no-maps">
+                            <h3>📭 Aucune carte sauvegardée</h3>
+                            <p>Les cartes générées apparaîtront ici.</p>
+                            <a href="/" class="btn btn-primary mt-3">Créer une carte</a>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Trier par date (plus récentes en premier)
+                data.maps.sort((a, b) => b.timestamp - a.timestamp);
+                
+                let html = `<div class="row g-3">`;
+                
+                data.maps.forEach(map => {
+                    const sizeKB = (map.size / 1024).toFixed(0);
+                    const sizeMB = (map.size / 1024 / 1024).toFixed(2);
+                    const displaySize = map.size > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
+                    
+                    html += `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="map-card">
+                                <iframe src="${map.url}" class="map-preview" frameborder="0"></iframe>
+                                <h5 class="mb-2">${map.displayName}</h5>
+                                <p class="text-muted mb-2">
+                                    <small>
+                                        📅 ${map.dateFormatted}<br>
+                                        💾 ${displaySize}
+                                    </small>
+                                </p>
+                                <div class="d-flex gap-2">
+                                    <a href="${map.url}" target="_blank" class="btn btn-view btn-sm flex-grow-1">
+                                        Ouvrir
+                                    </a>
+                                    <button onclick="deleteMap('${map.name}')" class="btn btn-danger btn-sm">
+                                        🗑️
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+                html += `<div class="mt-4 text-center text-muted"><small>Total: ${data.total} carte(s) sauvegardée(s)</small></div>`;
+                
+                container.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Erreur chargement cartes:', error);
+                document.getElementById('mapsContainer').innerHTML = `
+                    <div class="alert alert-danger">
+                        ❌ Erreur lors du chargement des cartes: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        // Supprimer une carte
+        async function deleteMap(filename) {
+            if (!confirm(`Voulez-vous vraiment supprimer cette carte ?\n\n${filename}`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/delete_saved_map', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ filename: filename })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Carte supprimée avec succès !');
+                    loadMaps(); // Recharger la liste
+                } else {
+                    alert('❌ Erreur: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Erreur suppression:', error);
+                alert('❌ Erreur lors de la suppression');
+            }
+        }
+        
+        // Charger au démarrage
+        loadMaps();
+    </script>
+</body>
+</html>

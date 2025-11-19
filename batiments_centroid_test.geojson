@@ -1,0 +1,116 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              4.6581388,
+              43.5370607
+            ],
+            [
+              4.6581309,
+              43.5370253
+            ],
+            [
+              4.6582082,
+              43.5370169
+            ],
+            [
+              4.658217,
+              43.537052
+            ],
+            [
+              4.6581388,
+              43.5370607
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "method": "centroid_radius",
+        "radius_m": 1000,
+        "source": "OpenStreetMap",
+        "building": "yes",
+        "osm_id": 102079795
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              4.659749,
+              43.5488005
+            ],
+            [
+              4.6598978,
+              43.5488186
+            ],
+            [
+              4.6599142,
+              43.5487476
+            ],
+            [
+              4.6597654,
+              43.5487295
+            ],
+            [
+              4.659749,
+              43.5488005
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "method": "centroid_radius",
+        "radius_m": 1000,
+        "source": "OpenStreetMap",
+        "building": "yes",
+        "osm_id": 783403758
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              4.650938,
+              43.5361024
+            ],
+            [
+              4.6509201,
+              43.5360771
+            ],
+            [
+              4.6509717,
+              43.5360579
+            ],
+            [
+              4.6509897,
+              43.5360832
+            ],
+            [
+              4.650938,
+              43.5361024
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "method": "centroid_radius",
+        "radius_m": 1000,
+        "source": "OpenStreetMap",
+        "building": "yes",
+        "osm_id": 1016560403
+      }
+    }
+  ]
+}

@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analyse IA - Diagnostic Photovoltaïque</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .header h1 {
+            color: #2d3748;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .header .subtitle {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Diagnostic Badge */
+        .diagnostic-badge {
+            text-align: center;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .diagnostic-favorable {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            color: white;
+        }
+
+        .diagnostic-reserves {
+            background: linear-gradient(135deg, #ed8936, #dd6b20);
+            color: white;
+        }
+
+        .diagnostic-defavorable {
+            background: linear-gradient(135deg, #f56565, #e53e3e);
+            color: white;
+        }
+
+        .score-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .score-circle {
+            display: inline-block;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: conic-gradient(#667eea var(--percentage), #e2e8f0 0);
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .score-circle::before {
+            content: attr(data-score);
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: bold;
+            color: #2d3748;
+            background: white;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #2d3748;
+            font-size: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section h2::before {
+            content: "▸";
+            color: #667eea;
+            margin-right: 10px;
+            font-size: 24px;
+        }
+
+        .section-content {
+            color: #4a5568;
+            line-height: 1.8;
+        }
+
+        /* Lists */
+        .list-positive {
+            list-style: none;
+            padding: 0;
+        }
+
+        .list-positive li {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #c6f6d5;
+            border-radius: 5px;
+            padding-left: 35px;
+            position: relative;
+        }
+
+        .list-positive li::before {
+            content: "✓";
+            position: absolute;
+            left: 10px;
+            color: #38a169;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .list-attention {
+            list-style: none;
+            padding: 0;
+        }
+
+        .list-attention li {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #fed7d7;
+            border-radius: 5px;
+            padding-left: 35px;
+            position: relative;
+        }
+
+        .list-attention li::before {
+            content: "⚠";
+            position: absolute;
+            left: 10px;
+            color: #e53e3e;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .list-info {
+            list-style: none;
+            padding: 0;
+        }
+
+        .list-info li {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #bee3f8;
+            border-radius: 5px;
+            padding-left: 35px;
+            position: relative;
+        }
+
+        .list-info li::before {
+            content: "ℹ";
+            position: absolute;
+            left: 10px;
+            color: #3182ce;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        /* Info Grid */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .info-card {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #718096;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-size: 16px;
+            color: #2d3748;
+            font-weight: 600;
+        }
+
+        /* Buttons */
+        .btn-container {
+            text-align: center;
+            margin-top: 40px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        /* Error */
+        .error-container {
+            text-align: center;
+            padding: 40px;
+            background: #fed7d7;
+            border-radius: 10px;
+            border: 2px solid #fc8181;
+        }
+
+        .error-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+
+        .error-title {
+            color: #742a2a;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .error-message {
+            color: #9b2c2c;
+            font-size: 16px;
+        }
+
+        /* Meta info */
+        .meta-info {
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .diagnostic-badge {
+                font-size: 18px;
+                padding: 20px;
+            }
+
+            .score-circle {
+                width: 120px;
+                height: 120px;
+            }
+
+            .score-circle::before {
+                width: 90px;
+                height: 90px;
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Analyse IA - Diagnostic Photovoltaïque</h1>
+            <div class="subtitle">Analyse automatique des documents d'urbanisme</div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Analyse en cours des documents d'urbanisme...</p>
+            <p style="margin-top: 10px; color: #718096; font-size: 14px;">
+                Cela peut prendre 30 secondes à 2 minutes
+            </p>
+        </div>
+
+        <div id="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Récupérer les paramètres de l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const address = urlParams.get('address');
+        const commune = urlParams.get('commune');
+        const department = urlParams.get('department');
+        const insee = urlParams.get('insee') || '';
+        
+        // Récupérer les données GPU et GeoRisques
+        let gpuData = {};
+        let georisquesData = {};
+        
+        try {
+            const gpuParam = urlParams.get('gpu_data');
+            const georisquesParam = urlParams.get('georisques_data');
+            
+            if (gpuParam) {
+                gpuData = JSON.parse(decodeURIComponent(gpuParam));
+            }
+            if (georisquesParam) {
+                georisquesData = JSON.parse(decodeURIComponent(georisquesParam));
+            }
+        } catch (e) {
+            console.warn("Erreur parsing données structurées:", e);
+        }
+        
+        // FALLBACK : Documents à analyser (liens de PDFs si fournis)
+        const documentLinks = {
+            "PLU": urlParams.get('plu_url'),
+            "PPRI": urlParams.get('ppri_url'),
+            "Cadastre": urlParams.get('cadastre_url'),
+            "SUP": urlParams.get('sup_url')
+        };
+
+        // Nettoyer les liens vides
+        Object.keys(documentLinks).forEach(key => {
+            if (!documentLinks[key] || documentLinks[key] === 'null') {
+                delete documentLinks[key];
+            }
+        });
+
+        // Lancer l'analyse
+        async function analyzeDocuments() {
+            try {
+                const response = await fetch('/api/analyze_documents_ai', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        address: address,
+                        commune: commune,
+                        department: department,
+                        insee: insee,
+                        gpu_data: gpuData,
+                        georisques_data: georisquesData,
+                        document_links: documentLinks,
+                        provider: 'openai'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayResult(data);
+                } else {
+                    displayError(data.error || 'Erreur lors de l\'analyse', data.message);
+                }
+            } catch (error) {
+                displayError('Erreur de connexion', error.message);
+            }
+        }
+
+        function displayResult(data) {
+            document.getElementById('loading').style.display = 'none';
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+
+            // Badge diagnostic
+            const diagnosticClass = data.diagnostic === 'FAVORABLE' ? 'favorable' : 
+                                   (data.diagnostic === 'AVEC_RESERVES' ? 'reserves' : 'defavorable');
+            const diagnosticEmoji = data.diagnostic === 'FAVORABLE' ? '✅' : 
+                                   (data.diagnostic === 'AVEC_RESERVES' ? '⚠️' : '❌');
+            const diagnosticText = data.diagnostic === 'FAVORABLE' ? 'FAVORABLE' : 
+                                  (data.diagnostic === 'AVEC_RESERVES' ? 'AVEC RÉSERVES' : 'DÉFAVORABLE');
+
+            let html = `
+                <div class="diagnostic-badge diagnostic-${diagnosticClass}">
+                    ${diagnosticEmoji} Diagnostic : ${diagnosticText}
+                </div>
+
+                <div class="score-container">
+                    <div class="score-circle" data-score="${data.score_faisabilite}/100" 
+                         style="--percentage: ${data.score_faisabilite}%"></div>
+                    <div style="font-size: 18px; color: #4a5568; font-weight: 600;">
+                        Score de faisabilité
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>📋 Informations d'urbanisme</h2>
+                    <div class="info-grid">
+                        ${data.zones_urbanisme && data.zones_urbanisme.length > 0 ? `
+                            <div class="info-card">
+                                <div class="info-label">Zones</div>
+                                <div class="info-value">${data.zones_urbanisme.join(', ')}</div>
+                            </div>
+                        ` : ''}
+                        ${data.hauteur_max ? `
+                            <div class="info-card">
+                                <div class="info-label">Hauteur maximale</div>
+                                <div class="info-value">${data.hauteur_max}</div>
+                            </div>
+                        ` : ''}
+                        ${data.risques && data.risques.length > 0 ? `
+                            <div class="info-card">
+                                <div class="info-label">Risques identifiés</div>
+                                <div class="info-value">${data.risques.join(', ')}</div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    ${data.regles_toiture ? `
+                        <div style="margin-top: 15px;">
+                            <strong>Règles toiture :</strong> ${data.regles_toiture}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            // Points positifs
+            if (data.points_positifs && data.points_positifs.length > 0) {
+                html += `
+                    <div class="section">
+                        <h2>✅ Points positifs</h2>
+                        <ul class="list-positive">
+                            ${data.points_positifs.map(point => `<li>${point}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Points d'attention
+            if (data.points_attention && data.points_attention.length > 0) {
+                html += `
+                    <div class="section">
+                        <h2>⚠️ Points d'attention</h2>
+                        <ul class="list-attention">
+                            ${data.points_attention.map(point => `<li>${point}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Démarches administratives
+            if (data.demarches_administratives && data.demarches_administratives.length > 0) {
+                html += `
+                    <div class="section">
+                        <h2>📝 Démarches administratives</h2>
+                        <ul class="list-info">
+                            ${data.demarches_administratives.map(demarche => `<li>${demarche}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Recommandations
+            if (data.recommandations && data.recommandations.length > 0) {
+                html += `
+                    <div class="section">
+                        <h2>💡 Recommandations</h2>
+                        <ul class="list-info">
+                            ${data.recommandations.map(reco => `<li>${reco}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            // Synthèse
+            if (data.synthese) {
+                html += `
+                    <div class="section">
+                        <h2>📊 Synthèse détaillée</h2>
+                        <div class="section-content">
+                            ${data.synthese.replace(/\n/g, '<br>')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Contraintes patrimoniales
+            if (data.contraintes_patrimoniales) {
+                html += `
+                    <div class="section">
+                        <h2>🏛️ Contraintes patrimoniales</h2>
+                        <div class="section-content">
+                            ${data.contraintes_patrimoniales}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Boutons
+            html += `
+                <div class="btn-container">
+                    <button class="btn btn-primary" onclick="window.print()">
+                        📄 Imprimer le rapport
+                    </button>
+                    <button class="btn btn-secondary" onclick="window.history.back()">
+                        ← Retour
+                    </button>
+                    <button class="btn btn-secondary" onclick="location.href='/'">
+                        🏠 Nouvelle recherche
+                    </button>
+                </div>
+
+                <!-- Section de débogage détaillée -->
+                <div class="section" style="background: #f8f9fa; border-left-color: #6c757d;">
+                    <h2>🔍 Détails de l'analyse</h2>
+                    <div class="info-grid">
+                        <div class="info-card">
+                            <div class="info-label">Adresse analysée</div>
+                            <div class="info-value" style="font-size: 14px;">${address || 'N/A'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Commune</div>
+                            <div class="info-value">${commune || 'N/A'}</div>
+                        </div>
+                        <div class="info-card">
+                            <div class="info-label">Département</div>
+                            <div class="info-value">${department || 'N/A'}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-top: 20px;">
+                        <h6 style="color: #495057; margin-bottom: 10px;">📄 Documents fournis pour analyse :</h6>
+                        <ul style="list-style: none; padding-left: 0;">
+                            ${Object.entries(documentLinks).map(([type, url]) => `
+                                <li style="padding: 8px; background: white; border-radius: 4px; margin-bottom: 8px; border-left: 3px solid ${url && url !== 'null' ? '#28a745' : '#dc3545'};">
+                                    <strong>${type}:</strong> 
+                                    ${url && url !== 'null' ? 
+                                        `<a href="${url}" target="_blank" style="font-size: 12px; word-break: break-all;">${url}</a>` : 
+                                        '<span style="color: #dc3545;">❌ Non fourni</span>'
+                                    }
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+
+                    ${data.download_status ? `
+                        <div style="margin-top: 20px;">
+                            <h6 style="color: #495057; margin-bottom: 10px;">📥 Statut des téléchargements :</h6>
+                            <ul style="list-style: none; padding-left: 0;">
+                                ${Object.entries(data.download_status).map(([type, status]) => `
+                                    <li style="padding: 8px; background: white; border-radius: 4px; margin-bottom: 8px;">
+                                        <strong>${type}:</strong> 
+                                        <span style="color: ${status === 'success' ? '#28a745' : '#dc3545'};">
+                                            ${status === 'success' ? '✅ Réussi' : 
+                                              status === 'download_failed' ? '❌ Téléchargement échoué' : 
+                                              '❌ Extraction échouée'}
+                                        </span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    ` : ''}
+
+                    ${data.error ? `
+                        <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                            <h6 style="color: #856404; margin-bottom: 10px;">⚠️ Message d'erreur :</h6>
+                            <p style="margin: 0; color: #856404; font-size: 14px;">${data.error}</p>
+                        </div>
+                    ` : ''}
+
+                    ${data.raw_response ? `
+                        <details style="margin-top: 20px;">
+                            <summary style="cursor: pointer; padding: 10px; background: white; border-radius: 4px;">
+                                🔍 Voir la réponse brute de l'IA (debug)
+                            </summary>
+                            <pre style="background: #f8f9fa; padding: 15px; border-radius: 4px; overflow-x: auto; font-size: 12px; margin-top: 10px;">
+${JSON.stringify(data, null, 2)}
+                            </pre>
+                        </details>
+                    ` : ''}
+                </div>
+
+                <div class="meta-info">
+                    <div><strong>Provider IA :</strong> ${data.provider === 'openai' ? 'OpenAI GPT' : 'Anthropic Claude'} • ${data.model || 'N/A'}</div>
+                    <div><strong>Documents analysés :</strong> ${data.documents_analyzed && data.documents_analyzed.length > 0 ? data.documents_analyzed.join(', ') : '❌ Aucun document analysé'}</div>
+                    ${data.from_cache ? '<div>⚡ Résultat depuis le cache</div>' : ''}
+                    <div style="margin-top: 10px; font-size: 11px;">
+                        Cette analyse est fournie à titre indicatif. Consultez toujours les services d'urbanisme locaux pour confirmation.
+                    </div>
+                </div>
+            `;
+
+            resultDiv.innerHTML = html;
+        }
+
+        function displayError(title, message) {
+            document.getElementById('loading').style.display = 'none';
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+
+            resultDiv.innerHTML = `
+                <div class="error-container">
+                    <div class="error-icon">❌</div>
+                    <div class="error-title">${title}</div>
+                    <div class="error-message">${message || ''}</div>
+                    <div class="btn-container" style="margin-top: 30px;">
+                        <button class="btn btn-primary" onclick="window.history.back()">
+                            ← Retour
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Démarrer l'analyse au chargement
+        if (address && commune && department) {
+            analyzeDocuments();
+        } else {
+            displayError('Paramètres manquants', 'Adresse, commune ou département non fournis');
+        }
+    </script>
+</body>
+</html>

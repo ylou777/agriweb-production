@@ -1,0 +1,70 @@
+/* ===== STYLES POUR LE CONTRÔLE DES CALQUES DANS LA SIDEBAR ===== */
+
+.layer-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.layer-list .list-group-item {
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  padding: 8px 12px;
+  transition: all 0.2s ease;
+}
+
+.layer-list .list-group-item:hover {
+  background-color: #e9ecef;
+  transform: translateX(2px);
+}
+
+.layer-list .form-check {
+  margin: 0;
+}
+
+.layer-list .form-check-input {
+  margin-right: 8px;
+}
+
+.layer-list .form-check-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #495057;
+  cursor: pointer;
+}
+
+.layer-list .badge {
+  font-size: 0.7rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Styles pour le panneau d'informations */
+#info-panel .alert {
+  font-size: 0.85rem;
+  padding: 8px 12px;
+}
+
+/* Animation pour les nouveaux éléments */
+.layer-list .list-group-item {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

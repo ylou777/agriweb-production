@@ -1,0 +1,54 @@
+{
+  "diagnostic": "AVEC_RESERVES",
+  "score_faisabilite": 65,
+  "zone_urbanisme": "UL2",
+  "type_zone": "U",
+  "description_zone": "Zonage du PLU:UL2, zone urbanisée",
+  "hauteur_max": null,
+  "regles_applicables": [
+    "Respect des prescriptions de mixité sociale",
+    "Conformité au règlement local de publicité"
+  ],
+  "servitudes": [
+    "PPR Secheresse de Toulouse"
+  ],
+  "risques_identifies": [
+    "Inondations",
+    "Sécheresse"
+  ],
+  "impact_risques": "modéré",
+  "contraintes_patrimoniales": null,
+  "points_positifs": [
+    "Zone urbanisée favorable à l'installation photovoltaïque",
+    "Pas de contraintes patrimoniales identifiées",
+    "Risque sismique très faible"
+  ],
+  "points_attention": [
+    "Périmètre d'exclusion de l'application des dispositions en faveur de la mixité sociale",
+    "Historique d'inondations dans la commune",
+    "Règlement local de publicité à respecter"
+  ],
+  "demarches_administratives": [
+    "Demande d'autorisation d'urbanisme",
+    "Consultation des services d'urbanisme pour vérification des prescriptions"
+  ],
+  "recommandations_techniques": [
+    "Évaluation des risques d'inondation avant installation",
+    "Conception des panneaux pour résister à la sécheresse",
+    "Intégration esthétique des panneaux selon le règlement local"
+  ],
+  "synthese_detaillee": "L'analyse de faisabilité pour l'installation photovoltaïque au 17 Chemin Savit à Toulouse révèle un diagnostic globalement favorable, mais avec certaines réserves. La zone UL2 est classée comme urbanisée, ce qui est généralement propice à l'implantation de panneaux solaires. Cependant, il est essentiel de respecter les prescriptions liées à la mixité sociale, ainsi que les règles du règlement local de publicité. Des servitudes d'utilité publique, notamment le PPR de sécheresse, doivent également être prises en compte. En matière de risques naturels, bien que le risque sismique soit très faible, des inondations ont été historiquement signalées dans la commune, ce qui impose une vigilance accrue. Les démarches administratives nécessaires incluent une demande d'autorisation d'urbanisme et une consultation des services d'urbanisme pour s'assurer de la conformité avec les prescriptions locales. Les recommandations techniques suggèrent d'évaluer les risques d'inondation et de concevoir les installations pour résister aux périodes de sécheresse. En somme, bien que le projet soit réalisable, il nécessite une attention particulière aux réglementations et aux risques identifiés.",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "timestamp": "2025-10-09T14:51:29.341595",
+  "status": "success",
+  "from_cache": false,
+  "address": "17 Chemin Savit 31100 Toulouse",
+  "commune": "Toulouse",
+  "department": "Haute-Garonne",
+  "insee": "31555",
+  "data_sources": {
+    "gpu": true,
+    "georisques": true
+  }
+}

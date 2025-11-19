@@ -1,0 +1,382 @@
+
+<!-- À ajouter dans votre template HTML qui affiche les résultats de recherche par commune -->
+<!-- Placez ce code APRÈS l'affichage de vos résultats (carte, tableaux, etc.) -->
+
+<!-- ===== WIDGET CRM ===== -->
+<div class="row mt-4" id="crmWidget" style="display: none;">
+    <div class="col-12">
+        <div class="card border-primary shadow">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-users"></i> 
+                    Système CRM Commercial
+                    <small class="float-end">
+                        <span class="badge bg-light text-dark" id="crmProspectsCount">-</span> prospects détectés
+                    </small>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Information prospects -->
+                    <div class="col-md-8">
+                        <h6 class="text-primary">📊 Prospects commerciaux identifiés :</h6>
+                        <div id="crmProspectsList" class="mb-3">
+                            <!-- Liste générée dynamiquement -->
+                        </div>
+                        
+                        <div id="crmAnalysis" class="alert alert-info" style="display: none;">
+                            <h6 class="alert-heading">🎯 Analyse commerciale :</h6>
+                            <div id="crmAnalysisContent"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Actions CRM -->
+                    <div class="col-md-4">
+                        <div class="d-grid gap-2">
+                            <button id="btnCreateProspects" class="btn btn-primary btn-lg" 
+                                    onclick="createCRMProspects()" disabled>
+                                <i class="fas fa-plus-circle"></i>
+                                Créer Prospects CRM
+                            </button>
+                            
+                            <a href="/crm/dashboard" class="btn btn-outline-primary" target="_blank">
+                                <i class="fas fa-chart-line"></i>
+                                Dashboard CRM
+                            </a>
+                            
+                            <a href="/crm/login" class="btn btn-outline-secondary btn-sm" target="_blank">
+                                <i class="fas fa-sign-in-alt"></i>
+                                Se connecter au CRM
+                            </a>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i>
+                                Les prospects seront créés automatiquement à partir des données de cette recherche.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Status des opérations CRM -->
+                <div id="crmStatus" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== JAVASCRIPT CRM ===== -->
+<script>
+// Variables globales pour le CRM
+let currentSearchResults = null;
+let crmConnected = false;
+
+// Vérifier la disponibilité du CRM
+function checkCRMAvailability() {
+    fetch('/crm/dashboard')
+        .then(response => {
+            if (response.ok) {
+                crmConnected = true;
+                console.log('✅ [CRM] Utilisateur connecté au CRM');
+            } else {
+                console.log('ℹ️ [CRM] Utilisateur non connecté');
+            }
+        })
+        .catch(() => {
+            console.log('⚠️ [CRM] CRM non disponible');
+        });
+}
+
+// Analyser les résultats de recherche pour détecter des prospects
+function analyzeCRMProspects(searchResults) {
+    const prospects = {
+        sirene: [],
+        rpg: [],
+        batiments: [],
+        parkings: [],
+        friches: [],
+        total: 0
+    };
+    
+    // Analyser SIRENE (entreprises)
+    if (searchResults.sirene_data && searchResults.sirene_data.features) {
+        searchResults.sirene_data.features.forEach(feature => {
+            const props = feature.properties;
+            prospects.sirene.push({
+                name: props.denominationUniteLegale || 'Entreprise SIRENE',
+                activity: props.libelle_activite || 'Activité inconnue',
+                address: props.adresseEtablissement || '',
+                city: props.libelleCommuneEtablissement || ''
+            });
+        });
+    }
+    
+    // Analyser RPG (parcelles importantes)
+    if (searchResults.rpg_data && searchResults.rpg_data.features) {
+        searchResults.rpg_data.features.forEach(feature => {
+            const props = feature.properties;
+            const surface = props.surf_parc || 0;
+            if (surface > 5) {  // Parcelles > 5ha
+                prospects.rpg.push({
+                    surface: surface,
+                    culture: props.lib_cultu || 'Culture inconnue',
+                    id: props.id_parcel || 'ID inconnu'
+                });
+            }
+        });
+    }
+    
+    // Analyser bâtiments
+    if (searchResults.batiments_data && searchResults.batiments_data.features) {
+        searchResults.batiments_data.features.forEach(feature => {
+            const props = feature.properties;
+            if (['agricole', 'industriel'].includes(props.usage) && props.surface_plancher > 500) {
+                prospects.batiments.push({
+                    usage: props.usage,
+                    surface: props.surface_plancher,
+                    nature: props.nature || 'Bâtiment'
+                });
+            }
+        });
+    }
+    
+    // Analyser parkings
+    if (searchResults.parkings_data && searchResults.parkings_data.features) {
+        searchResults.parkings_data.features.forEach(feature => {
+            const props = feature.properties;
+            if (props.surface > 3000) {  // Parkings > 3000m²
+                prospects.parkings.push({
+                    nom: props.nom || 'Parking',
+                    surface: props.surface,
+                    places: props.nb_places || 0
+                });
+            }
+        });
+    }
+    
+    // Analyser friches
+    if (searchResults.friches_data && searchResults.friches_data.features) {
+        searchResults.friches_data.features.forEach(feature => {
+            const props = feature.properties;
+            if (props.surface > 5000) {  // Friches > 5000m²
+                prospects.friches.push({
+                    nom: props.nom || 'Friche',
+                    surface: props.surface,
+                    statut: props.statut || 'Statut inconnu'
+                });
+            }
+        });
+    }
+    
+    // Calculer le total
+    prospects.total = prospects.sirene.length + prospects.rpg.length + 
+                     prospects.batiments.length + prospects.parkings.length + 
+                     prospects.friches.length;
+    
+    return prospects;
+}
+
+// Afficher les prospects détectés dans l'interface
+function displayCRMProspects(prospects) {
+    const countElement = document.getElementById('crmProspectsCount');
+    const listElement = document.getElementById('crmProspectsList');
+    const analysisElement = document.getElementById('crmAnalysis');
+    const analysisContent = document.getElementById('crmAnalysisContent');
+    const createButton = document.getElementById('btnCreateProspects');
+    
+    countElement.textContent = prospects.total;
+    
+    if (prospects.total > 0) {
+        let html = '';
+        
+        // Afficher les entreprises SIRENE
+        if (prospects.sirene.length > 0) {
+            html += `<div class="mb-2">
+                <strong>🏢 Entreprises SIRENE (${prospects.sirene.length})</strong>
+                <ul class="list-unstyled ms-3">`;
+            prospects.sirene.slice(0, 3).forEach(entreprise => {
+                html += `<li><small>• ${entreprise.name} - ${entreprise.activity}</small></li>`;
+            });
+            if (prospects.sirene.length > 3) {
+                html += `<li><small>... et ${prospects.sirene.length - 3} autres</small></li>`;
+            }
+            html += '</ul></div>';
+        }
+        
+        // Afficher les parcelles RPG
+        if (prospects.rpg.length > 0) {
+            html += `<div class="mb-2">
+                <strong>🌾 Parcelles agricoles (${prospects.rpg.length})</strong>
+                <ul class="list-unstyled ms-3">`;
+            prospects.rpg.slice(0, 2).forEach(parcelle => {
+                html += `<li><small>• ${parcelle.surface}ha - ${parcelle.culture}</small></li>`;
+            });
+            if (prospects.rpg.length > 2) {
+                html += `<li><small>... et ${prospects.rpg.length - 2} autres</small></li>`;
+            }
+            html += '</ul></div>';
+        }
+        
+        // Afficher les autres types
+        if (prospects.batiments.length > 0) {
+            html += `<div class="mb-2"><strong>🏭 Bâtiments (${prospects.batiments.length})</strong></div>`;
+        }
+        if (prospects.parkings.length > 0) {
+            html += `<div class="mb-2"><strong>🅿️ Parkings (${prospects.parkings.length})</strong></div>`;
+        }
+        if (prospects.friches.length > 0) {
+            html += `<div class="mb-2"><strong>🏚️ Friches (${prospects.friches.length})</strong></div>`;
+        }
+        
+        listElement.innerHTML = html;
+        
+        // Afficher l'analyse
+        let analysisHtml = `
+            <ul class="mb-0">
+                <li><strong>Priorité haute :</strong> ${prospects.sirene.length} entreprises actives</li>
+                <li><strong>Priorité moyenne :</strong> ${prospects.rpg.length + prospects.batiments.length + prospects.friches.length} propriétaires fonciers</li>
+                <li><strong>Priorité faible :</strong> ${prospects.parkings.length} gestionnaires publics</li>
+            </ul>
+        `;
+        analysisContent.innerHTML = analysisHtml;
+        analysisElement.style.display = 'block';
+        
+        createButton.disabled = false;
+        document.getElementById('crmWidget').style.display = 'block';
+    } else {
+        listElement.innerHTML = '<p class="text-muted">Aucun prospect commercial détecté dans cette recherche.</p>';
+        createButton.disabled = true;
+    }
+}
+
+// Créer les prospects dans le CRM
+function createCRMProspects() {
+    if (!currentSearchResults) {
+        alert('Aucune donnée de recherche disponible');
+        return;
+    }
+    
+    const statusDiv = document.getElementById('crmStatus');
+    statusDiv.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                <span>⏳ Création des prospects dans le CRM en cours...</span>
+            </div>
+        </div>
+    `;
+    statusDiv.style.display = 'block';
+    
+    // Préparer les données pour l'API CRM
+    const payload = {
+        search_results: currentSearchResults,
+        search_metadata: {
+            commune: currentSearchResults.commune || 'Commune inconnue',
+            timestamp: new Date().toISOString(),
+            user_initiated: true,
+            search_type: 'commune_search'
+        }
+    };
+    
+    fetch('/api/crm/integrate_commune_search', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            const summary = result.summary;
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <h6 class="alert-heading">✅ Prospects créés avec succès !</h6>
+                    <ul class="mb-2">
+                        <li><strong>${summary.prospects_created || 0}</strong> nouveaux prospects créés</li>
+                        <li><strong>${summary.prospects_skipped || 0}</strong> prospects existants ignorés</li>
+                        <li><strong>${summary.prospects_updated || 0}</strong> prospects mis à jour</li>
+                    </ul>
+                    <a href="/crm/dashboard" target="_blank" class="btn btn-sm btn-success">
+                        <i class="fas fa-external-link-alt"></i> Voir dans le CRM
+                    </a>
+                </div>
+            `;
+            
+            // Désactiver le bouton pour éviter les doublons
+            document.getElementById('btnCreateProspects').disabled = true;
+            document.getElementById('btnCreateProspects').innerHTML = 
+                '<i class="fas fa-check"></i> Prospects créés';
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <h6 class="alert-heading">⚠️ Erreur lors de la création</h6>
+                    <p class="mb-2">${result.error}</p>
+                    <small class="text-muted">
+                        Vérifiez que vous êtes connecté au CRM : 
+                        <a href="/crm/login" target="_blank">Se connecter</a>
+                    </small>
+                </div>
+            `;
+        }
+    })
+    .catch(error => {
+        statusDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <h6 class="alert-heading">❌ Erreur réseau</h6>
+                <p class="mb-0">${error.message}</p>
+            </div>
+        `;
+    });
+}
+
+// Fonction à appeler après chaque recherche par commune réussie
+function onCommuneSearchComplete(searchResults) {
+    console.log('🔍 [CRM] Analyse des résultats de recherche commune:', searchResults.commune);
+    
+    currentSearchResults = searchResults;
+    
+    // Vérifier si le CRM est disponible
+    if (searchResults.crm_available) {
+        const prospects = analyzeCRMProspects(searchResults);
+        displayCRMProspects(prospects);
+        checkCRMAvailability();
+    } else {
+        console.log('ℹ️ [CRM] Module CRM non disponible');
+        document.getElementById('crmWidget').style.display = 'none';
+    }
+}
+
+// Initialisation au chargement de la page
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 [CRM] Widget CRM initialisé');
+    
+    // Si des résultats de recherche sont déjà présents au chargement
+    // (cas où la page est rechargée), vous pouvez les analyser ici
+});
+</script>
+
+<!-- ===== CSS OPTIONNEL POUR AMÉLIORER L'APPARENCE ===== -->
+<style>
+#crmWidget .card {
+    border-left: 4px solid #0d6efd;
+}
+
+#crmWidget .btn {
+    border-radius: 8px;
+}
+
+#crmWidget .badge {
+    font-size: 0.9em;
+}
+
+#crmProspectsList ul li {
+    padding: 2px 0;
+}
+
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+</style>

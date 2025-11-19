@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Démo AgriWeb Pro - Exemples Concrets</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .hero-section {
+            padding: 3rem 0;
+            color: white;
+            text-align: center;
+        }
+        
+        .demo-section {
+            background: white;
+            margin: 2rem 0;
+            padding: 3rem 0;
+        }
+        
+        .demo-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 2rem;
+            transition: all 0.3s;
+            border: 2px solid #e9ecef;
+        }
+        
+        .demo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+            border-color: #007bff;
+        }
+        
+        .demo-image {
+            width: 100%;
+            height: 250px;
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 3px solid #007bff;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .demo-image::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%), 
+                        linear-gradient(-45deg, rgba(255,255,255,0.1) 25%, transparent 25%), 
+                        linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.1) 75%), 
+                        linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.1) 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        }
+        
+        .demo-icon {
+            font-size: 4rem;
+            color: #007bff;
+            z-index: 2;
+            position: relative;
+        }
+        
+        .demo-content {
+            padding: 2rem;
+        }
+        
+        .feature-badge {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+        
+        .try-button {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 25px;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .try-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,123,255,0.4);
+            color: white;
+        }
+        
+        .example-list {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .example-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .example-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .breadcrumb-custom {
+            background: rgba(255,255,255,0.1);
+            border-radius: 25px;
+            padding: 0.75rem 1.5rem;
+        }
+        
+        .breadcrumb-custom a {
+            color: white;
+            text-decoration: none;
+        }
+        
+        .breadcrumb-custom a:hover {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header avec navigation -->
+    <div class="hero-section">
+        <div class="container">
+            <nav class="breadcrumb-custom mb-4">
+                <a href="/">🏠 Accueil</a> / <span class="text-white">Démo AgriWeb Pro</span>
+            </nav>
+            
+            <h1 class="display-4 fw-bold mb-3">🚀 Démo AgriWeb Pro</h1>
+            <p class="lead mb-4">Découvrez la puissance d'AgriWeb Pro avec des exemples concrets</p>
+            <p class="h5 mb-0">📍 Recherches par adresse • 🏘️ Analyses par commune • 📊 Rapports départementaux</p>
+        </div>
+    </div>
+
+    <!-- Section Recherche par Adresse -->
+    <div class="demo-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-geo-alt demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🎯 Recherche Précise</div>
+                            <h3 class="fw-bold mb-3">Recherche par Adresse</h3>
+                            <p class="text-muted mb-3">Analysez n'importe quel terrain en France en saisissant simplement son adresse</p>
+                            
+                            <div class="example-list">
+                                <h6 class="fw-bold mb-3">Exemples d'adresses à tester :</h6>
+                                <div class="example-item">
+                                    <i class="bi bi-pin-map-fill text-primary me-3"></i>
+                                    <div>
+                                        <strong>Terrain agricole - Beauce</strong><br>
+                                        <small class="text-muted">Route de Chartres, 28000 Chartres</small>
+                                    </div>
+                                </div>
+                                <div class="example-item">
+                                    <i class="bi bi-pin-map-fill text-success me-3"></i>
+                                    <div>
+                                        <strong>Zone viticole - Bordeaux</strong><br>
+                                        <small class="text-muted">Château Margaux, 33460 Margaux</small>
+                                    </div>
+                                </div>
+                                <div class="example-item">
+                                    <i class="bi bi-pin-map-fill text-warning me-3"></i>
+                                    <div>
+                                        <strong>Terrain montagnard - Alpes</strong><br>
+                                        <small class="text-muted">Route de la Vallée, 74400 Chamonix</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <a href="/demo/adresses" class="try-button">
+                                <i class="bi bi-play-circle me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-building demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🏘️ Analyse Territoriale</div>
+                            <h3 class="fw-bold mb-3">Recherche par Commune</h3>
+                            <p class="text-muted mb-3">Obtenez une vue d'ensemble complète d'une commune entière avec ses caractéristiques agricoles</p>
+                            
+                            <div class="example-list">
+                                <h6 class="fw-bold mb-3">Communes d'exemple :</h6>
+                                <div class="example-item">
+                                    <i class="bi bi-building text-primary me-3"></i>
+                                    <div>
+                                        <strong>Reims (51)</strong><br>
+                                        <small class="text-muted">Zone viticole • Champagne • 180k habitants</small>
+                                    </div>
+                                </div>
+                                <div class="example-item">
+                                    <i class="bi bi-building text-success me-3"></i>
+                                    <div>
+                                        <strong>Toulouse (31)</strong><br>
+                                        <small class="text-muted">Métropole • Agriculture périurbaine • 475k habitants</small>
+                                    </div>
+                                </div>
+                                <div class="example-item">
+                                    <i class="bi bi-building text-info me-3"></i>
+                                    <div>
+                                        <strong>Angers (49)</strong><br>
+                                        <small class="text-muted">Zone horticole • Loire • 150k habitants</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <a href="/demo/communes" class="try-button">
+                                <i class="bi bi-search me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section Recherche par Département -->
+    <div class="demo-section" style="background: #f8f9fa;">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-map demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">📊 Vision Macro</div>
+                            <h3 class="fw-bold mb-3">Analyse par Département</h3>
+                            <p class="text-muted mb-3">Découvrez les caractéristiques agricoles et énergétiques de départements entiers</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="example-list">
+                                        <h6 class="fw-bold mb-3">Départements agricoles :</h6>
+                                        <div class="example-item">
+                                            <i class="bi bi-map text-success me-3"></i>
+                                            <div>
+                                                <strong>Eure-et-Loir (28)</strong><br>
+                                                <small class="text-muted">Céréales • Beauce</small>
+                                            </div>
+                                        </div>
+                                        <div class="example-item">
+                                            <i class="bi bi-map text-warning me-3"></i>
+                                            <div>
+                                                <strong>Gironde (33)</strong><br>
+                                                <small class="text-muted">Viticulture • Bordeaux</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="example-list">
+                                        <h6 class="fw-bold mb-3">Potentiel énergétique :</h6>
+                                        <div class="example-item">
+                                            <i class="bi bi-sun text-warning me-3"></i>
+                                            <div>
+                                                <strong>Solaire</strong><br>
+                                                <small class="text-muted">Ensoleillement • PVGIS</small>
+                                            </div>
+                                        </div>
+                                        <div class="example-item">
+                                            <i class="bi bi-wind text-info me-3"></i>
+                                            <div>
+                                                <strong>Éolien</strong><br>
+                                                <small class="text-muted">Vents • Topographie</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center mt-3">
+                                <a href="/demo/departements" class="try-button me-3">
+                                    <i class="bi bi-graph-up me-2"></i>Voir tous les exemples
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section Rapports -->
+    <div class="demo-section">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="display-5 fw-bold">📊 Exemples de Rapports</h2>
+                <p class="lead text-muted">Rapports automatisés avec données officielles</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-4">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-file-earmark-text demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🎯 Analyse Parcellaire</div>
+                            <h5 class="fw-bold mb-3">Rapport de Point</h5>
+                            <p class="text-muted mb-3">Analyse détaillée d'un point géographique précis</p>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Coordonnées GPS</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Données PVGIS</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Cadastre RPG</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructure électrique</li>
+                            </ul>
+                            <a href="/demo/rapports" class="try-button">
+                                <i class="bi bi-download me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-file-earmark-bar-graph demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">🏘️ Synthèse Locale</div>
+                            <h5 class="fw-bold mb-3">Rapport de Commune</h5>
+                            <p class="text-muted mb-3">Vue d'ensemble d'une commune avec statistiques</p>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Superficie totale</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Répartition des cultures</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel énergétique</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Infrastructures</li>
+                            </ul>
+                            <a href="/demo/rapports" class="try-button">
+                                <i class="bi bi-graph-up me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4">
+                    <div class="demo-card">
+                        <div class="demo-image">
+                            <i class="bi bi-file-earmark-spreadsheet demo-icon"></i>
+                        </div>
+                        <div class="demo-content">
+                            <div class="feature-badge">📊 Vision Macro</div>
+                            <h5 class="fw-bold mb-3">Rapport Départemental</h5>
+                            <p class="text-muted mb-3">Analyse complète d'un département</p>
+                            <ul class="list-unstyled text-muted">
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Données agricoles</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Statistiques démographiques</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Potentiel renouvelable</li>
+                                <li><i class="bi bi-check-circle text-success me-2"></i>Cartographie</li>
+                            </ul>
+                            <a href="/demo/rapports" class="try-button">
+                                <i class="bi bi-map me-2"></i>Voir tous les exemples
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section CTA -->
+    <div class="demo-section" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+        <div class="container text-center">
+            <h2 class="display-5 fw-bold mb-3">Prêt à commencer ?</h2>
+            <p class="lead mb-4">Créez votre compte et bénéficiez de 7 jours d'essai gratuit</p>
+            <div class="d-flex justify-content-center flex-wrap gap-3">
+                <a href="/" class="btn btn-light btn-lg">
+                    <i class="bi bi-person-plus me-2"></i>Créer un compte gratuit
+                </a>
+                <a href="/app" class="btn btn-outline-light btn-lg">
+                    <i class="bi bi-play-circle me-2"></i>Accès direct (mode démo)
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

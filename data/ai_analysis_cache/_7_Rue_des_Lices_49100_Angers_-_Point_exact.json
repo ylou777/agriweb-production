@@ -1,0 +1,80 @@
+{
+  "diagnostic": "AVEC_RESERVES_MAJEURES",
+  "score_faisabilite": 45,
+  "zone_urbanisme": "U",
+  "type_zone": "U",
+  "description_zone": "Zone urbaine favorable à l'urbanisation, mais soumise à des contraintes patrimoniales et architecturales.",
+  "hauteur_max": "null",
+  "regles_applicables": [
+    "Article 11 du PLU sur l'aspect extérieur",
+    "Règles de hauteur et d'intégration au bâti"
+  ],
+  "servitudes_critiques": {
+    "ac1_ac2_present": true,
+    "ppri_present": true,
+    "liste_servitudes": [
+      "AC1 - Monuments Historiques classés",
+      "I3 - PPRI inondations"
+    ],
+    "impact_global": "La présence de servitudes AC1 impose un avis obligatoire de l'ABF, avec un risque élevé de refus. Les contraintes PPRI nécessitent des adaptations techniques pour assurer l'étanchéité et la sécurité des installations."
+  },
+  "contraintes_abf": {
+    "avis_abf_obligatoire": true,
+    "raison": "Présence d'un monument historique classé à proximité, nécessitant un avis ABF obligatoire.",
+    "delai_estime": "4-6 mois",
+    "risque_refus": "élevé",
+    "prescriptions_probables": [
+      "Intégration au bâti exigée",
+      "Couleurs sombres recommandées",
+      "Matériaux mats pour éviter les reflets"
+    ]
+  },
+  "prescriptions_bloquantes": [
+    "Règles sur l'aspect extérieur pouvant limiter la visibilité des panneaux",
+    "Prescriptions architecturales strictes liées à la zone urbaine"
+  ],
+  "risques_identifies": [
+    "Inondations avec niveau de risque modéré",
+    "Sismicité faible nécessitant un renforcement structurel"
+  ],
+  "impact_risques": "modéré",
+  "points_positifs": [
+    "Zone urbaine favorable à l'urbanisation",
+    "Potentiel d'intégration des panneaux sur toiture"
+  ],
+  "points_attention": [
+    "⚠️ Contrainte majeure liée à l'avis ABF obligatoire",
+    "⚠️ Risque d'inondation nécessitant des mesures d'étanchéité"
+  ],
+  "points_bloquants": [
+    "🚨 Blocage potentiel dû à la nécessité d'un dossier ABF",
+    "🚨 Risque de refus élevé en raison des servitudes AC1"
+  ],
+  "demarches_administratives": [
+    "Dossier ABF à préparer, coût estimé entre 1500-3000€, délai 4-6 mois",
+    "Déclaration préalable pour la mise en place des panneaux, délai 1-2 mois",
+    "Consultation des services d'urbanisme pour validation des projets"
+  ],
+  "recommandations_techniques": [
+    "Utiliser des panneaux de couleur sombre pour minimiser l'impact visuel",
+    "Prévoir un système d'étanchéité renforcé en raison des risques d'inondation",
+    "Consulter un architecte pour l'intégration au bâti selon les prescriptions ABF"
+  ],
+  "cout_demarches_estime": "3000",
+  "delai_global_estime": "6-8 mois",
+  "taux_reussite_estime": "40%",
+  "synthese_detaillee": "L'analyse de faisabilité pour l'installation photovoltaïque au 7 Rue des Lices à Angers révèle des contraintes significatives. La zone est classée U, favorable à l'urbanisation, mais elle est soumise à des règles strictes en raison de la proximité d'un monument historique classé, ce qui impose un avis obligatoire de l'Architecte des Bâtiments de France (ABF). Ce processus peut engendrer un délai de 4 à 6 mois et un risque de refus élevé, estimé entre 40 et 60%. Les prescriptions architecturales imposent une intégration discrète des panneaux, avec des matériaux et couleurs spécifiques pour minimiser l'impact visuel. De plus, la présence de servitudes liées aux risques d'inondation nécessite des adaptations techniques, telles que des systèmes d'étanchéité renforcés. Les coûts administratifs pour la préparation du dossier ABF sont estimés entre 1500 et 3000 euros, avec un délai global d'environ 6 à 8 mois pour obtenir toutes les autorisations nécessaires. En conclusion, bien que le projet soit techniquement réalisable, les contraintes patrimoniales et les risques naturels rendent la faisabilité très délicate, nécessitant une approche rigoureuse et des solutions alternatives en cas de refus.",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "timestamp": "2025-10-09T22:01:32.271047",
+  "status": "success",
+  "from_cache": false,
+  "address": "7 Rue des Lices 49100 Angers - Point exact",
+  "commune": "Angers",
+  "department": "N/A",
+  "insee": "",
+  "data_sources": {
+    "gpu": true,
+    "georisques": true
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "diagnostic": "AVEC_RESERVES",
+  "score_faisabilite": 65,
+  "zone_urbanisme": "U",
+  "type_zone": "U",
+  "description_zone": "Zone urbanisée, favorable à l'implantation de projets photovoltaïques sous certaines conditions.",
+  "hauteur_max": "10m",
+  "regles_applicables": [
+    "Respect de l'esthétique architecturale",
+    "Intégration paysagère des installations"
+  ],
+  "servitudes": [
+    "PPRI",
+    "PPRS"
+  ],
+  "risques_identifies": [
+    "Inondations",
+    "Sécheresse"
+  ],
+  "impact_risques": "modéré",
+  "contraintes_patrimoniales": "Aucune contrainte patrimoniale identifiée.",
+  "points_positifs": [
+    "Zone urbanisée favorable",
+    "Accès à des infrastructures existantes",
+    "Possibilité d'intégration sur toiture"
+  ],
+  "points_attention": [
+    "Risques d'inondation à évaluer",
+    "Respect des règles d'esthétique",
+    "Obtention des autorisations nécessaires"
+  ],
+  "demarches_administratives": [
+    "Demande de permis de construire",
+    "Consultation du service d'urbanisme local"
+  ],
+  "recommandations_techniques": [
+    "Évaluation des systèmes de drainage pour prévenir les inondations",
+    "Choix de panneaux adaptés aux contraintes esthétiques"
+  ],
+  "synthese_detaillee": "L'analyse de faisabilité pour l'installation photovoltaïque au 15 Route Nationale à Caudry révèle un diagnostic globalement favorable, mais avec certaines réserves. La zone est classée en zone U, ce qui est propice à l'implantation de projets photovoltaïques, à condition de respecter les règles d'urbanisme en matière d'esthétique et d'intégration paysagère. La hauteur maximale autorisée pour les constructions est de 10 mètres, ce qui permet une certaine flexibilité dans le choix des installations. Toutefois, des servitudes telles que le Plan de Prévention des Risques d'Inondation (PPRI) et le Plan de Prévention des Risques de Sécheresse (PPRS) ont été identifiées, ce qui impose une attention particulière aux risques d'inondation, bien que leur impact soit évalué comme modéré. Il est recommandé de procéder à une évaluation approfondie des systèmes de drainage pour minimiser les risques d'inondation. De plus, il est essentiel de consulter le service d'urbanisme local pour obtenir les autorisations nécessaires, notamment une demande de permis de construire. En conclusion, bien que le site présente des atouts pour l'installation de panneaux photovoltaïques, il est crucial de prendre en compte les risques identifiés et de respecter les règles d'urbanisme pour garantir la faisabilité du projet.",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "timestamp": "2025-10-09T15:20:13.686529",
+  "status": "success",
+  "from_cache": false,
+  "address": "15 Route Nationale 59540 Caudry - Point exact",
+  "commune": "Caudry",
+  "department": "N/A",
+  "insee": "",
+  "data_sources": {
+    "gpu": true,
+    "georisques": false
+  }
+}
