@@ -174,7 +174,7 @@ def init_database():
 
         CREATE TABLE IF NOT EXISTS project_fiches (
             id SERIAL PRIMARY KEY,
-            prospect_id INTEGER REFERENCES agriweb_prospects(id),
+            prospect_id INTEGER,
             nom_projet TEXT,
             client_nom TEXT,
             client_email TEXT,
@@ -188,12 +188,17 @@ def init_database():
             date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             notes TEXT,
-            data_json TEXT
+            data_json TEXT,
+            type_projet TEXT,
+            client_adresse TEXT,
+            statut_global TEXT,
+            date_fin_prevue TIMESTAMP,
+            responsable TEXT
         );
 
         CREATE TABLE IF NOT EXISTS project_etapes (
             id SERIAL PRIMARY KEY,
-            project_id INTEGER REFERENCES project_fiches(id),
+            project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
             nom_etape TEXT NOT NULL,
             statut TEXT DEFAULT 'en_attente',
             date_debut TIMESTAMP,
@@ -206,7 +211,7 @@ def init_database():
 
         CREATE TABLE IF NOT EXISTS project_documents (
             id SERIAL PRIMARY KEY,
-            project_id INTEGER REFERENCES project_fiches(id),
+            project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
             nom_document TEXT NOT NULL,
             type_document TEXT,
             chemin_fichier TEXT,
