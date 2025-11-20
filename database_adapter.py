@@ -69,6 +69,47 @@ def execute_query(query, params=None, fetch_one=False, fetch_all=False):
             cursor.close()
             return None
 
+def migrate_existing_table():
+    """Ajoute les colonnes manquantes à une table existante"""
+    if not IS_RAILWAY:
+        return
+    
+    print("🔧 [MIGRATION] Vérification des colonnes manquantes...")
+    
+    columns_to_add = [
+        ('poste_bt_nom', 'TEXT'),
+        ('poste_bt_puissance', 'REAL'),
+        ('poste_hta_nom', 'TEXT'),
+        ('nom_prospect', 'TEXT'),
+        ('representant_nom', 'TEXT'),
+        ('representant_tel', 'TEXT'),
+        ('representant_email', 'TEXT'),
+        ('siren', 'TEXT'),
+        ('dirigeant_nom', 'TEXT'),
+        ('dirigeant_email', 'TEXT'),
+        ('dirigeant_tel', 'TEXT'),
+        ('siret', 'TEXT')
+    ]
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        for col_name, col_type in columns_to_add:
+            try:
+                cursor.execute(f"ALTER TABLE agriweb_prospects ADD COLUMN {col_name} {col_type}")
+                conn.commit()
+                print(f"✅ Colonne {col_name} ajoutée")
+            except Exception as e:
+                error_msg = str(e).lower()
+                if 'already exists' in error_msg or 'duplicate' in error_msg:
+                    pass  # Colonne existe déjà, c'est normal
+                else:
+                    print(f"⚠️ Migration {col_name}: {e}")
+        
+        cursor.close()
+    
+    print("✅ [MIGRATION] Vérification terminée")
+
 def init_database():
     """Initialise les tables CRM dans PostgreSQL ou SQLite"""
     print("📊 [DATABASE] Initialisation des tables CRM...")
@@ -275,36 +316,10 @@ def init_database():
             if statement.strip():
                 cursor.execute(statement)
         conn.commit()
-        
-        # Migration: Ajouter les colonnes manquantes si elles n'existent pas
-        if IS_RAILWAY:
-            columns_to_add = [
-                ('poste_bt_nom', 'TEXT'),
-                ('poste_bt_puissance', 'REAL'),
-                ('poste_hta_nom', 'TEXT'),
-                ('dirigeant_nom', 'TEXT'),
-                ('dirigeant_email', 'TEXT'),
-                ('dirigeant_tel', 'TEXT'),
-                ('siret', 'TEXT')
-            ]
-            
-            for col_name, col_type in columns_to_add:
-                try:
-                    cursor.execute(f"""
-                        ALTER TABLE agriweb_prospects 
-                        ADD COLUMN {col_name} {col_type}
-                    """)
-                    print(f"✅ Colonne {col_name} ajoutée")
-                except Exception as e:
-                    if 'already exists' in str(e) or 'duplicate column' in str(e):
-                        print(f"⚠️ Colonne {col_name} existe déjà")
-                    else:
-                        print(f"❌ Erreur colonne {col_name}: {e}")
-            
-            conn.commit()
-            print("✅ [DATABASE] Migration des colonnes terminée!")
-        
         cursor.close()
+    
+    # Migration des colonnes pour tables existantes
+    migrate_existing_table()
     
     print("✅ [DATABASE] Tables CRM initialisées avec succès!")
 
