@@ -91,22 +91,23 @@ def migrate_existing_table():
         ('siret', 'TEXT')
     ]
     
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        for col_name, col_type in columns_to_add:
+    # Chaque colonne a sa propre transaction pour éviter les blocages
+    for col_name, col_type in columns_to_add:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
             try:
                 cursor.execute(f"ALTER TABLE agriweb_prospects ADD COLUMN {col_name} {col_type}")
                 conn.commit()
                 print(f"✅ Colonne {col_name} ajoutée")
             except Exception as e:
+                conn.rollback()
                 error_msg = str(e).lower()
                 if 'already exists' in error_msg or 'duplicate' in error_msg:
                     pass  # Colonne existe déjà, c'est normal
                 else:
                     print(f"⚠️ Migration {col_name}: {e}")
-        
-        cursor.close()
+            finally:
+                cursor.close()
     
     print("✅ [MIGRATION] Vérification terminée")
 
