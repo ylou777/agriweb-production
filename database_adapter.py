@@ -275,6 +275,43 @@ def init_database():
             if statement.strip():
                 cursor.execute(statement)
         conn.commit()
+        
+        # Migration: Ajouter les colonnes manquantes si elles n'existent pas
+        if IS_RAILWAY:
+            try:
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS poste_bt_nom TEXT
+                """)
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS poste_bt_puissance REAL
+                """)
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS poste_hta_nom TEXT
+                """)
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS dirigeant_nom TEXT
+                """)
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS dirigeant_email TEXT
+                """)
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS dirigeant_tel TEXT
+                """)
+                cursor.execute("""
+                    ALTER TABLE agriweb_prospects 
+                    ADD COLUMN IF NOT EXISTS siret TEXT
+                """)
+                conn.commit()
+                print("✅ [DATABASE] Colonnes migrées avec succès!")
+            except Exception as e:
+                print(f"⚠️ [DATABASE] Migration colonnes (probablement déjà existantes): {e}")
+        
         cursor.close()
     
     print("✅ [DATABASE] Tables CRM initialisées avec succès!")
