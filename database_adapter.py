@@ -76,6 +76,16 @@ def migrate_existing_table():
     
     print("🔧 [MIGRATION] Vérification des colonnes manquantes...")
     
+    # Fix: Retirer la contrainte NOT NULL sur prospect_id dans project_fiches
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("ALTER TABLE project_fiches ALTER COLUMN prospect_id DROP NOT NULL")
+            conn.commit()
+            print("✅ [MIGRATION] Contrainte NOT NULL retirée de project_fiches.prospect_id")
+    except Exception as e:
+        print(f"ℹ️ [MIGRATION] prospect_id déjà nullable ou table absente: {e}")
+    
     columns_to_add = [
         ('poste_bt_nom', 'TEXT'),
         ('poste_bt_puissance', 'REAL'),
