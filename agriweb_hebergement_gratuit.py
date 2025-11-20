@@ -17869,6 +17869,14 @@ def delete_document(project_id, doc_id):
 
 # ============================================================================
 
+# Import des routes CRM avec support PostgreSQL Railway
+try:
+    import crm_routes
+    crm_routes.register_crm_routes(app)
+    print("✅ Routes CRM PostgreSQL enregistrées")
+except Exception as e:
+    print(f"⚠️ Erreur import CRM routes: {e}")
+
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 if __name__ == "__main__":
