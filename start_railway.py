@@ -11,6 +11,13 @@ print("🚀 RAILWAY STARTUP - AgriWeb avec CRM")
 print(f"Python version: {sys.version}")
 print(f"Working directory: {os.getcwd()}")
 
+# Vérifier DATABASE_URL
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    print(f"✅ DATABASE_URL détectée: {database_url[:50]}...")
+else:
+    print("⚠️ DATABASE_URL non trouvée - utilisation SQLite")
+
 # Initialiser la base de données
 try:
     print("📊 Initialisation de la base de données...")
