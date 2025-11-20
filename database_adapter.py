@@ -278,39 +278,31 @@ def init_database():
         
         # Migration: Ajouter les colonnes manquantes si elles n'existent pas
         if IS_RAILWAY:
-            try:
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS poste_bt_nom TEXT
-                """)
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS poste_bt_puissance REAL
-                """)
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS poste_hta_nom TEXT
-                """)
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS dirigeant_nom TEXT
-                """)
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS dirigeant_email TEXT
-                """)
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS dirigeant_tel TEXT
-                """)
-                cursor.execute("""
-                    ALTER TABLE agriweb_prospects 
-                    ADD COLUMN IF NOT EXISTS siret TEXT
-                """)
-                conn.commit()
-                print("✅ [DATABASE] Colonnes migrées avec succès!")
-            except Exception as e:
-                print(f"⚠️ [DATABASE] Migration colonnes (probablement déjà existantes): {e}")
+            columns_to_add = [
+                ('poste_bt_nom', 'TEXT'),
+                ('poste_bt_puissance', 'REAL'),
+                ('poste_hta_nom', 'TEXT'),
+                ('dirigeant_nom', 'TEXT'),
+                ('dirigeant_email', 'TEXT'),
+                ('dirigeant_tel', 'TEXT'),
+                ('siret', 'TEXT')
+            ]
+            
+            for col_name, col_type in columns_to_add:
+                try:
+                    cursor.execute(f"""
+                        ALTER TABLE agriweb_prospects 
+                        ADD COLUMN {col_name} {col_type}
+                    """)
+                    print(f"✅ Colonne {col_name} ajoutée")
+                except Exception as e:
+                    if 'already exists' in str(e) or 'duplicate column' in str(e):
+                        print(f"⚠️ Colonne {col_name} existe déjà")
+                    else:
+                        print(f"❌ Erreur colonne {col_name}: {e}")
+            
+            conn.commit()
+            print("✅ [DATABASE] Migration des colonnes terminée!")
         
         cursor.close()
     
