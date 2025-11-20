@@ -16495,7 +16495,8 @@ def sync_to_kpi():
 # ============================================================================
 # ROUTES CRM - GESTION DES PROSPECTS
 # ============================================================================
-
+# DÉSACTIVÉ - Les routes CRM sont maintenant dans crm_routes.py (PostgreSQL compatible)
+"""
 @app.route('/crm')
 def crm_dashboard():
     """Page de lancement du CRM AgriWeb - Version web"""
@@ -17866,7 +17867,8 @@ def delete_document(project_id, doc_id):
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
+"""
+# FIN DU BLOC CRM DÉSACTIVÉ
 # ============================================================================
 
 # Import des routes CRM avec support PostgreSQL Railway
