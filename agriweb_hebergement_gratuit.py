@@ -58,22 +58,25 @@ def log_search_start(commune, params):
         
     if params['filter_by_distance']:
         logic = "ET" if params['distance_logic'] == 'AND' else "OU"
-        print(f"   📏 Filtrage distance: OUI (BT<{params['max_distance_bt']}m {logic} HTA<{params['max_distance_hta']}m)")
+        # print(f"   📏 Filtrage distance: OUI (BT<{params['max_distance_bt']}m {logic} HTA<{params['max_distance_hta']}m)")  # Optimisé pour performance
+        pass
     else:
-        print(f"   📏 Filtrage distance: NON")
+        # print(f"   📏 Filtrage distance: NON")  # Optimisé pour performance
+        pass
         
-    print(f"⚡ Paramètres techniques:")
-    print(f"   - Distance max HTA: {params['ht_max_km']} km")
-    print(f"   - Distance max BT: {params['bt_max_km']} km") 
-    print(f"   - Rayon SIRENE: {params['sir_km']} km")
-    print(f"{'='*80}")
+    # print(f"⚡ Paramètres techniques:")  # Optimisé pour performance
+    # print(f"   - Distance max HTA: {params['ht_max_km']} km")  # Optimisé pour performance
+    # print(f"   - Distance max BT: {params['bt_max_km']} km")  # Optimisé pour performance
+    # print(f"   - Rayon SIRENE: {params['sir_km']} km")  # Optimisé pour performance
+    # print(f"{'='*80}")  # Optimisé pour performance
 
 def log_data_collection(step, details):
     """Log détaillé de la collecte de données - optimisé pour performance"""
     # Réduire la verbosité des logs pour éviter les loops infinies
     if "✅" in details and ("récupérées" in details or "trouvées" in details):
         # Log seulement les résultats finaux, pas les étapes intermédiaires
-        print(f"📊 [COLLECTE] {step}: {details}")
+        # print(f"📊 [COLLECTE] {step}: {details}")  # Optimisé pour performance
+        pass
     # Ignorer les logs "Récupération" pour réduire la verbosité
 
 def ensure_json_safe(value, _depth=0):
@@ -231,9 +234,10 @@ def fetch_georisques_risks(lat, lon):
         geo_info = get_address_from_coordinates(lat, lon)
         if geo_info and geo_info.get('citycode'):
             code_insee = geo_info['citycode']
-            print(f"[GeoRisques] Code INSEE récupéré: {code_insee}")
+            # print(f"[GeoRisques] Code INSEE récupéré: {code_insee}")  # Optimisé pour performance
     except Exception as e:
-        print(f"[GeoRisques] Impossible de récupérer le code INSEE: {e}")
+        # print(f"[GeoRisques] Impossible de récupérer le code INSEE: {e}")  # Optimisé pour performance
+        pass
     
     # 1. Zonage sismique
     try:
@@ -244,10 +248,10 @@ def fetch_georisques_risks(lat, lon):
             data = resp.json()
             risques["sismique"] = data.get("data", [])
         else:
-            print(f"[GeoRisques Sismique] Erreur: {resp.status_code}")
+            # print(f"[GeoRisques Sismique] Erreur: {resp.status_code}")  # Optimisé pour performance
             risques["sismique"] = []
     except Exception as e:
-        print(f"[GeoRisques Sismique] Exception: {e}")
+        # print(f"[GeoRisques Sismique] Exception: {e}")  # Optimisé pour performance
         risques["sismique"] = []
 
     # 8. CATNAT - Catastrophes naturelles
@@ -259,10 +263,10 @@ def fetch_georisques_risks(lat, lon):
             data = resp.json()
             risques["catnat"] = data.get("data", [])
         else:
-            print(f"[GeoRisques CATNAT] Erreur: {resp.status_code}")
+            # print(f"[GeoRisques CATNAT] Erreur: {resp.status_code}")  # Optimisé pour performance
             risques["catnat"] = []
     except Exception as e:
-        print(f"[GeoRisques CATNAT] Exception: {e}")
+        # print(f"[GeoRisques CATNAT] Exception: {e}")  # Optimisé pour performance
         risques["catnat"] = []
 
     # 9. Cavités souterraines
@@ -274,10 +278,10 @@ def fetch_georisques_risks(lat, lon):
             data = resp.json()
             risques["cavites"] = data.get("data", [])
         else:
-            print(f"[GeoRisques Cavités] Erreur: {resp.status_code}")
+            # print(f"[GeoRisques Cavités] Erreur: {resp.status_code}")  # Optimisé pour performance
             risques["cavites"] = []
     except Exception as e:
-        print(f"[GeoRisques Cavités] Exception: {e}")
+        # print(f"[GeoRisques Cavités] Exception: {e}")  # Optimisé pour performance
         risques["cavites"] = []
 
     # 10. MVT - Mouvements de terrains
@@ -289,10 +293,10 @@ def fetch_georisques_risks(lat, lon):
             data = resp.json()
             risques["mvt"] = data.get("data", [])
         else:
-            print(f"[GeoRisques MVT] Erreur: {resp.status_code}")
+            # print(f"[GeoRisques MVT] Erreur: {resp.status_code}")  # Optimisé pour performance
             risques["mvt"] = []
     except Exception as e:
-        print(f"[GeoRisques MVT] Exception: {e}")
+        # print(f"[GeoRisques MVT] Exception: {e}")  # Optimisé pour performance
         risques["mvt"] = []
 
     # 11. Retrait gonflement des argiles - Via gaspar/risques avec code_insee
@@ -313,10 +317,10 @@ def fetch_georisques_risks(lat, lon):
                             argiles_risks.append(risk)
                 risques["argiles"] = argiles_risks
             else:
-                print(f"[GeoRisques Argiles] Erreur: {resp.status_code}")
+                # print(f"[GeoRisques Argiles] Erreur: {resp.status_code}")  # Optimisé pour performance
                 risques["argiles"] = []
         except Exception as e:
-            print(f"[GeoRisques Argiles] Exception: {e}")
+            # print(f"[GeoRisques Argiles] Exception: {e}")  # Optimisé pour performance
             risques["argiles"] = []
     else:
         risques["argiles"] = []
@@ -331,13 +335,13 @@ def fetch_georisques_risks(lat, lon):
                 data = resp.json()
                 risques["radon"] = data.get("data", [])
             else:
-                print(f"[GeoRisques Radon] Erreur: {resp.status_code}")
+                # print(f"[GeoRisques Radon] Erreur: {resp.status_code}")  # Optimisé pour performance
                 risques["radon"] = []
         except Exception as e:
-            print(f"[GeoRisques Radon] Exception: {e}")
+            # print(f"[GeoRisques Radon] Exception: {e}")  # Optimisé pour performance
             risques["radon"] = []
     else:
-        print("[GeoRisques Radon] Code INSEE manquant, impossible de récupérer les données radon")
+        # print("[GeoRisques Radon] Code INSEE manquant, impossible de récupérer les données radon")  # Optimisé pour performance
         risques["radon"] = []
 
     # 13. Installations classées - Endpoint corrigé
@@ -349,10 +353,10 @@ def fetch_georisques_risks(lat, lon):
             data = resp.json()
             risques["installations"] = data.get("data", [])
         else:
-            print(f"[GeoRisques Installations] Erreur: {resp.status_code}")
+            # print(f"[GeoRisques Installations] Erreur: {resp.status_code}")  # Optimisé pour performance
             risques["installations"] = []
     except Exception as e:
-        print(f"[GeoRisques Installations] Exception: {e}")
+        # print(f"[GeoRisques Installations] Exception: {e}")  # Optimisé pour performance
         risques["installations"] = []
 
     # 14. Installations nucléaires
@@ -364,10 +368,10 @@ def fetch_georisques_risks(lat, lon):
             data = resp.json()
             risques["nucleaire"] = data.get("data", [])
         else:
-            print(f"[GeoRisques Nucléaire] Erreur: {resp.status_code}")
+            # print(f"[GeoRisques Nucléaire] Erreur: {resp.status_code}")  # Optimisé pour performance
             risques["nucleaire"] = []
     except Exception as e:
-        print(f"[GeoRisques Nucléaire] Exception: {e}")
+        # print(f"[GeoRisques Nucléaire] Exception: {e}")  # Optimisé pour performance
         risques["nucleaire"] = []
     
     # Comptons le nombre total de risques
@@ -377,7 +381,7 @@ def fetch_georisques_risks(lat, lon):
             count = len(risks)
             total_risks += count
     
-    print(f"🔍 [GEORISQUES] === TOTAL: {total_risks} risques trouvés ===")
+    # print(f"🔍 [GEORISQUES] === TOTAL: {total_risks} risques trouvés ===")  # Optimisé pour performance
     return risques
 import logging
 logging.basicConfig(filename='error.log', level=logging.ERROR, format='%(asctime)s %(levelname)s %(message)s')
@@ -4132,7 +4136,13 @@ def get_all_parcelles(lat, lon, radius=0.03):
         response.raise_for_status()
         return response.json()
     except Exception as e:
-        print(f"[get_all_parcelles] Erreur : {e}")
+        # Silencieux pour éviter spam - GeoServer ngrok probablement inactif
+        # print(f"[get_all_parcelles] Erreur : {e}")
+        return {"type": "FeatureCollection", "features": []}
+        print(f"   Layer: {PARCELLE_LAYER}")
+        if response is not None:
+            print(f"   Status Code: {response.status_code}")
+            print(f"   Réponse (300 premiers caractères): {response.text[:300]}")
         # Toujours respecter le standard GeoJSON pour éviter les plantages en aval
         return {"type": "FeatureCollection", "features": []}
 
@@ -4141,7 +4151,7 @@ def get_all_postes(lat, lon, radius_deg=0.1):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
     features = fetch_wfs_data(POSTE_LAYER, bbox)
     if not features:
-        print(f"[DEBUG] Aucun poste trouvé dans le bbox {bbox}")
+        # print(f"[DEBUG] Aucun poste trouvé dans le bbox {bbox}")  # Optimisé pour performance
         return []
     
     point = Point(lon, lat)
@@ -4149,12 +4159,14 @@ def get_all_postes(lat, lon, radius_deg=0.1):
     for feature in features:
         geom_shp = shape(feature["geometry"])
         dist = geom_shp.distance(point) * 111000  # Conversion en mètres
+        props = feature["properties"].copy() if feature.get("properties") else {}
+        props["distance"] = round(dist, 2)
         postes.append({
-            "properties": feature["properties"],
-            "distance": round(dist, 2),
+            "type": "Feature",
+            "properties": props,
             "geometry": mapping(geom_shp)
         })
-    print(f"[DEBUG] {len(postes)} postes trouvés, distances: {[p['distance'] for p in postes[:3]]}")
+    # print(f"[DEBUG] {len(postes)} postes trouvés, distances: {[p['distance'] for p in postes[:3]]}")  # Optimisé pour performance
     return postes  # Pas de slicing ici
 
 def get_all_ht_postes(lat, lon, radius_deg=0.5):
@@ -4165,23 +4177,26 @@ def get_all_ht_postes(lat, lon, radius_deg=0.5):
     for feature in features:
         geom = shape(feature["geometry"])
         distance = geom.distance(point) * 111000
+        props = feature["properties"].copy() if feature.get("properties") else {}
+        props["distance"] = round(distance, 2)
         postes.append({
-            "properties": feature["properties"],
-            "distance": round(distance, 2),
+            "type": "Feature",
+            "properties": props,
             "geometry": mapping(geom)
         })
     return postes  # Pas de slicing ici])[:3]
 
 def get_all_capacites_reseau(lat, lon, radius_deg=0.1):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
-    print(f"[DEBUG CAPACITES] bbox: {bbox}")
-    print(f"[DEBUG CAPACITES] layer: {CAPACITES_RESEAU_LAYER}")
+    # print(f"[DEBUG CAPACITES] bbox: {bbox}")  # Optimisé pour performance
+    # print(f"[DEBUG CAPACITES] layer: {CAPACITES_RESEAU_LAYER}")  # Optimisé pour performance
     
     features = fetch_wfs_data(CAPACITES_RESEAU_LAYER, bbox)
-    print(f"[DEBUG CAPACITES] features brutes trouvées: {len(features) if features else 0}")
+    # print(f"[DEBUG CAPACITES] features brutes trouvées: {len(features) if features else 0}")  # Optimisé pour performance
     
     if features and len(features) > 0:
-        print(f"[DEBUG CAPACITES] Premier exemple: {list(features[0].get('properties', {}).keys())[:10]}")
+        # print(f"[DEBUG CAPACITES] Premier exemple: {list(features[0].get('properties', {}).keys())[:10]}")  # Optimisé pour performance
+        pass
     
     capacites = []
     point = Point(lon, lat)
@@ -4189,17 +4204,19 @@ def get_all_capacites_reseau(lat, lon, radius_deg=0.1):
         try:
             geom = shape(feature["geometry"])
             distance = geom.distance(point) * 111000
+            props = feature["properties"].copy() if feature.get("properties") else {}
+            props["distance"] = round(distance, 2)
             capacites.append({
-                "properties": feature["properties"],
-                "distance": round(distance, 2),
+                "type": "Feature",
+                "properties": props,
                 "geometry": mapping(geom)
             })
         except Exception as e:
-            print(f"[DEBUG CAPACITES] Erreur traitement feature: {e}")
+            # print(f"[DEBUG CAPACITES] Erreur traitement feature: {e}")  # Optimisé pour performance
             continue
     
-    print(f"[DEBUG CAPACITES] capacités finales: {len(capacites)}")
-    return sorted(capacites, key=lambda x: x["distance"])
+    # print(f"[DEBUG CAPACITES] capacités finales: {len(capacites)}")  # Optimisé pour performance
+    return sorted(capacites, key=lambda x: x.get("properties", {}).get("distance", float('inf')))
 
 
 def get_plu_info(lat, lon, radius=0.03):
@@ -4222,14 +4239,15 @@ def get_sirene_info(lat, lon, radius):
 
 def get_rpg_info(lat, lon, radius=0.0027):
     bbox = f"{lon - radius},{lat - radius},{lon + radius},{lat + radius},EPSG:4326"
-    print(f"[DEBUG RPG] BBOX: {bbox}")
-    print(f"[DEBUG RPG] Layer: {PARCELLES_GRAPHIQUES_LAYER}")
+    # print(f"[DEBUG RPG] BBOX: {bbox}")  # Optimisé pour performance
+    # print(f"[DEBUG RPG] Layer: {PARCELLES_GRAPHIQUES_LAYER}")  # Optimisé pour performance
     
     features = fetch_wfs_data(PARCELLES_GRAPHIQUES_LAYER, bbox)
-    print(f"[DEBUG RPG] Features trouvées: {len(features) if features else 0}")
+    # print(f"[DEBUG RPG] Features trouvées: {len(features) if features else 0}")  # Optimisé pour performance
     
     if features:
-        print(f"[DEBUG RPG] Première feature: {list(features[0].get('properties', {}).keys())}")
+        # print(f"[DEBUG RPG] Première feature: {list(features[0].get('properties', {}).keys())}")  # Optimisé pour performance
+        pass
     
     return features
 
@@ -4266,30 +4284,33 @@ def get_friches_specialisees(lat, lon, radius=0.05):
     
     try:
         # Couche 1: Friches agricoles DDT 2020
-        print(f"🏚️ [FRICHES] Récupération friches agricoles DDT...")
+        # print(f"🏚️ [FRICHES] Récupération friches agricoles DDT...")  # Optimisé pour performance
         friches_data['friches_agri_ddt'] = fetch_wfs_data("gpu:L_FRICHES_AGRI_DDT_2020_S_019", bbox) or []
-        print(f"   → {len(friches_data['friches_agri_ddt'])} friches agricoles DDT trouvées")
+        # print(f"   → {len(friches_data['friches_agri_ddt'])} friches agricoles DDT trouvées")  # Optimisé pour performance
     except Exception as e:
-        print(f"⚠️ [WARN] Erreur friches agricoles DDT: {e}")
+        # print(f"⚠️ [WARN] Erreur friches agricoles DDT: {e}")  # Optimisé pour performance
+        pass
     
     try:
         # Couche 2: Friches standard
-        print(f"🏚️ [FRICHES] Récupération friches standard...")
+        # print(f"🏚️ [FRICHES] Récupération friches standard...")  # Optimisé pour performance
         friches_data['friches_standard'] = fetch_wfs_data("gpu:friches-standard", bbox) or []
-        print(f"   → {len(friches_data['friches_standard'])} friches standard trouvées")
+        # print(f"   → {len(friches_data['friches_standard'])} friches standard trouvées")  # Optimisé pour performance
     except Exception as e:
-        print(f"⚠️ [WARN] Erreur friches standard: {e}")
+        # print(f"⚠️ [WARN] Erreur friches standard: {e}")  # Optimisé pour performance
+        pass
     
     try:
         # Couche 3: Potentiel solaire sur friches
-        print(f"☀️ [SOLAIRE] Récupération potentiel solaire friches...")
+        # print(f"☀️ [SOLAIRE] Récupération potentiel solaire friches...")  # Optimisé pour performance
         friches_data['friches_solaires'] = fetch_wfs_data("gpu:POTENTIEL_SOLAIRE_FRICHE_BDD_PSF_LAMB93", bbox) or []
-        print(f"   → {len(friches_data['friches_solaires'])} sites à potentiel solaire trouvés")
+        # print(f"   → {len(friches_data['friches_solaires'])} sites à potentiel solaire trouvés")  # Optimisé pour performance
     except Exception as e:
-        print(f"⚠️ [WARN] Erreur potentiel solaire friches: {e}")
+        # print(f"⚠️ [WARN] Erreur potentiel solaire friches: {e}")  # Optimisé pour performance
+        pass
     
     total = len(friches_data['friches_agri_ddt']) + len(friches_data['friches_standard']) + len(friches_data['friches_solaires'])
-    print(f"✅ [FRICHES] Total: {total} éléments récupérés")
+    # print(f"✅ [FRICHES] Total: {total} éléments récupérés")  # Optimisé pour performance
     
     return friches_data
 
@@ -4348,11 +4369,11 @@ def get_data_by_commune_polygon(geom_geojson, api_endpoint, layer_name=None):
                 # print(f"✅ [API_CARTO] {api_endpoint}: {len(features)} features trouvées")  # Optimisé pour performance
                 return features
             else:
-                print(f"⚠️ [API_CARTO] {api_endpoint}: erreur {resp.status_code}")
+                # print(f"⚠️ [API_CARTO] {api_endpoint}: erreur {resp.status_code}")  # Optimisé pour performance
                 return []
                 
     except Exception as e:
-        print(f"❌ [POLYGON_SEARCH] Erreur {api_endpoint}: {e}")
+        # print(f"❌ [POLYGON_SEARCH] Erreur {api_endpoint}: {e}")  # Optimisé pour performance
         return []
 
 def get_rpg_info_by_polygon(commune_geom):
@@ -4397,7 +4418,7 @@ def get_batiments_info_by_polygon(commune_geom):
     from shapely.ops import transform as shp_transform
     from pyproj import Transformer
     
-    print(f"🏠 [BATIMENTS_OSM] Récupération via OpenStreetMap (Overpass API)")
+    # print(f"🏠 [BATIMENTS_OSM] Récupération via OpenStreetMap (Overpass API)")  # Optimisé pour performance
     
     try:
         commune_poly = shape(commune_geom)
@@ -4406,7 +4427,7 @@ def get_batiments_info_by_polygon(commune_geom):
         
         # Calculer la taille de la commune
         total_area = (maxx - minx) * (maxy - miny)
-        print(f"📐 [BATIMENTS] Superficie bbox: {total_area:.6f}° (~{total_area*12100:.0f}km²)")
+        # print(f"📐 [BATIMENTS] Superficie bbox: {total_area:.6f}° (~{total_area*12100:.0f}km²)")  # Optimisé pour performance
         
         # Centroïde pour les requêtes par rayon si nécessaire
         centroid = commune_poly.centroid
@@ -4421,7 +4442,7 @@ def get_batiments_info_by_polygon(commune_geom):
         )
         radius_meters = int(max_distance * 111000)  # Conversion degrés -> mètres
         
-        print(f"🎯 [BATIMENTS] Centre: ({center_lat:.4f}, {center_lon:.4f}), Rayon: {radius_meters}m")
+        # print(f"🎯 [BATIMENTS] Centre: ({center_lat:.4f}, {center_lon:.4f}), Rayon: {radius_meters}m")  # Optimisé pour performance
         
         # Requête Overpass pour récupérer tous les bâtiments dans la zone
         overpass_query = f"""
@@ -4433,7 +4454,7 @@ def get_batiments_info_by_polygon(commune_geom):
         out geom;
         """
         
-        print(f"🌐 [BATIMENTS] Envoi requête Overpass...")
+        # print(f"🌐 [BATIMENTS] Envoi requête Overpass...")  # Optimisé pour performance
         
         response = requests.post(
             "https://overpass-api.de/api/interpreter",
@@ -4442,12 +4463,12 @@ def get_batiments_info_by_polygon(commune_geom):
         )
         
         if response.status_code != 200:
-            print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")
+            # print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")  # Optimisé pour performance
             return {"type": "FeatureCollection", "features": []}
         
         data = response.json()
         elements = data.get("elements", [])
-        print(f"📊 [BATIMENTS] {len(elements)} éléments OSM bruts récupérés")
+        # print(f"📊 [BATIMENTS] {len(elements)} éléments OSM bruts récupérés")  # Optimisé pour performance
         
         # Convertir les éléments OSM en GeoJSON
         all_features = []
@@ -4492,10 +4513,10 @@ def get_batiments_info_by_polygon(commune_geom):
                     continue
                     
             except Exception as e:
-                print(f"⚠️ [BATIMENTS] Erreur conversion élément OSM: {e}")
+                # print(f"⚠️ [BATIMENTS] Erreur conversion élément OSM: {e}")  # Optimisé pour performance
                 continue
         
-        print(f"✅ [BATIMENTS_OSM] {len(all_features)} bâtiments filtrés dans la commune")
+        # print(f"✅ [BATIMENTS_OSM] {len(all_features)} bâtiments filtrés dans la commune")  # Optimisé pour performance
         
         # Calcul des surfaces pour statistiques
         to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
@@ -4515,8 +4536,8 @@ def get_batiments_info_by_polygon(commune_geom):
             ratio_100m2 = len(surfaces_100m2_plus) / len(surfaces) if surfaces else 0
             estimated_100m2 = int(len(all_features) * ratio_100m2)
             
-            print(f"📊 [STATS] Surface moyenne: {avg_surface:.1f}m² (échantillon)")
-            print(f"📊 [STATS] Estimation bâtiments >100m²: {estimated_100m2}/{len(all_features)} ({100*ratio_100m2:.1f}%)")
+            # print(f"📊 [STATS] Surface moyenne: {avg_surface:.1f}m² (échantillon)")  # Optimisé pour performance
+            # print(f"📊 [STATS] Estimation bâtiments >100m²: {estimated_100m2}/{len(all_features)} ({100*ratio_100m2:.1f}%)")  # Optimisé pour performance
         
         return {
             "type": "FeatureCollection",
@@ -4531,7 +4552,7 @@ def get_batiments_info_by_polygon(commune_geom):
         }
         
     except Exception as e:
-        print(f"❌ [BATIMENTS_OSM] Erreur globale: {e}")
+        # print(f"❌ [BATIMENTS_OSM] Erreur globale: {e}")  # Optimisé pour performance
         return {"type": "FeatureCollection", "features": []}
 
 def decode_rpg_feature(feature):
@@ -4855,20 +4876,22 @@ def get_all_api_nature_data(geom):
                     feature["properties"]["TYPE_PROTECTION"] = type_name
                 
                 all_features.extend(data["features"])
-                print(f"🌿 [API NATURE] {type_name}: {len(data['features'])} zones trouvées")
+                # print(f"[API NATURE] {type_name}: {len(data['features'])} zones trouvées")  # Optimisé pour performance
             else:
-                print(f"🌿 [API NATURE] {type_name}: 0 zones trouvées")
+                # print(f"[API NATURE] {type_name}: 0 zones trouvées")  # Optimisé pour performance
+                pass
         except Exception as e:
-            print(f"🌿 [API NATURE] Erreur {endpoint}: {e}")
+            # print(f"[API NATURE] Erreur {endpoint}: {e}")  # Optimisé pour performance
+            pass
     
     if all_features:
-        print(f"🌿 [API NATURE] Total: {len(all_features)} zones naturelles protégées")
+        # print(f"[API NATURE] Total: {len(all_features)} zones naturelles protégées")  # Optimisé pour performance
         return {
             "type": "FeatureCollection",
             "features": all_features
         }
     else:
-        print(f"🌿 [API NATURE] Aucune zone naturelle trouvée")
+        # print(f"[API NATURE] Aucune zone naturelle trouvée")  # Optimisé pour performance
         return {"type": "FeatureCollection", "features": []}
 
 def flatten_feature_collections(fc):
@@ -5136,15 +5159,16 @@ def bbox_to_polygon(lon, lat, delta):
     }
 def get_nearest_postes(lat, lon, count=3, radius_deg=0.1):
     postes = get_all_postes(lat, lon, radius_deg=radius_deg)
-    return sorted(postes, key=lambda x: x["distance"])[:count]
+    return sorted(postes, key=lambda x: x.get("properties", {}).get("distance", float('inf')))[:count]
 
 def get_nearest_ht_postes(lat, lon, count=3, radius_deg=0.5):
     postes = get_all_ht_postes(lat, lon, radius_deg=radius_deg)
-    return sorted(postes, key=lambda x: x["distance"])[:count]
+    return sorted(postes, key=lambda x: x.get("properties", {}).get("distance", float('inf')))[:count]
 
 def get_nearest_capacites_reseau(lat, lon, count=3, radius_deg=0.1):
     capacites = get_all_capacites_reseau(lat, lon, radius_deg=radius_deg)
-    return sorted(capacites, key=lambda x: x["distance"])[:count]
+    return sorted(capacites, key=lambda x: x.get("properties", {}).get("distance", float('inf')))[:count]
+
 def to_geojson_feature(obj, layer_name=None):
     if not obj:
         return None
@@ -5892,6 +5916,15 @@ def build_map(
         popup = "<b>Poste BT</b><br>" + "<br>".join(f"{k}: {v}" for k, v in props.items())
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
+        
+        # Bouton KPI pour poste BT
+        import json
+        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
+        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+            style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
+            📤 Envoyer vers KPI
+        </button>"""
+        
         streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="darkgreen", icon="flash", prefix="fa")).add_to(bt_group)
@@ -5922,6 +5955,15 @@ def build_map(
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         popup += f"<br><b>Capacité dispo</b>: {capa}"
+        
+        # Bouton KPI pour poste HTA
+        import json
+        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
+        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+            style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
+            📤 Envoyer vers KPI
+        </button>"""
+        
         streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="orange", icon="bolt", prefix="fa")).add_to(hta_group)
@@ -6094,7 +6136,7 @@ def build_map(
         return {"color": "cyan", "weight": 3, "fillColor": "cyan", "fillOpacity": 0.4, "opacity": 0.8}
 
     for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
-        print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")
+        # print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")  # Optimisé pour performance
         group = folium.FeatureGroup(name=name, show=True)
         
         for f in data:
@@ -6263,8 +6305,35 @@ def build_map(
                     
                     tooltip_text = "<br>".join(tooltip_lines)
                     
+                    # Bouton KPI pour toitures, parkings, friches
+                    kpi_button = ""
+                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
+                        try:
+                            from shapely.geometry import shape
+                            geom_shape = shape(geom)
+                            centroid = geom_shape.centroid
+                            lat_center = centroid.y
+                            lon_center = centroid.x
+                            
+                            # Déterminer le type pour KPI
+                            kpi_type = "toiture" if name == "Potentiel Solaire" else name.lower().rstrip('s')
+                            
+                            # Échapper les propriétés pour JavaScript
+                            import json
+                            props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
+                            
+                            # Utiliser postMessage avec une chaîne JSON échappée
+                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+                                style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
+                                📤 Envoyer vers KPI
+                            </button>"""
+                        except Exception as e:
+                            print(f"[DEBUG] Erreur création bouton KPI: {e}")
+                            import traceback
+                            traceback.print_exc()
+                    
                     # Créer le popup avec les liens Street View et Pages Jaunes si disponibles
-                    popup_content = tooltip_text + street_view_link + pages_jaunes_link
+                    popup_content = tooltip_text + kpi_button + street_view_link + pages_jaunes_link
                     
                     # SOLUTION SIMPLE ET ROBUSTE: Utiliser les fonctions prédéfinies
                     if name == "Parkings":
@@ -6344,13 +6413,14 @@ def build_map(
         ).add_to(cadastre_filtered_group)
         
         map_obj.add_child(cadastre_filtered_group)
-        print(f"✅ [CARTE] Couche cadastre: {len(parking_friches_cadastre)} références affichées")
+        # print(f"[CARTE] Couche cadastre: {len(parking_friches_cadastre)} références affichées")  # Optimisé pour performance
 
     # RPG
     rpg_group = folium.FeatureGroup(name="RPG", show=True)
     valid_rpg_count = 0
     invalid_rpg_count = 0
-    print(f"🌾 [BUILD_MAP_RPG] Traitement de {len(rpg_data)} parcelles RPG")
+    # Optimisé pour performance
+    # print(f"🌾 [BUILD_MAP_RPG] Traitement de {len(rpg_data)} parcelles RPG")
     for idx, feat in enumerate(rpg_data):
         if not isinstance(feat, dict):
             print(f"[DEBUG] Skipping invalid RPG feature at index {idx}: not a dict, got {type(feat)}: {repr(feat)[:100]}")
@@ -6398,21 +6468,21 @@ def build_map(
                         tooltip=folium.Tooltip(popup_html)
                     ).add_to(rpg_group)
                     valid_rpg_count += 1
-                    print(f"🌾 [DEBUG] Parcelle RPG {idx} ajoutée avec succès")
+                    # print(f"[DEBUG] Parcelle RPG {idx} ajoutée avec succès")  # Optimisé pour performance
                 except Exception as e:
-                    print(f"❌ [ERROR] Exception while adding RPG geometry: {e}\nGeom: {geom}")
+                    # print(f"[ERROR] Exception while adding RPG geometry: {e}\nGeom: {geom}")  # Optimisé pour performance
                     invalid_rpg_count += 1
             else:
-                print(f"❌ [DEBUG] Invalid RPG geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")
+                # print(f"[DEBUG] Invalid RPG geometry: type={geom.get('type') if geom else None}, coords={geom.get('coordinates') if geom else None}")  # Optimisé pour performance
                 invalid_rpg_count += 1
         except Exception as e:
-            print(f"❌ [ERROR] Exception while processing RPG feature at index {idx}: {e}\nFeature: {repr(feat)[:200]}")
+            # print(f"❌ [ERROR] Exception while processing RPG feature at index {idx}: {e}\nFeature: {repr(feat)[:200]}")  # Optimisé pour performance
             invalid_rpg_count += 1
     
-    print(f"🌾 [BUILD_MAP_RPG] RÉSUMÉ: {valid_rpg_count} parcelles valides, {invalid_rpg_count} invalides")
-    print(f"🌾 [DEBUG_GROUP] Nombre d'enfants dans rpg_group avant ajout: {len(rpg_group._children)}")
+    # print(f"🌾 [BUILD_MAP_RPG] RÉSUMÉ: {valid_rpg_count} parcelles valides, {invalid_rpg_count} invalides")  # Optimisé pour performance
+    # print(f"🌾 [DEBUG_GROUP] Nombre d'enfants dans rpg_group avant ajout: {len(rpg_group._children)}")  # Optimisé pour performance
     map_obj.add_child(rpg_group)
-    print(f"🌾 [DEBUG_MAP] Nombre total d'enfants dans map_obj après ajout: {len(map_obj._children)}")
+    # print(f"🌾 [DEBUG_MAP] Nombre total d'enfants dans map_obj après ajout: {len(map_obj._children)}")  # Optimisé pour performance
 
     # Capacités réseau HTA
     caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=True)
@@ -6641,7 +6711,9 @@ def build_map(
                             tooltip="Ligne HTA Aérienne"
                         ).add_to(hta_a_fg)
                 except Exception as e:
-                    print(f"[HTA] Erreur ajout ligne aérienne: {e}")
+                    # Optimisé pour performance
+                    # print(f"[HTA] Erreur ajout ligne aérienne: {e}")
+                    pass
             
             # Lignes souterraines
             souterraine_features = hta_lignes_data.get("souterraine", {}).get("features", [])
@@ -6668,12 +6740,17 @@ def build_map(
                             tooltip="Ligne HTA Souterraine"
                         ).add_to(hta_s_fg)
                 except Exception as e:
-                    print(f"[HTA] Erreur ajout ligne souterraine: {e}")
+                    # Optimisé pour performance
+                    # print(f"[HTA] Erreur ajout ligne souterraine: {e}")
+                    pass
             
-            print(f"[HTA] Ajouté {len(aerienne_features)} lignes aériennes et {len(souterraine_features)} lignes souterraines")
+            # Optimisé pour performance - Ce log causait des dumps massifs de coordonnées
+            # print(f"[HTA] Ajouté {len(aerienne_features)} lignes aériennes et {len(souterraine_features)} lignes souterraines")
         
     except Exception as _e:
-        print("[HTA][build_map] Impossible d'ajouter placeholders:", _e)
+        # Optimisé pour performance
+        # print("[HTA][build_map] Impossible d'ajouter placeholders:", _e)
+        pass
 
     if not mode_light:
         folium.LayerControl().add_to(map_obj)
@@ -7043,7 +7120,18 @@ def build_map(
 
     map_obj.fit_bounds(bounds)
     if not mode_light:
-        folium.Marker([lat, lon], popup="Test marker").add_to(map_obj)
+        popup_html = f"""
+        <div style="font-family: Arial, sans-serif; min-width: 200px;">
+            <b style="color: #d63031;">📍 Localisation</b><br>
+            <span style="color: #2d3436;">{address}</span><br>
+            <small style="color: #636e72;">Lat: {lat:.6f}, Lon: {lon:.6f}</small>
+        </div>
+        """
+        folium.Marker(
+            [lat, lon], 
+            popup=folium.Popup(popup_html, max_width=300),
+            icon=folium.Icon(color="red", icon="map-marker", prefix="fa")
+        ).add_to(map_obj)
     # Ajout d'un paramètre save_to_disk (par défaut True)
     if getattr(map_obj, '_no_save', False):
         print("💡 Carte non sauvegardée sur disque (mode _no_save)")
@@ -7356,9 +7444,9 @@ def commune_search_sse():
 def search_by_commune():
     import uuid
     call_id = str(uuid.uuid4())[:8]
-    print("="*80)
-    print(f"🚨🚨🚨 DEBUT SEARCH_BY_COMMUNE #{call_id} - PROTECTION RENFORCÉE 🚨🚨🚨")
-    print("="*80)
+    # #  print("="  # Optimisé pour performance*80)  # Optimisé pour performance
+    # print(f"🚨🚨🚨 DEBUT SEARCH_BY_COMMUNE #{call_id} - PROTECTION RENFORCÉE 🚨🚨🚨")  # Optimisé pour performance
+    # #  print("="  # Optimisé pour performance*80)  # Optimisé pour performance
     
     import requests
     import json
@@ -7384,11 +7472,11 @@ def search_by_commune():
         debug_stack = False
     if debug_stack:
         lines = traceback.format_stack(limit=40)
-        print(f"📞 [CALL #{call_id}] Stack trace (activée) lignes={len(lines)}")
+        # #  print(f"📞 [CALL  # Optimisé pour performance #{call_id}] Stack trace (activée) lignes={len(lines)}")  # Optimisé pour performance
         for line in lines:
-            print("    " + line.strip())
-    else:
-        print(f"📞 [CALL #{call_id}] Stack trace désactivée (set AGRIWEB_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")
+            pass # print("    " + line.strip())  # Optimisé pour performance
+    # else:
+        # #  print(f"📞 [CALL  # Optimisé pour performance #{call_id}] Stack trace désactivée (set AGRIWEB_DEBUG_STACK=1 ou ?debug_stack=1 pour l'afficher)")  # Optimisé pour performance
     
     # ╔══════════════════════════════════════════════════════════════════════════╗
     # ║                    CIRCUIT BREAKER ANTI-LOOP ULTRA-ROBUSTE              ║
@@ -7412,7 +7500,7 @@ def search_by_commune():
     if client_ip in search_by_commune.blocked_ips:
         block_time, block_reason = search_by_commune.blocked_ips[client_ip]
         if current_time - block_time < 300:  # 5 minutes de blocage
-            print(f"� [BLOCKED_IP] IP {client_ip} bloquée pour: {block_reason}")
+            # print(f"[BLOCKED_IP] IP {client_ip} bloquée pour: {block_reason}")  # Optimisé pour performance
             return jsonify({
                 "error": "IP temporairement bloquée - loop détecté",
                 "retry_after": 300 - (current_time - block_time),
@@ -7421,7 +7509,7 @@ def search_by_commune():
         else:
             # Débloquer après 5 minutes
             del search_by_commune.blocked_ips[client_ip]
-            print(f"🔓 [UNBLOCKED] IP {client_ip} débloquée après timeout")
+            # print(f"[UNBLOCKED] IP {client_ip} débloquée après timeout")  # Optimisé pour performance
     
     # Compter les requêtes par IP
     if client_ip not in search_by_commune.request_counter:
@@ -7438,23 +7526,23 @@ def search_by_commune():
     
     # Vérifier le nombre de requêtes
     request_count = len(search_by_commune.request_counter[client_ip])
-    print(f"🔍 [IP_TRACKING] IP: {client_ip}, Requêtes/minute: {request_count}")
+    # print(f"[IP_TRACKING] IP: {client_ip}, Requêtes/minute: {request_count}")  # Optimisé pour performance
     
-    # Bloquer si trop de requêtes (plus de 10 par minute = suspect)
-    if request_count > 10:
+    # Bloquer si trop de requêtes (plus de 5 par minute = suspect - RENFORCÉ)
+    if request_count > 5:
         search_by_commune.blocked_ips[client_ip] = (current_time, f"Trop de requêtes: {request_count}/min")
-        print(f"🚫 [AUTO_BLOCK] IP {client_ip} bloquée automatiquement")
+        # print(f"[AUTO_BLOCK] IP {client_ip} bloquée automatiquement")  # Optimisé pour performance
         return jsonify({
             "error": "Trop de requêtes détectées - IP bloquée temporairement",
             "retry_after": 300,
             "requests_detected": request_count
         }), 429
     
-    print("🛡️ [CIRCUIT_BREAKER] Protection active - requête autorisée")
+    # print("[CIRCUIT_BREAKER] Protection active - requête autorisée")  # Optimisé pour performance
     
     # Récupération des paramètres de base
     request_params = dict(flask_request.values)
-    print(f"📋 [PARAMS] Paramètres reçus: {request_params}")
+    # print(f"[PARAMS] Paramètres reçus: {request_params}")  # Optimisé pour performance
     
     # === PROTECTION ANTI-LOOP STANDARD (en plus du circuit breaker) ===
     # Cache global pour éviter les requêtes en loop
@@ -7466,30 +7554,32 @@ def search_by_commune():
         json.dumps(request_params, sort_keys=True).encode('utf-8')
     ).hexdigest()
     
-    cache_window = 2  # 2 secondes pour être plus restrictif
+    cache_window = 120  # 120 secondes (2 minutes) pour éviter les boucles infinies
     
-    print(f"🛡️ [ANTI-LOOP] === PROTECTION DOUBLE ACTIVE ===")
-    print(f"🛡️ [SIGNATURE] Signature requête: {request_signature}")
-    print(f"🛡️ [CACHE] Taille cache actuel: {len(search_by_commune.anti_loop_cache)}")
+    # print(f"[ANTI-LOOP] === PROTECTION DOUBLE ACTIVE ===")  # Optimisé pour performance
+    # print(f"[SIGNATURE] Signature requête: {request_signature}")  # Optimisé pour performance
+    # print(f"[CACHE] Taille cache actuel: {len(search_by_commune.anti_loop_cache)}")  # Optimisé pour performance
     
     # 2️⃣ VÉRIFICATION CACHE HIT/MISS
     if request_signature in search_by_commune.anti_loop_cache:
         last_request_time = search_by_commune.anti_loop_cache[request_signature]
         time_diff = current_time - last_request_time
         
-        print(f"🛡️ [CACHE_HIT] Requête identique détectée!")
-        print(f"🛡️ [TIMING] Différence temps: {time_diff:.2f}s")
+        # print(f"[CACHE_HIT] Requête identique détectée!")  # Optimisé pour performance
+        # print(f"[TIMING] Différence temps: {time_diff:.2f}s")  # Optimisé pour performance
         
         if time_diff < cache_window:
-            print(f"🚫 [BLOCKED] Loop détecté - requête bloquée (< {cache_window}s)")
+            # print(f"[BLOCKED] Loop détecté - requête bloquée (< {cache_window}s)")  # Optimisé pour performance
             return jsonify({
                 "error": "Loop détecté - veuillez patienter", 
                 "retry_after": cache_window - time_diff
             }), 429
         else:
-            print(f"✅ [ALLOWED] Requête autorisée (> {cache_window}s)")
+            # print(f"[ALLOWED] Requête autorisée (> {cache_window}s)")  # Optimisé pour performance
+            pass
     else:
-        print(f"🛡️ [CACHE_MISS] Nouvelle signature - requête autorisée")
+        # print(f"[CACHE_MISS] Nouvelle signature - requête autorisée")  # Optimisé pour performance
+        pass
     
     # 3️⃣ ENREGISTREMENT DE LA REQUÊTE ACTUELLE
     search_by_commune.anti_loop_cache[request_signature] = current_time
@@ -7503,14 +7593,14 @@ def search_by_commune():
         for key, _ in oldest_keys:
             del search_by_commune.anti_loop_cache[key]
     
-    print(f"🛡️ [STATS] Cache final: {len(search_by_commune.anti_loop_cache)} entrées")
-    print("="*80)
+    # print(f"[STATS] Cache final: {len(search_by_commune.anti_loop_cache)} entrées")  # Optimisé pour performance
+    # print("="*80)  # Optimisé pour performance
     
     # Log immédiat pour diagnostiquer si la requête arrive
-    print(f"🚨 [DEBUG_FETCH] Requête reçue sur /search_by_commune")
-    print(f"🚨 [DEBUG_FETCH] Méthode: {flask_request.method}")
-    print(f"🚨 [DEBUG_FETCH] Args: {dict(flask_request.args)}")
-    print(f"🚨 [DEBUG_FETCH] Values: {dict(flask_request.values)}")
+    # print(f"[DEBUG_FETCH] Requête reçue sur /search_by_commune")  # Optimisé pour performance
+    # print(f"[DEBUG_FETCH] Méthode: {flask_request.method}")  # Optimisé pour performance
+    # print(f"[DEBUG_FETCH] Args: {dict(flask_request.args)}")  # Optimisé pour performance
+    # print(f"[DEBUG_FETCH] Values: {dict(flask_request.values)}")  # Optimisé pour performance
     
     # Headers CORS pour éviter les problèmes de fetch
     from flask import make_response
@@ -7666,15 +7756,15 @@ def search_by_commune():
         commune_poly = shape(contour)
         minx, miny, maxx, maxy = commune_poly.bounds
         bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
-        print(f"✅ [BBOX] Bbox calculée: {bbox}")
+        # print(f"[BBOX] Bbox calculée: {bbox}")  # Optimisé pour performance
     except Exception as e:
-        print(f"⚠️ [BBOX] Erreur calcul bbox: {e}")
+        # print(f"[BBOX] Erreur calcul bbox: {e}")  # Optimisé pour performance
         # Fallback avec des coordonnées par défaut autour du centre
         margin = 0.01  # ~1km de marge
         minx, maxx = lon - margin, lon + margin
         miny, maxy = lat - margin, lat + margin
         bbox = f"{minx},{miny},{maxx},{maxy},EPSG:4326"
-        print(f"🔄 [BBOX] Fallback bbox: {bbox}")
+        # print(f"[BBOX] Fallback bbox: {bbox}")  # Optimisé pour performance
         commune_poly = None
 
     # 4) Récupère toutes les features dans le bbox puis filtre par intersection avec le polygone
@@ -7697,13 +7787,13 @@ def search_by_commune():
                     filtered.append(f)
             except Exception as e:
                 # Ignorer les géométries qui causent des erreurs
-                print(f"⚠️ Géométrie ignorée à cause d'une erreur: {e}")
+                # print(f"Géométrie ignorée à cause d'une erreur: {e}")  # Optimisé pour performance
                 continue
         return filtered
 
     # NOUVELLE APPROCHE: Utilisation du polygone exact de la commune selon la doc API Carto
-    print(f"🆕 [NOUVELLE_APPROCHE] Utilisation du polygone exact de la commune (API Carto)")
-    print(f"🆕 [COMMUNE_POLYGON] Récupération exhaustive sur toute la commune: {commune}")
+    # print(f"🆕 [NOUVELLE_APPROCHE] Utilisation du polygone exact de la commune (API Carto)")  # Optimisé pour performance
+    # print(f"🆕 [COMMUNE_POLYGON] Récupération exhaustive sur toute la commune: {commune}")  # Optimisé pour performance
     
     # Utilisation des nouvelles fonctions qui exploitent le polygone complet de la commune
     log_data_collection("DÉBUT", "Collecte des données géographiques")
@@ -7739,7 +7829,7 @@ def search_by_commune():
         log_data_collection("LIGNES HTA", f"✅ {aerienne_count} lignes aériennes, {souterraine_count} lignes souterraines")
     except Exception as e:
         log_data_collection("LIGNES HTA", f"❌ Erreur récupération: {e}")
-        print(f"⚠️ [LIGNES HTA] Erreur lors de la récupération: {e}")
+        # print(f"[LIGNES HTA] Erreur lors de la récupération: {e}")  # Optimisé pour performance
     
     log_data_collection("ÉLEVEURS", "Récupération des données éleveurs")
     eleveurs_data = filter_in_commune(fetch_wfs_data(ELEVEURS_LAYER, bbox, srsname="EPSG:4326"))
@@ -7839,7 +7929,7 @@ def search_by_commune():
             geom_json = json.dumps(geom)
             # Réduire le seuil pour déclencher l'optimisation plus tôt
             if len(geom_json) > 4000:  # Seuil réduit pour éviter les erreurs 414
-                print(f"🔧 [OPTIMISATION] Géométrie trop complexe ({len(geom_json)} chars), simplification en bbox")
+                # print(f"[OPTIMISATION] Géométrie trop complexe ({len(geom_json)} chars), simplification en bbox")  # Optimisé pour performance
                 # Convertir en bounding box simple
                 shp_geom = shape(geom)
                 minx, miny, maxx, maxy = shp_geom.bounds
@@ -7851,10 +7941,10 @@ def search_by_commune():
                 }
                 return bbox_geom
             else:
-                print(f"🔧 [OPTIMISATION] Géométrie OK ({len(geom_json)} chars)")
+                # print(f"[OPTIMISATION] Géométrie OK ({len(geom_json)} chars)")  # Optimisé pour performance
                 return geom
         except Exception as e:
-            print(f"⚠️ [OPTIMISATION] Erreur, utilisation géométrie originale: {e}")
+            # print(f"[OPTIMISATION] Erreur, utilisation géométrie originale: {e}")  # Optimisé pour performance
             return geom
     
     # Récupération enrichie des données API avec optimisation géométrique
@@ -7896,7 +7986,7 @@ def search_by_commune():
         
         # Limite de sécurité pour éviter les loops infinies
         if processed_count > 1000:
-            print(f"⚠️ [RPG] Limite de sécurité atteinte: {processed_count} parcelles traitées")
+            # print(f"[RPG] Limite de sécurité atteinte: {processed_count} parcelles traitées")  # Optimisé pour performance
             break
             
         dec   = decode_rpg_feature(feat)
@@ -7961,7 +8051,7 @@ def search_by_commune():
     # Résumé du filtrage RPG
     accepted_count = len(final_rpg)
     total_rejected = rejected_surface_count + rejected_distance_count
-    print(f"✅ [RPG] Filtrage terminé: {accepted_count} gardées, {total_rejected} rejetées ({rejected_surface_count} surface, {rejected_distance_count} distance)")
+    # print(f"[RPG] Filtrage terminé: {accepted_count} gardées, {total_rejected} rejetées ({rejected_surface_count} surface, {rejected_distance_count} distance)")  # Optimisé pour performance
 
     # Filtrage avancé pour les nouvelles couches
     
@@ -8025,7 +8115,7 @@ def search_by_commune():
                 # Calcul de la surface libre si demandé
                 if calculate_surface_libre:
                     try:
-                        print(f"🏠 [SURFACE_LIBRE] Calcul pour parking...")
+                        # print(f"[SURFACE_LIBRE] Calcul pour parking...")  # Optimisé pour performance
                         batiments_data = get_batiments_data(feat["geometry"])
                         surface_libre_result = calculate_surface_libre_parcelle(feat["geometry"], batiments_data)
                         props.update({
@@ -8035,7 +8125,7 @@ def search_by_commune():
                             'batiments_count': surface_libre_result.get('batiments_count', 0)
                         })
                     except Exception as e:
-                        print(f"❌ [SURFACE_LIBRE] Erreur parking: {e}")
+                        # print(f"[SURFACE_LIBRE] Erreur parking: {e}")  # Optimisé pour performance
                         props['surface_libre_error'] = str(e)
 
                 filtered_parkings.append({
@@ -8044,7 +8134,7 @@ def search_by_commune():
                     "properties": props
                 })
             except Exception as e:
-                print(f"⚠️ Erreur filtrage parking: {e}")
+                # print(f"Erreur filtrage parking: {e}")  # Optimisé pour performance
                 continue
         
         # Log détaillé des résultats de filtrage
@@ -8053,7 +8143,7 @@ def search_by_commune():
                           f"✅ {len(filtered_parkings)} retenus / {len(parkings_data)} analysés")
         log_data_collection("FILTRAGE PARKINGS", 
                           f"❌ Rejetés: {surfaces_rejetees} (surface), {distances_rejetees} (distance)")
-        print(f"✅ [PARKINGS] {len(filtered_parkings)} parkings trouvés après filtrage")
+        # print(f"[PARKINGS] {len(filtered_parkings)} parkings trouvés après filtrage")  # Optimisé pour performance
         
         # 5b-bis) Récupération optimisée des références cadastrales pour les parkings sélectionnés
         if filtered_parkings:
@@ -8073,10 +8163,10 @@ def search_by_commune():
                         data = resp.json()
                         return data.get('features', [])
                     else:
-                        print(f"    ⚠️ Erreur API cadastre: {resp.status_code}")
+                        # print(f"Erreur API cadastre: {resp.status_code}")  # Optimisé pour performance
                         return []
                 except Exception as e:
-                    print(f"    ⚠️ Exception cadastre parking: {e}")
+                    # print(f"Exception cadastre parking: {e}")  # Optimisé pour performance
                     return []
             
             # Enrichir chaque parking avec ses références cadastrales
@@ -8107,17 +8197,17 @@ def search_by_commune():
                             'reference_complete': f"{commune}{prefixe}{section}{numero}".strip()
                         }
                         
-                        print(f"      🏛️ [DEBUG] Référence créée: {ref}")
+                        # print(f"[DEBUG] Référence créée: {ref}")  # Optimisé pour performance
                         refs_cadastrales.append(ref)
                     
                     # Ajouter aux propriétés du parking
                     parking["properties"]["parcelles_cadastrales"] = refs_cadastrales
                     parking["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
-                    print(f"      ✅ {len(refs_cadastrales)} parcelles cadastrales trouvées")
+                    # print(f"{len(refs_cadastrales)} parcelles cadastrales trouvées")  # Optimisé pour performance
                 else:
                     parking["properties"]["parcelles_cadastrales"] = []
                     parking["properties"]["nb_parcelles_cadastrales"] = 0
-                    print(f"      ❌ Aucune parcelle cadastrale trouvée")
+                    # print(f"Aucune parcelle cadastrale trouvée")  # Optimisé pour performance
                 
                 # 🏠 ENRICHISSEMENT ADRESSE IGN pour le parking - OPTIMISÉ PRODUCTION
                 # print(f"      🔍 [DEBUG_ADRESSE] Début enrichissement adresse parking {i+1}")  # Optimisé pour production
@@ -8151,12 +8241,13 @@ def search_by_commune():
             
             # print(f"✅ [CADASTRE-PARKINGS] Enrichissement terminé pour tous les parkings")  # Optimisé pour production multi-user
     else:
-        print(f"⚠️ [PARKINGS] Filtre parkings non activé ou aucune donnée: filter_parkings={filter_parkings}, parkings_data={len(parkings_data) if parkings_data else 0}")
+        # print(f"[PARKINGS] Filtre parkings non activé ou aucune donnée: filter_parkings={filter_parkings}, parkings_data={len(parkings_data) if parkings_data else 0}")  # Optimisé pour performance
+        pass
     
     # 5c) Filtrage des friches selon les critères (utilise les sliders unifiés)
     if filter_friches and friches_data:
         log_data_collection("FRICHES", f"🎯 Début filtrage: {len(friches_data)} friches à analyser")
-        print(f"🔍 [FRICHES] Filtrage: >{friches_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")
+        # print(f"[FRICHES] Filtrage: >{friches_min_area}m², BT<{max_distance_bt}m, HTA<{max_distance_hta}m")  # Optimisé pour performance
         
         # Compteurs de rejet
         surfaces_rejetees = 0
@@ -8207,7 +8298,7 @@ def search_by_commune():
                 # Calcul de la surface libre si demandé
                 if calculate_surface_libre:
                     try:
-                        print(f"🏠 [SURFACE_LIBRE] Calcul pour friche...")
+                        # print(f"[SURFACE_LIBRE] Calcul pour friche...")  # Optimisé pour performance
                         batiments_data = get_batiments_data(feat["geometry"])
                         surface_libre_result = calculate_surface_libre_parcelle(feat["geometry"], batiments_data)
                         props.update({
@@ -8217,7 +8308,7 @@ def search_by_commune():
                             'batiments_count': surface_libre_result.get('batiments_count', 0)
                         })
                     except Exception as e:
-                        print(f"❌ [SURFACE_LIBRE] Erreur friche: {e}")
+                        # print(f"[SURFACE_LIBRE] Erreur friche: {e}")  # Optimisé pour performance
                         props['surface_libre_error'] = str(e)
 
                 filtered_friches.append({
@@ -8226,7 +8317,7 @@ def search_by_commune():
                     "properties": props
                 })
             except Exception as e:
-                print(f"⚠️ Erreur filtrage friche: {e}")
+                # print(f"Erreur filtrage friche: {e}")  # Optimisé pour performance
                 continue
         
         # Log détaillé des résultats de filtrage
@@ -8234,7 +8325,7 @@ def search_by_commune():
                           f"✅ {len(filtered_friches)} retenues / {len(friches_data)} analysées")
         log_data_collection("FILTRAGE FRICHES", 
                           f"❌ Rejetées: {surfaces_rejetees} (surface), {distances_rejetees} (distance)")
-        print(f"✅ [FRICHES] {len(filtered_friches)} friches trouvées après filtrage")
+        # print(f"[FRICHES] {len(filtered_friches)} friches trouvées après filtrage")  # Optimisé pour performance
         
         # 5c-bis) Récupération optimisée des références cadastrales pour les friches sélectionnées
         if filtered_friches:
@@ -8254,15 +8345,15 @@ def search_by_commune():
                         data = resp.json()
                         return data.get('features', [])
                     else:
-                        print(f"    ⚠️ Erreur API cadastre: {resp.status_code}")
+                        # print(f"Erreur API cadastre: {resp.status_code}")  # Optimisé pour performance
                         return []
                 except Exception as e:
-                    print(f"    ⚠️ Exception cadastre friche: {e}")
+                    # print(f"Exception cadastre friche: {e}")  # Optimisé pour performance
                     return []
             
             # Enrichir chaque friche avec ses références cadastrales
             for i, friche in enumerate(filtered_friches):
-                print(f"    📍 Friche {i+1}/{len(filtered_friches)}: recherche cadastre...")
+                # print(f"Friche {i+1}/{len(filtered_friches)}: recherche cadastre...")  # Optimisé pour performance
                 parcelles_friche = get_parcelles_for_friche(friche["geometry"])
                 
                 if parcelles_friche:
@@ -8282,13 +8373,13 @@ def search_by_commune():
                     # Ajouter aux propriétés de la friche
                     friche["properties"]["parcelles_cadastrales"] = refs_cadastrales
                     friche["properties"]["nb_parcelles_cadastrales"] = len(refs_cadastrales)
-                    print(f"      ✅ {len(refs_cadastrales)} parcelles cadastrales trouvées")
+                    # print(f"{len(refs_cadastrales)} parcelles cadastrales trouvées")  # Optimisé pour performance
                 else:
                     friche["properties"]["parcelles_cadastrales"] = []
                     friche["properties"]["nb_parcelles_cadastrales"] = 0
-                    print(f"      ❌ Aucune parcelle cadastrale trouvée")
+                    # print(f"Aucune parcelle cadastrale trouvée")  # Optimisé pour performance
             
-            print(f"✅ [CADASTRE-FRICHES] Enrichissement terminé pour toutes les friches")
+            # print(f"[CADASTRE-FRICHES] Enrichissement terminé pour toutes les friches")  # Optimisé pour performance
     
     # 5d) Filtrage optimisé des zones avec croisement parcelles
     filtered_zones = []
@@ -8296,7 +8387,7 @@ def search_by_commune():
     
     if filter_zones:
         log_data_collection("ZONES PLU", f"🎯 Début filtrage zones: type={zones_type_filter or 'toutes'}, surface min={zones_min_area}m²")
-        print(f"🔍 [ZONES OPTIMISÉ] Recherche zones {zones_type_filter or 'toutes'} + parcelles >{zones_min_area}m²")
+        # print(f"[ZONES OPTIMISÉ] Recherche zones {zones_type_filter or 'toutes'} + parcelles >{zones_min_area}m²")  # Optimisé pour performance
         
         # Utiliser l'API GPU pour récupérer les zones autour du centre de la commune
         def get_zones_around_commune(lat, lon, radius_km=2.0):
@@ -8326,10 +8417,10 @@ def search_by_commune():
                     data = resp.json()
                     return data.get('features', [])
                 else:
-                    print(f"⚠️ Erreur API GPU zones: {resp.status_code}")
+                    # print(f"Erreur API GPU zones: {resp.status_code}")  # Optimisé pour performance
                     return []
             except Exception as e:
-                print(f"⚠️ Exception API GPU zones: {e}")
+                # print(f"Exception API GPU zones: {e}")  # Optimisé pour performance
                 return []
         
         # Récupérer les parcelles dans une zone donnée - OPTIMISÉ
@@ -8353,16 +8444,17 @@ def search_by_commune():
                 else:
                     # 414 = URI trop longue, zone trop grande
                     if resp.status_code == 414:
-                        print(f"    ⚠️ Zone trop grande (414), passage au suivant")
+                        # print(f"Zone trop grande (414), passage au suivant")  # Optimisé pour performance
+                        pass
                     return []
             except Exception as e:
-                print(f"    ⚠️ Exception parcelles: {e}")
+                # print(f"Exception parcelles: {e}")  # Optimisé pour performance
                 return []
         
         # 1. Récupérer toutes les zones autour de la commune
         all_zones = get_zones_around_commune(lat, lon, radius_km=3.0)
         log_data_collection("ZONES PLU", f"📍 {len(all_zones)} zones trouvées dans un rayon de 3km")
-        print(f"    📍 {len(all_zones)} zones trouvées autour de la commune")
+        # print(f"{len(all_zones)} zones trouvées autour de la commune")  # Optimisé pour performance
         
         # 2. Filtrer par type de zone
         target_zones = []
@@ -8377,7 +8469,7 @@ def search_by_commune():
             target_zones.append(zone)
         
         log_data_collection("ZONES PLU", f"🎯 {len(target_zones)} zones de type '{zones_type_filter or 'toutes'}' sélectionnées")
-        print(f"    🎯 {len(target_zones)} zones de type '{zones_type_filter or 'toutes'}' sélectionnées")
+        # print(f"{len(target_zones)} zones de type '{zones_type_filter or 'toutes'}' sélectionnées")  # Optimisé pour performance
         
         # 3. Pour chaque zone cible, récupérer et filtrer les parcelles
         total_parcelles_trouvees = 0
@@ -8386,7 +8478,7 @@ def search_by_commune():
             props = zone.get('properties', {})
             zone_libelle = props.get('libelle', f"Zone_{i}")
             
-            print(f"    🔍 Zone {i+1}/{len(target_zones)}: {props.get('typezone', 'N/A')} - {zone_libelle}")
+            # print(f"Zone {i+1}/{len(target_zones)}: {props.get('typezone', 'N/A')} - {zone_libelle}")  # Optimisé pour performance
             
             # Récupérer les parcelles de cette zone
             parcelles = get_parcelles_in_zone(zone)
@@ -8394,7 +8486,7 @@ def search_by_commune():
             if not parcelles:
                 continue
             
-            print(f"        📦 {len(parcelles)} parcelles trouvées")
+            # print(f"{len(parcelles)} parcelles trouvées")  # Optimisé pour performance
             
             # Filtrer par surface
             parcelles_grandes = []
@@ -8436,27 +8528,31 @@ def search_by_commune():
                                 min_distance_hta_aerial = calculate_min_distance_to_lines(
                                     centroid, hta_lignes_data['aerienne']['features']
                                 )
-                                print(f"        📏 [HTA DEBUG] Distance aérienne calculée: {min_distance_hta_aerial}m")
+                                # print(f"[HTA DEBUG] Distance aérienne calculée: {min_distance_hta_aerial}m")  # Optimisé pour performance
                             else:
-                                print(f"        ⚠️ [HTA DEBUG] Pas de lignes aériennes disponibles")
+                                # print(f"[HTA DEBUG] Pas de lignes aériennes disponibles")  # Optimisé pour performance
+                                pass
                             
                             # Lignes souterraines
                             if 'souterraine' in hta_lignes_data and hta_lignes_data['souterraine'].get('features'):
                                 min_distance_hta_underground = calculate_min_distance_to_lines(
                                     centroid, hta_lignes_data['souterraine']['features']
                                 )
-                                print(f"        📏 [HTA DEBUG] Distance souterraine calculée: {min_distance_hta_underground}m")
+                                # print(f"[HTA DEBUG] Distance souterraine calculée: {min_distance_hta_underground}m")  # Optimisé pour performance
                             else:
-                                print(f"        ⚠️ [HTA DEBUG] Pas de lignes souterraines disponibles")
+                                # print(f"[HTA DEBUG] Pas de lignes souterraines disponibles")  # Optimisé pour performance
+                                pass
                         else:
-                            print(f"        ⚠️ [HTA DEBUG] hta_lignes_data non disponible: {type(hta_lignes_data)}")
+                            # print(f"[HTA DEBUG] hta_lignes_data non disponible: {type(hta_lignes_data)}")  # Optimisé pour performance
+                            pass
                         
                         # Distance minimale globale (le poste le plus proche, qu'il soit BT ou HTA)
                         distances = [d for d in [min_distance_bt, min_distance_hta] if d is not None]
                         min_distance_total = min(distances) if distances else None
                         
                     except Exception as e:
-                        print(f"        ⚠️ Erreur calcul distances: {e}")
+                        # print(f"Erreur calcul distances: {e}")  # Optimisé pour performance
+                        pass
                     
                     # Calcul des distances aux postes si le filtrage par distance est activé
                     distance_ok = True
@@ -8479,7 +8575,7 @@ def search_by_commune():
                                 distance_ok = bt_ok or hta_ok
                                 
                         except Exception as e:
-                            print(f"        ⚠️ Erreur calcul distance: {e}")
+                            # print(f"Erreur calcul distance: {e}")  # Optimisé pour performance
                             distance_ok = True  # En cas d'erreur, on garde la parcelle
                     
                     # Filtrage additionnel par distance aux lignes HTA (même logique que les postes)
@@ -8495,36 +8591,36 @@ def search_by_commune():
                             if filter_hta_lines_aerial:
                                 max_distance_aerial_m = hta_aerial_max_km * 1000
                                 aerial_ok = (min_distance_hta_aerial is not None and min_distance_hta_aerial <= max_distance_aerial_m)
-                                print(f"        🔍 [HTA AERIAL] Distance: {min_distance_hta_aerial}m, Max: {max_distance_aerial_m}m, OK: {aerial_ok}")
+                                # print(f"[HTA AERIAL] Distance: {min_distance_hta_aerial}m, Max: {max_distance_aerial_m}m, OK: {aerial_ok}")  # Optimisé pour performance
                             
                             # Vérifier les lignes souterraines si le filtre est activé
                             if filter_hta_lines_underground:
                                 max_distance_underground_m = hta_underground_max_km * 1000
                                 underground_ok = (min_distance_hta_underground is not None and min_distance_hta_underground <= max_distance_underground_m)
-                                print(f"        🔍 [HTA UNDERGROUND] Distance: {min_distance_hta_underground}m, Max: {max_distance_underground_m}m, OK: {underground_ok}")
+                                # print(f"[HTA UNDERGROUND] Distance: {min_distance_hta_underground}m, Max: {max_distance_underground_m}m, OK: {underground_ok}")  # Optimisé pour performance
                             
                             # Si les deux filtres sont activés, il faut que les deux soient OK
                             # Si un seul filtre est activé, il faut juste que celui-ci soit OK
                             if filter_hta_lines_aerial and filter_hta_lines_underground:
                                 hta_lines_distance_ok = aerial_ok and underground_ok
-                                print(f"        🔍 [HTA BOTH] Final OK: {hta_lines_distance_ok} (aerial: {aerial_ok}, underground: {underground_ok})")
+                                # print(f"[HTA BOTH] Final OK: {hta_lines_distance_ok} (aerial: {aerial_ok}, underground: {underground_ok})")  # Optimisé pour performance
                             elif filter_hta_lines_aerial:
                                 hta_lines_distance_ok = aerial_ok
-                                print(f"        🔍 [HTA AERIAL ONLY] Final OK: {hta_lines_distance_ok}")
+                                # print(f"[HTA AERIAL ONLY] Final OK: {hta_lines_distance_ok}")  # Optimisé pour performance
                             elif filter_hta_lines_underground:
                                 hta_lines_distance_ok = underground_ok
-                                print(f"        🔍 [HTA UNDERGROUND ONLY] Final OK: {hta_lines_distance_ok}")
+                                # print(f"[HTA UNDERGROUND ONLY] Final OK: {hta_lines_distance_ok}")  # Optimisé pour performance
                                 
                         except Exception as e:
-                            print(f"        ⚠️ Erreur calcul distance lignes HTA: {e}")
+                            # print(f"Erreur calcul distance lignes HTA: {e}")  # Optimisé pour performance
                             hta_lines_distance_ok = True  # En cas d'erreur, on garde la parcelle
                     
                     # Condition finale : respecter les deux types de filtres
                     if not distance_ok or not hta_lines_distance_ok:
-                        if not distance_ok:
-                            print(f"        ❌ [RPG REJECTED] Parcelle rejetée - distance postes: {distance_ok}")
-                        if not hta_lines_distance_ok:
-                            print(f"        ❌ [RPG REJECTED] Parcelle rejetée - distance lignes HTA: {hta_lines_distance_ok}")
+                        # if not distance_ok:
+                        #     print(f"[RPG REJECTED] Parcelle rejetée - distance postes: {distance_ok}")  # Optimisé pour performance
+                        # if not hta_lines_distance_ok:
+                        #     print(f"[RPG REJECTED] Parcelle rejetée - distance lignes HTA: {hta_lines_distance_ok}")  # Optimisé pour performance
                         continue
                     
                     # Enrichir les propriétés avec les informations systématiques
@@ -8546,7 +8642,7 @@ def search_by_commune():
                     # Calcul de la surface libre si demandé
                     if calculate_surface_libre:
                         try:
-                            print(f"🏠 [SURFACE_LIBRE] Calcul pour parcelle {parcelle_props.get('numero', 'N/A')}...")
+                            # print(f"[SURFACE_LIBRE] Calcul pour parcelle {parcelle_props.get('numero', 'N/A')}...")  # Optimisé pour performance
                             
                             # Récupérer les bâtiments sur cette parcelle
                             batiments_data = get_batiments_data(geometry)
@@ -8568,7 +8664,7 @@ def search_by_commune():
                                 parcelle_props['surface_libre_error'] = surface_libre_result['error']
                                 
                         except Exception as e:
-                            print(f"❌ [SURFACE_LIBRE] Erreur calcul pour parcelle: {e}")
+                            # print(f"[SURFACE_LIBRE] Erreur calcul pour parcelle: {e}")  # Optimisé pour performance
                             parcelle_props.update({
                                 'surface_libre_calculee': False,
                                 'surface_libre_error': str(e)
@@ -8603,7 +8699,7 @@ def search_by_commune():
                         "properties": parcelle_props
                     })
             
-            print(f"        ✅ {len(parcelles_grandes)} parcelles >{zones_min_area}m²")
+            # print(f"{len(parcelles_grandes)} parcelles >{zones_min_area}m²")  # Optimisé pour performance
             total_parcelles_trouvees += len(parcelles_grandes)
             filtered_parcelles_in_zones.extend(parcelles_grandes)
             
@@ -8628,7 +8724,7 @@ def search_by_commune():
         log_data_collection("FILTRAGE ZONES", f"✅ {len(target_zones)} zones analysées")
         log_data_collection("FILTRAGE ZONES", f"✅ {total_parcelles_trouvees} parcelles retenues (>{zones_min_area}m²)")
         log_data_collection("FILTRAGE ZONES", f"✅ {len(filtered_zones)} zones avec parcelles qualifiées")
-        print(f"✅ [ZONES OPTIMISÉ] {len(target_zones)} zones analysées, {total_parcelles_trouvees} parcelles trouvées")
+        # print(f"[ZONES OPTIMISÉ] {len(target_zones)} zones analysées, {total_parcelles_trouvees} parcelles trouvées")  # Optimisé pour performance
 
     # Utiliser les zones optimisées pour plu_info, sinon fallback
     plu_info = filtered_zones if filtered_zones else plu_info_temp
@@ -8637,7 +8733,7 @@ def search_by_commune():
     # PPRI récupération via la nouvelle fonction GeoRisques unifiée
     def fetch_ppri_georisques(lat, lon, rayon_km=1.0):
         # Utilise maintenant la nouvelle fonction unifiée
-        print(f"🔍 [PPRI] Utilisation des données GeoRisques unifiées")
+        # print(f"[PPRI] Utilisation des données GeoRisques unifiées")  # Optimisé pour performance
         return {"type": "FeatureCollection", "features": []}
 
     # On ne garde que les polygones qui contiennent le point exact
@@ -8652,8 +8748,8 @@ def search_by_commune():
     # 6b) Traitement des toitures si demandé - Nouvelle méthode basée sur le polygone de la commune (utilise sliders unifiés)
     toitures_data = []
     if filter_toitures:
-        print(f"🏠 [TOITURES] Recherche activée - utilisation du polygone de la commune")
-        print(f"🏠 [TOITURES] Postes disponibles - BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
+        # print(f"[TOITURES] Recherche activée - utilisation du polygone de la commune")  # Optimisé pour performance
+        # print(f"[TOITURES] Postes disponibles - BT: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")  # Optimisé pour performance
         try:
             from shapely.geometry import mapping, Point
             from shapely.ops import transform as shp_transform
@@ -8668,11 +8764,11 @@ def search_by_commune():
             # Utiliser la fonction existante get_batiments_data avec le polygone de la commune
             batiments_features = get_batiments_data(search_geom_geojson)
             batiments_data = batiments_features.get("features", []) if batiments_features else []
-            print(f"🏠 [TOITURES] {len(batiments_data)} bâtiments récupérés dans la commune")
+            # print(f"🏠 [TOITURES] {len(batiments_data)} bâtiments récupérés dans la commune")  # Optimisé pour performance
 
             # ANALYSE COMPLÈTE: Traitement de tous les bâtiments de la commune
-            print(f"🔍 [TOITURES] Analyse complète de tous les {len(batiments_data)} bâtiments")
-            print(f"💡 [TOITURES] Traitement complet activé pour une analyse exhaustive")
+            # print(f"[TOITURES] Analyse complète de tous les {len(batiments_data)} bâtiments")  # Optimisé pour performance
+            # print(f"[TOITURES] Traitement complet activé pour une analyse exhaustive")  # Optimisé pour performance
 
             # Filtrer et enrichir les toitures avec intersection géométrique précise
             for idx, batiment in enumerate(batiments_data):
@@ -8840,21 +8936,23 @@ def search_by_commune():
                             safe_print(f"🔴 [ADRESSE] Erreur enrichissement toiture {i}: {e}")
                             toiture["properties"]["adresse"] = "Erreur géocodage"
                 
-                print(f"✅ [CADASTRE-TOITURES] Enrichissement individuel optimisé terminé:")
-                print(f"    📊 {total_enrichies} toitures enrichies avec succès")
-                print(f"    ⚠️ {total_erreurs} toitures sans données cadastrales")
-                print(f"    🎯 {len(toitures_data)} toitures disponibles au total sur la carte")
+                # print(f"[CADASTRE-TOITURES] Enrichissement individuel optimisé terminé:")  # Optimisé pour performance
+                # print(f"{total_enrichies} toitures enrichies avec succès")  # Optimisé pour performance
+                # print(f"{total_erreurs} toitures sans données cadastrales")  # Optimisé pour performance
+                # print(f"{len(toitures_data)} toitures disponibles au total sur la carte")  # Optimisé pour performance
             
         except Exception as e:
-            print(f"❌ [TOITURES] Erreur recherche: {e}")
+            # print(f"[TOITURES] Erreur recherche: {e}")  # Optimisé pour performance
             import traceback
             traceback.print_exc()
             toitures_data = []
     
-    print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
+    # Optimisé pour performance
+    # print(f"🗺️ [BUILD_MAP] Appel avec {len(filtered_parkings)} parkings, {len(filtered_friches)} friches et {len(toitures_data)} toitures")
     # print(f"🌾 [DEBUG_RPG] Parcelles RPG passées à build_map: {len(final_rpg)}")
     
-    print(f"🎯 [DEBUG] AVANT appel build_map...")
+    # Optimisé pour performance
+    # print(f"🎯 [DEBUG] AVANT appel build_map...")
     
     try:
         map_obj = build_map(
@@ -8878,13 +8976,15 @@ def search_by_commune():
             ppri_data=ppri_data,
             hta_lignes_data=hta_lignes_data  # Ajout des lignes HTA
         )
-        print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")
+        # Optimisé pour performance
+        # print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")
         
     except Exception as e:
-        print(f"❌ [ERREUR] Exception dans build_map: {str(e)}")
-        print(f"❌ [ERREUR] Type d'erreur: {type(e)}")
+        # print(f"[ERREUR] Exception dans build_map: {str(e)}")  # Optimisé pour performance
+        # print(f"[ERREUR] Type d'erreur: {type(e)}")  # Optimisé pour performance
         import traceback
-        print(f"❌ [ERREUR] Traceback: {traceback.format_exc()}")
+        # print(f"[ERREUR] Traceback: {traceback.format_exc()}")  # Optimisé pour performance
+        traceback.print_exc()
         map_obj = None
     
     # ⚠️ Ne plus générer carte_html (inutile et très lourd)
@@ -8905,7 +9005,7 @@ def search_by_commune():
         old_maps = glob.glob(pattern)
         
         if old_maps:
-            print(f"🧹 [CLEANUP] Suppression de {len(old_maps)} ancienne(s) carte(s) pour {commune}")
+            # print(f"🧹 [CLEANUP] Suppression de {len(old_maps)} ancienne(s) carte(s) pour {commune}")  # Optimisé pour performance
             for old_map in old_maps:
                 try:
                     os.remove(old_map)
@@ -9012,7 +9112,7 @@ def search_by_commune():
         print(f"❌ [RESPONSE_SIZE] Erreur calcul taille: {e}")
     
     try:
-        print(f"✅ [FINAL_RESPONSE] Retour de la réponse JSON pour {commune}")
+        # print(f"✅ [FINAL_RESPONSE] Retour de la réponse JSON pour {commune}")  # Optimisé pour performance
         safe_response_data = ensure_json_safe(response_data)
         response = make_response(jsonify(safe_response_data))
         return add_cors_headers(response)
@@ -11982,10 +12082,13 @@ def search_by_address_route():
         except ValueError:
             return jsonify({"error": "Les coordonnées doivent être des nombres."}), 400
     elif address:
+        print(f"🔍 [GEOCODE] Tentative de géocodage pour: {address}")
         coords = geocode_address(address)
         if not coords:
+            print(f"❌ [GEOCODE] Adresse non trouvée: {address}")
             return jsonify({"error": "Adresse non trouvée."}), 404
         lat, lon = coords
+        print(f"✅ [GEOCODE] Coordonnées trouvées: {lat}, {lon}")
     else:
         return jsonify({"error": "Veuillez fournir une adresse ou des coordonnées."}), 400
 
@@ -11999,7 +12102,17 @@ def search_by_address_route():
     sirene_radius_deg = sirene_radius_km / 111
 
     # 3. Données principales (toujours FeatureCollection)
-    parcelles_data = get_all_parcelles(lat, lon, radius=search_radius)
+    print(f"📍 [DEBUG] Récupération des données pour lat={lat}, lon={lon}")
+    
+    try:
+        print("🔄 [DEBUG] Appel get_all_parcelles...")
+        parcelles_data = get_all_parcelles(lat, lon, radius=search_radius)
+        print(f"✅ [DEBUG] get_all_parcelles OK: {len(parcelles_data.get('features', []))} parcelles")
+    except Exception as e:
+        print(f"❌ [DEBUG] ERREUR get_all_parcelles: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur parcelles: {str(e)}"}), 500
 
     def get_parcelle_info(lat, lon):
         bbox = f"{lon-0.001},{lat-0.001},{lon+0.001},{lat+0.001},EPSG:4326"
@@ -12014,9 +12127,36 @@ def search_by_address_route():
         return None
 
     # 4. Postes, réseaux, couches métiers
-    postes_bt_raw = ensure_feature_list(get_nearest_postes(lat, lon, count=1, radius_deg=bt_radius_deg))
-    postes_hta_raw = ensure_feature_list(get_nearest_ht_postes(lat, lon, count=1, radius_deg=ht_radius_deg))
-    capacites_reseau_raw = ensure_feature_list(get_nearest_capacites_reseau(lat, lon, count=1, radius_deg=ht_radius_deg))
+    try:
+        print("🔄 [DEBUG] Appel get_nearest_postes (BT)...")
+        postes_bt_raw = ensure_feature_list(get_nearest_postes(lat, lon, count=1, radius_deg=bt_radius_deg))
+        print(f"✅ [DEBUG] get_nearest_postes OK: {len(postes_bt_raw)} postes BT")
+    except Exception as e:
+        print(f"❌ [DEBUG] ERREUR get_nearest_postes: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur postes BT: {str(e)}"}), 500
+    
+    try:
+        print("🔄 [DEBUG] Appel get_nearest_ht_postes (HTA)...")
+        postes_hta_raw = ensure_feature_list(get_nearest_ht_postes(lat, lon, count=1, radius_deg=ht_radius_deg))
+        print(f"✅ [DEBUG] get_nearest_ht_postes OK: {len(postes_hta_raw)} postes HTA")
+    except Exception as e:
+        print(f"❌ [DEBUG] ERREUR get_nearest_ht_postes: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur postes HTA: {str(e)}"}), 500
+    
+    try:
+        print("🔄 [DEBUG] Appel get_nearest_capacites_reseau...")
+        capacites_reseau_raw = ensure_feature_list(get_nearest_capacites_reseau(lat, lon, count=1, radius_deg=ht_radius_deg))
+        print(f"✅ [DEBUG] get_nearest_capacites_reseau OK: {len(capacites_reseau_raw)} capacités")
+    except Exception as e:
+        print(f"❌ [DEBUG] ERREUR get_nearest_capacites_reseau: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Erreur capacités réseau: {str(e)}"}), 500
+    
     postes_bt = to_feature_collection(postes_bt_raw)
     postes_hta = to_feature_collection(postes_hta_raw)
     capacites_reseau = to_feature_collection(capacites_reseau_raw)
@@ -12074,24 +12214,24 @@ def search_by_address_route():
     # 7. Recherche info parcelle
     parcelle = get_parcelle_info(lat, lon)
     # Debug: print types and samples of all build_map arguments (now that parcelle is assigned)
-    print("[DEBUG build_map args] parcelle:", type(parcelle or {}), (parcelle or {}) if isinstance(parcelle or {}, dict) else str(parcelle or {})[:200])
-    print("[DEBUG build_map args] parcelles_data:", type(parcelles_data), ensure_feature_list(parcelles_data)[:1])
-    print("[DEBUG build_map args] postes_bt:", type(postes_bt), ensure_feature_list(postes_bt)[:1])
-    print("[DEBUG build_map args] postes_hta:", type(postes_hta), ensure_feature_list(postes_hta)[:1])
-    print("[DEBUG build_map args] plu_info:", type(plu_info), ensure_feature_list(plu_info)[:1])
-    print("[DEBUG build_map args] parkings:", type(parkings), ensure_feature_list(parkings)[:1])
-    print("[DEBUG build_map args] friches:", type(friches), ensure_feature_list(friches)[:1])
-    print("[DEBUG build_map args] solaire:", type(solaire), ensure_feature_list(solaire)[:1])
-    print("[DEBUG build_map args] zaer:", type(zaer), ensure_feature_list(zaer)[:1])
-    print("[DEBUG build_map args] rpg_data:", type(rpg_data), ensure_feature_list(rpg_data)[:1])
-    print("[DEBUG build_map args] sirene_data:", type(sirene_data), ensure_feature_list(sirene_data)[:1])
-    print("[DEBUG build_map args] capacites_reseau:", type(capacites_reseau), ensure_feature_list(capacites_reseau)[:1])
+    # print("[DEBUG build_map args] parcelle:", type(parcelle or {}), (parcelle or {}) if isinstance(parcelle or {}, dict) else str(parcelle or {})[:200])  # Optimisé pour performance
+    # print("[DEBUG build_map args] parcelles_data:", type(parcelles_data), ensure_feature_list(parcelles_data)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] postes_bt:", type(postes_bt), ensure_feature_list(postes_bt)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] postes_hta:", type(postes_hta), ensure_feature_list(postes_hta)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] plu_info:", type(plu_info), ensure_feature_list(plu_info)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] parkings:", type(parkings), ensure_feature_list(parkings)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] friches:", type(friches), ensure_feature_list(friches)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] solaire:", type(solaire), ensure_feature_list(solaire)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] zaer:", type(zaer), ensure_feature_list(zaer)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] rpg_data:", type(rpg_data), ensure_feature_list(rpg_data)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] sirene_data:", type(sirene_data), ensure_feature_list(sirene_data)[:1])  # Optimisé pour performance
+    # print("[DEBUG build_map args] capacites_reseau:", type(capacites_reseau), ensure_feature_list(capacites_reseau)[:1])  # Optimisé pour performance
 
     # 8. GeoRisques: fetch risks for this point
     georisques_risks = fetch_georisques_risks(lat, lon)
 
     # 8b. Récupération des lignes HTA (aériennes et souterraines) - comme dans search_by_commune
-    print(f"🔌 [HTA] Récupération des lignes HTA pour l'adresse {address}")
+    # print(f"🔌 [HTA] Récupération des lignes HTA pour l'adresse {address}")  # Optimisé pour performance
     hta_lignes_data = {"aerienne": {"features": []}, "souterraine": {"features": []}}
     try:
         from enedis_integration import get_lignes_hta
@@ -12112,9 +12252,10 @@ def search_by_address_route():
         )
         aerienne_count = len(hta_lignes_data.get("aerienne", {}).get("features", []))
         souterraine_count = len(hta_lignes_data.get("souterraine", {}).get("features", []))
-        print(f"✅ [HTA] {aerienne_count} lignes aériennes, {souterraine_count} lignes souterraines récupérées")
+        # print(f"✅ [HTA] {aerienne_count} lignes aériennes, {souterraine_count} lignes souterraines récupérées")  # Optimisé pour performance
     except Exception as e:
-        print(f"⚠️ [HTA] Erreur lors de la récupération: {e}")
+        # print(f"⚠️ [HTA] Erreur lors de la récupération: {e}")  # Optimisé pour performance
+        pass
 
     # 9. Réponse complète
     info_response = {
@@ -12980,6 +13121,199 @@ def debug_cout_hta():
         print(f"💰 [DEBUG COUT] Erreur: {e}")
         return jsonify({"error": str(e)}), 500
 
+# ============================================================================
+# SYSTÈME CRM - INITIALISATION BASE DE DONNÉES
+# ============================================================================
+
+# 🔗 INTÉGRATION AVEC KPI SUNSTICE - Utiliser la base CRM existante
+# Sur Railway, utiliser une variable d'environnement ou créer la base dans un dossier persistant
+CRM_DB_PATH = os.getenv('KPI_DATABASE_PATH', os.path.join(os.path.dirname(__file__), '..', 'KPI', 'kpi_sunstice.db'))
+
+def init_crm_database():
+    """Initialise la table agriweb_prospects dans la base KPI Sunstice existante"""
+    crm_db_path = CRM_DB_PATH
+    
+    # Sur Railway, créer le dossier si nécessaire
+    db_dir = os.path.dirname(crm_db_path)
+    if not os.path.exists(db_dir):
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+            print(f"📁 [CRM] Dossier créé: {db_dir}")
+        except Exception as e:
+            print(f"⚠️ [CRM] Erreur création dossier {db_dir}: {e}")
+    
+    if not os.path.exists(crm_db_path):
+        print(f"⚠️ Base KPI non trouvée à {crm_db_path}")
+        print(f"   Création d'une nouvelle base de données CRM")
+        # Créer une nouvelle base si elle n'existe pas
+        # crm_db_path reste inchangé pour utiliser le chemin défini
+    
+    conn = sqlite3.connect(crm_db_path)
+    cursor = conn.cursor()
+    
+    # Créer la table pour les prospects AgriWeb dans la base KPI
+    print(f"📊 [CRM] Initialisation table agriweb_prospects dans {crm_db_path}")
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS agriweb_prospects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            type TEXT NOT NULL,
+            commune TEXT NOT NULL,
+            departement TEXT,
+            adresse TEXT,
+            latitude REAL,
+            longitude REAL,
+            surface_m2 REAL,
+            surface_ha REAL,
+            parcelles_cadastrales TEXT,
+            poste_bt_distance_m REAL,
+            poste_hta_distance_m REAL,
+            lien_streetview TEXT,
+            lien_annuaire TEXT,
+            statut TEXT DEFAULT 'nouveau',
+            priorite TEXT DEFAULT 'moyenne',
+            notes TEXT,
+            nom_prospect TEXT,
+            contact_nom TEXT,
+            contact_email TEXT,
+            contact_telephone TEXT,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            data_json TEXT
+        )
+    ''')
+    
+    # Index pour recherches rapides sur la table agriweb_prospects
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_agriweb_commune ON agriweb_prospects(commune)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_agriweb_type ON agriweb_prospects(type)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_agriweb_statut ON agriweb_prospects(statut)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_agriweb_departement ON agriweb_prospects(departement)')
+    
+    # Tables complémentaires pour le CRM
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS prospect_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prospect_id INTEGER NOT NULL,
+            type_action TEXT NOT NULL,
+            description TEXT,
+            date_action TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prospect_id) REFERENCES agriweb_prospects(id) ON DELETE CASCADE
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS prospect_appointments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prospect_id INTEGER NOT NULL,
+            date_rdv TEXT NOT NULL,
+            type_rdv TEXT NOT NULL,
+            notes TEXT,
+            statut TEXT DEFAULT 'prevu',
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prospect_id) REFERENCES agriweb_prospects(id) ON DELETE CASCADE
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS prospect_proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prospect_id INTEGER NOT NULL,
+            puissance_kwc REAL,
+            prix_kwc REAL,
+            production_kwh_kwc REAL,
+            tarif_rachat REAL,
+            investissement_total REAL,
+            production_annuelle REAL,
+            revenus_annuels REAL,
+            rentabilite_pct REAL,
+            roi_annees REAL,
+            notes TEXT,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prospect_id) REFERENCES agriweb_prospects(id) ON DELETE CASCADE
+        )
+    ''')
+    
+    # Table des fiches projets autoconsommation
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS project_fiches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prospect_id INTEGER NOT NULL,
+            nom_projet TEXT NOT NULL,
+            type_projet TEXT DEFAULT 'autoconsommation',
+            client_nom TEXT,
+            client_email TEXT,
+            client_telephone TEXT,
+            client_adresse TEXT,
+            adresse_projet TEXT,
+            parcelles_cadastrales TEXT,
+            statut_global TEXT DEFAULT 'en_cours',
+            date_debut TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_fin_prevue TEXT,
+            date_fin_reelle TEXT,
+            responsable TEXT,
+            notes TEXT,
+            FOREIGN KEY (prospect_id) REFERENCES agriweb_prospects(id) ON DELETE CASCADE
+        )
+    ''')
+    
+    # Ajouter les colonnes si elles n'existent pas (migration)
+    try:
+        cursor.execute('ALTER TABLE project_fiches ADD COLUMN adresse_projet TEXT')
+    except:
+        pass
+    try:
+        cursor.execute('ALTER TABLE project_fiches ADD COLUMN parcelles_cadastrales TEXT')
+    except:
+        pass
+    
+    # Table des étapes du projet (workflow autoconsommation)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS project_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            etape_nom TEXT NOT NULL,
+            etape_ordre INTEGER NOT NULL,
+            statut TEXT DEFAULT 'a_faire',
+            date_debut TEXT,
+            date_fin TEXT,
+            responsable TEXT,
+            notes TEXT,
+            FOREIGN KEY (project_id) REFERENCES project_fiches(id) ON DELETE CASCADE
+        )
+    ''')
+    
+    # Table des documents du projet
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS project_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            etape_id INTEGER,
+            type_document TEXT NOT NULL,
+            nom_fichier TEXT NOT NULL,
+            chemin_fichier TEXT,
+            url_document TEXT,
+            statut TEXT DEFAULT 'brouillon',
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            version INTEGER DEFAULT 1,
+            notes TEXT,
+            FOREIGN KEY (project_id) REFERENCES project_fiches(id) ON DELETE CASCADE,
+            FOREIGN KEY (etape_id) REFERENCES project_steps(id) ON DELETE SET NULL
+        )
+    ''')
+    
+    # Index pour les projets
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_project_prospect ON project_fiches(prospect_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_project_statut ON project_fiches(statut_global)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_project_steps ON project_steps(project_id)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_project_docs ON project_documents(project_id)')
+    
+    conn.commit()
+    conn.close()
+    print("✅ [CRM] Tables CRM et Projets prêtes dans la base KPI Sunstice!")
+
+# ============================================================================
+
 def open_browser():
     # Protection contre l'ouverture multiple de navigateurs
     if hasattr(open_browser, '_opened'):
@@ -12992,6 +13326,9 @@ def main():
         # Import des utilisateurs existants au démarrage
         print("🔄 Import des utilisateurs existants...")
         import_existing_users()
+        
+        # Initialisation de la base CRM
+        init_crm_database()
         
         print("Routes disponibles:")
         pprint.pprint(list(app.url_map.iter_rules()))
@@ -13006,9 +13343,8 @@ def main():
             
         print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
         
-        # Ne pas utiliser app.run() si on est lancé par gunicorn
-        if __name__ == "__main__":
-            app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
+        # Lancer le serveur Flask
+        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
@@ -15778,6 +16114,247 @@ def save_dept_map():
         print(traceback.format_exc())
         return jsonify({"success": False, "error": str(e)})
 
+@app.route("/api/send_to_kpi", methods=["POST"])
+def send_to_kpi():
+    """
+    Collecte TOUTES les données autour d'un point (toiture/parking/friche/poste)
+    et envoie un dossier complet vers KPI
+    """
+    try:
+        data = request.get_json()
+        lat = data.get("lat")
+        lon = data.get("lon")
+        point_type = data.get("type")  # toiture, parking, friche, poste, plu
+        properties = data.get("properties", {})
+        
+        if not lat or not lon:
+            return jsonify({"success": False, "error": "Coordonnées manquantes"})
+        
+        print(f"📤 [KPI] Collecte données pour {point_type} à ({lat}, {lon})")
+        
+        # ÉTAPE 1: Collecter toutes les données environnantes
+        rayon_analyse = 0.05  # ~5km
+        
+        # Postes électriques
+        print("⚡ [KPI] Collecte postes BT/HTA...")
+        postes_bt = get_postes_info(lat, lon, radius=0.02) or []
+        postes_hta = get_ht_postes_info(lat, lon, radius=0.05) or []
+        
+        # PLU
+        print("🏛️ [KPI] Collecte PLU...")
+        plu_info = get_plu_info(lat, lon) or []
+        
+        # Cadastre
+        print("📍 [KPI] Collecte cadastre...")
+        cadastre = get_cadastre_info(lat, lon) or []
+        
+        # Risques GeoRisques
+        print("⚠️ [KPI] Collecte risques...")
+        risques = fetch_georisques_risks(lat, lon)
+        
+        # Lignes HTA
+        print("🔌 [KPI] Collecte lignes HTA...")
+        hta_lignes = get_hta_lignes(lat, lon, radius_km=5.0) or []
+        
+        # Zones naturelles protégées
+        print("🌿 [KPI] Collecte zones naturelles...")
+        znieff1 = get_znieff_type1(lat, lon) or []
+        znieff2 = get_znieff_type2(lat, lon) or []
+        
+        # RPG (parcelles agricoles)
+        print("🌾 [KPI] Collecte RPG...")
+        rpg = get_rpg_info(lat, lon) or []
+        
+        # ÉTAPE 2: Calculer les distances aux postes les plus proches
+        min_dist_bt = None
+        closest_bt = None
+        if postes_bt:
+            from math import radians, cos, sin, asin, sqrt
+            def haversine(lat1, lon1, lat2, lon2):
+                R = 6371000  # Rayon Terre en mètres
+                lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+                dlat = lat2 - lat1
+                dlon = lon2 - lon1
+                a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                c = 2 * asin(sqrt(a))
+                return R * c
+            
+            for poste in postes_bt:
+                if poste.get("lat") and poste.get("lon"):
+                    dist = haversine(lat, lon, poste["lat"], poste["lon"])
+                    if min_dist_bt is None or dist < min_dist_bt:
+                        min_dist_bt = dist
+                        closest_bt = poste
+        
+        min_dist_hta = None
+        closest_hta = None
+        if postes_hta:
+            for poste in postes_hta:
+                if poste.get("lat") and poste.get("lon"):
+                    dist = haversine(lat, lon, poste["lat"], poste["lon"])
+                    if min_dist_hta is None or dist < min_dist_hta:
+                        min_dist_hta = dist
+                        closest_hta = poste
+        
+        # ÉTAPE 3: Créer le dossier de prospection complet
+        dossier = {
+            "type_point": point_type,
+            "localisation": {
+                "latitude": lat,
+                "longitude": lon,
+                "adresse": properties.get("adresse", "Non définie"),
+                "commune": properties.get("commune", "Non définie"),
+                "code_postal": properties.get("code_postal", "Non défini")
+            },
+            "caracteristiques_site": {
+                "surface_m2": properties.get("surface_m2") or properties.get("area") or properties.get("surface_toiture_m2"),
+                "surface_ha": (properties.get("surface_m2") or properties.get("area") or 0) / 10000,
+                "parcelles_cadastrales": properties.get("parcelles_cadastrales", [])
+            },
+            "reseau_electrique": {
+                "poste_bt_proche": {
+                    "distance_m": round(min_dist_bt) if min_dist_bt else None,
+                    "nom": closest_bt.get("properties", {}).get("nom") if closest_bt else None,
+                    "puissance": closest_bt.get("properties", {}).get("puissance") if closest_bt else None
+                },
+                "poste_hta_proche": {
+                    "distance_m": round(min_dist_hta) if min_dist_hta else None,
+                    "nom": closest_hta.get("properties", {}).get("nom") if closest_hta else None
+                },
+                "lignes_hta_proches": len(hta_lignes),
+                "total_postes_bt_rayon": len(postes_bt),
+                "total_postes_hta_rayon": len(postes_hta)
+            },
+            "urbanisme": {
+                "zones_plu": [z.get("properties", {}).get("typezone") for z in plu_info] if plu_info else [],
+                "nb_zones": len(plu_info)
+            },
+            "contraintes_environnementales": {
+                "risques": {
+                    "inondation": risques.get("inondation", []),
+                    "argiles": risques.get("argiles", []),
+                    "radon": risques.get("radon", []),
+                    "seisme": risques.get("seisme", []),
+                    "icpe": risques.get("icpe", [])
+                },
+                "zones_protegees": {
+                    "znieff_type1": len(znieff1),
+                    "znieff_type2": len(znieff2)
+                }
+            },
+            "contexte_agricole": {
+                "parcelles_rpg_proches": len(rpg),
+                "cultures": list(set([p.get("properties", {}).get("code_cultu") for p in rpg if p.get("properties", {}).get("code_cultu")])) if rpg else []
+            },
+            "donnees_brutes": {
+                "postes_bt": postes_bt[:10],  # Limiter à 10 pour ne pas surcharger
+                "postes_hta": postes_hta[:10],
+                "plu": plu_info,
+                "cadastre": cadastre[:5],
+                "risques_detail": risques
+            },
+            "date_collecte": datetime.now().isoformat(),
+            "source": "AgriWeb Prospection"
+        }
+        
+        # ÉTAPE 4: Créer un résumé texte
+        summary_lines = []
+        summary_lines.append(f"📍 {point_type.upper()}")
+        summary_lines.append(f"📏 Surface: {dossier['caracteristiques_site']['surface_ha']:.2f} ha")
+        if min_dist_bt:
+            summary_lines.append(f"⚡ Poste BT: {round(min_dist_bt)}m")
+        if min_dist_hta:
+            summary_lines.append(f"⚡ Poste HTA: {round(min_dist_hta)}m")
+        summary_lines.append(f"🏛️ Zones PLU: {dossier['urbanisme']['nb_zones']}")
+        summary_lines.append(f"⚠️ Risques: {sum([len(v) if isinstance(v, list) else (1 if v else 0) for v in dossier['contraintes_environnementales']['risques'].values()])}")
+        
+        summary = " | ".join(summary_lines)
+        
+        # ÉTAPE 5: Envoyer vers KPI via kpi_integration
+        print(f"📤 [KPI] Envoi vers module KPI...")
+        try:
+            from kpi_integration import sync_agriculteur_to_kpi
+            
+            # Adapter le format pour KPI
+            kpi_data = {
+                "nom": f"{point_type} - {properties.get('adresse', 'Sans adresse')[:50]}",
+                "type": f"Prospection {point_type}",
+                "email": "",
+                "telephone": "",
+                "adresse": properties.get("adresse", "Non définie"),
+                "code_postal": properties.get("code_postal", ""),
+                "ville": properties.get("commune", ""),
+                "departement": properties.get("code_postal", "")[:2] if properties.get("code_postal") else "",
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "notes": f"""DOSSIER PROSPECTION AUTOMATIQUE
+                
+{summary}
+
+CARACTÉRISTIQUES:
+- Surface: {dossier['caracteristiques_site']['surface_ha']:.2f} ha
+- Parcelles cadastrales: {len(dossier['caracteristiques_site']['parcelles_cadastrales'])}
+
+RÉSEAU ÉLECTRIQUE:
+- Poste BT proche: {round(min_dist_bt) if min_dist_bt else 'N/A'}m
+- Poste HTA proche: {round(min_dist_hta) if min_dist_hta else 'N/A'}m
+
+URBANISME:
+- Zones PLU: {', '.join(dossier['urbanisme']['zones_plu'][:3])}
+
+CONTRAINTES:
+- Risques identifiés: {sum([len(v) if isinstance(v, list) else (1 if v else 0) for v in dossier['contraintes_environnementales']['risques'].values()])}
+- Zones protégées: ZNIEFF1={dossier['contraintes_environnementales']['zones_protegees']['znieff_type1']}, ZNIEFF2={dossier['contraintes_environnementales']['zones_protegees']['znieff_type2']}
+
+Source: AgriWeb - Collecte automatique le {datetime.now().strftime('%d/%m/%Y %H:%M')}
+Coordonnées: {lat}, {lon}
+"""
+            }
+            
+            result = sync_agriculteur_to_kpi(kpi_data)
+            kpi_id = result.get("id") if result.get("status") == "success" else None
+            
+            print(f"✅ [KPI] Envoyé avec succès, ID: {kpi_id}")
+            
+        except ImportError:
+            print(f"⚠️ [KPI] Module kpi_integration non disponible, sauvegarde locale uniquement")
+            kpi_id = None
+        except Exception as e:
+            print(f"⚠️ [KPI] Erreur envoi KPI: {e}")
+            kpi_id = None
+        
+        # ÉTAPE 6: Sauvegarder localement en backup JSON
+        import json
+        backup_dir = os.path.join(os.path.dirname(__file__), "kpi_exports")
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = os.path.join(backup_dir, f"kpi_export_{point_type}_{timestamp}.json")
+        
+        with open(backup_file, 'w', encoding='utf-8') as f:
+            json.dump(dossier, f, indent=2, ensure_ascii=False, default=str)
+        
+        print(f"💾 [KPI] Backup sauvegardé: {backup_file}")
+        
+        return jsonify({
+            "success": True,
+            "summary": summary,
+            "kpi_id": kpi_id,
+            "backup_file": os.path.basename(backup_file),
+            "dossier": dossier,
+            "stats": {
+                "postes_bt": len(postes_bt),
+                "postes_hta": len(postes_hta),
+                "zones_plu": len(plu_info),
+                "risques": sum([len(v) if isinstance(v, list) else (1 if v else 0) for v in risques.values()])
+            }
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"❌ [KPI] Erreur: {e}")
+        print(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route("/api/clean_old_maps", methods=["POST"])
 def clean_old_maps():
     """Supprimer les cartes de plus de X jours"""
@@ -15812,9 +16389,1487 @@ def clean_old_maps():
 
 # ========== FIN API CARTES SAUVEGARDÉES ==========
 
-if __name__ == "__main__":
-    main()  # Ceci inclut Timer + app.run()
+# ========== INTÉGRATION KPI ==========
 
+@app.route("/kpi_sync")
+def kpi_sync_page():
+    """Page de synchronisation KPI"""
+    return render_template("kpi_sync.html")
+
+@app.route("/api/get_agriweb_prospects")
+def get_agriweb_prospects():
+    """
+    Récupère tous les prospects depuis AgriWeb (éleveurs + entreprises)
+    Format standardisé pour envoi vers KPI
+    """
+    try:
+        # Vous pouvez adapter cette requête selon votre BDD
+        # Ici on récupère depuis les résultats en session ou cache
+        
+        prospects = []
+        
+        # Si vous avez une session avec résultats département
+        if 'last_dept_results' in session:
+            results = session.get('last_dept_results', [])
+            for result in results:
+                if result.get('eleveurs'):
+                    for eleveur in result['eleveurs']:
+                        props = eleveur.get('properties', {})
+                        prospects.append({
+                            'id': f"elev_{props.get('siret', '')}_{len(prospects)}",
+                            'nom': props.get('denomination') or f"{props.get('nom', '')} {props.get('prenom', '')}",
+                            'type': 'Eleveur',
+                            'email': props.get('email', ''),
+                            'telephone': props.get('telephone', ''),
+                            'adresse': props.get('adresse', ''),
+                            'code_postal': props.get('code_postal', ''),
+                            'ville': props.get('commune', ''),
+                            'departement': props.get('departement', ''),
+                            'siret': props.get('siret', ''),
+                            'activite': props.get('activite', ''),
+                            'synced': False  # À vérifier côté KPI
+                        })
+        
+        # Alternative: récupérer depuis window.lastDeptResults côté client
+        # ou d'une base de données locale
+        
+        return jsonify({"success": True, "prospects": prospects})
+        
+    except Exception as e:
+        print(f"❌ [KPI] Erreur get prospects: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route("/api/kpi_stats")
+def kpi_stats():
+    """Stats de la base KPI"""
+    try:
+        from kpi_integration import test_kpi_connection, kpi_client
+        
+        if test_kpi_connection():
+            stats = kpi_client.get_stats()
+            total = stats.get('data', {}).get('agriculteurs', 0)
+            return jsonify({"success": True, "total": total})
+        else:
+            return jsonify({"success": False, "error": "KPI non accessible"})
+            
+    except Exception as e:
+        print(f"❌ [KPI] Erreur stats: {e}")
+        return jsonify({"success": False, "total": 0})
+
+@app.route("/api/sync_to_kpi", methods=["POST"])
+def sync_to_kpi():
+    """
+    Synchroniser un prospect vers KPI
+    """
+    try:
+        from kpi_integration import sync_agriculteur_to_kpi
+        from datetime import datetime
+        
+        data = request.get_json()
+        prospect = data.get("prospect")
+        
+        if not prospect:
+            return jsonify({"success": False, "error": "Données manquantes"})
+        
+        # Ajouter date d'import
+        prospect['date'] = datetime.now().strftime("%Y-%m-%d")
+        
+        # Synchroniser
+        result = sync_agriculteur_to_kpi(prospect)
+        
+        if result.get('status') == 'duplicate':
+            return jsonify({"success": False, "status": "duplicate", "message": "Doublon détecté"})
+        elif result.get('status') == 'error':
+            return jsonify({"success": False, "error": result.get('message')})
+        else:
+            return jsonify({"success": True, "kpi_id": result.get('id')})
+            
+    except Exception as e:
+        import traceback
+        print(f"❌ [KPI] Erreur sync: {e}")
+        print(traceback.format_exc())
+        return jsonify({"success": False, "error": str(e)})
+
+# ========== FIN INTÉGRATION KPI ==========
+
+# ============================================================================
+# ROUTES CRM - GESTION DES PROSPECTS
+# ============================================================================
+
+@app.route('/crm')
+def crm_dashboard():
+    """Page de lancement du CRM AgriWeb - Version web"""
+    return render_template('crm_web.html')
+
+@app.route('/crm/stats')
+def crm_stats_page():
+    """Page de statistiques et KPI du CRM"""
+    return render_template('crm_dashboard.html')
+
+@app.route('/crm/desktop')
+def crm_desktop():
+    """Page de lancement du CRM AgriWeb - Version desktop (Tkinter)"""
+    return render_template('crm_redirect.html')
+
+@app.route('/api/crm/stats')
+def crm_stats():
+    """Statistiques CRM pour la page d'accueil"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'total': 0, 'nouveaux': 0, 'parkings': 0, 'toitures': 0})
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
+                COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+            FROM agriweb_prospects
+        ''')
+        stats = dict(zip(['total', 'nouveaux', 'parkings', 'toitures', 'friches', 'rpg'], cursor.fetchone()))
+        
+        conn.close()
+        return jsonify(stats)
+        
+    except Exception as e:
+        print(f"❌ [CRM STATS] Erreur: {e}")
+        return jsonify({'total': 0, 'nouveaux': 0, 'parkings': 0, 'toitures': 0})
+
+@app.route('/api/crm/launch', methods=['POST'])
+def crm_launch():
+    """Lance l'application CRM AgriWeb"""
+    try:
+        import subprocess
+        
+        # Chemin vers le launcher CRM
+        kpi_dir = os.path.join(os.path.dirname(__file__), '..', 'KPI')
+        launcher_path = os.path.join(kpi_dir, 'agriweb_crm_launcher.py')
+        python_path = os.path.join(kpi_dir, '.venv', 'Scripts', 'python.exe')
+        
+        if not os.path.exists(launcher_path):
+            return jsonify({'success': False, 'error': 'Launcher CRM non trouvé'}), 404
+        
+        # Lancer l'application CRM en arrière-plan
+        subprocess.Popen([python_path, launcher_path], 
+                        cwd=kpi_dir,
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+        
+        return jsonify({
+            'success': True,
+            'message': 'CRM AgriWeb lancé avec succès !'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM LAUNCH] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/test/crm')
+def test_crm():
+    """Route de test pour vérifier que le système CRM fonctionne"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Le système CRM est opérationnel',
+        'db_path': CRM_DB_PATH,
+        'db_exists': os.path.exists(CRM_DB_PATH)
+    })
+
+@app.route('/test/rapport')
+def test_rapport_rapide():
+    """Route de test pour accéder rapidement à un rapport"""
+    commune_name = request.args.get('commune', 'Guéret')
+    params = {
+        'commune': commune_name,
+        'filter_rpg': request.args.get('filter_rpg', 'false'),
+        'rpg_min_area': request.args.get('rpg_min_area', '0.1'),
+        'rpg_max_area': request.args.get('rpg_max_area', '50'),
+        'filter_parkings': request.args.get('filter_parkings', 'true'),
+        'parking_min_area': request.args.get('parking_min_area', '1500'),
+        'filter_friches': request.args.get('filter_friches', 'false'),
+        'friches_min_area': request.args.get('friches_min_area', '1000'),
+        'filter_zones': request.args.get('filter_zones', 'false'),
+        'zones_min_area': request.args.get('zones_min_area', '1000'),
+        'zones_type_filter': request.args.get('zones_type_filter', ''),
+        'filter_toitures': request.args.get('filter_toitures', 'true'),
+        'toitures_min_surface': request.args.get('toitures_min_surface', '2500'),
+        'filter_by_distance': request.args.get('filter_by_distance', 'true'),
+        'max_distance_bt': request.args.get('max_distance_bt', '350'),
+        'max_distance_hta': request.args.get('max_distance_hta', '5000'),
+        'poste_type_filter': request.args.get('poste_type_filter', 'ALL'),
+        'export_format': request.args.get('export_format', 'html')
+    }
+    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+    return redirect(f"/rapport_commune_complet?{query_string}")
+
+@app.route('/api/crm/export', methods=['POST'])
+def crm_export():
+    """Exporte les éléments sélectionnés vers le CRM"""
+    try:
+        print("=" * 80)
+        print("📤 [CRM EXPORT] Début de l'export")
+        
+        if not request.is_json:
+            print("❌ [CRM EXPORT] La requête n'est pas en JSON")
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        print(f"📊 [CRM EXPORT] Données reçues: {len(data.get('parkings', []))} parkings, {len(data.get('toitures', []))} toitures, {len(data.get('friches', []))} friches, {len(data.get('rpg', []))} rpg")
+        
+        if not os.path.exists(CRM_DB_PATH):
+            print(f"⚠️ [CRM EXPORT] Base CRM inexistante, création: {CRM_DB_PATH}")
+            init_crm_database()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        total_exported = 0
+        details = {'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+        
+        # Exporter les parkings
+        for parking in data.get('parkings', []):
+            poste_bt_info = parking.get('poste_bt_info', {})
+            poste_hta_info = parking.get('poste_hta_info', {})
+            
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
+                    poste_hta_distance_m, poste_hta_nom,
+                    lien_streetview, lien_annuaire, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
+                parking.get('lat'), parking.get('lon'), parking.get('surface_m2'),
+                parking.get('surface_m2', 0) / 10000 if parking.get('surface_m2') else None,
+                json.dumps(parking.get('parcelles', [])),
+                parking.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
+                parking.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking)
+            ))
+            total_exported += 1
+            details['parkings'] += 1
+        
+        # Exporter les toitures
+        for toiture in data.get('toitures', []):
+            poste_bt_info = toiture.get('poste_bt_info', {})
+            poste_hta_info = toiture.get('poste_hta_info', {})
+            
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
+                    poste_hta_distance_m, poste_hta_nom,
+                    lien_streetview, lien_annuaire, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
+                toiture.get('lat'), toiture.get('lon'), toiture.get('surface_m2'),
+                toiture.get('surface_m2', 0) / 10000 if toiture.get('surface_m2') else None,
+                json.dumps(toiture.get('parcelles', [])),
+                toiture.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
+                toiture.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture)
+            ))
+            total_exported += 1
+            details['toitures'] += 1
+        
+        # Exporter les friches
+        for friche in data.get('friches', []):
+            poste_bt_info = friche.get('poste_bt_info', {})
+            poste_hta_info = friche.get('poste_hta_info', {})
+            
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
+                    poste_hta_distance_m, poste_hta_nom,
+                    lien_streetview, lien_annuaire, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
+                friche.get('lat'), friche.get('lon'), friche.get('surface_m2'),
+                friche.get('surface_m2', 0) / 10000 if friche.get('surface_m2') else None,
+                json.dumps(friche.get('parcelles', [])),
+                friche.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
+                friche.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche)
+            ))
+            total_exported += 1
+            details['friches'] += 1
+        
+        # Exporter les parcelles RPG
+        for rpg in data.get('rpg', []):
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_hta_distance_m, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'parcelle_rpg', rpg.get('commune'), rpg.get('departement'), rpg.get('adresse'),
+                rpg.get('latitude'), rpg.get('longitude'),
+                rpg.get('surface', 0) * 10000 if rpg.get('surface') else None,
+                rpg.get('surface'), rpg.get('parcelle_cadastrale'),
+                rpg.get('distance_bt'), rpg.get('distance_hta'), json.dumps(rpg)
+            ))
+            total_exported += 1
+            details['rpg'] += 1
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ [CRM EXPORT] Export réussi: {total_exported} prospects ajoutés")
+        print(f"📊 [CRM EXPORT] Détails: {details}")
+        print("=" * 80)
+        
+        return jsonify({
+            'success': True,
+            'total_exported': total_exported,
+            'details': details,
+            'message': f'{total_exported} prospects ajoutés au CRM'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM EXPORT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e), 'message': f'Erreur lors de l\'export: {str(e)}'}), 500
+
+@app.route('/api/crm/prospects')
+def get_prospects():
+    """Récupère tous les prospects pour l'interface web CRM"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'prospects': [], 'stats': {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}})
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Récupérer tous les prospects
+        cursor.execute('''
+            SELECT * FROM agriweb_prospects 
+            ORDER BY date_creation DESC
+        ''')
+        prospects = [dict(row) for row in cursor.fetchall()]
+        
+        # Calculer les stats
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+            FROM agriweb_prospects
+        ''')
+        stats = dict(cursor.fetchone())
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'prospects': prospects,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM GET] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>', methods=['PUT'])
+def update_prospect(prospect_id):
+    """Met à jour un prospect"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Construire la requête UPDATE dynamiquement
+        fields = []
+        values = []
+        
+        if 'statut' in data:
+            fields.append('statut = ?')
+            values.append(data['statut'])
+        if 'priorite' in data:
+            fields.append('priorite = ?')
+            values.append(data['priorite'])
+        if 'nom_prospect' in data:
+            fields.append('nom_prospect = ?')
+            values.append(data['nom_prospect'])
+        if 'contact_nom' in data:
+            fields.append('contact_nom = ?')
+            values.append(data['contact_nom'])
+        if 'contact_tel' in data:
+            fields.append('contact_telephone = ?')
+            values.append(data['contact_tel'])
+        if 'contact_email' in data:
+            fields.append('contact_email = ?')
+            values.append(data['contact_email'])
+        if 'dirigeant_nom' in data:
+            fields.append('dirigeant_nom = ?')
+            values.append(data['dirigeant_nom'])
+        if 'siret' in data:
+            fields.append('siret = ?')
+            values.append(data['siret'])
+        if 'dirigeant_email' in data:
+            fields.append('dirigeant_email = ?')
+            values.append(data['dirigeant_email'])
+        if 'dirigeant_tel' in data:
+            fields.append('dirigeant_tel = ?')
+            values.append(data['dirigeant_tel'])
+        if 'notes' in data:
+            fields.append('notes = ?')
+            values.append(data['notes'])
+        
+        fields.append('date_modification = ?')
+        values.append(datetime.now().isoformat())
+        
+        values.append(prospect_id)
+        
+        query = f"UPDATE agriweb_prospects SET {', '.join(fields)} WHERE id = ?"
+        cursor.execute(query, values)
+        
+        # Si le nom du contact a changé, mettre à jour le projet associé
+        if 'contact_nom' in data:
+            # Vérifier s'il y a un projet lié à ce prospect
+            cursor.execute('SELECT id FROM project_fiches WHERE prospect_id = ?', (prospect_id,))
+            projet = cursor.fetchone()
+            
+            if projet:
+                project_id = projet[0]
+                # Mettre à jour le nom du projet et du client
+                cursor.execute('''
+                    UPDATE project_fiches
+                    SET nom_projet = ?, client_nom = ?
+                    WHERE id = ?
+                ''', (f"Projet {data['contact_nom']}", data['contact_nom'], project_id))
+                print(f"✅ [CRM UPDATE] Projet #{project_id} renommé: 'Projet {data['contact_nom']}'")
+        
+        # Si l'email a changé, mettre à jour le projet
+        if 'contact_email' in data:
+            cursor.execute('SELECT id FROM project_fiches WHERE prospect_id = ?', (prospect_id,))
+            projet = cursor.fetchone()
+            if projet:
+                cursor.execute('UPDATE project_fiches SET client_email = ? WHERE id = ?', 
+                             (data['contact_email'], projet[0]))
+        
+        # Si le téléphone a changé, mettre à jour le projet  
+        if 'contact_tel' in data:
+            cursor.execute('SELECT id FROM project_fiches WHERE prospect_id = ?', (prospect_id,))
+            projet = cursor.fetchone()
+            if projet:
+                cursor.execute('UPDATE project_fiches SET client_telephone = ? WHERE id = ?', 
+                             (data['contact_tel'], projet[0]))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Prospect mis à jour'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM UPDATE] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>', methods=['DELETE'])
+def delete_prospect(prospect_id):
+    """Supprime un prospect"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM agriweb_prospects WHERE id = ?', (prospect_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Prospect supprimé'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM DELETE] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/send-email', methods=['POST'])
+def send_prospect_email(prospect_id):
+    """Envoie un email à un prospect et enregistre l'action"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Enregistrer l'action dans l'historique
+        cursor.execute('''
+            INSERT INTO prospect_actions (
+                prospect_id, type_action, description, date_action
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            prospect_id, 
+            'email', 
+            f"Email envoyé: {data.get('subject', 'Sans objet')}",
+            datetime.now().isoformat()
+        ))
+        
+        # Mettre à jour le statut si nouveau
+        cursor.execute('''
+            UPDATE agriweb_prospects 
+            SET statut = CASE WHEN statut = 'nouveau' THEN 'contacte' ELSE statut END,
+                date_modification = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), prospect_id))
+        
+        conn.commit()
+        conn.close()
+        
+        # TODO: Intégrer avec un vrai service d'email (SendGrid, Mailgun, etc.)
+        # Pour l'instant, on simule l'envoi
+        
+        return jsonify({
+            'success': True,
+            'message': 'Email envoyé et action enregistrée'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM EMAIL] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/appointment', methods=['POST'])
+def create_prospect_appointment(prospect_id):
+    """Crée un rendez-vous pour un prospect"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Créer le rendez-vous
+        rdv_datetime = f"{data['date']} {data['time']}"
+        cursor.execute('''
+            INSERT INTO prospect_appointments (
+                prospect_id, date_rdv, type_rdv, notes, date_creation
+            ) VALUES (?, ?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            rdv_datetime,
+            data.get('type', 'visite'),
+            data.get('notes', ''),
+            datetime.now().isoformat()
+        ))
+        
+        # Enregistrer l'action
+        cursor.execute('''
+            INSERT INTO prospect_actions (
+                prospect_id, type_action, description, date_action
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            'rendez-vous',
+            f"RDV {data.get('type', 'visite')} prévu le {data['date']} à {data['time']}",
+            datetime.now().isoformat()
+        ))
+        
+        # Mettre à jour le statut
+        cursor.execute('''
+            UPDATE agriweb_prospects 
+            SET statut = CASE WHEN statut IN ('nouveau', 'contacte') THEN 'qualifie' ELSE statut END,
+                date_modification = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), prospect_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Rendez-vous créé avec succès'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM APPOINTMENT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/appointments', methods=['GET'])
+def get_all_appointments():
+    """Récupère tous les rendez-vous pour le calendrier"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'appointments': []}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Récupérer tous les rendez-vous avec infos prospect
+        cursor.execute('''
+            SELECT 
+                pa.*,
+                ap.nom_prospect,
+                ap.adresse,
+                ap.contact_nom,
+                ap.contact_email,
+                ap.contact_telephone,
+                ap.type as prospect_type
+            FROM prospect_appointments pa
+            JOIN agriweb_prospects ap ON pa.prospect_id = ap.id
+            ORDER BY pa.date_rdv ASC
+        ''')
+        
+        appointments = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'appointments': appointments
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM CALENDAR] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/proposal', methods=['POST'])
+def save_prospect_proposal(prospect_id):
+    """Enregistre une proposition commerciale"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Enregistrer la proposition
+        cursor.execute('''
+            INSERT INTO prospect_proposals (
+                prospect_id, puissance_kwc, prix_kwc, production_kwh_kwc, tarif_rachat,
+                investissement_total, production_annuelle, revenus_annuels, rentabilite_pct, roi_annees,
+                notes, date_creation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            data.get('puissance'),
+            data.get('prix_kwc'),
+            data.get('production'),
+            data.get('tarif'),
+            data.get('investissement'),
+            data.get('production_annuelle'),
+            data.get('revenus_annuels'),
+            data.get('rentabilite'),
+            data.get('roi'),
+            data.get('notes', ''),
+            datetime.now().isoformat()
+        ))
+        
+        # Enregistrer l'action
+        cursor.execute('''
+            INSERT INTO prospect_actions (
+                prospect_id, type_action, description, date_action
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            'proposition',
+            f"Proposition commerciale: {data.get('puissance')} kWc - Investissement: {data.get('investissement')}€",
+            datetime.now().isoformat()
+        ))
+        
+        # Mettre à jour le statut
+        cursor.execute('''
+            UPDATE agriweb_prospects 
+            SET statut = 'qualifie',
+                date_modification = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), prospect_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Proposition enregistrée avec succès'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM PROPOSAL] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/proposal/pdf', methods=['POST'])
+def generate_proposal_pdf(prospect_id):
+    """Génère un PDF de proposition commerciale"""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from io import BytesIO
+        
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        # Récupérer les infos du prospect
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM agriweb_prospects WHERE id = ?', (prospect_id,))
+        prospect = dict(cursor.fetchone())
+        conn.close()
+        
+        # Créer le PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Titre
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#667eea'),
+            spaceAfter=30
+        )
+        story.append(Paragraph("Proposition Commerciale", title_style))
+        story.append(Paragraph("Installation Photovoltaïque", styles['Heading2']))
+        story.append(Spacer(1, 20))
+        
+        # Informations prospect
+        info_data = [
+            ['Prospect:', f"{prospect['commune']} ({prospect['departement']})"],
+            ['Adresse:', prospect['adresse']],
+            ['Type:', prospect['type'].upper()],
+            ['Surface:', f"{int(prospect.get('surface_m2', 0))} m²" if prospect.get('surface_m2') else f"{prospect.get('surface_ha', 0)} ha"],
+        ]
+        
+        info_table = Table(info_data, colWidths=[4*cm, 12*cm])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 30))
+        
+        # Caractéristiques techniques
+        story.append(Paragraph("Caractéristiques Techniques", styles['Heading2']))
+        story.append(Spacer(1, 10))
+        
+        puissance = data.get('puissance', 0)
+        production = data.get('production', 0)
+        production_annuelle = puissance * production
+        
+        tech_data = [
+            ['Puissance installée:', f"{puissance} kWc"],
+            ['Production spécifique:', f"{production} kWh/kWc/an"],
+            ['Production annuelle estimée:', f"{int(production_annuelle)} kWh/an"],
+            ['Durée de vie:', "25+ ans"],
+        ]
+        
+        tech_table = Table(tech_data, colWidths=[8*cm, 8*cm])
+        tech_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+        ]))
+        story.append(tech_table)
+        story.append(Spacer(1, 30))
+        
+        # Analyse financière
+        story.append(Paragraph("Analyse Financière", styles['Heading2']))
+        story.append(Spacer(1, 10))
+        
+        prix_kwc = data.get('prix_kwc', 0)
+        tarif = data.get('tarif', 0)
+        investissement = puissance * prix_kwc
+        revenus = production_annuelle * tarif
+        rentabilite = (revenus / investissement * 100) if investissement > 0 else 0
+        roi = (investissement / revenus) if revenus > 0 else 0
+        
+        finance_data = [
+            ['Investissement total:', f"{int(investissement):,} €".replace(',', ' ')],
+            ['Revenus annuels:', f"{int(revenus):,} €".replace(',', ' ')],
+            ['Rentabilité:', f"{rentabilite:.2f}%"],
+            ['Retour sur investissement:', f"{roi:.1f} ans"],
+        ]
+        
+        finance_table = Table(finance_data, colWidths=[8*cm, 8*cm])
+        finance_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+            ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#667eea')),
+            ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+        ]))
+        story.append(finance_table)
+        
+        if data.get('notes'):
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("Notes complémentaires", styles['Heading3']))
+            story.append(Paragraph(data['notes'], styles['Normal']))
+        
+        # Construire le PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'Proposition_{prospect["commune"]}_{prospect["type"]}.pdf'
+        )
+        
+    except Exception as e:
+        print(f"❌ [CRM PDF] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/dashboard/stats')
+def get_dashboard_stats():
+    """Récupère toutes les statistiques pour le dashboard CRM"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'error': 'Base CRM non trouvée'}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # === KPIs GÉNÉRAUX ===
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
+                COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contactes,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies,
+                COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdus,
+                COUNT(CASE WHEN date_creation >= date('now', '-30 days') THEN 1 END) as nouveaux_mois
+            FROM agriweb_prospects
+        ''')
+        kpis = dict(cursor.fetchone())
+        
+        # Propositions
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as nb_proposals,
+                COALESCE(SUM(investissement_total), 0) as total_value
+            FROM prospect_proposals
+        ''')
+        proposals = dict(cursor.fetchone())
+        kpis['nb_proposals'] = proposals['nb_proposals']
+        kpis['total_proposals_value'] = proposals['total_value']
+        
+        # === CHARTS ===
+        # Par type
+        cursor.execute('''
+            SELECT type, COUNT(*) as count
+            FROM agriweb_prospects
+            GROUP BY type
+        ''')
+        by_type = {row['type']: row['count'] for row in cursor.fetchall()}
+        
+        # Par statut
+        cursor.execute('''
+            SELECT statut, COUNT(*) as count
+            FROM agriweb_prospects
+            GROUP BY statut
+        ''')
+        by_statut = {row['statut']: row['count'] for row in cursor.fetchall()}
+        
+        # Timeline (30 derniers jours)
+        cursor.execute('''
+            SELECT 
+                date(date_creation) as date,
+                COUNT(*) as count,
+                statut
+            FROM agriweb_prospects
+            WHERE date_creation >= date('now', '-30 days')
+            GROUP BY date(date_creation), statut
+            ORDER BY date
+        ''')
+        timeline_data = cursor.fetchall()
+        
+        # Construire timeline
+        from collections import defaultdict
+        timeline = defaultdict(lambda: {'nouveaux': 0, 'contactes': 0, 'qualifies': 0})
+        for row in timeline_data:
+            date_str = row['date']
+            if row['statut'] == 'nouveau':
+                timeline[date_str]['nouveaux'] += row['count']
+            elif row['statut'] == 'contacte':
+                timeline[date_str]['contactes'] += row['count']
+            elif row['statut'] == 'qualifie':
+                timeline[date_str]['qualifies'] += row['count']
+        
+        sorted_dates = sorted(timeline.keys())
+        timeline_formatted = {
+            'labels': sorted_dates,
+            'nouveaux': [timeline[d]['nouveaux'] for d in sorted_dates],
+            'contactes': [timeline[d]['contactes'] for d in sorted_dates],
+            'qualifies': [timeline[d]['qualifies'] for d in sorted_dates]
+        }
+        
+        # === CONVERSION ===
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM prospect_proposals
+        ''')
+        nb_proposals_conversion = cursor.fetchone()['count']
+        
+        # Délais moyens
+        cursor.execute('''
+            SELECT 
+                AVG(JULIANDAY(date_modification) - JULIANDAY(date_creation)) as avg_delay
+            FROM agriweb_prospects
+            WHERE statut != 'nouveau'
+        ''')
+        avg_contact = cursor.fetchone()['avg_delay'] or 0
+        
+        cursor.execute('''
+            SELECT 
+                AVG(JULIANDAY(date_modification) - JULIANDAY(date_creation)) as avg_delay
+            FROM agriweb_prospects
+            WHERE statut = 'qualifie'
+        ''')
+        avg_qualification = cursor.fetchone()['avg_delay'] or 0
+        
+        # Conversion par type
+        cursor.execute('''
+            SELECT 
+                type,
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+            FROM agriweb_prospects
+            GROUP BY type
+        ''')
+        conversion_by_type = {}
+        for row in cursor.fetchall():
+            total = row['total']
+            qualifies = row['qualifies']
+            conversion_by_type[row['type']] = (qualifies / total * 100) if total > 0 else 0
+        
+        conversion_data = {
+            'total': kpis['total'],
+            'nouveaux': kpis['nouveaux'],
+            'contactes': kpis['contactes'],
+            'qualifies': kpis['qualifies'],
+            'proposals': nb_proposals_conversion,
+            'avg_contact_delay': round(avg_contact, 1),
+            'avg_qualification_delay': round(avg_qualification, 1),
+            'by_type': conversion_by_type
+        }
+        
+        # === UTILISATEURS ===
+        # Note: Pour l'instant, pas de tracking utilisateur dans agriweb_prospects
+        # On simule avec des données agrégées
+        users_data = [{
+            'nom': 'Système',
+            'email': 'system@agriweb.com',
+            'total': kpis['total'],
+            'contactes': kpis['contactes'],
+            'qualifies': kpis['qualifies'],
+            'proposals': kpis['nb_proposals'],
+            'total_actions': kpis['total']
+        }]
+        
+        # === PERFORMANCE ===
+        performance_data = {
+            'best_conversion_rate': (kpis['qualifies'] / kpis['total'] * 100) if kpis['total'] > 0 else 0,
+            'best_conversion_user': 'Système',
+            'fastest_contact_delay': round(avg_contact, 1),
+            'fastest_contact_user': 'Système',
+            'most_productive_count': kpis['total'],
+            'most_productive_user': 'Système'
+        }
+        
+        # === DÉPARTEMENTS ===
+        cursor.execute('''
+            SELECT 
+                departement,
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+            FROM agriweb_prospects
+            WHERE departement IS NOT NULL
+            GROUP BY departement
+            ORDER BY total DESC
+            LIMIT 10
+        ''')
+        departments_data = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'kpis': kpis,
+            'charts': {
+                'by_type': by_type,
+                'by_statut': by_statut,
+                'timeline': timeline_formatted
+            },
+            'conversion': conversion_data,
+            'users': users_data,
+            'performance': performance_data,
+            'departments': departments_data
+        })
+        
+    except Exception as e:
+        print(f"❌ [DASHBOARD] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/dashboard/users')
+def get_dashboard_users():
+    """Récupère les statistiques par utilisateur"""
+    try:
+        period = request.args.get('period', '30')
+        
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'error': 'Base CRM non trouvée'}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Filtre de période
+        date_filter = ""
+        if period != 'all':
+            date_filter = f"WHERE date_creation >= date('now', '-{period} days')"
+        
+        # Stats par utilisateur (simulé pour l'instant)
+        cursor.execute(f'''
+            SELECT 
+                'Système' as nom,
+                'system@agriweb.com' as email,
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'contacte' OR statut = 'qualifie' THEN 1 END) as contactes,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+            FROM agriweb_prospects
+            {date_filter}
+        ''')
+        
+        user = dict(cursor.fetchone())
+        
+        # Compter les propositions
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM prospect_proposals
+        ''')
+        user['proposals'] = cursor.fetchone()['count']
+        
+        # Compter les actions
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM prospect_actions
+        ''')
+        user['total_actions'] = cursor.fetchone()['count']
+        
+        users_data = [user]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'users': users_data
+        })
+        
+    except Exception as e:
+        print(f"❌ [DASHBOARD USERS] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================================
+# ROUTES API - FICHES PROJETS AUTOCONSOMMATION
+# ============================================================================
+
+@app.route('/crm/projets')
+def crm_projets():
+    """Interface de gestion des fiches projets"""
+    return render_template('crm_projets.html')
+
+@app.route('/crm/calendrier')
+def crm_calendrier():
+    """Interface calendrier des rendez-vous"""
+    return render_template('crm_calendrier.html')
+
+@app.route('/api/crm/projets', methods=['GET'])
+def get_projets():
+    """Liste tous les projets"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'error': 'Base CRM non trouvée'}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT 
+                pf.*,
+                ap.commune,
+                ap.type as prospect_type,
+                ap.adresse,
+                (SELECT COUNT(*) FROM project_steps ps WHERE ps.project_id = pf.id AND ps.statut = 'termine') as etapes_terminees,
+                (SELECT COUNT(*) FROM project_steps ps WHERE ps.project_id = pf.id) as etapes_total
+            FROM project_fiches pf
+            LEFT JOIN agriweb_prospects ap ON pf.prospect_id = ap.id
+            ORDER BY pf.date_debut DESC
+        ''')
+        
+        projets = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({'success': True, 'projets': projets})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets', methods=['POST'])
+def create_projet():
+    """Crée une nouvelle fiche projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO project_fiches (
+                prospect_id, nom_projet, type_projet, client_nom, client_email,
+                client_telephone, client_adresse, statut_global, date_fin_prevue, responsable, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data.get('prospect_id'),
+            data.get('nom_projet'),
+            data.get('type_projet', 'autoconsommation'),
+            data.get('client_nom'),
+            data.get('client_email'),
+            data.get('client_telephone'),
+            data.get('client_adresse'),
+            'en_cours',
+            data.get('date_fin_prevue'),
+            data.get('responsable'),
+            data.get('notes')
+        ))
+        
+        project_id = cursor.lastrowid
+        
+        # Créer les étapes du workflow autoconsommation
+        etapes_autoconso = [
+            ('Rapport de recherche AgriWeb', 1),
+            ('Étude d\'adresse & visite technique', 2),
+            ('Calepinage', 3),
+            ('Étude d\'autoconsommation', 4),
+            ('Devis commercial', 5),
+            ('Signature & Facture', 6),
+            ('Déclaration Préalable de Travaux (DP)', 7),
+            ('Déclaration de Raccordement (DDR)', 8),
+            ('Installation & DOE', 9),
+            ('Consuel', 10),
+            ('Mise en service & Maintenance', 11)
+        ]
+        
+        for etape_nom, ordre in etapes_autoconso:
+            cursor.execute('''
+                INSERT INTO project_steps (project_id, etape_nom, etape_ordre, statut)
+                VALUES (?, ?, ?, 'a_faire')
+            ''', (project_id, etape_nom, ordre))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'project_id': project_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>', methods=['GET'])
+def get_projet_details(project_id):
+    """Récupère les détails complets d'un projet"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Infos projet
+        cursor.execute('''
+            SELECT pf.*, ap.commune, ap.type as prospect_type, ap.adresse, ap.latitude, ap.longitude
+            FROM project_fiches pf
+            LEFT JOIN agriweb_prospects ap ON pf.prospect_id = ap.id
+            WHERE pf.id = ?
+        ''', (project_id,))
+        
+        projet = dict(cursor.fetchone() or {})
+        
+        if not projet:
+            return jsonify({'success': False, 'error': 'Projet non trouvé'}), 404
+        
+        # Étapes du projet
+        cursor.execute('''
+            SELECT * FROM project_steps
+            WHERE project_id = ?
+            ORDER BY etape_ordre
+        ''', (project_id,))
+        
+        projet['etapes'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Documents du projet
+        cursor.execute('''
+            SELECT pd.*, ps.etape_nom
+            FROM project_documents pd
+            LEFT JOIN project_steps ps ON pd.etape_id = ps.id
+            WHERE pd.project_id = ?
+            ORDER BY pd.date_creation DESC
+        ''', (project_id,))
+        
+        projet['documents'] = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({'success': True, 'projet': projet})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>', methods=['PUT'])
+def update_projet(project_id):
+    """Met à jour un projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE project_fiches
+            SET nom_projet = ?, client_nom = ?, client_email = ?, client_telephone = ?,
+                client_adresse = ?, statut_global = ?, date_fin_prevue = ?, date_fin_reelle = ?,
+                responsable = ?, notes = ?
+            WHERE id = ?
+        ''', (
+            data.get('nom_projet'),
+            data.get('client_nom'),
+            data.get('client_email'),
+            data.get('client_telephone'),
+            data.get('client_adresse'),
+            data.get('statut_global'),
+            data.get('date_fin_prevue'),
+            data.get('date_fin_reelle'),
+            data.get('responsable'),
+            data.get('notes'),
+            project_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>', methods=['DELETE'])
+def delete_projet(project_id):
+    """Supprime un projet et toutes ses données associées (étapes et documents)"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Supprimer les documents
+        cursor.execute('DELETE FROM project_documents WHERE project_id = ?', (project_id,))
+        
+        # Supprimer les étapes
+        cursor.execute('DELETE FROM project_steps WHERE project_id = ?', (project_id,))
+        
+        # Supprimer le projet
+        cursor.execute('DELETE FROM project_fiches WHERE id = ?', (project_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/etapes/<int:etape_id>', methods=['PUT'])
+def update_etape(project_id, etape_id):
+    """Met à jour une étape du projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE project_steps
+            SET statut = ?, date_debut = ?, date_fin = ?, responsable = ?, notes = ?
+            WHERE id = ? AND project_id = ?
+        ''', (
+            data.get('statut'),
+            data.get('date_debut'),
+            data.get('date_fin'),
+            data.get('responsable'),
+            data.get('notes'),
+            etape_id,
+            project_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/documents', methods=['POST'])
+def add_document(project_id):
+    """Ajoute un document au projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO project_documents (
+                project_id, etape_id, type_document, nom_fichier, 
+                chemin_fichier, url_document, statut, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            project_id,
+            data.get('etape_id'),
+            data.get('type_document'),
+            data.get('nom_fichier'),
+            data.get('chemin_fichier'),
+            data.get('url_document'),
+            data.get('statut', 'brouillon'),
+            data.get('notes')
+        ))
+        
+        doc_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'document_id': doc_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['PUT'])
+def update_document(project_id, doc_id):
+    """Met à jour un document"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Incrémenter la version si le statut change
+        version_increment = ''
+        if data.get('statut'):
+            version_increment = ', version = version + 1'
+        
+        cursor.execute(f'''
+            UPDATE project_documents
+            SET nom_fichier = ?, url_document = ?, statut = ?, 
+                notes = ?, date_modification = CURRENT_TIMESTAMP{version_increment}
+            WHERE id = ? AND project_id = ?
+        ''', (
+            data.get('nom_fichier'),
+            data.get('url_document'),
+            data.get('statut'),
+            data.get('notes'),
+            doc_id,
+            project_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['DELETE'])
+def delete_document(project_id, doc_id):
+    """Supprime un document"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            DELETE FROM project_documents
+            WHERE id = ? AND project_id = ?
+        ''', (doc_id, project_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================================
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
-         
+
+if __name__ == "__main__":
+    main()  # Ceci inclut Timer + app.run()

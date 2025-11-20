@@ -22,12 +22,12 @@ except Exception as e:
 
 # Démarrer l'application
 try:
-    print("📝 Import de agriweb_railway_deploy...")
-    import agriweb_railway_deploy
+    print("📝 Import de agriweb_hebergement_gratuit...")
+    import agriweb_hebergement_gratuit
     print("✅ Import réussi")
     
     print("🌾 Lancement de l'application AgriWeb avec CRM...")
-    agriweb_railway_deploy.main()
+    agriweb_hebergement_gratuit.main()
     
 except Exception as e:
     print(f"❌ Erreur de démarrage: {e}")
