@@ -76,15 +76,74 @@ def migrate_existing_table():
     
     print("🔧 [MIGRATION] Vérification des colonnes manquantes...")
     
-    # Fix: Retirer la contrainte NOT NULL sur prospect_id dans project_fiches
+    # Fix: FORCER recréation de project_fiches pour retirer NOT NULL
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("ALTER TABLE project_fiches ALTER COLUMN prospect_id DROP NOT NULL")
+            
+            print("🔄 [MIGRATION] FORCE DROP et recréation de project_fiches...")
+            
+            # DROP CASCADE pour tout supprimer
+            cursor.execute("DROP TABLE IF EXISTS project_documents CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS project_etapes CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS project_fiches CASCADE")
+            
+            # Recréer avec prospect_id nullable
+            cursor.execute("""
+                CREATE TABLE project_fiches (
+                    id SERIAL PRIMARY KEY,
+                    prospect_id INTEGER REFERENCES agriweb_prospects(id),
+                    nom_projet TEXT,
+                    type_projet TEXT,
+                    client_nom TEXT,
+                    client_email TEXT,
+                    client_telephone TEXT,
+                    client_adresse TEXT,
+                    statut_global TEXT,
+                    date_fin_prevue TIMESTAMP,
+                    responsable TEXT,
+                    notes TEXT,
+                    adresse_projet TEXT,
+                    commune TEXT,
+                    departement TEXT,
+                    surface_totale REAL,
+                    puissance_estimee REAL,
+                    statut_projet TEXT DEFAULT 'etude',
+                    date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    data_json TEXT
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE project_etapes (
+                    id SERIAL PRIMARY KEY,
+                    project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
+                    nom_etape TEXT NOT NULL,
+                    ordre INTEGER,
+                    statut TEXT DEFAULT 'non_commence',
+                    date_debut TIMESTAMP,
+                    date_fin TIMESTAMP,
+                    notes TEXT
+                )
+            """)
+            
+            cursor.execute("""
+                CREATE TABLE project_documents (
+                    id SERIAL PRIMARY KEY,
+                    project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
+                    nom_document TEXT NOT NULL,
+                    type_document TEXT,
+                    chemin_fichier TEXT,
+                    date_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
             conn.commit()
-            print("✅ [MIGRATION] Contrainte NOT NULL retirée de project_fiches.prospect_id")
+            print("✅ [MIGRATION] Tables project_* recréées avec prospect_id NULLABLE")
+                
     except Exception as e:
-        print(f"ℹ️ [MIGRATION] prospect_id déjà nullable ou table absente: {e}")
+        print(f"⚠️ [MIGRATION] Erreur migration project_fiches: {e}")
     
     columns_to_add = [
         ('poste_bt_nom', 'TEXT'),
