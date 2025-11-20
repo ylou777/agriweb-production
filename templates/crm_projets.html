@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiches Projets - AgriWeb CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        .project-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .project-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .etape-item {
+            border-left: 3px solid #dee2e6;
+            padding-left: 15px;
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .etape-item.en_cours {
+            border-left-color: #0d6efd;
+        }
+        .etape-item.termine {
+            border-left-color: #198754;
+        }
+        .etape-item.bloque {
+            border-left-color: #dc3545;
+        }
+        .etape-status-icon {
+            position: absolute;
+            left: -12px;
+            background: white;
+            padding: 2px;
+        }
+        .progress-ring {
+            width: 60px;
+            height: 60px;
+        }
+        .doc-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-solar-panel"></i> AgriWeb CRM - Fiches Projets
+            </a>
+            <div>
+                <a href="/crm" class="btn btn-outline-light btn-sm me-2">
+                    <i class="bi bi-people"></i> Prospects
+                </a>
+                <a href="/crm/stats" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-graph-up"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- En-tête avec bouton nouveau projet -->
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h2><i class="bi bi-folder-fill text-primary"></i> Fiches Projets Autoconsommation</h2>
+            </div>
+            <div class="col-md-4 text-end">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newProjectModal">
+                    <i class="bi bi-plus-circle"></i> Nouveau Projet
+                </button>
+            </div>
+        </div>
+
+        <!-- Statistiques rapides -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-clipboard-data"></i> En cours</h5>
+                        <h2 id="statEnCours">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-check-circle"></i> Terminés</h5>
+                        <h2 id="statTermines">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-warning text-white">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-hourglass-split"></i> En attente</h5>
+                        <h2 id="statAttente">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-secondary text-white">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-folder"></i> Total</h5>
+                        <h2 id="statTotal">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtres -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">Statut</label>
+                        <select class="form-select" id="filterStatut">
+                            <option value="">Tous</option>
+                            <option value="en_cours">En cours</option>
+                            <option value="termine">Terminé</option>
+                            <option value="en_attente">En attente</option>
+                            <option value="annule">Annulé</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Recherche</label>
+                        <input type="text" class="form-control" id="searchBox" placeholder="Nom projet, client, commune...">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Trier par</label>
+                        <select class="form-select" id="sortBy">
+                            <option value="date_desc">Plus récent</option>
+                            <option value="date_asc">Plus ancien</option>
+                            <option value="nom">Nom A-Z</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Liste des projets -->
+        <div class="row" id="projectsList">
+            <!-- Les cartes projets seront insérées ici -->
+        </div>
+    </div>
+
+    <!-- Modal nouveau projet -->
+    <div class="modal fade" id="newProjectModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Nouveau Projet</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="newProjectForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nom du projet *</label>
+                                <input type="text" class="form-control" name="nom_projet" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Type de projet</label>
+                                <select class="form-select" name="type_projet">
+                                    <option value="autoconsommation">Autoconsommation</option>
+                                    <option value="revente_totale">Revente totale</option>
+                                    <option value="ombrieres">Ombrières</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nom client *</label>
+                                <input type="text" class="form-control" name="client_nom" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Email client</label>
+                                <input type="email" class="form-control" name="client_email">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Téléphone client</label>
+                                <input type="tel" class="form-control" name="client_telephone">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Adresse client</label>
+                                <input type="text" class="form-control" name="client_adresse">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Adresse du projet *</label>
+                                <input type="text" class="form-control" name="adresse_projet" placeholder="Adresse du site du projet">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Parcelles cadastrales</label>
+                                <input type="text" class="form-control" name="parcelles_cadastrales" placeholder="Ex: AE0123, AE0124">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Date fin prévue</label>
+                                <input type="date" class="form-control" name="date_fin_prevue">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Responsable</label>
+                                <input type="text" class="form-control" name="responsable">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Prospect AgriWeb associé (optionnel)</label>
+                            <select class="form-select" name="prospect_id" id="prospectSelect">
+                                <option value="">Aucun</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control" name="notes" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="createProject()">
+                        <i class="bi bi-save"></i> Créer le projet
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal détails projet -->
+    <div class="modal fade" id="projectDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <div class="d-flex align-items-center flex-grow-1 me-3">
+                        <i class="bi bi-folder-open me-2"></i>
+                        <input type="text" id="projectTitle" class="form-control form-control-sm bg-white border-0" 
+                               style="max-width: 500px; font-weight: 600;" placeholder="Nom du projet">
+                        <button type="button" class="btn btn-success btn-sm ms-2" onclick="saveProjectName()" title="Enregistrer le nom">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-danger btn-sm me-2" onclick="deleteProjectFromModal()"><i class="bi bi-trash"></i> Supprimer</button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" id="projectTabs" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabInfos">
+                                <i class="bi bi-info-circle"></i> Informations
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabEtapes">
+                                <i class="bi bi-list-check"></i> Étapes (<span id="etapesProgress">0/0</span>)
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDocuments">
+                                <i class="bi bi-file-earmark-text"></i> Documents (<span id="docsCount">0</span>)
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Tab Informations -->
+                        <div class="tab-pane fade show active" id="tabInfos">
+                            <div id="projectInfos"></div>
+                        </div>
+                        
+                        <!-- Tab Étapes -->
+                        <div class="tab-pane fade" id="tabEtapes">
+                            <div class="mb-3">
+                                <div class="progress" style="height: 30px;">
+                                    <div class="progress-bar bg-success" id="etapesProgressBar" style="width: 0%">
+                                        <span id="etapesProgressText">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="etapesList"></div>
+                        </div>
+                        
+                        <!-- Tab Documents -->
+                        <div class="tab-pane fade" id="tabDocuments">
+                            <button class="btn btn-primary btn-sm mb-3" onclick="showAddDocumentForm()">
+                                <i class="bi bi-plus-circle"></i> Ajouter un document
+                            </button>
+                            <div id="addDocumentForm" class="card mb-3" style="display: none;">
+                                <div class="card-body">
+                                    <h6>Nouveau document</h6>
+                                    <form id="documentForm">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">Type de document</label>
+                                                <select class="form-select" name="type_document" required>
+                                                    <option value="rapport_agriweb">Rapport AgriWeb</option>
+                                                    <option value="calepinage">Calepinage</option>
+                                                    <option value="etude_autoconso">Étude autoconsommation</option>
+                                                    <option value="devis">Devis</option>
+                                                    <option value="facture">Facture</option>
+                                                    <option value="dp">Déclaration Préalable</option>
+                                                    <option value="ddr">Déclaration Raccordement</option>
+                                                    <option value="doe">DOE</option>
+                                                    <option value="consuel">Consuel</option>
+                                                    <option value="maintenance">Contrat maintenance</option>
+                                                    <option value="autre">Autre</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-2">
+                                                <label class="form-label">Étape associée</label>
+                                                <select class="form-select" name="etape_id" id="documentEtapeSelect">
+                                                    <option value="">Aucune</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label">Nom du fichier</label>
+                                            <input type="text" class="form-control" name="nom_fichier" required>
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label">URL ou chemin</label>
+                                            <input type="text" class="form-control" name="url_document">
+                                        </div>
+                                        <div class="mb-2">
+                                            <label class="form-label">Notes</label>
+                                            <textarea class="form-control" name="notes" rows="2"></textarea>
+                                        </div>
+                                        <button type="button" class="btn btn-primary btn-sm" onclick="addDocument()">
+                                            <i class="bi bi-save"></i> Ajouter
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="hideAddDocumentForm()">
+                                            Annuler
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            <div id="documentsList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let projets = [];
+        let currentProjectId = null;
+        let currentProject = null;
+
+        // Chargement initial
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProjets();
+            loadProspects();
+            
+            // Event listeners pour les filtres
+            document.getElementById('filterStatut').addEventListener('change', filterProjets);
+            document.getElementById('searchBox').addEventListener('input', filterProjets);
+            document.getElementById('sortBy').addEventListener('change', filterProjets);
+        });
+
+        // Charger la liste des projets
+        function loadProjets() {
+            fetch('/api/crm/projets')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        projets = data.projets;
+                        updateStats();
+                        displayProjets();
+                    }
+                });
+        }
+
+        // Charger les prospects pour le select
+        function loadProspects() {
+            fetch('/api/crm/prospects')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const select = document.getElementById('prospectSelect');
+                        data.prospects.forEach(p => {
+                            const option = document.createElement('option');
+                            option.value = p.id;
+                            option.textContent = `${p.commune} - ${p.type} (${p.adresse || 'sans adresse'})`;
+                            select.appendChild(option);
+                        });
+                    }
+                });
+        }
+
+        // Mettre à jour les statistiques
+        function updateStats() {
+            const stats = {
+                en_cours: 0,
+                termine: 0,
+                en_attente: 0,
+                total: projets.length
+            };
+            
+            projets.forEach(p => {
+                if (stats[p.statut_global] !== undefined) {
+                    stats[p.statut_global]++;
+                }
+            });
+            
+            document.getElementById('statEnCours').textContent = stats.en_cours;
+            document.getElementById('statTermines').textContent = stats.termine;
+            document.getElementById('statAttente').textContent = stats.en_attente;
+            document.getElementById('statTotal').textContent = stats.total;
+        }
+
+        // Afficher les projets
+        function displayProjets() {
+            const container = document.getElementById('projectsList');
+            const filtered = getFilteredProjets();
+            
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="col-12 text-center text-muted py-5">Aucun projet trouvé</div>';
+                return;
+            }
+            
+            container.innerHTML = filtered.map(p => {
+                const progress = p.etapes_total > 0 ? Math.round((p.etapes_terminees / p.etapes_total) * 100) : 0;
+                const statusBadge = getStatusBadge(p.statut_global);
+                
+                return `
+                    <div class="col-md-4 mb-3">
+                        <div class="card project-card h-100">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong>${p.nom_projet}</strong>
+                                ${statusBadge}
+                            </div>
+                            <div class="card-body" onclick="showProjectDetails(${p.id})" style="cursor: pointer;">
+                                <p class="mb-2"><i class="bi bi-person"></i> <strong>${p.client_nom || 'Client non défini'}</strong></p>
+                                <p class="mb-2"><i class="bi bi-geo-alt"></i> ${p.commune || 'Commune non définie'}</p>
+                                <p class="mb-2"><i class="bi bi-calendar"></i> ${new Date(p.date_debut).toLocaleDateString('fr-FR')}</p>
+                                ${p.responsable ? `<p class="mb-2"><i class="bi bi-person-badge"></i> ${p.responsable}</p>` : ''}
+                                
+                                <div class="mt-3">
+                                    <small class="text-muted">Avancement: ${p.etapes_terminees}/${p.etapes_total} étapes</small>
+                                    <div class="progress" style="height: 10px;">
+                                        <div class="progress-bar bg-success" style="width: ${progress}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer bg-transparent border-0 pb-3">
+                                <button class="btn btn-danger btn-sm w-100" onclick="event.stopPropagation(); deleteProject(${p.id})"><i class="bi bi-trash"></i> Supprimer</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Filtrer les projets
+        function getFilteredProjets() {
+            let filtered = [...projets];
+            
+            const statut = document.getElementById('filterStatut').value;
+            if (statut) {
+                filtered = filtered.filter(p => p.statut_global === statut);
+            }
+            
+            const search = document.getElementById('searchBox').value.toLowerCase();
+            if (search) {
+                filtered = filtered.filter(p => 
+                    p.nom_projet.toLowerCase().includes(search) ||
+                    (p.client_nom && p.client_nom.toLowerCase().includes(search)) ||
+                    (p.commune && p.commune.toLowerCase().includes(search))
+                );
+            }
+            
+            const sortBy = document.getElementById('sortBy').value;
+            if (sortBy === 'date_desc') {
+                filtered.sort((a, b) => new Date(b.date_debut) - new Date(a.date_debut));
+            } else if (sortBy === 'date_asc') {
+                filtered.sort((a, b) => new Date(a.date_debut) - new Date(b.date_debut));
+            } else if (sortBy === 'nom') {
+                filtered.sort((a, b) => a.nom_projet.localeCompare(b.nom_projet));
+            }
+            
+            return filtered;
+        }
+
+        function filterProjets() {
+            displayProjets();
+        }
+
+        // Badge statut
+        function getStatusBadge(statut) {
+            const badges = {
+                en_cours: '<span class="badge bg-info">En cours</span>',
+                termine: '<span class="badge bg-success">Terminé</span>',
+                en_attente: '<span class="badge bg-warning">En attente</span>',
+                annule: '<span class="badge bg-danger">Annulé</span>'
+            };
+            return badges[statut] || '<span class="badge bg-secondary">Inconnu</span>';
+        }
+
+        // Créer un nouveau projet
+        function createProject() {
+            const form = document.getElementById('newProjectForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            
+            // Convertir prospect_id en nombre ou null
+            data.prospect_id = data.prospect_id ? parseInt(data.prospect_id) : null;
+            
+            fetch('/api/crm/projets', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('newProjectModal')).hide();
+                    form.reset();
+                    loadProjets();
+                    alert('✅ Projet créé avec succès!');
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            });
+        }
+
+        // Afficher les détails d'un projet
+        function showProjectDetails(projectId) {
+            currentProjectId = projectId;
+            
+            fetch(`/api/crm/projets/${projectId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        currentProject = data.projet;
+                        displayProjectDetails(data.projet);
+                        new bootstrap.Modal(document.getElementById('projectDetailsModal')).show();
+                    }
+                });
+        }
+
+        // Afficher les détails complets
+        function displayProjectDetails(projet) {
+            document.getElementById('projectTitle').value = projet.nom_projet;
+            
+            // Tab Informations
+            document.getElementById('projectInfos').innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Informations client</h6>
+                        <p><strong>Nom:</strong> ${projet.client_nom || 'N/A'}</p>
+                        <p><strong>Email:</strong> ${projet.client_email || 'N/A'}</p>
+                        <p><strong>Téléphone:</strong> ${projet.client_telephone || 'N/A'}</p>
+                        <p><strong>Adresse client:</strong> ${projet.client_adresse || 'N/A'}</p>
+                        <p><strong>Adresse projet:</strong> ${projet.adresse_projet || 'N/A'}</p>
+                        <p><strong>Parcelles:</strong> ${projet.parcelles_cadastrales || 'N/A'}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Informations projet</h6>
+                        <p><strong>Type:</strong> ${projet.type_projet}</p>
+                        <p><strong>Statut:</strong> ${getStatusBadge(projet.statut_global)}</p>
+                        <p><strong>Commune:</strong> ${projet.commune || 'N/A'}</p>
+                        <p><strong>Responsable:</strong> ${projet.responsable || 'N/A'}</p>
+                        <p><strong>Début:</strong> ${new Date(projet.date_debut).toLocaleDateString('fr-FR')}</p>
+                        <p><strong>Fin prévue:</strong> ${projet.date_fin_prevue || 'N/A'}</p>
+                        ${projet.date_fin_reelle ? `<p><strong>Fin réelle:</strong> ${projet.date_fin_reelle}</p>` : ''}
+                    </div>
+                </div>
+                ${projet.notes ? `<div class="mt-3"><h6>Notes</h6><p>${projet.notes}</p></div>` : ''}
+            `;
+            
+            // Tab Étapes
+            displayEtapes(projet.etapes);
+            
+            // Tab Documents
+            displayDocuments(projet.documents, projet.etapes);
+        }
+
+        // Enregistrer le nom du projet
+        function saveProjectName() {
+            const newName = document.getElementById('projectTitle').value.trim();
+            
+            if (!newName) {
+                alert('Le nom du projet ne peut pas être vide');
+                return;
+            }
+            
+            if (!currentProjectId) {
+                alert('Erreur: Aucun projet sélectionné');
+                return;
+            }
+            
+            fetch(`/api/crm/projets/${currentProjectId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({nom_projet: newName})
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Mettre à jour le projet dans la liste locale
+                    const projetIndex = projets.findIndex(p => p.id === currentProjectId);
+                    if (projetIndex !== -1) {
+                        projets[projetIndex].nom_projet = newName;
+                        currentProject.nom_projet = newName;
+                        displayProjets(); // Rafraîchir l'affichage de la liste
+                    }
+                    
+                    // Toast de succès
+                    const toast = document.createElement('div');
+                    toast.className = 'position-fixed top-0 end-0 p-3';
+                    toast.style.zIndex = '9999';
+                    toast.innerHTML = `
+                        <div class="toast show" role="alert">
+                            <div class="toast-header bg-success text-white">
+                                <i class="bi bi-check-circle-fill me-2"></i>
+                                <strong class="me-auto">Succès</strong>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+                            </div>
+                            <div class="toast-body">
+                                Nom du projet mis à jour: "${newName}"
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 3000);
+                } else {
+                    alert('Erreur lors de la mise à jour: ' + (result.message || 'Erreur inconnue'));
+                }
+            })
+            .catch(err => {
+                console.error('Erreur:', err);
+                alert('Erreur lors de la mise à jour du nom du projet');
+            });
+        }
+
+        // Afficher les étapes
+        function displayEtapes(etapes) {
+            const terminees = etapes.filter(e => e.statut === 'termine').length;
+            const progress = etapes.length > 0 ? Math.round((terminees / etapes.length) * 100) : 0;
+            
+            document.getElementById('etapesProgress').textContent = `${terminees}/${etapes.length}`;
+            document.getElementById('etapesProgressBar').style.width = progress + '%';
+            document.getElementById('etapesProgressText').textContent = progress + '%';
+            
+            document.getElementById('etapesList').innerHTML = etapes.map(e => {
+                const statusIcon = getEtapeIcon(e.statut);
+                const statusClass = e.statut;
+                
+                return `
+                    <div class="etape-item ${statusClass}">
+                        <div class="etape-status-icon">${statusIcon}</div>
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">${e.etape_ordre}. ${e.etape_nom}</h6>
+                                ${e.responsable ? `<small class="text-muted"><i class="bi bi-person"></i> ${e.responsable}</small>` : ''}
+                                ${e.notes ? `<p class="small mb-0 mt-1">${e.notes}</p>` : ''}
+                                <small class="text-muted">
+                                    ${e.date_debut ? `Début: ${e.date_debut}` : ''}
+                                    ${e.date_fin ? ` | Fin: ${e.date_fin}` : ''}
+                                </small>
+                            </div>
+                            <div>
+                                <select class="form-select form-select-sm" onchange="updateEtapeStatus(${e.id}, this.value)">
+                                    <option value="a_faire" ${e.statut === 'a_faire' ? 'selected' : ''}>À faire</option>
+                                    <option value="en_cours" ${e.statut === 'en_cours' ? 'selected' : ''}>En cours</option>
+                                    <option value="termine" ${e.statut === 'termine' ? 'selected' : ''}>Terminé</option>
+                                    <option value="bloque" ${e.statut === 'bloque' ? 'selected' : ''}>Bloqué</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getEtapeIcon(statut) {
+            const icons = {
+                a_faire: '<i class="bi bi-circle text-secondary"></i>',
+                en_cours: '<i class="bi bi-arrow-repeat text-primary"></i>',
+                termine: '<i class="bi bi-check-circle-fill text-success"></i>',
+                bloque: '<i class="bi bi-exclamation-triangle-fill text-danger"></i>'
+            };
+            return icons[statut] || icons.a_faire;
+        }
+
+        // Mettre à jour le statut d'une étape
+        function updateEtapeStatus(etapeId, newStatus) {
+            const today = new Date().toISOString().split('T')[0];
+            const updateData = {
+                statut: newStatus,
+                date_debut: newStatus === 'en_cours' ? today : null,
+                date_fin: newStatus === 'termine' ? today : null
+            };
+            
+            fetch(`/api/crm/projets/${currentProjectId}/etapes/${etapeId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(updateData)
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    showProjectDetails(currentProjectId);
+                    loadProjets(); // Recharger pour mettre à jour les stats
+                }
+            });
+        }
+
+        // Afficher les documents
+        function displayDocuments(documents, etapes) {
+            document.getElementById('docsCount').textContent = documents.length;
+            
+            // Remplir le select des étapes
+            const select = document.getElementById('documentEtapeSelect');
+            select.innerHTML = '<option value="">Aucune</option>';
+            etapes.forEach(e => {
+                const option = document.createElement('option');
+                option.value = e.id;
+                option.textContent = `${e.etape_ordre}. ${e.etape_nom}`;
+                select.appendChild(option);
+            });
+            
+            if (documents.length === 0) {
+                document.getElementById('documentsList').innerHTML = '<p class="text-muted">Aucun document</p>';
+                return;
+            }
+            
+            document.getElementById('documentsList').innerHTML = `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Nom fichier</th>
+                                <th>Étape</th>
+                                <th>Version</th>
+                                <th>Statut</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${documents.map(d => `
+                                <tr>
+                                    <td><span class="badge bg-secondary">${formatDocType(d.type_document)}</span></td>
+                                    <td>${d.nom_fichier}</td>
+                                    <td><small>${d.etape_nom || 'N/A'}</small></td>
+                                    <td><span class="badge bg-info">v${d.version}</span></td>
+                                    <td>${getDocStatusBadge(d.statut)}</td>
+                                    <td><small>${new Date(d.date_creation).toLocaleDateString('fr-FR')}</small></td>
+                                    <td>
+                                        ${d.url_document ? `<a href="${d.url_document}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>` : ''}
+                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDocument(${d.id})">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        function formatDocType(type) {
+            const types = {
+                rapport_agriweb: 'Rapport AgriWeb',
+                calepinage: 'Calepinage',
+                etude_autoconso: 'Étude autoconso',
+                devis: 'Devis',
+                facture: 'Facture',
+                dp: 'DP',
+                ddr: 'DDR',
+                doe: 'DOE',
+                consuel: 'Consuel',
+                maintenance: 'Maintenance',
+                autre: 'Autre'
+            };
+            return types[type] || type;
+        }
+
+        function getDocStatusBadge(statut) {
+            const badges = {
+                brouillon: '<span class="badge bg-secondary">Brouillon</span>',
+                en_cours: '<span class="badge bg-warning">En cours</span>',
+                valide: '<span class="badge bg-success">Validé</span>',
+                envoye: '<span class="badge bg-info">Envoyé</span>'
+            };
+            return badges[statut] || '<span class="badge bg-secondary">Brouillon</span>';
+        }
+
+        function showAddDocumentForm() {
+            document.getElementById('addDocumentForm').style.display = 'block';
+        }
+
+        function hideAddDocumentForm() {
+            document.getElementById('addDocumentForm').style.display = 'none';
+            document.getElementById('documentForm').reset();
+        }
+
+        function addDocument() {
+            const form = document.getElementById('documentForm');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData);
+            
+            data.etape_id = data.etape_id ? parseInt(data.etape_id) : null;
+            
+            fetch(`/api/crm/projets/${currentProjectId}/documents`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(data)
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    hideAddDocumentForm();
+                    showProjectDetails(currentProjectId);
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            });
+        }
+
+        function deleteDocument(docId) {
+            if (!confirm('Supprimer ce document ?')) return;
+            
+            fetch(`/api/crm/projets/${currentProjectId}/documents/${docId}`, {
+                method: 'DELETE'
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    showProjectDetails(currentProjectId);
+                }
+            });
+        }
+
+        // Supprimer un projet
+        function deleteProject(projectId) {
+            // Trouver le projet pour obtenir son nom
+            const projet = projets.find(p => p.id === projectId);
+            const projectName = projet ? projet.nom_projet : 'ce projet';
+            
+            if (!confirm(`⚠️ Voulez-vous vraiment supprimer le projet "${projectName}" ?\n\nCette action est irréversible et supprimera toutes les étapes et documents associés.`)) {
+                return;
+            }
+            
+            fetch(`/api/crm/projets/${projectId}`, {
+                method: 'DELETE'
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    alert('✅ Projet supprimé avec succès !');
+                    loadProjets();
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            })
+            .catch(err => {
+                alert('❌ Erreur lors de la suppression: ' + err.message);
+            });
+        }
+
+        // Supprimer un projet depuis le modal
+        function deleteProjectFromModal() {
+            const projectName = document.getElementById('projectTitle').textContent;
+            if (!confirm(`⚠️ Voulez-vous vraiment supprimer le projet "${projectName}" ?\n\nCette action est irréversible et supprimera toutes les étapes et documents associés.`)) {
+                return;
+            }
+            
+            fetch(`/api/crm/projets/${currentProjectId}`, {
+                method: 'DELETE'
+            })
+            .then(r => r.json())
+            .then(result => {
+                if (result.success) {
+                    // Fermer le modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('projectDetailsModal'));
+                    modal.hide();
+                    alert('✅ Projet supprimé avec succès !');
+                    loadProjets();
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            })
+            .catch(err => {
+                alert('❌ Erreur lors de la suppression: ' + err.message);
+            });
+        }
+    </script>
+</body>
+</html>

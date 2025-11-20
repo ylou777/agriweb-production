@@ -17,7 +17,9 @@ const LAYER_CONFIG = {
   friches:        { label: "Friches", color: "brown" },
   solaire:        { label: "Potentiel Solaire", color: "gold" },
   zaer:           { label: "ZAER", color: "cyan" },
-  sirene:         { label: "Entreprises Sirene", color: "darkred" }
+  sirene:         { label: "Entreprises Sirene", color: "darkred" },
+  hta_lignes_aeriennes:     { label: "Lignes HTA Aériennes", color: "orange" },
+  hta_lignes_souterraines:  { label: "Lignes HTA Souterraines", color: "purple" }
   // Ne pas mettre ici les sous-couches urbanisme (dynamiques)
 };
 
@@ -32,6 +34,9 @@ const FRIENDLY_LABELS = {
   min_distance_bt_m: "Distance BT (m)",
   min_distance_hta_m: "Distance HTA (m)",
   min_distance_total_m: "Distance poste min (m)",
+  // Distances (commune/dept props)
+  distance_bt: "Distance BT (m)",
+  distance_hta: "Distance HTA (m)",
 
   // Surfaces
   surface_toiture_m2: "Surface toiture (m²)",
@@ -141,6 +146,8 @@ function setupSliders() {
     ["ht_max_distance_dept", "htMaxValDept", " m"],
     ["bt_max_distance_dept", "btMaxValDept", " m"],
     ["capacite_max_distance_dept", "capaciteMaxValDept", " m"],
+    ["hta_lines_aerial_distance_dept", "htaLinesAerialMaxValDept", " m"],
+    ["hta_lines_underground_distance_dept", "htaLinesUndergroundMaxValDept", " m"],
   // Sliders pour les toitures (uniquement surface, distances via contrôle global)
   ["min_surface_toiture", "minSurfaceToitureVal", " m²"],
   ].forEach(([id, out, unit]) => {
@@ -209,6 +216,128 @@ function htmlifyField (key, value) {
   
   return value;
 }
+
+// --------- UTILITAIRES POUR LA RECHERCHE PAR ADRESSE ---------
+
+// Créer ou récupérer l'élément de log pour la recherche par adresse
+function createOrGetSearchLog() {
+  let logElement = document.getElementById('searchLog');
+  if (logElement) {
+    // Rendre visible le log existant
+    logElement.style.display = 'block';
+    return logElement;
+  }
+  
+  // Créer l'élément de log s'il n'existe pas (fallback)
+  logElement = document.createElement('div');
+  logElement.id = 'searchLog';
+  logElement.className = 'form-text text-info mb-2';
+  logElement.style.minHeight = '1.5em';
+  logElement.style.fontSize = '0.9em';
+  logElement.style.maxHeight = '120px';
+  logElement.style.overflowY = 'auto';
+  logElement.style.border = '1px solid #dee2e6';
+  logElement.style.borderRadius = '4px';
+  logElement.style.padding = '8px';
+  logElement.style.backgroundColor = '#f8f9fa';
+  logElement.style.display = 'block';
+  
+  // Insérer après le formulaire unifiedSearchForm
+  const form = document.getElementById('unifiedSearchForm');
+  if (form && form.parentNode) {
+    form.parentNode.insertBefore(logElement, form.nextSibling);
+  }
+  
+  return logElement;
+}
+
+// Afficher un log de recherche
+function logSearch(message, type = 'info') {
+  const logElement = createOrGetSearchLog();
+  if (!logElement) return;
+  
+  const now = new Date();
+  const timestamp = now.toLocaleTimeString();
+  
+  // Créer une nouvelle ligne de log
+  const logLine = document.createElement('div');
+  logLine.style.marginBottom = '2px';
+  logLine.style.fontSize = '0.85em';
+  
+  // Couleurs selon le type
+  const colors = {
+    info: '#17a2b8',
+    success: '#28a745', 
+    error: '#dc3545',
+    warning: '#ffc107'
+  };
+  
+  logLine.style.color = colors[type] || colors.info;
+  logLine.innerHTML = `<span style="color: #6c757d;">[${timestamp}]</span> ${message}`;
+  
+  logElement.appendChild(logLine);
+  
+  // Scroll automatique vers le bas
+  logElement.scrollTop = logElement.scrollHeight;
+  
+  // Limiter le nombre de lignes (garder les 10 dernières)
+  while (logElement.children.length > 10) {
+    logElement.removeChild(logElement.firstChild);
+  }
+}
+
+// Effacer les logs de recherche
+function clearSearchLog() {
+  const logElement = document.getElementById('searchLog');
+  if (logElement) {
+    logElement.innerHTML = '';
+    logElement.style.display = 'none';
+  }
+}
+
+// Changer l'état visuel du bouton de recherche
+function setSearchStatus(status, button, text) {
+  if (!button) return;
+  
+  switch (status) {
+    case 'loading':
+      button.disabled = true;
+      button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>' + text;
+      button.className = button.className.replace('btn-primary', 'btn-secondary');
+      break;
+    case 'idle':
+      button.disabled = false;
+      button.innerHTML = text;
+      button.className = button.className.replace('btn-secondary', 'btn-primary');
+      break;
+  }
+}
+
+// Analyser les résultats de recherche pour les logs
+function analyzeSearchResults(data) {
+  const stats = [];
+  
+  if (data.parcelles && data.parcelles.features) {
+    stats.push(`${data.parcelles.features.length} parcelle(s)`);
+  }
+  if (data.rpg && data.rpg.features) {
+    stats.push(`${data.rpg.features.length} parcelle(s) RPG`);
+  }
+  if (data.postes_bt && data.postes_bt.features) {
+    stats.push(`${data.postes_bt.features.length} poste(s) BT`);
+  }
+  if (data.postes_hta && data.postes_hta.features) {
+    stats.push(`${data.postes_hta.features.length} poste(s) HTA`);
+  }
+  if (data.eleveurs && data.eleveurs.features) {
+    stats.push(`${data.eleveurs.features.length} éleveur(s)`);
+  }
+  if (data.sirene && data.sirene.features) {
+    stats.push(`${data.sirene.features.length} entreprise(s) Sirene`);
+  }
+  
+  return stats.length > 0 ? stats.join(', ') : 'aucune donnée trouvée';
+}
 function buildPopup (properties, extra = {}) {
   let out = "";
   for (const [k, v] of Object.entries(properties || {}))
@@ -219,7 +348,51 @@ function buildPopup (properties, extra = {}) {
 }
 
 function getMapFrame() {
-  return document.getElementById("mapFrame")?.contentWindow;
+  try {
+    // 1) Accéder à l'iframe qui contient la carte
+    const iframe = document.getElementById('mapFrame');
+    if (iframe && iframe.contentWindow) {
+      const w = iframe.contentWindow;
+      // a) Cas map1.html: variable globale 'map'
+      if (w.map && w.L) {
+        return {
+          map: w.map,
+          L: w.L,
+          clearMap: w.clearMap?.bind(w),
+          setView: (lat, lon, z) => w.map.setView([lat, lon], z || w.map.getZoom?.() || 10),
+          setOverlaysControl: w.setOverlaysControl?.bind(w),
+          addGeoJsonToMap: w.addGeoJsonToMap?.bind(w),
+          getBaseLayers: () => ({ "Satellite": w.sat, "OSM": w.osm })
+        };
+      }
+      // b) Cas Folium: variable globale de type 'map_<id>'
+      for (const key of Object.keys(w)) {
+        if (key.startsWith('map_') && w[key] && w[key]._container) {
+          return {
+            map: w[key],
+            L: w.L,
+            setView: (lat, lon, z) => w[key].setView([lat, lon], z || w[key].getZoom?.() || 10),
+            getBaseLayers: () => ({})
+          };
+        }
+      }
+    }
+
+    // 2) Fallback improbable: si on est directement sur une page carte (sans iframe)
+    if (window.map && window.L) {
+      return { map: window.map, L: window.L };
+    }
+    for (const key of Object.keys(window)) {
+      if (key.startsWith('map_') && window[key] && window[key]._container) {
+        return { map: window[key], L: window.L };
+      }
+    }
+
+    return null;
+  } catch (err) {
+    console.error("❌ Erreur getMapFrame:", err);
+    return null;
+  }
 }
 function getBaseLayers() {
   const m = getMapFrame();
@@ -231,20 +404,209 @@ function getBaseLayers() {
 function updateLeafletLayersControl() {
   const m = getMapFrame();
   if (!m || !m.L || !m.map) return;
-  if (overlaysControl) {
-    try { m.map.removeControl(overlaysControl); } catch {}
+  
+  // Détecter d'abord s'il existe déjà un contrôle sur la carte
+  let existingControl = m._layerControl;
+  
+  if (!existingControl) {
+    // Méthode plus robuste : chercher dans le DOM ET dans les contrôles de la carte
+    const layerControlElements = m.map._container.querySelectorAll('.leaflet-control-layers');
+    
+    if (layerControlElements.length > 0) {
+      console.log("[DEBUG] Contrôle de calques trouvé dans le DOM, recherche de l'objet correspondant");
+      
+      // Chercher le contrôle dans la carte Leaflet en parcourant tous les contrôles
+      m.map.eachLayer && m.map.eachLayer((layer) => {
+        // Cette méthode ne fonctionne pas pour les contrôles, essayons autre chose
+      });
+      
+      // Méthode alternative : chercher dans ._controlLayers de Leaflet
+      if (m.map._controlLayers) {
+        existingControl = m.map._controlLayers;
+        console.log("[DEBUG] Contrôle trouvé via _controlLayers");
+      } else {
+        // Dernière méthode : utiliser le registre global des contrôles
+        console.log("[DEBUG] Recherche dans le registre global des contrôles");
+        if (window.leafletLayersControl && typeof window.leafletLayersControl.addOverlay === 'function') {
+          existingControl = window.leafletLayersControl;
+          console.log("[DEBUG] Contrôle trouvé via registre global");
+        }
+      }
+    }
   }
-  overlaysControl = m.L.control.layers(getBaseLayers(), dynamicLayers, { position: "topright" }).addTo(m.map);
+  
+  // Utiliser le contrôle existant ou en créer un nouveau
+  if (existingControl) {
+    console.log("[DEBUG] Utilisation du contrôle Leaflet existant");
+    
+    // Conserver une liste des labels déjà ajoutés pour éviter les doublons
+    if (!existingControl._addedLabels) {
+      existingControl._addedLabels = new Set();
+    }
+    
+    // Ajouter les calques dynamiques au contrôle existant
+    Object.entries(dynamicLayers).forEach(([layerName, layer]) => {
+      const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
+      const label = config.label || layerName;
+      
+      // Vérifier si le label n'a pas déjà été ajouté
+      if (!existingControl._addedLabels.has(label)) {
+        existingControl.addOverlay(layer, label);
+        existingControl._addedLabels.add(label);
+        console.log(`[DEBUG] Ajout du calque "${label}" au contrôle existant`);
+      } else {
+        console.log(`[DEBUG] Calque "${label}" déjà présent dans le contrôle, ignoré`);
+      }
+    });
+    
+    // Sauvegarder la référence pour les prochaines fois
+    m._layerControl = existingControl;
+    overlaysControl = existingControl;
+    
+    // Sauvegarder aussi dans le registre global
+    window.leafletLayersControl = existingControl;
+  } else {
+    console.log("[DEBUG] Aucun contrôle Leaflet trouvé, création d'un nouveau");
+    
+    // Créer un nouveau contrôle
+    const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
+    overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright" }).addTo(m.map);
+    
+    // Initialiser la liste des labels ajoutés
+    overlaysControl._addedLabels = new Set(Object.keys(dynamicLayers).map(layerName => {
+      const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
+      return config.label || layerName;
+    }));
+    
+    // Sauvegarder la référence dans l'iframe pour les prochaines fois
+    m._layerControl = overlaysControl;
+    
+    // Sauvegarder aussi dans le registre global
+    window.leafletLayersControl = overlaysControl;
+    
+    // Sauvegarder dans la carte Leaflet elle-même
+    m.map._controlLayers = overlaysControl;
+  }
+  
+  // NOUVELLE FONCTIONNALITÉ: Gestion des événements de cochage/décochage
+  // Ajouter les écouteurs d'événements seulement s'ils n'existent pas déjà
+  if (!m.map._layersControlEventsBound) {
+    console.log("[DEBUG] Configuration des événements de contrôle des couches");
+    
+    // Événement décochage : retirer la couche de la carte
+    m.map.on('overlayremove', function(e) {
+      console.log(`[DEBUG] Couche décochée: "${e.name}" - retrait de la carte`);
+      
+      // Retirer la couche du dynamicLayers si elle existe
+      if (dynamicLayers[e.name]) {
+        console.log(`[DEBUG] Suppression de "${e.name}" des couches dynamiques`);
+        delete dynamicLayers[e.name];
+      }
+      
+      // La couche est automatiquement retirée de la carte par Leaflet
+      // Nous n'avons rien d'autre à faire ici
+    });
+    
+    // Événement cochage : ajouter la couche à la carte
+    m.map.on('overlayadd', function(e) {
+      console.log(`[DEBUG] Couche cochée: "${e.name}" - ajout sur la carte`);
+      
+      // La couche est automatiquement ajoutée à la carte par Leaflet
+      // Nous pouvons ajouter d'autres logiques ici si nécessaire
+      
+      // S'assurer que la couche est dans dynamicLayers
+      if (!dynamicLayers[e.name]) {
+        dynamicLayers[e.name] = e.layer;
+        console.log(`[DEBUG] Ajout de "${e.name}" aux couches dynamiques`);
+      }
+    });
+    
+    // Marquer que les événements sont configurés pour éviter la duplication
+    m.map._layersControlEventsBound = true;
+  }
+  
+  console.log("[DEBUG] Contrôle Leaflet configuré avec", Object.keys(dynamicLayers).length, "calques");
+}
+
+// --------- MISE À JOUR INCRÉMENTALE ---------
+function addIncrementalData(newData) {
+  console.log("[DEBUG] Mise à jour incrémentale avec nouvelles données:", newData);
+  
+  Object.entries(newData).forEach(([layerKey, val]) => {
+    if (!val || (Array.isArray(val) && val.length === 0)) return;
+    
+    try {
+      console.log(`[INCREMENTAL] Traitement de ${layerKey}:`, val);
+      
+      // Traitement spécial pour hta_lignes
+      if (layerKey === "hta_lignes" && val && typeof val === "object" && !Array.isArray(val) && !val.type) {
+        // Lignes aériennes
+        if (val.aerienne && val.aerienne.features && val.aerienne.features.length > 0) {
+          const existingLayer = dynamicLayers["Lignes HTA Aériennes"];
+          if (existingLayer && typeof existingLayer.addData === 'function') {
+            existingLayer.addData(val.aerienne);
+            console.log(`[INCREMENTAL] ${val.aerienne.features.length} lignes aériennes ajoutées au calque existant`);
+          } else {
+            // Créer le calque s'il n'existe pas
+            console.log("[INCREMENTAL] Création nouveau calque lignes aériennes");
+            displayAllLayers({hta_lignes: val});
+          }
+        }
+        
+        // Lignes souterraines
+        if (val.souterraine && val.souterraine.features && val.souterraine.features.length > 0) {
+          const existingLayer = dynamicLayers["Lignes HTA Souterraines"];
+          if (existingLayer && typeof existingLayer.addData === 'function') {
+            existingLayer.addData(val.souterraine);
+            console.log(`[INCREMENTAL] ${val.souterraine.features.length} lignes souterraines ajoutées au calque existant`);
+          } else {
+            // Créer le calque s'il n'existe pas
+            console.log("[INCREMENTAL] Création nouveau calque lignes souterraines");
+            displayAllLayers({hta_lignes: val});
+          }
+        }
+        return;
+      }
+      
+      // Traitement standard pour les autres couches
+      if (val.type === "FeatureCollection" && val.features && val.features.length > 0) {
+        const label = LAYER_CONFIG[layerKey]?.label || layerKey;
+        const existingLayer = dynamicLayers[label];
+        
+        if (existingLayer && typeof existingLayer.addData === 'function') {
+          existingLayer.addData(val);
+          console.log(`[INCREMENTAL] ${val.features.length} features ajoutées au calque "${label}"`);
+        } else {
+          // Créer le calque s'il n'existe pas
+          console.log(`[INCREMENTAL] Création nouveau calque "${label}"`);
+          const singleLayerData = {};
+          singleLayerData[layerKey] = val;
+          displayAllLayers(singleLayerData);
+        }
+      }
+    } catch (err) {
+      console.error(`[INCREMENTAL] Erreur traitement ${layerKey}:`, err);
+    }
+  });
 }
 
 // --------- LAYER DISPLAY ---------
 function displayAllLayers(data) {
+  console.log("[DEBUG] displayAllLayers appelée avec data:", data);
   const m = getMapFrame();
-  if (!m || !m.L || !m.map) return;
-  Object.values(dynamicLayers).forEach(l => { try { m.map.removeLayer(l); } catch {} });
-  dynamicLayers = {};
+  if (!m || !m.L || !m.map) {
+    console.log("[DEBUG] Map frame non accessible");
+    return;
+  }
+  
+  // MODIFICATION: Ne plus supprimer toutes les couches, mais les enrichir
+  // Cela permet de préserver l'état coché/décoché des couches dans le contrôle
+  console.log("[DEBUG] Enrichissement des calques existants...");
+  
+  // Note: On ne vide plus dynamicLayers pour préserver les couches existantes
 
   Object.entries(data).forEach(([layerKey, val]) => {
+    console.log("[DEBUG] Traitement calque:", layerKey, "valeur:", val);
     try {
       console.log(`[displayAllLayers] Traitement de ${layerKey}:`, val);
       
@@ -265,12 +627,63 @@ function displayAllLayers(data) {
                 if (popup) layer.bindPopup(popup);
               }
             });
-            dynamicLayers[subLayerName] = leafletLayer;
-            leafletLayer.addTo(m.map);
+            console.log("[DEBUG] Calque créé:", subLayerName, "utilisation de addOrMergeLayer pour éviter la superposition");
+            // Utiliser la même logique de fusion que les autres calques
+            addOrMergeLayer(subkey, subLayerName, leafletLayer);
           } catch (subErr) {
             console.error(`[displayAllLayers] Erreur sous-couche ${subkey}:`, subErr);
           }
         });
+        return;
+      }
+
+      // Lignes HTA (structure spéciale avec aerienne et souterraine)
+      if (layerKey === "hta_lignes" && val && typeof val === "object" && !Array.isArray(val) && !val.type) {
+        console.log("[DEBUG] Traitement des lignes HTA:", val);
+        
+        // Traiter les lignes aériennes
+        if (val.aerienne && val.aerienne.features && val.aerienne.features.length > 0) {
+          try {
+            const leafletLayerAer = m.L.geoJSON(val.aerienne, {
+              style: { color: "orange", weight: 3, opacity: 0.9 },
+              onEachFeature: function (feature, layer) {
+                let popup = "<b>🔌 Ligne HTA Aérienne</b><br>";
+                if (feature.properties) {
+                  for (const [k, v] of Object.entries(feature.properties)) {
+                    popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+                  }
+                }
+                layer.bindPopup(popup);
+              }
+            });
+            addOrMergeLayer("hta_lignes_aeriennes", "Lignes HTA Aériennes", leafletLayerAer);
+            console.log("[DEBUG] Lignes HTA aériennes ajoutées:", val.aerienne.features.length);
+          } catch (aerErr) {
+            console.error("[displayAllLayers] Erreur lignes aériennes:", aerErr);
+          }
+        }
+        
+        // Traiter les lignes souterraines
+        if (val.souterraine && val.souterraine.features && val.souterraine.features.length > 0) {
+          try {
+            const leafletLayerSout = m.L.geoJSON(val.souterraine, {
+              style: { color: "purple", weight: 3, opacity: 0.8, dashArray: "10,5" },
+              onEachFeature: function (feature, layer) {
+                let popup = "<b>🔌 Ligne HTA Souterraine</b><br>";
+                if (feature.properties) {
+                  for (const [k, v] of Object.entries(feature.properties)) {
+                    popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+                  }
+                }
+                layer.bindPopup(popup);
+              }
+            });
+            addOrMergeLayer("hta_lignes_souterraines", "Lignes HTA Souterraines", leafletLayerSout);
+            console.log("[DEBUG] Lignes HTA souterraines ajoutées:", val.souterraine.features.length);
+          } catch (soutErr) {
+            console.error("[displayAllLayers] Erreur lignes souterraines:", soutErr);
+          }
+        }
         return;
       }
 
@@ -283,7 +696,27 @@ function displayAllLayers(data) {
       else if (Array.isArray(val) && val[0] && val[0].type === "Feature" && val[0].geometry) geojson = { type: "FeatureCollection", features: val };
       if (!geojson) return;
       
-      console.log(`[displayAllLayers] GeoJSON normalisé pour ${layerKey}:`, geojson);
+    // Validation stricte du GeoJSON avant traitement
+    if (!geojson || !geojson.type || geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features)) {
+      console.warn(`[displayAllLayers] GeoJSON invalide pour ${layerKey}:`, geojson);
+      return;
+    }
+    
+    // Filtrer les features avec geometry valide uniquement
+    geojson.features = geojson.features.filter(feature => {
+      if (!feature || !feature.geometry || !feature.geometry.type || !feature.geometry.coordinates) {
+        console.warn(`[displayAllLayers] Feature sans géométrie valide ignorée:`, feature);
+        return false;
+      }
+      return true;
+    });
+    
+    // Si plus aucune feature valide, ignorer la couche
+    if (geojson.features.length === 0) {
+      console.warn(`[displayAllLayers] Aucune feature valide pour ${layerKey}, couche ignorée`);
+      return;
+    }
+      console.log(`[displayAllLayers] GeoJSON validé pour ${layerKey}:`, geojson);
     } catch (normalizeErr) {
       console.error(`[displayAllLayers] Erreur normalisation ${layerKey}:`, normalizeErr);
       return;
@@ -291,6 +724,69 @@ function displayAllLayers(data) {
 
     const label = LAYER_CONFIG[layerKey]?.label || layerKey;
     const style = LAYER_CONFIG[layerKey]?.color ? { color: LAYER_CONFIG[layerKey].color } : {};
+
+    // Fonction helper pour fusionner ou créer un calque (VERSION SIMPLIFIÉE)
+    function addOrMergeLayer(layerKey, label, newLeafletLayer) {
+      // Vérifier si un calque du même type existe déjà
+      const existingLayer = dynamicLayers[label];
+      
+      if (existingLayer && typeof existingLayer.addData === 'function') {
+        console.log(`[DEBUG] Fusion des nouvelles features avec le calque existant "${label}"`);
+        
+        // Extraire les features GeoJSON du nouveau calque
+        const newFeatures = [];
+        newLeafletLayer.eachLayer(function(layer) {
+          if (layer.feature) {
+            newFeatures.push(layer.feature);
+          }
+        });
+        
+        // Ajouter les nouvelles features au calque existant
+        // Cette méthode utilise les mêmes fonctions de style du calque existant
+        if (newFeatures.length > 0) {
+          const newGeoJSON = {
+            type: "FeatureCollection",
+            features: newFeatures
+          };
+          existingLayer.addData(newGeoJSON);
+          console.log(`[DEBUG] ${newFeatures.length} features ajoutées au calque existant "${label}" avec le même style`);
+        }
+        
+        // IMPORTANT : Supprimer le nouveau calque de la carte pour éviter la superposition
+        if (m.map.hasLayer(newLeafletLayer)) {
+          m.map.removeLayer(newLeafletLayer);
+          console.log(`[DEBUG] Nouveau calque temporaire "${label}" supprimé de la carte après fusion`);
+        }
+        
+        return false; // Indique qu'on a fusionné, pas créé
+      } else {
+        console.log(`[DEBUG] Création d'un nouveau calque "${label}"`);
+        // Créer un nouveau calque
+        dynamicLayers[label] = newLeafletLayer;
+        
+        // S'assurer que le calque est ajouté à la carte
+        if (!m.map.hasLayer(newLeafletLayer)) {
+          newLeafletLayer.addTo(m.map);
+        }
+        
+        // Ajouter le calque au contrôle s'il existe
+        const control = m._layerControl || overlaysControl;
+        if (control && typeof control.addOverlay === 'function') {
+          // Vérifier si ce label n'est pas déjà dans le contrôle
+          if (!control._addedLabels || !control._addedLabels.has(label)) {
+            control.addOverlay(newLeafletLayer, label);
+            if (control._addedLabels) {
+              control._addedLabels.add(label);
+            }
+            console.log(`[DEBUG] Nouveau calque "${label}" ajouté au contrôle`);
+          }
+        }
+        
+        return true; // Indique qu'on a créé un nouveau calque
+      }
+    }
+    
+
 
     // ----------- Postes BT ----------- (icône 1 éclair jaune)
     if (layerKey === "postes_bt") {
@@ -309,42 +805,45 @@ function displayAllLayers(data) {
           let popup = "";
           if (feature.properties) {
             for (const [k, v] of Object.entries(feature.properties)) {
-              popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+              popup += `<b>${k}:</b> ${v}<br>`;
             }
           }
           if (popup) layer.bindPopup(popup);
         }
       });
-      dynamicLayers[label] = leafletLayer;
-      leafletLayer.addTo(m.map);
+      addOrMergeLayer(layerKey, label, leafletLayer);
       return;
     }
 
     // ----------- Postes HTA ----------- (icône 2 éclairs orange)
     if (layerKey === "postes_hta") {
-      const leafletLayer = m.L.geoJSON(geojson, {
-        pointToLayer: function (feature, latlng) {
-          return m.L.marker(latlng, {
-            icon: m.L.divIcon({
-              html: `<span style="font-size:1.8em;color:orange;">&#9889;&#9889;</span>`,
-              className: 'hta-marker',
-              iconSize: [32, 32],
-              iconAnchor: [16, 32]
-            })
-          });
-        },
-        onEachFeature: function (feature, layer) {
-          let popup = "";
-          if (feature.properties) {
-            for (const [k, v] of Object.entries(feature.properties)) {
-              popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+      try {
+        const leafletLayer = m.L.geoJSON(geojson, {
+          pointToLayer: function (feature, latlng) {
+            return m.L.marker(latlng, {
+              icon: m.L.divIcon({
+                html: `<span style="font-size:1.8em;color:orange;">&#9889;&#9889;</span>`,
+                className: 'hta-marker',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+              })
+            });
+          },
+          onEachFeature: function (feature, layer) {
+            let popup = "";
+            if (feature.properties) {
+              for (const [k, v] of Object.entries(feature.properties)) {
+                popup += `<b>${k}:</b> ${v}<br>`;
+              }
             }
+            if (popup) layer.bindPopup(popup);
           }
-          if (popup) layer.bindPopup(popup);
-        }
-      });
-      dynamicLayers[label] = leafletLayer;
-      leafletLayer.addTo(m.map);
+        });
+        addOrMergeLayer(layerKey, label, leafletLayer);
+      } catch (htaErr) {
+        console.error(`[displayAllLayers] Erreur création couche postes_hta:`, htaErr);
+        console.log('[displayAllLayers] GeoJSON postes_hta problématique:', JSON.stringify(geojson, null, 2));
+      }
       return;
     }
 
@@ -364,10 +863,7 @@ function displayAllLayers(data) {
         onEachFeature: function (feature, layer) {
           const props = feature.properties || {};
           
-          // DEBUG: Voir les propriétés disponibles
-          console.log("🔍 DEBUG Éleveur - Propriétés disponibles:", props);
-          
-          // Construction du nom complet (avec les vrais noms de champs)
+          // Construction du nom complet
           let nomComplet = "";
           if (props.prenom1Uni && props.nomUniteLe) {
             nomComplet = `${props.prenom1Uni} ${props.nomUniteLe}`;
@@ -375,30 +871,6 @@ function displayAllLayers(data) {
             nomComplet = props.nomUniteLe;
           } else if (props.denominati) {
             nomComplet = props.denominati;
-          } else if (props.nomUsageUn) {
-            nomComplet = props.nomUsageUn;
-          }
-          
-          console.log("🔍 DEBUG - Nom complet construit:", nomComplet);
-          console.log("🔍 DEBUG - Nom complet construit:", nomComplet);
-          
-          // Construction de l'adresse complète (avec les vrais noms de champs)
-          let adresseComplete = "";
-          const numeroVoie = props.numeroVoie || props.numeroVo_1 || "";
-          const typeVoie = props.typeVoieEt || props.typeVoie2E || "";
-          const libelleVoie = props.libelleVoi || props.libelleV_1 || "";
-          const codePostal = props.codePostal || props.codePost_1 || "";
-          const commune = props.libelleCom || props.libelleC_1 || "";
-          
-          console.log("🔍 DEBUG - Éléments adresse:", {numeroVoie, typeVoie, libelleVoie, codePostal, commune});
-          
-          if (numeroVoie || typeVoie || libelleVoie) {
-            adresseComplete = [numeroVoie, typeVoie, libelleVoie].filter(x => x).join(" ");
-            if (codePostal || commune) {
-              adresseComplete += ", " + [codePostal, commune].filter(x => x).join(" ");
-            }
-          } else if (codePostal || commune) {
-            adresseComplete = [codePostal, commune].filter(x => x).join(" ");
           }
           
           // Construction du popup personnalisé
@@ -410,93 +882,152 @@ function displayAllLayers(data) {
             return val ? `<tr><th style="text-align: left; color: #28616a; font-weight: 500; min-width: 95px;">${label}</th><td style="color: #2d2d2d; max-width:200px; word-break: break-word;">${val}</td></tr>` : ""; 
           }
           
-          // Informations principales (avec les vrais noms de champs)
           if (nomComplet) popup += row("Nom", nomComplet);
-          if (props.denominati && props.denominati !== nomComplet) popup += row("Dénomination", props.denominati);
-          if (adresseComplete) popup += row("Adresse", adresseComplete);
           if (props.siret) popup += row("SIRET", props.siret);
-          if (props.activite_1) popup += row("Activité principale", props.activite_1);
-          if (props.dateCreati) popup += row("Date de création", props.dateCreati);
           
-          // Liens vers les annuaires d'entreprises (avec les vrais noms de champs)
-          if (props.siret) {
-            const siret = props.siret;
-            const siren = props.siren || siret.substring(0, 9);
-            
-            // Lien Societe.com avec format spécifique
-            const denominationUrl = (props.denominati || nomComplet || "").toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            const societeUrl = `https://www.societe.com/societe/${denominationUrl}-${siren}.html`;
-            popup += row("Societe.com", `<a href="${societeUrl}" target="_blank" style="color: #1474fa; text-decoration: underline;">Voir la fiche entreprise</a>`);
-            
-            // Lien Pages Jaunes
-            const denomination = encodeURIComponent(props.denominati || nomComplet || "");
-            const ville = encodeURIComponent(commune || "");
-            const codePostalFormatted = encodeURIComponent(codePostal ? `(${codePostal})` : "");
-            const pagesJaunesUrl = `https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=${denomination}&ou=${ville}+${codePostalFormatted}&univers=pagesjaunes&idOu=`;
-            popup += row("Pages Jaunes", `<a href="${pagesJaunesUrl}" target="_blank" style="color: #1474fa; text-decoration: underline;">Consulter l'annuaire</a>`);
-          }
-          
-          popup += `</table>`;
-          
-          // DEBUG: Si pas d'infos, afficher toutes les propriétés
-          if (!nomComplet && !adresseComplete && !props.siret) {
-            popup += `<hr><strong>DEBUG - Toutes les propriétés:</strong><br>`;
-            for (const [k, v] of Object.entries(props)) {
-              if (v !== null && v !== undefined && v !== "") {
-                popup += `<b>${k}:</b> ${v}<br>`;
-              }
-            }
-          }
-          
-          popup += `</div>`;
+          popup += `</table></div>`;
           layer.bindPopup(popup, {maxWidth: 400});
         }
       });
-      dynamicLayers[label] = leafletLayer;
-      leafletLayer.addTo(m.map);
+      addOrMergeLayer(layerKey, label, leafletLayer);
       return;
     }
 
-    // --------- CAS GENERAL ---------
-    const leafletLayer = m.L.geoJSON(geojson, {
-      style,
+    // ----------- Cas par défaut pour autres types -----------
+    const config = LAYER_CONFIG[layerKey] || {};
+    const defaultStyle = config.color ? { color: config.color } : {};
+    const leafletLayer = m.L.geoJSON(geojson, { 
+      style: defaultStyle,
       onEachFeature: function (feature, layer) {
-        let popup = "";
+        let popup = `<b>${label || layerKey}</b><br>`;
         if (feature.properties) {
           for (const [k, v] of Object.entries(feature.properties)) {
-            popup += `<b>${getFriendlyLabel(k)}:</b> ${htmlifyField(k, v)}<br>`;
+            popup += `<b>${k}:</b> ${v}<br>`;
           }
         }
-        if (popup) layer.bindPopup(popup);
+        layer.bindPopup(popup);
       }
     });
-    dynamicLayers[label] = leafletLayer;
-    leafletLayer.addTo(m.map);
-    
+    addOrMergeLayer(layerKey, label, leafletLayer);
+
     } catch (layerErr) {
       console.error(`[displayAllLayers] Erreur traitement couche ${layerKey}:`, layerErr);
     }
   });
 
-  updateLeafletLayersControl();
+  // Rafraîchir le contrôle de couches côté parent
+  updateLeafletLayersControl(); // Réactivé pour la synchronisation
+
+  // Si la carte embarquée supporte la gestion propre des overlays, lui transmettre un snapshot
+  try {
+    const m2 = getMapFrame();
+    if (m2 && typeof m2.setOverlaysControl === 'function') {
+      const overlays = {};
+      Object.entries(dynamicLayers).forEach(([label, layer]) => {
+        try {
+          if (layer && typeof layer.toGeoJSON === 'function') {
+            const fc = layer.toGeoJSON();
+            // Déterminer une clé de couche à partir du label pour récupérer la couleur
+            let layerKeyFromLabel = Object.keys(LAYER_CONFIG).find(k => (LAYER_CONFIG[k]?.label || k) === label) || label;
+            const color = LAYER_CONFIG[layerKeyFromLabel]?.color;
+            // Taguer les features pour que map1.html détecte le type et applique les icônes
+            const features = (fc.features || []).map(f => {
+              try {
+                if (f && f.properties) f.properties._layer = layerKeyFromLabel;
+              } catch {}
+              return f;
+            });
+            overlays[label] = { type: 'FeatureCollection', features, style: color ? { color } : {} };
+          }
+        } catch {}
+      });
+      m2.setOverlaysControl(overlays, {});
+    }
+  } catch (e) {
+    console.warn('setOverlaysControl propagation failed:', e);
+  }
 }
 
 // --------- INFO PANEL ---------
 function updateInfoPanel(arr) {
-  let c = arr.length, p = 0, e = 0;
-  arr.forEach(r => {
-    for (const [key, val] of Object.entries(r)) {
-      if (key === "eleveurs") {
-        if (Array.isArray(val)) e += val.length;
-        else if (val && val.type === "FeatureCollection" && Array.isArray(val.features)) e += val.features.length;
-      }
-      if (val && val.type === "FeatureCollection" && Array.isArray(val.features)) p += val.features.length;
-      if (Array.isArray(val) && val[0] && val[0].type === "Feature") p += val.length;
-      if (Array.isArray(val) && typeof val[0] === "object" && val[0] && (val[0].coords || val[0].geometry)) p += val.length;
+  if (!arr || arr.length === 0) {
+    document.getElementById("info-panel").innerHTML = 
+      `<div class="alert alert-secondary mb-0">Aucune donnée disponible</div>`;
+    return;
+  }
+
+  let html = '';
+  let totalObjects = 0;
+  const layerCounts = {};
+  
+  // Analyser les données pour chaque commune/résultat
+  arr.forEach((data, index) => {
+    const commune = data.commune || data.address || `Résultat ${index + 1}`;
+    html += `<h6 class="text-primary mt-3 mb-2"><i class="fas fa-map-marker-alt"></i> ${commune}</h6>`;
+    
+    // Coordonnées si disponibles
+    if (data.lat && data.lon) {
+      html += `<p class="mb-2 small text-muted"><strong>Coordonnées:</strong> ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)}</p>`;
     }
+    
+    let localCount = 0;
+    
+    // Analyser chaque type de données
+    Object.entries(data).forEach(([key, val]) => {
+      if (!val || key === 'lat' || key === 'lon' || key === 'commune' || key === 'address' || key === 'carte_url') return;
+      
+      let count = 0;
+      let label = LAYER_CONFIG[key]?.label || key;
+      
+      // Compter les objets selon le type
+      if (val.type === "FeatureCollection" && Array.isArray(val.features)) {
+        count = val.features.length;
+      } else if (Array.isArray(val)) {
+        count = val.length;
+      } else if (typeof val === 'object' && val !== null) {
+        count = 1;
+      }
+      
+      if (count > 0) {
+        const color = LAYER_CONFIG[key]?.color || '#007bff';
+        html += `<div class="d-flex justify-content-between align-items-center py-1">`;
+        html += `<span><i class="fas fa-layer-group" style="color: ${color}"></i> ${label}</span>`;
+        html += `<span class="badge bg-primary">${count}</span>`;
+        html += `</div>`;
+        
+        localCount += count;
+        layerCounts[label] = (layerCounts[label] || 0) + count;
+      }
+    });
+    
+    if (localCount === 0) {
+      html += `<p class="text-muted small">Aucune donnée trouvée pour cette zone</p>`;
+    }
+    
+    totalObjects += localCount;
   });
-  document.getElementById("info-panel").innerHTML =
-    `<div class="alert alert-info mb-0">Communes : ${c} – Objets : ${p} – Éleveurs : ${e}</div>`;
+  
+  // Résumé global en haut
+  let summary = `<div class="alert alert-info mb-3">`;
+  summary += `<h6 class="mb-2"><i class="fas fa-info-circle"></i> Résumé de la recherche</h6>`;
+  summary += `<div class="row">`;
+  summary += `<div class="col-4 text-center"><strong>${arr.length}</strong><br><small>Zone(s)</small></div>`;
+  summary += `<div class="col-4 text-center"><strong>${totalObjects}</strong><br><small>Objets total</small></div>`;
+  summary += `<div class="col-4 text-center"><strong>${Object.keys(layerCounts).length}</strong><br><small>Types de données</small></div>`;
+  summary += `</div></div>`;
+  
+  document.getElementById("info-panel").innerHTML = summary + html;
+  
+  // Auto-ouverture désactivée pour éviter les boucles
+  // if (totalObjects > 0) {
+  //   const infoCollapse = document.getElementById("infoCollapse");
+  //   if (infoCollapse && !infoCollapse.classList.contains("show")) {
+  //     const infoButton = document.querySelector('[data-bs-target="#infoCollapse"]');
+  //     if (infoButton) {
+  //       infoButton.click();
+  //     }
+  //   }
+  // }
 }
 
 // --------- FUSION DES RÉSULTATS SSE ---------
@@ -504,8 +1035,24 @@ function mergeResults(arr) {
   const expectedKeys = Object.keys(LAYER_CONFIG);
   const res = {};
   expectedKeys.forEach(k => { res[k] = []; });
+  
+  // Structure spéciale pour hta_lignes
+  res.hta_lignes = { aerienne: { features: [] }, souterraine: { features: [] } };
+  
   arr.forEach(obj => {
     for (const [k, v] of Object.entries(obj)) {
+      // Traitement spécial pour hta_lignes
+      if (k === "hta_lignes" && v && typeof v === "object") {
+        if (v.aerienne && v.aerienne.features && Array.isArray(v.aerienne.features)) {
+          res.hta_lignes.aerienne.features = res.hta_lignes.aerienne.features.concat(v.aerienne.features);
+        }
+        if (v.souterraine && v.souterraine.features && Array.isArray(v.souterraine.features)) {
+          res.hta_lignes.souterraine.features = res.hta_lignes.souterraine.features.concat(v.souterraine.features);
+        }
+        continue;
+      }
+      
+      // Traitement standard pour les autres couches
       if (!res[k]) res[k] = [];
       if (v?.type === "FeatureCollection" && Array.isArray(v.features)) {
         res[k] = res[k].concat(v.features);
@@ -514,21 +1061,105 @@ function mergeResults(arr) {
       }
     }
   });
+  
   Object.keys(res).forEach(k => {
-    res[k] = { type: "FeatureCollection", features: res[k] };
+    if (k === "hta_lignes") {
+      // Garder la structure spéciale pour hta_lignes
+      res[k].aerienne.type = "FeatureCollection";
+      res[k].souterraine.type = "FeatureCollection";
+    } else {
+      res[k] = { type: "FeatureCollection", features: res[k] };
+    }
   });
   return res;
 }
 
 // --------- RECHERCHE UNIFIÉE (ADRESSE / COORDONNÉES) ---------
+// Variable globale pour le debouncing
+let lastAddressSearchTime = 0;
+let isSearchInProgress = false;
+
 async function handleUnifiedSearch(e) {
-  e.preventDefault();
-  switchMap("/static/map.html", async () => {
-    const v = document.getElementById("search_input").value.trim();
+  e?.preventDefault?.();
+  
+  // Protection contre les exécutions concurrentes (une seule recherche à la fois)
+  if (isSearchInProgress) {
+    console.log('🔄 Recherche déjà en cours, annulation');
+    return;
+  }
+  
+  // Protection contre les doubles clics et recherches multiples (2s)
+  const now = Date.now();
+  const minDelay = 2000; // 2 secondes minimum entre deux recherches
+  
+  if (now - lastAddressSearchTime < minDelay) {
+    console.log('🔄 Recherche en cours ou trop rapide, annulation');
+    return;
+  }
+  
+  lastAddressSearchTime = now;
+  isSearchInProgress = true;
+  
+  // Obtenir les éléments de l'interface - CORRECTION: chercher spécifiquement le bouton du formulaire d'adresse
+  const addressForm = document.getElementById('unifiedSearchForm');
+  const submitBtn = addressForm ? addressForm.querySelector('button[type="submit"]') : null;
+  const searchInput = document.getElementById("search_input");
+  const logElement = createOrGetSearchLog();
+  
+  console.log('[handleUnifiedSearch] Formulaire:', addressForm ? 'trouvé' : 'NON TROUVÉ');
+  console.log('[handleUnifiedSearch] Bouton submit:', submitBtn ? submitBtn.textContent : 'NON TROUVÉ');
+  
+  // État initial - BLOQUER LE BOUTON
+  const originalBtnText = submitBtn ? submitBtn.textContent : 'Rechercher';
+  
+  // Fonction pour débloquer le bouton (utilisée partout)
+  const unlockButton = () => {
+    console.log('🔓 Tentative de déblocage du bouton...', submitBtn);
+    if (submitBtn) {
+      // Débloquer complètement
+      submitBtn.disabled = false;
+      submitBtn.removeAttribute('disabled');
+      
+      // Nettoyer toutes les classes problématiques
+      submitBtn.classList.remove('disabled');
+      submitBtn.classList.remove('btn-secondary');
+      
+      // Forcer la classe btn-primary
+      if (!submitBtn.classList.contains('btn-primary')) {
+        submitBtn.classList.add('btn-primary');
+      }
+      
+      submitBtn.innerHTML = '<i class="bi bi-search"></i> Rechercher';
+      
+      console.log('✅ Bouton débloqué - État:', {
+        disabled: submitBtn.disabled,
+        hasDisabledAttr: submitBtn.hasAttribute('disabled'),
+        classes: submitBtn.className,
+        innerHTML: submitBtn.innerHTML
+      });
+    } else {
+      console.error('❌ Bouton introuvable pour déblocage');
+    }
+    isSearchInProgress = false;
+  };
+  
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('disabled');
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Recherche en cours...';
+    }
+    setSearchStatus('loading', submitBtn, 'Recherche en cours...');
+    logSearch('🔍 Initialisation de la recherche...');
+    
+    const v = searchInput.value.trim();
     if (!v) {
+      logSearch('❌ Erreur : Aucune adresse saisie', 'error');
       alert("Saisissez une adresse (ex : Limoges) ou des coordonnées (ex : 45.85, 1.25)");
       return;
     }
+
+    logSearch(`📍 Analyse de l'entrée : "${v}"`);
 
     function parseLatLonInput(val) {
       try {
@@ -554,56 +1185,181 @@ async function handleUnifiedSearch(e) {
 
     const coords = parseLatLonInput(v);
     const ps = new URLSearchParams();
+    
     if (coords) {
+      logSearch(`📌 Coordonnées détectées : ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`);
       ps.append("lat", coords.lat);
       ps.append("lon", coords.lon);
     } else {
+      logSearch(`🏠 Adresse détectée : géocodage en cours...`);
       ps.append("address", v);
     }
+    
     ps.append("sirene_radius", document.getElementById("sirene_radius").value);
+    ps.append("ht_radius", (document.getElementById("ht_max_distance").value / 1000).toString());
+    ps.append("bt_radius", (document.getElementById("bt_max_distance").value / 1000).toString());
 
-    try {
-      const res = await fetch("/search_by_address?" + ps.toString());
-      if (!res.ok) {
-        alert("Erreur serveur : " + res.status);
-        return;
-      }
-      const data = await res.json();
-      if (data.error) {
-        alert(data.error);
-        return;
-      }
-      // Mémorise le contexte pour rapport "point courant"
-      window.lastSearchData = data;
-      // Recharge la carte générée dans l'iframe
-      if (data.carte_url) {
-        document.getElementById("mapFrame").src = data.carte_url;
-      }
-      displayAllLayers(data);
-      updateInfoPanel([data]);
-      const m = getMapFrame();
-      if (data.lat && data.lon && m?.setView) {
-        let z = 14;
-        if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
-        if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
-        m.setView(data.lat, data.lon, z);
-      }
-    } catch (err) {
-      alert("Erreur de requête : " + (err.message || err));
+    logSearch('🌐 Envoi de la requête au serveur...');
+    
+    const res = await fetch("/search_by_address?" + ps.toString());
+    
+    if (!res.ok) {
+      logSearch(`❌ Erreur serveur : ${res.status}`, 'error');
+      alert("Erreur serveur : " + res.status);
+      return;
     }
-  });
+    
+    logSearch('📦 Réception des données...');
+    const data = await res.json();
+    
+    if (data.error) {
+      logSearch(`❌ Erreur : ${data.error}`, 'error');
+      alert(data.error);
+      return;
+    }
+
+    // Analyser les données reçues
+    const stats = analyzeSearchResults(data);
+    logSearch(`✅ Données reçues : ${stats}`);
+    
+    // Mémorise le contexte pour rapport "point courant"
+    window.lastSearchData = data;
+    
+    // Recharge la carte générée dans l'iframe
+    if (data.carte_url) {
+      logSearch('🗺️ Chargement de la carte interactive...');
+      console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
+      const iframe = document.getElementById("mapFrame");
+      // Force le rechargement avec cache bust
+      iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+      console.log("[DEBUG] URL finale iframe:", iframe.src);
+    }
+    
+    logSearch('🎨 Affichage des couches de données...');
+    try {
+      displayAllLayers(data);
+    } catch (displayErr) {
+      console.error('[handleUnifiedSearch] Erreur displayAllLayers:', displayErr);
+      logSearch('⚠️ Certaines couches n\'ont pas pu être affichées', 'warning');
+    }
+    
+    try {
+      updateInfoPanel([data]);
+    } catch (infoPanelErr) {
+      console.error('[handleUnifiedSearch] Erreur updateInfoPanel:', infoPanelErr);
+    }
+    
+    const m = getMapFrame();
+    if (data.lat && data.lon && m?.setView) {
+      let z = 14;
+      if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
+      if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
+      logSearch(`🎯 Centrage de la carte sur ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (zoom ${z})`);
+      m.setView(data.lat, data.lon, z);
+    }
+    
+    logSearch('🎉 Recherche terminée avec succès !', 'success');
+    
+    // Effacer les logs après quelques secondes si succès
+    setTimeout(() => {
+      if (logElement && logElement.textContent.includes('succès')) {
+        clearSearchLog();
+      }
+    }, 5000);
+    
+  } catch (err) {
+    logSearch(`❌ Erreur de requête : ${err.message || err}`, 'error');
+    console.error('[handleUnifiedSearch] Erreur:', err);
+    alert("Erreur de requête : " + (err.message || err));
+  } finally {
+    // TOUJOURS débloquer le bouton, même en cas d'erreur
+    unlockButton();
+  }
 }
 
 // --------- RECHERCHE PAR COMMUNE ---------
+let lastCommuneSearchTime = 0;
+let isCommuneSearchRunning = false; // Flag pour éviter les recherches simultanées
+
 async function handleCommuneSearch(e) {
-  e?.preventDefault?.();
+  console.log('🚀 [COMMUNE_SEARCH] Fonction handleCommuneSearch appelée', {
+    event: e?.type,
+    isCommuneSearchRunning,
+    timestamp: new Date().toISOString()
+  });
+  
+  // PROTECTION 1: Empêcher le comportement par défaut du formulaire
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('✅ [COMMUNE_SEARCH] preventDefault et stopPropagation appelés');
+  }
+  
+  // PROTECTION 2: Éviter les recherches simultanées
+  if (isCommuneSearchRunning) {
+    console.warn('🔄 [PROTECTION] Recherche commune déjà en cours, annulation');
+    return;
+  }
+  
+  // PROTECTION 3: Debouncing - minimum 1 seconde entre deux recherches
+  const now = Date.now();
+  const minDelay = 1000;
+  
+  if (now - lastCommuneSearchTime < minDelay) {
+    console.log('🔄 [DEBOUNCE] Recherche commune trop rapide, annulation');
+    return;
+  }
+  
+  console.log('✅ [START] Démarrage recherche commune');
+  lastCommuneSearchTime = now;
+  isCommuneSearchRunning = true;
+  
+  // PROTECTION 4: Bloquer le bouton de recherche
+  const searchBtn = document.querySelector('#communeSearchForm button[type="submit"]');
+  const originalBtnText = searchBtn ? searchBtn.innerHTML : '';
+  if (searchBtn) {
+    searchBtn.disabled = true;
+    searchBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Recherche en cours...';
+    searchBtn.style.opacity = '0.6';
+  }
+  
+  // PROTECTION 5: Timeout de sécurité - réinitialiser après 30 secondes maximum
+  const safetyTimeout = setTimeout(() => {
+    if (isCommuneSearchRunning) {
+      console.warn('⚠️ [TIMEOUT] Réinitialisation forcée du flag après 30s');
+      isCommuneSearchRunning = false;
+      if (searchBtn) {
+        searchBtn.disabled = false;
+        searchBtn.innerHTML = originalBtnText;
+        searchBtn.style.opacity = '1';
+      }
+    }
+  }, 30000);
+  
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
+  
+  // Fonction de nettoyage
+  const cleanup = () => {
+    clearTimeout(safetyTimeout);
+    isCommuneSearchRunning = false;
+    // Réactiver le bouton
+    if (searchBtn) {
+      searchBtn.disabled = false;
+      searchBtn.innerHTML = originalBtnText;
+      searchBtn.style.opacity = '1';
+    }
+    console.log('🧹 [CLEANUP] Flag réinitialisé et bouton réactivé');
+  };
+  
   switchMap("/static/map.html", async () => {
     const commune = document.getElementById("commune")?.value.trim();
     if (!commune) {
       setCommuneSearchLog('❗️ Veuillez saisir une commune.', 'red');
-      return alert("Commune requise.");
+      cleanup();
+      alert("Commune requise.");
+      return;
     }
+    
     setCommuneSearchLog('🔄 Envoi de la requête... Calculs en cours...', '#0a58ca');
     const ps = new URLSearchParams({
       commune,
@@ -634,30 +1390,58 @@ async function handleCommuneSearch(e) {
     filter_by_distance: document.getElementById("filter_by_distance_commune")?.checked || false,
     max_distance_bt: document.getElementById("bt_max_distance_commune")?.value || 2000,
     max_distance_hta: document.getElementById("ht_max_distance_commune")?.value || 5000,
-  poste_type_filter: (document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL')
+    distance_logic: (document.querySelector('input[name="distance_logic"]:checked')?.value || 'OR'),
+    poste_type_filter: (document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL'),
+    // Filtres HTA aériens/souterrains
+    filter_hta_lines_aerial: document.getElementById("filter_hta_lines_aerial")?.checked || false,
+    filter_hta_lines_underground: document.getElementById("filter_hta_lines_underground")?.checked || false,
+    hta_aerial_max_km: document.getElementById("hta_aerial_max_km")?.value || 1000,
+    hta_underground_max_km: document.getElementById("hta_underground_max_km")?.value || 500
     });
     try {
       setCommuneSearchLog('📦 Traitement des données reçues...', '#0a58ca');
       const res = await fetch("/search_by_commune?" + ps.toString());
       if (!res.ok) {
         setCommuneSearchLog('❌ Erreur serveur : ' + res.status, 'red');
-        return alert('Erreur serveur : ' + res.status);
+        cleanup();
+        alert('Erreur serveur : ' + res.status);
+        return;
       }
       const data = await res.json();
       if (data.error) {
         setCommuneSearchLog('❌ Erreur : ' + data.error, 'red');
-        return alert(data.error);
+        cleanup();
+        alert(data.error);
+        return;
+      }
+      // Charger la carte générée si disponible
+      if (data.carte_url) {
+        setCommuneSearchLog('🗺️ Chargement de la carte interactive...', '#198754');
+        const iframe = document.getElementById('mapFrame');
+        if (iframe) {
+          iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+        }
       }
       setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
       window.lastCommuneSearch = { commune: commune };
       displayAllLayers(data);
       updateInfoPanel([data]);
+      
       const m = getMapFrame();
       if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
       setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
+      
+      // Réinitialiser le flag et nettoyer
+      console.log('✅ [SUCCESS] Recherche terminée');
+      cleanup();
+      
     } catch (err) {
       setCommuneSearchLog('❌ Erreur lors de la recherche : ' + err, 'red');
       alert("Erreur lors de la recherche par commune : " + err);
+      
+      // Réinitialiser le flag en cas d'erreur aussi
+      console.error('❌ [ERROR] Erreur recherche:', err);
+      cleanup();
     }
   });
 }
@@ -670,13 +1454,28 @@ function handleDeptSearch() {
     const types = [];
     if (document.getElementById("filterHTA")?.checked) types.push("HTA");
     if (document.getElementById("filterBT")?.checked) types.push("BT");
+    if (document.getElementById("filterHtaLinesAerial")?.checked) types.push("HTA_LINES_AERIAL");
+    if (document.getElementById("filterHtaLinesUnderground")?.checked) types.push("HTA_LINES_UNDERGROUND");
     if (types.length === 0) return alert("Sélectionnez au moins un type de réseau.");
+    // Convertir les sliders (mètres) en kilomètres pour le backend SSE
+    const bt_m = parseFloat(document.getElementById("bt_max_distance_dept")?.value || "");
+    const ht_m = parseFloat(document.getElementById("ht_max_distance_dept")?.value || "");
+    const hta_aerial_m = parseFloat(document.getElementById("hta_lines_aerial_distance_dept")?.value || "");
+    const hta_underground_m = parseFloat(document.getElementById("hta_lines_underground_distance_dept")?.value || "");
+    const bt_km = isNaN(bt_m) ? "" : (bt_m / 1000);
+    const ht_km = isNaN(ht_m) ? "" : (ht_m / 1000);
+    const hta_aerial_km = isNaN(hta_aerial_m) ? "" : (hta_aerial_m / 1000);
+    const hta_underground_km = isNaN(hta_underground_m) ? "" : (hta_underground_m / 1000);
     const params = {
       department: dept,
       min_area_ha: document.getElementById("minSurface")?.value || "",
       max_area_ha: document.getElementById("maxSurface")?.value || "",
-      bt_max_distance: document.getElementById("bt_max_distance_dept")?.value || "",
-      ht_max_distance: document.getElementById("ht_max_distance_dept")?.value || "",
+      bt_max_distance: bt_km,
+      ht_max_distance: ht_km,
+      hta_aerial_max_distance: hta_aerial_km,
+      hta_underground_max_distance: hta_underground_km,
+      filter_hta_lines_aerial: document.getElementById("filterHtaLinesAerial")?.checked || false,
+      filter_hta_lines_underground: document.getElementById("filterHtaLinesUnderground")?.checked || false,
       want_eleveurs: true,
       exclude_nature: document.getElementById("excludeNature")?.checked || false,
       exclude_historic: document.getElementById("excludeBuildings")?.checked || false,
@@ -705,15 +1504,45 @@ function handleDeptSearch() {
     es.addEventListener("result", e => {
       const r = JSON.parse(e.data);
       results.push(r);
-      const merged = mergeResults(results);
-      displayAllLayers(merged);
+      // Mise à jour incrémentale : ajouter seulement les nouvelles données
+      addIncrementalData(r);
       updateInfoPanel(results);
       const m = getMapFrame();
       if (r.lat && r.lon && m?.setView) m.setView(r.lat, r.lon, 11);
     });
-    es.addEventListener("end", e => {
+    es.addEventListener("end", async e => {
       if (logEl) logEl.textContent += e.data + "\n";
+      console.log("[DEBUG] Fin SSE, aucun traitement supplémentaire nécessaire (mise à jour incrémentale)");
       es.close();
+      
+      // 🗺️ SAUVEGARDE AUTO: Générer une carte département avec toutes les données
+      if (results.length > 0) {
+        console.log(`✅ [DEPT] Recherche terminée: ${results.length} résultats. Génération carte...`);
+        const deptNum = params.department || dept;
+        
+        try {
+          // Envoyer une requête pour générer la carte finale
+          const saveResponse = await fetch('/api/save_dept_map', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              department: deptNum,
+              results: results,
+              params: params
+            })
+          });
+          
+          const saveData = await saveResponse.json();
+          if (saveData.success) {
+            console.log(`✅ [DEPT] Carte sauvegardée: ${saveData.filename}`);
+            if (logEl) logEl.textContent += `\n✅ Carte sauvegardée: ${saveData.filename}\n`;
+          } else {
+            console.warn(`⚠️ [DEPT] Erreur sauvegarde carte: ${saveData.error}`);
+          }
+        } catch (err) {
+          console.error(`❌ [DEPT] Erreur lors de la sauvegarde:`, err);
+        }
+      }
     });
     es.onerror = () => {
       if (logEl) logEl.textContent += "❌ Erreur SSE\n";
@@ -861,27 +1690,51 @@ function generateReport() {
 
 // Rapport par département
 function generateDeptReport() {
+  console.log("[generateDeptReport] Début");
+  console.log("[generateDeptReport] window.lastDeptResults:", window.lastDeptResults);
+  
   if (!window.lastDeptResults || window.lastDeptResults.length === 0) {
     alert("Faites d'abord une recherche départementale !");
     return;
   }
+  
+  console.log("[generateDeptReport] Nombre de rapports:", window.lastDeptResults.length);
+  
   const w = window.open("", "_blank");
   if (!w) {
     alert("Impossible d'ouvrir un nouvel onglet. Vérifiez que les popups ne sont pas bloqués.");
     return;
   }
+  
+  // Afficher un message de chargement dans la fenêtre
+  w.document.write('<html><body><h2>Génération du rapport en cours...</h2><p>Veuillez patienter.</p></body></html>');
+  
+  console.log("[generateDeptReport] Envoi requête POST");
+  
   fetch('/rapport_departement_post', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ data: window.lastDeptResults })
   })
-    .then(res => res.text())
+    .then(res => {
+      console.log("[generateDeptReport] Réponse reçue, status:", res.status);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+      return res.text();
+    })
     .then(html => {
+      console.log("[generateDeptReport] HTML reçu, taille:", html.length, "caractères");
+      if (html.length < 100) {
+        console.warn("[generateDeptReport] HTML suspicieusement court:", html);
+      }
       w.document.open();
       w.document.write(html);
       w.document.close();
+      console.log("[generateDeptReport] Rapport affiché avec succès");
     })
     .catch(err => {
+      console.error("[generateDeptReport] Erreur:", err);
       w.close();
       alert("Erreur lors de la génération du rapport : " + err);
     });
@@ -915,6 +1768,62 @@ function saveCurrentMap(filename="carte_utilisateur.html") {
     .catch(err => alert("Erreur de sauvegarde : " + err));
 }
 
+// --------- ENVOI VERS KPI ---------
+async function sendToKPI(lat, lon, type, properties, buttonElement) {
+  console.log('📤 [KPI] Envoi vers KPI:', { lat, lon, type, properties });
+  
+  // Afficher un message de chargement
+  let originalContent = null;
+  if (buttonElement) {
+    originalContent = buttonElement.innerHTML;
+    buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Envoi...';
+    buttonElement.disabled = true;
+  }
+  
+  try {
+    const response = await fetch('/api/send_to_kpi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lat: lat,
+        lon: lon,
+        type: type,
+        properties: properties
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      alert(`✅ Dossier envoyé vers KPI !\n\n📋 ${result.summary}\n\n📊 Statistiques:\n- Postes BT: ${result.stats.postes_bt}\n- Postes HTA: ${result.stats.postes_hta}\n- Zones PLU: ${result.stats.zones_plu}\n- Risques: ${result.stats.risques}\n\nID KPI: ${result.kpi_id || 'N/A (KPI non disponible)'}\n💾 Backup: ${result.backup_file}`);
+      console.log('✅ [KPI] Envoi réussi:', result);
+    } else {
+      alert(`❌ Erreur d'envoi vers KPI:\n${result.error || 'Erreur inconnue'}`);
+      console.error('❌ [KPI] Erreur:', result);
+    }
+  } catch (error) {
+    alert(`❌ Erreur de connexion:\n${error.message}`);
+    console.error('❌ [KPI] Exception:', error);
+  } finally {
+    if (buttonElement && originalContent !== null) {
+      buttonElement.innerHTML = originalContent;
+      buttonElement.disabled = false;
+    }
+  }
+}
+
+// Fonction globale accessible depuis les popups Folium
+window.sendToKPI = sendToKPI;
+
+// Écouter les messages postMessage depuis les iframes Folium
+window.addEventListener('message', function(event) {
+  // Accepter les messages de n'importe quelle origine pour les popups Folium (data: URLs)
+  if (event.data && event.data.action === 'sendToKPI') {
+    console.log('📨 [KPI] Message reçu depuis popup:', event.data);
+    sendToKPI(event.data.lat, event.data.lon, event.data.type, event.data.properties, null);
+  }
+});
+
 // --------- SWITCH MAP ---------
 function switchMap(target = "/static/map.html", onReady) {
   const iframe = document.getElementById("mapFrame");
@@ -928,11 +1837,31 @@ function switchMap(target = "/static/map.html", onReady) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Protection contre l'ajout multiple de listeners
+    if (window.listenersAttached) {
+        console.log('⚠️ Listeners déjà attachés, skip');
+        return;
+    }
+    window.listenersAttached = true;
+    
+    console.log('🔧 [INIT] Attachement des event listeners');
+    
     // Branche sliders si tu utilises
     setupSliders();
+    
     // Branche formulaires
     document.getElementById("unifiedSearchForm")?.addEventListener("submit", handleUnifiedSearch);
-    document.getElementById("communeSearchForm")?.addEventListener("submit", handleCommuneSearch);
+    
+    // FORMULAIRE COMMUNE : Protection maximale
+    const communeForm = document.getElementById("communeSearchForm");
+    if (communeForm) {
+        // Retirer tout listener précédent (au cas où)
+        communeForm.removeEventListener("submit", handleCommuneSearch);
+        // Ajouter avec capture pour intercepter avant tout
+        communeForm.addEventListener("submit", handleCommuneSearch, { capture: true });
+        console.log('✅ [INIT] Listener commune attaché avec capture');
+    }
+    
     // Branche recherche départementale si tu as un bouton
     document.getElementById("deptSearchBtn")?.addEventListener("click", handleDeptSearch);
     // Branche boutons de rapport
@@ -942,4 +1871,25 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById("deptReportCarteBtn")?.addEventListener("click", generateDeptReport);
     // Branche bouton save map si besoin
     // document.getElementById("saveMapBtn")?.addEventListener("click", () => saveCurrentMap("mon_export.html"));
+    
+    // 🚀 AUTO-SEARCH depuis URL (démo integration)
+    const urlParams = new URLSearchParams(window.location.search);
+    const searchQuery = urlParams.get('search');
+    if (searchQuery && !window.autoSearchTriggered) {
+        console.log('🔍 Auto-search détecté:', searchQuery);
+        window.autoSearchTriggered = true; // Protection contre la boucle
+        
+        const addressInput = document.getElementById('search_input');
+        if (addressInput) {
+            addressInput.value = searchQuery;
+            // Trigger search automatiquement après 500ms
+            setTimeout(() => {
+                console.log('🎯 Lancement auto-search pour:', searchQuery);
+                const searchForm = document.getElementById('unifiedSearchForm');
+                if (searchForm) {
+                    searchForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                }
+            }, 500);
+        }
+    }
 });

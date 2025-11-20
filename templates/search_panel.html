@@ -3,15 +3,17 @@
 <!-- Section Adresse / Coordonnées / GeoJSON -->
 <div class="accordion-item">
   <h2 class="accordion-header">
-    <button class="accordion-button" data-bs-toggle="collapse" data-bs-target="#acc-pane-addr" aria-expanded="true" aria-controls="acc-pane-addr">
+    <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-addr" aria-expanded="false" aria-controls="acc-pane-addr">
       <span class="me-2"><i class="bi bi-geo-alt-fill"></i></span> Adresse • Coordonnées • GeoJSON
     </button>
   </h2>
-  <div id="acc-pane-addr" class="accordion-collapse collapse show">
+  <div id="acc-pane-addr" class="accordion-collapse collapse">
     <div class="accordion-body">
       <form id="unifiedSearchForm" autocomplete="off">
-        <label class="form-label" for="search_input">Adresse, coordonnées ou GeoJSON :</label>
-        <input id="search_input" class="form-control mb-2" placeholder='48.85,2.35 ou {"type":"Point",...}'>
+        <label class="form-label" for="search_input">Adresse, coordonnées (lat, lon) ou GeoJSON :</label>
+        <div class="autocomplete-wrapper">
+          <input id="search_input" class="form-control" placeholder='48.85, 2.35 (Paris) ou {"type":"Point",...}'>
+        </div>
 
         <div class="mb-2">
           <label class="form-label" for="sirene_radius">Rayon Sirène <span id="sirene_radius_val" class="slider-value"></span></label>
@@ -28,8 +30,15 @@
         <input type="hidden" id="latitude">
         <input type="hidden" id="longitude">
         <input type="hidden" id="address">
-        <button type="submit" class="btn btn-primary w-100 mt-3">Rechercher</button>
+        <button type="submit" class="btn btn-primary w-100 mt-3">
+          <i class="bi bi-search"></i> Rechercher
+        </button>
       </form>
+      
+      <!-- Zone de logs pour la recherche par adresse -->
+      <div id="searchLog" class="form-text text-info mb-2 mt-2" style="min-height:1.5em; max-height:120px; overflow-y:auto; border:1px solid #dee2e6; border-radius:4px; padding:8px; background-color:#f8f9fa; font-size:0.85em; display:none;">
+        <!-- Les logs apparaîtront ici dynamiquement -->
+      </div>
     </div>
   </div>
 </div>
@@ -43,9 +52,11 @@
   </h2>
   <div id="acc-pane-commune" class="accordion-collapse collapse">
     <div class="accordion-body">
-      <form id="communeSearchForm" autocomplete="off">
+  <form id="communeSearchForm" autocomplete="off">
         <label class="form-label" for="commune">Commune :</label>
-        <input id="commune" class="form-control mb-2" placeholder="Lyon">
+        <div class="autocomplete-wrapper">
+          <input id="commune" name="commune" class="form-control" placeholder="Lyon">
+        </div>
         <div class="mb-2">
           <label class="form-label" for="sirene_radius_commune">Rayon Sirène <span id="sireneCommVal" class="slider-value"></span></label>
           <input id="sirene_radius_commune" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
@@ -59,7 +70,7 @@
           <div class="card mb-2">
             <div class="card-header py-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="filter_rpg_commune" checked>
+                <input class="form-check-input" type="checkbox" id="filter_rpg_commune" name="filter_rpg_commune" checked>
                 <label class="form-check-label fw-bold" for="filter_rpg_commune">
                   <i class="bi bi-geo-fill text-success"></i> RPG (Cultures)
                 </label>
@@ -92,7 +103,7 @@
           <div class="card mb-2">
             <div class="card-header py-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="filter_parkings_commune">
+                <input class="form-check-input" type="checkbox" id="filter_parkings_commune" name="filter_parkings_commune">
                 <label class="form-check-label fw-bold" for="filter_parkings_commune">
                   <i class="bi bi-p-circle-fill text-primary"></i> Parkings
                 </label>
@@ -117,7 +128,7 @@
           <div class="card mb-2">
             <div class="card-header py-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="filter_friches_commune">
+                <input class="form-check-input" type="checkbox" id="filter_friches_commune" name="filter_friches_commune">
                 <label class="form-check-label fw-bold" for="filter_friches_commune">
                   <i class="bi bi-triangle-fill text-warning"></i> Friches
                 </label>
@@ -142,7 +153,7 @@
           <div class="card mb-2">
             <div class="card-header py-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="filter_zones_commune">
+                <input class="form-check-input" type="checkbox" id="filter_zones_commune" name="filter_zones_commune">
                 <label class="form-check-label fw-bold" for="filter_zones_commune">
                   <i class="bi bi-map-fill text-info"></i> Zones (PLU/GPU)
                 </label>
@@ -172,7 +183,7 @@
           <div class="card mb-2">
             <div class="card-header py-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="filter_toitures_commune">
+                <input class="form-check-input" type="checkbox" id="filter_toitures_commune" name="filter_toitures_commune">
                 <label class="form-check-label fw-bold" for="filter_toitures_commune">
                   <i class="bi bi-house-fill text-danger"></i> Toitures
                 </label>
@@ -203,7 +214,7 @@
           <div class="card mb-2">
             <div class="card-header py-2">
               <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="filter_by_distance_commune">
+                <input class="form-check-input" type="checkbox" id="filter_by_distance_commune" name="filter_by_distance_commune">
                 <label class="form-check-label fw-bold" for="filter_by_distance_commune">
                   <i class="bi bi-geo-alt-fill text-success"></i> Filtrage par distance aux postes
                 </label>
@@ -243,9 +254,21 @@
                 </div>
               </div>
               
-              <!-- Contrôles de distance pour toitures supprimés (utilisent les contrôles globaux) -->
-              
-              <!-- Logique de distance supprimée : la sélection du type de poste suffit (Tous/BT/HTA) -->
+              <!-- Logique de distance -->
+              <div class="mb-2">
+                <label class="form-label small">Logique de distance :</label>
+                <div class="btn-group w-100" role="group" aria-label="Logique de distance">
+                  <input type="radio" class="btn-check" name="distance_logic" id="distance_logic_or" value="OR" checked>
+                  <label class="btn btn-outline-info btn-sm" for="distance_logic_or">
+                    <i class="bi bi-union"></i> OU (au moins un)
+                  </label>
+                  
+                  <input type="radio" class="btn-check" name="distance_logic" id="distance_logic_and" value="AND">
+                  <label class="btn btn-outline-info btn-sm" for="distance_logic_and">
+                    <i class="bi bi-intersect"></i> ET (les deux)
+                  </label>
+                </div>
+              </div>
               
               <div class="mt-2">
                 <small class="text-muted">
@@ -254,9 +277,65 @@
               </div>
             </div>
           </div>
+          
+          <!-- Filtres réseaux HTA aériens/souterrains -->
+          <div class="card mb-2">
+            <div class="card-header py-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="filter_hta_lines" name="filter_hta_lines">
+                <label class="form-check-label fw-bold" for="filter_hta_lines">
+                  <i class="bi bi-diagram-3-fill text-warning"></i> Filtrage réseaux HTA
+                </label>
+              </div>
+            </div>
+            <div class="card-body py-2" id="hta_lines_filters">
+              <!-- Types de réseaux HTA -->
+              <div class="mb-2">
+                <label class="form-label small">Types de réseaux HTA :</label>
+                <div class="row g-2">
+                  <div class="col-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="filter_hta_lines_aerial" name="filter_hta_lines_aerial" checked>
+                      <label class="form-check-label small" for="filter_hta_lines_aerial">
+                        <i class="bi bi-clouds"></i> Aériens
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="filter_hta_lines_underground" name="filter_hta_lines_underground" checked>
+                      <label class="form-check-label small" for="filter_hta_lines_underground">
+                        <i class="bi bi-arrow-down-circle"></i> Souterrains
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Distances aux réseaux HTA -->
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label small">Distance HTA aérien max (m) : <span id="htaAerienMaxVal" class="slider-value">1000</span></label>
+                  <input id="hta_aerial_max_km" type="range" class="form-range" min="0" max="5000" step="50" value="1000">
+                </div>
+                <div class="col-6">
+                  <label class="form-label small">Distance HTA souterrain max (m) : <span id="htaSouterrainMaxVal" class="slider-value">500</span></label>
+                  <input id="hta_underground_max_km" type="range" class="form-range" min="0" max="2000" step="50" value="500">
+                </div>
+              </div>
+              
+              <div class="mt-2">
+                <small class="text-muted">
+                  <i class="bi bi-info-circle"></i> Filtre les éléments par proximité aux réseaux HTA aériens ou souterrains
+                </small>
+              </div>
+            </div>
+          </div>
         </div>
         
-  <button id="communeSearchButton" type="submit" class="btn btn-secondary w-100 mt-2">Rechercher commune</button>
+  <button id="communeSearchButton" type="submit" class="btn btn-secondary w-100 mt-2">
+    <i class="bi bi-search"></i> Rechercher commune
+  </button>
   <div id="communeSearchLog" class="form-text text-info mb-2" style="min-height:1.5em;"></div>
       </form>
     </div>
@@ -274,55 +353,208 @@
     <div class="accordion-body">
       <label class="form-label" for="departmentInput">Département :</label>
       <input id="departmentInput" class="form-control mb-2" placeholder="23">
-      <label class="form-label" for="rpgType">Type RPG :</label>
-      <select id="rpgType" class="form-select mb-2">
-        <option value="">Tous</option>
-        {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
-      </select>
-      <div class="mb-2">
-        <label class="form-label" for="minSurface">Surface min/max (ha)</label>
-        <input id="minSurface" type="range" class="form-range" min="0" max="100" value="10">
-        <input id="maxSurface" type="range" class="form-range" min="0" max="100" value="50">
-        <small>min : <span id="minSurfaceVal">10</span> ha – max : <span id="maxSurfaceVal">50</span> ha</small>
-      </div>
-      <div class="mb-2">
-        <label class="form-label" for="bt_max_distance_dept">Distance BT (m) <span id="btMaxValDept" class="slider-value"></span></label>
-        <input id="bt_max_distance_dept" type="range" class="form-range" min="0" max="2000" step="50" value="500">
-      </div>
-      <div class="mb-2">
-        <label class="form-label" for="ht_max_distance_dept">Distance HTA (m) <span id="htMaxValDept" class="slider-value"></span></label>
-        <input id="ht_max_distance_dept" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
-      </div>
-      <!-- Filtrage dynamique HTA/BT -->
-      <div class="mb-2">
-        <label class="form-label">Types de réseaux à filtrer :</label>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="filterHTA" checked>
-          <label class="form-check-label" for="filterHTA">HTA + distance</label>
+      
+      <!-- Filtres par type de données -->
+      <div class="mb-3">
+        <h6 class="fw-bold mb-2">Filtres par couche :</h6>
+        
+        <!-- Filtres RPG -->
+        <div class="card mb-2">
+          <div class="card-header py-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="filter_rpg_dept" name="filter_rpg_dept" checked>
+              <label class="form-check-label fw-bold" for="filter_rpg_dept">
+                <i class="bi bi-geo-fill text-success"></i> RPG (Cultures)
+              </label>
+            </div>
+          </div>
+          <div class="card-body py-2" id="rpg_filters_dept">
+            <div class="row g-2 mb-2">
+              <div class="col-12">
+                <label class="form-label small" for="rpgType">Type de culture</label>
+                <select id="rpgType" class="form-select form-select-sm">
+                  <option value="">Toutes</option>
+                  {% for culture in culture_options %}<option value="{{culture}}">{{culture}}</option>{% endfor %}
+                </select>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small">Surface min (ha) : <span id="minSurfaceVal" class="slider-value">10</span></label>
+                <input id="minSurface" type="range" class="form-range" min="0" max="100" step="1" value="10">
+              </div>
+              <div class="col-6">
+                <label class="form-label small">Surface max (ha) : <span id="maxSurfaceVal" class="slider-value">50</span></label>
+                <input id="maxSurface" type="range" class="form-range" min="0" max="100" step="1" value="50">
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" id="filterBT" checked>
-          <label class="form-check-label" for="filterBT">BT + distance</label>
+        
+        <!-- Filtres distances aux postes -->
+        <div class="card mb-2">
+          <div class="card-header py-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="filter_by_distance_dept" name="filter_by_distance_dept" checked>
+              <label class="form-check-label fw-bold" for="filter_by_distance_dept">
+                <i class="bi bi-geo-alt-fill text-primary"></i> Filtrage par distance aux postes
+              </label>
+            </div>
+          </div>
+          <div class="card-body py-2" id="distance_filters_dept">
+            <!-- Types de réseaux à filtrer -->
+            <div class="mb-2">
+              <label class="form-label small">Types de réseaux à considérer :</label>
+              <div class="btn-group w-100" role="group" aria-label="Type de réseau">
+                <input type="checkbox" class="btn-check" id="filterHTA" checked>
+                <label class="btn btn-outline-warning btn-sm" for="filterHTA">
+                  <i class="bi bi-lightning-charge-fill"></i> HTA
+                </label>
+                
+                <input type="checkbox" class="btn-check" id="filterBT" checked>
+                <label class="btn btn-outline-success btn-sm" for="filterBT">
+                  <i class="bi bi-lightning"></i> BT
+                </label>
+              </div>
+              <small class="text-muted d-block mt-1">
+                <i class="bi bi-info-circle"></i> Décoche pour ignorer un type de réseau (au moins un doit être sélectionné)
+              </small>
+            </div>
+            
+            <div class="row g-2 mb-2">
+              <div class="col-6">
+                <label class="form-label small">Distance BT max (m) : <span id="btMaxValDept" class="slider-value">500</span></label>
+                <input id="bt_max_distance_dept" type="range" class="form-range" min="0" max="2000" step="50" value="500">
+              </div>
+              <div class="col-6">
+                <label class="form-label small">Distance HTA max (m) : <span id="htMaxValDept" class="slider-value">2000</span></label>
+                <input id="ht_max_distance_dept" type="range" class="form-range" min="0" max="5000" step="50" value="2000">
+              </div>
+            </div>
+          </div>
         </div>
-        <small class="text-muted">
-          Décoche pour ignorer un type de réseau dans la recherche (au moins un doit être sélectionné).
-        </small>
+        
+        <!-- Filtres lignes HTA -->
+        <div class="card mb-2">
+          <div class="card-header py-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="filter_hta_lines_dept" name="filter_hta_lines_dept">
+              <label class="form-check-label fw-bold" for="filter_hta_lines_dept">
+                <i class="bi bi-broadcast text-warning"></i> Lignes HTA
+              </label>
+            </div>
+          </div>
+          <div class="card-body py-2" id="hta_lines_filters_dept">
+            <div class="row g-2 mb-2">
+              <div class="col-12">
+                <label class="form-label small">Distance lignes HTA aériennes max (m) : <span id="htaLinesAerialMaxValDept" class="slider-value">1000</span></label>
+                <input id="hta_lines_aerial_distance_dept" type="range" class="form-range" min="0" max="3000" step="50" value="1000">
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="filterHtaLinesAerial">
+                  <label class="form-check-label small" for="filterHtaLinesAerial">Activer le filtre distance lignes aériennes</label>
+                </div>
+              </div>
+            </div>
+            <div class="row g-2 mb-2">
+              <div class="col-12">
+                <label class="form-label small">Distance lignes HTA souterraines max (m) : <span id="htaLinesUndergroundMaxValDept" class="slider-value">500</span></label>
+                <input id="hta_lines_underground_distance_dept" type="range" class="form-range" min="0" max="1500" step="50" value="500">
+                <div class="form-check mt-1">
+                  <input class="form-check-input" type="checkbox" id="filterHtaLinesUnderground">
+                  <label class="form-check-label small" for="filterHtaLinesUnderground">Activer le filtre distance lignes souterraines</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Filtres exclusion -->
+        <div class="card mb-2">
+          <div class="card-header py-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="filter_exclusions_dept" name="filter_exclusions_dept">
+              <label class="form-check-label fw-bold" for="filter_exclusions_dept">
+                <i class="bi bi-x-circle text-danger"></i> Filtres d'exclusion
+              </label>
+            </div>
+          </div>
+          <div class="card-body py-2" id="exclusions_filters_dept">
+            <div class="form-check form-switch mb-2">
+              <input id="excludeBuildings" class="form-check-input" type="checkbox">
+              <label class="form-check-label" for="excludeBuildings">
+                <i class="bi bi-building"></i> Exclure bâtiments remarquables (500 m)
+              </label>
+            </div>
+            <div class="form-check form-switch mb-2">
+              <input id="excludeNature" class="form-check-input" type="checkbox">
+              <label class="form-check-label" for="excludeNature">
+                <i class="bi bi-tree"></i> Exclure zones naturelles
+              </label>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="form-check form-switch mt-2">
-        <input id="excludeBuildings" class="form-check-input" type="checkbox">
-        <label class="form-check-label" for="excludeBuildings">Exclure bâtiments remarquables 500 m</label>
-      </div>
-      <div class="form-check form-switch mb-2">
-        <input id="excludeNature" class="form-check-input" type="checkbox">
-        <label class="form-check-label" for="excludeNature">Exclure zones naturelles</label>
-      </div>
-      <button id="deptSearchBtn" type="button" class="btn btn-primary w-100">Lancer recherche département</button>
+      
+      <button id="deptSearchBtn" type="button" class="btn btn-primary w-100">
+        <i class="bi bi-search"></i> Lancer recherche département
+      </button>
       <pre id="deptLog" class="mt-3"></pre>
     </div>
   </div>
 </div>
 
+<!-- Section Gestion des cartes -->
+<div class="accordion-item">
+  <h2 class="accordion-header">
+    <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-maps" aria-expanded="false" aria-controls="acc-pane-maps">
+      <span class="me-2"><i class="bi bi-download"></i></span> Gestion des cartes
+    </button>
+  </h2>
+  <div id="acc-pane-maps" class="accordion-collapse collapse">
+    <div class="accordion-body">
+      <div class="row g-2 mb-3">
+        <div class="col-12 mb-2">
+          <a href="/saved_maps" target="_blank" class="btn btn-primary w-100">
+            <i class="bi bi-collection-fill"></i> Voir toutes mes cartes sauvegardées
+          </a>
+        </div>
+        <div class="col-12">
+          <button id="saveMapBtn" type="button" class="btn btn-success w-100">
+            <i class="bi bi-download"></i> Sauvegarder la carte actuelle
+          </button>
+        </div>
+      </div>
+      
+      <div class="mt-2">
+        <small class="text-muted">
+          <i class="bi bi-info-circle"></i> Sauvegardez l'état actuel de votre carte pour la télécharger en format JSON.<br>
+          <strong>Info :</strong> Les cartes sont automatiquement sauvegardées à chaque recherche dans le dossier "cartes" (format HTML).
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+// Utilitaire: charge une carte dans l'iframe principale avec cache-busting
+function displayMapInIframe(carteUrl) {
+  try {
+    const iframe = document.getElementById('mapFrame');
+    if (!iframe) {
+      console.warn('displayMapInIframe: iframe #mapFrame introuvable');
+      return false;
+    }
+    const baseUrl = window.location.origin;
+    const absoluteUrl = carteUrl.startsWith('http') ? carteUrl : baseUrl + carteUrl;
+    const newUrl = absoluteUrl + (absoluteUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+    iframe.src = newUrl;
+    return true;
+  } catch (e) {
+    console.error('displayMapInIframe error:', e);
+    return false;
+  }
+}
+
 // Gestion de l'affichage des filtres selon les cases cochées
 document.addEventListener('DOMContentLoaded', function() {
   // Fonction pour toggle l'affichage des filtres
@@ -342,12 +574,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Appliquer pour chaque type de filtre
+  // Appliquer pour chaque type de filtre - Commune
   toggleFilters('filter_rpg_commune', 'rpg_filters');
   toggleFilters('filter_parkings_commune', 'parking_filters');
   toggleFilters('filter_friches_commune', 'friches_filters');
   toggleFilters('filter_zones_commune', 'zones_filters');
   toggleFilters('filter_toitures_commune', 'toitures_filters');
+  
+  // Appliquer pour chaque type de filtre - Département
+  toggleFilters('filter_rpg_dept', 'rpg_filters_dept');
+  toggleFilters('filter_by_distance_dept', 'distance_filters_dept');
+  toggleFilters('filter_hta_lines_dept', 'hta_lines_filters_dept');
+  toggleFilters('filter_exclusions_dept', 'exclusions_filters_dept');
   
   // Gestion des sliders pour les valeurs dynamiques
   function setupSlider(sliderId, displayId, suffix = '') {
@@ -387,6 +625,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sliders pour les nouveaux contrôles de distance commune
     setupSlider('bt_max_distance_commune', 'btMaxValCommune', ' m');
     setupSlider('ht_max_distance_commune', 'htMaxValCommune', ' m');
+    
+    // Sliders pour les filtres HTA aériens/souterrains commune
+    setupSlider('hta_aerial_max_km', 'htaAerienMaxVal', ' m');
+    setupSlider('hta_underground_max_km', 'htaSouterrainMaxVal', ' m');
   // Distances toitures utilisent les contrôles globaux
     
     // Sliders section Département
@@ -394,13 +636,16 @@ document.addEventListener('DOMContentLoaded', function() {
     setupSlider('maxSurface', 'maxSurfaceVal', ' ha');
     setupSlider('bt_max_distance_dept', 'btMaxValDept', ' m');
     setupSlider('ht_max_distance_dept', 'htMaxValDept', ' m');
+    setupSlider('hta_lines_aerial_distance_dept', 'htaLinesAerialMaxValDept', ' m');
+    setupSlider('hta_lines_underground_distance_dept', 'htaLinesUndergroundMaxValDept', ' m');
     
     // Force la mise à jour initiale pour tous les sliders
     const allSliders = [
       'sirene_radius', 'bt_max_distance', 'ht_max_distance',
       'sirene_radius_commune', 'min_surface_toiture',
-  'bt_max_distance_commune', 'ht_max_distance_commune',
-      'minSurface', 'maxSurface', 'bt_max_distance_dept', 'ht_max_distance_dept'
+      'bt_max_distance_commune', 'ht_max_distance_commune',
+      'minSurface', 'maxSurface', 'bt_max_distance_dept', 'ht_max_distance_dept',
+      'hta_lines_aerial_distance_dept', 'hta_lines_underground_distance_dept'
     ];
     
     allSliders.forEach(id => {
@@ -500,99 +745,235 @@ document.addEventListener('DOMContentLoaded', function() {
       mapFrame.contentWindow.zoomToFeature(toiture, 18);
     }
   };
+  
+  // ============== GESTION DES CARTES ==============
+  
+  // Fonction pour capturer l'état actuel de la carte
+  function captureMapState() {
+    const mapFrame = document.getElementById('mapFrame');
+    if (!mapFrame || !mapFrame.contentWindow) {
+      throw new Error('Carte non accessible');
+    }
+    
+    const mapWindow = mapFrame.contentWindow;
+    
+    // Chercher la variable map avec différentes méthodes
+    let map = mapWindow.map;
+    
+    // Si pas trouvée, chercher une variable map avec un ID généré (Folium)
+    if (!map) {
+      for (let key in mapWindow) {
+        if (key.startsWith('map_') && mapWindow[key] && mapWindow[key].getCenter) {
+          map = mapWindow[key];
+          break;
+        }
+      }
+    }
+    
+    // Si toujours pas trouvée, chercher via L.Map
+    if (!map && mapWindow.L && mapWindow.L.Map) {
+      for (let key in mapWindow) {
+        if (mapWindow[key] instanceof mapWindow.L.Map) {
+          map = mapWindow[key];
+          break;
+        }
+      }
+    }
+    
+    if (!map) {
+      throw new Error('Carte Leaflet non trouvée');
+    }
+    
+    // Capturer l'état de base de la carte
+    const center = map.getCenter();
+    const zoom = map.getZoom();
+    
+    // Capturer toutes les couches GeoJSON
+    const layers = [];
+    if (mapWindow._layers && Array.isArray(mapWindow._layers)) {
+      mapWindow._layers.forEach((layer, index) => {
+        if (layer.toGeoJSON) {
+          try {
+            const geoJson = layer.toGeoJSON();
+            layers.push({
+              index: index,
+              geoJson: geoJson,
+              type: 'geojson'
+            });
+          } catch (e) {
+            console.warn('Impossible de sérialiser la couche', index, e);
+          }
+        }
+      });
+    }
+    
+    // Capturer l'information de recherche actuelle
+    const searchInfo = {
+      commune: document.getElementById('commune')?.value || '',
+      departement: document.getElementById('departmentInput')?.value || '',
+      lastSearch: window.lastCommuneSearch || null,
+      timestamp: new Date().toISOString()
+    };
+    
+    return {
+      version: '1.0',
+      agriwebVersion: '3.2.1',
+      map: {
+        center: { lat: center.lat, lng: center.lng },
+        zoom: zoom,
+        baseLayer: 'satellite' // Par défaut satellite
+      },
+      layers: layers,
+      searchInfo: searchInfo,
+      metadata: {
+        savedAt: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        url: window.location.href
+      }
+    };
+  }
+  
+  // Fonction pour sauvegarder la carte
+  function saveCurrentMap() {
+    try {
+      const mapState = captureMapState();
+      
+      // Créer le nom de fichier avec timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `carte_agriweb_${timestamp}.agriweb`;
+      
+      // Convertir en JSON et télécharger
+      const jsonString = JSON.stringify(mapState, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      alert(`✅ Carte sauvegardée avec succès !\nFichier: ${filename}`);
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde:', error);
+      alert(`❌ Erreur lors de la sauvegarde: ${error.message}`);
+    }
+  }
+  
+  // Fonction pour charger une carte
+  function loadMapFromFile(file) {
+    // Vérifier d'abord l'authentification
+    fetch('/check_auth')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Vous devez être connecté à AgriWeb pour charger une carte sauvegardée');
+        }
+        return response.json();
+      })
+      .then(authData => {
+        if (!authData.authenticated) {
+          throw new Error('Vous devez être connecté à AgriWeb pour charger une carte sauvegardée');
+        }
+        
+        // Lire le fichier
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          try {
+            const mapState = JSON.parse(e.target.result);
+            restoreMapState(mapState);
+          } catch (error) {
+            alert(`❌ Erreur lors du chargement: Fichier invalide (${error.message})`);
+          }
+        };
+        reader.readAsText(file);
+      })
+      .catch(error => {
+        alert(`❌ ${error.message}`);
+      });
+  }
+  
+  // Fonction pour restaurer l'état de la carte
+  function restoreMapState(mapState) {
+    try {
+      // Vérifier la version
+      if (!mapState.version || !mapState.agriwebVersion) {
+        throw new Error('Format de fichier non reconnu');
+      }
+      
+      const mapFrame = document.getElementById('mapFrame');
+      if (!mapFrame) {
+        throw new Error('Interface de carte non trouvée');
+      }
+      
+      // S'assurer que la carte est chargée
+      if (!mapFrame.contentWindow || !mapFrame.contentWindow.map) {
+        // Charger la carte d'abord
+        displayMapInIframe('/static/map.html');
+        
+        // Attendre que la carte soit chargée
+        setTimeout(() => {
+          restoreMapState(mapState);
+        }, 2000);
+        return;
+      }
+      
+      const mapWindow = mapFrame.contentWindow;
+      const map = mapWindow.map;
+      
+      // Nettoyer la carte existante
+      if (mapWindow.clearMap) {
+        mapWindow.clearMap();
+      }
+      
+      // Restaurer la vue
+      map.setView([mapState.map.center.lat, mapState.map.center.lng], mapState.map.zoom);
+      
+      // Restaurer les couches
+      if (mapState.layers && Array.isArray(mapState.layers)) {
+        mapState.layers.forEach(layerData => {
+          if (layerData.geoJson && mapWindow.addGeoJsonToMap) {
+            mapWindow.addGeoJsonToMap(layerData.geoJson);
+          }
+        });
+      }
+      
+      // Restaurer les informations de recherche si disponibles
+      if (mapState.searchInfo) {
+        if (mapState.searchInfo.commune) {
+          const communeInput = document.getElementById('commune');
+          if (communeInput) communeInput.value = mapState.searchInfo.commune;
+        }
+        if (mapState.searchInfo.departement) {
+          const deptInput = document.getElementById('departmentInput');
+          if (deptInput) deptInput.value = mapState.searchInfo.departement;
+        }
+      }
+      
+      alert(`✅ Carte restaurée avec succès !\nSauvegardée le: ${new Date(mapState.metadata.savedAt).toLocaleString()}`);
+      
+    } catch (error) {
+      console.error('Erreur lors de la restauration:', error);
+      alert(`❌ Erreur lors de la restauration: ${error.message}`);
+    }
+  }
+  
+  // Gestionnaire d'événements pour les boutons
+  document.getElementById('saveMapBtn')?.addEventListener('click', saveCurrentMap);
+  
+  document.getElementById('mapFileInput')?.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      loadMapFromFile(file);
+      // Réinitialiser l'input
+      e.target.value = '';
+    }
+  });
 });
 
 // Enrichissement: logs en direct via SSE pendant la recherche commune
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('communeSearchForm');
-  const logEl = document.getElementById('communeSearchLog');
-
-  function appendLog(msg) {
-    if (!logEl) return;
-    const now = new Date();
-    const ts = now.toLocaleTimeString();
-    const line = document.createElement('div');
-    line.textContent = `[${ts}] ${msg}`;
-    logEl.appendChild(line);
-    logEl.scrollTop = logEl.scrollHeight;
-  }
-
-  if (form) {
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-
-      // Reset logs
-      if (logEl) {
-        logEl.innerHTML = '';
-      }
-
-      const commune = document.getElementById('commune')?.value?.trim() || '';
-      if (!commune) {
-        appendLog('Veuillez saisir une commune.');
-        return;
-      }
-  // Mémoriser la dernière commune recherchée pour le bouton "Générer rapport commune"
-  try { if (window.setLastCommuneSearched) window.setLastCommuneSearched(commune); } catch {}
-
-      // Collecte des filtres principaux (alignés avec /rapport_commune_complet)
-      function boolVal(id, defVal=false) {
-        const el = document.getElementById(id);
-        return el ? !!el.checked : defVal;
-      }
-      function numVal(id, defVal=0) {
-        const el = document.getElementById(id);
-        const v = el ? parseFloat(el.value) : defVal;
-        return isNaN(v) ? defVal : v;
-      }
-
-      const params = new URLSearchParams();
-      params.set('commune', commune);
-      // Filtres par couche
-      params.set('filter_rpg', String(boolVal('filter_rpg_commune', true)));
-      params.set('rpg_min_area', String(numVal('rpg_min_area', 0.1)));
-      params.set('rpg_max_area', String(numVal('rpg_max_area', 50)));
-
-      params.set('filter_parkings', String(boolVal('filter_parkings_commune', false)));
-      params.set('parking_min_area', String(numVal('parking_min_area', 1500)));
-
-      params.set('filter_friches', String(boolVal('filter_friches_commune', false)));
-      params.set('friches_min_area', String(numVal('friches_min_area', 1000)));
-
-      params.set('filter_zones', String(boolVal('filter_zones_commune', false)));
-      params.set('zones_min_area', String(numVal('zones_min_area', 1000)));
-      params.set('zones_type_filter', document.getElementById('zones_type_filter')?.value || '');
-
-      params.set('filter_toitures', String(boolVal('filter_toitures_commune', false)));
-      params.set('toitures_min_surface', String(numVal('min_surface_toiture', 100)));
-
-      // Filtres distance unifiés
-      const filterByDist = document.getElementById('filter_by_distance_commune')?.checked || false;
-      params.set('filter_by_distance', String(filterByDist));
-      params.set('max_distance_bt', String(numVal('bt_max_distance_commune', 2000)));
-      params.set('max_distance_hta', String(numVal('ht_max_distance_commune', 5000)));
-      const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
-      params.set('poste_type_filter', posteType);
-
-      // Démarre EventSource
-      const url = '/commune_search_sse?' + params.toString();
-      const es = new EventSource(url);
-      appendLog('Analyse en cours…');
-
-      es.addEventListener('message', (ev) => {
-        if (ev?.data) appendLog(ev.data);
-      });
-  // Plus de redirection automatique: on conserve seulement les logs.
-  // Le rapport complet sera lancé depuis le bouton dédié.
-      es.addEventListener('error', (ev) => {
-        appendLog('Erreur pendant l’analyse.');
-        try { es.close(); } catch {}
-      });
-      es.addEventListener('done', () => {
-        appendLog('Analyse terminée.');
-        try { es.close(); } catch {}
-      });
-    });
-  }
-});
+// Remarque: La soumission du formulaire commune est gérée par static/main.js (handleCommuneSearch)
 </script>
 </div>

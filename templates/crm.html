@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Prospects - AgriWeb</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container-fluid {
+            max-width: 1600px;
+        }
+        .card {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: none;
+            border-radius: 10px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: bold;
+        }
+        .stat-card p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+        }
+        .prospect-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .prospect-row:hover {
+            background-color: #f8f9fa;
+        }
+        .badge-type-parking {
+            background-color: #28a745;
+        }
+        .badge-type-toiture {
+            background-color: #007bff;
+        }
+        .badge-type-friche {
+            background-color: #6c757d;
+        }
+        .badge-statut-nouveau {
+            background-color: #17a2b8;
+        }
+        .badge-statut-contacte {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .badge-statut-qualifie {
+            background-color: #28a745;
+        }
+        .badge-statut-perdu {
+            background-color: #dc3545;
+        }
+        .badge-priorite-haute {
+            background-color: #dc3545;
+        }
+        .badge-priorite-moyenne {
+            background-color: #ffc107;
+            color: #212529;
+        }
+        .badge-priorite-basse {
+            background-color: #6c757d;
+        }
+        .filters {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .modal-fullscreen-lg {
+            max-width: 90%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <!-- En-tête -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="text-white">
+                <i class="bi bi-building"></i> CRM Prospects
+            </h1>
+            <div>
+                <button class="btn btn-light me-2" onclick="exportProspects()">
+                    <i class="bi bi-download"></i> Exporter CSV
+                </button>
+                <a href="/app" class="btn btn-light">
+                    <i class="bi bi-arrow-left"></i> Retour
+                </a>
+            </div>
+        </div>
+
+        <!-- Statistiques -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="totalProspects">0</h3>
+                    <p>Total Prospects</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="parkingsCount">0</h3>
+                    <p>Parkings</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="toituresCount">0</h3>
+                    <p>Toitures</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="frichesCount">0</h3>
+                    <p>Friches</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtres -->
+        <div class="filters">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-funnel"></i> Statut</label>
+                    <select id="filterStatut" class="form-select" onchange="loadProspects()">
+                        <option value="">Tous</option>
+                        <option value="nouveau">Nouveau</option>
+                        <option value="contacte">Contacté</option>
+                        <option value="qualifie">Qualifié</option>
+                        <option value="perdu">Perdu</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-tag"></i> Type</label>
+                    <select id="filterType" class="form-select" onchange="loadProspects()">
+                        <option value="">Tous</option>
+                        <option value="parking">Parking</option>
+                        <option value="toiture">Toiture</option>
+                        <option value="friche">Friche</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-search"></i> Commune</label>
+                    <input type="text" id="filterCommune" class="form-control" placeholder="Rechercher une commune..." onkeyup="loadProspects()">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-map"></i> Département</label>
+                    <input type="text" id="filterDepartement" class="form-control" placeholder="Ex: 29" onkeyup="loadProspects()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Liste des prospects -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Liste des Prospects</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="50">#</th>
+                                <th>Type</th>
+                                <th>Commune</th>
+                                <th>Adresse</th>
+                                <th>Surface</th>
+                                <th>BT</th>
+                                <th>HTA</th>
+                                <th>Statut</th>
+                                <th>Priorité</th>
+                                <th>Date</th>
+                                <th width="150">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prospectsTable">
+                            <tr>
+                                <td colspan="11" class="text-center py-5">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Chargement...</span>
+                                    </div>
+                                    <p class="mt-3 text-muted">Chargement des prospects...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Détails Prospect -->
+    <div class="modal fade" id="prospectModal" tabindex="-1">
+        <div class="modal-dialog modal-fullscreen-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-info-circle"></i> Détails du Prospect</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="prospectDetails">
+                    <!-- Contenu dynamique -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" onclick="deleteProspect()">
+                        <i class="bi bi-trash"></i> Supprimer
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    <button type="button" class="btn btn-primary" onclick="saveProspect()">
+                        <i class="bi bi-save"></i> Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentProspectId = null;
+        let allProspects = [];
+
+        // Charger au démarrage
+        window.onload = function() {
+            loadStats();
+            loadProspects();
+        };
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/crm/stats');
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('totalProspects').textContent = data.total || 0;
+                    document.getElementById('parkingsCount').textContent = data.by_type?.parking || 0;
+                    document.getElementById('toituresCount').textContent = data.by_type?.toiture || 0;
+                    document.getElementById('frichesCount').textContent = data.by_type?.friche || 0;
+                }
+            } catch (error) {
+                console.error('Erreur chargement stats:', error);
+            }
+        }
+
+        async function loadProspects() {
+            const statut = document.getElementById('filterStatut').value;
+            const type = document.getElementById('filterType').value;
+            const commune = document.getElementById('filterCommune').value;
+            const departement = document.getElementById('filterDepartement').value;
+
+            const params = new URLSearchParams();
+            if (statut) params.append('statut', statut);
+            if (type) params.append('type', type);
+            if (commune) params.append('commune', commune);
+            if (departement) params.append('departement', departement);
+
+            try {
+                const response = await fetch('/api/crm/prospects?' + params.toString());
+                const data = await response.json();
+
+                if (data.success) {
+                    allProspects = data.prospects;
+                    renderProspects(data.prospects);
+                }
+            } catch (error) {
+                console.error('Erreur chargement prospects:', error);
+                document.getElementById('prospectsTable').innerHTML = `
+                    <tr>
+                        <td colspan="11" class="text-center py-5 text-danger">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            Erreur lors du chargement des prospects
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function renderProspects(prospects) {
+            const tbody = document.getElementById('prospectsTable');
+            
+            if (prospects.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox"></i>
+                            <p class="mt-3">Aucun prospect trouvé</p>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = prospects.map(p => `
+                <tr class="prospect-row" onclick="showProspectDetails(${p.id})">
+                    <td>${p.id}</td>
+                    <td><span class="badge badge-type-${p.type}">${p.type}</span></td>
+                    <td>${p.commune || 'N/A'}</td>
+                    <td><small>${p.adresse || 'Non disponible'}</small></td>
+                    <td>${p.surface_m2 ? Math.round(p.surface_m2) + ' m²' : 'N/A'}</td>
+                    <td>${p.poste_bt_distance_m ? Math.round(p.poste_bt_distance_m) + ' m' : 'N/A'}</td>
+                    <td>${p.poste_hta_distance_m ? Math.round(p.poste_hta_distance_m) + ' m' : 'N/A'}</td>
+                    <td><span class="badge badge-statut-${p.statut}">${p.statut}</span></td>
+                    <td><span class="badge badge-priorite-${p.priorite}">${p.priorite}</span></td>
+                    <td><small>${new Date(p.date_creation).toLocaleDateString('fr-FR')}</small></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); showProspectDetails(${p.id})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <a href="${p.lien_streetview || '#'}" target="_blank" class="btn btn-sm btn-info" 
+                           onclick="event.stopPropagation()" ${!p.lien_streetview ? 'disabled' : ''}>
+                            <i class="bi bi-camera"></i>
+                        </a>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function showProspectDetails(id) {
+            currentProspectId = id;
+            
+            try {
+                const response = await fetch(`/api/crm/prospect/${id}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    const p = data.prospect;
+                    const detailsDiv = document.getElementById('prospectDetails');
+                    
+                    detailsDiv.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="mb-3"><i class="bi bi-geo-alt"></i> Informations Générales</h6>
+                                <div class="mb-3">
+                                    <label class="form-label">Type</label>
+                                    <input type="text" class="form-control" value="${p.type}" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Commune</label>
+                                    <input type="text" class="form-control" value="${p.commune || ''}" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Adresse</label>
+                                    <textarea class="form-control" rows="2" readonly>${p.adresse || 'Non disponible'}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Coordonnées GPS</label>
+                                    <input type="text" class="form-control" value="${p.latitude}, ${p.longitude}" readonly>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Surface</label>
+                                    <input type="text" class="form-control" value="${p.surface_m2 ? Math.round(p.surface_m2) + ' m² (' + (p.surface_m2/10000).toFixed(2) + ' ha)' : 'N/A'}" readonly>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Distance Poste BT</label>
+                                        <input type="text" class="form-control" value="${p.poste_bt_distance_m ? Math.round(p.poste_bt_distance_m) + ' m' : 'N/A'}" readonly>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Distance Poste HTA</label>
+                                        <input type="text" class="form-control" value="${p.poste_hta_distance_m ? Math.round(p.poste_hta_distance_m) + ' m' : 'N/A'}" readonly>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <a href="${p.lien_streetview}" target="_blank" class="btn btn-info me-2" ${!p.lien_streetview ? 'disabled' : ''}>
+                                        <i class="bi bi-camera"></i> Street View
+                                    </a>
+                                    <a href="${p.lien_annuaire}" target="_blank" class="btn btn-warning" ${!p.lien_annuaire ? 'disabled' : ''}>
+                                        <i class="bi bi-book"></i> Pages Jaunes
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="mb-3"><i class="bi bi-person"></i> Gestion Prospect</h6>
+                                <div class="mb-3">
+                                    <label class="form-label">Statut</label>
+                                    <select id="editStatut" class="form-select">
+                                        <option value="nouveau" ${p.statut === 'nouveau' ? 'selected' : ''}>Nouveau</option>
+                                        <option value="contacte" ${p.statut === 'contacte' ? 'selected' : ''}>Contacté</option>
+                                        <option value="qualifie" ${p.statut === 'qualifie' ? 'selected' : ''}>Qualifié</option>
+                                        <option value="perdu" ${p.statut === 'perdu' ? 'selected' : ''}>Perdu</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Priorité</label>
+                                    <select id="editPriorite" class="form-select">
+                                        <option value="haute" ${p.priorite === 'haute' ? 'selected' : ''}>Haute</option>
+                                        <option value="moyenne" ${p.priorite === 'moyenne' ? 'selected' : ''}>Moyenne</option>
+                                        <option value="basse" ${p.priorite === 'basse' ? 'selected' : ''}>Basse</option>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Nom du Contact</label>
+                                    <input type="text" id="editContactNom" class="form-control" value="${p.contact_nom || ''}" placeholder="Nom du propriétaire/gestionnaire">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Email du Contact</label>
+                                    <input type="email" id="editContactEmail" class="form-control" value="${p.contact_email || ''}" placeholder="email@example.com">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Téléphone du Contact</label>
+                                    <input type="tel" id="editContactTelephone" class="form-control" value="${p.contact_telephone || ''}" placeholder="06 12 34 56 78">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Notes</label>
+                                    <textarea id="editNotes" class="form-control" rows="5" placeholder="Notes sur le prospect...">${p.notes || ''}</textarea>
+                                </div>
+                                <div class="text-muted">
+                                    <small>
+                                        <i class="bi bi-calendar"></i> Créé le ${new Date(p.date_creation).toLocaleString('fr-FR')}<br>
+                                        <i class="bi bi-pencil"></i> Modifié le ${new Date(p.date_modification).toLocaleString('fr-FR')}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    const modal = new bootstrap.Modal(document.getElementById('prospectModal'));
+                    modal.show();
+                }
+            } catch (error) {
+                console.error('Erreur chargement détails:', error);
+                alert('❌ Erreur lors du chargement des détails');
+            }
+        }
+
+        async function saveProspect() {
+            if (!currentProspectId) return;
+
+            const updateData = {
+                statut: document.getElementById('editStatut').value,
+                priorite: document.getElementById('editPriorite').value,
+                notes: document.getElementById('editNotes').value,
+                contact_nom: document.getElementById('editContactNom').value,
+                contact_email: document.getElementById('editContactEmail').value,
+                contact_telephone: document.getElementById('editContactTelephone').value
+            };
+
+            try {
+                const response = await fetch(`/api/crm/prospect/${currentProspectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Prospect mis à jour avec succès');
+                    bootstrap.Modal.getInstance(document.getElementById('prospectModal')).hide();
+                    loadProspects();
+                    loadStats();
+                } else {
+                    alert('❌ Erreur lors de la mise à jour');
+                }
+            } catch (error) {
+                console.error('Erreur sauvegarde:', error);
+                alert('❌ Erreur de connexion');
+            }
+        }
+
+        async function deleteProspect() {
+            if (!currentProspectId) return;
+
+            if (!confirm('⚠️ Êtes-vous sûr de vouloir supprimer ce prospect ?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/crm/prospect/${currentProspectId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('✅ Prospect supprimé');
+                    bootstrap.Modal.getInstance(document.getElementById('prospectModal')).hide();
+                    loadProspects();
+                    loadStats();
+                } else {
+                    alert('❌ Erreur lors de la suppression');
+                }
+            } catch (error) {
+                console.error('Erreur suppression:', error);
+                alert('❌ Erreur de connexion');
+            }
+        }
+
+        function exportProspects() {
+            // Générer CSV
+            const csv = ['ID,Type,Commune,Département,Adresse,Surface (m²),BT (m),HTA (m),Statut,Priorité,Contact,Email,Téléphone,Notes,Date'];
+            
+            allProspects.forEach(p => {
+                csv.push([
+                    p.id,
+                    p.type,
+                    p.commune || '',
+                    p.departement || '',
+                    (p.adresse || '').replace(/,/g, ' '),
+                    p.surface_m2 || '',
+                    p.poste_bt_distance_m || '',
+                    p.poste_hta_distance_m || '',
+                    p.statut,
+                    p.priorite,
+                    p.contact_nom || '',
+                    p.contact_email || '',
+                    p.contact_telephone || '',
+                    (p.notes || '').replace(/,/g, ' '),
+                    new Date(p.date_creation).toLocaleDateString('fr-FR')
+                ].join(','));
+            });
+
+            const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `prospects_agriweb_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
+    </script>
+</body>
+</html>

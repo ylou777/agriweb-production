@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard CRM - Statistiques & KPI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .dashboard-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 0;
+            overflow: hidden;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+        }
+        .kpi-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .kpi-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .kpi-trend {
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        .trend-up { color: #10b981; }
+        .trend-down { color: #ef4444; }
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stats-table {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+        .progress-thin {
+            height: 8px;
+        }
+        .badge-status {
+            padding: 5px 12px;
+            font-size: 0.85rem;
+        }
+        .nav-pills .nav-link {
+            color: #667eea;
+            font-weight: 500;
+        }
+        .nav-pills .nav-link.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .metric-icon {
+            font-size: 2.5rem;
+            opacity: 0.2;
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+        .conversion-funnel {
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .funnel-step {
+            position: relative;
+            padding: 15px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                <div class="dashboard-container">
+                    <!-- Header -->
+                    <div class="dashboard-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Dashboard CRM</h1>
+                                <p class="mb-0 mt-2 opacity-75">Statistiques & Indicateurs de Performance</p>
+                            </div>
+                            <div>
+                                <a href="/crm" class="btn btn-light me-2"><i class="bi bi-people me-2"></i>Prospects</a>
+                                <a href="/" class="btn btn-outline-light"><i class="bi bi-house me-2"></i>Accueil</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Navigation Tabs -->
+                    <div class="p-4">
+                        <ul class="nav nav-pills mb-4" id="dashboardTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
+                                    <i class="bi bi-speedometer2"></i> Vue d'ensemble
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="conversion-tab" data-bs-toggle="pill" data-bs-target="#conversion" type="button">
+                                    <i class="bi bi-funnel"></i> Taux de Conversion
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="users-tab" data-bs-toggle="pill" data-bs-target="#users" type="button">
+                                    <i class="bi bi-person-check"></i> Par Utilisateur
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="performance-tab" data-bs-toggle="pill" data-bs-target="#performance" type="button">
+                                    <i class="bi bi-trophy"></i> Performances
+                                </button>
+                            </li>
+                        </ul>
+
+                        <!-- Tab Content -->
+                        <div class="tab-content" id="dashboardTabContent">
+                            <!-- Vue d'ensemble -->
+                            <div class="tab-pane fade show active" id="overview" role="tabpanel">
+                                <!-- KPI Cards -->
+                                <div class="row mb-4">
+                                    <div class="col-md-3">
+                                        <div class="kpi-card position-relative">
+                                            <i class="bi bi-people-fill metric-icon"></i>
+                                            <div class="kpi-label">Total Prospects</div>
+                                            <div class="kpi-value text-primary" id="kpi-total">0</div>
+                                            <div class="kpi-trend trend-up">
+                                                <i class="bi bi-arrow-up"></i> <span id="kpi-total-trend">0</span> ce mois
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="kpi-card position-relative">
+                                            <i class="bi bi-envelope-check metric-icon"></i>
+                                            <div class="kpi-label">Contactés</div>
+                                            <div class="kpi-value text-info" id="kpi-contactes">0</div>
+                                            <div class="kpi-trend">
+                                                <span id="kpi-contactes-pct">0</span>% du total
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="kpi-card position-relative">
+                                            <i class="bi bi-check-circle metric-icon"></i>
+                                            <div class="kpi-label">Qualifiés</div>
+                                            <div class="kpi-value text-success" id="kpi-qualifies">0</div>
+                                            <div class="kpi-trend">
+                                                <span id="kpi-qualifies-pct">0</span>% du total
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="kpi-card position-relative">
+                                            <i class="bi bi-currency-euro metric-icon"></i>
+                                            <div class="kpi-label">Propositions</div>
+                                            <div class="kpi-value text-warning" id="kpi-proposals">0</div>
+                                            <div class="kpi-trend">
+                                                <span id="kpi-proposals-value">0</span>€ total
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Charts Row -->
+                                <div class="row mb-4">
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <h5 class="mb-3">Répartition par Type</h5>
+                                            <canvas id="typeChart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <h5 class="mb-3">Répartition par Statut</h5>
+                                            <canvas id="statutChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Timeline Chart -->
+                                <div class="chart-container">
+                                    <h5 class="mb-3">Évolution dans le Temps</h5>
+                                    <canvas id="timelineChart"></canvas>
+                                </div>
+                            </div>
+
+                            <!-- Taux de Conversion -->
+                            <div class="tab-pane fade" id="conversion" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="conversion-funnel">
+                                            <h5 class="mb-4">Entonnoir de Conversion</h5>
+                                            <div class="funnel-step">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <strong>1. Nouveaux Prospects</strong>
+                                                        <div class="text-muted small" id="funnel-nouveaux-count">0 prospects</div>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="badge bg-secondary" id="funnel-nouveaux-pct">100%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="progress progress-thin mt-2">
+                                                    <div class="progress-bar bg-secondary" id="funnel-nouveaux-bar" style="width: 100%"></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="funnel-step">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <strong>2. Contactés</strong>
+                                                        <div class="text-muted small" id="funnel-contactes-count">0 prospects</div>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="badge bg-info" id="funnel-contactes-pct">0%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="progress progress-thin mt-2">
+                                                    <div class="progress-bar bg-info" id="funnel-contactes-bar" style="width: 0%"></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="funnel-step">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <strong>3. Qualifiés</strong>
+                                                        <div class="text-muted small" id="funnel-qualifies-count">0 prospects</div>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="badge bg-success" id="funnel-qualifies-pct">0%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="progress progress-thin mt-2">
+                                                    <div class="progress-bar bg-success" id="funnel-qualifies-bar" style="width: 0%"></div>
+                                                </div>
+                                            </div>
+
+                                            <div class="funnel-step">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <div>
+                                                        <strong>4. Propositions Envoyées</strong>
+                                                        <div class="text-muted small" id="funnel-proposals-count">0 propositions</div>
+                                                    </div>
+                                                    <div class="text-end">
+                                                        <span class="badge bg-warning" id="funnel-proposals-pct">0%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="progress progress-thin mt-2">
+                                                    <div class="progress-bar bg-warning" id="funnel-proposals-bar" style="width: 0%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <h5 class="mb-3">Taux de Conversion par Type</h5>
+                                            <canvas id="conversionByTypeChart"></canvas>
+                                        </div>
+
+                                        <div class="stats-table mt-4">
+                                            <h5 class="mb-3">Métriques Clés</h5>
+                                            <table class="table table-sm">
+                                                <tbody>
+                                                    <tr>
+                                                        <td><strong>Taux de Contact</strong></td>
+                                                        <td class="text-end"><span id="metric-contact-rate">0%</span></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Taux de Qualification</strong></td>
+                                                        <td class="text-end"><span id="metric-qualification-rate">0%</span></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Taux de Proposition</strong></td>
+                                                        <td class="text-end"><span id="metric-proposal-rate">0%</span></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Taux de Conversion Global</strong></td>
+                                                        <td class="text-end"><strong><span id="metric-global-rate">0%</span></strong></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Délai Moyen Contact</strong></td>
+                                                        <td class="text-end"><span id="metric-avg-contact-delay">0 jours</span></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Délai Moyen Qualification</strong></td>
+                                                        <td class="text-end"><span id="metric-avg-qualification-delay">0 jours</span></td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Par Utilisateur -->
+                            <div class="tab-pane fade" id="users" role="tabpanel">
+                                <div class="stats-table">
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h5 class="mb-0">Performance par Utilisateur</h5>
+                                        <div>
+                                            <select id="user-period" class="form-select form-select-sm">
+                                                <option value="7">7 derniers jours</option>
+                                                <option value="30" selected>30 derniers jours</option>
+                                                <option value="90">90 derniers jours</option>
+                                                <option value="all">Tout</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <table class="table table-hover" id="usersTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Utilisateur</th>
+                                                <th class="text-center">Total</th>
+                                                <th class="text-center">Contactés</th>
+                                                <th class="text-center">Qualifiés</th>
+                                                <th class="text-center">Propositions</th>
+                                                <th class="text-center">Taux Contact</th>
+                                                <th class="text-center">Taux Qualif.</th>
+                                                <th class="text-center">Taux Global</th>
+                                                <th class="text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="usersTableBody">
+                                            <tr>
+                                                <td colspan="9" class="text-center text-muted">Chargement...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="row mt-4">
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <h5 class="mb-3">Top Utilisateurs - Prospects Qualifiés</h5>
+                                            <canvas id="topUsersChart"></canvas>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="chart-container">
+                                            <h5 class="mb-3">Actions par Utilisateur</h5>
+                                            <canvas id="userActionsChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Performances -->
+                            <div class="tab-pane fade" id="performance" role="tabpanel">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="kpi-card text-center">
+                                            <i class="bi bi-trophy-fill text-warning" style="font-size: 3rem;"></i>
+                                            <div class="kpi-label mt-3">Meilleur Taux de Conversion</div>
+                                            <div class="kpi-value text-warning" id="perf-best-rate">0%</div>
+                                            <div class="text-muted" id="perf-best-user">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="kpi-card text-center">
+                                            <i class="bi bi-lightning-fill text-info" style="font-size: 3rem;"></i>
+                                            <div class="kpi-label mt-3">Plus Rapide (Contact)</div>
+                                            <div class="kpi-value text-info" id="perf-fastest">0j</div>
+                                            <div class="text-muted" id="perf-fastest-user">-</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="kpi-card text-center">
+                                            <i class="bi bi-star-fill text-success" style="font-size: 3rem;"></i>
+                                            <div class="kpi-label mt-3">Plus Productif</div>
+                                            <div class="kpi-value text-success" id="perf-most-productive">0</div>
+                                            <div class="text-muted" id="perf-productive-user">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="stats-table mt-4">
+                                    <h5 class="mb-3">Top 10 - Départements les Plus Actifs</h5>
+                                    <table class="table">
+                                        <thead>
+                                            <tr>
+                                                <th>Département</th>
+                                                <th class="text-center">Prospects</th>
+                                                <th class="text-center">Qualifiés</th>
+                                                <th class="text-center">Taux</th>
+                                                <th>Progression</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="deptTableBody">
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted">Chargement...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="chart-container mt-4">
+                                    <h5 class="mb-3">Répartition Géographique</h5>
+                                    <canvas id="geoChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/crm_dashboard.js"></script>
+</body>
+</html>

@@ -125,7 +125,21 @@
                 <div class="metric-card">
                     <div class="row">
                         <div class="col-md-8">
-                            <h1><i class="bi bi-geo-alt"></i> {{ rapport.commune_info.caracteristiques_generales.nom }}</h1>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h1><i class="bi bi-geo-alt"></i> {{ rapport.commune_info.caracteristiques_generales.nom }}</h1>
+                                <div class="btn-group">
+                                    <button id="exportCrmBtn" class="btn btn-success btn-lg" onclick="exportToCRM()" disabled>
+                                        <i class="bi bi-upload"></i> Exporter vers CRM
+                                        <span class="badge bg-light text-dark ms-2" id="exportCount" style="display: none;">0</span>
+                                    </button>
+                                    <a href="/crm" target="_blank" class="btn btn-primary btn-lg" title="Ouvrir l'interface CRM">
+                                        <i class="bi bi-window"></i> Ouvrir CRM
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="alert alert-info alert-sm py-2 mb-3" role="alert">
+                                <i class="bi bi-info-circle"></i> Sélectionnez des parkings, toitures ou friches dans les tableaux ci-dessous, puis cliquez sur "Exporter vers CRM" pour les ajouter à votre CRM.
+                            </div>
                             <p class="mb-2">
                                 <strong>Superficie:</strong> {{ "%.2f"|format(rapport.commune_info.superficie_total_ha) }} ha<br>
                                 <strong>Population:</strong> {{ rapport.commune_info.population or 'N/A' }} habitants<br>
@@ -254,11 +268,22 @@
                 <!-- Détail des parcelles RPG filtrées -->
                 {% if rapport.rpg_parcelles and rapport.rpg_parcelles.features %}
                 <div class="analysis-detail mt-4">
-                    <h5 class="mb-3">Parcelles agricoles filtrées ({{ rapport.rpg_parcelles.features | length }})</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Parcelles agricoles filtrées ({{ rapport.rpg_parcelles.features | length }})</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllOfType('rpg')">
+                                <i class="bi bi-check-square"></i> Tout sélectionner
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllOfType('rpg')">
+                                <i class="bi bi-square"></i> Tout désélectionner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th><input type="checkbox" onclick="this.checked ? selectAllOfType('rpg') : deselectAllOfType('rpg')" title="Tout sélectionner/désélectionner"></th>
                                     <th>#</th>
                                     <th>Référence cadastrale</th>
                                     <th>Culture</th>
@@ -273,6 +298,12 @@
                                 {% for parcelle in rapport.rpg_parcelles.features %}
                                 {% set props = parcelle.properties %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" 
+                                               data-type="rpg" 
+                                               data-index="{{ loop.index }}"
+                                               onchange="toggleSelection('rpg', {{ loop.index }})">
+                                    </td>
                                     <td>{{ loop.index }}</td>
                                     <td>
                                         {% if props.section and props.numero %}
@@ -468,28 +499,50 @@
                     </div>
                 </div>
 
-                {% set park_details = parkings.get('details', []) %}
+                {% set park_details = rapport.get('parkings_analysis', {}).get('details', []) %}
                 {% if park_details and (park_details | length) > 0 %}
                 <div class="analysis-detail">
-                    <h6 class="mb-3">Détails des parkings ({{ park_details | length }})</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Détails des parkings ({{ park_details | length }})</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllOfType('parkings')">
+                                <i class="bi bi-check-square"></i> Tout sélectionner
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllOfType('parkings')">
+                                <i class="bi bi-square"></i> Tout désélectionner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th width="40" title="Sélectionner pour export CRM">
+                                        <i class="bi bi-check-square"></i>
+                                    </th>
                                     <th>#</th>
                                     <th>Surface (m²)</th>
+                                    <th>Adresse</th>
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Zoom</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for d in park_details %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               data-type="parkings" 
+                                               data-index="{{ loop.index }}"
+                                               onchange="toggleSelection('parkings', {{ loop.index }})">
+                                    </td>
                                     <td>{{ loop.index }}</td>
                                     <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td><small>{{ d.adresse or 'Non disponible' }}</small></td>
                                     <td>
                                         {% if d.parcelles %}
                                             <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
@@ -516,11 +569,25 @@
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
                                     <td>
                                         {% if d.lat and d.lon %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur ce parking"
-                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Parking')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" 
+                                                    title="Zoomer sur ce parking"
+                                                    onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Parking')">
+                                                <i class="bi bi-zoom-in"></i>
+                                            </button>
+                                            <a href="{{ d.lien_streetview }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-info" 
+                                               title="Street View">
+                                                <i class="bi bi-camera"></i>
+                                            </a>
+                                            <a href="{{ d.lien_annuaire }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-warning" 
+                                               title="Pages Jaunes">
+                                                <i class="bi bi-book"></i>
+                                            </a>
+                                        </div>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
@@ -665,11 +732,24 @@
                 {% set toit_details = rapport.get('toitures_analysis', {}).get('details', []) %}
                 {% if toit_details and (toit_details | length) > 0 %}
                 <div class="analysis-detail">
-                    <h6 class="mb-3">Détails des toitures ({{ toit_details | length }})</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Détails des toitures ({{ toit_details | length }})</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllOfType('toitures')">
+                                <i class="bi bi-check-square"></i> Tout sélectionner
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllOfType('toitures')">
+                                <i class="bi bi-square"></i> Tout désélectionner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th width="40" title="Sélectionner pour export CRM">
+                                        <i class="bi bi-check-square"></i>
+                                    </th>
                                     <th>#</th>
                                     <th>Surface (m²)</th>
                                     <th>Parcelles</th>
@@ -682,8 +762,16 @@
                             <tbody>
                                 {% for d in toit_details %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               data-type="toitures" 
+                                               data-index="{{ loop.index }}"
+                                               onchange="toggleSelection('toitures', {{ loop.index }})">
+                                    </td>
                                     <td>{{ loop.index }}</td>
                                     <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td><small>{{ d.adresse or 'Non disponible' }}</small></td>
                                     <td>
                                         {% if d.parcelles %}
                                             <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
@@ -710,11 +798,25 @@
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
                                     <td>
                                         {% if d.lat and d.lon %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur cette toiture"
-                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Toiture')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" 
+                                                    title="Zoomer sur cette toiture"
+                                                    onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Toiture')">
+                                                <i class="bi bi-zoom-in"></i>
+                                            </button>
+                                            <a href="{{ d.lien_streetview }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-info" 
+                                               title="Street View">
+                                                <i class="bi bi-camera"></i>
+                                            </a>
+                                            <a href="{{ d.lien_annuaire }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-warning" 
+                                               title="Pages Jaunes">
+                                                <i class="bi bi-book"></i>
+                                            </a>
+                                        </div>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
@@ -871,18 +973,231 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        // ========== SYSTÈME DE SÉLECTION ET EXPORT CRM ==========
+        let selectedItems = {
+            parkings: new Set(),
+            toitures: new Set(),
+            friches: new Set(),
+            rpg: new Set()
+        };
+        
+        function toggleSelection(type, index) {
+            console.log('toggleSelection called:', type, index);
+            const key = `${type}_${index}`;
+            if (selectedItems[type].has(index)) {
+                selectedItems[type].delete(index);
+                console.log('Removed from selection');
+            } else {
+                selectedItems[type].add(index);
+                console.log('Added to selection');
+            }
+            console.log('Current selections:', {
+                parkings: selectedItems.parkings.size,
+                toitures: selectedItems.toitures.size,
+                friches: selectedItems.friches.size,
+                rpg: selectedItems.rpg.size
+            });
+            updateExportButton();
+        }
+        
+        function selectAllOfType(type) {
+            console.log('selectAllOfType called for:', type);
+            const checkboxes = document.querySelectorAll(`input[data-type="${type}"]`);
+            console.log('Found', checkboxes.length, 'checkboxes');
+            checkboxes.forEach(cb => {
+                const index = parseInt(cb.dataset.index);
+                selectedItems[type].add(index);
+                cb.checked = true;
+            });
+            console.log('Selected all', type, '- total:', selectedItems[type].size);
+            updateExportButton();
+        }
+        
+        function deselectAllOfType(type) {
+            selectedItems[type].clear();
+            const checkboxes = document.querySelectorAll(`input[data-type="${type}"]`);
+            checkboxes.forEach(cb => cb.checked = false);
+            updateExportButton();
+        }
+        
+        function updateExportButton() {
+            const totalSelected = selectedItems.parkings.size + selectedItems.toitures.size + selectedItems.friches.size + selectedItems.rpg.size;
+            console.log('updateExportButton - totalSelected:', totalSelected);
+            const btn = document.getElementById('exportCrmBtn');
+            const badge = document.getElementById('exportCount');
+            
+            console.log('Button found:', !!btn, 'Badge found:', !!badge);
+            
+            if (btn) {
+                btn.disabled = totalSelected === 0;
+                console.log('Button disabled set to:', btn.disabled);
+                if (badge) {
+                    badge.textContent = totalSelected;
+                    badge.style.display = totalSelected > 0 ? 'inline' : 'none';
+                    console.log('Badge updated to:', totalSelected);
+                }
+            } else {
+                console.error('exportCrmBtn button not found!');
+            }
+        }
+        
+        async function exportToCRM() {
+            const totalSelected = selectedItems.parkings.size + selectedItems.toitures.size + selectedItems.friches.size + selectedItems.rpg.size;
+            
+            if (totalSelected === 0) {
+                alert('⚠️ Veuillez sélectionner au moins un élément à exporter');
+                return;
+            }
+            
+            if (!confirm(`📤 Exporter ${totalSelected} élément(s) vers le CRM ?\n\n` +
+                `- Parkings : ${selectedItems.parkings.size}\n` +
+                `- Toitures : ${selectedItems.toitures.size}\n` +
+                `- Friches : ${selectedItems.friches.size}\n` +
+                `- Parcelles RPG : ${selectedItems.rpg.size}`)) {
+                return;
+            }
+            
+            const btn = document.getElementById('exportCrmBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Export en cours...';
+            
+            try {
+                // Collecter les données à exporter
+                const exportData = {
+                    commune: '{{ rapport.commune_info.caracteristiques_generales.nom }}',
+                    departement: '{{ rapport.commune_info.caracteristiques_generales.departement }}',
+                    parkings: [],
+                    toitures: [],
+                    friches: [],
+                    rpg: []
+                };
+                
+                // Parkings
+                {% if rapport.get('parkings_analysis', {}).get('details') %}
+                const parkingsData = {{ rapport.get('parkings_analysis', {}).get('details', []) | tojson }};
+                selectedItems.parkings.forEach(index => {
+                    if (parkingsData[index - 1]) {
+                        exportData.parkings.push({
+                            ...parkingsData[index - 1],
+                            type: 'parking',
+                            commune: exportData.commune,
+                            departement: exportData.departement
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Toitures
+                {% if rapport.toitures_analysis.details %}
+                const toituresData = {{ rapport.toitures_analysis.details | tojson }};
+                selectedItems.toitures.forEach(index => {
+                    if (toituresData[index - 1]) {
+                        exportData.toitures.push({
+                            ...toituresData[index - 1],
+                            type: 'toiture',
+                            commune: exportData.commune,
+                            departement: exportData.departement
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Friches
+                {% if rapport.get('friches_analysis', {}).get('details') %}
+                const frichesData = {{ rapport.get('friches_analysis', {}).get('details', []) | tojson }};
+                selectedItems.friches.forEach(index => {
+                    if (frichesData[index - 1]) {
+                        exportData.friches.push({
+                            ...frichesData[index - 1],
+                            type: 'friche',
+                            commune: exportData.commune,
+                            departement: exportData.departement
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Parcelles RPG
+                {% if rapport.rpg_parcelles and rapport.rpg_parcelles.features %}
+                const rpgData = {{ rapport.rpg_parcelles.features | tojson }};
+                selectedItems.rpg.forEach(index => {
+                    if (rpgData[index - 1]) {
+                        const parcelle = rpgData[index - 1];
+                        const props = parcelle.properties || {};
+                        exportData.rpg.push({
+                            type: 'parcelle_rpg',
+                            commune: exportData.commune,
+                            departement: exportData.departement,
+                            adresse: props.nom_com || exportData.commune,
+                            parcelle_cadastrale: props.section && props.numero ? `${props.section}${props.numero}` : 'Non référencée',
+                            culture: props.Culture || 'Non définie',
+                            code_culture: props.code_culture || '',
+                            surface: props.surface || 0,
+                            latitude: props.coords ? props.coords[1] : null,
+                            longitude: props.coords ? props.coords[0] : null,
+                            distance_bt: props.distance_bt || null,
+                            distance_hta: props.distance_hta || null,
+                            data_json: JSON.stringify(props)
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Envoyer vers le backend
+                const response = await fetch('/api/crm/export', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(exportData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Export réussi !\n\n` +
+                        `${result.total_exported} élément(s) ajouté(s) au CRM\n\n` +
+                        `📊 Détails :\n` +
+                        `- Parkings : ${result.details.parkings}\n` +
+                        `- Toitures : ${result.details.toitures}\n` +
+                        `- Friches : ${result.details.friches}\n` +
+                        `- Parcelles RPG : ${result.details.rpg || 0}\n\n` +
+                        `🔗 Ouvrir le CRM pour voir les prospects`);
+                    
+                    // Réinitialiser les sélections
+                    selectedItems = { parkings: new Set(), toitures: new Set(), friches: new Set(), rpg: new Set() };
+                    document.querySelectorAll('input[type="checkbox"][data-type]').forEach(cb => cb.checked = false);
+                    updateExportButton();
+                    
+                    // Proposer d'ouvrir le CRM
+                    if (confirm('📋 Voulez-vous ouvrir le CRM pour gérer ces prospects ?')) {
+                        window.open('/crm', '_blank');
+                    }
+                } else {
+                    alert(`❌ Erreur lors de l'export :\n${result.error}`);
+                }
+            } catch (error) {
+                console.error('Erreur export CRM:', error);
+                alert(`❌ Erreur de connexion :\n${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
         // Fonction pour ouvrir la carte en plein écran
         function openMapFullscreen() {
             const iframe = document.querySelector('iframe.map-frame');
             if (iframe && iframe.src) {
-                // Ouvrir la carte dans un nouvel onglet
-                window.open(iframe.src, '_blank', 'width=1200,height=800');
+                // Ouvrir la carte dans un nouvel onglet en plein écran
+                window.open(iframe.src, '_blank', 'width=1400,height=900,toolbar=no,menubar=no,scrollbars=yes,resizable=yes');
             } else {
                 alert('Carte non disponible');
             }
         }
         
-        // Fonction pour zoomer - Version alternative qui ouvre un nouvel onglet
+        // Fonction pour zoomer - Nouvelle version qui utilise notre interface corrigée
         function zoomToLocation(lat, lng, name, type) {
             // Validation des paramètres
             if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
@@ -891,158 +1206,20 @@
                 return;
             }
             
-            // Essayer d'abord la méthode postMessage
-            const iframe = document.querySelector('iframe.map-frame');
-            console.log('Iframe trouvée:', iframe);
+            // Ouvrir notre interface principale corrigée avec les coordonnées
+            const appUrl = `/app?lat=${lat}&lon=${lng}&address=${encodeURIComponent(name || 'Point d\'intérêt')}`;
             
-            if (iframe) {
-                // Fonction pour envoyer le message
-                function sendZoomMessage() {
-                    const message = {
-                        action: 'zoomTo',
-                        lat: parseFloat(lat),
-                        lng: parseFloat(lng),
-                        zoom: 16,
-                        name: name || 'Élément',
-                        type: type || 'Point'
-                    };
-                    
-                    console.log('Envoi message zoom:', message);
-                    
-                    try {
-                        iframe.contentWindow.postMessage(message, '*');
-                        console.log('Message envoyé avec succès');
-                        
-                        // Feedback visuel
-                        showZoomFeedback(name || 'Élément', type || 'Point');
-                    } catch (error) {
-                        console.error('Erreur lors de l\'envoi du message:', error);
-                        // Fallback: ouvrir dans un nouvel onglet avec Google Maps
-                        const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
-                        window.open(mapUrl, '_blank');
-                    }
-                }
-                
-                // Si l'iframe est déjà chargée, envoyer immédiatement
-                if (iframe.contentWindow) {
-                    sendZoomMessage();
-                } else {
-                    // Sinon, attendre que l'iframe soit chargée
-                    iframe.onload = sendZoomMessage;
-                    // Fallback: essayer après un délai
-                    setTimeout(sendZoomMessage, 1000);
-                }
-            } else {
-                console.error('Iframe map-frame non trouvée');
-                // Fallback: ouvrir Google Maps
-                const mapUrl = `https://www.google.com/maps?q=${lat},${lng}&z=16`;
-                window.open(mapUrl, '_blank');
-            }
+            // Ouvrir dans un nouvel onglet pour garder le rapport ouvert
+            window.open(appUrl, '_blank', 'width=1200,height=800');
+            
+            console.log('Ouverture interface principale:', appUrl);
+            
+            // Feedback visuel
+            showZoomFeedback(name || 'Élément', type || 'Point');
         }
         
-        // Fonction principale de zoom - solution alternative robuste
-        function zoomToLocation(lat, lng, name, type) {
-            console.log('Zoom demandé:', lat, lng, name, type);
-            
-            // Valider les coordonnées
-            if (!lat || !lng || lat === 'undefined' || lng === 'undefined') {
-                console.error('Coordonnées invalides:', lat, lng);
-                alert('Coordonnées invalides pour cet élément');
-                return;
-            }
-            
-            // Convertir en nombres
-            const latitude = parseFloat(lat);
-            const longitude = parseFloat(lng);
-            
-            if (isNaN(latitude) || isNaN(longitude)) {
-                console.error('Coordonnées non numériques:', latitude, longitude);
-                alert('Coordonnées non valides');
-                return;
-            }
-            
-            // Afficher le feedback
-            showZoomFeedback(name || 'Point', type || 'position');
-            
-            // Construire l'URL de la carte avec les coordonnées - version corrigée
-            const protocol = window.location.protocol;
-            const host = window.location.host;
-            const baseUrl = `${protocol}//${host}`;
-            const mapUrl = `${baseUrl}/generated_map?lat=${latitude}&lng=${longitude}&zoom=17&name=${encodeURIComponent(name || 'Point')}`;
-            
-            console.log('URL de zoom construite:', mapUrl);
-            
-            // Essayer d'ouvrir dans un nouvel onglet
-            const mapWindow = window.open(mapUrl, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes');
-            
-            // Vérifier si le popup a été bloqué
-            setTimeout(() => {
-                if (!mapWindow || mapWindow.closed || typeof mapWindow.closed == 'undefined') {
-                    // Popup bloqué, proposer une alternative
-                    const confirmation = confirm(
-                        'Les popups sont bloqués.\n\n' +
-                        'Voulez-vous ouvrir la carte dans l\'onglet actuel ?\n\n' +
-                        '⚠️ Cela remplacera la page du rapport.'
-                    );
-                    
-                    if (confirmation) {
-                        // Ouvrir dans l'onglet actuel
-                        window.location.href = mapUrl;
-                    } else {
-                        // Copier l'URL dans le presse-papier si possible
-                        if (navigator.clipboard) {
-                            navigator.clipboard.writeText(mapUrl).then(() => {
-                                alert('URL de la carte copiée dans le presse-papier.\nVous pouvez la coller dans un nouvel onglet.');
-                            }).catch(() => {
-                                alert('Veuillez autoriser les popups ou copier cette URL manuellement:\n\n' + mapUrl);
-                            });
-                        } else {
-                            alert('Veuillez autoriser les popups ou copier cette URL manuellement:\n\n' + mapUrl);
-                        }
-                    }
-                } else {
-                    // Popup ouvert avec succès
-                    console.log('Carte ouverte avec succès dans un nouvel onglet');
-                    mapWindow.focus();
-                }
-            }, 100);
-        }
-        
-        // Fonction pour ouvrir la carte locale en plein écran avec tous les calques
-        function openMapFullscreen() {
-            // Chercher l'iframe de la carte par ID d'abord, puis par classe
-            const mapIframe = document.querySelector('#mainMapFrame') || document.querySelector('iframe.map-frame') || document.querySelector('iframe[src*="map.html"]');
-            if (mapIframe) {
-                // Construire l'URL complète de votre carte avec tous les paramètres
-                let mapUrl = mapIframe.src;
-                
-                // Ajouter un paramètre pour indiquer le mode plein écran
-                if (mapUrl.includes('?')) {
-                    mapUrl += '&fullscreen=true';
-                } else {
-                    mapUrl += '?fullscreen=true';
-                }
-                
-                // Ouvrir votre carte locale dans un nouvel onglet en plein écran
-                const fullscreenWindow = window.open(mapUrl, '_blank', 'fullscreen=yes,scrollbars=yes,resizable=yes,width=1920,height=1080');
-                if (fullscreenWindow) {
-                    fullscreenWindow.focus();
-                    
-                    // Optionnel: demander le plein écran navigateur
-                    setTimeout(() => {
-                        try {
-                            fullscreenWindow.document.documentElement.requestFullscreen();
-                        } catch (e) {
-                            console.log('Plein écran automatique non supporté');
-                        }
-                    }, 1000);
-                } else {
-                    alert('Popup bloqué - veuillez autoriser les popups pour ouvrir la carte en plein écran');
-                }
-            } else {
-                alert('Carte non trouvée');
-            }
-        }
+        // Fonction principale de zoom - solution alternative robuste SUPPRIMÉE
+        // (remplacée par la fonction ci-dessus qui utilise notre interface corrigée)
         
         // Feedback visuel pour confirmer le zoom
         function showZoomFeedback(name, type) {
@@ -1053,8 +1230,7 @@
             notification.innerHTML = `
                 <i class="bi bi-zoom-in"></i> 
                 Zoom sur: <strong>${name}</strong> 
-                <small>(${type})</small>
-            `;
+                <small>(${type})</small>`;
             
             document.body.appendChild(notification);
             

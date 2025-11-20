@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synchronisation KPI - AgriWeb</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card h3 {
+            font-size: 2.5rem;
+            margin: 0;
+            font-weight: bold;
+        }
+        .stat-card p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+        }
+        .prospect-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+            background: #f8f9fa;
+        }
+        .prospect-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateX(5px);
+        }
+        .prospect-card.selected {
+            background: #e7f3ff;
+            border-color: #0d6efd;
+        }
+        .btn-sync {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .btn-sync:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+            color: white;
+        }
+        .btn-sync:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        .log-success { color: #28a745; }
+        .log-error { color: #dc3545; }
+        .log-info { color: #17a2b8; }
+        .log-warning { color: #ffc107; }
+        .filter-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 30px;
+        }
+        .badge-new {
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .badge-duplicate {
+            background: #ffc107;
+            color: black;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1><i class="bi bi-cloud-upload"></i> Synchronisation KPI</h1>
+            <a href="/app" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Retour</a>
+        </div>
+
+        <!-- Statistiques -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="totalProspects">0</h3>
+                    <p>Prospects AgriWeb</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="selectedCount">0</h3>
+                    <p>Sélectionnés</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="syncedCount">0</h3>
+                    <p>Synchronisés</p>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-card">
+                    <h3 id="kpiTotal">?</h3>
+                    <p>Dans KPI</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtres -->
+        <div class="filter-bar">
+            <div class="row">
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-map"></i> Département</label>
+                    <select id="filterDept" class="form-select">
+                        <option value="">Tous</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-building"></i> Type</label>
+                    <select id="filterType" class="form-select">
+                        <option value="">Tous</option>
+                        <option value="Exploitation">Exploitation</option>
+                        <option value="Eleveur">Éleveur</option>
+                        <option value="Agriculteur">Agriculteur</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label"><i class="bi bi-search"></i> Recherche</label>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Nom, ville...">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" onclick="loadProspects()">
+                        <i class="bi bi-arrow-clockwise"></i> Actualiser
+                    </button>
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-md-12">
+                    <button class="btn btn-outline-primary btn-sm me-2" onclick="selectAll()">
+                        <i class="bi bi-check-all"></i> Tout sélectionner
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="deselectAll()">
+                        <i class="bi bi-x-square"></i> Tout désélectionner
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Liste des prospects -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-people"></i> Prospects à synchroniser</h5>
+            </div>
+            <div class="card-body">
+                <div id="prospectsList">
+                    <div class="text-center text-muted py-5">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="mt-3">Chargement des prospects...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bouton synchronisation -->
+        <div class="text-center mb-4">
+            <button id="syncBtn" class="btn btn-sync" onclick="syncToKPI()" disabled>
+                <i class="bi bi-cloud-upload"></i> Synchroniser vers KPI
+            </button>
+        </div>
+
+        <!-- Progression -->
+        <div class="progress-container" id="progressContainer">
+            <h5><i class="bi bi-hourglass-split"></i> Synchronisation en cours...</h5>
+            <div class="progress mb-3">
+                <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%">0%</div>
+            </div>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allProspects = [];
+        let selectedProspects = new Set();
+
+        // Charger les prospects au démarrage
+        window.onload = function() {
+            loadProspects();
+            loadKPIStats();
+        };
+
+        async function loadProspects() {
+            try {
+                const response = await fetch('/api/get_agriweb_prospects');
+                const data = await response.json();
+                
+                allProspects = data.prospects || [];
+                document.getElementById('totalProspects').textContent = allProspects.length;
+                
+                // Extraire les départements uniques
+                const depts = [...new Set(allProspects.map(p => p.departement).filter(d => d))];
+                const deptSelect = document.getElementById('filterDept');
+                depts.sort().forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    deptSelect.appendChild(option);
+                });
+                
+                renderProspects();
+            } catch (error) {
+                console.error('Erreur chargement prospects:', error);
+                document.getElementById('prospectsList').innerHTML = `
+                    <div class="alert alert-danger">
+                        ❌ Erreur lors du chargement des prospects: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function loadKPIStats() {
+            try {
+                const response = await fetch('/api/kpi_stats');
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('kpiTotal').textContent = data.total || 0;
+                }
+            } catch (error) {
+                console.error('Erreur stats KPI:', error);
+            }
+        }
+
+        function renderProspects() {
+            const filterDept = document.getElementById('filterDept').value;
+            const filterType = document.getElementById('filterType').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            let filtered = allProspects.filter(p => {
+                if (filterDept && p.departement !== filterDept) return false;
+                if (filterType && p.type !== filterType) return false;
+                if (searchTerm) {
+                    const searchText = `${p.nom} ${p.ville} ${p.adresse}`.toLowerCase();
+                    if (!searchText.includes(searchTerm)) return false;
+                }
+                return true;
+            });
+
+            const html = filtered.map(p => `
+                <div class="prospect-card ${selectedProspects.has(p.id) ? 'selected' : ''}" 
+                     onclick="toggleProspect('${p.id}')">
+                    <div class="row align-items-center">
+                        <div class="col-md-1 text-center">
+                            <input type="checkbox" ${selectedProspects.has(p.id) ? 'checked' : ''} 
+                                   onclick="event.stopPropagation();">
+                        </div>
+                        <div class="col-md-4">
+                            <strong>${p.nom || 'Sans nom'}</strong><br>
+                            <small class="text-muted">${p.type || 'N/A'}</small>
+                        </div>
+                        <div class="col-md-4">
+                            <i class="bi bi-geo-alt"></i> ${p.adresse || ''}<br>
+                            <small>${p.code_postal || ''} ${p.ville || ''}</small>
+                        </div>
+                        <div class="col-md-2">
+                            <i class="bi bi-map"></i> Dpt ${p.departement || '?'}
+                        </div>
+                        <div class="col-md-1 text-end">
+                            ${p.synced ? '<span class="badge-duplicate">Déjà sync</span>' : '<span class="badge-new">Nouveau</span>'}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('prospectsList').innerHTML = html || '<p class="text-muted text-center py-4">Aucun prospect trouvé</p>';
+            updateSelectedCount();
+        }
+
+        function toggleProspect(id) {
+            if (selectedProspects.has(id)) {
+                selectedProspects.delete(id);
+            } else {
+                selectedProspects.add(id);
+            }
+            renderProspects();
+        }
+
+        function selectAll() {
+            allProspects.forEach(p => selectedProspects.add(p.id));
+            renderProspects();
+        }
+
+        function deselectAll() {
+            selectedProspects.clear();
+            renderProspects();
+        }
+
+        function updateSelectedCount() {
+            const count = selectedProspects.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('syncBtn').disabled = count === 0;
+        }
+
+        async function syncToKPI() {
+            const selected = allProspects.filter(p => selectedProspects.has(p.id));
+            
+            if (selected.length === 0) {
+                alert('Aucun prospect sélectionné');
+                return;
+            }
+
+            if (!confirm(`Synchroniser ${selected.length} prospect(s) vers KPI ?`)) {
+                return;
+            }
+
+            // Afficher progression
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('syncBtn').disabled = true;
+            document.getElementById('logContainer').innerHTML = '';
+            
+            let synced = 0;
+            let errors = 0;
+
+            for (let i = 0; i < selected.length; i++) {
+                const prospect = selected[i];
+                const progress = Math.round((i / selected.length) * 100);
+                
+                document.getElementById('progressBar').style.width = progress + '%';
+                document.getElementById('progressBar').textContent = progress + '%';
+                
+                try {
+                    const response = await fetch('/api/sync_to_kpi', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ prospect })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        synced++;
+                        addLog(`✅ ${prospect.nom} - Synchronisé`, 'success');
+                    } else if (result.status === 'duplicate') {
+                        addLog(`⚠️ ${prospect.nom} - Doublon détecté`, 'warning');
+                    } else {
+                        errors++;
+                        addLog(`❌ ${prospect.nom} - Erreur: ${result.message}`, 'error');
+                    }
+                } catch (error) {
+                    errors++;
+                    addLog(`❌ ${prospect.nom} - Erreur réseau: ${error.message}`, 'error');
+                }
+            }
+
+            // Finaliser
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressBar').textContent = '100%';
+            document.getElementById('syncedCount').textContent = synced;
+            
+            addLog(`\n🎉 Synchronisation terminée: ${synced} réussis, ${errors} erreurs`, 'info');
+            
+            setTimeout(() => {
+                loadProspects();
+                loadKPIStats();
+                document.getElementById('syncBtn').disabled = false;
+            }, 2000);
+        }
+
+        function addLog(message, type) {
+            const log = document.getElementById('logContainer');
+            const div = document.createElement('div');
+            div.className = `log-${type}`;
+            div.textContent = message;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // Filtres dynamiques
+        document.getElementById('filterDept').addEventListener('change', renderProspects);
+        document.getElementById('filterType').addEventListener('change', renderProspects);
+        document.getElementById('searchInput').addEventListener('input', renderProspects);
+    </script>
+</body>
+</html>
