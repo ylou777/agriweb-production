@@ -247,11 +247,13 @@
                 const response = await fetch('/api/crm/stats');
                 const data = await response.json();
                 
-                if (data.success) {
-                    document.getElementById('totalProspects').textContent = data.total || 0;
-                    document.getElementById('parkingsCount').textContent = data.by_type?.parking || 0;
-                    document.getElementById('toituresCount').textContent = data.by_type?.toiture || 0;
-                    document.getElementById('frichesCount').textContent = data.by_type?.friche || 0;
+                console.log('Stats reçues:', data); // Debug
+                
+                if (data.success && data.stats) {
+                    document.getElementById('totalProspects').textContent = data.stats.total || 0;
+                    document.getElementById('parkingsCount').textContent = data.stats.parkings || 0;
+                    document.getElementById('toituresCount').textContent = data.stats.toitures || 0;
+                    document.getElementById('frichesCount').textContent = data.stats.friches || 0;
                 }
             } catch (error) {
                 console.error('Erreur chargement stats:', error);
