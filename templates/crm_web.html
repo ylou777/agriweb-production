@@ -561,6 +561,21 @@
                 ? `${parseFloat(prospect.surface_ha).toFixed(2)} ha` 
                 : `${parseInt(prospect.surface_m2)} m²`;
             
+            // Parser les parcelles cadastrales si c'est du JSON
+            let parcelles_cadastrales = [];
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    if (typeof prospect.parcelles_cadastrales === 'string') {
+                        parcelles_cadastrales = JSON.parse(prospect.parcelles_cadastrales);
+                    } else {
+                        parcelles_cadastrales = prospect.parcelles_cadastrales;
+                    }
+                } catch (e) {
+                    // Si ce n'est pas du JSON, c'est peut-être déjà un tableau ou une string simple
+                    parcelles_cadastrales = [];
+                }
+            }
+            
             return `
                 <div class="prospect-card" onclick="viewProspect(${prospect.id})">
                     <div class="row align-items-start">
@@ -582,6 +597,15 @@
                             <div class="detail-row">
                                 <i class="bi bi-rulers text-success"></i> <span class="detail-label">Surface:</span> ${surface}
                             </div>
+                            
+                            ${parcelles_cadastrales && parcelles_cadastrales.length > 0 ? `
+                            <div class="detail-row">
+                                <i class="bi bi-map text-info"></i> 
+                                <span class="detail-label">Parcelles cadastrales:</span> 
+                                ${parcelles_cadastrales.slice(0, 3).join(', ')}
+                                ${parcelles_cadastrales.length > 3 ? ` <small class="text-muted">(+${parcelles_cadastrales.length - 3} autres)</small>` : ''}
+                            </div>
+                            ` : ''}
                             
                             ${prospect.poste_bt_distance_m ? `
                             <div class="detail-row">
@@ -785,6 +809,19 @@
             
             if (!nomProjet) return;
             
+            // Parser les parcelles cadastrales
+            let parcelles_str = '';
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    const parcelles = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    parcelles_str = Array.isArray(parcelles) ? parcelles.join(', ') : '';
+                } catch (e) {
+                    parcelles_str = '';
+                }
+            }
+            
             try {
                 const response = await fetch('/api/crm/projets', {
                     method: 'POST',
@@ -798,7 +835,7 @@
                         client_telephone: prospect.contact_tel || '',
                         client_adresse: prospect.adresse || '',
                         adresse_projet: prospect.adresse || '',
-                        parcelles_cadastrales: prospect.parcelles || '',
+                        parcelles_cadastrales: parcelles_str,
                         responsable: 'Système',
                         notes: `Projet créé depuis le prospect #${prospectId}`
                     })
