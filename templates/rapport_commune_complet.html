@@ -553,7 +553,14 @@
                                     <td>
                                         {% set bt = d.poste_bt_proche or {} %}
                                         {% if bt.distance_m %}
-                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -561,7 +568,15 @@
                                     <td>
                                         {% set hta = d.poste_hta_proche or {} %}
                                         {% if hta.distance_m %}
-                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -653,7 +668,14 @@
                                     <td>
                                         {% set bt = d.poste_bt_proche or {} %}
                                         {% if bt.distance_m %}
-                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -661,7 +683,15 @@
                                     <td>
                                         {% set hta = d.poste_hta_proche or {} %}
                                         {% if hta.distance_m %}
-                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -782,7 +812,14 @@
                                     <td>
                                         {% set bt = d.poste_bt_proche or {} %}
                                         {% if bt.distance_m %}
-                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -790,7 +827,15 @@
                                     <td>
                                         {% set hta = d.poste_hta_proche or {} %}
                                         {% if hta.distance_m %}
-                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}

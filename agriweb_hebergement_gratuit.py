@@ -14014,7 +14014,12 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'lon': coords[0],
                     'lat': coords[1],
                     'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('libelle') or ''
+                    'nom': pr.get('nom') or pr.get('libelle') or '',
+                    'tension': pr.get('tension') or pr.get('Tension') or '',
+                    'fonction': pr.get('fonction') or pr.get('Fonction') or '',
+                    'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
+                    'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
+                    'type': pr.get('type') or pr.get('Type') or ''
                 }
             except Exception:
                 return {}
