@@ -610,17 +610,32 @@
                             ${prospect.poste_bt_distance_m ? `
                             <div class="detail-row">
                                 <i class="bi bi-lightning text-warning"></i> 
-                                <span class="detail-label">Poste BT:</span> ${prospect.poste_bt_nom} 
+                                <span class="detail-label">Poste BT:</span> ${prospect.poste_bt_nom || 'N/A'} 
                                 (${parseInt(prospect.poste_bt_distance_m)}m)
                                 ${prospect.poste_bt_puissance ? ` - ${prospect.poste_bt_puissance} kVA` : ''}
+                                ${prospect.poste_bt_proprietaire ? ` - ${prospect.poste_bt_proprietaire}` : ''}
+                                ${prospect.poste_bt_lat && prospect.poste_bt_lon ? `
+                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_bt_lat},${prospect.poste_bt_lon}" 
+                                       target="_blank" class="ms-2" title="Street View du poste BT">
+                                        <i class="bi bi-eye-fill text-info"></i>
+                                    </a>
+                                ` : ''}
                             </div>
                             ` : ''}
                             
                             ${prospect.poste_hta_distance_m ? `
                             <div class="detail-row">
                                 <i class="bi bi-lightning-charge text-danger"></i> 
-                                <span class="detail-label">Poste HTA:</span> ${prospect.poste_hta_nom} 
+                                <span class="detail-label">Poste HTA:</span> ${prospect.poste_hta_nom || 'N/A'} 
                                 (${parseInt(prospect.poste_hta_distance_m)}m)
+                                ${prospect.poste_hta_puissance ? ` - ${prospect.poste_hta_puissance} kVA` : ''}
+                                ${prospect.poste_hta_proprietaire ? ` - ${prospect.poste_hta_proprietaire}` : ''}
+                                ${prospect.poste_hta_lat && prospect.poste_hta_lon ? `
+                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_hta_lat},${prospect.poste_hta_lon}" 
+                                       target="_blank" class="ms-2" title="Street View du poste HTA">
+                                        <i class="bi bi-eye-fill text-info"></i>
+                                    </a>
+                                ` : ''}
                             </div>
                             ` : ''}
                             

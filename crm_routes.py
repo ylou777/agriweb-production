@@ -101,17 +101,19 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
-                        poste_hta_distance_m, poste_hta_nom,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon, poste_bt_proprietaire,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon, poste_hta_proprietaire,
                         lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
                     parking.get('lat'), parking.get('lon'), parking.get('surface_m2'),
                     parking.get('surface_m2', 0) / 10000 if parking.get('surface_m2') else None,
                     json.dumps(parking.get('parcelles_cadastrales', [])),
                     parking.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
-                    parking.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                    poste_bt_info.get('lat'), poste_bt_info.get('lon'), poste_bt_info.get('proprietaire'),
+                    parking.get('min_distance_hta_m'), poste_hta_info.get('nom'), poste_hta_info.get('puissance'),
+                    poste_hta_info.get('lat'), poste_hta_info.get('lon'), poste_hta_info.get('proprietaire'),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking)
                 ))
                 total_exported += 1
@@ -126,17 +128,19 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
-                        poste_hta_distance_m, poste_hta_nom,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon, poste_bt_proprietaire,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon, poste_hta_proprietaire,
                         lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
                     toiture.get('lat'), toiture.get('lon'), toiture.get('surface_m2'),
                     toiture.get('surface_m2', 0) / 10000 if toiture.get('surface_m2') else None,
                     json.dumps(toiture.get('parcelles_cadastrales', [])),
                     toiture.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
-                    toiture.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                    poste_bt_info.get('lat'), poste_bt_info.get('lon'), poste_bt_info.get('proprietaire'),
+                    toiture.get('min_distance_hta_m'), poste_hta_info.get('nom'), poste_hta_info.get('puissance'),
+                    poste_hta_info.get('lat'), poste_hta_info.get('lon'), poste_hta_info.get('proprietaire'),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture)
                 ))
                 total_exported += 1
@@ -151,17 +155,19 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
-                        poste_hta_distance_m, poste_hta_nom,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon, poste_bt_proprietaire,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon, poste_hta_proprietaire,
                         lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
                     friche.get('lat'), friche.get('lon'), friche.get('surface_m2'),
                     friche.get('surface_m2', 0) / 10000 if friche.get('surface_m2') else None,
                     json.dumps(friche.get('parcelles_cadastrales', [])),
                     friche.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
-                    friche.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                    poste_bt_info.get('lat'), poste_bt_info.get('lon'), poste_bt_info.get('proprietaire'),
+                    friche.get('min_distance_hta_m'), poste_hta_info.get('nom'), poste_hta_info.get('puissance'),
+                    poste_hta_info.get('lat'), poste_hta_info.get('lon'), poste_hta_info.get('proprietaire'),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche)
                 ))
                 total_exported += 1
