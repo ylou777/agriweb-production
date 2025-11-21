@@ -56,6 +56,10 @@ def execute_query(query, params=None, fetch_one=False, fetch_all=False):
         else:
             cursor.execute(query)
         
+        # IMPORTANT: Commit AVANT le fetch pour INSERT...RETURNING
+        if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
+            conn.commit()
+        
         if fetch_one:
             result = cursor.fetchone()
             cursor.close()
@@ -65,7 +69,6 @@ def execute_query(query, params=None, fetch_one=False, fetch_all=False):
             cursor.close()
             return [dict(row) for row in results]
         else:
-            conn.commit()
             cursor.close()
             return None
 
