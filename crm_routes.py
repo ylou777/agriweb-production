@@ -109,7 +109,7 @@ def register_crm_routes(app):
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
                     parking.get('lat'), parking.get('lon'), parking.get('surface_m2'),
                     parking.get('surface_m2', 0) / 10000 if parking.get('surface_m2') else None,
-                    json.dumps(parking.get('parcelles', [])),
+                    json.dumps(parking.get('parcelles_cadastrales', [])),
                     parking.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
                     parking.get('min_distance_hta_m'), poste_hta_info.get('nom'),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking)
@@ -134,7 +134,7 @@ def register_crm_routes(app):
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
                     toiture.get('lat'), toiture.get('lon'), toiture.get('surface_m2'),
                     toiture.get('surface_m2', 0) / 10000 if toiture.get('surface_m2') else None,
-                    json.dumps(toiture.get('parcelles', [])),
+                    json.dumps(toiture.get('parcelles_cadastrales', [])),
                     toiture.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
                     toiture.get('min_distance_hta_m'), poste_hta_info.get('nom'),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture)
@@ -159,7 +159,7 @@ def register_crm_routes(app):
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
                     friche.get('lat'), friche.get('lon'), friche.get('surface_m2'),
                     friche.get('surface_m2', 0) / 10000 if friche.get('surface_m2') else None,
-                    json.dumps(friche.get('parcelles', [])),
+                    json.dumps(friche.get('parcelles_cadastrales', [])),
                     friche.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
                     friche.get('min_distance_hta_m'), poste_hta_info.get('nom'),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche)
@@ -474,8 +474,9 @@ def register_crm_routes(app):
             project_id = execute_query('''
                 INSERT INTO project_fiches (
                     prospect_id, nom_projet, type_projet, client_nom, client_email,
-                    client_telephone, client_adresse, statut_global, date_fin_prevue, responsable, notes
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    client_telephone, client_adresse, adresse_projet, parcelles_cadastrales,
+                    statut_global, date_fin_prevue, responsable, notes
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 data.get('prospect_id') or None,
@@ -485,6 +486,8 @@ def register_crm_routes(app):
                 data.get('client_email'),
                 data.get('client_telephone'),
                 data.get('client_adresse'),
+                data.get('adresse_projet'),
+                data.get('parcelles_cadastrales'),
                 'en_cours',
                 data.get('date_fin_prevue') or None,
                 data.get('responsable'),
@@ -508,7 +511,7 @@ def register_crm_routes(app):
             
             for etape_nom, ordre in etapes_autoconso:
                 execute_query('''
-                    INSERT INTO project_etapes (project_id, etape_nom, etape_ordre, statut)
+                    INSERT INTO project_etapes (project_id, nom_etape, ordre, statut)
                     VALUES (%s, %s, %s, %s)
                 ''', (project_id, etape_nom, ordre, 'a_faire'))
             
@@ -536,12 +539,12 @@ def register_crm_routes(app):
             projet['etapes'] = execute_query('''
                 SELECT * FROM project_etapes
                 WHERE project_id = %s
-                ORDER BY etape_ordre
+                ORDER BY ordre
             ''', (project_id,), fetch_all=True) or []
             
             # Documents du projet
             projet['documents'] = execute_query('''
-                SELECT pd.*, pe.etape_nom
+                SELECT pd.*, pe.nom_etape
                 FROM project_documents pd
                 LEFT JOIN project_etapes pe ON pd.etape_id = pe.id
                 WHERE pd.project_id = %s
@@ -561,16 +564,20 @@ def register_crm_routes(app):
             
             execute_query('''
                 UPDATE project_fiches
-                SET nom_projet = %s, client_nom = %s, client_email = %s, client_telephone = %s,
-                    client_adresse = %s, statut_global = %s, date_fin_prevue = %s, date_fin_reelle = %s,
+                SET nom_projet = %s, type_projet = %s, client_nom = %s, client_email = %s, client_telephone = %s,
+                    client_adresse = %s, adresse_projet = %s, parcelles_cadastrales = %s,
+                    statut_global = %s, date_fin_prevue = %s, date_fin_reelle = %s,
                     responsable = %s, notes = %s
                 WHERE id = %s
             ''', (
                 data.get('nom_projet'),
+                data.get('type_projet'),
                 data.get('client_nom'),
                 data.get('client_email'),
                 data.get('client_telephone'),
                 data.get('client_adresse'),
+                data.get('adresse_projet'),
+                data.get('parcelles_cadastrales'),
                 data.get('statut_global'),
                 data.get('date_fin_prevue') or None,
                 data.get('date_fin_reelle') or None,

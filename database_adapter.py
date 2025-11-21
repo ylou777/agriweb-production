@@ -180,6 +180,7 @@ def init_database():
             client_email TEXT,
             client_telephone TEXT,
             adresse_projet TEXT,
+            parcelles_cadastrales TEXT,
             commune TEXT,
             departement TEXT,
             surface_totale REAL,
@@ -193,6 +194,7 @@ def init_database():
             client_adresse TEXT,
             statut_global TEXT,
             date_fin_prevue TIMESTAMP,
+            date_fin_reelle TIMESTAMP,
             responsable TEXT
         );
 
