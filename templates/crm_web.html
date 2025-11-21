@@ -565,14 +565,70 @@
             let parcelles_cadastrales = [];
             if (prospect.parcelles_cadastrales) {
                 try {
-                    if (typeof prospect.parcelles_cadastrales === 'string') {
-                        parcelles_cadastrales = JSON.parse(prospect.parcelles_cadastrales);
-                    } else {
-                        parcelles_cadastrales = prospect.parcelles_cadastrales;
+                    let parcelles_raw = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    
+                    // Si c'est un tableau d'objets, extraire reference_complete
+                    if (Array.isArray(parcelles_raw)) {
+                        parcelles_cadastrales = parcelles_raw.map(p => {
+                            if (typeof p === 'object' && p !== null) {
+                                return p.reference_complete || p.numero || p.section || 'N/A';
+                            }
+                            return String(p);
+                        }).filter(ref => ref && ref !== 'N/A');
                     }
                 } catch (e) {
-                    // Si ce n'est pas du JSON, c'est peut-être déjà un tableau ou une string simple
+                    console.error('Erreur parsing parcelles:', e);
                     parcelles_cadastrales = [];
+                }
+            }
+            
+            // Fallback : récupérer les infos des postes depuis data_json si les colonnes ne sont pas remplies
+            let poste_bt_info = {
+                nom: prospect.poste_bt_nom,
+                puissance: prospect.poste_bt_puissance,
+                lat: prospect.poste_bt_lat,
+                lon: prospect.poste_bt_lon,
+                proprietaire: prospect.poste_bt_proprietaire
+            };
+            
+            let poste_hta_info = {
+                nom: prospect.poste_hta_nom,
+                puissance: prospect.poste_hta_puissance,
+                lat: prospect.poste_hta_lat,
+                lon: prospect.poste_hta_lon,
+                proprietaire: prospect.poste_hta_proprietaire
+            };
+            
+            // Si les colonnes ne sont pas remplies, essayer data_json
+            if (prospect.data_json && (!poste_bt_info.puissance || !poste_bt_info.lat)) {
+                try {
+                    const data = typeof prospect.data_json === 'string' 
+                        ? JSON.parse(prospect.data_json) 
+                        : prospect.data_json;
+                    
+                    if (data.poste_bt_info) {
+                        poste_bt_info = {
+                            nom: poste_bt_info.nom || data.poste_bt_info.nom,
+                            puissance: poste_bt_info.puissance || data.poste_bt_info.puissance,
+                            lat: poste_bt_info.lat || data.poste_bt_info.lat,
+                            lon: poste_bt_info.lon || data.poste_bt_info.lon,
+                            proprietaire: poste_bt_info.proprietaire || data.poste_bt_info.proprietaire
+                        };
+                    }
+                    
+                    if (data.poste_hta_info) {
+                        poste_hta_info = {
+                            nom: poste_hta_info.nom || data.poste_hta_info.nom,
+                            puissance: poste_hta_info.puissance || data.poste_hta_info.puissance,
+                            lat: poste_hta_info.lat || data.poste_hta_info.lat,
+                            lon: poste_hta_info.lon || data.poste_hta_info.lon,
+                            proprietaire: poste_hta_info.proprietaire || data.poste_hta_info.proprietaire
+                        };
+                    }
+                } catch (e) {
+                    console.error('Erreur parsing data_json:', e);
                 }
             }
             
@@ -610,13 +666,13 @@
                             ${prospect.poste_bt_distance_m ? `
                             <div class="detail-row">
                                 <i class="bi bi-lightning text-warning"></i> 
-                                <span class="detail-label">Poste BT:</span> ${prospect.poste_bt_nom || 'N/A'} 
+                                <span class="detail-label">Poste BT:</span> ${poste_bt_info.nom || 'N/A'} 
                                 (${parseInt(prospect.poste_bt_distance_m)}m)
-                                ${prospect.poste_bt_puissance ? ` - ${prospect.poste_bt_puissance} kVA` : ''}
-                                ${prospect.poste_bt_proprietaire ? ` - ${prospect.poste_bt_proprietaire}` : ''}
-                                ${prospect.poste_bt_lat && prospect.poste_bt_lon ? `
-                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_bt_lat},${prospect.poste_bt_lon}" 
-                                       target="_blank" class="ms-2" title="Street View du poste BT">
+                                ${poste_bt_info.puissance ? ` - ${poste_bt_info.puissance} kVA` : ''}
+                                ${poste_bt_info.proprietaire ? ` - ${poste_bt_info.proprietaire}` : ''}
+                                ${poste_bt_info.lat && poste_bt_info.lon ? `
+                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${poste_bt_info.lat},${poste_bt_info.lon}" 
+                                       target="_blank" class="ms-2" title="Street View du poste BT" onclick="event.stopPropagation();">
                                         <i class="bi bi-eye-fill text-info"></i>
                                     </a>
                                 ` : ''}
@@ -626,13 +682,13 @@
                             ${prospect.poste_hta_distance_m ? `
                             <div class="detail-row">
                                 <i class="bi bi-lightning-charge text-danger"></i> 
-                                <span class="detail-label">Poste HTA:</span> ${prospect.poste_hta_nom || 'N/A'} 
+                                <span class="detail-label">Poste HTA:</span> ${poste_hta_info.nom || 'N/A'} 
                                 (${parseInt(prospect.poste_hta_distance_m)}m)
-                                ${prospect.poste_hta_puissance ? ` - ${prospect.poste_hta_puissance} kVA` : ''}
-                                ${prospect.poste_hta_proprietaire ? ` - ${prospect.poste_hta_proprietaire}` : ''}
-                                ${prospect.poste_hta_lat && prospect.poste_hta_lon ? `
-                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_hta_lat},${prospect.poste_hta_lon}" 
-                                       target="_blank" class="ms-2" title="Street View du poste HTA">
+                                ${poste_hta_info.puissance ? ` - ${poste_hta_info.puissance} kVA` : ''}
+                                ${poste_hta_info.proprietaire ? ` - ${poste_hta_info.proprietaire}` : ''}
+                                ${poste_hta_info.lat && poste_hta_info.lon ? `
+                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${poste_hta_info.lat},${poste_hta_info.lon}" 
+                                       target="_blank" class="ms-2" title="Street View du poste HTA" onclick="event.stopPropagation();">
                                         <i class="bi bi-eye-fill text-info"></i>
                                     </a>
                                 ` : ''}
