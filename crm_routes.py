@@ -478,7 +478,7 @@ def register_crm_routes(app):
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
-                data.get('prospect_id'),
+                data.get('prospect_id') or None,
                 data.get('nom_projet'),
                 data.get('type_projet', 'autoconsommation'),
                 data.get('client_nom'),
@@ -486,7 +486,7 @@ def register_crm_routes(app):
                 data.get('client_telephone'),
                 data.get('client_adresse'),
                 'en_cours',
-                data.get('date_fin_prevue'),
+                data.get('date_fin_prevue') or None,
                 data.get('responsable'),
                 data.get('notes')
             ), fetch_one=True)['id']
@@ -572,8 +572,8 @@ def register_crm_routes(app):
                 data.get('client_telephone'),
                 data.get('client_adresse'),
                 data.get('statut_global'),
-                data.get('date_fin_prevue'),
-                data.get('date_fin_reelle'),
+                data.get('date_fin_prevue') or None,
+                data.get('date_fin_reelle') or None,
                 data.get('responsable'),
                 data.get('notes'),
                 project_id
