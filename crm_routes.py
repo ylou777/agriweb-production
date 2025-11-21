@@ -81,6 +81,184 @@ def register_crm_routes(app):
                 'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
             })
 
+    @app.route('/api/crm/dashboard/stats')
+    def get_dashboard_stats():
+        """Récupère toutes les statistiques pour le dashboard CRM KPI"""
+        try:
+            # === KPIs GÉNÉRAUX ===
+            kpis = execute_query('''
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
+                    COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contactes,
+                    COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies,
+                    COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdus,
+                    COUNT(CASE WHEN date_creation >= NOW() - INTERVAL '30 days' THEN 1 END) as nouveaux_mois
+                FROM agriweb_prospects
+            ''', fetch_one=True)
+            
+            # Propositions
+            proposals = execute_query('''
+                SELECT 
+                    COUNT(*) as nb_proposals,
+                    COALESCE(SUM(CAST(investissement_total AS NUMERIC)), 0) as total_value
+                FROM prospect_proposals
+            ''', fetch_one=True) or {'nb_proposals': 0, 'total_value': 0}
+            
+            kpis['nb_proposals'] = proposals['nb_proposals']
+            kpis['total_proposals_value'] = proposals['total_value']
+            
+            # === CHARTS ===
+            # Par type
+            by_type_rows = execute_query('''
+                SELECT type, COUNT(*) as count
+                FROM agriweb_prospects
+                GROUP BY type
+            ''')
+            by_type = {row['type']: row['count'] for row in by_type_rows}
+            
+            # Par statut
+            by_statut_rows = execute_query('''
+                SELECT statut, COUNT(*) as count
+                FROM agriweb_prospects
+                GROUP BY statut
+            ''')
+            by_statut = {row['statut']: row['count'] for row in by_statut_rows}
+            
+            # Timeline (30 derniers jours)
+            timeline_data = execute_query('''
+                SELECT 
+                    DATE(date_creation) as date,
+                    COUNT(*) as count,
+                    statut
+                FROM agriweb_prospects
+                WHERE date_creation >= NOW() - INTERVAL '30 days'
+                GROUP BY DATE(date_creation), statut
+                ORDER BY date
+            ''')
+            
+            # Construire timeline
+            from collections import defaultdict
+            timeline = defaultdict(lambda: {'nouveaux': 0, 'contactes': 0, 'qualifies': 0})
+            for row in timeline_data:
+                date_str = row['date'].strftime('%Y-%m-%d') if hasattr(row['date'], 'strftime') else str(row['date'])
+                if row['statut'] == 'nouveau':
+                    timeline[date_str]['nouveaux'] += row['count']
+                elif row['statut'] == 'contacte':
+                    timeline[date_str]['contactes'] += row['count']
+                elif row['statut'] == 'qualifie':
+                    timeline[date_str]['qualifies'] += row['count']
+            
+            sorted_dates = sorted(timeline.keys())
+            timeline_formatted = {
+                'labels': sorted_dates,
+                'nouveaux': [timeline[d]['nouveaux'] for d in sorted_dates],
+                'contactes': [timeline[d]['contactes'] for d in sorted_dates],
+                'qualifies': [timeline[d]['qualifies'] for d in sorted_dates]
+            }
+            
+            # === CONVERSION ===
+            nb_proposals_conversion = proposals['nb_proposals']
+            
+            # Délais moyens (PostgreSQL utilise EXTRACT(EPOCH) pour les intervalles)
+            avg_contact_row = execute_query('''
+                SELECT 
+                    AVG(EXTRACT(EPOCH FROM (date_modification - date_creation))/86400) as avg_delay
+                FROM agriweb_prospects
+                WHERE statut != 'nouveau'
+            ''', fetch_one=True)
+            avg_contact = avg_contact_row['avg_delay'] or 0 if avg_contact_row else 0
+            
+            avg_qualification_row = execute_query('''
+                SELECT 
+                    AVG(EXTRACT(EPOCH FROM (date_modification - date_creation))/86400) as avg_delay
+                FROM agriweb_prospects
+                WHERE statut = 'qualifie'
+            ''', fetch_one=True)
+            avg_qualification = avg_qualification_row['avg_delay'] or 0 if avg_qualification_row else 0
+            
+            # Conversion par type
+            conversion_type_rows = execute_query('''
+                SELECT 
+                    type,
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+                FROM agriweb_prospects
+                GROUP BY type
+            ''')
+            conversion_by_type = {}
+            for row in conversion_type_rows:
+                total = row['total']
+                qualifies = row['qualifies']
+                conversion_by_type[row['type']] = (qualifies / total * 100) if total > 0 else 0
+            
+            conversion_data = {
+                'total': kpis['total'],
+                'nouveaux': kpis['nouveaux'],
+                'contactes': kpis['contactes'],
+                'qualifies': kpis['qualifies'],
+                'proposals': nb_proposals_conversion,
+                'avg_contact_delay': round(float(avg_contact), 1),
+                'avg_qualification_delay': round(float(avg_qualification), 1),
+                'by_type': conversion_by_type
+            }
+            
+            # === UTILISATEURS ===
+            # Note: Pour l'instant, pas de tracking utilisateur dans agriweb_prospects
+            # On simule avec des données agrégées
+            users_data = [{
+                'nom': 'Système',
+                'email': 'system@agriweb.com',
+                'total': kpis['total'],
+                'contactes': kpis['contactes'],
+                'qualifies': kpis['qualifies'],
+                'proposals': kpis['nb_proposals'],
+                'total_actions': kpis['total']
+            }]
+            
+            # === PERFORMANCE ===
+            performance_data = {
+                'best_conversion_rate': (kpis['qualifies'] / kpis['total'] * 100) if kpis['total'] > 0 else 0,
+                'best_conversion_user': 'Système',
+                'fastest_contact_delay': round(float(avg_contact), 1),
+                'fastest_contact_user': 'Système',
+                'most_productive_count': kpis['total'],
+                'most_productive_user': 'Système'
+            }
+            
+            # === DÉPARTEMENTS ===
+            departments_data = execute_query('''
+                SELECT 
+                    departement,
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+                FROM agriweb_prospects
+                WHERE departement IS NOT NULL
+                GROUP BY departement
+                ORDER BY total DESC
+                LIMIT 10
+            ''')
+            
+            return jsonify({
+                'success': True,
+                'kpis': kpis,
+                'charts': {
+                    'by_type': by_type,
+                    'by_statut': by_statut,
+                    'timeline': timeline_formatted
+                },
+                'conversion': conversion_data,
+                'users': users_data,
+                'performance': performance_data,
+                'departments': departments_data
+            })
+            
+        except Exception as e:
+            print(f"❌ [DASHBOARD] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
     @app.route('/api/crm/launch', methods=['POST'])
     def crm_launch():
         """Lance l'application CRM AgriWeb (désactivé sur Railway)"""
