@@ -13,23 +13,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadDashboardData() {
     try {
+        console.log('🔄 [DASHBOARD KPI] Chargement des données...');
         const response = await fetch('/api/crm/dashboard/stats');
+        console.log('📡 [DASHBOARD KPI] Response status:', response.status);
+        
         const data = await response.json();
+        console.log('📊 [DASHBOARD KPI] Données reçues:', data);
         
         if (data.success) {
+            console.log('✅ [DASHBOARD KPI] Success - KPIs:', data.kpis);
+            console.log('📈 [DASHBOARD KPI] Charts:', data.charts);
+            console.log('🔀 [DASHBOARD KPI] Conversion:', data.conversion);
+            console.log('👥 [DASHBOARD KPI] Users:', data.users);
+            console.log('🏆 [DASHBOARD KPI] Performance:', data.performance);
+            console.log('🗺️ [DASHBOARD KPI] Departments:', data.departments);
+            
             updateKPIs(data.kpis);
             updateCharts(data.charts);
             updateConversionFunnel(data.conversion);
             updateUserStats(data.users);
             updatePerformance(data.performance);
             updateDepartments(data.departments);
+        } else {
+            console.error('❌ [DASHBOARD KPI] Échec:', data.error || 'Erreur inconnue');
         }
     } catch (error) {
-        console.error('Erreur chargement dashboard:', error);
+        console.error('❌ [DASHBOARD KPI] Erreur chargement:', error);
     }
 }
 
 function updateKPIs(kpis) {
+    console.log('🔢 [UPDATE KPIs] Mise à jour avec:', kpis);
+    
     // KPI Totaux
     document.getElementById('kpi-total').textContent = kpis.total || 0;
     document.getElementById('kpi-total-trend').textContent = kpis.nouveaux_mois || 0;
@@ -45,6 +60,8 @@ function updateKPIs(kpis) {
     document.getElementById('kpi-proposals').textContent = kpis.nb_proposals || 0;
     document.getElementById('kpi-proposals-value').textContent = 
         (kpis.total_proposals_value || 0).toLocaleString('fr-FR');
+    
+    console.log('✅ [UPDATE KPIs] Affichage mis à jour - Total:', kpis.total);
 }
 
 function updateCharts(chartData) {

@@ -85,6 +85,9 @@ def register_crm_routes(app):
     def get_dashboard_stats():
         """Récupère toutes les statistiques pour le dashboard CRM KPI"""
         try:
+            print("\n" + "="*70)
+            print("🔄 [DASHBOARD KPI] Récupération des statistiques...")
+            
             # === KPIs GÉNÉRAUX ===
             kpis = execute_query('''
                 SELECT 
@@ -97,6 +100,8 @@ def register_crm_routes(app):
                 FROM agriweb_prospects
             ''', fetch_one=True)
             
+            print(f"📊 [DASHBOARD KPI] KPIs bruts: {kpis}")
+            
             # Propositions
             proposals = execute_query('''
                 SELECT 
@@ -104,6 +109,8 @@ def register_crm_routes(app):
                     COALESCE(SUM(CAST(investissement_total AS NUMERIC)), 0) as total_value
                 FROM prospect_proposals
             ''', fetch_one=True) or {'nb_proposals': 0, 'total_value': 0}
+            
+            print(f"💰 [DASHBOARD KPI] Propositions: {proposals}")
             
             kpis['nb_proposals'] = proposals['nb_proposals']
             kpis['total_proposals_value'] = proposals['total_value']
@@ -238,6 +245,11 @@ def register_crm_routes(app):
                 ORDER BY total DESC
                 LIMIT 10
             ''')
+            
+            print(f"✅ [DASHBOARD KPI] Données complètes - Total prospects: {kpis['total']}")
+            print(f"📈 [DASHBOARD KPI] Charts types: {len(by_type)}, statuts: {len(by_statut)}")
+            print(f"🗺️ [DASHBOARD KPI] Départements: {len(departments_data)}")
+            print("="*70 + "\n")
             
             return jsonify({
                 'success': True,
