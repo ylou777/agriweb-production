@@ -16504,8 +16504,15 @@ try:
     import crm_routes
     crm_routes.register_crm_routes(app)
     print("✅ Routes CRM PostgreSQL enregistrées")
+    
+    # Initialiser les tables CRM PostgreSQL si on est sur Railway
+    import database_adapter
+    database_adapter.init_database()
+    print("✅ Tables CRM PostgreSQL initialisées")
 except Exception as e:
-    print(f"⚠️ Erreur import CRM routes: {e}")
+    print(f"⚠️ Erreur import/init CRM: {e}")
+    import traceback
+    traceback.print_exc()
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 

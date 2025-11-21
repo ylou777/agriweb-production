@@ -185,6 +185,22 @@ def init_database():
             siret TEXT
         );
 
+        CREATE TABLE IF NOT EXISTS prospect_proposals (
+            id SERIAL PRIMARY KEY,
+            prospect_id INTEGER NOT NULL REFERENCES agriweb_prospects(id) ON DELETE CASCADE,
+            puissance_kwc REAL,
+            prix_kwc REAL,
+            production_kwh_kwc REAL,
+            tarif_rachat REAL,
+            investissement_total REAL,
+            production_annuelle REAL,
+            revenus_annuels REAL,
+            rentabilite_pct REAL,
+            roi_annees REAL,
+            notes TEXT,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS project_fiches (
             id SERIAL PRIMARY KEY,
             prospect_id INTEGER,
@@ -287,6 +303,23 @@ def init_database():
             dirigeant_email TEXT,
             dirigeant_tel TEXT,
             siret TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS prospect_proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            prospect_id INTEGER NOT NULL,
+            puissance_kwc REAL,
+            prix_kwc REAL,
+            production_kwh_kwc REAL,
+            tarif_rachat REAL,
+            investissement_total REAL,
+            production_annuelle REAL,
+            revenus_annuels REAL,
+            rentabilite_pct REAL,
+            roi_annees REAL,
+            notes TEXT,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prospect_id) REFERENCES agriweb_prospects(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS project_fiches (
