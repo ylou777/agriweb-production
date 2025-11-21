@@ -52,7 +52,10 @@ def register_crm_routes(app):
             stats = execute_query('''
                 SELECT 
                     COUNT(*) as total,
-                    COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
+                    COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveau,
+                    COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contacte,
+                    COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifie,
+                    COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdu,
                     COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
                     COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
                     COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
@@ -61,13 +64,22 @@ def register_crm_routes(app):
             ''', fetch_one=True)
             
             if not stats:
-                return jsonify({'total': 0, 'nouveaux': 0, 'parkings': 0, 'toitures': 0})
+                return jsonify({
+                    'success': True,
+                    'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+                })
             
-            return jsonify(stats)
+            return jsonify({'success': True, 'stats': stats})
             
         except Exception as e:
             print(f"❌ [CRM STATS] Erreur: {e}")
-            return jsonify({'total': 0, 'nouveaux': 0, 'parkings': 0, 'toitures': 0})
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'stats': {'total': 0, 'nouveau': 0, 'contacte': 0, 'qualifie': 0, 'perdu': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+            })
 
     @app.route('/api/crm/launch', methods=['POST'])
     def crm_launch():
@@ -101,19 +113,19 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon, poste_bt_proprietaire,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon, poste_hta_proprietaire,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
                         lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
                     parking.get('lat'), parking.get('lon'), parking.get('surface_m2'),
                     parking.get('surface_m2', 0) / 10000 if parking.get('surface_m2') else None,
                     json.dumps(parking.get('parcelles_cadastrales', [])),
                     parking.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
-                    poste_bt_info.get('lat'), poste_bt_info.get('lon'), poste_bt_info.get('proprietaire'),
+                    poste_bt_info.get('lat'), poste_bt_info.get('lon'),
                     parking.get('min_distance_hta_m'), poste_hta_info.get('nom'), poste_hta_info.get('puissance'),
-                    poste_hta_info.get('lat'), poste_hta_info.get('lon'), poste_hta_info.get('proprietaire'),
+                    poste_hta_info.get('lat'), poste_hta_info.get('lon'),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking)
                 ))
                 total_exported += 1
@@ -128,19 +140,19 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon, poste_bt_proprietaire,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon, poste_hta_proprietaire,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
                         lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
                     toiture.get('lat'), toiture.get('lon'), toiture.get('surface_m2'),
                     toiture.get('surface_m2', 0) / 10000 if toiture.get('surface_m2') else None,
                     json.dumps(toiture.get('parcelles_cadastrales', [])),
                     toiture.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
-                    poste_bt_info.get('lat'), poste_bt_info.get('lon'), poste_bt_info.get('proprietaire'),
+                    poste_bt_info.get('lat'), poste_bt_info.get('lon'),
                     toiture.get('min_distance_hta_m'), poste_hta_info.get('nom'), poste_hta_info.get('puissance'),
-                    poste_hta_info.get('lat'), poste_hta_info.get('lon'), poste_hta_info.get('proprietaire'),
+                    poste_hta_info.get('lat'), poste_hta_info.get('lon'),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture)
                 ))
                 total_exported += 1
@@ -155,19 +167,19 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon, poste_bt_proprietaire,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon, poste_hta_proprietaire,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
                         lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
                     friche.get('lat'), friche.get('lon'), friche.get('surface_m2'),
                     friche.get('surface_m2', 0) / 10000 if friche.get('surface_m2') else None,
                     json.dumps(friche.get('parcelles_cadastrales', [])),
                     friche.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
-                    poste_bt_info.get('lat'), poste_bt_info.get('lon'), poste_bt_info.get('proprietaire'),
+                    poste_bt_info.get('lat'), poste_bt_info.get('lon'),
                     friche.get('min_distance_hta_m'), poste_hta_info.get('nom'), poste_hta_info.get('puissance'),
-                    poste_hta_info.get('lat'), poste_hta_info.get('lon'), poste_hta_info.get('proprietaire'),
+                    poste_hta_info.get('lat'), poste_hta_info.get('lon'),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche)
                 ))
                 total_exported += 1
@@ -219,6 +231,12 @@ def register_crm_routes(app):
                 SELECT * FROM agriweb_prospects 
                 ORDER BY date_creation DESC
             ''', fetch_all=True)
+            
+            # Mapper contact_telephone -> contact_tel pour compatibilité frontend
+            if prospects:
+                for prospect in prospects:
+                    if 'contact_telephone' in prospect:
+                        prospect['contact_tel'] = prospect['contact_telephone']
             
             # Calculer les stats
             stats = execute_query('''

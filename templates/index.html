@@ -209,25 +209,43 @@
           <div class="accordion-item">
             <h2 class="accordion-header">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#reportsCollapse">
-                <i class="bi bi-file-earmark-text me-2"></i>Rapports & CRM
+                <i class="bi bi-file-earmark-text me-2"></i>Rapports
               </button>
             </h2>
             <div id="reportsCollapse" class="accordion-collapse collapse" data-bs-parent="#toolsAccordion">
               <div class="accordion-body">
                 <div class="d-grid gap-2">
-                  <button id="reportButton" type="button" class="btn btn-warning">Générer rapport (point courant)</button>
-                  <button id="communeReportBtn" type="button" class="btn btn-outline-primary">Générer rapport commune</button>
-                  <button id="deptReportCarteBtn" type="button" class="btn btn-outline-success">
-                    Générer rapport département (à partir de la carte)
+                  <button id="reportButton" type="button" class="btn btn-warning">
+                    <i class="bi bi-pin-map me-2"></i>Rapport point courant
                   </button>
-                  <hr class="my-2">
+                  <button id="communeReportBtn" type="button" class="btn btn-outline-primary">
+                    <i class="bi bi-building me-2"></i>Rapport commune
+                  </button>
+                  <button id="deptReportCarteBtn" type="button" class="btn btn-outline-success">
+                    <i class="bi bi-map me-2"></i>Rapport département
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Section CRM -->
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#crmCollapse">
+                <i class="bi bi-people me-2"></i>CRM
+              </button>
+            </h2>
+            <div id="crmCollapse" class="accordion-collapse collapse" data-bs-parent="#toolsAccordion">
+              <div class="accordion-body">
+                <div class="d-grid gap-2">
                   <a href="/crm" target="_blank" class="btn btn-primary">
-                    <i class="bi bi-window me-2"></i>Ouvrir CRM Prospects
+                    <i class="bi bi-window me-2"></i>Prospects
                   </a>
-                  <a href="/crm/projets" target="_blank" class="btn btn-info mt-2">
+                  <a href="/crm/projets" target="_blank" class="btn btn-info">
                     <i class="bi bi-folder-fill me-2"></i>Fiches Projets
                   </a>
-                  <a href="/crm/stats" target="_blank" class="btn btn-success mt-2">
+                  <a href="/crm/stats" target="_blank" class="btn btn-success">
                     <i class="bi bi-graph-up me-2"></i>Dashboard & KPI
                   </a>
                 </div>
