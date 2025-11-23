@@ -805,22 +805,22 @@
                                     <td>
                                         <small>
                                             {% if d.amenity %}
-                                                <span class="badge bg-info">{{ d.amenity }}</span><br>
+                                                <span class="badge bg-info osm-badge" data-osm="{{ d.amenity }}">{{ d.amenity }}</span><br>
                                             {% endif %}
                                             {% if d.shop %}
-                                                <span class="badge bg-success">🛒 {{ d.shop }}</span><br>
+                                                <span class="badge bg-success osm-badge" data-osm="{{ d.shop }}">🛒 {{ d.shop }}</span><br>
                                             {% endif %}
                                             {% if d.building and d.building not in ['yes', 'house'] %}
-                                                <span class="badge bg-secondary">🏢 {{ d.building }}</span><br>
+                                                <span class="badge bg-secondary osm-badge" data-osm="{{ d.building }}">🏢 {{ d.building }}</span><br>
                                             {% endif %}
                                             {% if d.landuse %}
-                                                <span class="badge bg-warning text-dark">{{ d.landuse }}</span><br>
+                                                <span class="badge bg-warning text-dark osm-badge" data-osm="{{ d.landuse }}">{{ d.landuse }}</span><br>
                                             {% endif %}
                                             {% if d.office %}
-                                                <span class="badge bg-primary">🏛️ {{ d.office }}</span><br>
+                                                <span class="badge bg-primary osm-badge" data-osm="{{ d.office }}">🏛️ {{ d.office }}</span><br>
                                             {% endif %}
                                             {% if d.industrial %}
-                                                <span class="badge bg-danger">🏭 {{ d.industrial }}</span><br>
+                                                <span class="badge bg-danger osm-badge" data-osm="{{ d.industrial }}">🏭 {{ d.industrial }}</span><br>
                                             {% endif %}
                                             {% if not (d.amenity or d.shop or d.building or d.landuse or d.office or d.industrial) %}
                                                 <span class="text-muted">-</span>
@@ -1044,6 +1044,52 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        // ========== TRADUCTION OSM ==========
+        const osmTranslations = {
+            // Amenity
+            'restaurant': 'Restaurant', 'cafe': 'Café', 'fast_food': 'Fast-food', 'bar': 'Bar', 'pub': 'Pub',
+            'school': 'École', 'university': 'Université', 'college': 'Collège', 'kindergarten': 'Jardin d\'enfants',
+            'hospital': 'Hôpital', 'clinic': 'Clinique', 'pharmacy': 'Pharmacie', 'doctors': 'Cabinet médical',
+            'bank': 'Banque', 'atm': 'Distributeur', 'post_office': 'Poste', 'library': 'Bibliothèque',
+            'town_hall': 'Mairie', 'community_centre': 'Centre communautaire', 'police': 'Police', 'fire_station': 'Caserne pompiers',
+            'parking': 'Parking', 'fuel': 'Station-service', 'charging_station': 'Borne de recharge',
+            'place_of_worship': 'Lieu de culte', 'theatre': 'Théâtre', 'cinema': 'Cinéma',
+            'marketplace': 'Marché', 'social_facility': 'Centre social', 'swimming_pool': 'Piscine',
+            
+            // Shop
+            'supermarket': 'Supermarché', 'convenience': 'Épicerie', 'bakery': 'Boulangerie', 'butcher': 'Boucherie',
+            'clothes': 'Magasin de vêtements', 'shoes': 'Magasin de chaussures', 'hairdresser': 'Coiffeur', 'beauty': 'Institut de beauté',
+            'hardware': 'Quincaillerie', 'furniture': 'Magasin de meubles', 'electronics': 'Électronique',
+            'car_repair': 'Garage automobile', 'bicycle': 'Vélos', 'florist': 'Fleuriste', 'garden_centre': 'Jardinerie',
+            'mall': 'Centre commercial', 'department_store': 'Grand magasin', 'kiosk': 'Kiosque',
+            
+            // Building
+            'commercial': 'Commercial', 'retail': 'Commerce', 'industrial': 'Industriel', 'warehouse': 'Entrepôt',
+            'office': 'Bureau', 'public': 'Public', 'civic': 'Civique', 'residential': 'Résidentiel',
+            'apartments': 'Appartements', 'hotel': 'Hôtel', 'dormitory': 'Dortoir', 'farm': 'Ferme',
+            'barn': 'Grange', 'greenhouse': 'Serre', 'hangar': 'Hangar', 'garage': 'Garage',
+            'supermarket': 'Supermarché', 'manufacture': 'Manufacture', 'factory': 'Usine',
+            
+            // Landuse
+            'commercial': 'Zone commerciale', 'industrial': 'Zone industrielle', 'retail': 'Zone de commerce',
+            'residential': 'Zone résidentielle', 'farmland': 'Terres agricoles', 'farmyard': 'Cour de ferme',
+            'construction': 'En construction', 'railway': 'Zone ferroviaire', 'military': 'Zone militaire',
+            
+            // Office
+            'company': 'Entreprise', 'government': 'Administration', 'lawyer': 'Cabinet d\'avocat', 'accountant': 'Comptable',
+            'estate_agent': 'Agence immobilière', 'insurance': 'Assurance', 'architect': 'Architecte',
+            'association': 'Association', 'ngo': 'ONG', 'educational_institution': 'Établissement scolaire',
+            
+            // Industrial
+            'factory': 'Usine', 'warehouse': 'Entrepôt', 'depot': 'Dépôt', 'manufacture': 'Manufacture',
+            'sawmill': 'Scierie', 'brewery': 'Brasserie', 'oil_mill': 'Huilerie'
+        };
+        
+        function translateOSM(value) {
+            if (!value) return value;
+            return osmTranslations[value] || value.replace(/_/g, ' ');
+        }
+        
         // ========== SYSTÈME DE SÉLECTION ET EXPORT CRM ==========
         let selectedItems = {
             parkings: new Set(),
@@ -1344,6 +1390,16 @@
             });
             
             console.log('Boutons de zoom initialisés:', document.querySelectorAll('.zoom-btn').length, 'individuels,', document.querySelectorAll('.section-zoom-btn').length, 'sections');
+            
+            // Traduire tous les badges OSM
+            document.querySelectorAll('.osm-badge').forEach(badge => {
+                const osmValue = badge.getAttribute('data-osm');
+                if (osmValue) {
+                    const emoji = badge.textContent.match(/^[🛒🏢🏛️🏭]/);
+                    const translated = translateOSM(osmValue);
+                    badge.textContent = (emoji ? emoji[0] + ' ' : '') + translated;
+                }
+            });
         });
     </script>
 </body>

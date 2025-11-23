@@ -485,6 +485,52 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ========== TRADUCTION OSM ==========
+        const osmTranslations = {
+            // Amenity
+            'restaurant': 'Restaurant', 'cafe': 'Café', 'fast_food': 'Fast-food', 'bar': 'Bar', 'pub': 'Pub',
+            'school': 'École', 'university': 'Université', 'college': 'Collège', 'kindergarten': 'Jardin d\'enfants',
+            'hospital': 'Hôpital', 'clinic': 'Clinique', 'pharmacy': 'Pharmacie', 'doctors': 'Cabinet médical',
+            'bank': 'Banque', 'atm': 'Distributeur', 'post_office': 'Poste', 'library': 'Bibliothèque',
+            'town_hall': 'Mairie', 'community_centre': 'Centre communautaire', 'police': 'Police', 'fire_station': 'Caserne pompiers',
+            'parking': 'Parking', 'fuel': 'Station-service', 'charging_station': 'Borne de recharge',
+            'place_of_worship': 'Lieu de culte', 'theatre': 'Théâtre', 'cinema': 'Cinéma',
+            'marketplace': 'Marché', 'social_facility': 'Centre social', 'swimming_pool': 'Piscine',
+            
+            // Shop
+            'supermarket': 'Supermarché', 'convenience': 'Épicerie', 'bakery': 'Boulangerie', 'butcher': 'Boucherie',
+            'clothes': 'Magasin de vêtements', 'shoes': 'Magasin de chaussures', 'hairdresser': 'Coiffeur', 'beauty': 'Institut de beauté',
+            'hardware': 'Quincaillerie', 'furniture': 'Magasin de meubles', 'electronics': 'Électronique',
+            'car_repair': 'Garage automobile', 'bicycle': 'Vélos', 'florist': 'Fleuriste', 'garden_centre': 'Jardinerie',
+            'mall': 'Centre commercial', 'department_store': 'Grand magasin', 'kiosk': 'Kiosque',
+            
+            // Building
+            'commercial': 'Commercial', 'retail': 'Commerce', 'industrial': 'Industriel', 'warehouse': 'Entrepôt',
+            'office': 'Bureau', 'public': 'Public', 'civic': 'Civique', 'residential': 'Résidentiel',
+            'apartments': 'Appartements', 'hotel': 'Hôtel', 'dormitory': 'Dortoir', 'farm': 'Ferme',
+            'barn': 'Grange', 'greenhouse': 'Serre', 'hangar': 'Hangar', 'garage': 'Garage',
+            'supermarket': 'Supermarché', 'manufacture': 'Manufacture', 'factory': 'Usine',
+            
+            // Landuse
+            'commercial': 'Zone commerciale', 'industrial': 'Zone industrielle', 'retail': 'Zone de commerce',
+            'residential': 'Zone résidentielle', 'farmland': 'Terres agricoles', 'farmyard': 'Cour de ferme',
+            'construction': 'En construction', 'railway': 'Zone ferroviaire', 'military': 'Zone militaire',
+            
+            // Office
+            'company': 'Entreprise', 'government': 'Administration', 'lawyer': 'Cabinet d\'avocat', 'accountant': 'Comptable',
+            'estate_agent': 'Agence immobilière', 'insurance': 'Assurance', 'architect': 'Architecte',
+            'association': 'Association', 'ngo': 'ONG', 'educational_institution': 'Établissement scolaire',
+            
+            // Industrial
+            'factory': 'Usine', 'warehouse': 'Entrepôt', 'depot': 'Dépôt', 'manufacture': 'Manufacture',
+            'sawmill': 'Scierie', 'brewery': 'Brasserie', 'oil_mill': 'Huilerie'
+        };
+        
+        function translateOSM(value) {
+            if (!value) return value;
+            return osmTranslations[value] || value.replace(/_/g, ' ');
+        }
+        
         let allProspects = [];
         let editModal, emailModal, appointmentModal, proposalModal;
         let currentProspect = null;
@@ -670,12 +716,12 @@
                             <div class="detail-row">
                                 <i class="bi bi-building text-info"></i> 
                                 <span class="detail-label">Type d'activité:</span>
-                                ${prospect.osm_amenity ? `<span class="badge bg-info me-1">${prospect.osm_amenity}</span>` : ''}
-                                ${prospect.osm_shop ? `<span class="badge bg-success me-1">🛒 ${prospect.osm_shop}</span>` : ''}
-                                ${prospect.osm_building && prospect.osm_building !== 'yes' && prospect.osm_building !== 'house' ? `<span class="badge bg-secondary me-1">🏢 ${prospect.osm_building}</span>` : ''}
-                                ${prospect.osm_landuse ? `<span class="badge bg-warning text-dark me-1">${prospect.osm_landuse}</span>` : ''}
-                                ${prospect.osm_office ? `<span class="badge bg-primary me-1">🏛️ ${prospect.osm_office}</span>` : ''}
-                                ${prospect.osm_industrial ? `<span class="badge bg-danger me-1">🏭 ${prospect.osm_industrial}</span>` : ''}
+                                ${prospect.osm_amenity ? `<span class="badge bg-info me-1">${translateOSM(prospect.osm_amenity)}</span>` : ''}
+                                ${prospect.osm_shop ? `<span class="badge bg-success me-1">🛒 ${translateOSM(prospect.osm_shop)}</span>` : ''}
+                                ${prospect.osm_building && prospect.osm_building !== 'yes' && prospect.osm_building !== 'house' ? `<span class="badge bg-secondary me-1">🏢 ${translateOSM(prospect.osm_building)}</span>` : ''}
+                                ${prospect.osm_landuse ? `<span class="badge bg-warning text-dark me-1">${translateOSM(prospect.osm_landuse)}</span>` : ''}
+                                ${prospect.osm_office ? `<span class="badge bg-primary me-1">🏛️ ${translateOSM(prospect.osm_office)}</span>` : ''}
+                                ${prospect.osm_industrial ? `<span class="badge bg-danger me-1">🏭 ${translateOSM(prospect.osm_industrial)}</span>` : ''}
                             </div>
                             ` : ''}
                             
