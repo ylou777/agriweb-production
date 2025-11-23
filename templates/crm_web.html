@@ -175,7 +175,7 @@
                     <!-- Filters -->
                     <div class="filters-bar">
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <input type="text" id="searchBox" class="form-control search-box" 
                                        placeholder="🔍 Rechercher par commune, adresse...">
                             </div>
@@ -206,8 +206,19 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
+                                <select id="filterTaille" class="form-select">
+                                    <option value="">Toutes tailles</option>
+                                    <option value="0-1000">< 1 000 m²</option>
+                                    <option value="1000-5000">1 000 - 5 000 m²</option>
+                                    <option value="5000-10000">5 000 - 10 000 m²</option>
+                                    <option value="10000-50000">1 - 5 ha</option>
+                                    <option value="50000-100000">5 - 10 ha</option>
+                                    <option value="100000+">+ 10 ha</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
                                 <button class="btn btn-primary w-100" onclick="refreshProspects()">
-                                    <i class="bi bi-arrow-clockwise"></i> Actualiser
+                                    <i class="bi bi-arrow-clockwise"></i>
                                 </button>
                             </div>
                         </div>
@@ -489,6 +500,7 @@
             document.getElementById('filterType').addEventListener('change', filterProspects);
             document.getElementById('filterStatus').addEventListener('change', filterProspects);
             document.getElementById('filterPriorite').addEventListener('change', filterProspects);
+            document.getElementById('filterTaille').addEventListener('change', filterProspects);
             
             loadProspects();
         });
@@ -757,6 +769,7 @@
             const typeFilter = document.getElementById('filterType').value;
             const statusFilter = document.getElementById('filterStatus').value;
             const prioriteFilter = document.getElementById('filterPriorite').value;
+            const tailleFilter = document.getElementById('filterTaille').value;
             
             const filtered = allProspects.filter(p => {
                 const matchSearch = !searchText || 
@@ -768,7 +781,26 @@
                 const matchStatus = !statusFilter || p.statut === statusFilter;
                 const matchPriorite = !prioriteFilter || p.priorite === prioriteFilter;
                 
-                return matchSearch && matchType && matchStatus && matchPriorite;
+                // Filtrage par taille (surface en m²)
+                let matchTaille = true;
+                if (tailleFilter) {
+                    const surface = p.surface_m2 || 0;
+                    if (tailleFilter === '0-1000') {
+                        matchTaille = surface < 1000;
+                    } else if (tailleFilter === '1000-5000') {
+                        matchTaille = surface >= 1000 && surface < 5000;
+                    } else if (tailleFilter === '5000-10000') {
+                        matchTaille = surface >= 5000 && surface < 10000;
+                    } else if (tailleFilter === '10000-50000') {
+                        matchTaille = surface >= 10000 && surface < 50000;
+                    } else if (tailleFilter === '50000-100000') {
+                        matchTaille = surface >= 50000 && surface < 100000;
+                    } else if (tailleFilter === '100000+') {
+                        matchTaille = surface >= 100000;
+                    }
+                }
+                
+                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille;
             });
             
             displayProspects(filtered);
