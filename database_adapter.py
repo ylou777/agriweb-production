@@ -182,7 +182,13 @@ def init_database():
             dirigeant_nom TEXT,
             dirigeant_email TEXT,
             dirigeant_tel TEXT,
-            siret TEXT
+            siret TEXT,
+            osm_amenity TEXT,
+            osm_shop TEXT,
+            osm_building TEXT,
+            osm_landuse TEXT,
+            osm_office TEXT,
+            osm_industrial TEXT
         );
 
         CREATE TABLE IF NOT EXISTS prospect_proposals (
@@ -302,7 +308,13 @@ def init_database():
             dirigeant_nom TEXT,
             dirigeant_email TEXT,
             dirigeant_tel TEXT,
-            siret TEXT
+            siret TEXT,
+            osm_amenity TEXT,
+            osm_shop TEXT,
+            osm_building TEXT,
+            osm_landuse TEXT,
+            osm_office TEXT,
+            osm_industrial TEXT
         );
 
         CREATE TABLE IF NOT EXISTS prospect_proposals (

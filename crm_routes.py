@@ -305,8 +305,9 @@ def register_crm_routes(app):
                         surface_m2, surface_ha, parcelles_cadastrales,
                         poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
-                        lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        lien_streetview, lien_annuaire, data_json,
+                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
                     parking.get('lat'), parking.get('lon'), parking.get('surface_m2'),
@@ -316,7 +317,9 @@ def register_crm_routes(app):
                     poste_bt.get('lat'), poste_bt.get('lon'),
                     poste_hta.get('distance_m'), poste_hta.get('nom') or poste_hta.get('id'), poste_hta.get('puissance'),
                     poste_hta.get('lat'), poste_hta.get('lon'),
-                    parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking)
+                    parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking),
+                    parking.get('amenity'), parking.get('shop'), parking.get('building'),
+                    parking.get('landuse'), parking.get('office'), parking.get('industrial')
                 ))
                 total_exported += 1
                 details['parkings'] += 1
@@ -332,8 +335,9 @@ def register_crm_routes(app):
                         surface_m2, surface_ha, parcelles_cadastrales,
                         poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
-                        lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        lien_streetview, lien_annuaire, data_json,
+                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
                     toiture.get('lat'), toiture.get('lon'), toiture.get('surface_m2'),
@@ -343,7 +347,9 @@ def register_crm_routes(app):
                     poste_bt.get('lat'), poste_bt.get('lon'),
                     poste_hta.get('distance_m'), poste_hta.get('nom') or poste_hta.get('id'), poste_hta.get('puissance'),
                     poste_hta.get('lat'), poste_hta.get('lon'),
-                    toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture)
+                    toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture),
+                    toiture.get('amenity'), toiture.get('shop'), toiture.get('building'),
+                    toiture.get('landuse'), toiture.get('office'), toiture.get('industrial')
                 ))
                 total_exported += 1
                 details['toitures'] += 1
@@ -359,8 +365,9 @@ def register_crm_routes(app):
                         surface_m2, surface_ha, parcelles_cadastrales,
                         poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
-                        lien_streetview, lien_annuaire, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        lien_streetview, lien_annuaire, data_json,
+                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
                     friche.get('lat'), friche.get('lon'), friche.get('surface_m2'),
@@ -370,7 +377,9 @@ def register_crm_routes(app):
                     poste_bt.get('lat'), poste_bt.get('lon'),
                     poste_hta.get('distance_m'), poste_hta.get('nom') or poste_hta.get('id'), poste_hta.get('puissance'),
                     poste_hta.get('lat'), poste_hta.get('lon'),
-                    friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche)
+                    friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche),
+                    friche.get('amenity'), friche.get('shop'), friche.get('building'),
+                    friche.get('landuse'), friche.get('office'), friche.get('industrial')
                 ))
                 total_exported += 1
                 details['friches'] += 1

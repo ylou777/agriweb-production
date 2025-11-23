@@ -782,6 +782,7 @@
                                     </th>
                                     <th>#</th>
                                     <th>Surface (m²)</th>
+                                    <th>Type d'activité</th>
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
@@ -801,6 +802,31 @@
                                     </td>
                                     <td>{{ loop.index }}</td>
                                     <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td>
+                                        <small>
+                                            {% if d.amenity %}
+                                                <span class="badge bg-info">{{ d.amenity }}</span><br>
+                                            {% endif %}
+                                            {% if d.shop %}
+                                                <span class="badge bg-success">🛒 {{ d.shop }}</span><br>
+                                            {% endif %}
+                                            {% if d.building and d.building not in ['yes', 'house'] %}
+                                                <span class="badge bg-secondary">🏢 {{ d.building }}</span><br>
+                                            {% endif %}
+                                            {% if d.landuse %}
+                                                <span class="badge bg-warning text-dark">{{ d.landuse }}</span><br>
+                                            {% endif %}
+                                            {% if d.office %}
+                                                <span class="badge bg-primary">🏛️ {{ d.office }}</span><br>
+                                            {% endif %}
+                                            {% if d.industrial %}
+                                                <span class="badge bg-danger">🏭 {{ d.industrial }}</span><br>
+                                            {% endif %}
+                                            {% if not (d.amenity or d.shop or d.building or d.landuse or d.office or d.industrial) %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </small>
+                                    </td>
                                     <td><small>{{ d.adresse or 'Non disponible' }}</small></td>
                                     <td>
                                         {% if d.parcelles %}
