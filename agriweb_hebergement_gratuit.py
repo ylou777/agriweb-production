@@ -16509,6 +16509,22 @@ try:
     import database_adapter
     database_adapter.init_database()
     print("✅ Tables CRM PostgreSQL initialisées")
+    
+    # Ajouter les colonnes OSM si elles n'existent pas
+    try:
+        from database_adapter import execute_query
+        execute_query("""
+            ALTER TABLE agriweb_prospects 
+            ADD COLUMN IF NOT EXISTS osm_amenity TEXT,
+            ADD COLUMN IF NOT EXISTS osm_shop TEXT,
+            ADD COLUMN IF NOT EXISTS osm_building TEXT,
+            ADD COLUMN IF NOT EXISTS osm_landuse TEXT,
+            ADD COLUMN IF NOT EXISTS osm_office TEXT,
+            ADD COLUMN IF NOT EXISTS osm_industrial TEXT
+        """)
+        print("✅ Colonnes OSM ajoutées/vérifiées")
+    except Exception as e:
+        print(f"⚠️ Erreur migration OSM: {e}")
 except Exception as e:
     print(f"⚠️ Erreur import/init CRM: {e}")
     import traceback
