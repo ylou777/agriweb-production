@@ -216,6 +216,25 @@
                                     <option value="100000+">+ 10 ha</option>
                                 </select>
                             </div>
+                            <div class="col-md-2">
+                                <select id="filterBatiment" class="form-select">
+                                    <option value="">Tous bâtiments</option>
+                                    <option value="commercial">🏢 Commercial</option>
+                                    <option value="industrial">🏭 Industriel</option>
+                                    <option value="retail">🛒 Commerce</option>
+                                    <option value="warehouse">📦 Entrepôt</option>
+                                    <option value="supermarket">🛒 Supermarché</option>
+                                    <option value="office">🏛️ Bureau</option>
+                                    <option value="public">🏛️ Public</option>
+                                    <option value="school">🎓 École</option>
+                                    <option value="hospital">🏥 Hôpital</option>
+                                    <option value="hotel">🏨 Hôtel</option>
+                                    <option value="restaurant">🍽️ Restaurant</option>
+                                    <option value="parking">🅿️ Parking</option>
+                                    <option value="farmland">🌾 Agricole</option>
+                                    <option value="factory">🏭 Usine</option>
+                                </select>
+                            </div>
                             <div class="col-md-1">
                                 <button class="btn btn-primary w-100" onclick="refreshProspects()">
                                     <i class="bi bi-arrow-clockwise"></i>
@@ -547,6 +566,7 @@
             document.getElementById('filterStatus').addEventListener('change', filterProspects);
             document.getElementById('filterPriorite').addEventListener('change', filterProspects);
             document.getElementById('filterTaille').addEventListener('change', filterProspects);
+            document.getElementById('filterBatiment').addEventListener('change', filterProspects);
             
             loadProspects();
         });
@@ -829,6 +849,7 @@
             const statusFilter = document.getElementById('filterStatus').value;
             const prioriteFilter = document.getElementById('filterPriorite').value;
             const tailleFilter = document.getElementById('filterTaille').value;
+            const batimentFilter = document.getElementById('filterBatiment').value;
             
             const filtered = allProspects.filter(p => {
                 const matchSearch = !searchText || 
@@ -859,7 +880,18 @@
                     }
                 }
                 
-                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille;
+                // Filtrage par type de bâtiment OSM
+                let matchBatiment = true;
+                if (batimentFilter) {
+                    matchBatiment = p.osm_building === batimentFilter ||
+                                   p.osm_amenity === batimentFilter ||
+                                   p.osm_shop === batimentFilter ||
+                                   p.osm_landuse === batimentFilter ||
+                                   p.osm_office === batimentFilter ||
+                                   p.osm_industrial === batimentFilter;
+                }
+                
+                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment;
             });
             
             displayProspects(filtered);
