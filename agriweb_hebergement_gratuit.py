@@ -16499,8 +16499,8 @@ def sync_to_kpi():
 if False:  # BLOC DÉSACTIVÉ - Ne pas exécuter
     @app.route('/crm')
     def crm_dashboard():
-    """Page de lancement du CRM AgriWeb - Version web"""
-    return render_template('crm_web.html')
+        """Page de lancement du CRM AgriWeb - Version web"""
+        return render_template('crm_web.html')
 
 @app.route('/crm/stats')
 def crm_stats_page():
