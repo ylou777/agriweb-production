@@ -5808,8 +5808,8 @@ def build_map(
     if ppri_data is None or not isinstance(ppri_data, dict):
         ppri_data = {"type": "FeatureCollection", "features": []}
     
-    # === CRÉATION DE LA CARTE avec zoom adapté (16 pour parcelle) ===
-    map_obj = folium.Map(location=[lat, lon], zoom_start=16, tiles=None, max_zoom=22)
+    # === CRÉATION DE LA CARTE avec zoom étendu ===
+    map_obj = folium.Map(location=[lat, lon], zoom_start=13, tiles=None, max_zoom=22)
     
     # Ajouter les couches de base
     folium.TileLayer(
@@ -9372,14 +9372,14 @@ def search_toitures_commune_polygon():
                 print(f"⚠️ [TOITURES POLYGON] Erreur récupération parcelles: {e}")
 
         # 8) Statistiques
-        if toitures_filtrees and len(toitures_filtrees) > 0:
+        if toitures_filtrees:
             surfaces = [t["properties"]["surface_toiture_m2"] for t in toitures_filtrees]
             stats = {
                 "count": len(toitures_filtrees),
-                "surface_totale_m2": round(sum(surfaces), 2) if surfaces else 0,
-                "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2) if surfaces else 0,
-                "surface_max_m2": round(max(surfaces), 2) if surfaces else 0,
-                "surface_min_m2": round(min(surfaces), 2) if surfaces else 0
+                "surface_totale_m2": round(sum(surfaces), 2),
+                "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2),
+                "surface_max_m2": round(max(surfaces), 2),
+                "surface_min_m2": round(min(surfaces), 2)
             }
         else:
             stats = {
@@ -9472,14 +9472,14 @@ def search_toitures_commune_polygon():
                 print(f"⚠️ [TOITURES SIMPLE] Erreur récupération parcelles: {e}")
 
         # 7) Statistiques
-        if toitures_filtrees and len(toitures_filtrees) > 0:
+        if toitures_filtrees:
             surfaces = [t["properties"]["surface_toiture_m2"] for t in toitures_filtrees]
             stats = {
                 "count": len(toitures_filtrees),
-                "surface_totale_m2": round(sum(surfaces), 2) if surfaces else 0,
-                "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2) if surfaces else 0,
-                "surface_max_m2": round(max(surfaces), 2) if surfaces else 0,
-                "surface_min_m2": round(min(surfaces), 2) if surfaces else 0
+                "surface_totale_m2": round(sum(surfaces), 2),
+                "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2),
+                "surface_max_m2": round(max(surfaces), 2),
+                "surface_min_m2": round(min(surfaces), 2)
             }
         else:
             stats = {"count": 0}
@@ -9780,17 +9780,17 @@ def search_toitures_commune():
         print(f"🔄 [TOITURES] Résultats limités à {max_results}")
 
     # 9) Statistiques
-    if toitures_filtrees and len(toitures_filtrees) > 0:
+    if toitures_filtrees:
         surfaces = [t["properties"]["surface_toiture_m2"] for t in toitures_filtrees]
         distances_bt = [t["properties"]["min_distance_bt_m"] for t in toitures_filtrees if t["properties"]["min_distance_bt_m"] is not None]
         distances_hta = [t["properties"]["min_distance_hta_m"] for t in toitures_filtrees if t["properties"]["min_distance_hta_m"] is not None]
         
         stats = {
             "count": len(toitures_filtrees),
-            "surface_totale_m2": round(sum(surfaces), 2) if surfaces else 0,
-            "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2) if surfaces else 0,
-            "surface_max_m2": round(max(surfaces), 2) if surfaces else 0,
-            "surface_min_m2": round(min(surfaces), 2) if surfaces else 0,
+            "surface_totale_m2": round(sum(surfaces), 2),
+            "surface_moyenne_m2": round(sum(surfaces) / len(surfaces), 2),
+            "surface_max_m2": round(max(surfaces), 2),
+            "surface_min_m2": round(min(surfaces), 2),
             "distance_bt_moyenne_m": round(sum(distances_bt) / len(distances_bt), 2) if distances_bt else None,
             "distance_hta_moyenne_m": round(sum(distances_hta) / len(distances_hta), 2) if distances_hta else None
         }
@@ -9863,7 +9863,6 @@ def rapport_map_point():
         lat = request.args.get("lat") or request.form.get("lat")
         lon = request.args.get("lon") or request.form.get("lon")
         address = request.args.get("address", "") or request.form.get("address", "")
-        prospect_id = request.args.get("prospect_id") or request.form.get("prospect_id")
         
         if not lat or not lon:
             log_step("VALIDATION", "Coordonnées manquantes", "ERROR")
@@ -9873,8 +9872,6 @@ def rapport_map_point():
         lon_float = float(lon)
         
         log_step("VALIDATION", f"Coordonnées validées: {lat_float}, {lon_float}", "SUCCESS")
-        if prospect_id:
-            log_step("VALIDATION", f"Prospect ID: {prospect_id}", "SUCCESS")
         
         if not address:
             address = f"{lat_float}, {lon_float}"
@@ -9896,7 +9893,6 @@ def rapport_map_point():
         "lat": lat_float,
         "lon": lon_float,
         "address": address,
-        "prospect_id": prospect_id,
         "timestamp": timestamp,
         "version": "3.2.1",
         "data_update": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -10774,44 +10770,22 @@ def rapport_map_point():
     try:
         # 1. Collecte au point exact
         log_step("EXEC", "🚀 Début exécution - Collecte au point exact")
-        try:
-            point_data = collect_data_at_point()
-        except Exception as e:
-            log_step("EXEC", f"❌ Erreur collecte point: {e}", "ERROR")
-            import traceback
-            traceback.print_exc()
-            point_data = {'rpg_parcelles': [], 'plu_zones': [], 'zaer_zones': []}
+        point_data = collect_data_at_point()
         
         # 2. Intégration dans le rapport
         log_step("EXEC", "🚀 Intégration des données du point exact")
-        try:
-            integrate_point_data_to_report(point_data)
-        except Exception as e:
-            log_step("EXEC", f"❌ Erreur intégration: {e}", "ERROR")
-            import traceback
-            traceback.print_exc()
+        integrate_point_data_to_report(point_data)
         
         # 3. CRUCIAL : Collecte données contextuelles (altitude, PVGIS, APIs)
         log_step("EXEC", "🚀 Collecte des données contextuelles")
-        try:
-            collect_context_data()
-        except Exception as e:
-            log_step("EXEC", f"❌ Erreur collecte contexte: {e}", "ERROR")
-            import traceback
-            traceback.print_exc()
+        collect_context_data()
         
         # 4. Génération carte
         log_step("EXEC", "🚀 Génération de la carte")
-        try:
-            map_obj = generate_map()
-            # Toujours fournir une carte, même si la génération échoue
-            if not report_data.get("carte_url"):
-                # Fallback: carte par défaut si la génération a échoué
-                report_data["carte_url"] = "/map.html"
-        except Exception as e:
-            log_step("EXEC", f"❌ Erreur génération carte: {e}", "ERROR")
-            import traceback
-            traceback.print_exc()
+        map_obj = generate_map()
+        # Toujours fournir une carte, même si la génération échoue
+        if not report_data.get("carte_url"):
+            # Fallback: carte par défaut si la génération a échoué
             report_data["carte_url"] = "/map.html"
         
         # === RÉSUMÉ FINAL DÉTAILLÉ ===
@@ -10823,9 +10797,9 @@ def rapport_map_point():
         log_step("SUMMARY", f"⚡ Postes BT (contexte): {len(report_data.get('postes', []))}")
         log_step("SUMMARY", f"🔌 Postes HTA (contexte): {len(report_data.get('ht_postes', []))}")
         log_step("SUMMARY", f"👨‍🌾 Éleveurs (contexte): {len(report_data.get('eleveurs', []))}")
-        log_step("SUMMARY", f"🏔️ Altitude: {report_data.get('altitude', 'N/A')}m")
-        log_step("SUMMARY", f"☀️ Production PV: {report_data.get('kwh_per_kwc', 'N/A')} kWh/kWc/an")
-        log_step("SUMMARY", f"🗺️ Commune: {report_data.get('commune_name', 'N/A')}")
+        log_step("SUMMARY", f"🏔️ Altitude: {report_data['altitude']}m")
+        log_step("SUMMARY", f"☀️ Production PV: {report_data['kwh_per_kwc']} kWh/kWc/an")
+        log_step("SUMMARY", f"🗺️ Commune: {report_data['commune_name']}")
         log_step("SUMMARY", f"🔗 APIs: {len(report_data.get('api_details', {}))}")
         
         # LOGS DÉTAILLÉS
@@ -14040,12 +14014,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'lon': coords[0],
                     'lat': coords[1],
                     'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('libelle') or '',
-                    'tension': pr.get('tension') or pr.get('Tension') or '',
-                    'fonction': pr.get('fonction') or pr.get('Fonction') or '',
-                    'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
-                    'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
-                    'type': pr.get('type') or pr.get('Type') or ''
+                    'nom': pr.get('nom') or pr.get('libelle') or ''
                 }
             except Exception:
                 return {}
@@ -16524,150 +16493,1392 @@ def sync_to_kpi():
 # ========== FIN INTÉGRATION KPI ==========
 
 # ============================================================================
-
-# Import des routes CRM avec support PostgreSQL Railway
-try:
-    import crm_routes
-    crm_routes.register_crm_routes(app)
-    print("✅ Routes CRM PostgreSQL enregistrées")
-    
-    # Initialiser les tables CRM PostgreSQL si on est sur Railway
-    import database_adapter
-    database_adapter.init_database()
-    print("✅ Tables CRM PostgreSQL initialisées")
-    
-    # Ajouter les colonnes OSM si elles n'existent pas
-    try:
-        from database_adapter import execute_query
-        # Vérifier et ajouter chaque colonne OSM individuellement
-        osm_columns = [
-            'osm_amenity', 'osm_shop', 'osm_building', 
-            'osm_landuse', 'osm_office', 'osm_industrial'
-        ]
-        for col in osm_columns:
-            try:
-                execute_query(f"ALTER TABLE agriweb_prospects ADD COLUMN {col} TEXT")
-                print(f"✅ Colonne {col} ajoutée")
-            except Exception as col_err:
-                # La colonne existe déjà ou autre erreur
-                if "already exists" in str(col_err) or "duplicate column" in str(col_err):
-                    print(f"ℹ️  Colonne {col} existe déjà")
-                else:
-                    print(f"⚠️ Erreur colonne {col}: {col_err}")
-        print("✅ Migration OSM terminée")
-    except Exception as e:
-        print(f"⚠️ Erreur migration OSM: {e}")
-except Exception as e:
-    print(f"⚠️ Erreur import/init CRM: {e}")
-    import traceback
-    traceback.print_exc()
-
+# ROUTES CRM - GESTION DES PROSPECTS
 # ============================================================================
-# ROUTE ADMIN - MIGRATION MANUELLE OSM
-# ============================================================================
-@app.route('/admin/migrate-osm', methods=['GET'])
-def admin_migrate_osm():
-    """Endpoint pour exécuter la migration OSM manuellement"""
-    try:
-        from database_adapter import execute_query
-        results = []
-        
-        osm_columns = [
-            'osm_amenity', 'osm_shop', 'osm_building', 
-            'osm_landuse', 'osm_office', 'osm_industrial'
-        ]
-        
-        for col in osm_columns:
-            try:
-                execute_query(f"ALTER TABLE agriweb_prospects ADD COLUMN {col} TEXT")
-                results.append(f"✅ Colonne {col} créée avec succès")
-            except Exception as col_err:
-                error_msg = str(col_err).lower()
-                if "already exists" in error_msg or "duplicate column" in error_msg or "existe déjà" in error_msg:
-                    results.append(f"ℹ️ Colonne {col} existe déjà")
-                else:
-                    results.append(f"❌ Erreur {col}: {str(col_err)}")
-        
-        # Vérifier les colonnes créées
-        try:
-            check_query = """
-                SELECT column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_name = 'agriweb_prospects' 
-                AND column_name LIKE 'osm_%'
-                ORDER BY column_name
-            """
-            columns = execute_query(check_query)
-            results.append("\n📊 Colonnes OSM dans la base:")
-            for col in columns:
-                results.append(f"  • {col['column_name']} ({col['data_type']})")
-        except Exception as e:
-            results.append(f"⚠️ Impossible de vérifier les colonnes: {e}")
-        
-        return "<br>".join(results), 200
-    except Exception as e:
-        return f"❌ Erreur migration: {str(e)}", 500
+# DÉSACTIVÉ - Les routes CRM sont maintenant dans crm_routes.py (PostgreSQL compatible)
+if False:  # BLOC DÉSACTIVÉ - Ne pas exécuter
+    @app.route('/crm')
+    def crm_dashboard():
+    """Page de lancement du CRM AgriWeb - Version web"""
+    return render_template('crm_web.html')
 
-app.config["TEMPLATES_AUTO_RELOAD"] = True
+@app.route('/crm/stats')
+def crm_stats_page():
+    """Page de statistiques et KPI du CRM"""
+    return render_template('crm_dashboard.html')
 
-# ============================================================================
-# Import des routes CRM avec support PostgreSQL Railway
-try:
-    import crm_routes
-    crm_routes.register_crm_routes(app)
-    print("✅ Routes CRM PostgreSQL enregistrées")
-    
-    # Initialiser les tables CRM PostgreSQL si on est sur Railway
-    import database_adapter
-    database_adapter.init_database()
-    print("✅ Tables CRM PostgreSQL initialisées")
-    
-    # Ajouter les colonnes OSM si elles n'existent pas
+@app.route('/crm/desktop')
+def crm_desktop():
+    """Page de lancement du CRM AgriWeb - Version desktop (Tkinter)"""
+    return render_template('crm_redirect.html')
+
+@app.route('/api/crm/stats')
+def crm_stats():
+    """Statistiques CRM pour la page d'accueil"""
     try:
-        import psycopg2
-        from database_adapter import get_db_connection
-        conn = get_db_connection()
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'total': 0, 'nouveaux': 0, 'parkings': 0, 'toitures': 0})
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
         cursor = conn.cursor()
         
-        # Liste des colonnes OSM à ajouter
-        osm_columns = [
-            ("osm_building", "TEXT"),
-            ("osm_amenity", "TEXT"),
-            ("osm_shop", "TEXT"),
-            ("osm_landuse", "TEXT"),
-            ("osm_office", "TEXT"),
-            ("osm_industrial", "TEXT"),
-            ("osm_name", "TEXT"),
-            ("osm_address", "TEXT")
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
+                COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+            FROM agriweb_prospects
+        ''')
+        stats = dict(zip(['total', 'nouveaux', 'parkings', 'toitures', 'friches', 'rpg'], cursor.fetchone()))
+        
+        conn.close()
+        return jsonify(stats)
+        
+    except Exception as e:
+        print(f"❌ [CRM STATS] Erreur: {e}")
+        return jsonify({'total': 0, 'nouveaux': 0, 'parkings': 0, 'toitures': 0})
+
+@app.route('/api/crm/launch', methods=['POST'])
+def crm_launch():
+    """Lance l'application CRM AgriWeb"""
+    try:
+        import subprocess
+        
+        # Chemin vers le launcher CRM
+        kpi_dir = os.path.join(os.path.dirname(__file__), '..', 'KPI')
+        launcher_path = os.path.join(kpi_dir, 'agriweb_crm_launcher.py')
+        python_path = os.path.join(kpi_dir, '.venv', 'Scripts', 'python.exe')
+        
+        if not os.path.exists(launcher_path):
+            return jsonify({'success': False, 'error': 'Launcher CRM non trouvé'}), 404
+        
+        # Lancer l'application CRM en arrière-plan
+        subprocess.Popen([python_path, launcher_path], 
+                        cwd=kpi_dir,
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+        
+        return jsonify({
+            'success': True,
+            'message': 'CRM AgriWeb lancé avec succès !'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM LAUNCH] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/test/crm')
+def test_crm():
+    """Route de test pour vérifier que le système CRM fonctionne"""
+    return jsonify({
+        'status': 'ok',
+        'message': 'Le système CRM est opérationnel',
+        'db_path': CRM_DB_PATH,
+        'db_exists': os.path.exists(CRM_DB_PATH)
+    })
+
+@app.route('/test/rapport')
+def test_rapport_rapide():
+    """Route de test pour accéder rapidement à un rapport"""
+    commune_name = request.args.get('commune', 'Guéret')
+    params = {
+        'commune': commune_name,
+        'filter_rpg': request.args.get('filter_rpg', 'false'),
+        'rpg_min_area': request.args.get('rpg_min_area', '0.1'),
+        'rpg_max_area': request.args.get('rpg_max_area', '50'),
+        'filter_parkings': request.args.get('filter_parkings', 'true'),
+        'parking_min_area': request.args.get('parking_min_area', '1500'),
+        'filter_friches': request.args.get('filter_friches', 'false'),
+        'friches_min_area': request.args.get('friches_min_area', '1000'),
+        'filter_zones': request.args.get('filter_zones', 'false'),
+        'zones_min_area': request.args.get('zones_min_area', '1000'),
+        'zones_type_filter': request.args.get('zones_type_filter', ''),
+        'filter_toitures': request.args.get('filter_toitures', 'true'),
+        'toitures_min_surface': request.args.get('toitures_min_surface', '2500'),
+        'filter_by_distance': request.args.get('filter_by_distance', 'true'),
+        'max_distance_bt': request.args.get('max_distance_bt', '350'),
+        'max_distance_hta': request.args.get('max_distance_hta', '5000'),
+        'poste_type_filter': request.args.get('poste_type_filter', 'ALL'),
+        'export_format': request.args.get('export_format', 'html')
+    }
+    query_string = '&'.join([f"{k}={v}" for k, v in params.items()])
+    return redirect(f"/rapport_commune_complet?{query_string}")
+
+@app.route('/api/crm/export', methods=['POST'])
+def crm_export():
+    """Exporte les éléments sélectionnés vers le CRM"""
+    try:
+        print("=" * 80)
+        print("📤 [CRM EXPORT] Début de l'export")
+        
+        if not request.is_json:
+            print("❌ [CRM EXPORT] La requête n'est pas en JSON")
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        print(f"📊 [CRM EXPORT] Données reçues: {len(data.get('parkings', []))} parkings, {len(data.get('toitures', []))} toitures, {len(data.get('friches', []))} friches, {len(data.get('rpg', []))} rpg")
+        
+        if not os.path.exists(CRM_DB_PATH):
+            print(f"⚠️ [CRM EXPORT] Base CRM inexistante, création: {CRM_DB_PATH}")
+            init_crm_database()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        total_exported = 0
+        details = {'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+        
+        # Exporter les parkings
+        for parking in data.get('parkings', []):
+            poste_bt_info = parking.get('poste_bt_info', {})
+            poste_hta_info = parking.get('poste_hta_info', {})
+            
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
+                    poste_hta_distance_m, poste_hta_nom,
+                    lien_streetview, lien_annuaire, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
+                parking.get('lat'), parking.get('lon'), parking.get('surface_m2'),
+                parking.get('surface_m2', 0) / 10000 if parking.get('surface_m2') else None,
+                json.dumps(parking.get('parcelles', [])),
+                parking.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
+                parking.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking)
+            ))
+            total_exported += 1
+            details['parkings'] += 1
+        
+        # Exporter les toitures
+        for toiture in data.get('toitures', []):
+            poste_bt_info = toiture.get('poste_bt_info', {})
+            poste_hta_info = toiture.get('poste_hta_info', {})
+            
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
+                    poste_hta_distance_m, poste_hta_nom,
+                    lien_streetview, lien_annuaire, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
+                toiture.get('lat'), toiture.get('lon'), toiture.get('surface_m2'),
+                toiture.get('surface_m2', 0) / 10000 if toiture.get('surface_m2') else None,
+                json.dumps(toiture.get('parcelles', [])),
+                toiture.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
+                toiture.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture)
+            ))
+            total_exported += 1
+            details['toitures'] += 1
+        
+        # Exporter les friches
+        for friche in data.get('friches', []):
+            poste_bt_info = friche.get('poste_bt_info', {})
+            poste_hta_info = friche.get('poste_hta_info', {})
+            
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_bt_nom, poste_bt_puissance,
+                    poste_hta_distance_m, poste_hta_nom,
+                    lien_streetview, lien_annuaire, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
+                friche.get('lat'), friche.get('lon'), friche.get('surface_m2'),
+                friche.get('surface_m2', 0) / 10000 if friche.get('surface_m2') else None,
+                json.dumps(friche.get('parcelles', [])),
+                friche.get('min_distance_bt_m'), poste_bt_info.get('nom'), poste_bt_info.get('puissance'),
+                friche.get('min_distance_hta_m'), poste_hta_info.get('nom'),
+                friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche)
+            ))
+            total_exported += 1
+            details['friches'] += 1
+        
+        # Exporter les parcelles RPG
+        for rpg in data.get('rpg', []):
+            cursor.execute('''
+                INSERT INTO agriweb_prospects (
+                    type, commune, departement, adresse, latitude, longitude,
+                    surface_m2, surface_ha, parcelles_cadastrales,
+                    poste_bt_distance_m, poste_hta_distance_m, data_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                'parcelle_rpg', rpg.get('commune'), rpg.get('departement'), rpg.get('adresse'),
+                rpg.get('latitude'), rpg.get('longitude'),
+                rpg.get('surface', 0) * 10000 if rpg.get('surface') else None,
+                rpg.get('surface'), rpg.get('parcelle_cadastrale'),
+                rpg.get('distance_bt'), rpg.get('distance_hta'), json.dumps(rpg)
+            ))
+            total_exported += 1
+            details['rpg'] += 1
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ [CRM EXPORT] Export réussi: {total_exported} prospects ajoutés")
+        print(f"📊 [CRM EXPORT] Détails: {details}")
+        print("=" * 80)
+        
+        return jsonify({
+            'success': True,
+            'total_exported': total_exported,
+            'details': details,
+            'message': f'{total_exported} prospects ajoutés au CRM'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM EXPORT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e), 'message': f'Erreur lors de l\'export: {str(e)}'}), 500
+
+@app.route('/api/crm/prospects')
+def get_prospects():
+    """Récupère tous les prospects pour l'interface web CRM"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'prospects': [], 'stats': {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}})
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Récupérer tous les prospects
+        cursor.execute('''
+            SELECT * FROM agriweb_prospects 
+            ORDER BY date_creation DESC
+        ''')
+        prospects = [dict(row) for row in cursor.fetchall()]
+        
+        # Calculer les stats
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+            FROM agriweb_prospects
+        ''')
+        stats = dict(cursor.fetchone())
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'prospects': prospects,
+            'stats': stats
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM GET] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>', methods=['PUT'])
+def update_prospect(prospect_id):
+    """Met à jour un prospect"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Construire la requête UPDATE dynamiquement
+        fields = []
+        values = []
+        
+        if 'statut' in data:
+            fields.append('statut = ?')
+            values.append(data['statut'])
+        if 'priorite' in data:
+            fields.append('priorite = ?')
+            values.append(data['priorite'])
+        if 'nom_prospect' in data:
+            fields.append('nom_prospect = ?')
+            values.append(data['nom_prospect'])
+        if 'contact_nom' in data:
+            fields.append('contact_nom = ?')
+            values.append(data['contact_nom'])
+        if 'contact_tel' in data:
+            fields.append('contact_telephone = ?')
+            values.append(data['contact_tel'])
+        if 'contact_email' in data:
+            fields.append('contact_email = ?')
+            values.append(data['contact_email'])
+        if 'dirigeant_nom' in data:
+            fields.append('dirigeant_nom = ?')
+            values.append(data['dirigeant_nom'])
+        if 'siret' in data:
+            fields.append('siret = ?')
+            values.append(data['siret'])
+        if 'dirigeant_email' in data:
+            fields.append('dirigeant_email = ?')
+            values.append(data['dirigeant_email'])
+        if 'dirigeant_tel' in data:
+            fields.append('dirigeant_tel = ?')
+            values.append(data['dirigeant_tel'])
+        if 'notes' in data:
+            fields.append('notes = ?')
+            values.append(data['notes'])
+        
+        fields.append('date_modification = ?')
+        values.append(datetime.now().isoformat())
+        
+        values.append(prospect_id)
+        
+        query = f"UPDATE agriweb_prospects SET {', '.join(fields)} WHERE id = ?"
+        cursor.execute(query, values)
+        
+        # Si le nom du contact a changé, mettre à jour le projet associé
+        if 'contact_nom' in data:
+            # Vérifier s'il y a un projet lié à ce prospect
+            cursor.execute('SELECT id FROM project_fiches WHERE prospect_id = ?', (prospect_id,))
+            projet = cursor.fetchone()
+            
+            if projet:
+                project_id = projet[0]
+                # Mettre à jour le nom du projet et du client
+                cursor.execute('''
+                    UPDATE project_fiches
+                    SET nom_projet = ?, client_nom = ?
+                    WHERE id = ?
+                ''', (f"Projet {data['contact_nom']}", data['contact_nom'], project_id))
+                print(f"✅ [CRM UPDATE] Projet #{project_id} renommé: 'Projet {data['contact_nom']}'")
+        
+        # Si l'email a changé, mettre à jour le projet
+        if 'contact_email' in data:
+            cursor.execute('SELECT id FROM project_fiches WHERE prospect_id = ?', (prospect_id,))
+            projet = cursor.fetchone()
+            if projet:
+                cursor.execute('UPDATE project_fiches SET client_email = ? WHERE id = ?', 
+                             (data['contact_email'], projet[0]))
+        
+        # Si le téléphone a changé, mettre à jour le projet  
+        if 'contact_tel' in data:
+            cursor.execute('SELECT id FROM project_fiches WHERE prospect_id = ?', (prospect_id,))
+            projet = cursor.fetchone()
+            if projet:
+                cursor.execute('UPDATE project_fiches SET client_telephone = ? WHERE id = ?', 
+                             (data['contact_tel'], projet[0]))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Prospect mis à jour'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM UPDATE] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>', methods=['DELETE'])
+def delete_prospect(prospect_id):
+    """Supprime un prospect"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('DELETE FROM agriweb_prospects WHERE id = ?', (prospect_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Prospect supprimé'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM DELETE] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/send-email', methods=['POST'])
+def send_prospect_email(prospect_id):
+    """Envoie un email à un prospect et enregistre l'action"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Enregistrer l'action dans l'historique
+        cursor.execute('''
+            INSERT INTO prospect_actions (
+                prospect_id, type_action, description, date_action
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            prospect_id, 
+            'email', 
+            f"Email envoyé: {data.get('subject', 'Sans objet')}",
+            datetime.now().isoformat()
+        ))
+        
+        # Mettre à jour le statut si nouveau
+        cursor.execute('''
+            UPDATE agriweb_prospects 
+            SET statut = CASE WHEN statut = 'nouveau' THEN 'contacte' ELSE statut END,
+                date_modification = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), prospect_id))
+        
+        conn.commit()
+        conn.close()
+        
+        # TODO: Intégrer avec un vrai service d'email (SendGrid, Mailgun, etc.)
+        # Pour l'instant, on simule l'envoi
+        
+        return jsonify({
+            'success': True,
+            'message': 'Email envoyé et action enregistrée'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM EMAIL] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/appointment', methods=['POST'])
+def create_prospect_appointment(prospect_id):
+    """Crée un rendez-vous pour un prospect"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Créer le rendez-vous
+        rdv_datetime = f"{data['date']} {data['time']}"
+        cursor.execute('''
+            INSERT INTO prospect_appointments (
+                prospect_id, date_rdv, type_rdv, notes, date_creation
+            ) VALUES (?, ?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            rdv_datetime,
+            data.get('type', 'visite'),
+            data.get('notes', ''),
+            datetime.now().isoformat()
+        ))
+        
+        # Enregistrer l'action
+        cursor.execute('''
+            INSERT INTO prospect_actions (
+                prospect_id, type_action, description, date_action
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            'rendez-vous',
+            f"RDV {data.get('type', 'visite')} prévu le {data['date']} à {data['time']}",
+            datetime.now().isoformat()
+        ))
+        
+        # Mettre à jour le statut
+        cursor.execute('''
+            UPDATE agriweb_prospects 
+            SET statut = CASE WHEN statut IN ('nouveau', 'contacte') THEN 'qualifie' ELSE statut END,
+                date_modification = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), prospect_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Rendez-vous créé avec succès'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM APPOINTMENT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/appointments', methods=['GET'])
+def get_all_appointments():
+    """Récupère tous les rendez-vous pour le calendrier"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'appointments': []}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Récupérer tous les rendez-vous avec infos prospect
+        cursor.execute('''
+            SELECT 
+                pa.*,
+                ap.nom_prospect,
+                ap.adresse,
+                ap.contact_nom,
+                ap.contact_email,
+                ap.contact_telephone,
+                ap.type as prospect_type
+            FROM prospect_appointments pa
+            JOIN agriweb_prospects ap ON pa.prospect_id = ap.id
+            ORDER BY pa.date_rdv ASC
+        ''')
+        
+        appointments = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'appointments': appointments
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM CALENDAR] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/proposal', methods=['POST'])
+def save_prospect_proposal(prospect_id):
+    """Enregistre une proposition commerciale"""
+    try:
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Enregistrer la proposition
+        cursor.execute('''
+            INSERT INTO prospect_proposals (
+                prospect_id, puissance_kwc, prix_kwc, production_kwh_kwc, tarif_rachat,
+                investissement_total, production_annuelle, revenus_annuels, rentabilite_pct, roi_annees,
+                notes, date_creation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            data.get('puissance'),
+            data.get('prix_kwc'),
+            data.get('production'),
+            data.get('tarif'),
+            data.get('investissement'),
+            data.get('production_annuelle'),
+            data.get('revenus_annuels'),
+            data.get('rentabilite'),
+            data.get('roi'),
+            data.get('notes', ''),
+            datetime.now().isoformat()
+        ))
+        
+        # Enregistrer l'action
+        cursor.execute('''
+            INSERT INTO prospect_actions (
+                prospect_id, type_action, description, date_action
+            ) VALUES (?, ?, ?, ?)
+        ''', (
+            prospect_id,
+            'proposition',
+            f"Proposition commerciale: {data.get('puissance')} kWc - Investissement: {data.get('investissement')}€",
+            datetime.now().isoformat()
+        ))
+        
+        # Mettre à jour le statut
+        cursor.execute('''
+            UPDATE agriweb_prospects 
+            SET statut = 'qualifie',
+                date_modification = ?
+            WHERE id = ?
+        ''', (datetime.now().isoformat(), prospect_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Proposition enregistrée avec succès'
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM PROPOSAL] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/prospects/<int:prospect_id>/proposal/pdf', methods=['POST'])
+def generate_proposal_pdf(prospect_id):
+    """Génère un PDF de proposition commerciale"""
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from io import BytesIO
+        
+        if not request.is_json:
+            return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
+        
+        data = request.get_json()
+        
+        # Récupérer les infos du prospect
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM agriweb_prospects WHERE id = ?', (prospect_id,))
+        prospect = dict(cursor.fetchone())
+        conn.close()
+        
+        # Créer le PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        story = []
+        styles = getSampleStyleSheet()
+        
+        # Titre
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            textColor=colors.HexColor('#667eea'),
+            spaceAfter=30
+        )
+        story.append(Paragraph("Proposition Commerciale", title_style))
+        story.append(Paragraph("Installation Photovoltaïque", styles['Heading2']))
+        story.append(Spacer(1, 20))
+        
+        # Informations prospect
+        info_data = [
+            ['Prospect:', f"{prospect['commune']} ({prospect['departement']})"],
+            ['Adresse:', prospect['adresse']],
+            ['Type:', prospect['type'].upper()],
+            ['Surface:', f"{int(prospect.get('surface_m2', 0))} m²" if prospect.get('surface_m2') else f"{prospect.get('surface_ha', 0)} ha"],
         ]
         
-        for col_name, col_type in osm_columns:
-            try:
-                cursor.execute(f"""
-                    DO $$ 
-                    BEGIN 
-                        BEGIN
-                            ALTER TABLE agriweb_prospects ADD COLUMN {col_name} {col_type};
-                        EXCEPTION
-                            WHEN duplicate_column THEN 
-                                NULL;
-                        END;
-                    END $$;
-                """)
-                conn.commit()
-            except Exception as e:
-                print(f"Colonne {col_name}: {e}")
+        info_table = Table(info_data, colWidths=[4*cm, 12*cm])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+        ]))
+        story.append(info_table)
+        story.append(Spacer(1, 30))
         
-        cursor.close()
-        conn.close()
-        print("✅ Colonnes OSM ajoutées/vérifiées")
+        # Caractéristiques techniques
+        story.append(Paragraph("Caractéristiques Techniques", styles['Heading2']))
+        story.append(Spacer(1, 10))
+        
+        puissance = data.get('puissance', 0)
+        production = data.get('production', 0)
+        production_annuelle = puissance * production
+        
+        tech_data = [
+            ['Puissance installée:', f"{puissance} kWc"],
+            ['Production spécifique:', f"{production} kWh/kWc/an"],
+            ['Production annuelle estimée:', f"{int(production_annuelle)} kWh/an"],
+            ['Durée de vie:', "25+ ans"],
+        ]
+        
+        tech_table = Table(tech_data, colWidths=[8*cm, 8*cm])
+        tech_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+        ]))
+        story.append(tech_table)
+        story.append(Spacer(1, 30))
+        
+        # Analyse financière
+        story.append(Paragraph("Analyse Financière", styles['Heading2']))
+        story.append(Spacer(1, 10))
+        
+        prix_kwc = data.get('prix_kwc', 0)
+        tarif = data.get('tarif', 0)
+        investissement = puissance * prix_kwc
+        revenus = production_annuelle * tarif
+        rentabilite = (revenus / investissement * 100) if investissement > 0 else 0
+        roi = (investissement / revenus) if revenus > 0 else 0
+        
+        finance_data = [
+            ['Investissement total:', f"{int(investissement):,} €".replace(',', ' ')],
+            ['Revenus annuels:', f"{int(revenus):,} €".replace(',', ' ')],
+            ['Rentabilité:', f"{rentabilite:.2f}%"],
+            ['Retour sur investissement:', f"{roi:.1f} ans"],
+        ]
+        
+        finance_table = Table(finance_data, colWidths=[8*cm, 8*cm])
+        finance_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f3f4f6')),
+            ('BACKGROUND', (0, 0), (1, 0), colors.HexColor('#667eea')),
+            ('TEXTCOLOR', (0, 0), (1, 0), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 11),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#e5e7eb'))
+        ]))
+        story.append(finance_table)
+        
+        if data.get('notes'):
+            story.append(Spacer(1, 20))
+            story.append(Paragraph("Notes complémentaires", styles['Heading3']))
+            story.append(Paragraph(data['notes'], styles['Normal']))
+        
+        # Construire le PDF
+        doc.build(story)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f'Proposition_{prospect["commune"]}_{prospect["type"]}.pdf'
+        )
+        
     except Exception as e:
-        print(f"⚠️ Colonnes OSM non ajoutées (normal en local): {e}")
+        print(f"❌ [CRM PDF] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/dashboard/stats')
+def get_dashboard_stats():
+    """Récupère toutes les statistiques pour le dashboard CRM"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'error': 'Base CRM non trouvée'}), 404
         
-except ImportError as e:
-    print(f"⚠️ CRM non disponible: {e}")
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # === KPIs GÉNÉRAUX ===
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
+                COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contactes,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies,
+                COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdus,
+                COUNT(CASE WHEN date_creation >= date('now', '-30 days') THEN 1 END) as nouveaux_mois
+            FROM agriweb_prospects
+        ''')
+        kpis = dict(cursor.fetchone())
+        
+        # Propositions
+        cursor.execute('''
+            SELECT 
+                COUNT(*) as nb_proposals,
+                COALESCE(SUM(investissement_total), 0) as total_value
+            FROM prospect_proposals
+        ''')
+        proposals = dict(cursor.fetchone())
+        kpis['nb_proposals'] = proposals['nb_proposals']
+        kpis['total_proposals_value'] = proposals['total_value']
+        
+        # === CHARTS ===
+        # Par type
+        cursor.execute('''
+            SELECT type, COUNT(*) as count
+            FROM agriweb_prospects
+            GROUP BY type
+        ''')
+        by_type = {row['type']: row['count'] for row in cursor.fetchall()}
+        
+        # Par statut
+        cursor.execute('''
+            SELECT statut, COUNT(*) as count
+            FROM agriweb_prospects
+            GROUP BY statut
+        ''')
+        by_statut = {row['statut']: row['count'] for row in cursor.fetchall()}
+        
+        # Timeline (30 derniers jours)
+        cursor.execute('''
+            SELECT 
+                date(date_creation) as date,
+                COUNT(*) as count,
+                statut
+            FROM agriweb_prospects
+            WHERE date_creation >= date('now', '-30 days')
+            GROUP BY date(date_creation), statut
+            ORDER BY date
+        ''')
+        timeline_data = cursor.fetchall()
+        
+        # Construire timeline
+        from collections import defaultdict
+        timeline = defaultdict(lambda: {'nouveaux': 0, 'contactes': 0, 'qualifies': 0})
+        for row in timeline_data:
+            date_str = row['date']
+            if row['statut'] == 'nouveau':
+                timeline[date_str]['nouveaux'] += row['count']
+            elif row['statut'] == 'contacte':
+                timeline[date_str]['contactes'] += row['count']
+            elif row['statut'] == 'qualifie':
+                timeline[date_str]['qualifies'] += row['count']
+        
+        sorted_dates = sorted(timeline.keys())
+        timeline_formatted = {
+            'labels': sorted_dates,
+            'nouveaux': [timeline[d]['nouveaux'] for d in sorted_dates],
+            'contactes': [timeline[d]['contactes'] for d in sorted_dates],
+            'qualifies': [timeline[d]['qualifies'] for d in sorted_dates]
+        }
+        
+        # === CONVERSION ===
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM prospect_proposals
+        ''')
+        nb_proposals_conversion = cursor.fetchone()['count']
+        
+        # Délais moyens
+        cursor.execute('''
+            SELECT 
+                AVG(JULIANDAY(date_modification) - JULIANDAY(date_creation)) as avg_delay
+            FROM agriweb_prospects
+            WHERE statut != 'nouveau'
+        ''')
+        avg_contact = cursor.fetchone()['avg_delay'] or 0
+        
+        cursor.execute('''
+            SELECT 
+                AVG(JULIANDAY(date_modification) - JULIANDAY(date_creation)) as avg_delay
+            FROM agriweb_prospects
+            WHERE statut = 'qualifie'
+        ''')
+        avg_qualification = cursor.fetchone()['avg_delay'] or 0
+        
+        # Conversion par type
+        cursor.execute('''
+            SELECT 
+                type,
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+            FROM agriweb_prospects
+            GROUP BY type
+        ''')
+        conversion_by_type = {}
+        for row in cursor.fetchall():
+            total = row['total']
+            qualifies = row['qualifies']
+            conversion_by_type[row['type']] = (qualifies / total * 100) if total > 0 else 0
+        
+        conversion_data = {
+            'total': kpis['total'],
+            'nouveaux': kpis['nouveaux'],
+            'contactes': kpis['contactes'],
+            'qualifies': kpis['qualifies'],
+            'proposals': nb_proposals_conversion,
+            'avg_contact_delay': round(avg_contact, 1),
+            'avg_qualification_delay': round(avg_qualification, 1),
+            'by_type': conversion_by_type
+        }
+        
+        # === UTILISATEURS ===
+        # Note: Pour l'instant, pas de tracking utilisateur dans agriweb_prospects
+        # On simule avec des données agrégées
+        users_data = [{
+            'nom': 'Système',
+            'email': 'system@agriweb.com',
+            'total': kpis['total'],
+            'contactes': kpis['contactes'],
+            'qualifies': kpis['qualifies'],
+            'proposals': kpis['nb_proposals'],
+            'total_actions': kpis['total']
+        }]
+        
+        # === PERFORMANCE ===
+        performance_data = {
+            'best_conversion_rate': (kpis['qualifies'] / kpis['total'] * 100) if kpis['total'] > 0 else 0,
+            'best_conversion_user': 'Système',
+            'fastest_contact_delay': round(avg_contact, 1),
+            'fastest_contact_user': 'Système',
+            'most_productive_count': kpis['total'],
+            'most_productive_user': 'Système'
+        }
+        
+        # === DÉPARTEMENTS ===
+        cursor.execute('''
+            SELECT 
+                departement,
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+            FROM agriweb_prospects
+            WHERE departement IS NOT NULL
+            GROUP BY departement
+            ORDER BY total DESC
+            LIMIT 10
+        ''')
+        departments_data = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'kpis': kpis,
+            'charts': {
+                'by_type': by_type,
+                'by_statut': by_statut,
+                'timeline': timeline_formatted
+            },
+            'conversion': conversion_data,
+            'users': users_data,
+            'performance': performance_data,
+            'departments': departments_data
+        })
+        
+    except Exception as e:
+        print(f"❌ [DASHBOARD] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/dashboard/users')
+def get_dashboard_users():
+    """Récupère les statistiques par utilisateur"""
+    try:
+        period = request.args.get('period', '30')
+        
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'error': 'Base CRM non trouvée'}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Filtre de période
+        date_filter = ""
+        if period != 'all':
+            date_filter = f"WHERE date_creation >= date('now', '-{period} days')"
+        
+        # Stats par utilisateur (simulé pour l'instant)
+        cursor.execute(f'''
+            SELECT 
+                'Système' as nom,
+                'system@agriweb.com' as email,
+                COUNT(*) as total,
+                COUNT(CASE WHEN statut = 'contacte' OR statut = 'qualifie' THEN 1 END) as contactes,
+                COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
+            FROM agriweb_prospects
+            {date_filter}
+        ''')
+        
+        user = dict(cursor.fetchone())
+        
+        # Compter les propositions
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM prospect_proposals
+        ''')
+        user['proposals'] = cursor.fetchone()['count']
+        
+        # Compter les actions
+        cursor.execute('''
+            SELECT COUNT(*) as count FROM prospect_actions
+        ''')
+        user['total_actions'] = cursor.fetchone()['count']
+        
+        users_data = [user]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'users': users_data
+        })
+        
+    except Exception as e:
+        print(f"❌ [DASHBOARD USERS] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================================
+# ROUTES API - FICHES PROJETS AUTOCONSOMMATION
+# ============================================================================
+
+@app.route('/crm/projets')
+def crm_projets():
+    """Interface de gestion des fiches projets"""
+    return render_template('crm_projets.html')
+
+@app.route('/crm/calendrier')
+def crm_calendrier():
+    """Interface calendrier des rendez-vous"""
+    return render_template('crm_calendrier.html')
+
+@app.route('/api/crm/projets', methods=['GET'])
+def get_projets():
+    """Liste tous les projets"""
+    try:
+        if not os.path.exists(CRM_DB_PATH):
+            return jsonify({'success': False, 'error': 'Base CRM non trouvée'}), 404
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT 
+                pf.*,
+                ap.commune,
+                ap.type as prospect_type,
+                ap.adresse,
+                (SELECT COUNT(*) FROM project_steps ps WHERE ps.project_id = pf.id AND ps.statut = 'termine') as etapes_terminees,
+                (SELECT COUNT(*) FROM project_steps ps WHERE ps.project_id = pf.id) as etapes_total
+            FROM project_fiches pf
+            LEFT JOIN agriweb_prospects ap ON pf.prospect_id = ap.id
+            ORDER BY pf.date_debut DESC
+        ''')
+        
+        projets = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({'success': True, 'projets': projets})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets', methods=['POST'])
+def create_projet():
+    """Crée une nouvelle fiche projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO project_fiches (
+                prospect_id, nom_projet, type_projet, client_nom, client_email,
+                client_telephone, client_adresse, statut_global, date_fin_prevue, responsable, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data.get('prospect_id'),
+            data.get('nom_projet'),
+            data.get('type_projet', 'autoconsommation'),
+            data.get('client_nom'),
+            data.get('client_email'),
+            data.get('client_telephone'),
+            data.get('client_adresse'),
+            'en_cours',
+            data.get('date_fin_prevue'),
+            data.get('responsable'),
+            data.get('notes')
+        ))
+        
+        project_id = cursor.lastrowid
+        
+        # Créer les étapes du workflow autoconsommation
+        etapes_autoconso = [
+            ('Rapport de recherche AgriWeb', 1),
+            ('Étude d\'adresse & visite technique', 2),
+            ('Calepinage', 3),
+            ('Étude d\'autoconsommation', 4),
+            ('Devis commercial', 5),
+            ('Signature & Facture', 6),
+            ('Déclaration Préalable de Travaux (DP)', 7),
+            ('Déclaration de Raccordement (DDR)', 8),
+            ('Installation & DOE', 9),
+            ('Consuel', 10),
+            ('Mise en service & Maintenance', 11)
+        ]
+        
+        for etape_nom, ordre in etapes_autoconso:
+            cursor.execute('''
+                INSERT INTO project_steps (project_id, etape_nom, etape_ordre, statut)
+                VALUES (?, ?, ?, 'a_faire')
+            ''', (project_id, etape_nom, ordre))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'project_id': project_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>', methods=['GET'])
+def get_projet_details(project_id):
+    """Récupère les détails complets d'un projet"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Infos projet
+        cursor.execute('''
+            SELECT pf.*, ap.commune, ap.type as prospect_type, ap.adresse, ap.latitude, ap.longitude
+            FROM project_fiches pf
+            LEFT JOIN agriweb_prospects ap ON pf.prospect_id = ap.id
+            WHERE pf.id = ?
+        ''', (project_id,))
+        
+        projet = dict(cursor.fetchone() or {})
+        
+        if not projet:
+            return jsonify({'success': False, 'error': 'Projet non trouvé'}), 404
+        
+        # Étapes du projet
+        cursor.execute('''
+            SELECT * FROM project_steps
+            WHERE project_id = ?
+            ORDER BY etape_ordre
+        ''', (project_id,))
+        
+        projet['etapes'] = [dict(row) for row in cursor.fetchall()]
+        
+        # Documents du projet
+        cursor.execute('''
+            SELECT pd.*, ps.etape_nom
+            FROM project_documents pd
+            LEFT JOIN project_steps ps ON pd.etape_id = ps.id
+            WHERE pd.project_id = ?
+            ORDER BY pd.date_creation DESC
+        ''', (project_id,))
+        
+        projet['documents'] = [dict(row) for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({'success': True, 'projet': projet})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>', methods=['PUT'])
+def update_projet(project_id):
+    """Met à jour un projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE project_fiches
+            SET nom_projet = ?, client_nom = ?, client_email = ?, client_telephone = ?,
+                client_adresse = ?, statut_global = ?, date_fin_prevue = ?, date_fin_reelle = ?,
+                responsable = ?, notes = ?
+            WHERE id = ?
+        ''', (
+            data.get('nom_projet'),
+            data.get('client_nom'),
+            data.get('client_email'),
+            data.get('client_telephone'),
+            data.get('client_adresse'),
+            data.get('statut_global'),
+            data.get('date_fin_prevue'),
+            data.get('date_fin_reelle'),
+            data.get('responsable'),
+            data.get('notes'),
+            project_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>', methods=['DELETE'])
+def delete_projet(project_id):
+    """Supprime un projet et toutes ses données associées (étapes et documents)"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Supprimer les documents
+        cursor.execute('DELETE FROM project_documents WHERE project_id = ?', (project_id,))
+        
+        # Supprimer les étapes
+        cursor.execute('DELETE FROM project_steps WHERE project_id = ?', (project_id,))
+        
+        # Supprimer le projet
+        cursor.execute('DELETE FROM project_fiches WHERE id = ?', (project_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/etapes/<int:etape_id>', methods=['PUT'])
+def update_etape(project_id, etape_id):
+    """Met à jour une étape du projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE project_steps
+            SET statut = ?, date_debut = ?, date_fin = ?, responsable = ?, notes = ?
+            WHERE id = ? AND project_id = ?
+        ''', (
+            data.get('statut'),
+            data.get('date_debut'),
+            data.get('date_fin'),
+            data.get('responsable'),
+            data.get('notes'),
+            etape_id,
+            project_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/documents', methods=['POST'])
+def add_document(project_id):
+    """Ajoute un document au projet"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO project_documents (
+                project_id, etape_id, type_document, nom_fichier, 
+                chemin_fichier, url_document, statut, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            project_id,
+            data.get('etape_id'),
+            data.get('type_document'),
+            data.get('nom_fichier'),
+            data.get('chemin_fichier'),
+            data.get('url_document'),
+            data.get('statut', 'brouillon'),
+            data.get('notes')
+        ))
+        
+        doc_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'document_id': doc_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['PUT'])
+def update_document(project_id, doc_id):
+    """Met à jour un document"""
+    try:
+        data = request.json
+        
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Incrémenter la version si le statut change
+        version_increment = ''
+        if data.get('statut'):
+            version_increment = ', version = version + 1'
+        
+        cursor.execute(f'''
+            UPDATE project_documents
+            SET nom_fichier = ?, url_document = ?, statut = ?, 
+                notes = ?, date_modification = CURRENT_TIMESTAMP{version_increment}
+            WHERE id = ? AND project_id = ?
+        ''', (
+            data.get('nom_fichier'),
+            data.get('url_document'),
+            data.get('statut'),
+            data.get('notes'),
+            doc_id,
+            project_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['DELETE'])
+def delete_document(project_id, doc_id):
+    """Supprime un document"""
+    try:
+        conn = sqlite3.connect(CRM_DB_PATH)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            DELETE FROM project_documents
+            WHERE id = ? AND project_id = ?
+        ''', (doc_id, project_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+# FIN DU BLOC CRM DÉSACTIVÉ
+# ============================================================================
+
+# Import des routes CRM avec support PostgreSQL Railway
+try:
+    import crm_routes
+    crm_routes.register_crm_routes(app)
+    print("✅ Routes CRM PostgreSQL enregistrées")
 except Exception as e:
-    print(f"❌ Erreur initialisation CRM: {e}")
+    print(f"⚠️ Erreur import CRM routes: {e}")
+
+app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
