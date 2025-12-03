@@ -3,7 +3,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120",
+    "startCommand": "python agriweb_hebergement_gratuit.py",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
