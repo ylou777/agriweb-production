@@ -857,12 +857,12 @@
                 
                 // Bouton d'action selon l'étape
                 let actionButton = '';
-                if (e.ordre === 2 && e.nom_etape && e.nom_etape.includes('visite')) {
+                if (e.ordre === 2) {
                     // Étape 2: Visite technique
                     actionButton = `<a href="/crm/prospect/${currentProspectId}/visite-technique" class="btn btn-sm btn-outline-primary mt-2" target="_blank">
-                        <i class="bi bi-clipboard-check"></i> Formulaire Visite
+                        <i class="bi bi-clipboard-check"></i> Formulaire Visite Technique
                     </a>`;
-                } else if (e.ordre === 3 && e.nom_etape && e.nom_etape.toLowerCase().includes('calepinage')) {
+                } else if (e.ordre === 3) {
                     // Étape 3: Calepinage
                     actionButton = `<a href="/crm/prospect/${currentProspectId}/calpinage" class="btn btn-sm btn-outline-success mt-2" target="_blank">
                         <i class="bi bi-grid-3x3"></i> Ouvrir Calepinage

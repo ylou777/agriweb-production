@@ -291,15 +291,6 @@
                         </div>
 
                         <div id="prospectsList" style="display: none;"></div>
-                        
-                        <!-- Pagination -->
-                        <div id="paginationContainer" style="display: none; margin-top: 20px; text-align: center;">
-                            <nav aria-label="Navigation prospects">
-                                <ul class="pagination justify-content-center" id="paginationControls">
-                                </ul>
-                            </nav>
-                            <p class="text-muted" id="paginationInfo"></p>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -699,9 +690,6 @@
         }
         
         let allProspects = [];
-        let filteredProspects = [];
-        let currentPage = 1;
-        const prospectsPerPage = 50; // Afficher 50 prospects par page
         let editModal, emailModal, appointmentModal, proposalModal;
         let currentProspect = null;
 
@@ -718,7 +706,11 @@
             document.getElementById('filterPriorite').addEventListener('change', filterProspects);
             document.getElementById('filterTaille').addEventListener('change', filterProspects);
             document.getElementById('filterBatiment').addEventListener('change', filterProspects);
-            document.getElementById('filterProprietaire').addEventListener('change', filterProspects);
+            
+            const filterProprio = document.getElementById('filterProprietaire');
+            if (filterProprio) {
+                filterProprio.addEventListener('change', filterProspects);
+            }
             
             loadProspects();
         });
@@ -789,151 +781,6 @@
         }
 
         function displayProspects(prospects) {
-            const loadingState = document.getElementById('loadingState');
-            const emptyState = document.getElementById('emptyState');
-            const prospectsList = document.getElementById('prospectsList');
-            const paginationContainer = document.getElementById('paginationContainer');
-            
-            loadingState.style.display = 'none';
-            
-            if (!prospects || prospects.length === 0) {
-                emptyState.style.display = 'block';
-                prospectsList.style.display = 'none';
-                paginationContainer.style.display = 'none';
-                return;
-            }
-            
-            emptyState.style.display = 'none';
-            prospectsList.style.display = 'block';
-            
-            // Sauvegarder les prospects filtrés
-            filteredProspects = prospects;
-            
-            // Calculer la pagination
-            const totalPages = Math.ceil(prospects.length / prospectsPerPage);
-            const startIndex = (currentPage - 1) * prospectsPerPage;
-            const endIndex = Math.min(startIndex + prospectsPerPage, prospects.length);
-            const prospectsToDisplay = prospects.slice(startIndex, endIndex);
-            
-            // Afficher les prospects de la page actuelle
-            const html = prospectsToDisplay.map(p => createProspectCard(p)).join('');
-            prospectsList.innerHTML = html;
-            
-            // Lazy loading des cartes après un court délai
-            setTimeout(() => loadCartes(), 100);
-            
-            // Afficher la pagination si nécessaire
-            if (totalPages > 1) {
-                paginationContainer.style.display = 'block';
-                renderPagination(totalPages);
-            } else {
-                paginationContainer.style.display = 'none';
-            }
-        }
-        
-        function loadCartes() {
-            // Charger les cartes progressivement avec IntersectionObserver
-            const carteVignettes = document.querySelectorAll('.carte-vignette[data-prospect-id]');
-            
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const vignette = entry.target;
-                        const prospectId = vignette.dataset.prospectId;
-                        const iframe = vignette.querySelector('iframe');
-                        const loadingDiv = vignette.querySelector('div[style*="Chargement"]');
-                        
-                        if (iframe && !iframe.src) {
-                            iframe.src = `/api/crm/prospect/${prospectId}/carte`;
-                            
-                            // Cacher le message de chargement après un délai
-                            iframe.onload = () => {
-                                if (loadingDiv) loadingDiv.style.display = 'none';
-                            };
-                            
-                            // Afficher un message d'erreur si la carte ne charge pas
-                            iframe.onerror = () => {
-                                if (loadingDiv) loadingDiv.style.display = 'none';
-                                vignette.innerHTML = '<div style="padding:20px;text-align:center;color:#999;"><i class="bi bi-map" style="font-size:2rem;"></i><br><small>Carte indisponible</small></div>';
-                            };
-                        }
-                        
-                        observer.unobserve(vignette);
-                    }
-                });
-            }, {
-                rootMargin: '200px' // Charger 200px avant que la carte ne soit visible
-            });
-            
-            carteVignettes.forEach(v => observer.observe(v));
-        }
-        
-        function renderPagination(totalPages) {
-            const paginationControls = document.getElementById('paginationControls');
-            const paginationInfo = document.getElementById('paginationInfo');
-            
-            // Informations
-            const startIndex = (currentPage - 1) * prospectsPerPage + 1;
-            const endIndex = Math.min(currentPage * prospectsPerPage, filteredProspects.length);
-            paginationInfo.textContent = `Affichage ${startIndex}-${endIndex} sur ${filteredProspects.length} prospects`;
-            
-            // Boutons de pagination
-            let html = '';
-            
-            // Bouton précédent
-            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">Précédent</a>
-            </li>`;
-            
-            // Numéros de page (max 10 boutons)
-            const maxButtons = 10;
-            let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
-            let endPage = Math.min(totalPages, startPage + maxButtons - 1);
-            
-            if (endPage - startPage < maxButtons - 1) {
-                startPage = Math.max(1, endPage - maxButtons + 1);
-            }
-            
-            if (startPage > 1) {
-                html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(1); return false;">1</a></li>`;
-                if (startPage > 2) {
-                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-                }
-            }
-            
-            for (let i = startPage; i <= endPage; i++) {
-                html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
-                    <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
-                </li>`;
-            }
-            
-            if (endPage < totalPages) {
-                if (endPage < totalPages - 1) {
-                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-                }
-                html += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${totalPages}); return false;">${totalPages}</a></li>`;
-            }
-            
-            // Bouton suivant
-            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-                <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">Suivant</a>
-            </li>`;
-            
-            paginationControls.innerHTML = html;
-        }
-        
-        function changePage(page) {
-            const totalPages = Math.ceil(filteredProspects.length / prospectsPerPage);
-            if (page < 1 || page > totalPages) return;
-            
-            currentPage = page;
-            displayProspects(filteredProspects);
-            
-            // Scroll vers le haut de la liste
-            document.getElementById('prospectsList').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-        
-        function oldDisplayProspects(prospects) {
             const loadingState = document.getElementById('loadingState');
             const emptyState = document.getElementById('emptyState');
             const prospectsList = document.getElementById('prospectsList');
@@ -1071,7 +918,6 @@
             }
             
             // Toujours générer une URL vers la carte simple Google Maps pour la vignette
-            // Utilisation du lazy loading avec IntersectionObserver
             if (prospect.latitude && prospect.longitude) {
                 carteUrl = `/api/crm/prospect/${prospect.id}/carte`;
             }
@@ -1081,13 +927,10 @@
                     <div class="row align-items-start">
                         ${carteUrl ? `
                         <div class="col-md-2">
-                            <div class="carte-vignette" data-prospect-id="${prospect.id}" onclick="window.open('${carteUrl}', '_blank'); event.stopPropagation();" 
-                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2); background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
-                                <iframe style="width: 100%; height: 100%; border: none; pointer-events: none; position: absolute; top: 0; left: 0;" title="Carte" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=padding:10px;text-align:center;color:#666;><i class=bi bi-map></i><br><small>Carte indisponible</small></div>';"></iframe>
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #999; font-size: 0.9rem; pointer-events: none;">
-                                    <i class="bi bi-hourglass-split"></i> Chargement...
-                                </div>
-                                <div style="position: absolute; top: 5px; right: 5px; background: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; z-index: 10;">
+                            <div class="carte-vignette" onclick="window.open('${carteUrl}', '_blank'); event.stopPropagation();" 
+                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                                <iframe src="${carteUrl}" style="width: 100%; height: 100%; border: none; pointer-events: none;" title="Carte"></iframe>
+                                <div style="position: absolute; top: 5px; right: 5px; background: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem;">
                                     <i class="bi bi-arrows-fullscreen"></i> Ouvrir
                                 </div>
                             </div>
@@ -1225,12 +1068,6 @@
                             <button class="btn btn-success action-btn" onclick="openOrCreateProjectForProspect(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-folder-plus"></i> Fiche Projet
                             </button>
-                            <button class="btn btn-warning action-btn" onclick="window.open('/crm/prospect/${prospect.id}/calpinage', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white;">
-                                <i class="bi bi-sun"></i> Calpinage PV
-                            </button>
-                            <button class="btn btn-info action-btn" onclick="window.open('/crm/prospect/${prospect.id}/visite-technique', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;">
-                                <i class="bi bi-clipboard-check"></i> Visite Technique
-                            </button>
                             <button class="btn btn-primary action-btn" onclick="generateRapportAdresse(${prospect.id}, ${prospect.latitude}, ${prospect.longitude}); event.stopPropagation();">
                                 <i class="bi bi-geo-alt-fill"></i> Rapport adresse
                             </button>
@@ -1263,9 +1100,6 @@
             
             const filterProprioElem = document.getElementById('filterProprietaire');
             const proprietaireFilter = filterProprioElem ? filterProprioElem.value : '';
-            
-            // Réinitialiser la page à 1 lors d'un filtrage
-            currentPage = 1;
             
             const filtered = allProspects.filter(p => {
                 const matchSearch = !searchText || 
@@ -1325,65 +1159,23 @@
             const prospect = allProspects.find(p => p.id === id);
             if (!prospect) return;
             
-            // Auto-remplissage depuis les données du propriétaire si enrichi
-            const isEnrichi = prospect.proprietaire_siren && prospect.proprietaire_siren.trim() !== '';
-            
             document.getElementById('edit-id').value = prospect.id;
-            
-            // Nom du prospect : utiliser le nom existant, ou le nom du propriétaire si enrichi et vide
-            if (isEnrichi && (!prospect.nom_prospect || prospect.nom_prospect.trim() === '')) {
-                document.getElementById('edit-nom-prospect').value = prospect.proprietaire_denomination || '';
-            } else {
-                document.getElementById('edit-nom-prospect').value = prospect.nom_prospect || '';
-            }
-            
+            document.getElementById('edit-nom-prospect').value = prospect.nom_prospect || '';
             document.getElementById('edit-statut').value = prospect.statut || 'nouveau';
             document.getElementById('edit-priorite').value = prospect.priorite || 'moyenne';
-            
-            if (isEnrichi) {
-                // Contact : garder les valeurs existantes (ne pas remplacer par le propriétaire)
-                document.getElementById('edit-contact-nom').value = prospect.contact_nom || '';
-                document.getElementById('edit-contact-tel').value = prospect.contact_tel || '';
-                document.getElementById('edit-contact-email').value = prospect.contact_email || '';
-                
-                // Dirigeant : auto-remplir avec les données du propriétaire si vide
-                document.getElementById('edit-dirigeant-nom').value = prospect.dirigeant_nom || prospect.proprietaire_denomination || '';
-                
-                // Utiliser le SIREN du propriétaire si pas de SIRET existant
-                document.getElementById('edit-siret').value = prospect.siret || prospect.proprietaire_siren || '';
-                
-                // Email et téléphone dirigeant : garder les valeurs existantes
-                document.getElementById('edit-dirigeant-email').value = prospect.dirigeant_email || '';
-                document.getElementById('edit-dirigeant-tel').value = prospect.dirigeant_tel || '';
-                
-                // Construire l'adresse complète depuis les données du propriétaire
-                if (!prospect.adresse && prospect.proprietaire_adresse) {
-                    const adresseComplete = [
-                        prospect.proprietaire_adresse,
-                        prospect.proprietaire_code_postal,
-                        prospect.proprietaire_ville
-                    ].filter(Boolean).join(', ');
-                    document.getElementById('edit-adresse').value = adresseComplete;
-                } else {
-                    document.getElementById('edit-adresse').value = prospect.adresse || '';
-                }
-            } else {
-                // Pas enrichi : remplir normalement
-                document.getElementById('edit-contact-nom').value = prospect.contact_nom || '';
-                document.getElementById('edit-contact-tel').value = prospect.contact_tel || '';
-                document.getElementById('edit-contact-email').value = prospect.contact_email || '';
-                document.getElementById('edit-dirigeant-nom').value = prospect.dirigeant_nom || '';
-                document.getElementById('edit-siret').value = prospect.siret || '';
-                document.getElementById('edit-dirigeant-email').value = prospect.dirigeant_email || '';
-                document.getElementById('edit-dirigeant-tel').value = prospect.dirigeant_tel || '';
-                document.getElementById('edit-adresse').value = prospect.adresse || '';
-            }
-            
+            document.getElementById('edit-contact-nom').value = prospect.contact_nom || '';
+            document.getElementById('edit-contact-tel').value = prospect.contact_tel || '';
+            document.getElementById('edit-contact-email').value = prospect.contact_email || '';
+            document.getElementById('edit-dirigeant-nom').value = prospect.dirigeant_nom || '';
+            document.getElementById('edit-siret').value = prospect.siret || '';
+            document.getElementById('edit-dirigeant-email').value = prospect.dirigeant_email || '';
+            document.getElementById('edit-dirigeant-tel').value = prospect.dirigeant_tel || '';
             document.getElementById('edit-notes').value = prospect.notes || '';
+            document.getElementById('edit-adresse').value = prospect.adresse || '';
             
-            // Gérer le lien Société.com (priorité au SIREN du propriétaire si enrichi)
-            const siret = isEnrichi ? (prospect.proprietaire_siren || prospect.siret) : prospect.siret || '';
-            const nomProspect = prospect.nom_prospect || prospect.contact_nom || prospect.proprietaire_denomination || '';
+            // Gérer le lien Société.com
+            const siret = prospect.siret || '';
+            const nomProspect = prospect.nom_prospect || prospect.contact_nom || '';
             const lienSocieteCom = document.getElementById('lien-societe-com');
             
             if (siret) {
@@ -1400,7 +1192,7 @@
         }
 
         async function saveProspect() {
-            const id = parseInt(document.getElementById('edit-id').value);
+            const id = document.getElementById('edit-id').value;
             const data = {
                 nom_prospect: document.getElementById('edit-nom-prospect').value,
                 statut: document.getElementById('edit-statut').value,
@@ -1423,21 +1215,8 @@
                 });
                 
                 if (response.ok) {
-                    // Mettre à jour le prospect dans allProspects
-                    const prospectIndex = allProspects.findIndex(p => p.id === id);
-                    if (prospectIndex !== -1) {
-                        // Conserver les données non modifiables (enrichissement, géolocalisation, etc.)
-                        allProspects[prospectIndex] = {
-                            ...allProspects[prospectIndex],
-                            ...data
-                        };
-                    }
-                    
                     editModal.hide();
-                    
-                    // Rafraîchir l'affichage avec les filtres actuels
-                    filterProspects();
-                    
+                    await loadProspects();
                     showSuccess('Prospect mis à jour avec succès');
                 } else {
                     showError('Erreur lors de la mise à jour');
@@ -1633,7 +1412,7 @@
                 }
                 
                 const project = data.projet;
-                console.log('[LOAD_PROJECT] Étapes reçues:', project.etapes ? project.etapes.length : 0);
+                console.log('[LOAD_PROJECT] Étapes reçues:', data.etapes ? data.etapes.length : 0);
                 console.log('[LOAD_PROJECT] data_json présent:', !!project.data_json);
                 
                 currentProjectData = {
@@ -1656,9 +1435,9 @@
                 console.log('[LOAD_PROJECT] Surface affichée:', project.surface_totale);
                 
                 // Afficher les étapes
-                if (project.etapes && project.etapes.length > 0) {
+                if (data.etapes && data.etapes.length > 0) {
                     console.log('[LOAD_PROJECT] Affichage des étapes...');
-                    displayModalEtapes(project.etapes);
+                    displayModalEtapes(data.etapes);
                 } else {
                     console.warn('[LOAD_PROJECT] Aucune étape trouvée!');
                     document.getElementById('modalEtapesList').innerHTML = '<p class="text-muted">Aucune étape définie.</p>';

@@ -1,5 +1,4 @@
-# --- AgriWeb CRM with Calepinage PV & Visite Technique ---
-# Version: 2025-12-03 - Calepinage complet + Vignettes Google Maps
+# --- GeoRisques API: fetch risks for a point ---
 import requests
 import os
 from datetime import datetime
