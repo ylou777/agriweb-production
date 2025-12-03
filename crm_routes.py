@@ -2378,3 +2378,47 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return f"Erreur lors de la génération du PDF: {str(e)}", 500
+
+    # ============================================================================
+    # ROUTE ADMIN - NETTOYAGE BASE DE DONNÉES
+    # ============================================================================
+
+    @app.route('/api/crm/admin/cleanup/<int:count>', methods=['POST'])
+    def cleanup_old_prospects(count):
+        """Supprime les N prospects les plus anciens pour libérer de la mémoire"""
+        try:
+            # Sécurité: limiter à 1500 max
+            count = min(count, 1500)
+            
+            # Récupérer les IDs des prospects à supprimer
+            prospects = execute_query(f'''
+                SELECT id FROM agriweb_prospects 
+                ORDER BY date_creation ASC 
+                LIMIT {count}
+            ''', fetch_all=True)
+            
+            if not prospects:
+                return jsonify({'success': False, 'message': 'Aucun prospect à supprimer'})
+            
+            ids = [p['id'] for p in prospects]
+            
+            # Supprimer les projets associés
+            for prospect_id in ids:
+                execute_query('DELETE FROM projects WHERE prospect_id = %s', (prospect_id,))
+                execute_query('DELETE FROM project_fiches WHERE prospect_id = %s', (prospect_id,))
+            
+            # Supprimer les prospects
+            placeholders = ','.join(['%s'] * len(ids))
+            execute_query(f'DELETE FROM agriweb_prospects WHERE id IN ({placeholders})', tuple(ids))
+            
+            return jsonify({
+                'success': True,
+                'deleted': len(ids),
+                'message': f'{len(ids)} prospects supprimés avec succès'
+            })
+            
+        except Exception as e:
+            print(f"❌ [CLEANUP] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
