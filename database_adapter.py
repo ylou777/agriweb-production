@@ -87,10 +87,12 @@ def migrate_existing_table():
         ('poste_bt_puissance', 'REAL'),
         ('poste_bt_lat', 'REAL'),
         ('poste_bt_lon', 'REAL'),
+        ('poste_bt_proprietaire', 'TEXT'),
         ('poste_hta_nom', 'TEXT'),
         ('poste_hta_puissance', 'REAL'),
         ('poste_hta_lat', 'REAL'),
         ('poste_hta_lon', 'REAL'),
+        ('poste_hta_proprietaire', 'TEXT'),
         ('nom_prospect', 'TEXT'),
         ('representant_nom', 'TEXT'),
         ('representant_tel', 'TEXT'),
@@ -184,29 +186,7 @@ def init_database():
             dirigeant_nom TEXT,
             dirigeant_email TEXT,
             dirigeant_tel TEXT,
-            siret TEXT,
-            osm_amenity TEXT,
-            osm_shop TEXT,
-            osm_building TEXT,
-            osm_landuse TEXT,
-            osm_office TEXT,
-            osm_industrial TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS prospect_proposals (
-            id SERIAL PRIMARY KEY,
-            prospect_id INTEGER NOT NULL REFERENCES agriweb_prospects(id) ON DELETE CASCADE,
-            puissance_kwc REAL,
-            prix_kwc REAL,
-            production_kwh_kwc REAL,
-            tarif_rachat REAL,
-            investissement_total REAL,
-            production_annuelle REAL,
-            revenus_annuels REAL,
-            rentabilite_pct REAL,
-            roi_annees REAL,
-            notes TEXT,
-            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            siret TEXT
         );
 
         CREATE TABLE IF NOT EXISTS project_fiches (
@@ -310,30 +290,7 @@ def init_database():
             dirigeant_nom TEXT,
             dirigeant_email TEXT,
             dirigeant_tel TEXT,
-            siret TEXT,
-            osm_amenity TEXT,
-            osm_shop TEXT,
-            osm_building TEXT,
-            osm_landuse TEXT,
-            osm_office TEXT,
-            osm_industrial TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS prospect_proposals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prospect_id INTEGER NOT NULL,
-            puissance_kwc REAL,
-            prix_kwc REAL,
-            production_kwh_kwc REAL,
-            tarif_rachat REAL,
-            investissement_total REAL,
-            production_annuelle REAL,
-            revenus_annuels REAL,
-            rentabilite_pct REAL,
-            roi_annees REAL,
-            notes TEXT,
-            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (prospect_id) REFERENCES agriweb_prospects(id) ON DELETE CASCADE
+            siret TEXT
         );
 
         CREATE TABLE IF NOT EXISTS project_fiches (
