@@ -16610,5 +16610,64 @@ def admin_migrate_osm():
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
+# ============================================================================
+# Import des routes CRM avec support PostgreSQL Railway
+try:
+    import crm_routes
+    crm_routes.register_crm_routes(app)
+    print("✅ Routes CRM PostgreSQL enregistrées")
+    
+    # Initialiser les tables CRM PostgreSQL si on est sur Railway
+    import database_adapter
+    database_adapter.init_database()
+    print("✅ Tables CRM PostgreSQL initialisées")
+    
+    # Ajouter les colonnes OSM si elles n'existent pas
+    try:
+        import psycopg2
+        from database_adapter import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Liste des colonnes OSM à ajouter
+        osm_columns = [
+            ("osm_building", "TEXT"),
+            ("osm_amenity", "TEXT"),
+            ("osm_shop", "TEXT"),
+            ("osm_landuse", "TEXT"),
+            ("osm_office", "TEXT"),
+            ("osm_industrial", "TEXT"),
+            ("osm_name", "TEXT"),
+            ("osm_address", "TEXT")
+        ]
+        
+        for col_name, col_type in osm_columns:
+            try:
+                cursor.execute(f"""
+                    DO $$ 
+                    BEGIN 
+                        BEGIN
+                            ALTER TABLE agriweb_prospects ADD COLUMN {col_name} {col_type};
+                        EXCEPTION
+                            WHEN duplicate_column THEN 
+                                NULL;
+                        END;
+                    END $$;
+                """)
+                conn.commit()
+            except Exception as e:
+                print(f"Colonne {col_name}: {e}")
+        
+        cursor.close()
+        conn.close()
+        print("✅ Colonnes OSM ajoutées/vérifiées")
+    except Exception as e:
+        print(f"⚠️ Colonnes OSM non ajoutées (normal en local): {e}")
+        
+except ImportError as e:
+    print(f"⚠️ CRM non disponible: {e}")
+except Exception as e:
+    print(f"❌ Erreur initialisation CRM: {e}")
+
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
