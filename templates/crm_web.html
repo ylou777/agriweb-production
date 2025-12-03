@@ -119,6 +119,19 @@
             margin-bottom: 20px;
             opacity: 0.3;
         }
+        .prospect-card.highlight {
+            animation: highlightPulse 2s ease-in-out;
+            border: 3px solid #667eea !important;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.5) !important;
+        }
+        @keyframes highlightPulse {
+            0%, 100% { 
+                box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+            }
+            50% { 
+                box-shadow: 0 0 40px rgba(102, 126, 234, 0.8);
+            }
+        }
     </style>
 </head>
 <body>
@@ -145,28 +158,40 @@
                     <!-- Stats Dashboard -->
                     <div class="p-4 bg-light">
                         <div class="row">
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <div class="stat-card">
                                     <div class="stat-value" id="stat-total">0</div>
                                     <div class="stat-label">Total Prospects</div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <div class="stat-card">
                                     <div class="stat-value text-success" id="stat-parkings">0</div>
                                     <div class="stat-label">🅿️ Parkings</div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <div class="stat-card">
                                     <div class="stat-value text-primary" id="stat-toitures">0</div>
                                     <div class="stat-label">🏠 Toitures</div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-2">
                                 <div class="stat-card">
                                     <div class="stat-value text-warning" id="stat-friches">0</div>
                                     <div class="stat-label">🏚️ Friches</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-info" id="stat-enrichis">0</div>
+                                    <div class="stat-label">🏢 Enrichis</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-muted" id="stat-enrichis-percent">0%</div>
+                                    <div class="stat-label">Taux enrichissement</div>
                                 </div>
                             </div>
                         </div>
@@ -175,7 +200,7 @@
                     <!-- Filters -->
                     <div class="filters-bar">
                         <div class="row g-3">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <input type="text" id="searchBox" class="form-control search-box" 
                                        placeholder="🔍 Rechercher par commune, adresse...">
                             </div>
@@ -206,8 +231,45 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <button class="btn btn-primary w-100" onclick="refreshProspects()">
-                                    <i class="bi bi-arrow-clockwise"></i> Actualiser
+                                <select id="filterTaille" class="form-select">
+                                    <option value="">Toutes tailles</option>
+                                    <option value="0-1000">< 1 000 m²</option>
+                                    <option value="1000-5000">1 000 - 5 000 m²</option>
+                                    <option value="5000-10000">5 000 - 10 000 m²</option>
+                                    <option value="10000-50000">1 - 5 ha</option>
+                                    <option value="50000-100000">5 - 10 ha</option>
+                                    <option value="100000+">+ 10 ha</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterBatiment" class="form-select">
+                                    <option value="">Tous bâtiments</option>
+                                    <option value="commercial">🏢 Commercial</option>
+                                    <option value="industrial">🏭 Industriel</option>
+                                    <option value="retail">🛒 Commerce</option>
+                                    <option value="warehouse">📦 Entrepôt</option>
+                                    <option value="supermarket">🛒 Supermarché</option>
+                                    <option value="office">🏛️ Bureau</option>
+                                    <option value="public">🏛️ Public</option>
+                                    <option value="school">🎓 École</option>
+                                    <option value="hospital">🏥 Hôpital</option>
+                                    <option value="hotel">🏨 Hôtel</option>
+                                    <option value="restaurant">🍽️ Restaurant</option>
+                                    <option value="parking">🅿️ Parking</option>
+                                    <option value="farmland">🌾 Agricole</option>
+                                    <option value="factory">🏭 Usine</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterProprietaire" class="form-select">
+                                    <option value="">Tous prospects</option>
+                                    <option value="enrichi">Avec propriétaire</option>
+                                    <option value="non-enrichi">Sans propriétaire</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <button class="btn btn-primary w-100" onclick="refreshProspects()" style="height: 38px;">
+                                    <i class="bi bi-arrow-clockwise"></i>
                                 </button>
                             </div>
                         </div>
@@ -472,8 +534,161 @@
         </div>
     </div>
 
+    <!-- Modal Fiche Projet -->
+    <div class="modal fade" id="projectModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <div class="d-flex align-items-center flex-grow-1 me-3">
+                        <i class="bi bi-folder-open me-2"></i>
+                        <input type="text" id="projectModalTitle" class="form-control form-control-sm bg-white border-0" 
+                               style="max-width: 500px; font-weight: 600;" placeholder="Nom du projet">
+                        <button type="button" class="btn btn-light btn-sm ms-2" onclick="saveProjectNameFromModal()" title="Enregistrer le nom">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs mb-3" role="tablist">
+                        <li class="nav-item">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#modalTabInfos">
+                                <i class="bi bi-info-circle"></i> Informations
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modalTabRapport">
+                                <i class="bi bi-file-earmark-bar-graph"></i> Rapport <span id="modalRapportBadge" class="badge bg-success" style="display: none;">✓</span>
+                            </button>
+                        </li>
+                        <li class="nav-item">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#modalTabEtapes">
+                                <i class="bi bi-list-check"></i> Étapes (<span id="modalEtapesProgress">0/0</span>)
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content">
+                        <!-- Tab Informations -->
+                        <div class="tab-pane fade show active" id="modalTabInfos">
+                            <div id="modalProjectInfos">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Client</label>
+                                        <input type="text" id="modalClientNom" class="form-control" placeholder="Nom du client">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" id="modalClientEmail" class="form-control" placeholder="Email du client">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Téléphone</label>
+                                        <input type="tel" id="modalClientTel" class="form-control" placeholder="Téléphone">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Adresse projet</label>
+                                        <input type="text" id="modalAdresseProjet" class="form-control" placeholder="Adresse">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Commune</label>
+                                        <input type="text" id="modalCommune" class="form-control" placeholder="Commune">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Surface totale (m²)</label>
+                                        <input type="number" id="modalSurface" class="form-control" placeholder="Surface en m²">
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Parcelles cadastrales</label>
+                                        <input type="text" id="modalParcelles" class="form-control" placeholder="Ex: AD0031, AD0032">
+                                    </div>
+                                    <div class="col-md-12">
+                                        <label class="form-label">Notes</label>
+                                        <textarea id="modalNotes" class="form-control" rows="3" placeholder="Notes sur le projet"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab Rapport -->
+                        <div class="tab-pane fade" id="modalTabRapport">
+                            <div id="modalRapportContent">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle"></i> Aucun rapport disponible pour ce projet.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab Étapes -->
+                        <div class="tab-pane fade" id="modalTabEtapes">
+                            <div class="mb-3">
+                                <div class="progress" style="height: 30px;">
+                                    <div class="progress-bar bg-success" id="modalEtapesProgressBar" style="width: 0%">
+                                        <span id="modalEtapesProgressText">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="modalEtapesList"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    <button type="button" class="btn btn-success" onclick="saveProjectFromModal()">
+                        <i class="bi bi-save"></i> Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ========== TRADUCTION OSM ==========
+        const osmTranslations = {
+            // Amenity
+            'restaurant': 'Restaurant', 'cafe': 'Café', 'fast_food': 'Fast-food', 'bar': 'Bar', 'pub': 'Pub',
+            'school': 'École', 'university': 'Université', 'college': 'Collège', 'kindergarten': 'Jardin d\'enfants',
+            'hospital': 'Hôpital', 'clinic': 'Clinique', 'pharmacy': 'Pharmacie', 'doctors': 'Cabinet médical',
+            'bank': 'Banque', 'atm': 'Distributeur', 'post_office': 'Poste', 'library': 'Bibliothèque',
+            'town_hall': 'Mairie', 'community_centre': 'Centre communautaire', 'police': 'Police', 'fire_station': 'Caserne pompiers',
+            'parking': 'Parking', 'fuel': 'Station-service', 'charging_station': 'Borne de recharge',
+            'place_of_worship': 'Lieu de culte', 'theatre': 'Théâtre', 'cinema': 'Cinéma',
+            'marketplace': 'Marché', 'social_facility': 'Centre social', 'swimming_pool': 'Piscine',
+            
+            // Shop
+            'supermarket': 'Supermarché', 'convenience': 'Épicerie', 'bakery': 'Boulangerie', 'butcher': 'Boucherie',
+            'clothes': 'Magasin de vêtements', 'shoes': 'Magasin de chaussures', 'hairdresser': 'Coiffeur', 'beauty': 'Institut de beauté',
+            'hardware': 'Quincaillerie', 'furniture': 'Magasin de meubles', 'electronics': 'Électronique',
+            'car_repair': 'Garage automobile', 'bicycle': 'Vélos', 'florist': 'Fleuriste', 'garden_centre': 'Jardinerie',
+            'mall': 'Centre commercial', 'department_store': 'Grand magasin', 'kiosk': 'Kiosque',
+            
+            // Building
+            'commercial': 'Commercial', 'retail': 'Commerce', 'industrial': 'Industriel', 'warehouse': 'Entrepôt',
+            'office': 'Bureau', 'public': 'Public', 'civic': 'Civique', 'residential': 'Résidentiel',
+            'apartments': 'Appartements', 'hotel': 'Hôtel', 'dormitory': 'Dortoir', 'farm': 'Ferme',
+            'barn': 'Grange', 'greenhouse': 'Serre', 'hangar': 'Hangar', 'garage': 'Garage',
+            'supermarket': 'Supermarché', 'manufacture': 'Manufacture', 'factory': 'Usine',
+            
+            // Landuse
+            'commercial': 'Zone commerciale', 'industrial': 'Zone industrielle', 'retail': 'Zone de commerce',
+            'residential': 'Zone résidentielle', 'farmland': 'Terres agricoles', 'farmyard': 'Cour de ferme',
+            'construction': 'En construction', 'railway': 'Zone ferroviaire', 'military': 'Zone militaire',
+            
+            // Office
+            'company': 'Entreprise', 'government': 'Administration', 'lawyer': 'Cabinet d\'avocat', 'accountant': 'Comptable',
+            'estate_agent': 'Agence immobilière', 'insurance': 'Assurance', 'architect': 'Architecte',
+            'association': 'Association', 'ngo': 'ONG', 'educational_institution': 'Établissement scolaire',
+            
+            // Industrial
+            'factory': 'Usine', 'warehouse': 'Entrepôt', 'depot': 'Dépôt', 'manufacture': 'Manufacture',
+            'sawmill': 'Scierie', 'brewery': 'Brasserie', 'oil_mill': 'Huilerie'
+        };
+        
+        function translateOSM(value) {
+            if (!value) return value;
+            return osmTranslations[value] || value.replace(/_/g, ' ');
+        }
+        
         let allProspects = [];
         let editModal, emailModal, appointmentModal, proposalModal;
         let currentProspect = null;
@@ -489,6 +704,13 @@
             document.getElementById('filterType').addEventListener('change', filterProspects);
             document.getElementById('filterStatus').addEventListener('change', filterProspects);
             document.getElementById('filterPriorite').addEventListener('change', filterProspects);
+            document.getElementById('filterTaille').addEventListener('change', filterProspects);
+            document.getElementById('filterBatiment').addEventListener('change', filterProspects);
+            
+            const filterProprio = document.getElementById('filterProprietaire');
+            if (filterProprio) {
+                filterProprio.addEventListener('change', filterProspects);
+            }
             
             loadProspects();
         });
@@ -502,6 +724,13 @@
                 updateStats(data.stats);
                 displayProspects(allProspects);
                 
+                // Si on a un paramètre highlight dans l'URL, scroll vers le prospect et le mettre en évidence
+                const urlParams = new URLSearchParams(window.location.search);
+                const highlightId = urlParams.get('highlight');
+                if (highlightId) {
+                    setTimeout(() => highlightProspect(highlightId), 500);
+                }
+                
             } catch (error) {
                 console.error('Erreur chargement prospects:', error);
                 showError('Erreur lors du chargement des prospects');
@@ -513,6 +742,42 @@
             document.getElementById('stat-parkings').textContent = stats.parkings || 0;
             document.getElementById('stat-toitures').textContent = stats.toitures || 0;
             document.getElementById('stat-friches').textContent = stats.friches || 0;
+            
+            // Calculer les enrichis
+            const enrichis = allProspects.filter(p => p.proprietaire_siren && p.proprietaire_siren !== null).length;
+            document.getElementById('stat-enrichis').textContent = enrichis;
+            
+            // Calculer le taux
+            const total = stats.total || 0;
+            const tauxEnrichissement = total > 0 ? Math.round((enrichis / total) * 100) : 0;
+            document.getElementById('stat-enrichis-percent').textContent = tauxEnrichissement + '%';
+        }
+        
+        function highlightProspect(prospectId) {
+            const element = document.getElementById(`prospect-${prospectId}`);
+            if (element) {
+                // Ajouter la classe highlight
+                element.classList.add('highlight');
+                
+                // Scroller vers l'élément avec un offset pour le voir au centre
+                const elementPosition = element.getBoundingClientRect().top + window.scrollY;
+                const offsetPosition = elementPosition - (window.innerHeight / 2) + (element.offsetHeight / 2);
+                
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth'
+                });
+                
+                // Afficher un message de succès
+                showSuccess(`✅ Prospect mis à jour avec succès ! (ID: ${prospectId})`);
+                
+                // Retirer l'animation après 3 secondes
+                setTimeout(() => {
+                    element.classList.remove('highlight');
+                }, 3000);
+            } else {
+                console.warn(`Prospect ${prospectId} non trouvé dans la liste`);
+            }
         }
 
         function displayProspects(prospects) {
@@ -565,13 +830,26 @@
             let parcelles_cadastrales = [];
             if (prospect.parcelles_cadastrales) {
                 try {
-                    let parcelles_raw = typeof prospect.parcelles_cadastrales === 'string' 
-                        ? JSON.parse(prospect.parcelles_cadastrales) 
-                        : prospect.parcelles_cadastrales;
-                    
-                    // Si c'est un tableau d'objets, extraire reference_complete
-                    if (Array.isArray(parcelles_raw)) {
-                        parcelles_cadastrales = parcelles_raw.map(p => {
+                    if (typeof prospect.parcelles_cadastrales === 'string') {
+                        // Vérifier si c'est du JSON (commence par [ ou {)
+                        const trimmed = prospect.parcelles_cadastrales.trim();
+                        if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+                            let parcelles_raw = JSON.parse(trimmed);
+                            if (Array.isArray(parcelles_raw)) {
+                                parcelles_cadastrales = parcelles_raw.map(p => {
+                                    if (typeof p === 'object' && p !== null) {
+                                        return p.reference_complete || p.numero || p.section || 'N/A';
+                                    }
+                                    return String(p);
+                                }).filter(ref => ref && ref !== 'N/A');
+                            }
+                        } else {
+                            // Chaîne simple comme "AD0031" ou "AD0031, AD0032"
+                            parcelles_cadastrales = trimmed.split(',').map(s => s.trim()).filter(s => s);
+                        }
+                    } else if (Array.isArray(prospect.parcelles_cadastrales)) {
+                        // Déjà un tableau
+                        parcelles_cadastrales = prospect.parcelles_cadastrales.map(p => {
                             if (typeof p === 'object' && p !== null) {
                                 return p.reference_complete || p.numero || p.section || 'N/A';
                             }
@@ -580,7 +858,10 @@
                     }
                 } catch (e) {
                     console.error('Erreur parsing parcelles:', e);
-                    parcelles_cadastrales = [];
+                    // En cas d'erreur, essayer de l'utiliser directement
+                    parcelles_cadastrales = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? [prospect.parcelles_cadastrales] 
+                        : [];
                 }
             }
             
@@ -602,11 +883,15 @@
             };
             
             // Si les colonnes ne sont pas remplies, essayer data_json
-            if (prospect.data_json && (!poste_bt_info.puissance || !poste_bt_info.lat)) {
+            let carteUrl = null;
+            if (prospect.data_json) {
                 try {
                     const data = typeof prospect.data_json === 'string' 
                         ? JSON.parse(prospect.data_json) 
                         : prospect.data_json;
+                    
+                    // NE PAS utiliser data.carte_url (carte du rapport complet)
+                    // On préfère toujours la carte simple Google Maps pour la vignette
                     
                     if (data.poste_bt_info) {
                         poste_bt_info = {
@@ -632,10 +917,26 @@
                 }
             }
             
+            // Toujours générer une URL vers la carte simple Google Maps pour la vignette
+            if (prospect.latitude && prospect.longitude) {
+                carteUrl = `/api/crm/prospect/${prospect.id}/carte`;
+            }
+            
             return `
-                <div class="prospect-card" onclick="viewProspect(${prospect.id})">
+                <div class="prospect-card" id="prospect-${prospect.id}" onclick="viewProspect(${prospect.id})">
                     <div class="row align-items-start">
-                        <div class="col-md-8">
+                        ${carteUrl ? `
+                        <div class="col-md-2">
+                            <div class="carte-vignette" onclick="window.open('${carteUrl}', '_blank'); event.stopPropagation();" 
+                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                                <iframe src="${carteUrl}" style="width: 100%; height: 100%; border: none; pointer-events: none;" title="Carte"></iframe>
+                                <div style="position: absolute; top: 5px; right: 5px; background: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem;">
+                                    <i class="bi bi-arrows-fullscreen"></i> Ouvrir
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                        <div class="${carteUrl ? 'col-md-6' : 'col-md-8'}">
                             <div class="d-flex align-items-center mb-3">
                                 <span class="badge ${typeBadge[prospect.type]} badge-type me-2">
                                     ${typeIcon[prospect.type]} ${prospect.type.toUpperCase()}
@@ -650,9 +951,33 @@
                             <div class="detail-row">
                                 <i class="bi bi-geo-alt text-primary"></i> ${prospect.adresse}
                             </div>
+                            ${prospect.latitude && prospect.longitude ? `
+                            <div class="detail-row">
+                                <i class="bi bi-crosshair text-info"></i> 
+                                <span class="detail-label">Position GPS:</span> 
+                                <small class="font-monospace">${parseFloat(prospect.latitude).toFixed(5)}, ${parseFloat(prospect.longitude).toFixed(5)}</small>
+                                <a href="https://www.google.com/maps?q=${prospect.latitude},${prospect.longitude}" 
+                                   target="_blank" class="ms-2" title="Voir sur Google Maps" onclick="event.stopPropagation();">
+                                    <i class="bi bi-map-fill text-success"></i>
+                                </a>
+                            </div>
+                            ` : ''}
                             <div class="detail-row">
                                 <i class="bi bi-rulers text-success"></i> <span class="detail-label">Surface:</span> ${surface}
                             </div>
+                            
+                            ${prospect.osm_amenity || prospect.osm_shop || prospect.osm_building || prospect.osm_landuse || prospect.osm_office || prospect.osm_industrial ? `
+                            <div class="detail-row">
+                                <i class="bi bi-building text-info"></i> 
+                                <span class="detail-label">Type d'activité:</span>
+                                ${prospect.osm_amenity ? `<span class="badge bg-info me-1">${translateOSM(prospect.osm_amenity)}</span>` : ''}
+                                ${prospect.osm_shop ? `<span class="badge bg-success me-1">🛒 ${translateOSM(prospect.osm_shop)}</span>` : ''}
+                                ${prospect.osm_building && prospect.osm_building !== 'yes' && prospect.osm_building !== 'house' ? `<span class="badge bg-secondary me-1">🏢 ${translateOSM(prospect.osm_building)}</span>` : ''}
+                                ${prospect.osm_landuse ? `<span class="badge bg-warning text-dark me-1">${translateOSM(prospect.osm_landuse)}</span>` : ''}
+                                ${prospect.osm_office ? `<span class="badge bg-primary me-1">🏛️ ${translateOSM(prospect.osm_office)}</span>` : ''}
+                                ${prospect.osm_industrial ? `<span class="badge bg-danger me-1">🏭 ${translateOSM(prospect.osm_industrial)}</span>` : ''}
+                            </div>
+                            ` : ''}
                             
                             ${parcelles_cadastrales && parcelles_cadastrales.length > 0 ? `
                             <div class="detail-row">
@@ -660,6 +985,16 @@
                                 <span class="detail-label">Parcelles cadastrales:</span> 
                                 ${parcelles_cadastrales.slice(0, 3).join(', ')}
                                 ${parcelles_cadastrales.length > 3 ? ` <small class="text-muted">(+${parcelles_cadastrales.length - 3} autres)</small>` : ''}
+                            </div>
+                            ` : ''}
+                            
+                            ${prospect.proprietaire_siren ? `
+                            <div class="detail-row">
+                                <i class="bi bi-building-fill text-success"></i> 
+                                <span class="detail-label">Propriétaire:</span> 
+                                <strong>${prospect.proprietaire_denomination || 'N/A'}</strong>
+                                ${prospect.proprietaire_siren ? ` <small class="text-muted font-monospace">(SIREN: ${prospect.proprietaire_siren})</small>` : ''}
+                                ${prospect.proprietaire_forme_juridique ? ` <span class="badge bg-success">${prospect.proprietaire_forme_juridique}</span>` : ''}
                             </div>
                             ` : ''}
                             
@@ -730,8 +1065,11 @@
                             <button class="btn btn-secondary action-btn" onclick="generateProposal(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-file-earmark-text"></i> Proposition
                             </button>
-                            <button class="btn btn-success action-btn" onclick="createProjectFromProspect(${prospect.id}); event.stopPropagation();">
+                            <button class="btn btn-success action-btn" onclick="openOrCreateProjectForProspect(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-folder-plus"></i> Fiche Projet
+                            </button>
+                            <button class="btn btn-primary action-btn" onclick="generateRapportAdresse(${prospect.id}, ${prospect.latitude}, ${prospect.longitude}); event.stopPropagation();">
+                                <i class="bi bi-geo-alt-fill"></i> Rapport adresse
                             </button>
                             <button class="btn btn-danger action-btn mt-2" onclick="deleteProspect(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-trash"></i> Supprimer
@@ -757,6 +1095,11 @@
             const typeFilter = document.getElementById('filterType').value;
             const statusFilter = document.getElementById('filterStatus').value;
             const prioriteFilter = document.getElementById('filterPriorite').value;
+            const tailleFilter = document.getElementById('filterTaille').value;
+            const batimentFilter = document.getElementById('filterBatiment').value;
+            
+            const filterProprioElem = document.getElementById('filterProprietaire');
+            const proprietaireFilter = filterProprioElem ? filterProprioElem.value : '';
             
             const filtered = allProspects.filter(p => {
                 const matchSearch = !searchText || 
@@ -768,7 +1111,45 @@
                 const matchStatus = !statusFilter || p.statut === statusFilter;
                 const matchPriorite = !prioriteFilter || p.priorite === prioriteFilter;
                 
-                return matchSearch && matchType && matchStatus && matchPriorite;
+                // Filtrage par taille (surface en m²)
+                let matchTaille = true;
+                if (tailleFilter) {
+                    const surface = p.surface_m2 || 0;
+                    if (tailleFilter === '0-1000') {
+                        matchTaille = surface < 1000;
+                    } else if (tailleFilter === '1000-5000') {
+                        matchTaille = surface >= 1000 && surface < 5000;
+                    } else if (tailleFilter === '5000-10000') {
+                        matchTaille = surface >= 5000 && surface < 10000;
+                    } else if (tailleFilter === '10000-50000') {
+                        matchTaille = surface >= 10000 && surface < 50000;
+                    } else if (tailleFilter === '50000-100000') {
+                        matchTaille = surface >= 50000 && surface < 100000;
+                    } else if (tailleFilter === '100000+') {
+                        matchTaille = surface >= 100000;
+                    }
+                }
+                
+                // Filtrage par type de bâtiment OSM
+                let matchBatiment = true;
+                if (batimentFilter) {
+                    matchBatiment = p.osm_building === batimentFilter ||
+                                   p.osm_amenity === batimentFilter ||
+                                   p.osm_shop === batimentFilter ||
+                                   p.osm_landuse === batimentFilter ||
+                                   p.osm_office === batimentFilter ||
+                                   p.osm_industrial === batimentFilter;
+                }
+                
+                // Filtrage par propriétaire
+                let matchProprietaire = true;
+                if (proprietaireFilter === 'enrichi') {
+                    matchProprietaire = p.proprietaire_siren && p.proprietaire_siren !== null;
+                } else if (proprietaireFilter === 'non-enrichi') {
+                    matchProprietaire = !p.proprietaire_siren || p.proprietaire_siren === null;
+                }
+                
+                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment && matchProprietaire;
             });
             
             displayProspects(filtered);
@@ -866,16 +1247,32 @@
             }
         }
 
-        async function createProjectFromProspect(prospectId) {
+        async function openOrCreateProjectForProspect(prospectId) {
             const prospect = allProspects.find(p => p.id === prospectId);
             if (!prospect) {
                 showError('Prospect introuvable');
                 return;
             }
             
-            // Proposer un nom de projet basé sur le nom du contact ou la commune
+            // Vérifier si un projet existe déjà pour ce prospect
+            try {
+                const checkResponse = await fetch(`/api/crm/projets?prospect_id=${prospectId}`);
+                const checkResult = await checkResponse.json();
+                
+                if (checkResult.success && checkResult.projets && checkResult.projets.length > 0) {
+                    // Projet existe - ouvrir dans un nouvel onglet
+                    const existingProject = checkResult.projets[0]; // Premier projet du prospect
+                    showSuccess('✅ Ouverture de la fiche projet...');
+                    window.open(`/crm/projets?highlight=${existingProject.id}`, '_blank');
+                    return;
+                }
+            } catch (e) {
+                console.error('Erreur lors de la vérification du projet:', e);
+            }
+            
+            // Aucun projet existant - proposer d'en créer un
             const nomClient = prospect.contact_nom || 'Client';
-            const nomProjet = prompt(`Nom du projet pour ${nomClient}:`, 
+            const nomProjet = prompt(`Aucun projet trouvé. Créer un projet pour ${nomClient}?`, 
                 `Projet ${nomClient} - ${prospect.type}`);
             
             if (!nomProjet) return;
@@ -916,8 +1313,10 @@
                 
                 if (result.success) {
                     showSuccess('✅ Fiche projet créée! Redirection...');
+                    // Rediriger vers la page des projets avec le highlight du nouveau projet
+                    // Attendre un peu plus pour que la DB finalise l'insertion
                     setTimeout(() => {
-                        window.open(`/crm/projets`, '_blank');
+                        window.open(`/crm/projets?highlight=${result.project_id}`, '_blank');
                     }, 1000);
                 } else {
                     showError('Erreur: ' + result.error);
@@ -925,6 +1324,829 @@
             } catch (error) {
                 console.error('Erreur:', error);
                 showError('Erreur lors de la création du projet');
+            }
+        }
+        
+        let currentProjectData = null;
+
+        async function openOrCreateProjectForProspect(prospectId) {
+            const prospect = allProspects.find(p => p.id === prospectId);
+            if (!prospect) {
+                showError('Prospect introuvable');
+                return;
+            }
+            
+            // Vérifier si un projet existe déjà pour ce prospect
+            try {
+                const checkResponse = await fetch(`/api/crm/projets?prospect_id=${prospectId}`);
+                const checkResult = await checkResponse.json();
+                
+                if (checkResult.success && checkResult.projets && checkResult.projets.length > 0) {
+                    // Projet existe - charger ses détails et ouvrir le modal
+                    const existingProject = checkResult.projets[0];
+                    loadProjectInModal(existingProject.id);
+                    return;
+                }
+            } catch (e) {
+                console.error('Erreur lors de la vérification du projet:', e);
+            }
+            
+            // Aucun projet existant - ouvrir modal vierge avec données prospect
+            openNewProjectModal(prospect);
+        }
+        
+        function openNewProjectModal(prospect) {
+            // Remplir le modal avec les données du prospect
+            document.getElementById('projectModalTitle').value = `Projet ${prospect.contact_nom || prospect.nom_prospect || 'Nouveau'}`;
+            document.getElementById('modalClientNom').value = prospect.contact_nom || '';
+            document.getElementById('modalClientEmail').value = prospect.contact_email || '';
+            document.getElementById('modalClientTel').value = prospect.contact_tel || '';
+            document.getElementById('modalAdresseProjet').value = prospect.adresse || '';
+            document.getElementById('modalCommune').value = prospect.commune || '';
+            document.getElementById('modalSurface').value = prospect.surface_m2 || '';
+            
+            // Gérer parcelles_cadastrales
+            let parcelles_str = '';
+            if (prospect.parcelles_cadastrales) {
+                if (typeof prospect.parcelles_cadastrales === 'string') {
+                    parcelles_str = prospect.parcelles_cadastrales;
+                } else if (Array.isArray(prospect.parcelles_cadastrales)) {
+                    parcelles_str = prospect.parcelles_cadastrales.join(', ');
+                }
+            }
+            document.getElementById('modalParcelles').value = parcelles_str;
+            document.getElementById('modalNotes').value = `Créé depuis prospect #${prospect.id}`;
+            
+            // Stocker l'ID du prospect
+            currentProjectData = {
+                prospect_id: prospect.id,
+                isNew: true
+            };
+            
+            // Vider les étapes (nouveau projet)
+            document.getElementById('modalEtapesList').innerHTML = '<p class="text-muted">Les étapes seront créées après la sauvegarde du projet.</p>';
+            document.getElementById('modalEtapesProgress').textContent = '0/0';
+            document.getElementById('modalEtapesProgressBar').style.width = '0%';
+            document.getElementById('modalEtapesProgressText').textContent = '0%';
+            
+            // Vider le rapport
+            document.getElementById('modalRapportContent').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Aucun rapport disponible.</div>';
+            document.getElementById('modalRapportBadge').style.display = 'none';
+            
+            // Ouvrir le modal
+            const modal = new bootstrap.Modal(document.getElementById('projectModal'));
+            modal.show();
+        }
+        
+        async function loadProjectInModal(projectId) {
+            try {
+                console.log('[LOAD_PROJECT] Chargement projet ID:', projectId);
+                const response = await fetch(`/api/crm/projets/${projectId}`);
+                const data = await response.json();
+                
+                console.log('[LOAD_PROJECT] Réponse API:', data);
+                
+                if (!data.success) {
+                    showError('Impossible de charger le projet');
+                    return;
+                }
+                
+                const project = data.projet;
+                console.log('[LOAD_PROJECT] Étapes reçues:', data.etapes ? data.etapes.length : 0);
+                console.log('[LOAD_PROJECT] data_json présent:', !!project.data_json);
+                
+                currentProjectData = {
+                    id: project.id,
+                    prospect_id: project.prospect_id,
+                    isNew: false
+                };
+                
+                // Remplir les champs
+                document.getElementById('projectModalTitle').value = project.nom_projet || '';
+                document.getElementById('modalClientNom').value = project.client_nom || '';
+                document.getElementById('modalClientEmail').value = project.client_email || '';
+                document.getElementById('modalClientTel').value = project.client_telephone || '';
+                document.getElementById('modalAdresseProjet').value = project.adresse_projet || '';
+                document.getElementById('modalCommune').value = project.commune || '';
+                document.getElementById('modalSurface').value = project.surface_totale || '';
+                document.getElementById('modalParcelles').value = project.parcelles_cadastrales || '';
+                document.getElementById('modalNotes').value = project.notes || '';
+                
+                console.log('[LOAD_PROJECT] Surface affichée:', project.surface_totale);
+                
+                // Afficher les étapes
+                if (data.etapes && data.etapes.length > 0) {
+                    console.log('[LOAD_PROJECT] Affichage des étapes...');
+                    displayModalEtapes(data.etapes);
+                } else {
+                    console.warn('[LOAD_PROJECT] Aucune étape trouvée!');
+                    document.getElementById('modalEtapesList').innerHTML = '<p class="text-muted">Aucune étape définie.</p>';
+                    document.getElementById('modalEtapesProgress').textContent = '0/0';
+                    document.getElementById('modalEtapesProgressBar').style.width = '0%';
+                    document.getElementById('modalEtapesProgressText').textContent = '0%';
+                }
+                
+                // Afficher le rapport si disponible
+                console.log('[LOAD_PROJECT] data_json type:', typeof project.data_json);
+                console.log('[LOAD_PROJECT] data_json contenu:', project.data_json);
+                
+                if (project.data_json) {
+                    try {
+                        const rapport = typeof project.data_json === 'string' ? JSON.parse(project.data_json) : project.data_json;
+                        console.log('[LOAD_PROJECT] Rapport parsé:', rapport);
+                        displayModalRapport(rapport);
+                    } catch (e) {
+                        console.error('[LOAD_PROJECT] Erreur parsing rapport:', e);
+                        document.getElementById('modalRapportContent').innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> Erreur de chargement du rapport.</div>';
+                        document.getElementById('modalRapportBadge').style.display = 'none';
+                    }
+                } else if (project.prospect_id) {
+                    // Si pas de rapport dans le projet, essayer de le récupérer du prospect
+                    console.log('[LOAD_PROJECT] Pas de rapport dans projet, récupération depuis prospect...');
+                    await loadRapportFromProspect(project.prospect_id);
+                } else {
+                    document.getElementById('modalRapportContent').innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> Aucun rapport disponible.</div>';
+                    document.getElementById('modalRapportBadge').style.display = 'none';
+                }
+                
+                // Ouvrir le modal
+                const modal = new bootstrap.Modal(document.getElementById('projectModal'));
+                modal.show();
+                
+            } catch (error) {
+                console.error('Erreur chargement projet:', error);
+                showError('Erreur lors du chargement du projet');
+            }
+        }
+        
+        async function loadRapportFromProspect(prospectId) {
+            try {
+                console.log('[LOAD_RAPPORT] Chargement rapport depuis prospect:', prospectId);
+                const response = await fetch(`/api/crm/prospects/${prospectId}`);
+                const data = await response.json();
+                
+                if (data.success && data.prospect && data.prospect.data_json) {
+                    console.log('[LOAD_RAPPORT] Rapport trouvé dans prospect');
+                    const rapport = typeof data.prospect.data_json === 'string' 
+                        ? JSON.parse(data.prospect.data_json) 
+                        : data.prospect.data_json;
+                    
+                    displayModalRapport(rapport);
+                    
+                    // Optionnel: Sauvegarder le rapport dans le projet pour la prochaine fois
+                    if (currentProjectData && currentProjectData.id) {
+                        console.log('[LOAD_RAPPORT] Sauvegarde du rapport dans le projet...');
+                        await syncRapportToProject(currentProjectData.id, data.prospect.data_json);
+                    }
+                } else {
+                    console.warn('[LOAD_RAPPORT] Pas de rapport dans le prospect');
+                    document.getElementById('modalRapportContent').innerHTML = `
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle"></i> Aucun rapport trouvé pour ce prospect.
+                            <br><small>Générez un "Rapport adresse" depuis la fiche prospect pour créer un rapport.</small>
+                        </div>
+                    `;
+                    document.getElementById('modalRapportBadge').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('[LOAD_RAPPORT] Erreur:', error);
+                document.getElementById('modalRapportContent').innerHTML = '<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Erreur lors du chargement du rapport.</div>';
+                document.getElementById('modalRapportBadge').style.display = 'none';
+            }
+        }
+        
+        async function syncRapportToProject(projectId, rapportJson) {
+            try {
+                const response = await fetch(`/api/crm/projets/${projectId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        data_json: typeof rapportJson === 'string' ? rapportJson : JSON.stringify(rapportJson)
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    console.log('[SYNC_RAPPORT] Rapport synchronisé avec le projet');
+                } else {
+                    console.warn('[SYNC_RAPPORT] Échec synchronisation:', result.error);
+                }
+            } catch (error) {
+                console.error('[SYNC_RAPPORT] Erreur:', error);
+            }
+        }
+        
+        function displayModalEtapes(etapes) {
+            const terminees = etapes.filter(e => e.statut === 'termine').length;
+            const total = etapes.length;
+            const progress = total > 0 ? Math.round((terminees / total) * 100) : 0;
+            
+            document.getElementById('modalEtapesProgress').textContent = `${terminees}/${total}`;
+            document.getElementById('modalEtapesProgressBar').style.width = `${progress}%`;
+            document.getElementById('modalEtapesProgressText').textContent = `${progress}%`;
+            
+            const html = etapes.map(e => {
+                const statusClass = e.statut === 'termine' ? 'success' : e.statut === 'en_cours' ? 'primary' : e.statut === 'a_faire' ? 'secondary' : 'warning';
+                const statusIcon = e.statut === 'termine' ? 'check-circle-fill' : e.statut === 'en_cours' ? 'arrow-right-circle-fill' : 'circle';
+                const statusLabel = e.statut === 'termine' ? 'Terminé' : e.statut === 'en_cours' ? 'En cours' : e.statut === 'a_faire' ? 'À faire' : 'Bloqué';
+                
+                return `
+                    <div class="card mb-2">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="flex-grow-1">
+                                    <i class="bi bi-${statusIcon} text-${statusClass}"></i>
+                                    <strong>${e.ordre || '?'}. ${e.nom_etape || 'Étape sans nom'}</strong>
+                                </div>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn ${e.statut === 'a_faire' ? 'btn-secondary' : 'btn-outline-secondary'}" 
+                                            onclick="updateModalEtapeStatus(${e.id}, 'a_faire')" title="À faire">
+                                        <i class="bi bi-circle"></i>
+                                    </button>
+                                    <button class="btn ${e.statut === 'en_cours' ? 'btn-primary' : 'btn-outline-primary'}" 
+                                            onclick="updateModalEtapeStatus(${e.id}, 'en_cours')" title="En cours">
+                                        <i class="bi bi-arrow-right-circle"></i>
+                                    </button>
+                                    <button class="btn ${e.statut === 'termine' ? 'btn-success' : 'btn-outline-success'}" 
+                                            onclick="updateModalEtapeStatus(${e.id}, 'termine')" title="Terminé">
+                                        <i class="bi bi-check-circle"></i>
+                                    </button>
+                                    <button class="btn ${e.statut === 'bloque' ? 'btn-warning' : 'btn-outline-warning'}" 
+                                            onclick="updateModalEtapeStatus(${e.id}, 'bloque')" title="Bloqué">
+                                        <i class="bi bi-exclamation-circle"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            ${e.notes ? `<p class="mb-0 text-muted small"><i class="bi bi-sticky"></i> ${e.notes}</p>` : ''}
+                            ${e.date_debut ? `<p class="mb-0 text-muted small"><i class="bi bi-calendar"></i> Début: ${new Date(e.date_debut).toLocaleDateString('fr-FR')}</p>` : ''}
+                            ${e.date_fin_reelle ? `<p class="mb-0 text-muted small"><i class="bi bi-calendar-check"></i> Fin: ${new Date(e.date_fin_reelle).toLocaleDateString('fr-FR')}</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            document.getElementById('modalEtapesList').innerHTML = html;
+        }
+        
+        async function updateModalEtapeStatus(etapeId, newStatus) {
+            if (!currentProjectData || !currentProjectData.id) {
+                showError('Projet non chargé');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/crm/projets/${currentProjectData.id}/etapes/${etapeId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ statut: newStatus })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess('✅ Étape mise à jour!');
+                    // Recharger le projet pour rafraîchir les étapes
+                    loadProjectInModal(currentProjectData.id);
+                } else {
+                    showError('Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur mise à jour étape:', error);
+                showError('Erreur lors de la mise à jour');
+            }
+        }
+        
+        function displayModalRapport(rapport) {
+            console.log('[DISPLAY_RAPPORT] Affichage rapport:', rapport);
+            console.log('[DISPLAY_RAPPORT] Keys disponibles:', Object.keys(rapport || {}));
+            
+            // Si le rapport n'a pas de postes_bt/postes_hta mais vient d'un prospect exporté,
+            // construire ces tableaux à partir de poste_bt_proche/poste_hta_proche
+            if (!rapport.postes_bt && rapport.poste_bt_proche) {
+                rapport.postes_bt = [rapport.poste_bt_proche];
+            }
+            if (!rapport.postes_hta && rapport.poste_hta_proche) {
+                rapport.postes_hta = [rapport.poste_hta_proche];
+            }
+            
+            let html = `
+                <div class="alert alert-success mb-3">
+                    <i class="bi bi-file-earmark-bar-graph"></i> <strong>Rapport AgriWeb Complet</strong>
+                    <span class="ms-2"><small>Généré le ${rapport.timestamp || 'N/A'}</small></span>
+                </div>
+            `;
+            
+            // ========== CARTE INTERACTIVE ==========
+            let carteUrl = rapport.carte_url;
+            
+            // Si pas de carte_url, essayer de générer une URL à partir du prospect
+            if (!carteUrl && currentProjectData && currentProjectData.prospect_id) {
+                carteUrl = `/api/crm/prospect/${currentProjectData.prospect_id}/carte`;
+            }
+            // Sinon, si on a des coordonnées dans le rapport, on peut créer une carte temporaire
+            else if (!carteUrl && rapport.lat && rapport.lon) {
+                // On pourrait ajouter une route générique qui prend lat/lon en paramètres
+                carteUrl = `/api/crm/carte?lat=${rapport.lat}&lon=${rapport.lon}`;
+            }
+            
+            if (carteUrl) {
+                // Ajouter paramètres de zoom si lat/lon disponibles (ne fonctionne pas avec iframe)
+                // let carteUrlWithZoom = carteUrl;
+                // if (rapport.lat && rapport.lon && !carteUrl.includes('#')) {
+                //     carteUrlWithZoom += `#15/${rapport.lat}/${rapport.lon}`;
+                // }
+                
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-header" style="background: linear-gradient(135deg, #28a745, #20c997); color: white;">
+                            <i class="bi bi-map-fill"></i> Carte interactive avec couches thématiques
+                            <a href="${carteUrl}" target="_blank" class="btn btn-sm btn-light float-end">
+                                <i class="bi bi-box-arrow-up-right"></i> Plein écran
+                            </a>
+                        </div>
+                        <div class="card-body p-2">
+                            <iframe src="${carteUrl}" style="width: 100%; height: 500px; border: none; border-radius: 8px;" title="Carte interactive"></iframe>
+                        </div>
+                    </div>
+                `;
+            } else {
+                html += `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> Carte non disponible (coordonnées manquantes)
+                    </div>
+                `;
+            }
+            
+            // ========== MÉTRIQUES RAPIDES ==========
+            const communeName = rapport.commune_name || rapport.commune || 'N/A';
+            const cadastreDetails = rapport.api_details?.cadastre?.details;
+            const parcelleRef = cadastreDetails ? `${cadastreDetails.section}${cadastreDetails.parcelle_numero}` : 'N/A';
+            const surface = cadastreDetails?.contenance || (rapport.surface_parcelle ? `${rapport.surface_parcelle} ha` : 'N/A');
+            
+            // Zone urbanisme
+            let zoneUrba = 'N/A';
+            if (rapport.api_details?.gpu?.success && rapport.api_details.gpu.details) {
+                const zoneUrbaInfo = rapport.api_details.gpu.details['Zone Urba'] || rapport.api_details.gpu.details['zone-urba'];
+                if (zoneUrbaInfo && zoneUrbaInfo.count > 0 && zoneUrbaInfo.features && zoneUrbaInfo.features.length > 0) {
+                    const firstFeature = zoneUrbaInfo.features[0];
+                    zoneUrba = firstFeature.Typezone || firstFeature.typezone || firstFeature.Libelong || firstFeature.libelong || 'Zone';
+                }
+            }
+            
+            // Postes
+            const postesBT = rapport.postes_bt?.length || 0;
+            const postesHTA = rapport.postes_hta?.length || 0;
+            const distanceBT = rapport.postes_bt?.length > 0 ? Math.min(...rapport.postes_bt.map(p => p.distance_m || p.distance || 999999)) : null;
+            const distanceHTA = rapport.postes_hta?.length > 0 ? Math.min(...rapport.postes_hta.map(p => p.distance_m || p.distance || 999999)) : null;
+            
+            // Géorisques
+            let totalRisks = 0;
+            if (rapport.georisques_risks) {
+                Object.values(rapport.georisques_risks).forEach(risks => {
+                    if (Array.isArray(risks)) totalRisks += risks.length;
+                });
+            }
+            
+            html += `
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${communeName}</div>
+                                <div class="text-muted">Commune</div>
+                                ${cadastreDetails ? `<small class="text-info">${cadastreDetails.code_insee}</small>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${parcelleRef}</div>
+                                <div class="text-muted">Parcelle</div>
+                                <small class="text-success">Cadastre IGN</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${surface}</div>
+                                <div class="text-muted">Superficie</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${zoneUrba}</div>
+                                <div class="text-muted">Zone Urba</div>
+                                <small class="text-info">GPU</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // ========== COORDONNÉES GPS ==========
+            html += `
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-geo-alt-fill"></i> Coordonnées GPS
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0" style="font-family: 'Courier New', monospace; font-size: 1.1rem;">
+                            <strong>Latitude:</strong> ${rapport.lat?.toFixed(6) || 'N/A'} | 
+                            <strong>Longitude:</strong> ${rapport.lon?.toFixed(6) || 'N/A'}
+                        </p>
+                    </div>
+                </div>
+            `;
+            
+            // ========== POSTES ÉLECTRIQUES ==========
+            if (postesBT > 0 || postesHTA > 0) {
+                html += `
+                    <div class="row mb-3">
+                        ${postesBT > 0 ? `
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header" style="background: linear-gradient(135deg, #dc3545, #fd7e14); color: white;">
+                                    <i class="bi bi-plug-fill"></i> Postes BT/BTA (${postesBT} trouvés)
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info p-2 mb-3">
+                                        <strong>⚡ Plus proche:</strong> ${distanceBT ? Math.round(distanceBT) + ' m' : 'N/A'}
+                                    </div>
+                                    ${rapport.postes_bt.slice(0, 3).map((p, idx) => {
+                                        const dist = p.distance_m || p.distance || 0;
+                                        return `
+                                        <div class="border-bottom pb-2 mb-2">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <strong class="text-primary">${idx + 1}. ${p.nom || p.name || 'Poste BT'}</strong>
+                                                    <div class="mt-1">
+                                                        <small>📏 Distance: <strong>${Math.round(dist)} m</strong></small><br>
+                                                        ${p.puissance || p.power ? `<small>⚡ Puissance: <strong>${p.puissance || p.power}</strong></small><br>` : ''}
+                                                        ${p.proprietaire || p.owner ? `<small>👤 ${p.proprietaire || p.owner}</small><br>` : ''}
+                                                        ${p.lat && p.lon ? `<small>📍 ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</small>` : ''}
+                                                    </div>
+                                                </div>
+                                                ${p.lat && p.lon ? `
+                                                    <a href="https://www.google.com/maps?q=${p.lat},${p.lon}" target="_blank" class="btn btn-sm btn-outline-primary" title="Voir sur Google Maps">
+                                                        <i class="bi bi-map"></i>
+                                                    </a>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    `;}).join('')}
+                                    ${postesBT > 3 ? `<small class="text-muted">... et ${postesBT - 3} autre(s) poste(s)</small>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                        
+                        ${postesHTA > 0 ? `
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header" style="background: linear-gradient(135deg, #6610f2, #dc3545); color: white;">
+                                    <i class="bi bi-lightning-charge-fill"></i> Postes HTA (${postesHTA} trouvés)
+                                </div>
+                                <div class="card-body">
+                                    <div class="alert alert-info p-2 mb-3">
+                                        <strong>⚡ Plus proche:</strong> ${distanceHTA ? Math.round(distanceHTA) + ' m' : 'N/A'}
+                                    </div>
+                                    ${rapport.postes_hta.slice(0, 3).map((p, idx) => {
+                                        const dist = p.distance_m || p.distance || 0;
+                                        return `
+                                        <div class="border-bottom pb-2 mb-2">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <strong class="text-primary">${idx + 1}. ${p.nom || p.name || 'Poste HTA'}</strong>
+                                                    <div class="mt-1">
+                                                        <small>📏 Distance: <strong>${Math.round(dist)} m</strong></small><br>
+                                                        ${p.puissance || p.power ? `<small>⚡ Puissance: <strong>${p.puissance || p.power}</strong></small><br>` : ''}
+                                                        ${p.proprietaire || p.owner ? `<small>👤 ${p.proprietaire || p.owner}</small><br>` : ''}
+                                                        ${p.lat && p.lon ? `<small>📍 ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</small>` : ''}
+                                                    </div>
+                                                </div>
+                                                ${p.lat && p.lon ? `
+                                                    <a href="https://www.google.com/maps?q=${p.lat},${p.lon}" target="_blank" class="btn btn-sm btn-outline-primary" title="Voir sur Google Maps">
+                                                        <i class="bi bi-map"></i>
+                                                    </a>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    `;}).join('')}
+                                    ${postesHTA > 3 ? `<small class="text-muted">... et ${postesHTA - 3} autre(s) poste(s)</small>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+            
+            // ========== GÉORISQUES ==========
+            if (rapport.georisques_risks && totalRisks > 0) {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-header bg-warning">
+                            <i class="bi bi-exclamation-triangle-fill"></i> <strong>Analyse des Risques - GéoRisques</strong>
+                            <span class="badge bg-danger ms-2">${totalRisks} risque(s)</span>
+                        </div>
+                        <div class="card-body">
+                `;
+                
+                const categoryNames = {
+                    'sismique': '🌋 Risques Sismiques',
+                    'catnat': '🌊 Catastrophes Naturelles',
+                    'argiles': '🪨 Retrait-Gonflement Argiles',
+                    'radon': '☢️ Exposition Radon',
+                    'installations': '🏭 Installations Classées',
+                    'mvt': '⛰️ Mouvements de Terrain',
+                    'cavites': '🕳️ Cavités Souterraines',
+                    'tim': '🚛 Transport Matières Dangereuses',
+                    'azi': '💥 Accidents Industriels'
+                };
+                
+                Object.entries(rapport.georisques_risks).forEach(([category, risks]) => {
+                    if (Array.isArray(risks) && risks.length > 0) {
+                        html += `
+                            <div class="mb-4">
+                                <h6 class="text-danger border-bottom pb-2">
+                                    ${categoryNames[category] || category}
+                                    <span class="badge bg-warning text-dark">${risks.length}</span>
+                                </h6>
+                        `;
+                        
+                        // Afficher TOUS les risques avec tous leurs détails
+                        risks.forEach((risk, index) => {
+                            const titre = risk.libelle_risque_long || risk.lib_alea || risk.type_risque || risk.nom || risk.libelle || `${category} #${index + 1}`;
+                            
+                            html += `
+                                <div class="border rounded p-3 mb-2 bg-light">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <strong class="text-primary">${titre}</strong>
+                                        ${risk.code_national_gaspar ? `<span class="badge bg-secondary">${risk.code_national_gaspar}</span>` : ''}
+                                    </div>
+                            `;
+                            
+                            // Afficher toutes les propriétés pertinentes
+                            const fieldsToShow = [
+                                { key: 'date_evenement', label: '📅 Date événement' },
+                                { key: 'date_arrete_cat_nat', label: '📜 Date arrêté' },
+                                { key: 'libelle_risque', label: '⚠️ Risque' },
+                                { key: 'intensite', label: '📊 Intensité' },
+                                { key: 'classe_alea', label: '🎚️ Classe aléa' },
+                                { key: 'niveau_alea', label: '📈 Niveau aléa' },
+                                { key: 'description', label: '📝 Description' },
+                                { key: 'famille', label: '🏷️ Famille' },
+                                { key: 'reference', label: '🔗 Référence' },
+                                { key: 'statut', label: '✓ Statut' },
+                                { key: 'commune', label: '🏘️ Commune' },
+                                { key: 'departement', label: '🗺️ Département' }
+                            ];
+                            
+                            let hasDetails = false;
+                            fieldsToShow.forEach(field => {
+                                if (risk[field.key] && risk[field.key] !== 'N/A' && risk[field.key] !== '') {
+                                    html += `<div class="mb-1"><small><strong>${field.label}:</strong> ${risk[field.key]}</small></div>`;
+                                    hasDetails = true;
+                                }
+                            });
+                            
+                            // Si aucun champ standard, afficher TOUTES les propriétés
+                            if (!hasDetails) {
+                                Object.entries(risk).forEach(([key, value]) => {
+                                    if (value && value !== 'N/A' && value !== '' && !['geometry', 'geom', 'shape'].includes(key.toLowerCase())) {
+                                        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                        const displayValue = typeof value === 'string' && value.length > 100 ? value.substring(0, 100) + '...' : value;
+                                        html += `<div class="mb-1"><small><strong>${label}:</strong> ${displayValue}</small></div>`;
+                                    }
+                                });
+                            }
+                            
+                            html += `</div>`;
+                        });
+                        
+                        html += `</div>`;
+                    }
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // ========== URBANISME DÉTAILLÉ ==========
+            if (rapport.api_details?.gpu?.success && rapport.api_details.gpu.details) {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-header" style="background: linear-gradient(135deg, #6f42c1, #e83e8c); color: white;">
+                            <i class="bi bi-building"></i> <strong>Urbanisme - GPU (${rapport.api_details.gpu.features_count} contraintes)</strong>
+                        </div>
+                        <div class="card-body">
+                `;
+                
+                Object.entries(rapport.api_details.gpu.details).forEach(([layerKey, layerInfo]) => {
+                    if (layerInfo.count > 0 && layerInfo.features) {
+                        html += `
+                            <div class="mb-3">
+                                <h6 class="text-primary border-bottom pb-2">
+                                    📋 ${layerInfo.name_fr || layerKey} 
+                                    <span class="badge bg-primary">${layerInfo.count}</span>
+                                </h6>
+                        `;
+                        
+                        layerInfo.features.slice(0, 5).forEach((feature, idx) => {
+                            html += `<div class="border rounded p-2 mb-2 bg-light">`;
+                            
+                            // Afficher toutes les propriétés pertinentes
+                            Object.entries(feature).forEach(([key, value]) => {
+                                if (value && value !== '' && !['geometry', 'geom', 'shape'].includes(key.toLowerCase())) {
+                                    const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                    html += `<div class="mb-1"><small><strong>${label}:</strong> ${value}</small></div>`;
+                                }
+                            });
+                            
+                            html += `</div>`;
+                        });
+                        
+                        if (layerInfo.count > 5) {
+                            html += `<small class="text-muted">... et ${layerInfo.count - 5} autre(s)</small>`;
+                        }
+                        
+                        html += `</div>`;
+                    }
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // ========== APIs EXTERNES ==========
+            if (rapport.api_details) {
+                html += `
+                    <div class="card mb-3">
+                        <div class="card-header" style="background: linear-gradient(135deg, #17a2b8, #20c997); color: white;">
+                            <i class="bi bi-cloud-download"></i> APIs Externes - Résumé
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                `;
+                
+                // Cadastre
+                if (rapport.api_details.cadastre) {
+                    html += `
+                        <div class="col-md-4 mb-3">
+                            <h6><i class="bi bi-map"></i> API Cadastre IGN</h6>
+                            ${rapport.api_details.cadastre.success ? `
+                                <div class="alert alert-success p-2">
+                                    <small><strong>Parcelle:</strong> ${cadastreDetails.section}${cadastreDetails.parcelle_numero}</small><br>
+                                    <small><strong>Commune:</strong> ${cadastreDetails.commune}</small><br>
+                                    <small><strong>Contenance:</strong> ${cadastreDetails.contenance}</small>
+                                </div>
+                            ` : `
+                                <div class="alert alert-danger p-2">
+                                    <small>Échec de récupération</small>
+                                </div>
+                            `}
+                        </div>
+                    `;
+                }
+                
+                // GPU
+                if (rapport.api_details.gpu) {
+                    html += `
+                        <div class="col-md-4 mb-3">
+                            <h6><i class="bi bi-building"></i> API GPU Urbanisme</h6>
+                            ${rapport.api_details.gpu.success ? `
+                                <div class="alert alert-success p-2">
+                                    <small><strong>Couches:</strong> ${rapport.api_details.gpu.layers_count}</small><br>
+                                    <small><strong>Features:</strong> ${rapport.api_details.gpu.features_count}</small><br>
+                                    <small class="text-muted">Voir section dédiée ci-dessus</small>
+                                </div>
+                            ` : `
+                                <div class="alert alert-danger p-2">
+                                    <small>Aucune donnée d'urbanisme</small>
+                                </div>
+                            `}
+                        </div>
+                    `;
+                }
+                
+                // Nature
+                if (rapport.api_details.nature) {
+                    html += `
+                        <div class="col-md-4 mb-3">
+                            <h6><i class="bi bi-tree-fill"></i> API Nature</h6>
+                            ${rapport.api_details.nature.count > 0 ? `
+                                <div class="alert alert-success p-2">
+                                    <small><strong>Espaces naturels:</strong> ${rapport.api_details.nature.count}</small>
+                                </div>
+                            ` : `
+                                <div class="alert alert-info p-2">
+                                    <small>Aucun espace naturel</small>
+                                </div>
+                            `}
+                        </div>
+                    `;
+                }
+                
+                html += `
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('modalRapportContent').innerHTML = html;
+            document.getElementById('modalRapportBadge').style.display = 'inline';
+        }
+        
+        async function saveProjectFromModal() {
+            const projectData = {
+                nom_projet: document.getElementById('projectModalTitle').value,
+                client_nom: document.getElementById('modalClientNom').value,
+                client_email: document.getElementById('modalClientEmail').value,
+                client_telephone: document.getElementById('modalClientTel').value,
+                adresse_projet: document.getElementById('modalAdresseProjet').value,
+                commune: document.getElementById('modalCommune').value,
+                surface_totale: parseFloat(document.getElementById('modalSurface').value) || null,
+                parcelles_cadastrales: document.getElementById('modalParcelles').value,
+                notes: document.getElementById('modalNotes').value,
+                type_projet: 'autoconsommation'
+            };
+            
+            try {
+                if (currentProjectData.isNew) {
+                    // Création
+                    projectData.prospect_id = currentProjectData.prospect_id;
+                    projectData.responsable = 'Système';
+                    
+                    const response = await fetch('/api/crm/projets', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(projectData)
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        showSuccess('✅ Projet créé avec succès!');
+                        // Fermer le modal puis recharger avec les étapes
+                        bootstrap.Modal.getInstance(document.getElementById('projectModal')).hide();
+                        setTimeout(() => {
+                            loadProjectInModal(result.project_id);
+                        }, 500);
+                    } else {
+                        showError('Erreur: ' + result.error);
+                    }
+                } else {
+                    // Mise à jour
+                    const response = await fetch(`/api/crm/projets/${currentProjectData.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(projectData)
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) {
+                        showSuccess('✅ Projet mis à jour!');
+                    } else {
+                        showError('Erreur: ' + result.error);
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur sauvegarde projet:', error);
+                showError('Erreur lors de la sauvegarde');
+            }
+        }
+        
+        async function saveProjectNameFromModal() {
+            if (!currentProjectData || currentProjectData.isNew) {
+                showError('Veuillez d\'abord sauvegarder le projet');
+                return;
+            }
+            
+            const nomProjet = document.getElementById('projectModalTitle').value;
+            
+            try {
+                const response = await fetch(`/api/crm/projets/${currentProjectData.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nom_projet: nomProjet })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess('✅ Nom du projet mis à jour!');
+                } else {
+                    showError('Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur mise à jour nom:', error);
+                showError('Erreur lors de la mise à jour');
             }
         }
 
@@ -1224,6 +2446,19 @@ Cordialement,`
                 console.error('Erreur:', error);
                 showError('Erreur lors de la génération du PDF');
             }
+        }
+
+        // === FONCTION RAPPORT ADRESSE ===
+        function generateRapportAdresse(prospectId, lat, lon) {
+            if (!lat || !lon) {
+                showError('Coordonnées GPS manquantes pour ce prospect');
+                return;
+            }
+            
+            // Ouvrir la page du rapport avec les coordonnées ET l'ID du prospect
+            const url = `/rapport_point?lat=${lat}&lon=${lon}&prospect_id=${prospectId}`;
+            window.open(url, '_blank');
+            showSuccess('Génération du rapport en cours...');
         }
     </script>
 </body>
