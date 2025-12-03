@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM AgriWeb - Gestion Prospects</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .crm-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 0;
+            overflow: hidden;
+        }
+        .crm-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
+        }
+        .filters-bar {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
+        }
+        .prospect-card {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .prospect-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        .badge-type {
+            font-size: 0.9rem;
+            padding: 8px 15px;
+        }
+        .badge-parking { background: #4CAF50; }
+        .badge-toiture { background: #2196F3; }
+        .badge-friche { background: #FF9800; }
+        .badge-rpg { background: #8BC34A; }
+        
+        .badge-status {
+            font-size: 0.85rem;
+            padding: 5px 12px;
+        }
+        .status-nouveau { background: #9C27B0; }
+        .status-contacte { background: #2196F3; }
+        .status-qualifie { background: #4CAF50; }
+        .status-perdu { background: #F44336; }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid #e9ecef;
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            font-size: 0.85rem;
+            margin: 2px;
+        }
+        .detail-row {
+            margin: 8px 0;
+            font-size: 0.9rem;
+        }
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        .notes-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .search-box {
+            border-radius: 25px;
+            padding: 12px 20px;
+            border: 2px solid #e9ecef;
+        }
+        .search-box:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6c757d;
+        }
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-11">
+                <div class="crm-container">
+                    <!-- Header -->
+                    <div class="crm-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="mb-0"><i class="bi bi-people-fill me-2"></i>CRM AgriWeb</h1>
+                                <p class="mb-0 mt-2 opacity-75">Gestion des prospects photovoltaïques</p>
+                            </div>
+                            <div>
+                                <a href="/crm/calendrier" class="btn btn-primary me-2"><i class="bi bi-calendar-event me-2"></i>Calendrier</a>
+                                <a href="/crm/projets" class="btn btn-success me-2"><i class="bi bi-folder-fill me-2"></i>Fiches Projets</a>
+                                <a href="/crm/stats" class="btn btn-warning me-2"><i class="bi bi-graph-up me-2"></i>Dashboard & KPI</a>
+                                <a href="/" class="btn btn-light"><i class="bi bi-house me-2"></i>Accueil</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Dashboard -->
+                    <div class="p-4 bg-light">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-value" id="stat-total">0</div>
+                                    <div class="stat-label">Total Prospects</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-value text-success" id="stat-parkings">0</div>
+                                    <div class="stat-label">🅿️ Parkings</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-value text-primary" id="stat-toitures">0</div>
+                                    <div class="stat-label">🏠 Toitures</div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card">
+                                    <div class="stat-value text-warning" id="stat-friches">0</div>
+                                    <div class="stat-label">🏚️ Friches</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filters-bar">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <input type="text" id="searchBox" class="form-control search-box" 
+                                       placeholder="🔍 Rechercher par commune, adresse...">
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterType" class="form-select">
+                                    <option value="">Tous types</option>
+                                    <option value="parking">🅿️ Parkings</option>
+                                    <option value="toiture">🏠 Toitures</option>
+                                    <option value="friche">🏚️ Friches</option>
+                                    <option value="parcelle_rpg">🌾 RPG</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterStatus" class="form-select">
+                                    <option value="">Tous statuts</option>
+                                    <option value="nouveau">Nouveau</option>
+                                    <option value="contacte">Contacté</option>
+                                    <option value="qualifie">Qualifié</option>
+                                    <option value="perdu">Perdu</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterPriorite" class="form-select">
+                                    <option value="">Toutes priorités</option>
+                                    <option value="haute">Haute</option>
+                                    <option value="moyenne">Moyenne</option>
+                                    <option value="basse">Basse</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <button class="btn btn-primary w-100" onclick="refreshProspects()">
+                                    <i class="bi bi-arrow-clockwise"></i> Actualiser
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Prospects List -->
+                    <div class="p-4">
+                        <div id="loadingState" class="loading">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Chargement...</span>
+                            </div>
+                            <p class="mt-3">Chargement des prospects...</p>
+                        </div>
+                        
+                        <div id="emptyState" class="empty-state" style="display: none;">
+                            <i class="bi bi-inbox"></i>
+                            <h4>Aucun prospect trouvé</h4>
+                            <p>Commencez par exporter des prospects depuis les rapports de commune</p>
+                        </div>
+
+                        <div id="prospectsList" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Edition Prospect -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Éditer le prospect</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-id">
+                    
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Nom du prospect</label>
+                            <input type="text" id="edit-nom-prospect" class="form-control" placeholder="Ex: Parking Mairie, Toiture Entrepôt...">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Statut</label>
+                            <select id="edit-statut" class="form-select">
+                                <option value="nouveau">Nouveau</option>
+                                <option value="contacte">Contacté</option>
+                                <option value="qualifie">Qualifié</option>
+                                <option value="perdu">Perdu</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Priorité</label>
+                            <select id="edit-priorite" class="form-select">
+                                <option value="haute">Haute</option>
+                                <option value="moyenne">Moyenne</option>
+                                <option value="basse">Basse</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Contact (Nom)</label>
+                            <input type="text" id="edit-contact-nom" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Téléphone</label>
+                            <input type="tel" id="edit-contact-tel" class="form-control">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Email</label>
+                            <input type="email" id="edit-contact-email" class="form-control">
+                        </div>
+                        
+                        <!-- Section Dirigeant / Entreprise -->
+                        <div class="col-md-12">
+                            <hr>
+                            <h6 class="text-primary"><i class="bi bi-building"></i> Dirigeant / Entreprise</h6>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nom du dirigeant</label>
+                            <input type="text" id="edit-dirigeant-nom" class="form-control" placeholder="Ex: Jean Dupont">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">SIRET</label>
+                            <input type="text" id="edit-siret" class="form-control" placeholder="Ex: 12345678900012">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email dirigeant</label>
+                            <input type="email" id="edit-dirigeant-email" class="form-control" placeholder="Ex: contact@entreprise.fr">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Téléphone dirigeant</label>
+                            <input type="tel" id="edit-dirigeant-tel" class="form-control" placeholder="Ex: 06 12 34 56 78">
+                        </div>
+                        <div class="col-md-12">
+                            <input type="hidden" id="edit-adresse">
+                            <a href="#" id="lien-societe-com" target="_blank" class="btn btn-outline-info btn-sm w-100" style="display:none;">
+                                <i class="bi bi-building"></i> Voir sur Société.com
+                            </a>
+                        </div>
+                        
+                        <div class="col-md-12">
+                            <label class="form-label">Notes</label>
+                            <textarea id="edit-notes" class="form-control" rows="4"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="saveProspect()">
+                        <i class="bi bi-save"></i> Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Envoi Email -->
+    <div class="modal fade" id="emailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-envelope"></i> Envoyer un Email</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="email-prospect-id">
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <label class="form-label">Destinataire</label>
+                            <input type="email" id="email-to" class="form-control" placeholder="email@example.com">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Objet</label>
+                            <input type="text" id="email-subject" class="form-control" placeholder="Votre installation photovoltaïque">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Modèle</label>
+                            <select id="email-template" class="form-select" onchange="loadEmailTemplate()">
+                                <option value="">-- Choisir un modèle --</option>
+                                <option value="parking">Parking - Première approche</option>
+                                <option value="toiture">Toiture - Proposition</option>
+                                <option value="friche">Friche - Valorisation</option>
+                                <option value="rpg">Agrivoltaïsme - Introduction</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Message</label>
+                            <textarea id="email-body" class="form-control" rows="10" placeholder="Bonjour,&#10;&#10;"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="sendEmailNow()">
+                        <i class="bi bi-send"></i> Envoyer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Rendez-vous -->
+    <div class="modal fade" id="appointmentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-calendar"></i> Créer un Rendez-vous</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="rdv-prospect-id">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Date</label>
+                            <input type="date" id="rdv-date" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Heure</label>
+                            <input type="time" id="rdv-time" class="form-control">
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Type</label>
+                            <select id="rdv-type" class="form-select">
+                                <option value="visite">Visite site</option>
+                                <option value="visio">Visioconférence</option>
+                                <option value="tel">Appel téléphonique</option>
+                                <option value="bureau">Rendez-vous bureau</option>
+                            </select>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Notes</label>
+                            <textarea id="rdv-notes" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-primary" onclick="saveAppointment()">
+                        <i class="bi bi-save"></i> Créer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Proposition -->
+    <div class="modal fade" id="proposalModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-file-earmark-text"></i> Générer une Proposition Commerciale</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="proposal-prospect-id">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Puissance Installation (kWc)</label>
+                            <input type="number" id="proposal-puissance" class="form-control" value="100" step="10">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Prix par kWc (€)</label>
+                            <input type="number" id="proposal-prix-kwc" class="form-control" value="850" step="10">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Production Annuelle (kWh/kWc)</label>
+                            <input type="number" id="proposal-production" class="form-control" value="1100" step="50">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Tarif Rachat (€/kWh)</label>
+                            <input type="number" id="proposal-tarif" class="form-control" value="0.13" step="0.01">
+                        </div>
+                        <div class="col-md-12">
+                            <div class="alert alert-info" id="proposal-calculation">
+                                <strong>Calcul automatique:</strong>
+                                <div class="mt-2">
+                                    <div>💰 Investissement total: <span id="calc-investissement">-</span> €</div>
+                                    <div>⚡ Production annuelle: <span id="calc-production">-</span> kWh/an</div>
+                                    <div>💶 Revenus annuels: <span id="calc-revenus">-</span> €/an</div>
+                                    <div>📊 Rentabilité: <span id="calc-rentabilite">-</span>%</div>
+                                    <div>⏱️ Retour sur investissement: <span id="calc-roi">-</span> ans</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Notes complémentaires</label>
+                            <textarea id="proposal-notes" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-success" onclick="downloadProposal()">
+                        <i class="bi bi-download"></i> Télécharger PDF
+                    </button>
+                    <button type="button" class="btn btn-primary" onclick="saveProposal()">
+                        <i class="bi bi-save"></i> Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let allProspects = [];
+        let editModal, emailModal, appointmentModal, proposalModal;
+        let currentProspect = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            editModal = new bootstrap.Modal(document.getElementById('editModal'));
+            emailModal = new bootstrap.Modal(document.getElementById('emailModal'));
+            appointmentModal = new bootstrap.Modal(document.getElementById('appointmentModal'));
+            proposalModal = new bootstrap.Modal(document.getElementById('proposalModal'));
+            
+            // Event listeners pour les filtres
+            document.getElementById('searchBox').addEventListener('input', filterProspects);
+            document.getElementById('filterType').addEventListener('change', filterProspects);
+            document.getElementById('filterStatus').addEventListener('change', filterProspects);
+            document.getElementById('filterPriorite').addEventListener('change', filterProspects);
+            
+            loadProspects();
+        });
+
+        async function loadProspects() {
+            try {
+                const response = await fetch('/api/crm/prospects');
+                const data = await response.json();
+                
+                allProspects = data.prospects || [];
+                updateStats(data.stats);
+                displayProspects(allProspects);
+                
+            } catch (error) {
+                console.error('Erreur chargement prospects:', error);
+                showError('Erreur lors du chargement des prospects');
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('stat-total').textContent = stats.total || 0;
+            document.getElementById('stat-parkings').textContent = stats.parkings || 0;
+            document.getElementById('stat-toitures').textContent = stats.toitures || 0;
+            document.getElementById('stat-friches').textContent = stats.friches || 0;
+        }
+
+        function displayProspects(prospects) {
+            const loadingState = document.getElementById('loadingState');
+            const emptyState = document.getElementById('emptyState');
+            const prospectsList = document.getElementById('prospectsList');
+            
+            loadingState.style.display = 'none';
+            
+            if (!prospects || prospects.length === 0) {
+                emptyState.style.display = 'block';
+                prospectsList.style.display = 'none';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            prospectsList.style.display = 'block';
+            
+            const html = prospects.map(p => createProspectCard(p)).join('');
+            prospectsList.innerHTML = html;
+        }
+
+        function createProspectCard(prospect) {
+            const typeIcon = {
+                'parking': '🅿️',
+                'toiture': '🏠',
+                'friche': '🏚️',
+                'parcelle_rpg': '🌾'
+            };
+            
+            const typeBadge = {
+                'parking': 'badge-parking',
+                'toiture': 'badge-toiture',
+                'friche': 'badge-friche',
+                'parcelle_rpg': 'badge-rpg'
+            };
+            
+            const statusBadge = {
+                'nouveau': 'status-nouveau',
+                'contacte': 'status-contacte',
+                'qualifie': 'status-qualifie',
+                'perdu': 'status-perdu'
+            };
+            
+            const surface = prospect.surface_ha 
+                ? `${parseFloat(prospect.surface_ha).toFixed(2)} ha` 
+                : `${parseInt(prospect.surface_m2)} m²`;
+            
+            // Parser les parcelles cadastrales si c'est du JSON
+            let parcelles_cadastrales = [];
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    let parcelles_raw = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    
+                    // Si c'est un tableau d'objets, extraire reference_complete
+                    if (Array.isArray(parcelles_raw)) {
+                        parcelles_cadastrales = parcelles_raw.map(p => {
+                            if (typeof p === 'object' && p !== null) {
+                                return p.reference_complete || p.numero || p.section || 'N/A';
+                            }
+                            return String(p);
+                        }).filter(ref => ref && ref !== 'N/A');
+                    }
+                } catch (e) {
+                    console.error('Erreur parsing parcelles:', e);
+                    parcelles_cadastrales = [];
+                }
+            }
+            
+            // Fallback : récupérer les infos des postes depuis data_json si les colonnes ne sont pas remplies
+            let poste_bt_info = {
+                nom: prospect.poste_bt_nom,
+                puissance: prospect.poste_bt_puissance,
+                lat: prospect.poste_bt_lat,
+                lon: prospect.poste_bt_lon,
+                proprietaire: prospect.poste_bt_proprietaire
+            };
+            
+            let poste_hta_info = {
+                nom: prospect.poste_hta_nom,
+                puissance: prospect.poste_hta_puissance,
+                lat: prospect.poste_hta_lat,
+                lon: prospect.poste_hta_lon,
+                proprietaire: prospect.poste_hta_proprietaire
+            };
+            
+            // Si les colonnes ne sont pas remplies, essayer data_json
+            if (prospect.data_json && (!poste_bt_info.puissance || !poste_bt_info.lat)) {
+                try {
+                    const data = typeof prospect.data_json === 'string' 
+                        ? JSON.parse(prospect.data_json) 
+                        : prospect.data_json;
+                    
+                    if (data.poste_bt_info) {
+                        poste_bt_info = {
+                            nom: poste_bt_info.nom || data.poste_bt_info.nom,
+                            puissance: poste_bt_info.puissance || data.poste_bt_info.puissance,
+                            lat: poste_bt_info.lat || data.poste_bt_info.lat,
+                            lon: poste_bt_info.lon || data.poste_bt_info.lon,
+                            proprietaire: poste_bt_info.proprietaire || data.poste_bt_info.proprietaire
+                        };
+                    }
+                    
+                    if (data.poste_hta_info) {
+                        poste_hta_info = {
+                            nom: poste_hta_info.nom || data.poste_hta_info.nom,
+                            puissance: poste_hta_info.puissance || data.poste_hta_info.puissance,
+                            lat: poste_hta_info.lat || data.poste_hta_info.lat,
+                            lon: poste_hta_info.lon || data.poste_hta_info.lon,
+                            proprietaire: poste_hta_info.proprietaire || data.poste_hta_info.proprietaire
+                        };
+                    }
+                } catch (e) {
+                    console.error('Erreur parsing data_json:', e);
+                }
+            }
+            
+            return `
+                <div class="prospect-card" onclick="viewProspect(${prospect.id})">
+                    <div class="row align-items-start">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-3">
+                                <span class="badge ${typeBadge[prospect.type]} badge-type me-2">
+                                    ${typeIcon[prospect.type]} ${prospect.type.toUpperCase()}
+                                </span>
+                                <span class="badge ${statusBadge[prospect.statut]} badge-status">
+                                    ${prospect.statut}
+                                </span>
+                                ${prospect.priorite ? `<span class="badge bg-secondary badge-status ms-2">⭐ ${prospect.priorite}</span>` : ''}
+                            </div>
+                            
+                            <h5 class="mb-2">${prospect.nom_prospect || prospect.commune || 'Sans nom'}</h5>
+                            <div class="detail-row">
+                                <i class="bi bi-geo-alt text-primary"></i> ${prospect.adresse}
+                            </div>
+                            <div class="detail-row">
+                                <i class="bi bi-rulers text-success"></i> <span class="detail-label">Surface:</span> ${surface}
+                            </div>
+                            
+                            ${parcelles_cadastrales && parcelles_cadastrales.length > 0 ? `
+                            <div class="detail-row">
+                                <i class="bi bi-map text-info"></i> 
+                                <span class="detail-label">Parcelles cadastrales:</span> 
+                                ${parcelles_cadastrales.slice(0, 3).join(', ')}
+                                ${parcelles_cadastrales.length > 3 ? ` <small class="text-muted">(+${parcelles_cadastrales.length - 3} autres)</small>` : ''}
+                            </div>
+                            ` : ''}
+                            
+                            ${prospect.poste_bt_distance_m ? `
+                            <div class="detail-row">
+                                <i class="bi bi-lightning text-warning"></i> 
+                                <span class="detail-label">Poste BT:</span> ${poste_bt_info.nom || 'N/A'} 
+                                (${parseInt(prospect.poste_bt_distance_m)}m)
+                                ${poste_bt_info.puissance ? ` - ${poste_bt_info.puissance} kVA` : ''}
+                                ${poste_bt_info.proprietaire ? ` - ${poste_bt_info.proprietaire}` : ''}
+                                ${poste_bt_info.lat && poste_bt_info.lon ? `
+                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${poste_bt_info.lat},${poste_bt_info.lon}" 
+                                       target="_blank" class="ms-2" title="Street View du poste BT" onclick="event.stopPropagation();">
+                                        <i class="bi bi-eye-fill text-info"></i>
+                                    </a>
+                                ` : ''}
+                            </div>
+                            ` : ''}
+                            
+                            ${prospect.poste_hta_distance_m ? `
+                            <div class="detail-row">
+                                <i class="bi bi-lightning-charge text-danger"></i> 
+                                <span class="detail-label">Poste HTA:</span> ${poste_hta_info.nom || 'N/A'} 
+                                (${parseInt(prospect.poste_hta_distance_m)}m)
+                                ${poste_hta_info.puissance ? ` - ${poste_hta_info.puissance} kVA` : ''}
+                                ${poste_hta_info.proprietaire ? ` - ${poste_hta_info.proprietaire}` : ''}
+                                ${poste_hta_info.lat && poste_hta_info.lon ? `
+                                    <a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${poste_hta_info.lat},${poste_hta_info.lon}" 
+                                       target="_blank" class="ms-2" title="Street View du poste HTA" onclick="event.stopPropagation();">
+                                        <i class="bi bi-eye-fill text-info"></i>
+                                    </a>
+                                ` : ''}
+                            </div>
+                            ` : ''}
+                            
+                            ${prospect.notes ? `
+                            <div class="notes-section mt-3">
+                                <small class="text-muted"><i class="bi bi-sticky"></i> ${prospect.notes}</small>
+                            </div>
+                            ` : ''}
+                        </div>
+                        
+                        <div class="col-md-4 text-end">
+                            <button class="btn btn-primary action-btn" onclick="editProspect(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-pencil"></i> Éditer
+                            </button>
+                            ${prospect.lien_streetview ? `
+                            <a href="${prospect.lien_streetview}" target="_blank" 
+                               class="btn btn-info action-btn" onclick="event.stopPropagation();">
+                                <i class="bi bi-eye"></i> Street View
+                            </a>
+                            ` : ''}
+                            ${prospect.adresse ? `
+                            <a href="https://www.pagesjaunes.fr/carte/particuliers/recherche?quoiqui=&ou=${encodeURIComponent(prospect.adresse)}&univers=pagesblanches&idOu=" 
+                               target="_blank" 
+                               class="btn btn-success action-btn" 
+                               onclick="event.stopPropagation();"
+                               title="Rechercher un numéro de téléphone">
+                                <i class="bi bi-telephone-fill"></i> Pages Blanches
+                            </a>
+                            ` : ''}
+                            <button class="btn btn-warning action-btn" onclick="sendEmail(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-envelope"></i> Email
+                            </button>
+                            <button class="btn btn-info action-btn" onclick="createAppointment(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-calendar"></i> RDV
+                            </button>
+                            <button class="btn btn-secondary action-btn" onclick="generateProposal(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-file-earmark-text"></i> Proposition
+                            </button>
+                            <button class="btn btn-success action-btn" onclick="createProjectFromProspect(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-folder-plus"></i> Fiche Projet
+                            </button>
+                            <button class="btn btn-danger action-btn mt-2" onclick="deleteProspect(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-trash"></i> Supprimer
+                            </button>
+                            
+                            ${prospect.contact_nom || prospect.contact_tel ? `
+                            <div class="mt-3 pt-3 border-top">
+                                <small class="text-muted d-block">
+                                    ${prospect.contact_nom ? `<div><i class="bi bi-person"></i> ${prospect.contact_nom}</div>` : ''}
+                                    ${prospect.contact_tel ? `<div><i class="bi bi-telephone"></i> ${prospect.contact_tel}</div>` : ''}
+                                    ${prospect.contact_email ? `<div><i class="bi bi-envelope"></i> ${prospect.contact_email}</div>` : ''}
+                                </small>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function filterProspects() {
+            const searchText = document.getElementById('searchBox').value.toLowerCase();
+            const typeFilter = document.getElementById('filterType').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+            const prioriteFilter = document.getElementById('filterPriorite').value;
+            
+            const filtered = allProspects.filter(p => {
+                const matchSearch = !searchText || 
+                    p.commune.toLowerCase().includes(searchText) ||
+                    p.adresse.toLowerCase().includes(searchText) ||
+                    (p.notes && p.notes.toLowerCase().includes(searchText));
+                
+                const matchType = !typeFilter || p.type === typeFilter;
+                const matchStatus = !statusFilter || p.statut === statusFilter;
+                const matchPriorite = !prioriteFilter || p.priorite === prioriteFilter;
+                
+                return matchSearch && matchType && matchStatus && matchPriorite;
+            });
+            
+            displayProspects(filtered);
+        }
+
+        function editProspect(id) {
+            const prospect = allProspects.find(p => p.id === id);
+            if (!prospect) return;
+            
+            document.getElementById('edit-id').value = prospect.id;
+            document.getElementById('edit-nom-prospect').value = prospect.nom_prospect || '';
+            document.getElementById('edit-statut').value = prospect.statut || 'nouveau';
+            document.getElementById('edit-priorite').value = prospect.priorite || 'moyenne';
+            document.getElementById('edit-contact-nom').value = prospect.contact_nom || '';
+            document.getElementById('edit-contact-tel').value = prospect.contact_tel || '';
+            document.getElementById('edit-contact-email').value = prospect.contact_email || '';
+            document.getElementById('edit-dirigeant-nom').value = prospect.dirigeant_nom || '';
+            document.getElementById('edit-siret').value = prospect.siret || '';
+            document.getElementById('edit-dirigeant-email').value = prospect.dirigeant_email || '';
+            document.getElementById('edit-dirigeant-tel').value = prospect.dirigeant_tel || '';
+            document.getElementById('edit-notes').value = prospect.notes || '';
+            document.getElementById('edit-adresse').value = prospect.adresse || '';
+            
+            // Gérer le lien Société.com
+            const siret = prospect.siret || '';
+            const nomProspect = prospect.nom_prospect || prospect.contact_nom || '';
+            const lienSocieteCom = document.getElementById('lien-societe-com');
+            
+            if (siret) {
+                lienSocieteCom.href = `https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(siret)}`;
+                lienSocieteCom.style.display = 'block';
+            } else if (nomProspect) {
+                lienSocieteCom.href = `https://www.societe.com/cgi-bin/search?champs=${encodeURIComponent(nomProspect)}`;
+                lienSocieteCom.style.display = 'block';
+            } else {
+                lienSocieteCom.style.display = 'none';
+            }
+            
+            editModal.show();
+        }
+
+        async function saveProspect() {
+            const id = document.getElementById('edit-id').value;
+            const data = {
+                nom_prospect: document.getElementById('edit-nom-prospect').value,
+                statut: document.getElementById('edit-statut').value,
+                priorite: document.getElementById('edit-priorite').value,
+                contact_nom: document.getElementById('edit-contact-nom').value,
+                contact_tel: document.getElementById('edit-contact-tel').value,
+                contact_email: document.getElementById('edit-contact-email').value,
+                dirigeant_nom: document.getElementById('edit-dirigeant-nom').value,
+                siret: document.getElementById('edit-siret').value,
+                dirigeant_email: document.getElementById('edit-dirigeant-email').value,
+                dirigeant_tel: document.getElementById('edit-dirigeant-tel').value,
+                notes: document.getElementById('edit-notes').value
+            };
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${id}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    editModal.hide();
+                    await loadProspects();
+                    showSuccess('Prospect mis à jour avec succès');
+                } else {
+                    showError('Erreur lors de la mise à jour');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la mise à jour');
+            }
+        }
+
+        async function deleteProspect(id) {
+            if (!confirm('Voulez-vous vraiment supprimer ce prospect ?')) return;
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await loadProspects();
+                    showSuccess('Prospect supprimé');
+                } else {
+                    showError('Erreur lors de la suppression');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la suppression');
+            }
+        }
+
+        async function createProjectFromProspect(prospectId) {
+            const prospect = allProspects.find(p => p.id === prospectId);
+            if (!prospect) {
+                showError('Prospect introuvable');
+                return;
+            }
+            
+            // Proposer un nom de projet basé sur le nom du contact ou la commune
+            const nomClient = prospect.contact_nom || 'Client';
+            const nomProjet = prompt(`Nom du projet pour ${nomClient}:`, 
+                `Projet ${nomClient} - ${prospect.type}`);
+            
+            if (!nomProjet) return;
+            
+            // Parser les parcelles cadastrales
+            let parcelles_str = '';
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    const parcelles = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    parcelles_str = Array.isArray(parcelles) ? parcelles.join(', ') : '';
+                } catch (e) {
+                    parcelles_str = '';
+                }
+            }
+            
+            try {
+                const response = await fetch('/api/crm/projets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prospect_id: prospectId,
+                        nom_projet: nomProjet,
+                        type_projet: 'autoconsommation',
+                        client_nom: prospect.contact_nom || '',
+                        client_email: prospect.contact_email || '',
+                        client_telephone: prospect.contact_tel || '',
+                        client_adresse: prospect.adresse || '',
+                        adresse_projet: prospect.adresse || '',
+                        parcelles_cadastrales: parcelles_str,
+                        responsable: 'Système',
+                        notes: `Projet créé depuis le prospect #${prospectId}`
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('✅ Fiche projet créée! Redirection...');
+                    setTimeout(() => {
+                        window.open(`/crm/projets`, '_blank');
+                    }, 1000);
+                } else {
+                    showError('Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la création du projet');
+            }
+        }
+
+        function viewProspect(id) {
+            // Ouvrir une modale avec détails complets ou navigation
+            editProspect(id);
+        }
+
+        function refreshProspects() {
+            loadProspects();
+        }
+
+        function showSuccess(message) {
+            alert(message); // Peut être remplacé par un toast Bootstrap
+        }
+
+        function showError(message) {
+            alert(message); // Peut être remplacé par un toast Bootstrap
+        }
+
+        // === FONCTIONS EMAIL ===
+        function sendEmail(id) {
+            currentProspect = allProspects.find(p => p.id === id);
+            if (!currentProspect) return;
+            
+            document.getElementById('email-prospect-id').value = id;
+            document.getElementById('email-to').value = currentProspect.contact_email || '';
+            document.getElementById('email-subject').value = `Votre projet photovoltaïque à ${currentProspect.commune}`;
+            document.getElementById('email-body').value = '';
+            
+            emailModal.show();
+        }
+
+        function loadEmailTemplate() {
+            const template = document.getElementById('email-template').value;
+            if (!template || !currentProspect) return;
+            
+            const templates = {
+                parking: `Bonjour,
+
+Nous avons identifié votre parking situé à ${currentProspect.adresse} comme ayant un fort potentiel pour une installation photovoltaïque.
+
+Avec une surface de ${parseInt(currentProspect.surface_m2)} m², vous pourriez produire environ ${Math.round(currentProspect.surface_m2 * 0.15)} kWc.
+
+Cette installation vous permettrait:
+- De valoriser votre parking
+- De générer des revenus récurrents
+- De contribuer à la transition énergétique
+
+Seriez-vous disponible pour un échange téléphonique afin d'étudier ensemble ce projet?
+
+Cordialement,`,
+                toiture: `Bonjour,
+
+Votre toiture à ${currentProspect.adresse} présente des caractéristiques idéales pour une installation photovoltaïque.
+
+Surface identifiée: ${parseInt(currentProspect.surface_m2)} m²
+Potentiel estimé: ${Math.round(currentProspect.surface_m2 * 0.15)} kWc
+
+Nous proposons:
+- Une étude gratuite et sans engagement
+- Un accompagnement complet (étude, installation, maintenance)
+- Des solutions de financement adaptées
+
+Je reste à votre disposition pour vous présenter notre proposition.
+
+Cordialement,`,
+                friche: `Bonjour,
+
+Nous avons repéré votre friche située à ${currentProspect.adresse} (${parseFloat(currentProspect.surface_ha || currentProspect.surface_m2/10000).toFixed(2)} ha).
+
+Ce type de terrain est particulièrement adapté pour:
+- Une centrale photovoltaïque au sol
+- Un projet d'agrivoltaïsme
+- Une valorisation écologique et économique
+
+Nous accompagnons les propriétaires dans:
+- L'obtention des autorisations
+- Le montage financier
+- La gestion de l'installation
+
+Souhaitez-vous en savoir plus?
+
+Cordialement,`,
+                rpg: `Bonjour,
+
+Votre parcelle agricole à ${currentProspect.adresse} (${parseFloat(currentProspect.surface_ha).toFixed(2)} ha) pourrait accueillir un projet d'agrivoltaïsme.
+
+L'agrivoltaïsme permet:
+- De maintenir l'activité agricole
+- De générer un revenu complémentaire
+- De protéger les cultures (sécheresse, grêle)
+
+Solutions proposées:
+- Panneaux surélevés (élevage, cultures)
+- Tracking (cultures maraîchères)
+- Optimisation agronomique
+
+Êtes-vous intéressé par une étude de faisabilité gratuite?
+
+Cordialement,`
+            };
+            
+            document.getElementById('email-body').value = templates[template] || '';
+        }
+
+        async function sendEmailNow() {
+            const prospectId = document.getElementById('email-prospect-id').value;
+            const data = {
+                to: document.getElementById('email-to').value,
+                subject: document.getElementById('email-subject').value,
+                body: document.getElementById('email-body').value
+            };
+            
+            if (!data.to || !data.subject || !data.body) {
+                showError('Veuillez remplir tous les champs');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/send-email`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    emailModal.hide();
+                    showSuccess('Email envoyé avec succès');
+                    await loadProspects();
+                } else {
+                    showError('Erreur lors de l\'envoi de l\'email');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de l\'envoi de l\'email');
+            }
+        }
+
+        // === FONCTIONS RENDEZ-VOUS ===
+        function createAppointment(id) {
+            currentProspect = allProspects.find(p => p.id === id);
+            if (!currentProspect) return;
+            
+            document.getElementById('rdv-prospect-id').value = id;
+            document.getElementById('rdv-date').value = '';
+            document.getElementById('rdv-time').value = '10:00';
+            document.getElementById('rdv-type').value = 'visite';
+            document.getElementById('rdv-notes').value = '';
+            
+            appointmentModal.show();
+        }
+
+        async function saveAppointment() {
+            const prospectId = document.getElementById('rdv-prospect-id').value;
+            const data = {
+                date: document.getElementById('rdv-date').value,
+                time: document.getElementById('rdv-time').value,
+                type: document.getElementById('rdv-type').value,
+                notes: document.getElementById('rdv-notes').value
+            };
+            
+            if (!data.date || !data.time) {
+                showError('Veuillez remplir la date et l\'heure');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/appointment`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    appointmentModal.hide();
+                    showSuccess('Rendez-vous créé avec succès');
+                    await loadProspects();
+                } else {
+                    showError('Erreur lors de la création du rendez-vous');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la création du rendez-vous');
+            }
+        }
+
+        // === FONCTIONS PROPOSITION ===
+        function generateProposal(id) {
+            currentProspect = allProspects.find(p => p.id === id);
+            if (!currentProspect) return;
+            
+            document.getElementById('proposal-prospect-id').value = id;
+            
+            // Calcul automatique de la puissance basé sur la surface
+            const surface = currentProspect.surface_m2 || (currentProspect.surface_ha * 10000) || 0;
+            const puissanceEstimee = Math.round(surface * 0.15); // 150 Wc/m²
+            document.getElementById('proposal-puissance').value = puissanceEstimee;
+            
+            calculateProposal();
+            proposalModal.show();
+        }
+
+        function calculateProposal() {
+            const puissance = parseFloat(document.getElementById('proposal-puissance').value) || 0;
+            const prixKwc = parseFloat(document.getElementById('proposal-prix-kwc').value) || 0;
+            const production = parseFloat(document.getElementById('proposal-production').value) || 0;
+            const tarif = parseFloat(document.getElementById('proposal-tarif').value) || 0;
+            
+            const investissement = puissance * prixKwc;
+            const productionAnnuelle = puissance * production;
+            const revenusAnnuels = productionAnnuelle * tarif;
+            const rentabilite = (revenusAnnuels / investissement) * 100;
+            const roi = investissement / revenusAnnuels;
+            
+            document.getElementById('calc-investissement').textContent = investissement.toLocaleString('fr-FR');
+            document.getElementById('calc-production').textContent = productionAnnuelle.toLocaleString('fr-FR');
+            document.getElementById('calc-revenus').textContent = revenusAnnuels.toLocaleString('fr-FR', {minimumFractionDigits: 2});
+            document.getElementById('calc-rentabilite').textContent = rentabilite.toFixed(2);
+            document.getElementById('calc-roi').textContent = roi.toFixed(1);
+        }
+
+        // Recalculer automatiquement quand on change les valeurs
+        document.addEventListener('DOMContentLoaded', function() {
+            const proposalInputs = ['proposal-puissance', 'proposal-prix-kwc', 'proposal-production', 'proposal-tarif'];
+            proposalInputs.forEach(id => {
+                const elem = document.getElementById(id);
+                if (elem) elem.addEventListener('input', calculateProposal);
+            });
+        });
+
+        async function saveProposal() {
+            const prospectId = document.getElementById('proposal-prospect-id').value;
+            const data = {
+                puissance: parseFloat(document.getElementById('proposal-puissance').value),
+                prix_kwc: parseFloat(document.getElementById('proposal-prix-kwc').value),
+                production: parseFloat(document.getElementById('proposal-production').value),
+                tarif: parseFloat(document.getElementById('proposal-tarif').value),
+                notes: document.getElementById('proposal-notes').value,
+                investissement: parseFloat(document.getElementById('calc-investissement').textContent.replace(/\s/g, '')),
+                production_annuelle: parseFloat(document.getElementById('calc-production').textContent.replace(/\s/g, '')),
+                revenus_annuels: parseFloat(document.getElementById('calc-revenus').textContent.replace(/\s/g, '').replace(',', '.')),
+                rentabilite: parseFloat(document.getElementById('calc-rentabilite').textContent),
+                roi: parseFloat(document.getElementById('calc-roi').textContent)
+            };
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/proposal`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    proposalModal.hide();
+                    showSuccess('Proposition enregistrée avec succès');
+                    await loadProspects();
+                } else {
+                    showError('Erreur lors de l\'enregistrement de la proposition');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de l\'enregistrement de la proposition');
+            }
+        }
+
+        async function downloadProposal() {
+            const prospectId = document.getElementById('proposal-prospect-id').value;
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/proposal/pdf`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        puissance: parseFloat(document.getElementById('proposal-puissance').value),
+                        prix_kwc: parseFloat(document.getElementById('proposal-prix-kwc').value),
+                        production: parseFloat(document.getElementById('proposal-production').value),
+                        tarif: parseFloat(document.getElementById('proposal-tarif').value),
+                        notes: document.getElementById('proposal-notes').value
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Proposition_${currentProspect.commune}_${currentProspect.type}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    showSuccess('Proposition téléchargée avec succès');
+                } else {
+                    showError('Erreur lors de la génération du PDF');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la génération du PDF');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -141,13 +141,13 @@
     <div class="main-header">
         <div class="container-fluid">
             <div class="row align-items-center">
-                <div class="col-md-8">
+                <div class="col-md-6">
                     <h1 class="h3 mb-1">
                         <i class="bi bi-geo-alt-fill"></i> Rapport Géospatial Exhaustif
                     </h1>
                     <p class="mb-0 opacity-75">Analyse complète du point sélectionné - AgriWeb Professional v{{ report.version or '3.2.1' }}</p>
                 </div>
-                <div class="col-md-4 text-md-end">
+                <div class="col-md-3 text-center">
                     <div class="coordinates">
                         <strong>{{ "%.6f"|format(report.lat) }}, {{ "%.6f"|format(report.lon) }}</strong>
                     </div>
@@ -155,6 +155,17 @@
                     <div class="mt-1">
                         <small><i class="bi bi-clock"></i> {{ report.timestamp or 'N/A' }}</small>
                     </div>
+                </div>
+                <div class="col-md-3 text-end">
+                    <button id="updateProspectBtn" class="btn btn-success btn-lg me-2" onclick="updateProspectData()" style="display: none;">
+                        <i class="bi bi-save"></i> Mettre à jour prospect
+                    </button>
+                    <button id="exportToCrmBtn" class="btn btn-success btn-lg me-2" onclick="exportToCRM()">
+                        <i class="bi bi-plus-circle"></i> Exporter vers CRM
+                    </button>
+                    <a href="/crm" target="_blank" class="btn btn-primary btn-lg">
+                        <i class="bi bi-window"></i> Ouvrir CRM
+                    </a>
                 </div>
             </div>
         </div>
@@ -262,8 +273,9 @@
                 <div class="metric-card">
                     <div class="metric-value">{{ report.postes_bt|length if report.postes_bt else 0 }}</div>
                     <div class="text-muted">Postes BT</div>
-                    {% if report.postes_bt and report.postes_bt|selectattr('distance')|map(attribute='distance')|list %}
-                    <small class="text-success">{{ (report.postes_bt|selectattr('distance')|map(attribute='distance')|min)|round }}m</small>
+                    {% set distances_bt_list = report.postes_bt|selectattr('distance')|map(attribute='distance')|list if report.postes_bt else [] %}
+                    {% if distances_bt_list|length > 0 %}
+                    <small class="text-success">{{ (distances_bt_list|min)|round }}m</small>
                     {% else %}
                     <small class="text-warning">Aucun proche</small>
                     {% endif %}
@@ -275,8 +287,9 @@
                 <div class="metric-card">
                     <div class="metric-value">{{ report.postes_hta|length if report.postes_hta else 0 }}</div>
                     <div class="text-muted">Postes HTA</div>
-                    {% if report.postes_hta and report.postes_hta|selectattr('distance')|map(attribute='distance')|list %}
-                    <small class="text-success">{{ (report.postes_hta|selectattr('distance')|map(attribute='distance')|min)|round }}m</small>
+                    {% set distances_hta_list = report.postes_hta|selectattr('distance')|map(attribute='distance')|list if report.postes_hta else [] %}
+                    {% if distances_hta_list|length > 0 %}
+                    <small class="text-success">{{ (distances_hta_list|min)|round }}m</small>
                     {% else %}
                     <small class="text-warning">Aucun proche</small>
                     {% endif %}
@@ -888,7 +901,7 @@
                                 <div class="mt-3 p-2 bg-light rounded">
                                     <small><strong>Analyse :</strong> 
                                     {% set distances_bt = report.postes_bt|selectattr('distance')|map(attribute='distance')|list %}
-                                    {% if distances_bt %}
+                                    {% if distances_bt|length > 0 %}
                                         Distance minimale: {{ (distances_bt|min)|round }} m, 
                                         Distance moyenne: {{ ((distances_bt|sum) / (distances_bt|length))|round }} m
                                     {% endif %}
@@ -943,7 +956,7 @@
                                 <div class="mt-3 p-2 bg-light rounded">
                                     <small><strong>Analyse :</strong> 
                                     {% set distances_hta = report.postes_hta|selectattr('distance')|map(attribute='distance')|list %}
-                                    {% if distances_hta %}
+                                    {% if distances_hta|length > 0 %}
                                         Distance minimale: {{ (distances_hta|min)|round }} m, 
                                         Distance moyenne: {{ ((distances_hta|sum) / (distances_hta|length))|round }} m
                                     {% endif %}
@@ -1075,7 +1088,7 @@
                                 <div class="mt-3 p-2 bg-light rounded">
                                     <small><strong>Analyse :</strong> 
                                     {% set distances_hta_cap = report.hta|selectattr('distance')|map(attribute='distance')|list %}
-                                    {% if distances_hta_cap %}
+                                    {% if distances_hta_cap|length > 0 %}
                                         Distance minimale: {{ (distances_hta_cap|min)|round }} m, 
                                         Distance moyenne: {{ ((distances_hta_cap|sum) / (distances_hta_cap|length))|round }} m
                                     {% endif %}
@@ -1372,8 +1385,9 @@
                     <div class="card-body">
                         <h6><i class="bi bi-check2-square"></i> Recommandations :</h6>
                         <ul class="list-unstyled">
-                            {% if report.postes_bt and report.postes_bt|selectattr('distance')|map(attribute='distance')|min < 500 %}
-                            <li><i class="bi bi-check-circle text-success"></i> Raccordement BT favorable ({{ (report.postes_bt|selectattr('distance')|map(attribute='distance')|min)|round }}m)</li>
+                            {% set bt_distances = report.postes_bt|selectattr('distance')|map(attribute='distance')|list if report.postes_bt else [] %}
+                            {% if bt_distances|length > 0 and bt_distances|min < 500 %}
+                            <li><i class="bi bi-check-circle text-success"></i> Raccordement BT favorable ({{ (bt_distances|min)|round }}m)</li>
                             {% endif %}
                             {% if report.parcelle and report.parcelle.get('properties', {}).get('surface', 0)|float > 5 %}
                             <li><i class="bi bi-check-circle text-success"></i> Surface suffisante ({{ report.parcelle.get('properties', {}).get('surface', 0) }} ha)</li>
@@ -1440,7 +1454,8 @@
                         
                         <!-- Score global -->
                         {% set score = 0 %}
-                        {% if report.postes_bt and report.postes_bt|selectattr('distance')|map(attribute='distance')|min < 500 %}{% set score = score + 1 %}{% endif %}
+                        {% set bt_dist_score = report.postes_bt|selectattr('distance')|map(attribute='distance')|list if report.postes_bt else [] %}
+                        {% if bt_dist_score|length > 0 and bt_dist_score|min < 500 %}{% set score = score + 1 %}{% endif %}
                         {% if report.parcelle and report.parcelle.get('properties', {}).get('surface', 0)|float > 5 %}{% set score = score + 1 %}{% endif %}
                         
                         <div class="mt-3 p-2 rounded bg-light">
@@ -1545,6 +1560,190 @@
             }
         `;
         document.head.appendChild(style);
+
+        // ========== GESTION PROSPECT ID ET MISE À JOUR ==========
+        const urlParams = new URLSearchParams(window.location.search);
+        const prospectId = urlParams.get('prospect_id');
+        
+        if (prospectId) {
+            const updateBtn = document.getElementById('updateProspectBtn');
+            if (updateBtn) {
+                updateBtn.style.display = 'inline-block';
+            }
+        }
+        
+        async function exportToCRM() {
+            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\\n\\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
+                return;
+            }
+            
+            const btn = document.getElementById('exportToCrmBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Export en cours...';
+            
+            try {
+                // Préparer les données d'export
+                const exportData = {
+                    toitures: [],
+                    parkings: [],
+                    friches: [],
+                    rpg: []
+                };
+                
+                // Créer un objet prospect à partir des données du rapport
+                const prospectData = {
+                    lat: {{ report.lat }},
+                    lon: {{ report.lon }},
+                    commune: '{{ report.commune_name or "" }}',
+                    adresse: '{{ report.adresse or "" }}',
+                    {% if report.api_details and report.api_details.cadastre.success %}
+                    parcelles: ['{{ report.api_details.cadastre.details.section }}{{ report.api_details.cadastre.details.parcelle_numero }}'],
+                    surface_m2: {{ report.api_details.cadastre.details.contenance_m2 or 0 }},
+                    {% endif %}
+                    {% if report.poste_bt %}
+                    poste_bt_proche: {
+                        nom: '{{ report.poste_bt.nom or "" }}',
+                        id: '{{ report.poste_bt.nom or "" }}',
+                        distance_m: {{ report.poste_bt.distance_m or 0 }},
+                        lat: {{ report.poste_bt.lat or 0 }},
+                        lon: {{ report.poste_bt.lon or 0 }},
+                        puissance: {{ report.poste_bt.puissance or 0 }}
+                    },
+                    {% endif %}
+                    {% if report.poste_hta %}
+                    poste_hta_proche: {
+                        nom: '{{ report.poste_hta.nom or "" }}',
+                        id: '{{ report.poste_hta.nom or "" }}',
+                        distance_m: {{ report.poste_hta.distance_m or 0 }},
+                        lat: {{ report.poste_hta.lat or 0 }},
+                        lon: {{ report.poste_hta.lon or 0 }},
+                        puissance: {{ report.poste_hta.puissance or 0 }}
+                    },
+                    {% endif %}
+                    lien_streetview: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={{ report.lat }},{{ report.lon }}`,
+                    {% if report.api_details and report.api_details.cadastre.success and report.api_details.cadastre.details.proprietaires %}
+                    amenity: '{{ report.api_details.cadastre.details.proprietaires[0].denomination[:50] if report.api_details.cadastre.details.proprietaires else "" }}',
+                    {% endif %}
+                };
+                
+                // Déterminer le type de prospect (toiture par défaut pour rapport point)
+                exportData.toitures.push(prospectData);
+                
+                // Envoyer vers l'API d'export CRM
+                const response = await fetch('/api/crm/export', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(exportData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const message = `✅ Export réussi !\\n\\n` +
+                        `📊 ${result.total_exported} prospect(s) créé(s)\\n` +
+                        `📁 Détails: ${result.details.toitures} toiture(s)\\n\\n` +
+                        `Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
+                    
+                    if (confirm(message)) {
+                        window.open('/crm', '_blank');
+                    } else {
+                        // Proposer de recharger pour afficher le bouton "Mettre à jour"
+                        location.reload();
+                    }
+                } else {
+                    alert(`❌ Erreur lors de l'export :\\n${result.error}`);
+                }
+            } catch (error) {
+                console.error('Erreur export CRM:', error);
+                alert(`❌ Erreur de connexion :\\n${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        async function updateProspectData() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const prospectId = urlParams.get('prospect_id');
+            
+            if (!prospectId) {
+                alert('❌ Aucun prospect ID trouvé');
+                return;
+            }
+            
+            if (!confirm('📝 Voulez-vous mettre à jour les données de ce prospect avec les informations du rapport ?')) {
+                return;
+            }
+            
+            const btn = document.getElementById('updateProspectBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mise à jour...';
+            
+            try {
+                const updateData = {
+                    prospect_id: prospectId,
+                    lat: {{ report.lat }},
+                    lon: {{ report.lon }},
+                    commune: '{{ report.commune_name or "" }}',
+                    {% if report.api_details and report.api_details.cadastre.success %}
+                    parcelle_cadastrale: '{{ report.api_details.cadastre.details.section }}{{ report.api_details.cadastre.details.parcelle_numero }}',
+                    surface_parcelle: '{{ report.api_details.cadastre.details.contenance or "" }}',
+                    {% endif %}
+                    {% if report.poste_bt %}
+                    poste_bt_nom: '{{ report.poste_bt.nom or "" }}',
+                    poste_bt_distance: {{ report.poste_bt.distance_m or 0 }},
+                    poste_bt_lat: {{ report.poste_bt.lat or 0 }},
+                    poste_bt_lon: {{ report.poste_bt.lon or 0 }},
+                    {% endif %}
+                    {% if report.poste_hta %}
+                    poste_hta_nom: '{{ report.poste_hta.nom or "" }}',
+                    poste_hta_distance: {{ report.poste_hta.distance_m or 0 }},
+                    poste_hta_lat: {{ report.poste_hta.lat or 0 }},
+                    poste_hta_lon: {{ report.poste_hta.lon or 0 }},
+                    {% endif %}
+                    data_json: {{ report | tojson }}
+                };
+                
+                const response = await fetch(`/api/crm/prospects/${prospectId}/update-from-report`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Message de confirmation avec options
+                    let message = '✅ Prospect mis à jour avec succès !\\n\\nLes données du rapport ont été enregistrées dans le CRM.';
+                    
+                    if (result.project_id) {
+                        message += `\\n\\n📁 Le rapport a aussi été enregistré dans la fiche projet #${result.project_id}`;
+                    }
+                    
+                    message += '\\n\\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
+                    
+                    const goToCRM = confirm(message);
+                    
+                    if (goToCRM) {
+                        // Ouvrir le CRM avec l'ID du prospect pour le mettre en évidence
+                        window.open(`/crm?highlight=${prospectId}`, '_blank');
+                    }
+                } else {
+                    alert(`❌ Erreur lors de la mise à jour :\\n${result.error}`);
+                }
+            } catch (error) {
+                console.error('Erreur mise à jour prospect:', error);
+                alert(`❌ Erreur de connexion :\\n${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        window.exportToCRM = exportToCRM;
+        window.updateProspectData = updateProspectData;
     </script>
 </body>
 </html>

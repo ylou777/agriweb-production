@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendrier - AgriWeb CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
+    <style>
+        #calendar {
+            max-width: 1400px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .fc-event {
+            cursor: pointer;
+        }
+        .rdv-visite { background-color: #0d6efd; border-color: #0d6efd; }
+        .rdv-appel { background-color: #198754; border-color: #198754; }
+        .rdv-reunion { background-color: #dc3545; border-color: #dc3545; }
+        .rdv-signature { background-color: #ffc107; border-color: #ffc107; color: #000; }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-calendar-event"></i> AgriWeb CRM - Calendrier
+            </a>
+            <div>
+                <a href="/crm" class="btn btn-outline-light btn-sm me-2">
+                    <i class="bi bi-people"></i> Prospects
+                </a>
+                <a href="/crm/projets" class="btn btn-outline-light btn-sm me-2">
+                    <i class="bi bi-folder"></i> Projets
+                </a>
+                <a href="/crm/stats" class="btn btn-outline-light btn-sm">
+                    <i class="bi bi-graph-up"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h5 class="mb-0"><i class="bi bi-calendar3"></i> Mes Rendez-vous</h5>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <span class="badge rdv-visite me-2"><i class="bi bi-geo-alt"></i> Visite</span>
+                                <span class="badge rdv-appel me-2"><i class="bi bi-telephone"></i> Appel</span>
+                                <span class="badge rdv-reunion me-2"><i class="bi bi-people"></i> Réunion</span>
+                                <span class="badge rdv-signature"><i class="bi bi-pen"></i> Signature</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id='calendar'></div>
+    </div>
+
+    <!-- Modal Détails Rendez-vous -->
+    <div class="modal fade" id="rdvModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-calendar-event"></i> Détails du Rendez-vous</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="rdvDetails">
+                    <!-- Les détails seront insérés ici -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
+                    <a id="rdvProspectLink" href="#" class="btn btn-primary">
+                        <i class="bi bi-person"></i> Voir le prospect
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/locales/fr.global.min.js'></script>
+    
+    <script>
+        let calendar;
+        let rdvModal;
+        let allAppointments = [];
+
+        document.addEventListener('DOMContentLoaded', function() {
+            rdvModal = new bootstrap.Modal(document.getElementById('rdvModal'));
+            
+            const calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                locale: 'fr',
+                initialView: 'dayGridMonth',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
+                },
+                buttonText: {
+                    today: "Aujourd'hui",
+                    month: 'Mois',
+                    week: 'Semaine',
+                    day: 'Jour',
+                    list: 'Liste'
+                },
+                height: 'auto',
+                events: [],
+                eventClick: function(info) {
+                    showAppointmentDetails(info.event.extendedProps);
+                },
+                eventClassNames: function(arg) {
+                    const type = arg.event.extendedProps.type_rdv;
+                    return [`rdv-${type}`];
+                }
+            });
+
+            calendar.render();
+            loadAppointments();
+        });
+
+        async function loadAppointments() {
+            try {
+                const response = await fetch('/api/crm/appointments');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allAppointments = data.appointments;
+                    
+                    const events = data.appointments.map(apt => {
+                        const prospect = apt.nom_prospect || apt.contact_nom || apt.adresse || 'Prospect';
+                        const type = apt.type_rdv || 'visite';
+                        
+                        return {
+                            title: `${getTypeIcon(type)} ${prospect}`,
+                            start: apt.date_rdv,
+                            extendedProps: apt,
+                            className: `rdv-${type}`
+                        };
+                    });
+                    
+                    calendar.removeAllEvents();
+                    calendar.addEventSource(events);
+                    
+                    console.log(`✅ ${events.length} rendez-vous chargés`);
+                } else {
+                    console.error('Erreur chargement rendez-vous:', data.error);
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+            }
+        }
+
+        function getTypeIcon(type) {
+            const icons = {
+                'visite': '📍',
+                'appel': '📞',
+                'reunion': '👥',
+                'signature': '✍️'
+            };
+            return icons[type] || '📅';
+        }
+
+        function showAppointmentDetails(apt) {
+            const prospect = apt.nom_prospect || apt.contact_nom || apt.adresse || 'Prospect';
+            const type = apt.type_rdv || 'visite';
+            const typeLabel = {
+                'visite': 'Visite sur site',
+                'appel': 'Appel téléphonique',
+                'reunion': 'Réunion',
+                'signature': 'Signature contrat'
+            }[type] || type;
+            
+            const dateRdv = new Date(apt.date_rdv);
+            const dateFormatted = dateRdv.toLocaleDateString('fr-FR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            document.getElementById('rdvDetails').innerHTML = `
+                <div class="mb-3">
+                    <h6><i class="bi bi-person-circle"></i> Prospect</h6>
+                    <p class="mb-1"><strong>${prospect}</strong></p>
+                    <p class="text-muted small mb-0">
+                        ${apt.adresse || 'Adresse non renseignée'}
+                    </p>
+                    ${apt.adresse ? `
+                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(apt.adresse)}" 
+                       target="_blank" 
+                       class="btn btn-sm btn-primary mt-2">
+                        <i class="bi bi-geo-alt-fill"></i> Y aller (Google Maps)
+                    </a>
+                    ` : ''}
+                </div>
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-calendar-event"></i> Date et Heure</h6>
+                    <p class="mb-0">${dateFormatted}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-tag"></i> Type de Rendez-vous</h6>
+                    <span class="badge rdv-${type}">${getTypeIcon(type)} ${typeLabel}</span>
+                </div>
+                
+                ${apt.contact_nom ? `
+                <div class="mb-3">
+                    <h6><i class="bi bi-person"></i> Contact</h6>
+                    <p class="mb-1">${apt.contact_nom}</p>
+                    ${apt.contact_email ? `<p class="text-muted small mb-1"><i class="bi bi-envelope"></i> ${apt.contact_email}</p>` : ''}
+                    ${apt.contact_tel ? `<p class="text-muted small mb-0"><i class="bi bi-telephone"></i> ${apt.contact_tel}</p>` : ''}
+                </div>
+                ` : ''}
+                
+                ${apt.notes ? `
+                <div class="mb-3">
+                    <h6><i class="bi bi-sticky"></i> Notes</h6>
+                    <p class="mb-0">${apt.notes}</p>
+                </div>
+                ` : ''}
+                
+                <div class="mb-3">
+                    <h6><i class="bi bi-info-circle"></i> Statut</h6>
+                    <span class="badge ${apt.statut === 'termine' ? 'bg-success' : apt.statut === 'annule' ? 'bg-danger' : 'bg-warning'}">
+                        ${apt.statut === 'termine' ? 'Terminé' : apt.statut === 'annule' ? 'Annulé' : 'Prévu'}
+                    </span>
+                </div>
+            `;
+            
+            document.getElementById('rdvProspectLink').href = `/crm?prospect=${apt.prospect_id}`;
+            rdvModal.show();
+        }
+    </script>
+</body>
+</html>

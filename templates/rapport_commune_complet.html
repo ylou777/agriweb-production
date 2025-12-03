@@ -125,7 +125,21 @@
                 <div class="metric-card">
                     <div class="row">
                         <div class="col-md-8">
-                            <h1><i class="bi bi-geo-alt"></i> {{ rapport.commune_info.caracteristiques_generales.nom }}</h1>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h1><i class="bi bi-geo-alt"></i> {{ rapport.commune_info.caracteristiques_generales.nom }}</h1>
+                                <div class="btn-group">
+                                    <button id="exportCrmBtn" class="btn btn-success btn-lg" onclick="exportToCRM()" disabled>
+                                        <i class="bi bi-upload"></i> Exporter vers CRM
+                                        <span class="badge bg-light text-dark ms-2" id="exportCount" style="display: none;">0</span>
+                                    </button>
+                                    <a href="/crm" target="_blank" class="btn btn-primary btn-lg" title="Ouvrir l'interface CRM">
+                                        <i class="bi bi-window"></i> Ouvrir CRM
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="alert alert-info alert-sm py-2 mb-3" role="alert">
+                                <i class="bi bi-info-circle"></i> Sélectionnez des parkings, toitures ou friches dans les tableaux ci-dessous, puis cliquez sur "Exporter vers CRM" pour les ajouter à votre CRM.
+                            </div>
                             <p class="mb-2">
                                 <strong>Superficie:</strong> {{ "%.2f"|format(rapport.commune_info.superficie_total_ha) }} ha<br>
                                 <strong>Population:</strong> {{ rapport.commune_info.population or 'N/A' }} habitants<br>
@@ -254,11 +268,22 @@
                 <!-- Détail des parcelles RPG filtrées -->
                 {% if rapport.rpg_parcelles and rapport.rpg_parcelles.features %}
                 <div class="analysis-detail mt-4">
-                    <h5 class="mb-3">Parcelles agricoles filtrées ({{ rapport.rpg_parcelles.features | length }})</h5>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0">Parcelles agricoles filtrées ({{ rapport.rpg_parcelles.features | length }})</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAllOfType('rpg')">
+                                <i class="bi bi-check-square"></i> Tout sélectionner
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAllOfType('rpg')">
+                                <i class="bi bi-square"></i> Tout désélectionner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th><input type="checkbox" onclick="this.checked ? selectAllOfType('rpg') : deselectAllOfType('rpg')" title="Tout sélectionner/désélectionner"></th>
                                     <th>#</th>
                                     <th>Référence cadastrale</th>
                                     <th>Culture</th>
@@ -273,6 +298,12 @@
                                 {% for parcelle in rapport.rpg_parcelles.features %}
                                 {% set props = parcelle.properties %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" 
+                                               data-type="rpg" 
+                                               data-index="{{ loop.index }}"
+                                               onchange="toggleSelection('rpg', {{ loop.index }})">
+                                    </td>
                                     <td>{{ loop.index }}</td>
                                     <td>
                                         {% if props.section and props.numero %}
@@ -468,28 +499,50 @@
                     </div>
                 </div>
 
-                {% set park_details = parkings.get('details', []) %}
+                {% set park_details = rapport.get('parkings_analysis', {}).get('details', []) %}
                 {% if park_details and (park_details | length) > 0 %}
                 <div class="analysis-detail">
-                    <h6 class="mb-3">Détails des parkings ({{ park_details | length }})</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Détails des parkings ({{ park_details | length }})</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllOfType('parkings')">
+                                <i class="bi bi-check-square"></i> Tout sélectionner
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllOfType('parkings')">
+                                <i class="bi bi-square"></i> Tout désélectionner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th width="40" title="Sélectionner pour export CRM">
+                                        <i class="bi bi-check-square"></i>
+                                    </th>
                                     <th>#</th>
                                     <th>Surface (m²)</th>
+                                    <th>Adresse</th>
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Zoom</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for d in park_details %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               data-type="parkings" 
+                                               data-index="{{ loop.index }}"
+                                               onchange="toggleSelection('parkings', {{ loop.index }})">
+                                    </td>
                                     <td>{{ loop.index }}</td>
                                     <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td><small>{{ d.adresse or 'Non disponible' }}</small></td>
                                     <td>
                                         {% if d.parcelles %}
                                             <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
@@ -500,7 +553,14 @@
                                     <td>
                                         {% set bt = d.poste_bt_proche or {} %}
                                         {% if bt.distance_m %}
-                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -508,7 +568,15 @@
                                     <td>
                                         {% set hta = d.poste_hta_proche or {} %}
                                         {% if hta.distance_m %}
-                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -516,11 +584,25 @@
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
                                     <td>
                                         {% if d.lat and d.lon %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur ce parking"
-                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Parking')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" 
+                                                    title="Zoomer sur ce parking"
+                                                    onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Parking')">
+                                                <i class="bi bi-zoom-in"></i>
+                                            </button>
+                                            <a href="{{ d.lien_streetview }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-info" 
+                                               title="Street View">
+                                                <i class="bi bi-camera"></i>
+                                            </a>
+                                            <a href="{{ d.lien_annuaire }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-warning" 
+                                               title="Pages Jaunes">
+                                                <i class="bi bi-book"></i>
+                                            </a>
+                                        </div>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
@@ -586,7 +668,14 @@
                                     <td>
                                         {% set bt = d.poste_bt_proche or {} %}
                                         {% if bt.distance_m %}
-                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -594,7 +683,15 @@
                                     <td>
                                         {% set hta = d.poste_hta_proche or {} %}
                                         {% if hta.distance_m %}
-                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -665,13 +762,27 @@
                 {% set toit_details = rapport.get('toitures_analysis', {}).get('details', []) %}
                 {% if toit_details and (toit_details | length) > 0 %}
                 <div class="analysis-detail">
-                    <h6 class="mb-3">Détails des toitures ({{ toit_details | length }})</h6>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="mb-0">Détails des toitures ({{ toit_details | length }})</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAllOfType('toitures')">
+                                <i class="bi bi-check-square"></i> Tout sélectionner
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="deselectAllOfType('toitures')">
+                                <i class="bi bi-square"></i> Tout désélectionner
+                            </button>
+                        </div>
+                    </div>
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
+                                    <th width="40" title="Sélectionner pour export CRM">
+                                        <i class="bi bi-check-square"></i>
+                                    </th>
                                     <th>#</th>
                                     <th>Surface (m²)</th>
+                                    <th>Type d'activité</th>
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
@@ -682,8 +793,40 @@
                             <tbody>
                                 {% for d in toit_details %}
                                 <tr>
+                                    <td>
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               data-type="toitures" 
+                                               data-index="{{ loop.index }}"
+                                               onchange="toggleSelection('toitures', {{ loop.index }})">
+                                    </td>
                                     <td>{{ loop.index }}</td>
                                     <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td>
+                                        <small>
+                                            {% if d.amenity %}
+                                                <span class="badge bg-info osm-badge" data-osm="{{ d.amenity }}">{{ d.amenity }}</span><br>
+                                            {% endif %}
+                                            {% if d.shop %}
+                                                <span class="badge bg-success osm-badge" data-osm="{{ d.shop }}">🛒 {{ d.shop }}</span><br>
+                                            {% endif %}
+                                            {% if d.building and d.building not in ['yes', 'house'] %}
+                                                <span class="badge bg-secondary osm-badge" data-osm="{{ d.building }}">🏢 {{ d.building }}</span><br>
+                                            {% endif %}
+                                            {% if d.landuse %}
+                                                <span class="badge bg-warning text-dark osm-badge" data-osm="{{ d.landuse }}">{{ d.landuse }}</span><br>
+                                            {% endif %}
+                                            {% if d.office %}
+                                                <span class="badge bg-primary osm-badge" data-osm="{{ d.office }}">🏛️ {{ d.office }}</span><br>
+                                            {% endif %}
+                                            {% if d.industrial %}
+                                                <span class="badge bg-danger osm-badge" data-osm="{{ d.industrial }}">🏭 {{ d.industrial }}</span><br>
+                                            {% endif %}
+                                            {% if not (d.amenity or d.shop or d.building or d.landuse or d.office or d.industrial) %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </small>
+                                    </td>
                                     <td>
                                         {% if d.parcelles %}
                                             <ul class="mb-0">{%- for p in d.parcelles -%}<li>{{ p.reference_complete or (p.section ~ p.numero) }}</li>{%- endfor -%}</ul>
@@ -694,7 +837,14 @@
                                     <td>
                                         {% set bt = d.poste_bt_proche or {} %}
                                         {% if bt.distance_m %}
-                                            {{ bt.id or bt.nom or 'BT' }}<br><small>{{ '%.0f'|format(bt.distance_m) }} m<br>{{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}</small>
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -702,7 +852,15 @@
                                     <td>
                                         {% set hta = d.poste_hta_proche or {} %}
                                         {% if hta.distance_m %}
-                                            {{ hta.id or hta.nom or 'HTA' }}<br><small>{{ '%.0f'|format(hta.distance_m) }} m<br>{{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}</small>
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -710,11 +868,25 @@
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
                                     <td>
                                         {% if d.lat and d.lon %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur cette toiture"
-                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Toiture')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-primary" 
+                                                    title="Zoomer sur cette toiture"
+                                                    onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Toiture')">
+                                                <i class="bi bi-zoom-in"></i>
+                                            </button>
+                                            <a href="{{ d.lien_streetview }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-info" 
+                                               title="Street View">
+                                                <i class="bi bi-camera"></i>
+                                            </a>
+                                            <a href="{{ d.lien_annuaire }}" 
+                                               target="_blank" 
+                                               class="btn btn-outline-warning" 
+                                               title="Pages Jaunes">
+                                                <i class="bi bi-book"></i>
+                                            </a>
+                                        </div>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
@@ -871,12 +1043,280 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
+        // ========== TRADUCTION OSM ==========
+        const osmTranslations = {
+            // Amenity
+            'restaurant': 'Restaurant', 'cafe': 'Café', 'fast_food': 'Fast-food', 'bar': 'Bar', 'pub': 'Pub',
+            'school': 'École', 'university': 'Université', 'college': 'Collège', 'kindergarten': 'Jardin d\'enfants',
+            'hospital': 'Hôpital', 'clinic': 'Clinique', 'pharmacy': 'Pharmacie', 'doctors': 'Cabinet médical',
+            'bank': 'Banque', 'atm': 'Distributeur', 'post_office': 'Poste', 'library': 'Bibliothèque',
+            'town_hall': 'Mairie', 'community_centre': 'Centre communautaire', 'police': 'Police', 'fire_station': 'Caserne pompiers',
+            'parking': 'Parking', 'fuel': 'Station-service', 'charging_station': 'Borne de recharge',
+            'place_of_worship': 'Lieu de culte', 'theatre': 'Théâtre', 'cinema': 'Cinéma',
+            'marketplace': 'Marché', 'social_facility': 'Centre social', 'swimming_pool': 'Piscine',
+            
+            // Shop
+            'supermarket': 'Supermarché', 'convenience': 'Épicerie', 'bakery': 'Boulangerie', 'butcher': 'Boucherie',
+            'clothes': 'Magasin de vêtements', 'shoes': 'Magasin de chaussures', 'hairdresser': 'Coiffeur', 'beauty': 'Institut de beauté',
+            'hardware': 'Quincaillerie', 'furniture': 'Magasin de meubles', 'electronics': 'Électronique',
+            'car_repair': 'Garage automobile', 'bicycle': 'Vélos', 'florist': 'Fleuriste', 'garden_centre': 'Jardinerie',
+            'mall': 'Centre commercial', 'department_store': 'Grand magasin', 'kiosk': 'Kiosque',
+            
+            // Building
+            'commercial': 'Commercial', 'retail': 'Commerce', 'industrial': 'Industriel', 'warehouse': 'Entrepôt',
+            'office': 'Bureau', 'public': 'Public', 'civic': 'Civique', 'residential': 'Résidentiel',
+            'apartments': 'Appartements', 'hotel': 'Hôtel', 'dormitory': 'Dortoir', 'farm': 'Ferme',
+            'barn': 'Grange', 'greenhouse': 'Serre', 'hangar': 'Hangar', 'garage': 'Garage',
+            'supermarket': 'Supermarché', 'manufacture': 'Manufacture', 'factory': 'Usine',
+            
+            // Landuse
+            'commercial': 'Zone commerciale', 'industrial': 'Zone industrielle', 'retail': 'Zone de commerce',
+            'residential': 'Zone résidentielle', 'farmland': 'Terres agricoles', 'farmyard': 'Cour de ferme',
+            'construction': 'En construction', 'railway': 'Zone ferroviaire', 'military': 'Zone militaire',
+            
+            // Office
+            'company': 'Entreprise', 'government': 'Administration', 'lawyer': 'Cabinet d\'avocat', 'accountant': 'Comptable',
+            'estate_agent': 'Agence immobilière', 'insurance': 'Assurance', 'architect': 'Architecte',
+            'association': 'Association', 'ngo': 'ONG', 'educational_institution': 'Établissement scolaire',
+            
+            // Industrial
+            'factory': 'Usine', 'warehouse': 'Entrepôt', 'depot': 'Dépôt', 'manufacture': 'Manufacture',
+            'sawmill': 'Scierie', 'brewery': 'Brasserie', 'oil_mill': 'Huilerie'
+        };
+        
+        function translateOSM(value) {
+            if (!value) return value;
+            return osmTranslations[value] || value.replace(/_/g, ' ');
+        }
+        
+        // ========== SYSTÈME DE SÉLECTION ET EXPORT CRM ==========
+        let selectedItems = {
+            parkings: new Set(),
+            toitures: new Set(),
+            friches: new Set(),
+            rpg: new Set()
+        };
+        
+        function toggleSelection(type, index) {
+            console.log('toggleSelection called:', type, index);
+            const key = `${type}_${index}`;
+            if (selectedItems[type].has(index)) {
+                selectedItems[type].delete(index);
+                console.log('Removed from selection');
+            } else {
+                selectedItems[type].add(index);
+                console.log('Added to selection');
+            }
+            console.log('Current selections:', {
+                parkings: selectedItems.parkings.size,
+                toitures: selectedItems.toitures.size,
+                friches: selectedItems.friches.size,
+                rpg: selectedItems.rpg.size
+            });
+            updateExportButton();
+        }
+        
+        function selectAllOfType(type) {
+            console.log('selectAllOfType called for:', type);
+            const checkboxes = document.querySelectorAll(`input[data-type="${type}"]`);
+            console.log('Found', checkboxes.length, 'checkboxes');
+            checkboxes.forEach(cb => {
+                const index = parseInt(cb.dataset.index);
+                selectedItems[type].add(index);
+                cb.checked = true;
+            });
+            console.log('Selected all', type, '- total:', selectedItems[type].size);
+            updateExportButton();
+        }
+        
+        function deselectAllOfType(type) {
+            selectedItems[type].clear();
+            const checkboxes = document.querySelectorAll(`input[data-type="${type}"]`);
+            checkboxes.forEach(cb => cb.checked = false);
+            updateExportButton();
+        }
+        
+        function updateExportButton() {
+            const totalSelected = selectedItems.parkings.size + selectedItems.toitures.size + selectedItems.friches.size + selectedItems.rpg.size;
+            console.log('updateExportButton - totalSelected:', totalSelected);
+            const btn = document.getElementById('exportCrmBtn');
+            const badge = document.getElementById('exportCount');
+            
+            console.log('Button found:', !!btn, 'Badge found:', !!badge);
+            
+            if (btn) {
+                btn.disabled = totalSelected === 0;
+                console.log('Button disabled set to:', btn.disabled);
+                if (badge) {
+                    badge.textContent = totalSelected;
+                    badge.style.display = totalSelected > 0 ? 'inline' : 'none';
+                    console.log('Badge updated to:', totalSelected);
+                }
+            } else {
+                console.error('exportCrmBtn button not found!');
+            }
+        }
+        
+        async function exportToCRM() {
+            const totalSelected = selectedItems.parkings.size + selectedItems.toitures.size + selectedItems.friches.size + selectedItems.rpg.size;
+            
+            if (totalSelected === 0) {
+                alert('⚠️ Veuillez sélectionner au moins un élément à exporter');
+                return;
+            }
+            
+            if (!confirm(`📤 Exporter ${totalSelected} élément(s) vers le CRM ?\n\n` +
+                `- Parkings : ${selectedItems.parkings.size}\n` +
+                `- Toitures : ${selectedItems.toitures.size}\n` +
+                `- Friches : ${selectedItems.friches.size}\n` +
+                `- Parcelles RPG : ${selectedItems.rpg.size}`)) {
+                return;
+            }
+            
+            const btn = document.getElementById('exportCrmBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Export en cours...';
+            
+            try {
+                // Collecter les données à exporter
+                const exportData = {
+                    commune: '{{ rapport.commune_info.caracteristiques_generales.nom }}',
+                    departement: '{{ rapport.commune_info.caracteristiques_generales.departement }}',
+                    parkings: [],
+                    toitures: [],
+                    friches: [],
+                    rpg: []
+                };
+                
+                // Parkings
+                {% if rapport.get('parkings_analysis', {}).get('details') %}
+                const parkingsData = {{ rapport.get('parkings_analysis', {}).get('details', []) | tojson }};
+                selectedItems.parkings.forEach(index => {
+                    if (parkingsData[index - 1]) {
+                        const parking = parkingsData[index - 1];
+                        exportData.parkings.push({
+                            ...parking,
+                            type: 'parking',
+                            commune: exportData.commune,
+                            departement: exportData.departement,
+                            lat: parking.lat || parking.centroid_lat || parking.latitude || (parking.coords ? parking.coords[1] : null),
+                            lon: parking.lon || parking.centroid_lon || parking.longitude || (parking.coords ? parking.coords[0] : null)
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Toitures
+                {% if rapport.toitures_analysis.details %}
+                const toituresData = {{ rapport.toitures_analysis.details | tojson }};
+                selectedItems.toitures.forEach(index => {
+                    if (toituresData[index - 1]) {
+                        const toiture = toituresData[index - 1];
+                        exportData.toitures.push({
+                            ...toiture,
+                            type: 'toiture',
+                            commune: exportData.commune,
+                            departement: exportData.departement,
+                            lat: toiture.lat || toiture.centroid_lat || toiture.latitude || (toiture.coords ? toiture.coords[1] : null),
+                            lon: toiture.lon || toiture.centroid_lon || toiture.longitude || (toiture.coords ? toiture.coords[0] : null)
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Friches
+                {% if rapport.get('friches_analysis', {}).get('details') %}
+                const frichesData = {{ rapport.get('friches_analysis', {}).get('details', []) | tojson }};
+                selectedItems.friches.forEach(index => {
+                    if (frichesData[index - 1]) {
+                        const friche = frichesData[index - 1];
+                        exportData.friches.push({
+                            ...friche,
+                            type: 'friche',
+                            commune: exportData.commune,
+                            departement: exportData.departement,
+                            lat: friche.lat || friche.centroid_lat || friche.latitude || (friche.coords ? friche.coords[1] : null),
+                            lon: friche.lon || friche.centroid_lon || friche.longitude || (friche.coords ? friche.coords[0] : null)
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Parcelles RPG
+                {% if rapport.rpg_parcelles and rapport.rpg_parcelles.features %}
+                const rpgData = {{ rapport.rpg_parcelles.features | tojson }};
+                selectedItems.rpg.forEach(index => {
+                    if (rpgData[index - 1]) {
+                        const parcelle = rpgData[index - 1];
+                        const props = parcelle.properties || {};
+                        exportData.rpg.push({
+                            type: 'parcelle_rpg',
+                            commune: exportData.commune,
+                            departement: exportData.departement,
+                            adresse: props.nom_com || exportData.commune,
+                            parcelle_cadastrale: props.section && props.numero ? `${props.section}${props.numero}` : 'Non référencée',
+                            culture: props.Culture || 'Non définie',
+                            code_culture: props.code_culture || '',
+                            surface: props.surface || 0,
+                            latitude: props.coords ? props.coords[1] : null,
+                            longitude: props.coords ? props.coords[0] : null,
+                            distance_bt: props.distance_bt || null,
+                            distance_hta: props.distance_hta || null,
+                            data_json: JSON.stringify(props)
+                        });
+                    }
+                });
+                {% endif %}
+                
+                // Envoyer vers le backend
+                const response = await fetch('/api/crm/export', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(exportData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Export réussi !\n\n` +
+                        `${result.total_exported} élément(s) ajouté(s) au CRM\n\n` +
+                        `📊 Détails :\n` +
+                        `- Parkings : ${result.details.parkings}\n` +
+                        `- Toitures : ${result.details.toitures}\n` +
+                        `- Friches : ${result.details.friches}\n` +
+                        `- Parcelles RPG : ${result.details.rpg || 0}\n\n` +
+                        `🔗 Ouvrir le CRM pour voir les prospects`);
+                    
+                    // Réinitialiser les sélections
+                    selectedItems = { parkings: new Set(), toitures: new Set(), friches: new Set(), rpg: new Set() };
+                    document.querySelectorAll('input[type="checkbox"][data-type]').forEach(cb => cb.checked = false);
+                    updateExportButton();
+                    
+                    // Proposer d'ouvrir le CRM
+                    if (confirm('📋 Voulez-vous ouvrir le CRM pour gérer ces prospects ?')) {
+                        window.open('/crm', '_blank');
+                    }
+                } else {
+                    alert(`❌ Erreur lors de l'export :\n${result.error}`);
+                }
+            } catch (error) {
+                console.error('Erreur export CRM:', error);
+                alert(`❌ Erreur de connexion :\n${error.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
         // Fonction pour ouvrir la carte en plein écran
         function openMapFullscreen() {
             const iframe = document.querySelector('iframe.map-frame');
             if (iframe && iframe.src) {
-                // Ouvrir la carte dans un nouvel onglet
-                window.open(iframe.src, '_blank', 'width=1200,height=800');
+                // Ouvrir la carte dans un nouvel onglet en plein écran
+                window.open(iframe.src, '_blank', 'width=1400,height=900,toolbar=no,menubar=no,scrollbars=yes,resizable=yes');
             } else {
                 alert('Carte non disponible');
             }
@@ -906,16 +1346,6 @@
         // Fonction principale de zoom - solution alternative robuste SUPPRIMÉE
         // (remplacée par la fonction ci-dessus qui utilise notre interface corrigée)
         
-        // Fonction pour ouvrir la carte locale en plein écran avec tous les calques
-        function openMapFullscreen() {
-            // Rediriger vers notre interface principale corrigée
-            window.open('/app', '_blank', 'width=1200,height=800');
-        }
-                if (mapUrl.includes('?')) {
-            // Rediriger vers notre interface principale corrigée
-            window.open('/app', '_blank', 'width=1200,height=800');
-        }
-        
         // Feedback visuel pour confirmer le zoom
         function showZoomFeedback(name, type) {
             // Créer une notification temporaire
@@ -926,7 +1356,6 @@
                 <i class="bi bi-zoom-in"></i> 
                 Zoom sur: <strong>${name}</strong> 
                 <small>(${type})</small>`;
-            `;
             
             document.body.appendChild(notification);
             
@@ -969,6 +1398,16 @@
             });
             
             console.log('Boutons de zoom initialisés:', document.querySelectorAll('.zoom-btn').length, 'individuels,', document.querySelectorAll('.section-zoom-btn').length, 'sections');
+            
+            // Traduire tous les badges OSM
+            document.querySelectorAll('.osm-badge').forEach(badge => {
+                const osmValue = badge.getAttribute('data-osm');
+                if (osmValue) {
+                    const emoji = badge.textContent.match(/^[🛒🏢🏛️🏭]/);
+                    const translated = translateOSM(osmValue);
+                    badge.textContent = (emoji ? emoji[0] + ' ' : '') + translated;
+                }
+            });
         });
     </script>
 </body>

@@ -817,28 +817,33 @@ function displayAllLayers(data) {
 
     // ----------- Postes HTA ----------- (icône 2 éclairs orange)
     if (layerKey === "postes_hta") {
-      const leafletLayer = m.L.geoJSON(geojson, {
-        pointToLayer: function (feature, latlng) {
-          return m.L.marker(latlng, {
-            icon: m.L.divIcon({
-              html: `<span style="font-size:1.8em;color:orange;">&#9889;&#9889;</span>`,
-              className: 'hta-marker',
-              iconSize: [32, 32],
-              iconAnchor: [16, 32]
-            })
-          });
-        },
-        onEachFeature: function (feature, layer) {
-          let popup = "";
-          if (feature.properties) {
-            for (const [k, v] of Object.entries(feature.properties)) {
-              popup += `<b>${k}:</b> ${v}<br>`;
+      try {
+        const leafletLayer = m.L.geoJSON(geojson, {
+          pointToLayer: function (feature, latlng) {
+            return m.L.marker(latlng, {
+              icon: m.L.divIcon({
+                html: `<span style="font-size:1.8em;color:orange;">&#9889;&#9889;</span>`,
+                className: 'hta-marker',
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+              })
+            });
+          },
+          onEachFeature: function (feature, layer) {
+            let popup = "";
+            if (feature.properties) {
+              for (const [k, v] of Object.entries(feature.properties)) {
+                popup += `<b>${k}:</b> ${v}<br>`;
+              }
             }
+            if (popup) layer.bindPopup(popup);
           }
-          if (popup) layer.bindPopup(popup);
-        }
-      });
-      addOrMergeLayer(layerKey, label, leafletLayer);
+        });
+        addOrMergeLayer(layerKey, label, leafletLayer);
+      } catch (htaErr) {
+        console.error(`[displayAllLayers] Erreur création couche postes_hta:`, htaErr);
+        console.log('[displayAllLayers] GeoJSON postes_hta problématique:', JSON.stringify(geojson, null, 2));
+      }
       return;
     }
 
@@ -1095,134 +1100,181 @@ async function handleUnifiedSearch(e) {
   lastAddressSearchTime = now;
   isSearchInProgress = true;
   
-  // Obtenir les éléments de l'interface
-  const submitBtn = e.target.querySelector('button[type="submit"]');
+  // Obtenir les éléments de l'interface - CORRECTION: chercher spécifiquement le bouton du formulaire d'adresse
+  const addressForm = document.getElementById('unifiedSearchForm');
+  const submitBtn = addressForm ? addressForm.querySelector('button[type="submit"]') : null;
   const searchInput = document.getElementById("search_input");
   const logElement = createOrGetSearchLog();
   
-  // État initial
-  const originalBtnText = submitBtn ? submitBtn.textContent : 'Rechercher';
-  setSearchStatus('loading', submitBtn, 'Recherche en cours...');
-  logSearch('🔍 Initialisation de la recherche...');
+  console.log('[handleUnifiedSearch] Formulaire:', addressForm ? 'trouvé' : 'NON TROUVÉ');
+  console.log('[handleUnifiedSearch] Bouton submit:', submitBtn ? submitBtn.textContent : 'NON TROUVÉ');
   
-  switchMap("/static/map.html", async () => {
-    try {
-      const v = searchInput.value.trim();
-      if (!v) {
-        logSearch('❌ Erreur : Aucune adresse saisie', 'error');
-        alert("Saisissez une adresse (ex : Limoges) ou des coordonnées (ex : 45.85, 1.25)");
-        return;
-      }
-
-      logSearch(`📍 Analyse de l'entrée : "${v}"`);
-
-      function parseLatLonInput(val) {
-        try {
-          const obj = JSON.parse(val);
-          if (obj.type === "Point" && Array.isArray(obj.coordinates)) {
-            let [lon, lat] = obj.coordinates;
-            if (
-              typeof lat === "number" && typeof lon === "number" &&
-              Math.abs(lat) <= 90 && Math.abs(lon) <= 180
-            ) {
-              return { lat, lon };
-            }
-          }
-        } catch {}
-        const parts = val.split(",").map(x => parseFloat(x.trim()));
-        if (parts.length === 2 && parts.every(n => !isNaN(n))) {
-          let [a, b] = parts;
-          if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lon: b };
-          if (Math.abs(b) <= 90 && Math.abs(a) <= 180) return { lat: b, lon: a };
-        }
-        return null;
-      }
-
-      const coords = parseLatLonInput(v);
-      const ps = new URLSearchParams();
+  // État initial - BLOQUER LE BOUTON
+  const originalBtnText = submitBtn ? submitBtn.textContent : 'Rechercher';
+  
+  // Fonction pour débloquer le bouton (utilisée partout)
+  const unlockButton = () => {
+    console.log('🔓 Tentative de déblocage du bouton...', submitBtn);
+    if (submitBtn) {
+      // Débloquer complètement
+      submitBtn.disabled = false;
+      submitBtn.removeAttribute('disabled');
       
-      if (coords) {
-        logSearch(`📌 Coordonnées détectées : ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`);
-        ps.append("lat", coords.lat);
-        ps.append("lon", coords.lon);
-      } else {
-        logSearch(`🏠 Adresse détectée : géocodage en cours...`);
-        ps.append("address", v);
+      // Nettoyer toutes les classes problématiques
+      submitBtn.classList.remove('disabled');
+      submitBtn.classList.remove('btn-secondary');
+      
+      // Forcer la classe btn-primary
+      if (!submitBtn.classList.contains('btn-primary')) {
+        submitBtn.classList.add('btn-primary');
       }
       
-      ps.append("sirene_radius", document.getElementById("sirene_radius").value);
-      ps.append("ht_radius", (document.getElementById("ht_max_distance").value / 1000).toString());
-      ps.append("bt_radius", (document.getElementById("bt_max_distance").value / 1000).toString());
-
-      logSearch('🌐 Envoi de la requête au serveur...');
+      submitBtn.innerHTML = '<i class="bi bi-search"></i> Rechercher';
       
-      const res = await fetch("/search_by_address?" + ps.toString());
-      
-      if (!res.ok) {
-        logSearch(`❌ Erreur serveur : ${res.status}`, 'error');
-        alert("Erreur serveur : " + res.status);
-        return;
-      }
-      
-      logSearch('📦 Réception des données...');
-      const data = await res.json();
-      
-      if (data.error) {
-        logSearch(`❌ Erreur : ${data.error}`, 'error');
-        alert(data.error);
-        return;
-      }
-
-      // Analyser les données reçues
-      const stats = analyzeSearchResults(data);
-      logSearch(`✅ Données reçues : ${stats}`);
-      
-      // Mémorise le contexte pour rapport "point courant"
-      window.lastSearchData = data;
-      
-      // Recharge la carte générée dans l'iframe
-      if (data.carte_url) {
-        logSearch('🗺️ Chargement de la carte interactive...');
-        console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
-        const iframe = document.getElementById("mapFrame");
-        // Force le rechargement avec cache bust
-        iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
-        console.log("[DEBUG] URL finale iframe:", iframe.src);
-      }
-      
-      logSearch('🎨 Affichage des couches de données...');
-      displayAllLayers(data);
-      updateInfoPanel([data]);
-      
-      const m = getMapFrame();
-      if (data.lat && data.lon && m?.setView) {
-        let z = 14;
-        if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
-        if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
-        logSearch(`🎯 Centrage de la carte sur ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (zoom ${z})`);
-        m.setView(data.lat, data.lon, z);
-      }
-      
-      logSearch('🎉 Recherche terminée avec succès !', 'success');
-      
-    } catch (err) {
-      logSearch(`❌ Erreur de requête : ${err.message || err}`, 'error');
-      alert("Erreur de requête : " + (err.message || err));
-    } finally {
-      // Restaurer l'état du bouton
-      setSearchStatus('idle', submitBtn, originalBtnText);
-      
-      // Libérer le flag de recherche en cours
-      isSearchInProgress = false;
-      
-      // Effacer les logs après quelques secondes si succès
-      setTimeout(() => {
-        if (logElement && logElement.textContent.includes('succès')) {
-          clearSearchLog();
-        }
-      }, 5000);
+      console.log('✅ Bouton débloqué - État:', {
+        disabled: submitBtn.disabled,
+        hasDisabledAttr: submitBtn.hasAttribute('disabled'),
+        classes: submitBtn.className,
+        innerHTML: submitBtn.innerHTML
+      });
+    } else {
+      console.error('❌ Bouton introuvable pour déblocage');
     }
-  });
+    isSearchInProgress = false;
+  };
+  
+  try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.classList.add('disabled');
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Recherche en cours...';
+    }
+    setSearchStatus('loading', submitBtn, 'Recherche en cours...');
+    logSearch('🔍 Initialisation de la recherche...');
+    
+    const v = searchInput.value.trim();
+    if (!v) {
+      logSearch('❌ Erreur : Aucune adresse saisie', 'error');
+      alert("Saisissez une adresse (ex : Limoges) ou des coordonnées (ex : 45.85, 1.25)");
+      return;
+    }
+
+    logSearch(`📍 Analyse de l'entrée : "${v}"`);
+
+    function parseLatLonInput(val) {
+      try {
+        const obj = JSON.parse(val);
+        if (obj.type === "Point" && Array.isArray(obj.coordinates)) {
+          let [lon, lat] = obj.coordinates;
+          if (
+            typeof lat === "number" && typeof lon === "number" &&
+            Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+          ) {
+            return { lat, lon };
+          }
+        }
+      } catch {}
+      const parts = val.split(",").map(x => parseFloat(x.trim()));
+      if (parts.length === 2 && parts.every(n => !isNaN(n))) {
+        let [a, b] = parts;
+        if (Math.abs(a) <= 90 && Math.abs(b) <= 180) return { lat: a, lon: b };
+        if (Math.abs(b) <= 90 && Math.abs(a) <= 180) return { lat: b, lon: a };
+      }
+      return null;
+    }
+
+    const coords = parseLatLonInput(v);
+    const ps = new URLSearchParams();
+    
+    if (coords) {
+      logSearch(`📌 Coordonnées détectées : ${coords.lat.toFixed(6)}, ${coords.lon.toFixed(6)}`);
+      ps.append("lat", coords.lat);
+      ps.append("lon", coords.lon);
+    } else {
+      logSearch(`🏠 Adresse détectée : géocodage en cours...`);
+      ps.append("address", v);
+    }
+    
+    ps.append("sirene_radius", document.getElementById("sirene_radius").value);
+    ps.append("ht_radius", (document.getElementById("ht_max_distance").value / 1000).toString());
+    ps.append("bt_radius", (document.getElementById("bt_max_distance").value / 1000).toString());
+
+    logSearch('🌐 Envoi de la requête au serveur...');
+    
+    const res = await fetch("/search_by_address?" + ps.toString());
+    
+    if (!res.ok) {
+      logSearch(`❌ Erreur serveur : ${res.status}`, 'error');
+      alert("Erreur serveur : " + res.status);
+      return;
+    }
+    
+    logSearch('📦 Réception des données...');
+    const data = await res.json();
+    
+    if (data.error) {
+      logSearch(`❌ Erreur : ${data.error}`, 'error');
+      alert(data.error);
+      return;
+    }
+
+    // Analyser les données reçues
+    const stats = analyzeSearchResults(data);
+    logSearch(`✅ Données reçues : ${stats}`);
+    
+    // Mémorise le contexte pour rapport "point courant"
+    window.lastSearchData = data;
+    
+    // Recharge la carte générée dans l'iframe
+    if (data.carte_url) {
+      logSearch('🗺️ Chargement de la carte interactive...');
+      console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
+      const iframe = document.getElementById("mapFrame");
+      // Force le rechargement avec cache bust
+      iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+      console.log("[DEBUG] URL finale iframe:", iframe.src);
+    }
+    
+    logSearch('🎨 Affichage des couches de données...');
+    try {
+      displayAllLayers(data);
+    } catch (displayErr) {
+      console.error('[handleUnifiedSearch] Erreur displayAllLayers:', displayErr);
+      logSearch('⚠️ Certaines couches n\'ont pas pu être affichées', 'warning');
+    }
+    
+    try {
+      updateInfoPanel([data]);
+    } catch (infoPanelErr) {
+      console.error('[handleUnifiedSearch] Erreur updateInfoPanel:', infoPanelErr);
+    }
+    
+    const m = getMapFrame();
+    if (data.lat && data.lon && m?.setView) {
+      let z = 14;
+      if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
+      if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
+      logSearch(`🎯 Centrage de la carte sur ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (zoom ${z})`);
+      m.setView(data.lat, data.lon, z);
+    }
+    
+    logSearch('🎉 Recherche terminée avec succès !', 'success');
+    
+    // Effacer les logs après quelques secondes si succès
+    setTimeout(() => {
+      if (logElement && logElement.textContent.includes('succès')) {
+        clearSearchLog();
+      }
+    }, 5000);
+    
+  } catch (err) {
+    logSearch(`❌ Erreur de requête : ${err.message || err}`, 'error');
+    console.error('[handleUnifiedSearch] Erreur:', err);
+    alert("Erreur de requête : " + (err.message || err));
+  } finally {
+    // TOUJOURS débloquer le bouton, même en cas d'erreur
+    unlockButton();
+  }
 }
 
 // --------- RECHERCHE PAR COMMUNE ---------
@@ -1230,15 +1282,22 @@ let lastCommuneSearchTime = 0;
 let isCommuneSearchRunning = false; // Flag pour éviter les recherches simultanées
 
 async function handleCommuneSearch(e) {
+  console.log('🚀 [COMMUNE_SEARCH] Fonction handleCommuneSearch appelée', {
+    event: e?.type,
+    isCommuneSearchRunning,
+    timestamp: new Date().toISOString()
+  });
+  
   // PROTECTION 1: Empêcher le comportement par défaut du formulaire
   if (e) {
     e.preventDefault();
     e.stopPropagation();
+    console.log('✅ [COMMUNE_SEARCH] preventDefault et stopPropagation appelés');
   }
   
   // PROTECTION 2: Éviter les recherches simultanées
   if (isCommuneSearchRunning) {
-    console.log('🔄 [PROTECTION] Recherche commune déjà en cours, annulation');
+    console.warn('🔄 [PROTECTION] Recherche commune déjà en cours, annulation');
     return;
   }
   
@@ -1297,7 +1356,8 @@ async function handleCommuneSearch(e) {
     if (!commune) {
       setCommuneSearchLog('❗️ Veuillez saisir une commune.', 'red');
       cleanup();
-      return alert("Commune requise.");
+      alert("Commune requise.");
+      return;
     }
     
     setCommuneSearchLog('🔄 Envoi de la requête... Calculs en cours...', '#0a58ca');
@@ -1343,12 +1403,16 @@ async function handleCommuneSearch(e) {
       const res = await fetch("/search_by_commune?" + ps.toString());
       if (!res.ok) {
         setCommuneSearchLog('❌ Erreur serveur : ' + res.status, 'red');
-        return alert('Erreur serveur : ' + res.status);
+        cleanup();
+        alert('Erreur serveur : ' + res.status);
+        return;
       }
       const data = await res.json();
       if (data.error) {
         setCommuneSearchLog('❌ Erreur : ' + data.error, 'red');
-        return alert(data.error);
+        cleanup();
+        alert(data.error);
+        return;
       }
       // Charger la carte générée si disponible
       if (data.carte_url) {
@@ -1703,6 +1767,62 @@ function saveCurrentMap(filename="carte_utilisateur.html") {
     })
     .catch(err => alert("Erreur de sauvegarde : " + err));
 }
+
+// --------- ENVOI VERS KPI ---------
+async function sendToKPI(lat, lon, type, properties, buttonElement) {
+  console.log('📤 [KPI] Envoi vers KPI:', { lat, lon, type, properties });
+  
+  // Afficher un message de chargement
+  let originalContent = null;
+  if (buttonElement) {
+    originalContent = buttonElement.innerHTML;
+    buttonElement.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Envoi...';
+    buttonElement.disabled = true;
+  }
+  
+  try {
+    const response = await fetch('/api/send_to_kpi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lat: lat,
+        lon: lon,
+        type: type,
+        properties: properties
+      })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      alert(`✅ Dossier envoyé vers KPI !\n\n📋 ${result.summary}\n\n📊 Statistiques:\n- Postes BT: ${result.stats.postes_bt}\n- Postes HTA: ${result.stats.postes_hta}\n- Zones PLU: ${result.stats.zones_plu}\n- Risques: ${result.stats.risques}\n\nID KPI: ${result.kpi_id || 'N/A (KPI non disponible)'}\n💾 Backup: ${result.backup_file}`);
+      console.log('✅ [KPI] Envoi réussi:', result);
+    } else {
+      alert(`❌ Erreur d'envoi vers KPI:\n${result.error || 'Erreur inconnue'}`);
+      console.error('❌ [KPI] Erreur:', result);
+    }
+  } catch (error) {
+    alert(`❌ Erreur de connexion:\n${error.message}`);
+    console.error('❌ [KPI] Exception:', error);
+  } finally {
+    if (buttonElement && originalContent !== null) {
+      buttonElement.innerHTML = originalContent;
+      buttonElement.disabled = false;
+    }
+  }
+}
+
+// Fonction globale accessible depuis les popups Folium
+window.sendToKPI = sendToKPI;
+
+// Écouter les messages postMessage depuis les iframes Folium
+window.addEventListener('message', function(event) {
+  // Accepter les messages de n'importe quelle origine pour les popups Folium (data: URLs)
+  if (event.data && event.data.action === 'sendToKPI') {
+    console.log('📨 [KPI] Message reçu depuis popup:', event.data);
+    sendToKPI(event.data.lat, event.data.lon, event.data.type, event.data.properties, null);
+  }
+});
 
 // --------- SWITCH MAP ---------
 function switchMap(target = "/static/map.html", onReady) {

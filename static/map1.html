@@ -53,14 +53,11 @@
     const iconSolaire = L.icon({iconUrl:"data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx="16" cy="16" r="9" fill="#ffd700" stroke="#ffbe00" stroke-width="2"/><g><line x1="16" y1="2" x2="16" y2="8" stroke="#ffd700" stroke-width="2"/><line x1="16" y1="24" x2="16" y2="30" stroke="#ffd700" stroke-width="2"/><line x1="2" y1="16" x2="8" y2="16" stroke="#ffd700" stroke-width="2"/><line x1="24" y1="16" x2="30" y2="16" stroke="#ffd700" stroke-width="2"/></g></svg>`),iconSize:[26,26],iconAnchor:[13,26],popupAnchor:[0,-12]});
 
     // Init carte plein écran
-    var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([46.8, 2], 6);
+    var map = L.map('map', { zoomControl: true, attributionControl: true }).setView([46.8, 2], 8);
     var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "OSM" });
     var sat = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { attribution: "Esri Satellite" });
     sat.addTo(map);
-  var baseMaps = { "Satellite": sat, "OSM": osm };
-  // Conserver une référence au control de couches pour pouvoir le recréer avec des overlays
-  // window._layerControl = L.control.layers(baseMaps).addTo(map); // Désactivé pour éviter duplication avec le contrôle parent
-  window._layerControl = null; // Référence vide pour compatibilité
+    var baseMaps = { "Satellite": sat, "OSM": osm };
     window._layers = [];
 
     // Fix full size si l’iframe bouge
@@ -314,23 +311,11 @@
       if(s && s.color === "cyan") return "zaer";
       if(s && s.color === "darkred") return "sirene";
       if(s && s.color === "#800080") return "capacites_reseau";
-      if(s && s.color === "blue") return "hta_lignes_aerienne";
-      if(s && s.color === "gray") return "hta_lignes_souterraine";
       if(f.properties && (f.properties.nomUniteLe || f.properties.denomination)) return "eleveurs";
       if(f.properties && (f.properties.NOM || f.properties.nom || f.properties.Nom)) {
         let name = (f.properties.NOM || f.properties.nom || f.properties.Nom).toLowerCase();
         if (name.includes('hta')) return "postes_hta";
         if (name.includes('bt')) return "postes_bt";
-      }
-      // Détection pour les lignes HTA basée sur le type de géométrie et les propriétés
-      if(f.geometry && f.geometry.type === "LineString") {
-        if(f.properties && f.properties.type_ligne) {
-          if(f.properties.type_ligne.toLowerCase().includes('aerien')) return "hta_lignes_aerienne";
-          if(f.properties.type_ligne.toLowerCase().includes('souterrain')) return "hta_lignes_souterraine";
-        }
-        if(f.properties && f.properties.source && f.properties.source.toLowerCase().includes('enedis')) {
-          return "hta_lignes_aerienne"; // Par défaut aérienne si pas d'info type
-        }
       }
       return "";
     }
@@ -370,21 +355,12 @@
 
     // Overlays/LayerControl parent :
     window.setOverlaysControl = function(overlays, config) {
-      try {
-        // Nettoyer l'ancien contrôle s'il existe
-        if (window._layerControl) {
-          try { map.removeControl(window._layerControl); } catch {}
-        }
-
-        // Construire les overlays Leaflet à partir des FeatureCollections
-        const leafletOverlays = {};
-        Object.entries(overlays || {}).forEach(([label, obj]) => {
-          if (!obj) return;
-          const fc = (obj.type === 'FeatureCollection') ? obj.features : Array.isArray(obj.features) ? obj.features : null;
-          if (!fc || fc.length === 0) return;
-          const style = obj.style || {};
-          const layer = L.geoJSON(fc, {
-            style,
+      if(window._layerControl) { try { map.removeControl(window._layerControl); } catch{} }
+      const leafletOverlays = {};
+      Object.entries(overlays || {}).forEach(([label, obj]) => {
+        if(Array.isArray(obj.features)) {
+          leafletOverlays[label] = L.geoJSON(obj.features, {
+            style: obj.style || {},
             pointToLayer: function (f, latlng) {
               let typeLayer = (f.properties && f.properties._layer) ? f.properties._layer : "";
               if(typeLayer === "postes_bt") return L.marker(latlng, {icon: iconBt});
@@ -392,34 +368,20 @@
               if(typeLayer === "eleveurs") return L.marker(latlng, {icon: iconFeuille});
               if(typeLayer === "parkings") return L.marker(latlng, {icon: iconParking});
               if(typeLayer === "solaire") return L.marker(latlng, {icon: iconSolaire});
-              return L.circleMarker(latlng, { radius: 8, color: style.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
+              return L.circleMarker(latlng, { radius: 8, color: obj.style?.color || "#3388ff", fillColor: "#8cc0ff", fillOpacity: 0.65, weight: 2 });
             },
-            onEachFeature: function (feat, lyr) {
+            onEachFeature: function (feat, layer) {
               let typeLayer = (feat.properties && feat.properties._layer) ? feat.properties._layer : "";
-              lyr.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 360});
+              layer.bindPopup(makePopupContent(feat.properties, typeLayer, feat.geometry), {maxWidth: 360});
             }
           });
-          leafletOverlays[label] = layer;
-        });
-
-        // Créer et attacher le nouveau contrôle complet (fond + overlays)
-        // window._layerControl = L.control.layers(baseMaps, leafletOverlays, { position: 'topright' }); // Désactivé pour éviter duplication
-        // window._layerControl.addTo(map); // Désactivé pour éviter duplication
-        window._layerControl = null; // Référence vide pour compatibilité
-
-        // Afficher par défaut tous les overlays passés et maintenir le compteur
-        // Vider les anciennes références de couches dynamiques
-        try { window._layers.forEach(l => map.removeLayer(l)); } catch {}
-        window._layers = [];
-        Object.values(leafletOverlays).forEach(l => { l.addTo(map); window._layers.push(l); });
-        updateSummaryBar();
-      } catch (e) {
-        console.error('[map1] setOverlaysControl error:', e);
-      }
+        }
+      });
+    
     };
 
     window.setView = function(lat, lon, zoom) {
-      map.setView([lat, lon], zoom || 8);
+      map.setView([lat, lon], zoom || 10);
     };
     window._leaflet_ready = true;
   </script>

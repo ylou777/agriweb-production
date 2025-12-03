@@ -1,0 +1,979 @@
+{% extends "base_crm.html" %}
+
+{% block title %}Visite Technique - {{ prospect.nom }} {{ prospect.prenom }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .section-card {
+        border-left: 4px solid #0d6efd;
+        margin-bottom: 1.5rem;
+    }
+    .section-card.toiture { border-left-color: #fd7e14; }
+    .section-card.electrique { border-left-color: #ffc107; }
+    .section-card.environnement { border-left-color: #198754; }
+    .section-card.acces { border-left-color: #6f42c1; }
+    .section-card.masques { border-left-color: #dc3545; }
+    .section-card.photos { border-left-color: #20c997; }
+    .section-card.notes { border-left-color: #6c757d; }
+    
+    .section-header {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .form-label {
+        font-weight: 500;
+        color: #495057;
+    }
+    
+    .form-check-label {
+        cursor: pointer;
+    }
+    
+    .rating-group {
+        display: flex;
+        gap: 0.5rem;
+    }
+    
+    .rating-group .btn-check:checked + .btn {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .photo-preview {
+        width: 100px;
+        height: 100px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 2px solid #dee2e6;
+    }
+    
+    .photo-container {
+        position: relative;
+        display: inline-block;
+    }
+    
+    .photo-delete {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        font-size: 12px;
+        cursor: pointer;
+    }
+    
+    .masque-row {
+        background: #f8f9fa;
+        padding: 0.5rem;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .info-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    .btn-save-float {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    @media print {
+        .btn-save-float, .no-print { display: none !important; }
+        .section-card { break-inside: avoid; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- En-tête -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2><i class="bi bi-clipboard-check me-2"></i>Visite Technique</h2>
+            <p class="text-muted mb-0">
+                <i class="bi bi-person me-1"></i>{{ prospect.nom }} {{ prospect.prenom }}
+                <span class="mx-2">|</span>
+                <i class="bi bi-geo-alt me-1"></i>{{ prospect.adresse or 'Adresse non renseignée' }}
+            </p>
+        </div>
+        <div class="no-print">
+            <a href="{{ url_for('crm_prospect_detail', prospect_id=prospect.id) }}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left me-1"></i>Retour
+            </a>
+            <button onclick="window.print()" class="btn btn-outline-primary me-2">
+                <i class="bi bi-printer me-1"></i>Imprimer
+            </button>
+        </div>
+    </div>
+
+    <form id="formVisiteTechnique">
+        <input type="hidden" name="prospect_id" value="{{ prospect.id }}">
+        
+        <div class="row">
+            <!-- Colonne gauche -->
+            <div class="col-lg-6">
+                
+                <!-- INFORMATIONS GÉNÉRALES -->
+                <div class="card section-card">
+                    <div class="section-header">
+                        <i class="bi bi-info-circle"></i> Informations Générales
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Date de visite</label>
+                                <input type="date" class="form-control" name="date_visite" value="{{ today }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Technicien</label>
+                                <input type="text" class="form-control" name="technicien" placeholder="Nom du technicien">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Heure d'arrivée</label>
+                                <input type="time" class="form-control" name="heure_arrivee">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Heure de départ</label>
+                                <input type="time" class="form-control" name="heure_depart">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Personnes présentes</label>
+                                <input type="text" class="form-control" name="personnes_presentes" placeholder="Ex: M. Dupont, Mme Martin">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TOITURE -->
+                <div class="card section-card toiture">
+                    <div class="section-header">
+                        <i class="bi bi-house-door"></i> Caractéristiques de la Toiture
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Type de toiture</label>
+                                <select class="form-select" name="type_toiture">
+                                    <option value="">-- Sélectionner --</option>
+                                    <optgroup label="Toitures inclinées">
+                                        <option value="tuiles_canal">Tuiles canal</option>
+                                        <option value="tuiles_mecaniques">Tuiles mécaniques</option>
+                                        <option value="tuiles_plates">Tuiles plates</option>
+                                        <option value="ardoises">Ardoises naturelles</option>
+                                        <option value="ardoises_fibro">Ardoises fibrociment</option>
+                                        <option value="bac_acier">Bac acier / tôle ondulée</option>
+                                        <option value="zinc">Zinc</option>
+                                        <option value="shingle">Shingle (bardeaux bitumés)</option>
+                                        <option value="chaume">Chaume</option>
+                                    </optgroup>
+                                    <optgroup label="Toitures plates">
+                                        <option value="terrasse_etancheite">Terrasse étanchéité</option>
+                                        <option value="terrasse_gravillons">Terrasse gravillons</option>
+                                        <option value="terrasse_vegetalisee">Terrasse végétalisée</option>
+                                        <option value="beton">Béton</option>
+                                    </optgroup>
+                                    <optgroup label="Autres">
+                                        <option value="membrane_pvc">Membrane PVC</option>
+                                        <option value="membrane_epdm">Membrane EPDM</option>
+                                        <option value="polycarbonate">Polycarbonate</option>
+                                        <option value="autre">Autre (préciser)</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">État général</label>
+                                <select class="form-select" name="etat_toiture">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="excellent">Excellent (< 5 ans)</option>
+                                    <option value="bon">Bon (5-15 ans)</option>
+                                    <option value="moyen">Moyen (15-25 ans)</option>
+                                    <option value="mauvais">Mauvais (> 25 ans ou dégradé)</option>
+                                    <option value="refection_necessaire">Réfection nécessaire</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Inclinaison (°)</label>
+                                <input type="number" class="form-control" name="inclinaison" min="0" max="90" placeholder="Ex: 30">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Orientation principale</label>
+                                <select class="form-select" name="orientation">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="0">Nord (0°)</option>
+                                    <option value="45">Nord-Est (45°)</option>
+                                    <option value="90">Est (90°)</option>
+                                    <option value="135">Sud-Est (135°)</option>
+                                    <option value="180">Sud (180°)</option>
+                                    <option value="225">Sud-Ouest (225°)</option>
+                                    <option value="270">Ouest (270°)</option>
+                                    <option value="315">Nord-Ouest (315°)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Hauteur au faîtage (m)</label>
+                                <input type="number" class="form-control" name="hauteur_faitage" step="0.1" placeholder="Ex: 8.5">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Hauteur à l'égout (m)</label>
+                                <input type="number" class="form-control" name="hauteur_egout" step="0.1" placeholder="Ex: 4.5">
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Présence d'acrotère</label>
+                                <div class="row g-2">
+                                    <div class="col-auto">
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="acrotere" id="acrotere_non" value="non" checked>
+                                            <label class="form-check-label" for="acrotere_non">Non</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="acrotere" id="acrotere_oui" value="oui">
+                                            <label class="form-check-label" for="acrotere_oui">Oui</label>
+                                        </div>
+                                    </div>
+                                    <div class="col">
+                                        <input type="number" class="form-control form-control-sm" name="hauteur_acrotere" placeholder="Hauteur (cm)" style="max-width: 150px;">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Type de charpente</label>
+                                <select class="form-select" name="type_charpente">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="traditionnelle_bois">Traditionnelle bois</option>
+                                    <option value="fermettes">Fermettes industrielles</option>
+                                    <option value="metallique">Métallique</option>
+                                    <option value="beton">Béton</option>
+                                    <option value="mixte">Mixte</option>
+                                    <option value="autre">Autre</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Entraxe des pannes/chevrons (cm)</label>
+                                <input type="number" class="form-control" name="entraxe" placeholder="Ex: 60">
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Éléments sur toiture</label>
+                                <div class="row g-2">
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="cheminee" id="el_cheminee">
+                                            <label class="form-check-label" for="el_cheminee">Cheminée</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="velux" id="el_velux">
+                                            <label class="form-check-label" for="el_velux">Velux / Fenêtre de toit</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="antenne" id="el_antenne">
+                                            <label class="form-check-label" for="el_antenne">Antenne</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="paratonnerre" id="el_paratonnerre">
+                                            <label class="form-check-label" for="el_paratonnerre">Paratonnerre</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="vmc" id="el_vmc">
+                                            <label class="form-check-label" for="el_vmc">VMC / Sortie ventilation</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="clim" id="el_clim">
+                                            <label class="form-check-label" for="el_clim">Climatisation</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="solaire_thermique" id="el_solaire">
+                                            <label class="form-check-label" for="el_solaire">Solaire thermique</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="elements_toiture" value="ligne_vie" id="el_ligne_vie">
+                                            <label class="form-check-label" for="el_ligne_vie">Ligne de vie existante</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Observations toiture</label>
+                                <textarea class="form-control" name="observations_toiture" rows="2" placeholder="Mousse, tuiles cassées, infiltrations..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACCÈS ET SÉCURITÉ -->
+                <div class="card section-card acces">
+                    <div class="section-header">
+                        <i class="bi bi-ladder"></i> Accès et Sécurité
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Accès toiture</label>
+                                <select class="form-select" name="acces_toiture">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="trappe_interieure">Trappe intérieure</option>
+                                    <option value="echelle_exterieure">Échelle extérieure fixe</option>
+                                    <option value="nacelle">Nacelle nécessaire</option>
+                                    <option value="echafaudage">Échafaudage nécessaire</option>
+                                    <option value="velux">Par Velux</option>
+                                    <option value="autre">Autre</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Accès camion/livraison</label>
+                                <select class="form-select" name="acces_camion">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="facile">Facile (grande cour)</option>
+                                    <option value="moyen">Moyen (manœuvres possibles)</option>
+                                    <option value="difficile">Difficile (rue étroite)</option>
+                                    <option value="impossible">Impossible (portage manuel)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Zone de stockage matériel</label>
+                                <select class="form-select" name="zone_stockage">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="disponible">Disponible et sécurisée</option>
+                                    <option value="limitee">Limitée</option>
+                                    <option value="absente">Absente</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Présence d'amiante</label>
+                                <select class="form-select" name="amiante">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="non">Non</option>
+                                    <option value="possible">Possible (à vérifier)</option>
+                                    <option value="confirme">Confirmé</option>
+                                    <option value="diagnostic_necessaire">Diagnostic nécessaire</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Contraintes de sécurité</label>
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="contraintes_securite" value="ligne_ht" id="sec_ligne_ht">
+                                            <label class="form-check-label" for="sec_ligne_ht">Ligne HT à proximité</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="contraintes_securite" value="zone_abf" id="sec_abf">
+                                            <label class="form-check-label" for="sec_abf">Zone ABF (monuments)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="contraintes_securite" value="ppri" id="sec_ppri">
+                                            <label class="form-check-label" for="sec_ppri">Zone inondable (PPRI)</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="contraintes_securite" value="zone_protegee" id="sec_protegee">
+                                            <label class="form-check-label" for="sec_protegee">Zone naturelle protégée</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            
+            <!-- Colonne droite -->
+            <div class="col-lg-6">
+                
+                <!-- INSTALLATION ÉLECTRIQUE -->
+                <div class="card section-card electrique">
+                    <div class="section-header">
+                        <i class="bi bi-lightning-charge"></i> Installation Électrique
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Puissance souscrite (kVA)</label>
+                                <select class="form-select" name="puissance_souscrite">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="3">3 kVA</option>
+                                    <option value="6">6 kVA</option>
+                                    <option value="9">9 kVA</option>
+                                    <option value="12">12 kVA</option>
+                                    <option value="15">15 kVA</option>
+                                    <option value="18">18 kVA</option>
+                                    <option value="24">24 kVA</option>
+                                    <option value="30">30 kVA</option>
+                                    <option value="36">36 kVA</option>
+                                    <option value="sup36">Supérieur à 36 kVA</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Type de compteur</label>
+                                <select class="form-select" name="type_compteur">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="linky">Linky</option>
+                                    <option value="electronique">Électronique</option>
+                                    <option value="electromecanique">Électromécanique</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Type d'alimentation</label>
+                                <select class="form-select" name="type_alimentation">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="monophase">Monophasé</option>
+                                    <option value="triphase">Triphasé</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">PDL (Point de Livraison)</label>
+                                <input type="text" class="form-control" name="pdl" placeholder="14 chiffres">
+                            </div>
+                            
+                            <div class="col-12"><hr class="my-2"></div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">Distance compteur → TGBT (m)</label>
+                                <input type="number" class="form-control" name="distance_compteur_tgbt" step="0.1" placeholder="Ex: 5">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Distance TGBT → Onduleur (m)</label>
+                                <input type="number" class="form-control" name="distance_tgbt_onduleur" step="0.1" placeholder="Ex: 15">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Distance Onduleur → Panneaux (m)</label>
+                                <input type="number" class="form-control" name="distance_onduleur_panneaux" step="0.1" placeholder="Ex: 20">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Distance au poste source (m)</label>
+                                <input type="number" class="form-control" name="distance_poste_source" placeholder="Ex: 150">
+                                <small class="text-muted">Estimation si connue</small>
+                            </div>
+                            
+                            <div class="col-12"><hr class="my-2"></div>
+                            
+                            <div class="col-md-6">
+                                <label class="form-label">Emplacement TGBT</label>
+                                <input type="text" class="form-control" name="emplacement_tgbt" placeholder="Ex: Garage, Local technique">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">État du TGBT</label>
+                                <select class="form-select" name="etat_tgbt">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="conforme">Conforme</option>
+                                    <option value="mise_a_niveau">Mise à niveau nécessaire</option>
+                                    <option value="remplacement">Remplacement nécessaire</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Espace disponible dans TGBT</label>
+                                <select class="form-select" name="espace_tgbt">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="suffisant">Suffisant</option>
+                                    <option value="limite">Limité (extension possible)</option>
+                                    <option value="insuffisant">Insuffisant (coffret additionnel)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Mise à la terre</label>
+                                <select class="form-select" name="mise_terre">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="conforme">Conforme</option>
+                                    <option value="a_verifier">À vérifier</option>
+                                    <option value="a_creer">À créer</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Emplacement prévu onduleur</label>
+                                <input type="text" class="form-control" name="emplacement_onduleur" placeholder="Ex: Garage, Combles, Extérieur...">
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Cheminement câbles prévu</label>
+                                <textarea class="form-control" name="cheminement_cables" rows="2" placeholder="Décrivez le passage des câbles DC et AC..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MASQUES ET OMBRAGES -->
+                <div class="card section-card masques">
+                    <div class="section-header">
+                        <i class="bi bi-shadows"></i> Masques et Ombrages
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label">Présence de masques</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="presence_masques" name="presence_masques">
+                                    <label class="form-check-label" for="presence_masques">Oui, il y a des masques/ombrages</label>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12" id="details_masques" style="display: none;">
+                                <label class="form-label">Relevé des masques</label>
+                                <div id="masques_container">
+                                    <!-- Les masques seront ajoutés ici -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" onclick="ajouterMasque()">
+                                    <i class="bi bi-plus-circle me-1"></i>Ajouter un masque
+                                </button>
+                                
+                                <div class="mt-3">
+                                    <label class="form-label">Types de masques présents</label>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="types_masques" value="arbres" id="masque_arbres">
+                                                <label class="form-check-label" for="masque_arbres">Arbres</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="types_masques" value="batiment_voisin" id="masque_batiment">
+                                                <label class="form-check-label" for="masque_batiment">Bâtiment voisin</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="types_masques" value="cheminee" id="masque_cheminee">
+                                                <label class="form-check-label" for="masque_cheminee">Cheminée</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="types_masques" value="relief" id="masque_relief">
+                                                <label class="form-check-label" for="masque_relief">Relief (colline, montagne)</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="types_masques" value="pylone" id="masque_pylone">
+                                                <label class="form-check-label" for="masque_pylone">Pylône / poteau</label>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="types_masques" value="autre_toiture" id="masque_autre_toiture">
+                                                <label class="form-check-label" for="masque_autre_toiture">Autre partie de toiture</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Estimation impact ombrage</label>
+                                <select class="form-select" name="impact_ombrage">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="negligeable">Négligeable (< 5%)</option>
+                                    <option value="faible">Faible (5-10%)</option>
+                                    <option value="moyen">Moyen (10-20%)</option>
+                                    <option value="important">Important (20-30%)</option>
+                                    <option value="tres_important">Très important (> 30%)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="col-12">
+                                <label class="form-label">Observations masques</label>
+                                <textarea class="form-control" name="observations_masques" rows="2" placeholder="Précisions sur les masques, périodes d'ombrage..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ENVIRONNEMENT -->
+                <div class="card section-card environnement">
+                    <div class="section-header">
+                        <i class="bi bi-tree"></i> Environnement du site
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Type de bâtiment</label>
+                                <select class="form-select" name="type_batiment">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="maison_individuelle">Maison individuelle</option>
+                                    <option value="immeuble">Immeuble collectif</option>
+                                    <option value="batiment_agricole">Bâtiment agricole</option>
+                                    <option value="batiment_industriel">Bâtiment industriel</option>
+                                    <option value="batiment_commercial">Bâtiment commercial</option>
+                                    <option value="batiment_tertiaire">Bâtiment tertiaire</option>
+                                    <option value="autre">Autre</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Année de construction</label>
+                                <input type="number" class="form-control" name="annee_construction" min="1800" max="2025" placeholder="Ex: 1985">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Zone climatique</label>
+                                <select class="form-select" name="zone_climatique">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="H1a">H1a (Nord-Est)</option>
+                                    <option value="H1b">H1b (Île-de-France, Centre-Est)</option>
+                                    <option value="H1c">H1c (Est montagneux)</option>
+                                    <option value="H2a">H2a (Nord-Ouest)</option>
+                                    <option value="H2b">H2b (Ouest)</option>
+                                    <option value="H2c">H2c (Sud-Ouest)</option>
+                                    <option value="H2d">H2d (Centre)</option>
+                                    <option value="H3">H3 (Méditerranée)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Zone de vent</label>
+                                <select class="form-select" name="zone_vent">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="1">Zone 1 (faible)</option>
+                                    <option value="2">Zone 2 (modéré)</option>
+                                    <option value="3">Zone 3 (fort)</option>
+                                    <option value="4">Zone 4 (très fort)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Zone de neige</label>
+                                <select class="form-select" name="zone_neige">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="A1">A1</option>
+                                    <option value="A2">A2</option>
+                                    <option value="B1">B1</option>
+                                    <option value="B2">B2</option>
+                                    <option value="C1">C1</option>
+                                    <option value="C2">C2</option>
+                                    <option value="D">D</option>
+                                    <option value="E">E</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Altitude (m)</label>
+                                <input type="number" class="form-control" name="altitude" placeholder="Ex: 250">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+        
+        <!-- Section pleine largeur -->
+        <div class="row">
+            <div class="col-12">
+                
+                <!-- PHOTOS -->
+                <div class="card section-card photos">
+                    <div class="section-header">
+                        <i class="bi bi-camera"></i> Photos du site
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Toiture (vue générale)</label>
+                                <input type="file" class="form-control" name="photo_toiture" accept="image/*" multiple>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Compteur électrique</label>
+                                <input type="file" class="form-control" name="photo_compteur" accept="image/*">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">TGBT</label>
+                                <input type="file" class="form-control" name="photo_tgbt" accept="image/*">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Charpente / Combles</label>
+                                <input type="file" class="form-control" name="photo_charpente" accept="image/*">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Emplacement onduleur</label>
+                                <input type="file" class="form-control" name="photo_onduleur" accept="image/*">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Masques / Ombrages</label>
+                                <input type="file" class="form-control" name="photo_masques" accept="image/*" multiple>
+                            </div>
+                        </div>
+                        <div id="photos_preview" class="mt-3 d-flex flex-wrap gap-2">
+                            <!-- Prévisualisation des photos -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NOTES ET CONCLUSION -->
+                <div class="card section-card notes">
+                    <div class="section-header">
+                        <i class="bi bi-journal-text"></i> Notes et Conclusion
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Faisabilité technique</label>
+                                <select class="form-select" name="faisabilite">
+                                    <option value="">-- Sélectionner --</option>
+                                    <option value="favorable">✅ Favorable - Installation standard</option>
+                                    <option value="favorable_reserves">⚠️ Favorable avec réserves</option>
+                                    <option value="complexe">🔶 Complexe - Étude approfondie nécessaire</option>
+                                    <option value="defavorable">❌ Défavorable - Contraintes majeures</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Puissance recommandée (kWc)</label>
+                                <input type="number" class="form-control" name="puissance_recommandee" step="0.1" placeholder="Ex: 6.0">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Points d'attention / Réserves</label>
+                                <textarea class="form-control" name="points_attention" rows="3" placeholder="Listez les points de vigilance pour l'installation..."></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Travaux préalables nécessaires</label>
+                                <textarea class="form-control" name="travaux_prealables" rows="2" placeholder="Réfection toiture, mise aux normes électrique, élagage..."></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Notes complémentaires</label>
+                                <textarea class="form-control" name="notes_complementaires" rows="3" placeholder="Toute information utile non couverte ci-dessus..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Signature -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <label class="form-label">Signature client</label>
+                        <canvas id="signature_canvas" width="400" height="150" style="border: 1px solid #dee2e6; border-radius: 4px; background: white;"></canvas>
+                        <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="clearSignature()">
+                            <i class="bi bi-eraser me-1"></i>Effacer
+                        </button>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="accord_client" id="accord_client">
+                            <label class="form-check-label" for="accord_client">
+                                Le client confirme les informations recueillies lors de cette visite
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </form>
+
+    <!-- Bouton flottant de sauvegarde -->
+    <button type="button" class="btn btn-primary btn-lg btn-save-float no-print" onclick="sauvegarderVisite()">
+        <i class="bi bi-save me-2"></i>Sauvegarder
+    </button>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gestion des masques
+    document.getElementById('presence_masques').addEventListener('change', function() {
+        document.getElementById('details_masques').style.display = this.checked ? 'block' : 'none';
+    });
+
+    let masqueCount = 0;
+    function ajouterMasque() {
+        masqueCount++;
+        const container = document.getElementById('masques_container');
+        const div = document.createElement('div');
+        div.className = 'masque-row';
+        div.id = `masque_${masqueCount}`;
+        div.innerHTML = `
+            <div class="row g-2 align-items-center">
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm" name="masque_${masqueCount}_azimut" placeholder="Azimut (°)">
+                </div>
+                <div class="col-md-2">
+                    <input type="text" class="form-control form-control-sm" name="masque_${masqueCount}_hauteur" placeholder="Hauteur (°)">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm" name="masque_${masqueCount}_type">
+                        <option value="">Type</option>
+                        <option value="arbre">Arbre</option>
+                        <option value="batiment">Bâtiment</option>
+                        <option value="cheminee">Cheminée</option>
+                        <option value="relief">Relief</option>
+                        <option value="autre">Autre</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control form-control-sm" name="masque_${masqueCount}_description" placeholder="Description">
+                </div>
+                <div class="col-md-1">
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="supprimerMasque(${masqueCount})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        container.appendChild(div);
+    }
+
+    function supprimerMasque(id) {
+        document.getElementById(`masque_${id}`).remove();
+    }
+
+    // Signature
+    const canvas = document.getElementById('signature_canvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    // Touch events
+    canvas.addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        startDrawing({offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top});
+    });
+    canvas.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        draw({offsetX: touch.clientX - rect.left, offsetY: touch.clientY - rect.top});
+    });
+    canvas.addEventListener('touchend', stopDrawing);
+
+    function startDrawing(e) {
+        isDrawing = true;
+        ctx.beginPath();
+        ctx.moveTo(e.offsetX, e.offsetY);
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.stroke();
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+    }
+
+    function clearSignature() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Photos preview
+    document.querySelectorAll('input[type="file"]').forEach(input => {
+        input.addEventListener('change', function() {
+            // Prévisualisation simple
+        });
+    });
+
+    // Sauvegarde
+    async function sauvegarderVisite() {
+        const form = document.getElementById('formVisiteTechnique');
+        const formData = new FormData(form);
+        
+        // Convertir en objet JSON
+        const data = {};
+        formData.forEach((value, key) => {
+            if (data[key]) {
+                if (Array.isArray(data[key])) {
+                    data[key].push(value);
+                } else {
+                    data[key] = [data[key], value];
+                }
+            } else {
+                data[key] = value;
+            }
+        });
+
+        // Ajouter la signature
+        data.signature = canvas.toDataURL();
+        data.date_sauvegarde = new Date().toISOString();
+
+        try {
+            const response = await fetch(`/api/crm/prospects/{{ prospect.id }}/visite-technique`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                alert('✅ Visite technique sauvegardée avec succès !');
+            } else {
+                alert('❌ Erreur: ' + (result.error || 'Erreur inconnue'));
+            }
+        } catch (error) {
+            console.error('Erreur:', error);
+            alert('❌ Erreur de connexion');
+        }
+    }
+
+    // Charger les données existantes si présentes
+    {% if visite_data %}
+    (function() {
+        const data = {{ visite_data | tojson | safe }};
+        Object.keys(data).forEach(key => {
+            const input = document.querySelector(`[name="${key}"]`);
+            if (input) {
+                if (input.type === 'checkbox') {
+                    input.checked = data[key];
+                } else if (input.type === 'radio') {
+                    const radio = document.querySelector(`[name="${key}"][value="${data[key]}"]`);
+                    if (radio) radio.checked = true;
+                } else {
+                    input.value = data[key];
+                }
+            }
+        });
+        
+        // Afficher les masques si présents
+        if (data.presence_masques) {
+            document.getElementById('presence_masques').checked = true;
+            document.getElementById('details_masques').style.display = 'block';
+        }
+    })();
+    {% endif %}
+</script>
+{% endblock %}

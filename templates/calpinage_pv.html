@@ -1,0 +1,2388 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calpinage Photovoltaïque - {{ prospect.nom_prospect }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        #map { 
+            height: 600px; 
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        /* Styles pour les outils de mesure */
+        .measure-tooltip {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .measure-result {
+            background: #28a745;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .drawing-tools {
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+        .drawing-tools .btn {
+            margin: 2px;
+        }
+        .drawing-tools .btn.active {
+            background-color: #0d6efd !important;
+            color: white !important;
+        }
+        .measurements-panel {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .measurement-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .measurement-item:last-child {
+            border-bottom: none;
+        }
+        /* Styles pour le mode plein écran */
+        .map-container {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .map-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 9999;
+            background: white;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .map-container.fullscreen #map {
+            height: calc(100vh - 80px) !important;
+            border-radius: 0;
+        }
+        .map-container.fullscreen .drawing-toolbar {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            z-index: 10000;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        .fullscreen-header {
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 10px;
+        }
+        .map-container.fullscreen .fullscreen-header {
+            display: flex;
+        }
+        #toggleFullscreen.active {
+            background-color: #dc3545 !important;
+            border-color: #dc3545 !important;
+            color: white !important;
+        }
+        .module-selector {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .zone-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .zone-card.selected {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25);
+        }
+        .zone-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .zone-title {
+            font-weight: bold;
+            color: #0d6efd;
+            font-size: 1.1em;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stats-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        .stats-label {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        .orientation-compass {
+            width: 100px;
+            height: 100px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            position: relative;
+            margin: 10px auto;
+        }
+        .compass-arrow {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 40px solid #dc3545;
+            transform-origin: 50% 95%;
+        }
+        .module-preview {
+            border: 2px dashed #0d6efd;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            background: #e7f1ff;
+        }
+        .rotation-handle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #0d6efd;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: grab;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            z-index: 1000;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        .rotation-handle:active {
+            cursor: grabbing;
+            background: #0a58ca;
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1>🔆 Calpinage Photovoltaïque</h1>
+                <p class="text-muted">{{ prospect.nom_prospect }} - {{ prospect.adresse }}</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Colonne gauche : Carte -->
+            <div class="col-lg-8">
+                <!-- Sélection du module -->
+                <div class="module-selector">
+                    <h5>📐 Module Photovoltaïque</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Type de module</label>
+                            <select class="form-select" id="moduleType">
+                                <option value="custom">Personnalisé</option>
+                                <option value="standard450" selected>Standard 450W (2108×1048mm)</option>
+                                <option value="standard500">Standard 500W (2172×1096mm)</option>
+                                <option value="standard550">Standard 550W (2278×1134mm)</option>
+                                <option value="bifacial600">Bifacial 600W (2384×1303mm)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Longueur (mm)</label>
+                            <input type="number" class="form-control" id="moduleLongueur" value="2108">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Largeur (mm)</label>
+                            <input type="number" class="form-control" id="moduleLargeur" value="1048">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Puissance (Wc)</label>
+                            <input type="number" class="form-control" id="modulePuissance" value="450">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Espacement (cm)</label>
+                            <input type="number" class="form-control" id="moduleEspacement" value="5" min="0" max="50">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Orientation module</label>
+                            <select class="form-select" id="moduleOrientation" onchange="updateAllZones()">
+                                <option value="paysage" selected>Paysage (horizontal)</option>
+                                <option value="portrait">Portrait (vertical)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="module-preview mt-3">
+                        <small id="modulePreview">Module: 2108×1048mm - 450Wc - Surface: 2.21 m²</small>
+                    </div>
+                </div>
+
+                <!-- Carte interactive -->
+                <div class="card" id="mapCard">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <strong>🗺️ Carte de calpinage</strong>
+                        <div>
+                            <button class="btn btn-sm btn-info me-1" id="toggleFullscreen" title="Plein écran">
+                                🔲 Plein écran
+                            </button>
+                            <button class="btn btn-sm btn-warning me-1" id="clearMeasurements" title="Effacer les mesures">
+                                📏 Effacer mesures
+                            </button>
+                            <button class="btn btn-sm btn-light" id="clearAllZones">Effacer tout</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Barre d'outils de dessin -->
+                    <div class="card-body py-2 bg-light border-bottom">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <span class="text-muted small me-2"><strong>🛠️ Outils:</strong></span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-primary" id="toolRectangle" title="Zone PV (rectangle)">
+                                    ▢ Zone PV
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolMeasure" title="Mesurer une distance">
+                                    📏 Mesure
+                                </button>
+                            </div>
+                            <div class="btn-group btn-group-sm me-2" role="group">
+                                <button type="button" class="btn btn-outline-success" id="toolEdit" title="Modifier les zones PV">
+                                    ✏️ Modifier
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" id="toolDelete" title="Supprimer des zones">
+                                    🗑️ Supprimer
+                                </button>
+                            </div>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary" id="toolPolyline" title="Dessiner une ligne">
+                                    — Ligne
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolPolygon" title="Dessiner un polygone">
+                                    ⬡ Polygone
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolCircle" title="Dessiner un cercle">
+                                    ○ Cercle
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" id="toolMarker" title="Placer un repère">
+                                    📍 Repère
+                                </button>
+                            </div>
+                            <div class="vr mx-2"></div>
+                            <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body p-0">
+                        <div id="map"></div>
+                    </div>
+                    
+                    <!-- Panneau des mesures -->
+                    <div class="card-footer" id="measurementsPanel" style="display: none;">
+                        <strong>📏 Mesures:</strong>
+                        <div class="measurements-panel mt-2" id="measurementsList"></div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <small class="text-muted">
+                            📍 <strong>Dessinez des rectangles</strong> sur la carte pour définir vos zones PV<br>
+                            🎛️ <strong>Ajustez l'orientation et l'inclinaison</strong> de chaque zone avec les curseurs dans le panneau de droite
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne droite : Zones et calculs -->
+            <div class="col-lg-4">
+                <!-- Statistiques globales -->
+                <div class="stats-card">
+                    <div class="stats-label">Puissance totale installée</div>
+                    <div class="stats-value" id="puissanceTotale">0 kWc</div>
+                    <hr style="border-color: rgba(255,255,255,0.3)">
+                    <div class="stats-label">Productible annuel estimé</div>
+                    <div class="stats-value" id="productibleTotal">0 MWh/an</div>
+                    <small id="productibleDetails"></small>
+                </div>
+
+                <!-- Localisation -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>📍 Informations Propriétaire</h6>
+                        {% if prospect.proprietaire_denomination %}
+                        <div class="mb-2">
+                            <small class="text-muted">Propriétaire</small>
+                            <div><strong>{{ prospect.proprietaire_denomination }}</strong></div>
+                            {% if prospect.proprietaire_siren %}
+                            <small class="text-muted">SIREN: {{ prospect.proprietaire_siren }}</small>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        <div class="mb-2">
+                            <small class="text-muted">{{ 'Contact' if prospect.proprietaire_denomination else 'Nom' }}</small>
+                            <div><strong>{{ prospect.nom_prospect }}</strong></div>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted">Adresse</small>
+                            <div>{{ prospect.adresse }}</div>
+                        </div>
+                        {% if prospect.data_json is mapping %}
+                            {% if prospect.data_json.rapport and prospect.data_json.rapport.parcelles %}
+                        <div class="mb-2">
+                            <small class="text-muted">Parcelles cadastrales</small>
+                            <div>
+                                {% for parcelle in prospect.data_json.rapport.parcelles %}
+                                    {{ parcelle }}<br>
+                                {% endfor %}
+                            </div>
+                        </div>
+                            {% endif %}
+                            {% if prospect.data_json.rapport and prospect.data_json.rapport.zone_urbanisme %}
+                        <div class="mb-2">
+                            <small class="text-muted">Zone d'urbanisme</small>
+                            <div><strong class="text-info">{{ prospect.data_json.rapport.zone_urbanisme }}</strong></div>
+                        </div>
+                            {% endif %}
+                        {% endif %}
+                        <hr>
+                        <div>
+                            <small class="text-muted">Ratio PVGIS (calculé)</small>
+                            <div><strong id="ratioPvgis" class="text-success">-- kWh/kWc/an</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liste des zones -->
+                <div class="card">
+                    <div class="card-header">
+                        <strong>📋 Zones PV (<span id="zonesCount">0</span>)</strong>
+                    </div>
+                    <div class="card-body" id="zonesList" style="max-height: 600px; overflow-y: auto;">
+                        <p class="text-muted text-center">Aucune zone définie</p>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-info" id="toggleLegende">
+                        🔵 Masquer la légende
+                    </button>
+                    <button class="btn btn-success btn-lg" id="genererEtude">
+                        📄 Générer l'étude de productible
+                    </button>
+                    <button class="btn btn-primary" id="sauvegarderCalpinage">
+                        💾 Sauvegarder le calpinage
+                    </button>
+                    <a href="/crm" class="btn btn-secondary">
+                        ← Retour au CRM
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>
+        // Personnalisation des textes Leaflet.Draw
+        L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
+        L.drawLocal.edit.toolbar.buttons.edit = '✏️ Modifier un champ';
+        L.drawLocal.edit.toolbar.buttons.editDisabled = 'Aucun champ à modifier';
+        L.drawLocal.edit.toolbar.buttons.remove = '🗑️ Supprimer un champ';
+        L.drawLocal.edit.toolbar.buttons.removeDisabled = 'Aucun champ à supprimer';
+        
+        // Données du prospect
+        const prospectId = {{ prospect.id }};
+        let showLegende = true; // État de visibilité de la légende
+        const prospectLat = {{ prospect.latitude }};
+        const prospectLon = {{ prospect.longitude }};
+        const prospectDept = "{{ prospect.departement or '23' }}";
+        
+        // Données de calpinage sauvegardées (si existantes)
+        const savedCalpinage = {{ prospect.data_json.calpinage | tojson if prospect.data_json and prospect.data_json.calpinage else 'null' }};
+        
+        console.log('[CALPINAGE LOAD] savedCalpinage:', savedCalpinage);
+        console.log('[CALPINAGE LOAD] Has zones:', savedCalpinage && savedCalpinage.zones ? savedCalpinage.zones.length : 0);
+        
+        // Variables globales
+        let map;
+        let drawnItems;
+        let measureItems; // Layer pour les mesures
+        let currentTool = 'rectangle'; // Outil actif
+        let measurementCount = 0; // Compteur de mesures
+        let measurements = []; // Liste des mesures
+        let zones = [];
+        let zoneCounter = 0;
+        let rotationHandles = {}; // Stocker les poignées de rotation par zone
+
+        // Ensoleillement par département (kWh/kWc/an)
+        const ensoleillementParDept = {
+            '01': 1150, '02': 1050, '03': 1100, '04': 1400, '05': 1350,
+            '06': 1500, '07': 1300, '08': 1050, '09': 1250, '10': 1100,
+            '11': 1350, '12': 1250, '13': 1450, '14': 1000, '15': 1150,
+            '16': 1150, '17': 1250, '18': 1100, '19': 1100, '21': 1150,
+            '22': 1100, '23': 1100, '24': 1200, '25': 1150, '26': 1300,
+            '27': 1000, '28': 1050, '29': 1150, '30': 1400, '31': 1250,
+            '32': 1250, '33': 1250, '34': 1400, '35': 1100, '36': 1100,
+            '37': 1100, '38': 1200, '39': 1150, '40': 1250, '41': 1100,
+            '42': 1200, '43': 1200, '44': 1150, '45': 1100, '46': 1200,
+            '47': 1250, '48': 1200, '49': 1100, '50': 1050, '51': 1100,
+            '52': 1100, '53': 1050, '54': 1100, '55': 1100, '56': 1150,
+            '57': 1050, '58': 1100, '59': 1000, '60': 1050, '61': 1050,
+            '62': 1000, '63': 1150, '64': 1200, '65': 1200, '66': 1450,
+            '67': 1100, '68': 1100, '69': 1200, '70': 1100, '71': 1150,
+            '72': 1050, '73': 1200, '74': 1200, '75': 1050, '76': 1000,
+            '77': 1050, '78': 1050, '79': 1150, '80': 1000, '81': 1250,
+            '82': 1250, '83': 1500, '84': 1450, '85': 1200, '86': 1150,
+            '87': 1100, '88': 1100, '89': 1100, '90': 1100, '91': 1050,
+            '92': 1050, '93': 1050, '94': 1050, '95': 1050, '2A': 1600,
+            '2B': 1600
+        };
+
+        // Fonction globale pour afficher/cacher les poignées de rotation
+        function toggleRotationHandles(show) {
+            Object.values(rotationHandles).forEach(handle => {
+                if (handle.getElement()) {
+                    handle.getElement().style.display = show ? 'block' : 'none';
+                }
+            });
+        }
+
+        // Fonction globale pour ajouter une poignée de rotation à une zone
+        function ajouterPoigneeRotation(layer) {
+            const zoneId = layer._leaflet_id;
+            const zone = zones.find(z => z.id === zoneId);
+            if (!zone) return;
+            
+            // Initialiser l'angle de rotation à 0
+            if (!zone.rotationAngle) zone.rotationAngle = 0;
+            
+            // Stocker les bounds originaux (non tournés)
+            zone.originalBounds = {
+                sw: layer.getBounds().getSouthWest(),
+                ne: layer.getBounds().getNorthEast()
+            };
+            
+            // Position de la poignée : au-dessus du centre de la zone
+            const bounds = layer.getBounds();
+            const center = bounds.getCenter();
+            const ne = bounds.getNorthEast();
+            
+            // Placer la poignée au-dessus du centre (pas au coin)
+            const handleLat = ne.lat + (ne.lat - center.lat) * 0.3;
+            const handleLng = center.lng;
+            
+            const rotationHandle = L.marker([handleLat, handleLng], {
+                icon: L.divIcon({
+                    className: 'rotation-handle',
+                    html: '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#0d6efd;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-size:18px;font-weight:bold;color:white;cursor:grab;">⟲</div>',
+                    iconSize: [36, 36],
+                    iconAnchor: [18, 18]
+                }),
+                draggable: true,
+                zIndexOffset: 2000
+            });
+            
+            rotationHandle.addTo(map);
+            rotationHandle._zoneId = zoneId;
+            
+            // Cacher la poignée par défaut
+            if (rotationHandle.getElement()) {
+                rotationHandle.getElement().style.display = 'none';
+            }
+            
+            // Variables pour le drag
+            let isDragging = false;
+            let startAngle = 0;
+            
+            rotationHandle.on('dragstart', function(e) {
+                isDragging = true;
+                const center = layer.getBounds().getCenter();
+                rotationHandle._rotationCenter = center;
+                
+                // Calculer l'angle de départ
+                const handlePos = rotationHandle.getLatLng();
+                startAngle = Math.atan2(handlePos.lng - center.lng, handlePos.lat - center.lat) * 180 / Math.PI;
+            });
+            
+            rotationHandle.on('drag', function(e) {
+                if (!isDragging) return;
+                
+                const center = rotationHandle._rotationCenter;
+                const handlePos = e.latlng;
+                
+                // Calculer l'angle actuel
+                const currentAngle = Math.atan2(handlePos.lng - center.lng, handlePos.lat - center.lat) * 180 / Math.PI;
+                
+                // Calculer la différence d'angle depuis le départ
+                let deltaAngle = currentAngle - startAngle;
+                
+                // Nouvel angle de rotation total
+                let newRotation = (zone.rotationAngle || 0) + deltaAngle;
+                
+                // Normaliser entre -180 et 180
+                while (newRotation > 180) newRotation -= 360;
+                while (newRotation < -180) newRotation += 360;
+                
+                // Appliquer la rotation visuelle en temps réel
+                appliquerRotationZone(zone, newRotation);
+                
+                // Mettre à jour l'angle de départ pour le prochain événement drag
+                startAngle = currentAngle;
+                zone.rotationAngle = newRotation;
+                
+                // Convertir en orientation (0=Nord, 90=Est, 180=Sud, 270=Ouest)
+                let orientation = (90 - newRotation + 360) % 360;
+                orientation = Math.round(orientation);
+                zone.orientation = orientation;
+                
+                // Mettre à jour le slider et l'affichage
+                const slider = document.getElementById(`orientation-slider-${zoneId}`);
+                const valueSpan = document.getElementById(`orientation-value-${zoneId}`);
+                
+                if (slider) slider.value = orientation;
+                
+                if (valueSpan) {
+                    const directions = [
+                        {angle: 0, name: 'Nord'}, {angle: 45, name: 'Nord-Est'}, 
+                        {angle: 90, name: 'Est'}, {angle: 135, name: 'Sud-Est'},
+                        {angle: 180, name: 'Sud'}, {angle: 225, name: 'Sud-Ouest'}, 
+                        {angle: 270, name: 'Ouest'}, {angle: 315, name: 'Nord-Ouest'},
+                        {angle: 360, name: 'Nord'}
+                    ];
+                    
+                    let closestDir = directions[0];
+                    let minDiff = 360;
+                    for (let dir of directions) {
+                        const diff = Math.abs(dir.angle - orientation);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestDir = dir;
+                        }
+                    }
+                    valueSpan.textContent = `${orientation}° (${closestDir.name})`;
+                }
+            });
+            
+            rotationHandle.on('dragend', function() {
+                isDragging = false;
+                
+                // Redessiner les modules avec la bonne rotation
+                dessinerModulesDansZone(zone);
+                
+                // Mettre à jour la position de la poignée
+                updateHandlePosition(zone, rotationHandle);
+                
+                // Recalculer le productible
+                calculerProductibleZone(zoneId);
+                calculerTotaux();
+            });
+            
+            // Stocker la poignée
+            rotationHandles[zoneId] = rotationHandle;
+            
+            // Mettre à jour la position lors de l'édition du rectangle
+            layer.on('edit', function() {
+                // Mettre à jour les bounds originaux
+                zone.originalBounds = {
+                    sw: layer.getBounds().getSouthWest(),
+                    ne: layer.getBounds().getNorthEast()
+                };
+                updateHandlePosition(zone, rotationHandle);
+            });
+        }
+        
+        // Fonction pour mettre à jour la position de la poignée de rotation
+        function updateHandlePosition(zone, handle) {
+            const center = zone.layer.getBounds().getCenter();
+            const bounds = zone.layer.getBounds();
+            const ne = bounds.getNorthEast();
+            
+            // Calculer la position au-dessus du centre (distance fixe)
+            const distanceFromCenter = (ne.lat - center.lat) * 1.3;
+            
+            // Appliquer la rotation à la position de la poignée
+            const angle = (zone.rotationAngle || 0) * Math.PI / 180;
+            
+            // Position initiale au-dessus du centre (angle 0 = Nord)
+            const rotatedLat = center.lat + distanceFromCenter * Math.cos(angle);
+            const rotatedLng = center.lng + distanceFromCenter * Math.sin(angle) * 1.5; // Facteur pour compenser lat/lng
+            
+            handle.setLatLng([rotatedLat, rotatedLng]);
+        }
+        
+        // Fonction utilitaire pour tourner un point autour d'un centre
+        function rotatePoint(point, center, angleDegres) {
+            const angleRad = angleDegres * Math.PI / 180;
+            const dx = point.lng - center.lng;
+            const dy = point.lat - center.lat;
+            
+            // Correction pour la distorsion lat/lng (approximation)
+            const latFactor = Math.cos(center.lat * Math.PI / 180);
+            const dxCorrected = dx * latFactor;
+            
+            const rotatedDx = dxCorrected * Math.cos(angleRad) - dy * Math.sin(angleRad);
+            const rotatedDy = dxCorrected * Math.sin(angleRad) + dy * Math.cos(angleRad);
+            
+            return L.latLng(
+                center.lat + rotatedDy,
+                center.lng + rotatedDx / latFactor
+            );
+        }
+        
+        // Fonction pour appliquer la rotation visuelle à une zone (sans CSS, avec vraies coordonnées)
+        function appliquerRotationZone(zone, angleDegres) {
+            // Stocker l'angle
+            zone.rotationAngle = angleDegres;
+            
+            // Redessiner les modules avec le nouvel angle
+            dessinerModulesDansZone(zone);
+            
+            // Mettre à jour la position de la poignée
+            const zoneId = zone.id;
+            if (rotationHandles[zoneId]) {
+                updateHandlePosition(zone, rotationHandles[zoneId]);
+            }
+        }
+
+        // Initialisation de la carte
+        function initMap() {
+            map = L.map('map').setView([prospectLat, prospectLon], 19);
+            
+            // Satellite Google
+            L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 22,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            }).addTo(map);
+
+            // Layer pour les dessins
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+            
+            // Layer pour les mesures (séparé des zones PV)
+            measureItems = new L.FeatureGroup();
+            map.addLayer(measureItems);
+
+            // Contrôles de dessin - masqué par défaut, on utilise nos boutons custom
+            const drawControl = new L.Control.Draw({
+                position: 'topleft',
+                draw: {
+                    polygon: false,
+                    polyline: false,
+                    circle: false,
+                    marker: false,
+                    circlemarker: false,
+                    rectangle: {
+                        shapeOptions: {
+                            color: '#ff7800',
+                            weight: 2,
+                            fillOpacity: 0,  // Invisible - seuls les modules sont visibles
+                            opacity: 0  // Bordure invisible aussi
+                        }
+                    }
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    edit: true,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+            
+            // Masquer le contrôle Leaflet.Draw par défaut (on utilise nos boutons)
+            document.querySelector('.leaflet-draw').style.display = 'none';
+            
+            // Initialiser les handlers de dessin
+            initDrawingTools();
+
+            // Événement de début de dessin - rendre visible
+            map.on(L.Draw.Event.DRAWSTART, function() {
+                // Le rectangle en cours de dessin sera visible
+            });
+
+            // Événement de création
+            map.on(L.Draw.Event.CREATED, function(event) {
+                const layer = event.layer;
+                const layerType = event.layerType;
+                
+                // Si c'est un rectangle et qu'on est en mode Zone PV
+                if (layerType === 'rectangle' && currentTool === 'rectangle') {
+                    drawnItems.addLayer(layer);
+                    // Rendre le rectangle invisible (seuls les modules seront visibles)
+                    if (layer._path) {
+                        layer._path.style.opacity = 0;
+                        layer._path.style.fillOpacity = 0;
+                    }
+                    ajouterZone(layer);
+                    ajouterPoigneeRotation(layer);
+                } else {
+                    // Pour les autres formes (lignes, polygones, cercles, marqueurs)
+                    measureItems.addLayer(layer);
+                    
+                    // Ajouter des labels de mesure pour certaines formes
+                    if (layerType === 'polyline') {
+                        // Calculer la longueur totale de la ligne
+                        const latlngs = layer.getLatLngs();
+                        let totalDistance = 0;
+                        for (let i = 0; i < latlngs.length - 1; i++) {
+                            totalDistance += map.distance(latlngs[i], latlngs[i + 1]);
+                        }
+                        
+                        // Ajouter un label à la fin de la ligne
+                        const endPoint = latlngs[latlngs.length - 1];
+                        L.marker(endPoint, {
+                            icon: L.divIcon({
+                                className: 'measure-result',
+                                html: formatDistance(totalDistance),
+                                iconSize: [80, 24],
+                                iconAnchor: [40, -5]
+                            })
+                        }).addTo(measureItems);
+                    } else if (layerType === 'polygon') {
+                        // Calculer la surface du polygone
+                        const area = L.GeometryUtil ? L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) : 0;
+                        const areaText = area > 10000 ? (area / 10000).toFixed(2) + ' ha' : area.toFixed(0) + ' m²';
+                        
+                        // Ajouter un label au centre
+                        const center = layer.getBounds().getCenter();
+                        L.marker(center, {
+                            icon: L.divIcon({
+                                className: 'measure-result',
+                                html: areaText,
+                                iconSize: [80, 24],
+                                iconAnchor: [40, 12]
+                            })
+                        }).addTo(measureItems);
+                    } else if (layerType === 'circle') {
+                        // Afficher le rayon
+                        const radius = layer.getRadius();
+                        const center = layer.getLatLng();
+                        L.marker(center, {
+                            icon: L.divIcon({
+                                className: 'measure-result',
+                                html: 'R: ' + formatDistance(radius),
+                                iconSize: [80, 24],
+                                iconAnchor: [40, 12]
+                            })
+                        }).addTo(measureItems);
+                    }
+                }
+            });
+
+            // Variables pour le suivi du déplacement en temps réel
+            let dragUpdateInterval = null;
+
+            // Événement de début d'édition - rendre visible et activer suivi temps réel
+            map.on(L.Draw.Event.EDITSTART, function() {
+                drawnItems.eachLayer(function(layer) {
+                    if (layer._path) {
+                        layer._path.style.opacity = 0.5;
+                        layer._path.style.fillOpacity = 0.1;
+                    }
+                });
+                
+                // Afficher les poignées de rotation
+                toggleRotationHandles(true);
+                
+                // Mettre à jour les modules pendant le déplacement
+                dragUpdateInterval = setInterval(() => {
+                    drawnItems.eachLayer(function(layer) {
+                        const zone = zones.find(z => z.id === layer._leaflet_id);
+                        if (zone && layer.editing && layer.editing.enabled()) {
+                            const bounds = layer.getBounds();
+                            const ne = bounds.getNorthEast();
+                            const sw = bounds.getSouthWest();
+                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                            dessinerModulesDansZone(zone);
+                            
+                            // Mettre à jour la position de la poignée de rotation
+                            if (rotationHandles[zone.id]) {
+                                rotationHandles[zone.id].setLatLng(ne);
+                            }
+                        }
+                    });
+                }, 50); // Mise à jour toutes les 50ms pendant le drag
+            });
+
+            // Événement de fin d'édition - rendre invisible et arrêter suivi
+            map.on(L.Draw.Event.EDITSTOP, function() {
+                drawnItems.eachLayer(function(layer) {
+                    if (layer._path) {
+                        layer._path.style.opacity = 0;
+                        layer._path.style.fillOpacity = 0;
+                    }
+                    
+                    // Recalculer et mettre à jour chaque zone après édition
+                    const zone = zones.find(z => z.id === layer._leaflet_id);
+                    if (zone) {
+                        const bounds = layer.getBounds();
+                        const ne = bounds.getNorthEast();
+                        const sw = bounds.getSouthWest();
+                        zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                        zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                        zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                        
+                        recalculerZone(zone);
+                        dessinerModulesDansZone(zone);
+                    }
+                });
+                
+                // Cacher les poignées de rotation
+                toggleRotationHandles(false);
+                
+                if (dragUpdateInterval) {
+                    clearInterval(dragUpdateInterval);
+                    dragUpdateInterval = null;
+                }
+            });
+
+            // Événement de suppression
+            map.on(L.Draw.Event.DELETED, function(event) {
+                event.layers.eachLayer(function(layer) {
+                    supprimerZone(layer._leaflet_id);
+                });
+            });
+
+            // Événement d'édition (déplacement/redimensionnement)
+            map.on(L.Draw.Event.EDITED, function(event) {
+                event.layers.eachLayer(function(layer) {
+                    const zone = zones.find(z => z.id === layer._leaflet_id);
+                    if (zone) {
+                        // Recalculer les dimensions
+                        const bounds = layer.getBounds();
+                        const ne = bounds.getNorthEast();
+                        const sw = bounds.getSouthWest();
+                        zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                        zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                        zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                        
+                        // Recalculer et redessiner
+                        recalculerZone(zone);
+                        dessinerModulesDansZone(zone);
+                    }
+                });
+            });
+
+            // Marqueur du prospect
+            L.marker([prospectLat, prospectLon], {
+                icon: L.divIcon({
+                    html: '<div style="background:red;width:10px;height:10px;border-radius:50%;border:2px solid white;"></div>',
+                    className: '',
+                    iconSize: [10, 10]
+                })
+            }).addTo(map);
+        }
+        
+        // ============================================
+        // OUTILS DE DESSIN ET MESURE
+        // ============================================
+        
+        let activeDrawHandler = null;
+        let editHandler = null;
+        let deleteHandler = null;
+        let measureLinePoints = [];
+        let tempMeasureLine = null;
+        let tempMeasureTooltip = null;
+        
+        function initDrawingTools() {
+            // Bouton Zone PV (rectangle)
+            document.getElementById('toolRectangle').addEventListener('click', function() {
+                setActiveTool('rectangle');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                activeDrawHandler = new L.Draw.Rectangle(map, {
+                    shapeOptions: {
+                        color: '#ff7800',
+                        weight: 2,
+                        fillOpacity: 0,
+                        opacity: 0
+                    }
+                });
+                activeDrawHandler.enable();
+            });
+            
+            // Bouton Mesure de distance
+            document.getElementById('toolMeasure').addEventListener('click', function() {
+                setActiveTool('measure');
+                startMeasureMode();
+            });
+            
+            // Bouton Ligne
+            document.getElementById('toolPolyline').addEventListener('click', function() {
+                setActiveTool('polyline');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                activeDrawHandler = new L.Draw.Polyline(map, {
+                    shapeOptions: {
+                        color: '#3388ff',
+                        weight: 3
+                    }
+                });
+                activeDrawHandler.enable();
+            });
+            
+            // Bouton Polygone
+            document.getElementById('toolPolygon').addEventListener('click', function() {
+                setActiveTool('polygon');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                activeDrawHandler = new L.Draw.Polygon(map, {
+                    shapeOptions: {
+                        color: '#9b59b6',
+                        weight: 2,
+                        fillOpacity: 0.3
+                    }
+                });
+                activeDrawHandler.enable();
+            });
+            
+            // Bouton Cercle
+            document.getElementById('toolCircle').addEventListener('click', function() {
+                setActiveTool('circle');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                activeDrawHandler = new L.Draw.Circle(map, {
+                    shapeOptions: {
+                        color: '#e74c3c',
+                        weight: 2,
+                        fillOpacity: 0.2
+                    }
+                });
+                activeDrawHandler.enable();
+            });
+            
+            // Bouton Marqueur
+            document.getElementById('toolMarker').addEventListener('click', function() {
+                setActiveTool('marker');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                activeDrawHandler = new L.Draw.Marker(map);
+                activeDrawHandler.enable();
+            });
+            
+            // Bouton Modifier zones
+            document.getElementById('toolEdit').addEventListener('click', function() {
+                setActiveTool('edit');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                // Activer le mode édition pour toutes les zones
+                if (!editHandler) {
+                    editHandler = new L.EditToolbar.Edit(map, {
+                        featureGroup: drawnItems
+                    });
+                }
+                editHandler.enable();
+                
+                // Rendre les rectangles visibles pour l'édition
+                drawnItems.eachLayer(function(layer) {
+                    if (layer._path) {
+                        layer._path.style.opacity = 0.5;
+                        layer._path.style.fillOpacity = 0.1;
+                    }
+                });
+                
+                // Afficher les poignées de rotation
+                Object.values(rotationHandles).forEach(handle => {
+                    handle.setOpacity(1);
+                });
+            });
+            
+            // Bouton Supprimer zones
+            document.getElementById('toolDelete').addEventListener('click', function() {
+                setActiveTool('delete');
+                if (activeDrawHandler) activeDrawHandler.disable();
+                // Activer le mode suppression
+                if (!deleteHandler) {
+                    deleteHandler = new L.EditToolbar.Delete(map, {
+                        featureGroup: drawnItems
+                    });
+                }
+                deleteHandler.enable();
+                
+                // Rendre les rectangles visibles pour la suppression
+                drawnItems.eachLayer(function(layer) {
+                    if (layer._path) {
+                        layer._path.style.opacity = 0.7;
+                        layer._path.style.fillOpacity = 0.3;
+                        layer._path.style.stroke = '#dc3545';
+                    }
+                });
+            });
+            
+            // Bouton effacer mesures
+            document.getElementById('clearMeasurements').addEventListener('click', function() {
+                clearMeasurements();
+            });
+            
+            // Bouton plein écran
+            document.getElementById('toggleFullscreen').addEventListener('click', function() {
+                toggleFullscreen();
+            });
+        }
+        
+        // Fonction pour le mode plein écran
+        let isFullscreen = false;
+        function toggleFullscreen() {
+            const mapCard = document.getElementById('mapCard');
+            const btn = document.getElementById('toggleFullscreen');
+            
+            if (!isFullscreen) {
+                // Activer le plein écran
+                mapCard.classList.add('fullscreen');
+                mapCard.style.position = 'fixed';
+                mapCard.style.top = '0';
+                mapCard.style.left = '0';
+                mapCard.style.width = '100vw';
+                mapCard.style.height = '100vh';
+                mapCard.style.zIndex = '9999';
+                mapCard.style.borderRadius = '0';
+                
+                // Ajuster la hauteur de la carte
+                document.getElementById('map').style.height = 'calc(100vh - 200px)';
+                
+                btn.innerHTML = '✕ Quitter plein écran';
+                btn.classList.remove('btn-info');
+                btn.classList.add('btn-danger');
+                
+                // Empêcher le scroll du body
+                document.body.style.overflow = 'hidden';
+                
+                isFullscreen = true;
+            } else {
+                // Désactiver le plein écran
+                mapCard.classList.remove('fullscreen');
+                mapCard.style.position = '';
+                mapCard.style.top = '';
+                mapCard.style.left = '';
+                mapCard.style.width = '';
+                mapCard.style.height = '';
+                mapCard.style.zIndex = '';
+                mapCard.style.borderRadius = '';
+                
+                // Remettre la hauteur de la carte
+                document.getElementById('map').style.height = '600px';
+                
+                btn.innerHTML = '🔲 Plein écran';
+                btn.classList.remove('btn-danger');
+                btn.classList.add('btn-info');
+                
+                // Réactiver le scroll du body
+                document.body.style.overflow = '';
+                
+                isFullscreen = false;
+            }
+            
+            // Redimensionner la carte Leaflet
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 100);
+        }
+        
+        // Touche Escape pour quitter le plein écran
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && isFullscreen) {
+                toggleFullscreen();
+            }
+        });
+        
+        function setActiveTool(tool) {
+            currentTool = tool;
+            
+            // Désactiver les handlers d'édition et suppression si actifs
+            if (editHandler && tool !== 'edit') {
+                editHandler.disable();
+                // Recalculer et mettre à jour toutes les zones après édition
+                drawnItems.eachLayer(function(layer) {
+                    if (layer._path) {
+                        layer._path.style.opacity = 0;
+                        layer._path.style.fillOpacity = 0;
+                    }
+                    // Recalculer la zone
+                    const zone = zones.find(z => z.id === layer._leaflet_id);
+                    if (zone) {
+                        const bounds = layer.getBounds();
+                        const ne = bounds.getNorthEast();
+                        const sw = bounds.getSouthWest();
+                        zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                        zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                        zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                        
+                        recalculerZone(zone);
+                        dessinerModulesDansZone(zone);
+                    }
+                });
+                // Masquer les poignées de rotation
+                Object.values(rotationHandles).forEach(handle => {
+                    handle.setOpacity(0);
+                });
+            }
+            if (deleteHandler && tool !== 'delete') {
+                deleteHandler.disable();
+                // Remettre les rectangles invisibles
+                drawnItems.eachLayer(function(layer) {
+                    if (layer._path) {
+                        layer._path.style.opacity = 0;
+                        layer._path.style.fillOpacity = 0;
+                        layer._path.style.stroke = '#ff7800';
+                    }
+                });
+            }
+            
+            // Retirer la classe active de tous les boutons
+            document.querySelectorAll('[id^="tool"]').forEach(btn => {
+                btn.classList.remove('active', 'btn-primary', 'btn-success', 'btn-danger');
+                if (btn.id === 'toolEdit') {
+                    btn.classList.add('btn-outline-success');
+                } else if (btn.id === 'toolDelete') {
+                    btn.classList.add('btn-outline-danger');
+                } else {
+                    btn.classList.add('btn-outline-secondary');
+                }
+            });
+            // Activer le bouton sélectionné
+            const btn = document.getElementById('tool' + tool.charAt(0).toUpperCase() + tool.slice(1));
+            if (btn) {
+                if (tool === 'edit') {
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('active', 'btn-success');
+                } else if (tool === 'delete') {
+                    btn.classList.remove('btn-outline-danger');
+                    btn.classList.add('active', 'btn-danger');
+                } else {
+                    btn.classList.remove('btn-outline-secondary');
+                    btn.classList.add('active', 'btn-primary');
+                }
+            }
+            
+            // Mettre à jour l'info
+            const toolNames = {
+                'rectangle': '📐 Mode Zone PV - Dessinez un rectangle',
+                'edit': '✏️ Mode Édition - Glissez les coins pour redimensionner',
+                'delete': '🗑️ Mode Suppression - Cliquez sur une zone pour la supprimer',
+                'measure': '📏 Mode Mesure - Cliquez 2 points pour mesurer',
+                'polyline': '— Mode Ligne - Cliquez pour tracer',
+                'polygon': '⬡ Mode Polygone - Cliquez pour dessiner',
+                'circle': '○ Mode Cercle - Cliquez et glissez',
+                'marker': '📍 Mode Repère - Cliquez pour placer'
+            };
+            document.getElementById('currentToolInfo').textContent = toolNames[tool] || '';
+            
+            // Stopper le mode mesure si on change d'outil
+            if (tool !== 'measure') {
+                stopMeasureMode();
+            }
+        }
+        
+        // Mode mesure de distance
+        function startMeasureMode() {
+            measureLinePoints = [];
+            map.getContainer().style.cursor = 'crosshair';
+            
+            map.on('click', onMeasureClick);
+            map.on('mousemove', onMeasureMove);
+        }
+        
+        function stopMeasureMode() {
+            map.off('click', onMeasureClick);
+            map.off('mousemove', onMeasureMove);
+            map.getContainer().style.cursor = '';
+            
+            if (tempMeasureLine) {
+                map.removeLayer(tempMeasureLine);
+                tempMeasureLine = null;
+            }
+            if (tempMeasureTooltip) {
+                map.removeLayer(tempMeasureTooltip);
+                tempMeasureTooltip = null;
+            }
+            measureLinePoints = [];
+        }
+        
+        function onMeasureClick(e) {
+            measureLinePoints.push(e.latlng);
+            
+            if (measureLinePoints.length === 2) {
+                // Calculer la distance
+                const distance = map.distance(measureLinePoints[0], measureLinePoints[1]);
+                
+                // Créer la ligne permanente
+                const line = L.polyline(measureLinePoints, {
+                    color: '#28a745',
+                    weight: 3,
+                    dashArray: '10, 10'
+                }).addTo(measureItems);
+                
+                // Ajouter un label au milieu
+                const midPoint = L.latLng(
+                    (measureLinePoints[0].lat + measureLinePoints[1].lat) / 2,
+                    (measureLinePoints[0].lng + measureLinePoints[1].lng) / 2
+                );
+                
+                const distanceText = formatDistance(distance);
+                const label = L.marker(midPoint, {
+                    icon: L.divIcon({
+                        className: 'measure-result',
+                        html: distanceText,
+                        iconSize: [80, 24],
+                        iconAnchor: [40, 12]
+                    })
+                }).addTo(measureItems);
+                
+                // Ajouter à la liste des mesures
+                measurementCount++;
+                measurements.push({
+                    id: measurementCount,
+                    distance: distance,
+                    line: line,
+                    label: label
+                });
+                
+                updateMeasurementsPanel();
+                
+                // Nettoyer et préparer pour la prochaine mesure
+                if (tempMeasureLine) {
+                    map.removeLayer(tempMeasureLine);
+                    tempMeasureLine = null;
+                }
+                if (tempMeasureTooltip) {
+                    map.removeLayer(tempMeasureTooltip);
+                    tempMeasureTooltip = null;
+                }
+                measureLinePoints = [];
+            }
+        }
+        
+        function onMeasureMove(e) {
+            if (measureLinePoints.length === 1) {
+                // Dessiner ligne temporaire
+                if (tempMeasureLine) {
+                    map.removeLayer(tempMeasureLine);
+                }
+                tempMeasureLine = L.polyline([measureLinePoints[0], e.latlng], {
+                    color: '#28a745',
+                    weight: 2,
+                    dashArray: '5, 5'
+                }).addTo(map);
+                
+                // Afficher distance en temps réel
+                const distance = map.distance(measureLinePoints[0], e.latlng);
+                const midPoint = L.latLng(
+                    (measureLinePoints[0].lat + e.latlng.lat) / 2,
+                    (measureLinePoints[0].lng + e.latlng.lng) / 2
+                );
+                
+                if (tempMeasureTooltip) {
+                    map.removeLayer(tempMeasureTooltip);
+                }
+                tempMeasureTooltip = L.marker(midPoint, {
+                    icon: L.divIcon({
+                        className: 'measure-tooltip',
+                        html: formatDistance(distance),
+                        iconSize: [70, 20],
+                        iconAnchor: [35, 10]
+                    })
+                }).addTo(map);
+            }
+        }
+        
+        function formatDistance(meters) {
+            if (meters < 1000) {
+                return meters.toFixed(1) + ' m';
+            } else {
+                return (meters / 1000).toFixed(2) + ' km';
+            }
+        }
+        
+        function updateMeasurementsPanel() {
+            const panel = document.getElementById('measurementsPanel');
+            const list = document.getElementById('measurementsList');
+            
+            if (measurements.length === 0) {
+                panel.style.display = 'none';
+                return;
+            }
+            
+            panel.style.display = 'block';
+            list.innerHTML = measurements.map(m => `
+                <div class="measurement-item">
+                    <span>📏 Mesure #${m.id}: <strong>${formatDistance(m.distance)}</strong></span>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteMeasurement(${m.id})">
+                        🗑️
+                    </button>
+                </div>
+            `).join('');
+        }
+        
+        function deleteMeasurement(id) {
+            const idx = measurements.findIndex(m => m.id === id);
+            if (idx !== -1) {
+                measureItems.removeLayer(measurements[idx].line);
+                measureItems.removeLayer(measurements[idx].label);
+                measurements.splice(idx, 1);
+                updateMeasurementsPanel();
+            }
+        }
+        
+        function clearMeasurements() {
+            measureItems.clearLayers();
+            measurements = [];
+            measurementCount = 0;
+            updateMeasurementsPanel();
+        }
+
+        // Modules prédéfinis
+        const modulesPredefinis = {
+            'standard450': { longueur: 2108, largeur: 1048, puissance: 450 },
+            'standard500': { longueur: 2172, largeur: 1096, puissance: 500 },
+            'standard550': { longueur: 2278, largeur: 1134, puissance: 550 },
+            'bifacial600': { longueur: 2384, largeur: 1303, puissance: 600 }
+        };
+
+        // Changement de type de module
+        document.getElementById('moduleType').addEventListener('change', function() {
+            const type = this.value;
+            if (type !== 'custom' && modulesPredefinis[type]) {
+                const module = modulesPredefinis[type];
+                document.getElementById('moduleLongueur').value = module.longueur;
+                document.getElementById('moduleLargeur').value = module.largeur;
+                document.getElementById('modulePuissance').value = module.puissance;
+                updateModulePreview();
+                updateAllZones();
+            }
+        });
+
+        // Mise à jour preview module
+        function updateModulePreview() {
+            const longueur = parseFloat(document.getElementById('moduleLongueur').value) || 0;
+            const largeur = parseFloat(document.getElementById('moduleLargeur').value) || 0;
+            const puissance = parseFloat(document.getElementById('modulePuissance').value) || 0;
+            const surface = (longueur * largeur / 1000000).toFixed(2);
+            document.getElementById('modulePreview').textContent = 
+                `Module: ${longueur}×${largeur}mm - ${puissance}Wc - Surface: ${surface} m²`;
+        }
+
+        // Ajouter les listeners sur les champs de module
+        ['moduleLongueur', 'moduleLargeur', 'modulePuissance', 'moduleEspacement'].forEach(id => {
+            document.getElementById(id).addEventListener('input', function() {
+                updateModulePreview();
+                updateAllZones();
+            });
+        });
+
+
+        // Ajouter une zone PV
+        function ajouterZone(layer) {
+            // Calculer le prochain numéro de zone (basé sur le nombre de zones existantes)
+            const nouveauNumero = zones.length + 1;
+            
+            const bounds = layer.getBounds();
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            
+            // Calculer dimensions réelles en mètres
+            const largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+            const longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+            const surfaceM2 = largeurMetres * longueurMetres;
+            
+            // Calculer nombre de modules
+            const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
+            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+            
+            const moduleOrientationSelect = document.getElementById('moduleOrientation').value;
+            
+            // Calculer colonnes et rangées selon l'orientation des modules
+            let moduleHorizontal, moduleVertical;
+            if (moduleOrientationSelect === 'paysage') {
+                moduleHorizontal = moduleLongueur;
+                moduleVertical = moduleLargeur;
+            } else {
+                moduleHorizontal = moduleLargeur;
+                moduleVertical = moduleLongueur;
+            }
+            
+            const nbCols = Math.floor(largeurMetres / (moduleHorizontal + espacement));
+            const nbRows = Math.floor(longueurMetres / (moduleVertical + espacement));
+            const nbModules = nbCols * nbRows;
+            const puissanceKw = (nbModules * modulePuissance) / 1000;
+            
+            const zone = {
+                id: layer._leaflet_id,
+                numero: nouveauNumero,
+                layer: layer,
+                surfaceM2: surfaceM2,
+                nbModules: nbModules,
+                nbCols: nbCols,
+                nbRows: nbRows,
+                puissanceKw: puissanceKw,
+                orientation: 180, // Sud par défaut
+                inclinaison: 30,  // 30° par défaut
+                productible: 0,
+                moduleOrientation: moduleOrientationSelect,
+                largeurMetres: largeurMetres,
+                longueurMetres: longueurMetres
+            };
+            
+            zones.push(zone);
+            dessinerModulesDansZone(zone);
+            afficherZone(zone);
+            calculerTotaux();
+        }
+
+        // Afficher une zone dans la liste
+        function afficherZone(zone) {
+            const zonesListDiv = document.getElementById('zonesList');
+            
+            // Vérifier si la zone existe déjà
+            const existingCard = document.getElementById(`zone-${zone.id}`);
+            if (existingCard) {
+                existingCard.remove();
+            }
+            
+            // Retirer le message vide seulement s'il existe
+            const emptyMessage = zonesListDiv.querySelector('.text-muted');
+            if (emptyMessage) {
+                emptyMessage.remove();
+            }
+            
+            const zoneCard = document.createElement('div');
+            zoneCard.className = 'zone-card';
+            zoneCard.id = `zone-${zone.id}`;
+            zoneCard.innerHTML = `
+                <div class="zone-header">
+                    <span class="zone-title">Zone ${zone.numero}</span>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="dupliquerZone(${zone.id})" title="Dupliquer ce champ">
+                            <small>📋</small>
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="supprimerZoneById(${zone.id})">
+                            <small>🗑️</small>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <small class="text-muted">Surface</small>
+                        <div id="surface-${zone.id}"><strong>${zone.surfaceM2.toFixed(1)} m²</strong></div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Modules</small>
+                        <div id="modules-${zone.id}"><strong>${zone.nbModules}</strong></div>
+                        <small class="text-muted" id="modules-detail-${zone.id}">${zone.nbCols || '-'} col. x ${zone.nbRows || '-'} rang.</small>
+                    </div>
+                </div>
+                
+                <div class="mb-2">
+                    <small class="text-muted">Puissance installée</small>
+                    <div><strong class="text-primary" id="puissance-${zone.id}">${zone.puissanceKw.toFixed(2)} kWc</strong></div>
+                </div>
+                
+                <div class="row g-2">
+                    <div class="col-12">
+                        <label class="form-label"><small>Orientation : <span id="orientation-value-${zone.id}">180° Sud</span></small></label>
+                        <input type="range" class="form-range" min="0" max="360" step="1" value="180" 
+                               id="orientation-slider-${zone.id}"
+                               oninput="updateZoneOrientationSlider(${zone.id}, this.value)">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #666;">
+                            <span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SO</span><span>O</span><span>NO</span><span>N</span>
+                        </div>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">30</span>°</small></label>
+                        <input type="range" class="form-range" min="0" max="90" step="1" value="30"
+                               id="inclinaison-slider-${zone.id}"
+                               oninput="updateZoneInclinaisonSlider(${zone.id}, this.value)">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #666;">
+                            <span>Plat (0°)</span><span>Optimal (30°)</span><span>Vertical (90°)</span>
+                        </div>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <label class="form-label"><small>Disposition modules</small></label>
+                        <select class="form-select form-select-sm" id="module-orientation-${zone.id}" onchange="updateZoneModuleOrientation(${zone.id}, this.value)">
+                            <option value="paysage" ${zone.moduleOrientation === 'paysage' ? 'selected' : ''}>Paysage 📐</option>
+                            <option value="portrait" ${zone.moduleOrientation === 'portrait' ? 'selected' : ''}>Portrait 📏</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mt-2">
+                    <small class="text-muted">Productible estimé</small>
+                    <div><strong class="text-success" id="productible-${zone.id}">-</strong></div>
+                </div>
+                
+                <div class="mt-2">
+                    <button class="btn btn-sm btn-outline-primary w-100" onclick="telecharger8760h(${zone.id})">
+                        📊 Télécharger données 8760h
+                    </button>
+                </div>
+            `;
+            
+            zonesListDiv.appendChild(zoneCard);
+            document.getElementById('zonesCount').textContent = zones.length;
+            
+            // Calculer le productible initial
+            calculerProductibleZone(zone.id);
+        }
+
+        // Afficher toutes les zones (rafraîchir l'affichage)
+        function afficherToutesLesZones() {
+            const zonesListDiv = document.getElementById('zonesList');
+            zonesListDiv.innerHTML = '';
+            
+            if (zones.length === 0) {
+                zonesListDiv.innerHTML = '<p class="text-muted text-center">Aucune zone définie</p>';
+                return;
+            }
+            
+            zones.forEach(zone => {
+                afficherZone(zone);
+            });
+        }
+
+        // Supprimer une zone
+        function supprimerZone(layerId) {
+            const zone = zones.find(z => z.id === layerId);
+            
+            // Supprimer le groupe de modules
+            if (zone && zone.moduleGroup) {
+                map.removeLayer(zone.moduleGroup);
+            }
+            
+            // Supprimer la poignée de rotation
+            if (rotationHandles[layerId]) {
+                map.removeLayer(rotationHandles[layerId]);
+                delete rotationHandles[layerId];
+            }
+            
+            zones = zones.filter(z => z.id !== layerId);
+            const zoneCard = document.getElementById(`zone-${layerId}`);
+            if (zoneCard) zoneCard.remove();
+            
+            // Renuméroter les zones restantes
+            renumeroterZones();
+            
+            if (zones.length === 0) {
+                document.getElementById('zonesList').innerHTML = 
+                    '<p class="text-muted text-center">Aucune zone définie</p>';
+            }
+            
+            document.getElementById('zonesCount').textContent = zones.length;
+            calculerTotaux();
+        }
+        
+        // Renuméroter les zones après suppression
+        function renumeroterZones() {
+            zones.forEach((zone, index) => {
+                const ancienNumero = zone.numero;
+                const nouveauNumero = index + 1;
+                
+                if (ancienNumero !== nouveauNumero) {
+                    zone.numero = nouveauNumero;
+                    
+                    // Mettre à jour le titre de la carte
+                    const zoneCard = document.getElementById(`zone-${zone.id}`);
+                    if (zoneCard) {
+                        const titleSpan = zoneCard.querySelector('.zone-title');
+                        if (titleSpan) {
+                            titleSpan.textContent = `Zone ${nouveauNumero}`;
+                        }
+                    }
+                }
+            });
+        }
+
+        function supprimerZoneById(id) {
+            const zone = zones.find(z => z.id === id);
+            if (zone && zone.layer) {
+                drawnItems.removeLayer(zone.layer);
+                supprimerZone(id);
+            }
+        }
+
+        // Dupliquer une zone
+        function dupliquerZone(zoneId) {
+            const zoneSource = zones.find(z => z.id === zoneId);
+            if (!zoneSource) return;
+            
+            // Récupérer les bounds de la zone source
+            const bounds = zoneSource.layer.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            
+            // Calculer le décalage (environ 15 mètres en degrés de latitude/longitude)
+            // 1 degré de latitude ≈ 111 km, donc 15m ≈ 0.000135 degrés
+            const offsetLat = 0.00015;
+            const offsetLng = 0.00015;
+            
+            // Créer nouvelles bounds décalées
+            const newSw = L.latLng(sw.lat - offsetLat, sw.lng + offsetLng);
+            const newNe = L.latLng(ne.lat - offsetLat, ne.lng + offsetLng);
+            const newBounds = L.latLngBounds(newSw, newNe);
+            
+            // Créer le nouveau rectangle
+            const newRectangle = L.rectangle(newBounds, {
+                color: '#0d6efd',
+                fillColor: '#0d6efd',
+                fillOpacity: 0,
+                weight: 2,
+                opacity: 0
+            });
+            
+            // Ajouter à la carte
+            drawnItems.addLayer(newRectangle);
+            
+            // Récupérer les paramètres du module depuis le DOM
+            const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
+            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+            
+            const surfaceModule = (moduleLongueur + espacement) * (moduleLargeur + espacement);
+
+            // Calculer les dimensions
+            const largeurMetres = zoneSource.largeurMetres;
+            const longueurMetres = zoneSource.longueurMetres;
+            const surfaceM2 = largeurMetres * longueurMetres;
+            const nbModules = Math.floor(surfaceM2 / surfaceModule);
+            const puissanceKw = (nbModules * modulePuissance) / 1000;
+            
+            // Créer la nouvelle zone avec les mêmes propriétés
+            const nouveauNumero = zones.length + 1;
+            const newZone = {
+                id: newRectangle._leaflet_id,
+                numero: nouveauNumero,
+                layer: newRectangle,
+                surfaceM2: surfaceM2,
+                nbModules: nbModules,
+                puissanceKw: puissanceKw,
+                orientation: zoneSource.orientation,           // Copier orientation
+                inclinaison: zoneSource.inclinaison,           // Copier inclinaison
+                productible: 0,
+                moduleOrientation: zoneSource.moduleOrientation, // Copier disposition
+                largeurMetres: largeurMetres,
+                longueurMetres: longueurMetres,
+                rotationAngle: zoneSource.rotationAngle || 0   // Copier rotation
+            };
+            
+            zones.push(newZone);
+            
+            // Dessiner les modules
+            dessinerModulesDansZone(newZone);
+            
+            // Ajouter la poignée de rotation
+            ajouterPoigneeRotation(newRectangle);
+            
+            // Afficher la zone
+            afficherZone(newZone);
+            
+            // Calculer les totaux
+            calculerTotaux();
+            
+            // Calculer le productible pour la nouvelle zone
+            calculerProductibleZone(newZone.id);
+        }
+
+        // Mettre à jour orientation avec slider
+        function updateZoneOrientationSlider(zoneId, orientation) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (zone) {
+                zone.orientation = parseFloat(orientation);
+                
+                // Convertir orientation (0=Nord, 180=Sud) en angle de rotation
+                // 180° (Sud) = 0° de rotation, 0° (Nord) = 180° rotation, 90° (Est) = -90° rotation
+                zone.rotationAngle = 180 - orientation;
+                if (zone.rotationAngle > 180) zone.rotationAngle -= 360;
+                if (zone.rotationAngle < -180) zone.rotationAngle += 360;
+                
+                // Mettre à jour l'affichage
+                const valueSpan = document.getElementById(`orientation-value-${zoneId}`);
+                if (valueSpan) {
+                    // Trouver la direction la plus proche
+                    const directions = [
+                        {angle: 0, name: 'Nord'}, {angle: 45, name: 'Nord-Est'}, 
+                        {angle: 90, name: 'Est'}, {angle: 135, name: 'Sud-Est'},
+                        {angle: 180, name: 'Sud'}, {angle: 225, name: 'Sud-Ouest'}, 
+                        {angle: 270, name: 'Ouest'}, {angle: 315, name: 'Nord-Ouest'},
+                        {angle: 360, name: 'Nord'}
+                    ];
+                    
+                    let closestDir = directions[0];
+                    let minDiff = 360;
+                    for (let dir of directions) {
+                        const diff = Math.abs(dir.angle - orientation);
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closestDir = dir;
+                        }
+                    }
+                    
+                    valueSpan.textContent = `${orientation}° (${closestDir.name})`;
+                }
+                
+                // Redessiner les modules avec la nouvelle rotation (vraies coordonnées)
+                dessinerModulesDansZone(zone);
+                
+                // Mettre à jour la position de la poignée de rotation
+                if (rotationHandles[zoneId]) {
+                    updateHandlePosition(zone, rotationHandles[zoneId]);
+                }
+                
+                calculerProductibleZone(zoneId);
+                calculerTotaux();
+            }
+        }
+
+        // Mettre à jour inclinaison avec slider
+        function updateZoneInclinaisonSlider(zoneId, inclinaison) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (zone) {
+                zone.inclinaison = parseFloat(inclinaison);
+                
+                // Mettre à jour l'affichage
+                const valueSpan = document.getElementById(`inclinaison-value-${zoneId}`);
+                if (valueSpan) {
+                    valueSpan.textContent = inclinaison;
+                }
+                
+                calculerProductibleZone(zoneId);
+                calculerTotaux();
+            }
+        }
+
+        // Mettre à jour orientation module (paysage/portrait)
+        function updateZoneModuleOrientation(zoneId, orientation) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (zone) {
+                console.log(`Changement orientation zone ${zoneId}: ${zone.moduleOrientation} -> ${orientation}`);
+                zone.moduleOrientation = orientation;
+                recalculerZone(zone);
+                dessinerModulesDansZone(zone);
+            }
+        }
+
+        // Recalculer nombre de modules
+        function recalculerZone(zone) {
+            const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
+            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+            
+            // PAYSAGE: module couché - longueur (grande dim) est horizontale
+            // PORTRAIT: module debout - largeur (petite dim) est horizontale
+            let moduleHorizontal, moduleVertical;
+            if (zone.moduleOrientation === 'paysage') {
+                moduleHorizontal = moduleLongueur;
+                moduleVertical = moduleLargeur;
+            } else {
+                moduleHorizontal = moduleLargeur;
+                moduleVertical = moduleLongueur;
+            }
+            
+            const nbCols = Math.floor(zone.largeurMetres / (moduleHorizontal + espacement));
+            const nbRows = Math.floor(zone.longueurMetres / (moduleVertical + espacement));
+            const nbModules = nbCols * nbRows;
+            const puissanceKw = (nbModules * modulePuissance) / 1000;
+            
+            zone.nbModules = nbModules;
+            zone.nbCols = nbCols;
+            zone.nbRows = nbRows;
+            zone.puissanceKw = puissanceKw;
+            
+            // Mettre à jour l'affichage dans le DOM sans tout recréer
+            updateZoneDisplay(zone);
+            calculerProductibleZone(zone.id);
+            calculerTotaux();
+        }
+
+        // Mettre à jour l'affichage d'une zone existante
+        function updateZoneDisplay(zone) {
+            const surfaceEl = document.getElementById(`surface-${zone.id}`);
+            if (surfaceEl) surfaceEl.innerHTML = `<strong>${zone.surfaceM2.toFixed(1)} m²</strong>`;
+            
+            const modulesEl = document.getElementById(`modules-${zone.id}`);
+            if (modulesEl) modulesEl.innerHTML = `<strong>${zone.nbModules}</strong>`;
+            
+            const modulesDetailEl = document.getElementById(`modules-detail-${zone.id}`);
+            if (modulesDetailEl) modulesDetailEl.textContent = `${zone.nbCols || '-'} col. x ${zone.nbRows || '-'} rang.`;
+            
+            const puissanceEl = document.getElementById(`puissance-${zone.id}`);
+            if (puissanceEl) puissanceEl.textContent = `${zone.puissanceKw.toFixed(2)} kWc`;
+        }
+
+        // Dessiner les modules dans une zone
+        function dessinerModulesDansZone(zone) {
+            // Supprimer l'ancien groupe de modules s'il existe
+            if (zone.moduleGroup) {
+                map.removeLayer(zone.moduleGroup);
+            }
+            
+            const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+            
+            // PAYSAGE (horizontal): module couché - largeur module va dans largeur zone
+            // PORTRAIT (vertical): module debout - longueur module va dans largeur zone
+            let moduleHorizontal, moduleVertical;
+            if (zone.moduleOrientation === 'paysage') {
+                moduleHorizontal = moduleLongueur;
+                moduleVertical = moduleLargeur;
+            } else {
+                moduleHorizontal = moduleLargeur;
+                moduleVertical = moduleLongueur;
+            }
+            
+            const bounds = zone.layer.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            const center = bounds.getCenter();
+            
+            // Calculer nombre de modules qui rentrent
+            const nbCols = Math.floor(zone.largeurMetres / (moduleHorizontal + espacement));
+            const nbRows = Math.floor(zone.longueurMetres / (moduleVertical + espacement));
+            
+            const moduleGroup = L.layerGroup();
+            
+            // Calculer l'espacement en degrés de lat/lon
+            const latPerMeter = (ne.lat - sw.lat) / zone.longueurMetres;
+            const lngPerMeter = (ne.lng - sw.lng) / zone.largeurMetres;
+            
+            // Angle de rotation du CHAMP ENTIER
+            const rotationAngle = zone.rotationAngle || 0;
+            
+            // Collecter tous les modules pour les tourner ensemble
+            const allModuleCorners = [];
+            
+            // Calculer les coins de chaque module (grille non tournée)
+            for (let row = 0; row < nbRows; row++) {
+                for (let col = 0; col < nbCols; col++) {
+                    const startLat = sw.lat + (row * (moduleVertical + espacement) * latPerMeter);
+                    const startLng = sw.lng + (col * (moduleHorizontal + espacement) * lngPerMeter);
+                    const endLat = startLat + (moduleVertical * latPerMeter);
+                    const endLng = startLng + (moduleHorizontal * lngPerMeter);
+                    
+                    // Les 4 coins du module (non tournés)
+                    allModuleCorners.push([
+                        L.latLng(startLat, startLng),  // SW
+                        L.latLng(startLat, endLng),    // SE
+                        L.latLng(endLat, endLng),      // NE
+                        L.latLng(endLat, startLng)     // NW
+                    ]);
+                }
+            }
+            
+            // Coins du champ (rectangle original)
+            const zoneCorners = [
+                sw,
+                L.latLng(sw.lat, ne.lng),
+                ne,
+                L.latLng(ne.lat, sw.lng)
+            ];
+            
+            // Si rotation, tourner TOUT le champ autour du centre
+            if (rotationAngle !== 0) {
+                // Tourner chaque module autour du centre du champ
+                allModuleCorners.forEach(corners => {
+                    const rotatedCorners = corners.map(corner => rotatePoint(corner, center, rotationAngle));
+                    
+                    const modulePolygon = L.polygon(rotatedCorners, {
+                        color: '#0066cc',
+                        weight: 1,
+                        fillColor: '#4d94ff',
+                        fillOpacity: 0.6,
+                        interactive: false
+                    });
+                    moduleGroup.addLayer(modulePolygon);
+                });
+                
+                // Dessiner le contour du champ tourné
+                const rotatedZoneCorners = zoneCorners.map(corner => rotatePoint(corner, center, rotationAngle));
+                const zoneOutline = L.polygon(rotatedZoneCorners, {
+                    color: '#ff7800',
+                    weight: 2,
+                    fillOpacity: 0,
+                    dashArray: '5, 5',
+                    interactive: false
+                });
+                moduleGroup.addLayer(zoneOutline);
+            } else {
+                // Pas de rotation - dessiner normalement
+                allModuleCorners.forEach(corners => {
+                    const modulePolygon = L.polygon(corners, {
+                        color: '#0066cc',
+                        weight: 1,
+                        fillColor: '#4d94ff',
+                        fillOpacity: 0.6,
+                        interactive: false
+                    });
+                    moduleGroup.addLayer(modulePolygon);
+                });
+            }
+            
+            // Ajouter le label au centre
+            if (showLegende) {
+                const label = L.marker(center, {
+                    icon: L.divIcon({
+                        className: 'module-count-label',
+                        html: `<div style="background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; white-space: nowrap; pointer-events: none;">
+                            ${zone.nbModules} modules<br>${zone.puissanceKw.toFixed(2)} kWc
+                        </div>`,
+                        iconSize: [100, 40]
+                    })
+                });
+                
+                moduleGroup.addLayer(label);
+            }
+            
+            moduleGroup.addTo(map);
+            zone.moduleGroup = moduleGroup;
+        }
+
+        // Mettre à jour toutes les zones quand on change les paramètres globaux
+        function updateAllZones() {
+            zones.forEach(zone => {
+                recalculerZone(zone);
+                dessinerModulesDansZone(zone);
+            });
+        }
+
+        // Mettre à jour orientation (ancienne fonction pour compatibilité)
+        function updateZoneOrientation(zoneId, orientation) {
+            updateZoneOrientationSlider(zoneId, orientation);
+        }
+
+        // Mettre à jour inclinaison (ancienne fonction pour compatibilité)
+        function updateZoneInclinaison(zoneId, inclinaison) {
+            updateZoneInclinaisonSlider(zoneId, inclinaison);
+        }
+
+        // Calculer productible d'une zone
+        function calculerProductibleZone(zoneId) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (!zone) return;
+            
+            // Récupérer les coordonnées du centre de la zone
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
+            
+            // Appel PVGIS pour un calcul précis
+            fetch(`/api/crm/prospects/${prospectId}/pvgis`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    latitude: center.lat,
+                    longitude: center.lng,
+                    inclinaison: zone.inclinaison,
+                    orientation: zone.orientation,
+                    puissance_kw: zone.puissanceKw
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Utiliser les données PVGIS
+                    zone.productible = data.productible_mwh;
+                    zone.monthly_data = data.monthly_values; // Sauvegarder pour le PDF
+                    
+                    const elem = document.getElementById(`productible-${zoneId}`);
+                    if (elem) {
+                        elem.textContent = `${data.productible_mwh.toFixed(2)} MWh/an`;
+                        elem.title = `Source: ${data.source}\nRatio: ${data.ratio_kwh_kwc} kWh/kWc/an\nProductible: ${data.productible_kwh.toFixed(0)} kWh/an`;
+                    }
+                    
+                    calculerTotaux();
+                } else if (data.fallback) {
+                    // Fallback sur calcul simplifié
+                    calculerProductibleZoneFallback(zone);
+                }
+            })
+            .catch(error => {
+                console.error('Erreur PVGIS:', error);
+                // Fallback sur calcul simplifié
+                calculerProductibleZoneFallback(zone);
+            });
+        }
+        
+        // Télécharger données 8760h
+        function telecharger8760h(zoneId) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (!zone) return;
+            
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ Téléchargement...';
+            
+            fetch(`/api/crm/prospects/${prospectId}/pvgis-hourly`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    latitude: center.lat,
+                    longitude: center.lng,
+                    inclinaison: zone.inclinaison,
+                    orientation: zone.orientation,
+                    puissance_kw: zone.puissanceKw,
+                    zone_numero: zone.numero
+                })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Erreur téléchargement');
+                return response.blob();
+            })
+            .then(blob => {
+                // Créer lien de téléchargement
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `PVGIS_8760h_Zone${zone.numero}_Prospect${prospectId}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                btn.disabled = false;
+                btn.textContent = '📊 Télécharger données 8760h';
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                alert('❌ Erreur lors du téléchargement des données 8760h');
+                btn.disabled = false;
+                btn.textContent = '📊 Télécharger données 8760h';
+            });
+        }
+        
+        // Méthode de fallback (calcul simplifié)
+        function calculerProductibleZoneFallback(zone) {
+            const ensoleillement = ensoleillementParDept[prospectDept] || 1100;
+            
+            // Coefficient d'orientation (max à 180° = sud)
+            const diffOrientation = Math.abs(zone.orientation - 180);
+            let coefOrientation = 1 - (diffOrientation / 180) * 0.25;
+            
+            // Coefficient d'inclinaison (optimal entre 25-35°)
+            let coefInclinaison = 1;
+            if (zone.inclinaison < 25) {
+                coefInclinaison = 0.90 + (zone.inclinaison / 25) * 0.10;
+            } else if (zone.inclinaison > 35) {
+                coefInclinaison = 1 - ((zone.inclinaison - 35) / 55) * 0.15;
+            }
+            
+            // Productible = Puissance × Ensoleillement × Coefficients
+            const productibleMWh = zone.puissanceKw * ensoleillement * coefOrientation * coefInclinaison / 1000;
+            zone.productible = productibleMWh;
+            
+            // Afficher
+            const elem = document.getElementById(`productible-${zone.id}`);
+            if (elem) {
+                elem.textContent = `${productibleMWh.toFixed(2)} MWh/an`;
+                elem.title = `Source: Calcul simplifié\nEnsoleillement: ${ensoleillement} kWh/kWc/an\nCoef. orientation: ${(coefOrientation*100).toFixed(0)}%\nCoef. inclinaison: ${(coefInclinaison*100).toFixed(0)}%`;
+            }
+            
+            calculerTotaux();
+        }
+
+        // Calculer totaux
+        function calculerTotaux() {
+            const puissanceTotale = zones.reduce((sum, z) => sum + z.puissanceKw, 0);
+            const productibleTotal = zones.reduce((sum, z) => sum + z.productible, 0);
+            
+            document.getElementById('puissanceTotale').textContent = `${puissanceTotale.toFixed(2)} kWc`;
+            document.getElementById('productibleTotal').textContent = `${productibleTotal.toFixed(2)} MWh/an`;
+            
+            if (puissanceTotale > 0) {
+                const ratio = (productibleTotal / puissanceTotale * 1000).toFixed(0);
+                document.getElementById('productibleDetails').textContent = 
+                    `Ratio moyen: ${ratio} kWh/kWc/an (${zones.length} zone${zones.length > 1 ? 's' : ''})`;
+                
+                // Mettre à jour le ratio PVGIS dans le panneau info
+                const ratioPvgisEl = document.getElementById('ratioPvgis');
+                if (ratioPvgisEl) {
+                    ratioPvgisEl.textContent = `${ratio} kWh/kWc/an`;
+                }
+            } else {
+                document.getElementById('productibleDetails').textContent = '';
+                const ratioPvgisEl = document.getElementById('ratioPvgis');
+                if (ratioPvgisEl) {
+                    ratioPvgisEl.textContent = '-- kWh/kWc/an';
+                }
+            }
+        }
+
+        // Effacer toutes les zones
+        document.getElementById('clearAllZones').addEventListener('click', function() {
+            if (confirm('Effacer toutes les zones ?')) {
+                drawnItems.clearLayers();
+                
+                // Supprimer toutes les poignées de rotation
+                Object.values(rotationHandles).forEach(handle => {
+                    map.removeLayer(handle);
+                });
+                rotationHandles = {};
+                
+                zones = [];
+                document.getElementById('zonesList').innerHTML = 
+                    '<p class="text-muted text-center">Aucune zone définie</p>';
+                document.getElementById('zonesCount').textContent = '0';
+                calculerTotaux();
+            }
+        });
+
+        // Sauvegarder le calpinage
+        document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
+            const data = {
+                zones: zones.map(z => {
+                    // Convertir les bounds Leaflet en format sérialisable
+                    const bounds = z.layer.getBounds();
+                    return {
+                        numero: z.numero,
+                        surfaceM2: z.surfaceM2,
+                        nbModules: z.nbModules,
+                        nbCols: z.nbCols,
+                        nbRows: z.nbRows,
+                        puissanceKw: z.puissanceKw,
+                        orientation: z.orientation,
+                        inclinaison: z.inclinaison,
+                        productible: z.productible,
+                        monthly_data: z.monthly_data || null,
+                        moduleOrientation: z.moduleOrientation || 'paysage',
+                        largeurMetres: z.largeurMetres,
+                        longueurMetres: z.longueurMetres,
+                        rotationAngle: z.rotationAngle || 0,
+                        bounds: {
+                            _southWest: {
+                                lat: bounds.getSouthWest().lat,
+                                lng: bounds.getSouthWest().lng
+                            },
+                            _northEast: {
+                                lat: bounds.getNorthEast().lat,
+                                lng: bounds.getNorthEast().lng
+                            }
+                        }
+                    };
+                }),
+                module: {
+                    longueur: document.getElementById('moduleLongueur').value,
+                    largeur: document.getElementById('moduleLargeur').value,
+                    puissance: document.getElementById('modulePuissance').value
+                },
+                totaux: {
+                    puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
+                    productibleTotal: zones.reduce((sum, z) => sum + z.productible, 0)
+                }
+            };
+            
+            console.log('Données à sauvegarder:', data);
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                console.log('Réponse sauvegarde:', result);
+                
+                if (response.ok && result.success) {
+                    alert('✅ Calpinage sauvegardé avec succès !');
+                } else {
+                    alert('❌ Erreur lors de la sauvegarde: ' + (result.error || 'Erreur inconnue'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Erreur réseau');
+            }
+        });
+
+        // Toggle légende
+        document.getElementById('toggleLegende').addEventListener('click', function() {
+            showLegende = !showLegende;
+            const btn = document.getElementById('toggleLegende');
+            btn.textContent = showLegende ? '🔵 Masquer la légende' : '⚪ Afficher la légende';
+            btn.className = showLegende ? 'btn btn-info' : 'btn btn-outline-info';
+            
+            // Redessiner toutes les zones pour appliquer le changement
+            zones.forEach(zone => {
+                dessinerModulesDansZone(zone);
+            });
+        });
+
+        // Générer l'étude
+        document.getElementById('genererEtude').addEventListener('click', async function() {
+            if (zones.length === 0) {
+                alert('⚠️ Veuillez définir au moins une zone PV');
+                return;
+            }
+            
+            // Sauvegarder automatiquement avant de générer l'étude
+            const data = {
+                zones: zones.map(z => ({
+                    numero: z.numero,
+                    surfaceM2: z.surfaceM2,
+                    nbModules: z.nbModules,
+                    puissanceKw: z.puissanceKw,
+                    orientation: z.orientation,
+                    inclinaison: z.inclinaison,
+                    productible: z.productible,
+                    bounds: z.layer.getBounds()
+                })),
+                module: {
+                    longueur: document.getElementById('moduleLongueur').value,
+                    largeur: document.getElementById('moduleLargeur').value,
+                    puissance: document.getElementById('modulePuissance').value
+                },
+                totaux: {
+                    puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
+                    productibleTotal: zones.reduce((sum, z) => sum + z.productible, 0)
+                }
+            };
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    // Ouvrir l'étude après sauvegarde réussie
+                    window.open(`/api/crm/prospects/${prospectId}/etude-productible`, '_blank');
+                } else {
+                    alert('❌ Erreur lors de la sauvegarde du calpinage');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Erreur réseau');
+            }
+        });
+
+        initMap();
+        updateModulePreview();
+        
+        // Charger le calpinage sauvegardé s'il existe
+        if (savedCalpinage && savedCalpinage.zones && savedCalpinage.zones.length > 0) {
+            loadSavedCalpinage();
+        }
+        
+        // Fonction pour charger le calpinage sauvegardé
+        function loadSavedCalpinage() {
+            console.log('Chargement du calpinage sauvegardé:', savedCalpinage);
+            
+            // Restaurer les paramètres du module si sauvegardés
+            if (savedCalpinage.module) {
+                document.getElementById('moduleLongueur').value = savedCalpinage.module.longueur || 2108;
+                document.getElementById('moduleLargeur').value = savedCalpinage.module.largeur || 1048;
+                document.getElementById('modulePuissance').value = savedCalpinage.module.puissance || 450;
+                updateModulePreview();
+            }
+            
+            // Recréer chaque zone sauvegardée
+            savedCalpinage.zones.forEach((savedZone, index) => {
+                // Recréer les bounds depuis les données sauvegardées
+                let bounds;
+                if (savedZone.bounds && savedZone.bounds._southWest && savedZone.bounds._northEast) {
+                    bounds = L.latLngBounds(
+                        [savedZone.bounds._southWest.lat, savedZone.bounds._southWest.lng],
+                        [savedZone.bounds._northEast.lat, savedZone.bounds._northEast.lng]
+                    );
+                } else if (savedZone.bounds) {
+                    // Format alternatif
+                    bounds = L.latLngBounds(savedZone.bounds);
+                } else {
+                    console.warn('Bounds invalides pour la zone', savedZone.numero);
+                    return;
+                }
+                
+                // Créer le rectangle
+                const rectangle = L.rectangle(bounds, {
+                    color: '#ff7800',
+                    weight: 2,
+                    fillOpacity: 0,
+                    opacity: 0
+                });
+                
+                drawnItems.addLayer(rectangle);
+                
+                // Créer la zone avec les propriétés sauvegardées
+                const nouveauNumero = zones.length + 1;
+                const zone = {
+                    id: rectangle._leaflet_id,
+                    numero: nouveauNumero,
+                    layer: rectangle,
+                    surfaceM2: savedZone.surfaceM2 || 0,
+                    nbModules: savedZone.nbModules || 0,
+                    nbCols: savedZone.nbCols || 0,
+                    nbRows: savedZone.nbRows || 0,
+                    puissanceKw: savedZone.puissanceKw || 0,
+                    orientation: savedZone.orientation || 180,
+                    inclinaison: savedZone.inclinaison || 30,
+                    productible: savedZone.productible || 0,
+                    moduleOrientation: savedZone.moduleOrientation || 'paysage',
+                    largeurMetres: savedZone.largeurMetres || map.distance(bounds.getSouthWest(), [bounds.getSouthWest().lat, bounds.getNorthEast().lng]),
+                    longueurMetres: savedZone.longueurMetres || map.distance(bounds.getSouthWest(), [bounds.getNorthEast().lat, bounds.getSouthWest().lng]),
+                    rotationAngle: savedZone.rotationAngle || (180 - (savedZone.orientation || 180))
+                };
+                
+                zones.push(zone);
+                
+                // Dessiner les modules
+                dessinerModulesDansZone(zone);
+                
+                // Ajouter la poignée de rotation
+                ajouterPoigneeRotation(rectangle);
+                
+                // Appliquer la rotation sauvegardée
+                if (zone.rotationAngle && zone.rotationAngle !== 0) {
+                    setTimeout(() => {
+                        appliquerRotationZone(zone, zone.rotationAngle);
+                        if (rotationHandles[zone.id]) {
+                            updateHandlePosition(zone, rotationHandles[zone.id]);
+                        }
+                    }, 100);
+                }
+                
+                // Afficher la zone dans la liste
+                afficherZone(zone);
+            });
+            
+            // Calculer les totaux
+            calculerTotaux();
+            
+            console.log(`${zones.length} zone(s) chargée(s) depuis la sauvegarde`);
+        }
+    </script>
+</body>
+</html>
