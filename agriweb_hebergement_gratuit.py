@@ -553,9 +553,38 @@ def save_map_html(map_obj, filename):
     Save a Folium map object to static/cartes/ and return the relative path for use in the app.
     """
     import os
+    import time
     # Ensure the directory exists
     cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
     os.makedirs(cartes_dir, exist_ok=True)
+    
+    # Nettoyage automatique: supprimer les cartes de + de 24h et limiter à 50 fichiers max
+    try:
+        current_time = time.time()
+        html_files = [(os.path.join(cartes_dir, f), os.path.getmtime(os.path.join(cartes_dir, f))) 
+                      for f in os.listdir(cartes_dir) if f.endswith('.html')]
+        
+        # Supprimer fichiers > 24h
+        for filepath, mtime in html_files:
+            if (current_time - mtime) > (24 * 3600):
+                try:
+                    os.remove(filepath)
+                except:
+                    pass
+        
+        # Limiter à 50 fichiers (garder les plus récents)
+        html_files = [(os.path.join(cartes_dir, f), os.path.getmtime(os.path.join(cartes_dir, f))) 
+                      for f in os.listdir(cartes_dir) if f.endswith('.html')]
+        if len(html_files) > 50:
+            html_files.sort(key=lambda x: x[1], reverse=True)
+            for filepath, _ in html_files[50:]:
+                try:
+                    os.remove(filepath)
+                except:
+                    pass
+    except:
+        pass
+    
     # Save the map
     filepath = os.path.join(cartes_dir, filename)
     map_obj.save(filepath)
