@@ -2378,3 +2378,51 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return f"Erreur lors de la génération du PDF: {str(e)}", 500
+
+    # ============================================================================
+    # ROUTE DEBUG - FORMES JURIDIQUES
+    # ============================================================================
+    @app.route('/api/crm/debug/formes-juridiques')
+    def debug_formes_juridiques():
+        """Liste toutes les formes juridiques uniques dans la base"""
+        try:
+            formes = execute_query('''
+                SELECT DISTINCT proprietaire_forme_juridique, COUNT(*) as count
+                FROM agriweb_prospects
+                WHERE proprietaire_forme_juridique IS NOT NULL
+                AND proprietaire_forme_juridique != ''
+                GROUP BY proprietaire_forme_juridique
+                ORDER BY count DESC
+                LIMIT 50
+            ''', fetch_all=True)
+            
+            return jsonify({
+                'success': True,
+                'formes_juridiques': formes
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
+    # ROUTE ADMIN - NETTOYAGE COMPLET PROSPECTS
+    # ============================================================================
+    @app.route('/api/crm/admin/cleanup-all', methods=['POST'])
+    def cleanup_all_prospects():
+        """Supprime TOUS les prospects et projets associés - ATTENTION DANGEREUX"""
+        try:
+            # Supprimer tous les projets et étapes (CASCADE)
+            execute_query('DELETE FROM project_fiches')
+            
+            # Supprimer tous les prospects
+            result = execute_query('DELETE FROM agriweb_prospects RETURNING id', fetch_all=True)
+            count = len(result) if result else 0
+            
+            return jsonify({
+                'success': True,
+                'message': f'✅ {count} prospects supprimés avec succès',
+                'deleted_count': count
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
