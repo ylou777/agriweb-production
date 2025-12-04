@@ -270,12 +270,7 @@
                             <div class="col-md-2">
                                 <select id="filterFormeJuridique" class="form-select">
                                     <option value="">Toutes formes</option>
-                                    <option value="commune">🏛️ Commune</option>
-                                    <option value="sci">🏢 SCI</option>
-                                    <option value="sarl">🏪 SARL</option>
-                                    <option value="sas">🏭 SAS</option>
-                                    <option value="particulier">👤 Particulier</option>
-                                    <option value="association">🤝 Association</option>
+                                    <!-- Peuplé dynamiquement -->
                                 </select>
                             </div>
                             <div class="col-md-1">
@@ -742,6 +737,7 @@
                 
                 allProspects = data.prospects || [];
                 updateStats(data.stats);
+                populateFormeJuridiqueFilter();
                 displayProspects(allProspects);
                 
                 // Si on a un paramètre highlight dans l'URL, scroll vers le prospect et le mettre en évidence
@@ -754,6 +750,43 @@
             } catch (error) {
                 console.error('Erreur chargement prospects:', error);
                 showError('Erreur lors du chargement des prospects');
+            }
+        }
+        
+        function populateFormeJuridiqueFilter() {
+            // Récupérer toutes les formes juridiques uniques des prospects avec propriétaire
+            const formesJuridiques = new Set();
+            
+            allProspects.forEach(p => {
+                if (p.proprietaire_siren && p.proprietaire_forme_juridique) {
+                    const forme = p.proprietaire_forme_juridique.trim();
+                    if (forme) {
+                        formesJuridiques.add(forme);
+                    }
+                }
+            });
+            
+            // Trier les formes juridiques
+            const formesSorted = Array.from(formesJuridiques).sort();
+            
+            // Peupler le select
+            const select = document.getElementById('filterFormeJuridique');
+            const currentValue = select.value;
+            
+            // Garder l'option "Toutes formes"
+            select.innerHTML = '<option value="">Toutes formes</option>';
+            
+            // Ajouter chaque forme juridique unique
+            formesSorted.forEach(forme => {
+                const option = document.createElement('option');
+                option.value = forme;
+                option.textContent = forme;
+                select.appendChild(option);
+            });
+            
+            // Restaurer la valeur sélectionnée si elle existe toujours
+            if (currentValue && formesSorted.includes(currentValue)) {
+                select.value = currentValue;
             }
         }
 
@@ -1330,42 +1363,10 @@
                     matchProprietaire = !p.proprietaire_siren || p.proprietaire_siren === null;
                 }
                 
-                // Filtrage par forme juridique
+                // Filtrage par forme juridique (correspondance exacte avec les valeurs du select)
                 let matchFormeJuridique = true;
                 if (formeJuridiqueFilter) {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    
-                    if (formeJuridiqueFilter === 'commune') {
-                        matchFormeJuridique = formeJur.includes('commune') || 
-                                             formeJur.includes('mairie') ||
-                                             formeJur.includes('collectivité') ||
-                                             formeJur.includes('collectivite');
-                    } else if (formeJuridiqueFilter === 'sci') {
-                        matchFormeJuridique = formeJur.includes('sci') || 
-                                             formeJur.includes('société civile immobilière') ||
-                                             formeJur.includes('societe civile immobiliere');
-                    } else if (formeJuridiqueFilter === 'sarl') {
-                        matchFormeJuridique = formeJur.includes('sarl') || 
-                                             formeJur.includes('société à responsabilité limitée') ||
-                                             formeJur.includes('societe a responsabilite limitee');
-                    } else if (formeJuridiqueFilter === 'sas') {
-                        matchFormeJuridique = formeJur.includes('sas') || 
-                                             formeJur.includes('société par actions simplifiée') ||
-                                             formeJur.includes('societe par actions simplifiee');
-                    } else if (formeJuridiqueFilter === 'particulier') {
-                        matchFormeJuridique = formeJur.includes('indivision') || 
-                                             formeJur.includes('personne physique') ||
-                                             formeJur === '' || 
-                                             (!formeJur.includes('commune') && 
-                                              !formeJur.includes('sci') && 
-                                              !formeJur.includes('sarl') && 
-                                              !formeJur.includes('sas') && 
-                                              !formeJur.includes('association') &&
-                                              p.proprietaire_siren);
-                    } else if (formeJuridiqueFilter === 'association') {
-                        matchFormeJuridique = formeJur.includes('association') || 
-                                             formeJur.includes('loi 1901');
-                    }
+                    matchFormeJuridique = p.proprietaire_forme_juridique === formeJuridiqueFilter;
                 }
                 
                 return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment && matchProprietaire && matchFormeJuridique;
