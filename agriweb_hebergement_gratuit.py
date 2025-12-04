@@ -4456,14 +4456,46 @@ def get_batiments_info_by_polygon(commune_geom):
         
         # print(f"🌐 [BATIMENTS] Envoi requête Overpass...")  # Optimisé pour performance
         
-        response = requests.post(
-            "https://overpass-api.de/api/interpreter",
-            data=overpass_query,
-            timeout=120  # Timeout plus long pour les grandes communes
-        )
+        # Retry avec délai exponentiel pour gérer les erreurs 429 et 502
+        max_retries = 3
+        retry_delay = 2  # secondes
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    "https://overpass-api.de/api/interpreter",
+                    data=overpass_query,
+                    timeout=120  # Timeout plus long pour les grandes communes
+                )
+                
+                if response.status_code == 200:
+                    break  # Succès, sortir de la boucle
+                elif response.status_code in [429, 502, 503]:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Délai exponentiel
+                        print(f"⚠️ [BATIMENTS] Erreur {response.status_code}, retry dans {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"❌ [BATIMENTS] Erreur Overpass après {max_retries} tentatives: {response.status_code}")
+                        return {"type": "FeatureCollection", "features": []}
+                else:
+                    print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")
+                    return {"type": "FeatureCollection", "features": []}
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"⚠️ [BATIMENTS] Timeout, retry dans {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"❌ [BATIMENTS] Timeout après {max_retries} tentatives")
+                    return {"type": "FeatureCollection", "features": []}
+            except Exception as e:
+                print(f"❌ [BATIMENTS] Erreur requête: {e}")
+                return {"type": "FeatureCollection", "features": []}
         
         if response.status_code != 200:
-            # print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")  # Optimisé pour performance
             return {"type": "FeatureCollection", "features": []}
         
         data = response.json()
@@ -4716,39 +4748,69 @@ def get_batiments_data(geom):
                     return None
         
         overpass_url = "https://overpass-api.de/api/interpreter"
-        response = requests.post(overpass_url, data=overpass_query, timeout=30)
         
-        if response.status_code == 200:
-            osm_data = response.json()
-            # Convertir les données OSM en GeoJSON
-            features = []
-            for element in osm_data.get("elements", []):
-                if element.get("type") == "way" and element.get("geometry"):
-                    coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
-                    if len(coords) > 2:
-                        # Fermer le polygone si nécessaire
-                        if coords[0] != coords[-1]:
-                            coords.append(coords[0])
-                        
-                        feature = {
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "Polygon",
-                                "coordinates": [coords]
-                            },
-                            "properties": {
-                                "source": "OpenStreetMap",
-                                "building": element.get("tags", {}).get("building", "yes"),
-                                "osm_id": element.get("id")
-                            }
-                        }
-                        features.append(feature)
-            
-            if features:
-                print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
-                return {"type": "FeatureCollection", "features": features}
-        else:
-            print(f"⚠️ [BATIMENTS] Overpass API: {response.status_code}")
+        # Retry avec délai exponentiel pour gérer les erreurs 429 et 502
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(overpass_url, data=overpass_query, timeout=30)
+                
+                if response.status_code == 200:
+                    osm_data = response.json()
+                    # Convertir les données OSM en GeoJSON
+                    features = []
+                    for element in osm_data.get("elements", []):
+                        if element.get("type") == "way" and element.get("geometry"):
+                            coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
+                            if len(coords) > 2:
+                                # Fermer le polygone si nécessaire
+                                if coords[0] != coords[-1]:
+                                    coords.append(coords[0])
+                                
+                                feature = {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [coords]
+                                    },
+                                    "properties": {
+                                        "source": "OpenStreetMap",
+                                        "building": element.get("tags", {}).get("building", "yes"),
+                                        "osm_id": element.get("id")
+                                    }
+                                }
+                                features.append(feature)
+                    
+                    if features:
+                        print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
+                        return {"type": "FeatureCollection", "features": features}
+                    break
+                elif response.status_code in [429, 502, 503]:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)
+                        print(f"⚠️ [BATIMENTS] Erreur {response.status_code}, retry dans {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"⚠️ [BATIMENTS] Overpass API après {max_retries} tentatives: {response.status_code}")
+                        break
+                else:
+                    print(f"⚠️ [BATIMENTS] Overpass API: {response.status_code}")
+                    break
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"⚠️ [BATIMENTS] Timeout, retry dans {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"⚠️ [BATIMENTS] Timeout après {max_retries} tentatives")
+                    break
+            except Exception as e:
+                print(f"⚠️ [BATIMENTS] Erreur requête: {e}")
+                break
     except Exception as e:
         print(f"⚠️ [BATIMENTS] Erreur OpenStreetMap: {e}")
     
