@@ -7528,8 +7528,8 @@ def search_by_commune():
     request_count = len(search_by_commune.request_counter[client_ip])
     # print(f"[IP_TRACKING] IP: {client_ip}, Requêtes/minute: {request_count}")  # Optimisé pour performance
     
-    # Bloquer si trop de requêtes (plus de 5 par minute = suspect - RENFORCÉ)
-    if request_count > 5:
+    # Bloquer si trop de requêtes (plus de 20 par minute = suspect - AUGMENTÉ pour usage normal)
+    if request_count > 20:
         search_by_commune.blocked_ips[client_ip] = (current_time, f"Trop de requêtes: {request_count}/min")
         # print(f"[AUTO_BLOCK] IP {client_ip} bloquée automatiquement")  # Optimisé pour performance
         return jsonify({
