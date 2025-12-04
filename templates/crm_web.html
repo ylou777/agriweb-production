@@ -265,6 +265,11 @@
                                     <option value="">Tous prospects</option>
                                     <option value="enrichi">Avec propriétaire</option>
                                     <option value="non-enrichi">Sans propriétaire</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterFormeJuridique" class="form-select">
+                                    <option value="">Toutes formes</option>
                                     <option value="commune">🏛️ Commune</option>
                                     <option value="sci">🏢 SCI</option>
                                     <option value="sarl">🏪 SARL</option>
@@ -725,6 +730,7 @@
             document.getElementById('filterTaille').addEventListener('change', filterProspects);
             document.getElementById('filterBatiment').addEventListener('change', filterProspects);
             document.getElementById('filterProprietaire').addEventListener('change', filterProspects);
+            document.getElementById('filterFormeJuridique').addEventListener('change', filterProspects);
             
             loadProspects();
         });
@@ -1270,6 +1276,9 @@
             const filterProprioElem = document.getElementById('filterProprietaire');
             const proprietaireFilter = filterProprioElem ? filterProprioElem.value : '';
             
+            const filterFormeElem = document.getElementById('filterFormeJuridique');
+            const formeJuridiqueFilter = filterFormeElem ? filterFormeElem.value : '';
+            
             // Réinitialiser la page à 1 lors d'un filtrage
             currentPage = 1;
             
@@ -1319,46 +1328,47 @@
                     matchProprietaire = p.proprietaire_siren && p.proprietaire_siren !== null;
                 } else if (proprietaireFilter === 'non-enrichi') {
                     matchProprietaire = !p.proprietaire_siren || p.proprietaire_siren === null;
-                } else if (proprietaireFilter === 'commune') {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    matchProprietaire = formeJur.includes('commune') || 
-                                       formeJur.includes('mairie') ||
-                                       formeJur.includes('collectivité') ||
-                                       formeJur.includes('collectivite');
-                } else if (proprietaireFilter === 'sci') {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    matchProprietaire = formeJur.includes('sci') || 
-                                       formeJur.includes('société civile immobilière') ||
-                                       formeJur.includes('societe civile immobiliere');
-                } else if (proprietaireFilter === 'sarl') {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    matchProprietaire = formeJur.includes('sarl') || 
-                                       formeJur.includes('société à responsabilité limitée') ||
-                                       formeJur.includes('societe a responsabilite limitee');
-                } else if (proprietaireFilter === 'sas') {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    matchProprietaire = formeJur.includes('sas') || 
-                                       formeJur.includes('société par actions simplifiée') ||
-                                       formeJur.includes('societe par actions simplifiee');
-                } else if (proprietaireFilter === 'particulier') {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    matchProprietaire = formeJur.includes('indivision') || 
-                                       formeJur.includes('personne physique') ||
-                                       formeJur === '' || 
-                                       formeJur === null ||
-                                       (!formeJur.includes('commune') && 
-                                        !formeJur.includes('sci') && 
-                                        !formeJur.includes('sarl') && 
-                                        !formeJur.includes('sas') && 
-                                        !formeJur.includes('association') &&
-                                        p.proprietaire_siren);
-                } else if (proprietaireFilter === 'association') {
-                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
-                    matchProprietaire = formeJur.includes('association') || 
-                                       formeJur.includes('loi 1901');
                 }
                 
-                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment && matchProprietaire;
+                // Filtrage par forme juridique
+                let matchFormeJuridique = true;
+                if (formeJuridiqueFilter) {
+                    const formeJur = (p.proprietaire_forme_juridique || '').toLowerCase();
+                    
+                    if (formeJuridiqueFilter === 'commune') {
+                        matchFormeJuridique = formeJur.includes('commune') || 
+                                             formeJur.includes('mairie') ||
+                                             formeJur.includes('collectivité') ||
+                                             formeJur.includes('collectivite');
+                    } else if (formeJuridiqueFilter === 'sci') {
+                        matchFormeJuridique = formeJur.includes('sci') || 
+                                             formeJur.includes('société civile immobilière') ||
+                                             formeJur.includes('societe civile immobiliere');
+                    } else if (formeJuridiqueFilter === 'sarl') {
+                        matchFormeJuridique = formeJur.includes('sarl') || 
+                                             formeJur.includes('société à responsabilité limitée') ||
+                                             formeJur.includes('societe a responsabilite limitee');
+                    } else if (formeJuridiqueFilter === 'sas') {
+                        matchFormeJuridique = formeJur.includes('sas') || 
+                                             formeJur.includes('société par actions simplifiée') ||
+                                             formeJur.includes('societe par actions simplifiee');
+                    } else if (formeJuridiqueFilter === 'particulier') {
+                        matchFormeJuridique = formeJur.includes('indivision') || 
+                                             formeJur.includes('personne physique') ||
+                                             formeJur === '' || 
+                                             (!formeJur.includes('commune') && 
+                                              !formeJur.includes('sci') && 
+                                              !formeJur.includes('sarl') && 
+                                              !formeJur.includes('sas') && 
+                                              !formeJur.includes('association') &&
+                                              p.proprietaire_siren);
+                    } else if (formeJuridiqueFilter === 'association') {
+                        matchFormeJuridique = formeJur.includes('association') || 
+                                             formeJur.includes('loi 1901');
+                    }
+                }
+                
+                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment && matchProprietaire && matchFormeJuridique;
             });
             
             displayProspects(filtered);
