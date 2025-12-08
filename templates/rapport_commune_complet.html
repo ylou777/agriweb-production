@@ -1269,14 +1269,22 @@
                 });
                 {% endif %}
                 
-                // Envoyer vers le backend
+                // Envoyer vers le backend avec timeout personnalisé (10 minutes)
+                console.log('🚀 [CRM EXPORT] Envoi de', totalSelected, 'éléments vers le CRM...');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
+                
                 const response = await fetch('/api/crm/export', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(exportData)
+                    body: JSON.stringify(exportData),
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 const result = await response.json();
                 
@@ -1303,8 +1311,18 @@
                     alert(`❌ Erreur lors de l'export :\n${result.error}`);
                 }
             } catch (error) {
-                console.error('Erreur export CRM:', error);
-                alert(`❌ Erreur de connexion :\n${error.message}`);
+                console.error('❌ [CRM EXPORT] Erreur:', error);
+                
+                let errorMessage = 'Erreur inconnue';
+                if (error.name === 'AbortError') {
+                    errorMessage = 'L\'export a pris plus de 10 minutes et a été interrompu.\nVeuillez réessayer avec moins d\'éléments.';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage = 'Erreur de connexion au serveur.\nLe serveur a peut-être coupé la connexion (timeout).\n\nVeuillez vérifier :\n- Que le serveur est accessible\n- Que vous avez une connexion internet\n- Réessayer dans quelques instants';
+                } else {
+                    errorMessage = error.message;
+                }
+                
+                alert(`❌ Erreur lors de l'export CRM :\n\n${errorMessage}`);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;

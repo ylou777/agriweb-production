@@ -385,14 +385,26 @@ def register_crm_routes(app):
     @app.route('/api/crm/export', methods=['POST'])
     def crm_export():
         """Exporte les éléments sélectionnés vers le CRM"""
+        import time
+        start_time = time.time()
+        
         try:
+            print(f"\n{'='*80}")
+            print(f"🚀 [CRM EXPORT] === DÉBUT EXPORT CRM ===")
+            print(f"⏰ Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
             if not request.is_json:
                 return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
             
             data = request.get_json()
-            print(f"🔍 [CRM EXPORT] Données reçues:")
+            print(f"📦 [CRM EXPORT] Données reçues:")
             print(f"    - Parkings: {len(data.get('parkings', []))}")
             print(f"    - Toitures: {len(data.get('toitures', []))}")
+            print(f"    - Friches: {len(data.get('friches', []))}")
+            print(f"    - RPG: {len(data.get('rpg', []))}")
+            
+            total_items = len(data.get('parkings', [])) + len(data.get('toitures', [])) + len(data.get('friches', [])) + len(data.get('rpg', []))
+            print(f"📊 [CRM EXPORT] Total à exporter: {total_items} éléments")
             
             # Debug: afficher la première toiture pour vérifier lat/lon
             if data.get('toitures') and len(data.get('toitures')) > 0:
