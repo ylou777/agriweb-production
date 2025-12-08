@@ -2416,40 +2416,29 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # ============================================================================
-    # PROPOSITION COMMERCIALE COMPLÈTE
+    # PROPOSITION COMMERCIALE PROFESSIONNELLE
     # ============================================================================
     @app.route('/api/crm/prospects/<int:prospect_id>/proposition-complete', methods=['POST'])
     def generer_proposition_complete(prospect_id):
         """
-        Génère une proposition commerciale complète incluant:
-        - Rapport de recherche AgriWeb
-        - Étude de productible avec calepinage
-        - Devis détaillé
-        - Courbes de consommation/production (autoconsommation)
+        Génère une proposition commerciale professionnelle complète avec:
+        - Couverture + Sommaire
+        - Présentation entreprise (certifications QualiPV, RGE)
+        - Analyse site + contraintes urbanisme (PLU)
+        - Solution technique (modules JA Solar, onduleurs Huawei)
+        - Étude productible PVGIS
+        - Étude financière (TRI, VAN, ROI)
+        - Devis détaillé NF C 15-752-1 avec taxes IFER
+        - Planning réalisation (DP, DDR, Consuel)
+        - Garanties et maintenance
+        - Aspects réglementaires
+        - CGV
         """
         try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.units import cm
-            from reportlab.pdfgen import canvas
-            from reportlab.lib import colors
-            from reportlab.platypus import Table, TableStyle, PageBreak
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
-            from io import BytesIO
-            import matplotlib
-            matplotlib.use('Agg')
-            import matplotlib.pyplot as plt
-            import numpy as np
+            from proposition_professionnelle import PropositionProfessionnelle
             
             # Récupérer les données de la requête
             data = request.json
-            type_projet = data.get('type_projet', 'autoconsommation')  # autoconsommation ou vente_totale
-            puissance_kwc = float(data.get('puissance_kwc', 100))
-            prix_kwc = float(data.get('prix_kwc', 850))
-            consommation_annuelle = float(data.get('consommation_annuelle_kwh', 0))  # Pour autoconso
-            tarif_achat_kwh = float(data.get('tarif_achat_kwh', 0.20))  # Prix d'achat élec
-            tarif_revente_kwh = float(data.get('tarif_revente_kwh', 0.13))  # Prix de revente
-            taux_autoconso = float(data.get('taux_autoconso', 70))  # % d'autoconsommation
             
             # Récupérer le prospect
             prospect_result = execute_query(
@@ -2463,234 +2452,37 @@ def register_crm_routes(app):
             
             prospect = dict(prospect_result)
             
-            # Parser data_json pour récupérer le calpinage
+            # Parser data_json pour récupérer toutes les données
             try:
                 data_json = json.loads(prospect['data_json']) if prospect['data_json'] else {}
                 calpinage = data_json.get('calpinage', {})
                 visite_technique = data_json.get('visite_technique', {})
+                rapport_commune = data_json.get('rapport_commune', {})
             except:
                 calpinage = {}
                 visite_technique = {}
+                rapport_commune = {}
             
-            # Créer le PDF
-            buffer = BytesIO()
-            doc = SimpleDocTemplate(buffer, pagesize=A4,
-                                    rightMargin=2*cm, leftMargin=2*cm,
-                                    topMargin=2*cm, bottomMargin=2*cm)
+            # Préparer les paramètres pour la proposition
+            parametres = {
+                'type_projet': data.get('type_projet', 'autoconsommation'),
+                'puissance_kwc': float(data.get('puissance_kwc', 100)),
+                'prix_kwc': float(data.get('prix_kwc', 850)),
+                'consommation_annuelle_kwh': float(data.get('consommation_annuelle_kwh', 0)),
+                'tarif_achat_kwh': float(data.get('tarif_achat_kwh', 0.20)),
+                'tarif_revente_kwh': float(data.get('tarif_revente_kwh', 0.13)),
+                'taux_autoconso': float(data.get('taux_autoconso', 70)),
+                'pvgis_hourly_data': data.get('pvgis_hourly_data'),  # Optionnel
+                'enedis_hourly_data': data.get('enedis_hourly_data'),  # Optionnel
+            }
             
-            story = []
-            styles = getSampleStyleSheet()
+            # Enrichir prospect avec rapport_commune pour contraintes urbanisme
+            if rapport_commune:
+                prospect['data_json'] = data_json
             
-            # Style personnalisé
-            title_style = ParagraphStyle(
-                'CustomTitle',
-                parent=styles['Heading1'],
-                fontSize=24,
-                textColor=colors.HexColor('#0d6efd'),
-                spaceAfter=30,
-                alignment=1  # Centré
-            )
-            
-            # ========== PAGE 1: COUVERTURE ==========
-            story.append(Spacer(1, 4*cm))
-            story.append(Paragraph("PROPOSITION COMMERCIALE", title_style))
-            story.append(Paragraph(f"Installation Photovoltaïque {type_projet.replace('_', ' ').title()}", styles['Heading2']))
-            story.append(Spacer(1, 2*cm))
-            
-            # Infos client
-            story.append(Paragraph(f"<b>Client:</b> {prospect.get('nom_prospect') or 'N/A'}", styles['Normal']))
-            story.append(Paragraph(f"<b>Adresse:</b> {prospect.get('adresse') or 'N/A'}", styles['Normal']))
-            story.append(Paragraph(f"<b>Commune:</b> {prospect.get('commune') or 'N/A'}", styles['Normal']))
-            story.append(Spacer(1, 1*cm))
-            story.append(Paragraph(f"<b>Date:</b> {datetime.now().strftime('%d/%m/%Y')}", styles['Normal']))
-            story.append(Spacer(1, 2*cm))
-            
-            # Résumé projet
-            story.append(Paragraph("<b>CARACTÉRISTIQUES DU PROJET</b>", styles['Heading3']))
-            story.append(Paragraph(f"• Puissance installée: <b>{puissance_kwc:.2f} kWc</b>", styles['Normal']))
-            
-            # Calculs de production
-            productible_kwh_kwc_an = 1100  # Par défaut, peut être ajusté selon la région
-            production_annuelle = puissance_kwc * productible_kwh_kwc_an
-            
-            story.append(Paragraph(f"• Production annuelle estimée: <b>{production_annuelle:,.0f} kWh/an</b>", styles['Normal']))
-            story.append(Paragraph(f"• Type d'installation: <b>{type_projet.replace('_', ' ').title()}</b>", styles['Normal']))
-            
-            story.append(PageBreak())
-            
-            # ========== PAGE 2: ÉTUDE TECHNIQUE ==========
-            story.append(Paragraph("1. ÉTUDE TECHNIQUE", styles['Heading2']))
-            story.append(Spacer(1, 0.5*cm))
-            
-            if calpinage and calpinage.get('zones'):
-                # Tableau des zones
-                table_data = [['Zone', 'Surface (m²)', 'Modules', 'Puissance (kWc)', 'Orientation', 'Inclinaison']]
-                
-                for zone in calpinage['zones']:
-                    table_data.append([
-                        f"Zone {zone['numero']}",
-                        f"{zone['surfaceM2']:.1f}",
-                        str(zone['nbModules']),
-                        f"{zone['puissanceKw']:.2f}",
-                        f"{zone['orientation']}°",
-                        f"{zone['inclinaison']}°"
-                    ])
-                
-                table = Table(table_data, colWidths=[3*cm, 3*cm, 2.5*cm, 3*cm, 2.5*cm, 2.5*cm])
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')])
-                ]))
-                story.append(table)
-            else:
-                story.append(Paragraph("Aucun calepinage disponible pour ce projet.", styles['Normal']))
-            
-            story.append(PageBreak())
-            
-            # ========== PAGE 3: DEVIS DÉTAILLÉ ==========
-            story.append(Paragraph("2. DEVIS DÉTAILLÉ", styles['Heading2']))
-            story.append(Spacer(1, 0.5*cm))
-            
-            # Calculs financiers
-            cout_installation = puissance_kwc * prix_kwc
-            cout_modules = cout_installation * 0.35
-            cout_onduleurs = cout_installation * 0.15
-            cout_structure = cout_installation * 0.15
-            cout_installation_pose = cout_installation * 0.25
-            cout_administratif = cout_installation * 0.10
-            
-            devis_data = [
-                ['Poste', 'Quantité', 'Prix Unitaire', 'Total HT'],
-                [f'Modules photovoltaïques', f'{puissance_kwc:.0f} kWc', f'{cout_modules/puissance_kwc:.2f} €/kWc', f'{cout_modules:,.2f} €'],
-                ['Onduleurs', '1 lot', f'{cout_onduleurs:,.2f} €', f'{cout_onduleurs:,.2f} €'],
-                ['Structure de fixation', '1 lot', f'{cout_structure:,.2f} €', f'{cout_structure:,.2f} €'],
-                ['Installation et pose', '1 lot', f'{cout_installation_pose:,.2f} €', f'{cout_installation_pose:,.2f} €'],
-                ['Démarches administratives', '1 lot', f'{cout_administratif:,.2f} €', f'{cout_administratif:,.2f} €'],
-                ['', '', '<b>TOTAL HT</b>', f'<b>{cout_installation:,.2f} €</b>'],
-                ['', '', '<b>TVA (10%)</b>', f'<b>{cout_installation*0.1:,.2f} €</b>'],
-                ['', '', '<b>TOTAL TTC</b>', f'<b>{cout_installation*1.1:,.2f} €</b>']
-            ]
-            
-            devis_table = Table(devis_data, colWidths=[6*cm, 3*cm, 3.5*cm, 4*cm])
-            devis_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 10),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor('#f8f9fa')]),
-                ('BACKGROUND', (0, -3), (-1, -1), colors.HexColor('#f8f9fa')),
-                ('FONTNAME', (0, -3), (-1, -1), 'Helvetica-Bold')
-            ]))
-            story.append(devis_table)
-            
-            story.append(PageBreak())
-            
-            # ========== PAGE 4: RENTABILITÉ ET AUTOCONSOMMATION ==========
-            story.append(Paragraph("3. ÉTUDE DE RENTABILITÉ", styles['Heading2']))
-            story.append(Spacer(1, 0.5*cm))
-            
-            if type_projet == 'autoconsommation' and consommation_annuelle > 0:
-                # Calculs autoconsommation
-                production_annuelle = puissance_kwc * productible_kwh_kwc_an
-                energie_autoconsommee = production_annuelle * (taux_autoconso / 100)
-                energie_revendue = production_annuelle - energie_autoconsommee
-                
-                economie_autoconso = energie_autoconsommee * tarif_achat_kwh
-                revenu_revente = energie_revendue * tarif_revente_kwh
-                gain_annuel = economie_autoconso + revenu_revente
-                
-                roi_annees = cout_installation / gain_annuel if gain_annuel > 0 else 0
-                
-                rentabilite_data = [
-                    ['Indicateur', 'Valeur'],
-                    ['Production annuelle', f'{production_annuelle:,.0f} kWh/an'],
-                    ['Énergie autoconsommée', f'{energie_autoconsommee:,.0f} kWh/an ({taux_autoconso}%)'],
-                    ['Énergie revendue', f'{energie_revendue:,.0f} kWh/an'],
-                    ['Économie autoconsommation', f'{economie_autoconso:,.2f} €/an'],
-                    ['Revenu revente surplus', f'{revenu_revente:,.2f} €/an'],
-                    ['<b>GAIN ANNUEL TOTAL</b>', f'<b>{gain_annuel:,.2f} €/an</b>'],
-                    ['<b>Retour sur investissement</b>', f'<b>{roi_annees:.1f} ans</b>']
-                ]
-                
-                rentabilite_table = Table(rentabilite_data, colWidths=[10*cm, 6*cm])
-                rentabilite_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0d6efd')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                    ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-                    ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
-                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10),
-                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -3), [colors.white, colors.HexColor('#f8f9fa')]),
-                    ('BACKGROUND', (0, -2), (-1, -1), colors.HexColor('#d4edda')),
-                    ('FONTNAME', (0, -2), (-1, -1), 'Helvetica-Bold')
-                ]))
-                story.append(rentabilite_table)
-                
-                story.append(Spacer(1, 1*cm))
-                
-                # Générer le graphique de courbes consommation/production
-                fig, ax = plt.subplots(figsize=(12, 6))
-                
-                # Créer des courbes mensuelles (simulation)
-                mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
-                
-                # Courbe de production (plus élevée en été)
-                production_mensuelle = np.array([0.6, 0.7, 0.9, 1.1, 1.3, 1.4, 1.5, 1.4, 1.2, 0.9, 0.7, 0.6])
-                production_mensuelle = production_mensuelle * (production_annuelle / production_mensuelle.sum())
-                
-                # Courbe de consommation (simulation - plus élevée en hiver pour chauffage)
-                if consommation_annuelle > 0:
-                    consommation_mensuelle = np.array([1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2])
-                    consommation_mensuelle = consommation_mensuelle * (consommation_annuelle / consommation_mensuelle.sum())
-                else:
-                    consommation_mensuelle = production_mensuelle * 1.2
-                
-                ax.plot(mois, production_mensuelle, marker='o', linewidth=2, color='#28a745', label='Production PV')
-                ax.plot(mois, consommation_mensuelle, marker='s', linewidth=2, color='#dc3545', label='Consommation')
-                
-                # Zone d'autoconsommation
-                autoconso_mensuelle = np.minimum(production_mensuelle, consommation_mensuelle)
-                ax.fill_between(range(12), 0, autoconso_mensuelle, alpha=0.3, color='#28a745', label='Autoconsommation')
-                
-                ax.set_xlabel('Mois', fontsize=12, fontweight='bold')
-                ax.set_ylabel('Énergie (kWh)', fontsize=12, fontweight='bold')
-                ax.set_title('Courbes de Production et Consommation Annuelles', fontsize=14, fontweight='bold')
-                ax.legend(loc='best', fontsize=10)
-                ax.grid(True, alpha=0.3)
-                
-                # Sauvegarder le graphique
-                graph_buffer = BytesIO()
-                plt.tight_layout()
-                plt.savefig(graph_buffer, format='png', dpi=150, bbox_inches='tight')
-                plt.close()
-                graph_buffer.seek(0)
-                
-                # Ajouter le graphique au PDF
-                from reportlab.platypus import Image as RLImage
-                story.append(Paragraph("Courbes Production / Consommation", styles['Heading3']))
-                story.append(Spacer(1, 0.3*cm))
-                img = RLImage(graph_buffer, width=16*cm, height=8*cm)
-                story.append(img)
-            
-            else:
-                # Vente totale
-                revenu_annuel = production_annuelle * tarif_revente_kwh
-                roi_annees = cout_installation / revenu_annuel if revenu_annuel > 0 else 0
-                
-                story.append(Paragraph(f"Production annuelle: <b>{production_annuelle:,.0f} kWh/an</b>", styles['Normal']))
-                story.append(Paragraph(f"Revenu annuel (vente totale): <b>{revenu_annuel:,.2f} €/an</b>", styles['Normal']))
-                story.append(Paragraph(f"Retour sur investissement: <b>{roi_annees:.1f} ans</b>", styles['Normal']))
-            
-            # Construire le PDF
-            doc.build(story)
+            # Générer la proposition professionnelle
+            proposition = PropositionProfessionnelle(prospect, calpinage, parametres)
+            buffer = proposition.generer_pdf()
             
             buffer.seek(0)
             
@@ -2716,7 +2508,7 @@ def register_crm_routes(app):
                 buffer,
                 mimetype='application/pdf',
                 as_attachment=True,
-                download_name=f'Proposition_Complete_{prospect["commune"]}_{datetime.now().strftime("%Y%m%d")}.pdf'
+                download_name=f'Proposition_Professionnelle_{prospect.get("commune", "NA")}_{datetime.now().strftime("%Y%m%d")}.pdf'
             )
             
         except Exception as e:
