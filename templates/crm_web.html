@@ -28,6 +28,22 @@
             background: #f8f9fa;
             padding: 20px;
             border-bottom: 2px solid #e9ecef;
+            position: relative;
+        }
+        .filter-loading {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: none;
+            z-index: 10;
+        }
+        .filter-loading.active {
+            display: block;
         }
         .prospect-card {
             border: 1px solid #e9ecef;
@@ -199,13 +215,16 @@
 
                     <!-- Filters -->
                     <div class="filters-bar">
+                        <div class="filter-loading" id="filterLoading">
+                            <i class="bi bi-funnel"></i> Filtrage...
+                        </div>
                         <div class="row g-3">
                             <div class="col-md-3">
                                 <input type="text" id="searchBox" class="form-control search-box" 
                                        placeholder="🔍 Rechercher par commune, adresse...">
                             </div>
                             <div class="col-md-2">
-                                <select id="filterType" class="form-select">
+                                <select id="filterType" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous types</option>
                                     <option value="parking">🅿️ Parkings</option>
                                     <option value="toiture">🏠 Toitures</option>
@@ -214,7 +233,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterStatus" class="form-select">
+                                <select id="filterStatus" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous statuts</option>
                                     <option value="nouveau">Nouveau</option>
                                     <option value="contacte">Contacté</option>
@@ -223,7 +242,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterPriorite" class="form-select">
+                                <select id="filterPriorite" class="form-select" onchange="filterProspects()">
                                     <option value="">Toutes priorités</option>
                                     <option value="haute">Haute</option>
                                     <option value="moyenne">Moyenne</option>
@@ -231,7 +250,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterTaille" class="form-select">
+                                <select id="filterTaille" class="form-select" onchange="filterProspects()">
                                     <option value="">Toutes tailles</option>
                                     <option value="0-1000">< 1 000 m²</option>
                                     <option value="1000-5000">1 000 - 5 000 m²</option>
@@ -242,7 +261,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterBatiment" class="form-select">
+                                <select id="filterBatiment" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous bâtiments</option>
                                     <option value="commercial">🏢 Commercial</option>
                                     <option value="industrial">🏭 Industriel</option>
@@ -261,14 +280,14 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterProprietaire" class="form-select">
+                                <select id="filterProprietaire" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous prospects</option>
                                     <option value="enrichi">Avec propriétaire</option>
                                     <option value="non-enrichi">Sans propriétaire</option>
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterFormeJuridique" class="form-select">
+                                <select id="filterFormeJuridique" class="form-select" onchange="filterProspects()">
                                     <option value="">Toutes formes</option>
                                     <!-- Peuplé dynamiquement -->
                                 </select>
@@ -717,15 +736,33 @@
             appointmentModal = new bootstrap.Modal(document.getElementById('appointmentModal'));
             proposalModal = new bootstrap.Modal(document.getElementById('proposalModal'));
             
-            // Event listeners pour les filtres
-            document.getElementById('searchBox').addEventListener('input', filterProspects);
-            document.getElementById('filterType').addEventListener('change', filterProspects);
-            document.getElementById('filterStatus').addEventListener('change', filterProspects);
-            document.getElementById('filterPriorite').addEventListener('change', filterProspects);
-            document.getElementById('filterTaille').addEventListener('change', filterProspects);
-            document.getElementById('filterBatiment').addEventListener('change', filterProspects);
-            document.getElementById('filterProprietaire').addEventListener('change', filterProspects);
-            document.getElementById('filterFormeJuridique').addEventListener('change', filterProspects);
+            // Event listeners pour les filtres - avec support mobile
+            const filterElements = [
+                { id: 'searchBox', events: ['input'] },
+                { id: 'filterType', events: ['change', 'input', 'touchend'] },
+                { id: 'filterStatus', events: ['change', 'input', 'touchend'] },
+                { id: 'filterPriorite', events: ['change', 'input', 'touchend'] },
+                { id: 'filterTaille', events: ['change', 'input', 'touchend'] },
+                { id: 'filterBatiment', events: ['change', 'input', 'touchend'] },
+                { id: 'filterProprietaire', events: ['change', 'input', 'touchend'] },
+                { id: 'filterFormeJuridique', events: ['change', 'input', 'touchend'] }
+            ];
+            
+            filterElements.forEach(({ id, events }) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    events.forEach(event => {
+                        element.addEventListener(event, function(e) {
+                            // Éviter les appels multiples pour touchend
+                            if (event === 'touchend') {
+                                setTimeout(() => filterProspects(), 100);
+                            } else {
+                                filterProspects();
+                            }
+                        }, { passive: true });
+                    });
+                }
+            });
             
             loadProspects();
         });
@@ -1505,7 +1542,31 @@
             `;
         }
 
+        // Debounce pour éviter les appels multiples (notamment sur mobile)
+        let filterTimeout = null;
         function filterProspects() {
+            // Afficher l'indicateur de filtrage
+            const loadingIndicator = document.getElementById('filterLoading');
+            if (loadingIndicator) {
+                loadingIndicator.classList.add('active');
+            }
+            
+            // Annuler le timeout précédent
+            if (filterTimeout) {
+                clearTimeout(filterTimeout);
+            }
+            
+            // Lancer le filtrage après un court délai
+            filterTimeout = setTimeout(function() {
+                doFilterProspects();
+                // Masquer l'indicateur
+                if (loadingIndicator) {
+                    setTimeout(() => loadingIndicator.classList.remove('active'), 200);
+                }
+            }, 150);
+        }
+        
+        function doFilterProspects() {
             const searchText = document.getElementById('searchBox').value.toLowerCase();
             const typeFilter = document.getElementById('filterType').value;
             const statusFilter = document.getElementById('filterStatus').value;
