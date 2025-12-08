@@ -2278,6 +2278,26 @@
                 });
                 
                 if (response.ok) {
+                    const result = await response.json();
+                    
+                    // Afficher notification de succès
+                    alert('✅ Calepinage sauvegardé !\n\n📊 L\'étape "Calepinage" de votre fiche projet a été mise à jour automatiquement.');
+                    
+                    // Si on est dans une fenêtre enfant, informer la fenêtre parent
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            // Demander au parent de rafraîchir les données du projet
+                            window.opener.postMessage({
+                                type: 'etape_terminee',
+                                prospectId: prospectId,
+                                etape: 'Calepinage',
+                                ordre: 3
+                            }, '*');
+                        } catch (e) {
+                            console.log('Impossible de notifier la fenêtre parent:', e);
+                        }
+                    }
+                    
                     // Ouvrir l'étude après sauvegarde réussie
                     window.open(`/api/crm/prospects/${prospectId}/etude-productible`, '_blank');
                 } else {

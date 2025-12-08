@@ -1289,14 +1289,34 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Export réussi !\n\n` +
+                    let message = `✅ Export réussi !\n\n` +
                         `${result.total_exported} élément(s) ajouté(s) au CRM\n\n` +
                         `📊 Détails :\n` +
                         `- Parkings : ${result.details.parkings}\n` +
                         `- Toitures : ${result.details.toitures}\n` +
                         `- Friches : ${result.details.friches}\n` +
-                        `- Parcelles RPG : ${result.details.rpg || 0}\n\n` +
-                        `🔗 Ouvrir le CRM pour voir les prospects`);
+                        `- Parcelles RPG : ${result.details.rpg || 0}`;
+                    
+                    // Si un projet a été créé/mis à jour, l'indiquer
+                    if (result.project_id) {
+                        message += `\n\n📁 Les fiches projets ont été mises à jour automatiquement.\n✅ L'étape "Rapport de recherche AgriWeb" a été marquée comme terminée.`;
+                    }
+                    
+                    alert(message + '\n\n🔗 Ouvrir le CRM pour voir les prospects');
+                    
+                    // Si on est dans une fenêtre enfant, informer la fenêtre parent
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            window.opener.postMessage({
+                                type: 'etape_terminee',
+                                etape: 'Rapport de recherche AgriWeb',
+                                ordre: 1,
+                                total_exported: result.total_exported
+                            }, '*');
+                        } catch (e) {
+                            console.log('Impossible de notifier la fenêtre parent:', e);
+                        }
+                    }
                     
                     // Réinitialiser les sélections
                     selectedItems = { parkings: new Set(), toitures: new Set(), friches: new Set(), rpg: new Set() };

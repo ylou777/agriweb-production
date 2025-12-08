@@ -940,7 +940,21 @@
             const result = await response.json();
             
             if (result.success) {
-                alert('✅ Visite technique sauvegardée avec succès !');
+                alert('✅ Visite technique sauvegardée avec succès !\n\n📊 L\'étape "Visite technique" de votre fiche projet a été mise à jour automatiquement.');
+                
+                // Si on est dans une fenêtre enfant, informer la fenêtre parent
+                if (window.opener && !window.opener.closed) {
+                    try {
+                        window.opener.postMessage({
+                            type: 'etape_terminee',
+                            prospectId: {{ prospect.id }},
+                            etape: 'Visite technique',
+                            ordre: 2
+                        }, '*');
+                    } catch (e) {
+                        console.log('Impossible de notifier la fenêtre parent:', e);
+                    }
+                }
             } else {
                 alert('❌ Erreur: ' + (result.error || 'Erreur inconnue'));
             }
