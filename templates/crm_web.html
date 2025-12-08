@@ -520,30 +520,64 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="proposal-prospect-id">
+                    
+                    <!-- Type de projet -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label"><strong>Type de projet</strong></label>
+                            <select id="proposal-type-projet" class="form-select" onchange="toggleAutoconso()">
+                                <option value="autoconsommation">Autoconsommation avec revente du surplus</option>
+                                <option value="vente_totale">Vente totale</option>
+                            </select>
+                        </div>
+                    </div>
+                    
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Puissance Installation (kWc)</label>
-                            <input type="number" id="proposal-puissance" class="form-control" value="100" step="10">
+                            <input type="number" id="proposal-puissance" class="form-control" value="100" step="10" onchange="updateProposalCalculation()">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Prix par kWc (€)</label>
-                            <input type="number" id="proposal-prix-kwc" class="form-control" value="850" step="10">
+                            <input type="number" id="proposal-prix-kwc" class="form-control" value="850" step="10" onchange="updateProposalCalculation()">
+                        </div>
+                        
+                        <!-- Champs spécifiques autoconsommation -->
+                        <div class="col-md-6" id="field-consommation" style="display: block;">
+                            <label class="form-label">Consommation Annuelle (kWh/an)</label>
+                            <input type="number" id="proposal-consommation" class="form-control" value="150000" step="1000" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Nécessaire pour calculer l'autoconsommation</small>
+                        </div>
+                        <div class="col-md-6" id="field-taux-autoconso" style="display: block;">
+                            <label class="form-label">Taux d'autoconsommation (%)</label>
+                            <input type="number" id="proposal-taux-autoconso" class="form-control" value="70" min="0" max="100" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Généralement entre 50% et 80%</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Tarif Achat Électricité (€/kWh)</label>
+                            <input type="number" id="proposal-tarif-achat" class="form-control" value="0.20" step="0.01" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Prix d'achat actuel d'électricité</small>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Production Annuelle (kWh/kWc)</label>
-                            <input type="number" id="proposal-production" class="form-control" value="1100" step="50">
+                            <label class="form-label">Tarif Revente (€/kWh)</label>
+                            <input type="number" id="proposal-tarif-revente" class="form-control" value="0.13" step="0.01" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Prix de revente du surplus ou vente totale</small>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Tarif Rachat (€/kWh)</label>
-                            <input type="number" id="proposal-tarif" class="form-control" value="0.13" step="0.01">
-                        </div>
+                        
                         <div class="col-md-12">
                             <div class="alert alert-info" id="proposal-calculation">
-                                <strong>Calcul automatique:</strong>
+                                <strong>📊 Calcul automatique:</strong>
                                 <div class="mt-2">
                                     <div>💰 Investissement total: <span id="calc-investissement">-</span> €</div>
                                     <div>⚡ Production annuelle: <span id="calc-production">-</span> kWh/an</div>
-                                    <div>💶 Revenus annuels: <span id="calc-revenus">-</span> €/an</div>
+                                    <div id="calc-autoconso-details" style="display: block;">
+                                        <div>🔋 Énergie autoconsommée: <span id="calc-autoconso">-</span> kWh/an</div>
+                                        <div>🔌 Énergie revendue: <span id="calc-revente">-</span> kWh/an</div>
+                                        <div>💵 Économie autoconso: <span id="calc-economie">-</span> €/an</div>
+                                        <div>💶 Revenu revente: <span id="calc-revenu-revente">-</span> €/an</div>
+                                    </div>
+                                    <div><strong>💰 GAIN TOTAL ANNUEL: <span id="calc-gain-total">-</span> €/an</strong></div>
                                     <div>📊 Rentabilité: <span id="calc-rentabilite">-</span>%</div>
                                     <div>⏱️ Retour sur investissement: <span id="calc-roi">-</span> ans</div>
                                 </div>
@@ -557,11 +591,8 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="button" class="btn btn-success" onclick="downloadProposal()">
-                        <i class="bi bi-download"></i> Télécharger PDF
-                    </button>
-                    <button type="button" class="btn btn-primary" onclick="saveProposal()">
-                        <i class="bi bi-save"></i> Enregistrer
+                    <button type="button" class="btn btn-success" onclick="downloadProposalComplete()">
+                        <i class="bi bi-file-earmark-pdf"></i> Télécharger Proposition Complète PDF
                     </button>
                 </div>
             </div>
@@ -2889,7 +2920,8 @@ Cordialement,`
             const puissanceEstimee = Math.round(surface * 0.15); // 150 Wc/m²
             document.getElementById('proposal-puissance').value = puissanceEstimee;
             
-            calculateProposal();
+            // Mettre à jour les calculs
+            updateProposalCalculation();
             proposalModal.show();
         }
 
@@ -3002,6 +3034,120 @@ Cordialement,`
             const url = `/rapport_point?lat=${lat}&lon=${lon}&prospect_id=${prospectId}`;
             window.open(url, '_blank');
             showSuccess('Génération du rapport en cours...');
+        }
+        
+        // === FONCTIONS PROPOSITION COMPLÈTE ===
+        function toggleAutoconso() {
+            const typeProjet = document.getElementById('proposal-type-projet').value;
+            const isAutoconso = typeProjet === 'autoconsommation';
+            
+            document.getElementById('field-consommation').style.display = isAutoconso ? 'block' : 'none';
+            document.getElementById('field-taux-autoconso').style.display = isAutoconso ? 'block' : 'none';
+            document.getElementById('calc-autoconso-details').style.display = isAutoconso ? 'block' : 'none';
+            
+            updateProposalCalculation();
+        }
+        
+        function updateProposalCalculation() {
+            const typeProjet = document.getElementById('proposal-type-projet').value;
+            const puissance = parseFloat(document.getElementById('proposal-puissance').value) || 0;
+            const prixKwc = parseFloat(document.getElementById('proposal-prix-kwc').value) || 0;
+            const tarifAchat = parseFloat(document.getElementById('proposal-tarif-achat').value) || 0;
+            const tarifRevente = parseFloat(document.getElementById('proposal-tarif-revente').value) || 0;
+            const consommation = parseFloat(document.getElementById('proposal-consommation').value) || 0;
+            const tauxAutoconso = parseFloat(document.getElementById('proposal-taux-autoconso').value) || 0;
+            
+            // Calculs
+            const investissement = puissance * prixKwc;
+            const productionAnnuelle = puissance * 1100; // 1100 kWh/kWc/an par défaut
+            
+            let gainAnnuel = 0;
+            let energieAutoconsommee = 0;
+            let energieRevendue = 0;
+            let economieAutoconso = 0;
+            let revenuRevente = 0;
+            
+            if (typeProjet === 'autoconsommation' && consommation > 0) {
+                energieAutoconsommee = productionAnnuelle * (tauxAutoconso / 100);
+                energieRevendue = productionAnnuelle - energieAutoconsommee;
+                economieAutoconso = energieAutoconsommee * tarifAchat;
+                revenuRevente = energieRevendue * tarifRevente;
+                gainAnnuel = economieAutoconso + revenuRevente;
+                
+                // Afficher détails autoconso
+                document.getElementById('calc-autoconso').textContent = energieAutoconsommee.toLocaleString('fr-FR', {maximumFractionDigits: 0});
+                document.getElementById('calc-revente').textContent = energieRevendue.toLocaleString('fr-FR', {maximumFractionDigits: 0});
+                document.getElementById('calc-economie').textContent = economieAutoconso.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('calc-revenu-revente').textContent = revenuRevente.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                // Vente totale
+                gainAnnuel = productionAnnuelle * tarifRevente;
+            }
+            
+            const rentabilite = investissement > 0 ? (gainAnnuel / investissement * 100) : 0;
+            const roi = gainAnnuel > 0 ? investissement / gainAnnuel : 0;
+            
+            // Mise à jour affichage
+            document.getElementById('calc-investissement').textContent = investissement.toLocaleString('fr-FR', {minimumFractionDigits: 2});
+            document.getElementById('calc-production').textContent = productionAnnuelle.toLocaleString('fr-FR', {maximumFractionDigits: 0});
+            document.getElementById('calc-gain-total').textContent = gainAnnuel.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('calc-rentabilite').textContent = rentabilite.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+            document.getElementById('calc-roi').textContent = roi.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+        }
+        
+        async function downloadProposalComplete() {
+            const prospectId = document.getElementById('proposal-prospect-id').value;
+            
+            if (!prospectId) {
+                showError('Erreur: Prospect non identifié');
+                return;
+            }
+            
+            const typeProjet = document.getElementById('proposal-type-projet').value;
+            const data = {
+                type_projet: typeProjet,
+                puissance_kwc: parseFloat(document.getElementById('proposal-puissance').value),
+                prix_kwc: parseFloat(document.getElementById('proposal-prix-kwc').value),
+                tarif_achat_kwh: parseFloat(document.getElementById('proposal-tarif-achat').value),
+                tarif_revente_kwh: parseFloat(document.getElementById('proposal-tarif-revente').value)
+            };
+            
+            // Ajouter champs autoconso si nécessaire
+            if (typeProjet === 'autoconsommation') {
+                data.consommation_annuelle_kwh = parseFloat(document.getElementById('proposal-consommation').value);
+                data.taux_autoconso = parseFloat(document.getElementById('proposal-taux-autoconso').value);
+            }
+            
+            try {
+                showSuccess('⏳ Génération de la proposition complète en cours...');
+                
+                const response = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Proposition_Complete_${currentProspect.commune}_${new Date().toISOString().split('T')[0]}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    
+                    showSuccess('✅ Proposition complète téléchargée avec succès !');
+                    proposalModal.hide();
+                } else {
+                    const error = await response.json();
+                    showError('❌ Erreur: ' + (error.error || 'Erreur lors de la génération'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('❌ Erreur réseau lors de la génération du PDF');
+            }
         }
     </script>
 </body>
