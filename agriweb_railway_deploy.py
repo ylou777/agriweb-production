@@ -9496,6 +9496,11 @@ def recherche_toitures():
     """Interface de recherche de toitures par commune"""
     return render_template("recherche_toitures.html")
 
+@app.route("/home")
+def home():
+    """Page d'accueil landing AgriWeb"""
+    return render_template("home.html")
+
 @app.route("/", methods=["GET", "POST"])
 def index():
     # Toujours retourner le template index.html avec l'interface complète
