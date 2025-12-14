@@ -266,15 +266,33 @@
                         </div>
                     </div>
                     <div class="row mt-2">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label">Orientation module</label>
                             <select class="form-select" id="moduleOrientation" onchange="updateAllZones()">
                                 <option value="paysage" selected>Paysage (horizontal)</option>
                                 <option value="portrait">Portrait (vertical)</option>
                             </select>
                         </div>
-                        <div class="col-md-8">
-                            <div class="module-preview mt-2">
+                        <div class="col-md-2">
+                            <label class="form-label" title="Tension circuit ouvert">Voc (V)</label>
+                            <input type="number" step="0.1" class="form-control form-control-sm" id="moduleVoc" value="49.5" readonly>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" title="Tension au point de puissance max">Vmpp (V)</label>
+                            <input type="number" step="0.1" class="form-control form-control-sm" id="moduleVmpp" value="41.8" readonly>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" title="Courant de court-circuit">Isc (A)</label>
+                            <input type="number" step="0.1" class="form-control form-control-sm" id="moduleIsc" value="13.9" readonly>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label" title="Courant au point de puissance max">Impp (A)</label>
+                            <input type="number" step="0.1" class="form-control form-control-sm" id="moduleImpp" value="13.2" readonly>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-12">
+                            <div class="module-preview">
                                 <small id="modulePreview" class="text-primary"><strong>Module: 2278×1134mm - 550Wc - Surface: 2.58 m² - Rendement: 21.2%</strong></small>
                             </div>
                             <small class="text-muted" id="modulePrix">Prix indicatif: ~180€ HT - Stock disponible - Garantie 12 ans</small>
@@ -689,6 +707,10 @@
                 document.getElementById('moduleLongueur').disabled = false;
                 document.getElementById('moduleLargeur').disabled = false;
                 document.getElementById('modulePuissance').disabled = false;
+                document.getElementById('moduleVoc').readOnly = false;
+                document.getElementById('moduleVmpp').readOnly = false;
+                document.getElementById('moduleIsc').readOnly = false;
+                document.getElementById('moduleImpp').readOnly = false;
                 document.getElementById('moduleInfo').textContent = 'Module personnalisé';
                 document.getElementById('modulePrix').textContent = 'Saisie manuelle des caractéristiques';
                 return;
@@ -702,10 +724,20 @@
             document.getElementById('moduleLargeur').value = module.largeur;
             document.getElementById('modulePuissance').value = module.puissance;
             
+            // Remplir les paramètres électriques
+            document.getElementById('moduleVoc').value = module.voc;
+            document.getElementById('moduleVmpp').value = module.vmpp;
+            document.getElementById('moduleIsc').value = module.isc;
+            document.getElementById('moduleImpp').value = module.impp;
+            
             // Désactiver les champs pour modules prédéfinis
             document.getElementById('moduleLongueur').disabled = true;
             document.getElementById('moduleLargeur').disabled = true;
             document.getElementById('modulePuissance').disabled = true;
+            document.getElementById('moduleVoc').readOnly = true;
+            document.getElementById('moduleVmpp').readOnly = true;
+            document.getElementById('moduleIsc').readOnly = true;
+            document.getElementById('moduleImpp').readOnly = true;
             
             // Afficher les infos
             document.getElementById('moduleInfo').textContent = 
@@ -714,7 +746,7 @@
             document.getElementById('modulePrix').innerHTML = 
                 `Prix indicatif: <strong>~${module.prix}€ HT</strong> - ` +
                 `Garantie <strong>${module.garantie} ans</strong> - ` +
-                `Voc: ${module.voc}V - Vmpp: ${module.vmpp}V`;
+                `Rendement: ${module.rendement}%`;
             
             // Mettre à jour l'aperçu
             updateModulePreview();
@@ -722,7 +754,7 @@
             // Recalculer toutes les zones avec le nouveau module
             updateAllZones();
             
-            console.log(`✅ Module chargé: ${module.fabricant} ${module.modele} - ${module.puissance}Wc`);
+            console.log(`✅ Module chargé: ${module.fabricant} ${module.modele} - ${module.puissance}Wc (Voc: ${module.voc}V, Vmpp: ${module.vmpp}V, Isc: ${module.isc}A, Impp: ${module.impp}A)`);
         }
 
         // Fonction globale pour afficher/cacher les poignées de rotation
@@ -2909,10 +2941,10 @@
                     longueur: document.getElementById('moduleLongueur').value,
                     largeur: document.getElementById('moduleLargeur').value,
                     puissance: document.getElementById('modulePuissance').value,
-                    voc: document.getElementById('moduleVoc')?.value || '49.5',
-                    vmpp: document.getElementById('moduleVmpp')?.value || '41.8',
-                    isc: document.getElementById('moduleIsc')?.value || '13.9',
-                    impp: document.getElementById('moduleImpp')?.value || '13.2'
+                    voc: document.getElementById('moduleVoc').value,
+                    vmpp: document.getElementById('moduleVmpp').value,
+                    isc: document.getElementById('moduleIsc').value,
+                    impp: document.getElementById('moduleImpp').value
                 },
                 totaux: {
                     puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
