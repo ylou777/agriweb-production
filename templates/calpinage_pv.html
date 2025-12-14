@@ -332,6 +332,19 @@
                                 </button>
                             </div>
                             <div class="vr mx-2"></div>
+                            <span class="badge bg-info">⚡ Équipements électriques:</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-warning" id="toolOnduleur" title="Placer onduleur(s)">
+                                    ⚡ Onduleur
+                                </button>
+                                <button type="button" class="btn btn-outline-primary" id="toolTGBT" title="Placer TGBT">
+                                    🔌 TGBT
+                                </button>
+                                <button type="button" class="btn btn-outline-success" id="toolInjection" title="Placer point d'injection">
+                                    🔗 Injection
+                                </button>
+                            </div>
+                            <div class="vr mx-2"></div>
                             <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
                         </div>
                     </div>
@@ -474,12 +487,20 @@
         let map;
         let drawnItems;
         let measureItems; // Layer pour les mesures
+        let equipmentsLayer; // Layer pour les équipements électriques
         let currentTool = 'rectangle'; // Outil actif
         let measurementCount = 0; // Compteur de mesures
         let measurements = []; // Liste des mesures
         let zones = [];
         let zoneCounter = 0;
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
+        
+        // Équipements électriques
+        let equipments = {
+            onduleurs: [], // [{latlng, marker, label}]
+            tgbt: null,    // {latlng, marker, label}
+            injection: null // {latlng, marker, label}
+        };
 
         // Ensoleillement par département (kWh/kWc/an)
         const ensoleillementParDept = {
@@ -927,6 +948,10 @@
             // Layer pour les mesures (séparé des zones PV)
             measureItems = new L.FeatureGroup();
             map.addLayer(measureItems);
+            
+            // Layer pour les équipements électriques
+            equipmentsLayer = new L.FeatureGroup();
+            map.addLayer(equipmentsLayer);
 
             // Contrôles de dessin - masqué par défaut, on utilise nos boutons custom
             const drawControl = new L.Control.Draw({
@@ -1572,6 +1597,333 @@
             } else {
                 return (meters / 1000).toFixed(2) + ' km';
             }
+        }
+        
+        // ============================================
+        // ÉQUIPEMENTS ÉLECTRIQUES (Onduleurs, TGBT, Injection)
+        // ============================================
+        
+        // Icônes personnalisées pour les équipements
+        const equipmentIcons = {
+            onduleur: L.divIcon({
+                className: 'equipment-icon',
+                html: '<div style="background:#ffc107;border:3px solid #fff;border-radius:50%;width:40px;height:40px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:move;">⚡</div>',
+                iconSize: [40, 40],
+                iconAnchor: [20, 20]
+            }),
+            tgbt: L.divIcon({
+                className: 'equipment-icon',
+                html: '<div style="background:#0d6efd;border:3px solid #fff;border-radius:8px;width:45px;height:45px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:move;">🔌</div>',
+                iconSize: [45, 45],
+                iconAnchor: [22.5, 22.5]
+            }),
+            injection: L.divIcon({
+                className: 'equipment-icon',
+                html: '<div style="background:#28a745;border:3px solid #fff;border-radius:8px;width:45px;height:45px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 6px rgba(0,0,0,0.3);cursor:move;">🔗</div>',
+                iconSize: [45, 45],
+                iconAnchor: [22.5, 22.5]
+            })
+        };
+        
+        // Activer le mode placement d'onduleur
+        document.getElementById('toolOnduleur').addEventListener('click', function() {
+            setActiveTool('onduleur');
+            map.getContainer().style.cursor = 'crosshair';
+            
+            const clickHandler = function(e) {
+                placeOnduleur(e.latlng);
+                map.off('click', clickHandler);
+                map.getContainer().style.cursor = '';
+                setActiveTool('rectangle'); // Retour au mode zone PV
+            };
+            
+            map.on('click', clickHandler);
+        });
+        
+        // Activer le mode placement TGBT
+        document.getElementById('toolTGBT').addEventListener('click', function() {
+            setActiveTool('tgbt');
+            map.getContainer().style.cursor = 'crosshair';
+            
+            const clickHandler = function(e) {
+                placeTGBT(e.latlng);
+                map.off('click', clickHandler);
+                map.getContainer().style.cursor = '';
+                setActiveTool('rectangle');
+            };
+            
+            map.on('click', clickHandler);
+        });
+        
+        // Activer le mode placement point d'injection
+        document.getElementById('toolInjection').addEventListener('click', function() {
+            setActiveTool('injection');
+            map.getContainer().style.cursor = 'crosshair';
+            
+            const clickHandler = function(e) {
+                placeInjection(e.latlng);
+                map.off('click', clickHandler);
+                map.getContainer().style.cursor = '';
+                setActiveTool('rectangle');
+            };
+            
+            map.on('click', clickHandler);
+        });
+        
+        // Placer un onduleur
+        function placeOnduleur(latlng) {
+            const marker = L.marker(latlng, {
+                icon: equipmentIcons.onduleur,
+                draggable: true
+            }).addTo(equipmentsLayer);
+            
+            const onduleurNum = equipments.onduleurs.length + 1;
+            const label = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'equipment-label',
+                    html: `<div style="background:rgba(255,193,7,0.9);color:#000;padding:4px 8px;border-radius:4px;font-weight:bold;font-size:11px;white-space:nowrap;margin-top:25px;">Onduleur ${onduleurNum}</div>`,
+                    iconSize: [80, 20],
+                    iconAnchor: [40, -10]
+                })
+            }).addTo(equipmentsLayer);
+            
+            // Menu contextuel
+            marker.bindPopup(`
+                <strong>⚡ Onduleur ${onduleurNum}</strong><br>
+                <small>Glissez pour déplacer</small><br>
+                <button class="btn btn-sm btn-danger mt-2" onclick="removeOnduleur(${equipments.onduleurs.length})">Supprimer</button>
+            `);
+            
+            // Mise à jour position du label lors du drag
+            marker.on('drag', function(e) {
+                label.setLatLng(e.latlng);
+                updateCableDistances();
+            });
+            
+            marker.on('dragend', function() {
+                updateCableDistances();
+            });
+            
+            equipments.onduleurs.push({latlng, marker, label, num: onduleurNum});
+            updateCableDistances();
+            
+            console.log(`✅ Onduleur ${onduleurNum} placé à`, latlng);
+        }
+        
+        // Placer le TGBT
+        function placeTGBT(latlng) {
+            // Supprimer l'ancien TGBT si existe
+            if (equipments.tgbt) {
+                equipmentsLayer.removeLayer(equipments.tgbt.marker);
+                equipmentsLayer.removeLayer(equipments.tgbt.label);
+            }
+            
+            const marker = L.marker(latlng, {
+                icon: equipmentIcons.tgbt,
+                draggable: true
+            }).addTo(equipmentsLayer);
+            
+            const label = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'equipment-label',
+                    html: `<div style="background:rgba(13,110,253,0.9);color:#fff;padding:4px 8px;border-radius:4px;font-weight:bold;font-size:11px;white-space:nowrap;margin-top:28px;">TGBT</div>`,
+                    iconSize: [60, 20],
+                    iconAnchor: [30, -10]
+                })
+            }).addTo(equipmentsLayer);
+            
+            marker.bindPopup(`
+                <strong>🔌 TGBT</strong><br>
+                <small>Tableau Général Basse Tension</small><br>
+                <small>Glissez pour déplacer</small><br>
+                <button class="btn btn-sm btn-danger mt-2" onclick="removeTGBT()">Supprimer</button>
+            `);
+            
+            marker.on('drag', function(e) {
+                label.setLatLng(e.latlng);
+                updateCableDistances();
+            });
+            
+            marker.on('dragend', function() {
+                updateCableDistances();
+            });
+            
+            equipments.tgbt = {latlng, marker, label};
+            updateCableDistances();
+            
+            console.log('✅ TGBT placé à', latlng);
+        }
+        
+        // Placer le point d'injection
+        function placeInjection(latlng) {
+            // Supprimer l'ancien point si existe
+            if (equipments.injection) {
+                equipmentsLayer.removeLayer(equipments.injection.marker);
+                equipmentsLayer.removeLayer(equipments.injection.label);
+            }
+            
+            const marker = L.marker(latlng, {
+                icon: equipmentIcons.injection,
+                draggable: true
+            }).addTo(equipmentsLayer);
+            
+            const label = L.marker(latlng, {
+                icon: L.divIcon({
+                    className: 'equipment-label',
+                    html: `<div style="background:rgba(40,167,69,0.9);color:#fff;padding:4px 8px;border-radius:4px;font-weight:bold;font-size:11px;white-space:nowrap;margin-top:28px;">Point d'injection</div>`,
+                    iconSize: [110, 20],
+                    iconAnchor: [55, -10]
+                })
+            }).addTo(equipmentsLayer);
+            
+            marker.bindPopup(`
+                <strong>🔗 Point d'injection réseau</strong><br>
+                <small>Raccordement ENEDIS</small><br>
+                <small>Glissez pour déplacer</small><br>
+                <button class="btn btn-sm btn-danger mt-2" onclick="removeInjection()">Supprimer</button>
+            `);
+            
+            marker.on('drag', function(e) {
+                label.setLatLng(e.latlng);
+                updateCableDistances();
+            });
+            
+            marker.on('dragend', function() {
+                updateCableDistances();
+            });
+            
+            equipments.injection = {latlng, marker, label};
+            updateCableDistances();
+            
+            console.log('✅ Point d\'injection placé à', latlng);
+        }
+        
+        // Supprimer équipements
+        function removeOnduleur(index) {
+            const onduleur = equipments.onduleurs[index];
+            if (onduleur) {
+                equipmentsLayer.removeLayer(onduleur.marker);
+                equipmentsLayer.removeLayer(onduleur.label);
+                equipments.onduleurs.splice(index, 1);
+                // Renuméroter
+                equipments.onduleurs.forEach((ond, i) => {
+                    ond.num = i + 1;
+                    ond.label.setIcon(L.divIcon({
+                        className: 'equipment-label',
+                        html: `<div style="background:rgba(255,193,7,0.9);color:#000;padding:4px 8px;border-radius:4px;font-weight:bold;font-size:11px;white-space:nowrap;margin-top:25px;">Onduleur ${i+1}</div>`,
+                        iconSize: [80, 20],
+                        iconAnchor: [40, -10]
+                    }));
+                });
+                updateCableDistances();
+            }
+        }
+        
+        function removeTGBT() {
+            if (equipments.tgbt) {
+                equipmentsLayer.removeLayer(equipments.tgbt.marker);
+                equipmentsLayer.removeLayer(equipments.tgbt.label);
+                equipments.tgbt = null;
+                updateCableDistances();
+            }
+        }
+        
+        function removeInjection() {
+            if (equipments.injection) {
+                equipmentsLayer.removeLayer(equipments.injection.marker);
+                equipmentsLayer.removeLayer(equipments.injection.label);
+                equipments.injection = null;
+                updateCableDistances();
+            }
+        }
+        
+        // Calculer les distances de câbles selon NF C 15-712
+        function updateCableDistances() {
+            if (zones.length === 0) return;
+            
+            // Calculer centre de gravité des zones PV
+            let totalLat = 0, totalLon = 0;
+            zones.forEach(zone => {
+                const center = zone.layer.getBounds().getCenter();
+                totalLat += center.lat;
+                totalLon += center.lng;
+            });
+            const pvCenter = L.latLng(totalLat / zones.length, totalLon / zones.length);
+            
+            let distances = {
+                dc_strings: 0,  // Zones PV → Onduleur(s)
+                ac_onduleur_tgbt: 0,  // Onduleur → TGBT
+                ac_tgbt_injection: 0   // TGBT → Point d'injection
+            };
+            
+            // 1. Distance DC (zones PV → onduleurs)
+            if (equipments.onduleurs.length > 0) {
+                // Distance moyenne des zones au groupe d'onduleurs
+                let onduLat = 0, onduLon = 0;
+                equipments.onduleurs.forEach(ond => {
+                    onduLat += ond.marker.getLatLng().lat;
+                    onduLon += ond.marker.getLatLng().lng;
+                });
+                const onduCenter = L.latLng(onduLat / equipments.onduleurs.length, onduLon / equipments.onduleurs.length);
+                distances.dc_strings = map.distance(pvCenter, onduCenter);
+            }
+            
+            // 2. Distance AC onduleur → TGBT
+            if (equipments.onduleurs.length > 0 && equipments.tgbt) {
+                let onduLat = 0, onduLon = 0;
+                equipments.onduleurs.forEach(ond => {
+                    onduLat += ond.marker.getLatLng().lat;
+                    onduLon += ond.marker.getLatLng().lng;
+                });
+                const onduCenter = L.latLng(onduLat / equipments.onduleurs.length, onduLon / equipments.onduleurs.length);
+                distances.ac_onduleur_tgbt = map.distance(onduCenter, equipments.tgbt.marker.getLatLng());
+            }
+            
+            // 3. Distance AC TGBT → Injection
+            if (equipments.tgbt && equipments.injection) {
+                distances.ac_tgbt_injection = map.distance(equipments.tgbt.marker.getLatLng(), equipments.injection.marker.getLatLng());
+            }
+            
+            // Afficher dans l'interface
+            displayCableDistances(distances);
+            
+            // Stocker pour utilisation dans le schéma unifilaire
+            window.cableDistances = distances;
+            
+            console.log('📏 Distances câbles calculées:', distances);
+        }
+        
+        function displayCableDistances(distances) {
+            // Chercher ou créer un panneau d'affichage
+            let panel = document.getElementById('cableDistancesPanel');
+            if (!panel) {
+                const mapFooter = document.querySelector('#mapCard .card-footer');
+                panel = document.createElement('div');
+                panel.id = 'cableDistancesPanel';
+                panel.className = 'alert alert-info mt-2 mb-0';
+                panel.style.fontSize = '0.9em';
+                mapFooter.appendChild(panel);
+            }
+            
+            let html = '<strong>📏 Distances câbles (NF C 15-712):</strong><br>';
+            
+            if (distances.dc_strings > 0) {
+                html += `<span class="badge bg-warning text-dark me-2">DC Strings: ${distances.dc_strings.toFixed(1)} m</span>`;
+            }
+            
+            if (distances.ac_onduleur_tgbt > 0) {
+                html += `<span class="badge bg-primary me-2">AC Onduleur→TGBT: ${distances.ac_onduleur_tgbt.toFixed(1)} m</span>`;
+            }
+            
+            if (distances.ac_tgbt_injection > 0) {
+                html += `<span class="badge bg-success">AC TGBT→Injection: ${distances.ac_tgbt_injection.toFixed(1)} m</span>`;
+            }
+            
+            if (distances.dc_strings === 0 && distances.ac_onduleur_tgbt === 0 && distances.ac_tgbt_injection === 0) {
+                html += '<small class="text-muted">Placez les équipements électriques pour calculer les distances</small>';
+            }
+            
+            panel.innerHTML = html;
         }
         
         function updateMeasurementsPanel() {
@@ -2556,11 +2908,35 @@
                 module: {
                     longueur: document.getElementById('moduleLongueur').value,
                     largeur: document.getElementById('moduleLargeur').value,
-                    puissance: document.getElementById('modulePuissance').value
+                    puissance: document.getElementById('modulePuissance').value,
+                    voc: document.getElementById('moduleVoc').value,
+                    vmpp: document.getElementById('moduleVmpp').value,
+                    isc: document.getElementById('moduleIsc').value,
+                    impp: document.getElementById('moduleImpp').value
                 },
                 totaux: {
                     puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
                     productibleTotal: zones.reduce((sum, z) => sum + z.productible, 0)
+                },
+                equipments: {
+                    onduleurs: equipments.onduleurs.map(ond => ({
+                        num: ond.num,
+                        lat: ond.marker.getLatLng().lat,
+                        lng: ond.marker.getLatLng().lng
+                    })),
+                    tgbt: equipments.tgbt ? {
+                        lat: equipments.tgbt.marker.getLatLng().lat,
+                        lng: equipments.tgbt.marker.getLatLng().lng
+                    } : null,
+                    injection: equipments.injection ? {
+                        lat: equipments.injection.marker.getLatLng().lat,
+                        lng: equipments.injection.marker.getLatLng().lng
+                    } : null
+                },
+                distances: window.cableDistances || {
+                    dc_strings: 25,  // Défaut si pas calculé
+                    ac_onduleur_tgbt: 15,
+                    ac_tgbt_injection: 10
                 }
             };
         }
