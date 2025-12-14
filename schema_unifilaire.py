@@ -198,6 +198,17 @@ class SchemaUnifilaire:
     def _calculer_sections_cables(self):
         """Calcule les sections de câbles selon NF C 15-712 et NF C 15-100 avec distances réelles"""
         
+        # PROTECTION: Vérifier que nous avons des strings configurés
+        if not self.configuration_strings:
+            print("⚠️ Aucun string configuré, utilisation valeurs par défaut")
+            self.section_cable_dc = 6.0
+            self.section_cable_string = 4.0
+            self.section_cable_ac = 6.0
+            self.longueur_dc_strings = 25
+            self.longueur_ac_onduleur_tgbt = 15
+            self.longueur_ac_tgbt_injection = 10
+            return
+        
         # 1. RÉCUPÉRER LES DISTANCES RÉELLES depuis le calepinage
         distances = self.calpinage.get('distances', {})
         
@@ -298,6 +309,20 @@ class SchemaUnifilaire:
     
     def _calculer_protections(self):
         """Calcule les protections électriques selon NF C 15-712"""
+        
+        # PROTECTION: Vérifier que nous avons des strings configurés
+        if not self.configuration_strings:
+            print("⚠️ Aucun string configuré, utilisation calibres par défaut")
+            self.calibre_disjoncteur_ac = 32
+            self.type_differentiel = 'Type A 30mA'
+            self.sensibilite_differentiel = 30
+            self.calibre_sectionneur_dc = 25
+            self.tension_sectionneur_dc = '1000V DC'
+            self.parafoudre_dc = 'Type 2 - 1000V DC - 25A'
+            self.parafoudre_ac = 'Type 2 - 275V AC - 20kA'
+            self.fusibles_strings = 'Non requis'
+            self.resistance_terre_max = '100Ω'
+            return
         
         # 1. PROTECTION AC (disjoncteur différentiel)
         # Calibre disjoncteur: 1.45 × In (In = courant nominal onduleur)
