@@ -2909,10 +2909,10 @@
                     longueur: document.getElementById('moduleLongueur').value,
                     largeur: document.getElementById('moduleLargeur').value,
                     puissance: document.getElementById('modulePuissance').value,
-                    voc: document.getElementById('moduleVoc').value,
-                    vmpp: document.getElementById('moduleVmpp').value,
-                    isc: document.getElementById('moduleIsc').value,
-                    impp: document.getElementById('moduleImpp').value
+                    voc: document.getElementById('moduleVoc')?.value || '49.5',
+                    vmpp: document.getElementById('moduleVmpp')?.value || '41.8',
+                    isc: document.getElementById('moduleIsc')?.value || '13.9',
+                    impp: document.getElementById('moduleImpp')?.value || '13.2'
                 },
                 totaux: {
                     puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
