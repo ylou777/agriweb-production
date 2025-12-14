@@ -2561,49 +2561,70 @@
         });
         
         // Bouton génération schéma unifilaire NF C 15-712
-        document.getElementById('genererSchemaUnifilaire').addEventListener('click', async () => {
-            if (zones.length === 0) {
-                alert('⚠️ Veuillez d\'abord dessiner et configurer au moins une zone PV');
-                return;
-            }
-            
-            // Sauvegarder d'abord le calpinage
-            const calp = prepareCalepinageData();
-            
-            try {
-                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(calp)
-                });
+        const btnSchemaUnifilaire = document.getElementById('genererSchemaUnifilaire');
+        console.log('🔍 [DEBUG] Bouton schema unifilaire:', btnSchemaUnifilaire);
+        
+        if (btnSchemaUnifilaire) {
+            btnSchemaUnifilaire.addEventListener('click', async () => {
+                console.log('🔵 [CLICK] Bouton schema unifilaire cliqué');
                 
-                if (response.ok) {
-                    console.log('✅ Calpinage sauvegardé, génération du schéma unifilaire...');
-                    
-                    // Si on est dans une fenêtre enfant, informer la fenêtre parent
-                    if (window.opener && !window.opener.closed) {
-                        try {
-                            window.opener.postMessage({
-                                type: 'etape_terminee',
-                                prospectId: prospectId,
-                                etape: 'Calepinage',
-                                ordre: 3
-                            }, '*');
-                        } catch (e) {
-                            console.log('Impossible de notifier la fenêtre parent:', e);
-                        }
-                    }
-                    
-                    // Ouvrir le schéma unifilaire après sauvegarde réussie
-                    window.open(`/api/crm/prospects/${prospectId}/schema-unifilaire`, '_blank');
-                } else {
-                    alert('❌ Erreur lors de la sauvegarde du calpinage');
+                if (zones.length === 0) {
+                    alert('⚠️ Veuillez d\'abord dessiner et configurer au moins une zone PV');
+                    return;
                 }
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert('❌ Erreur réseau');
-            }
-        });
+                
+                console.log('📊 Zones présentes:', zones.length);
+                
+                // Sauvegarder d'abord le calpinage
+                const calp = prepareCalepinageData();
+                console.log('📦 Données calpinage préparées:', calp);
+                
+                try {
+                    console.log(`📡 Sauvegarde calpinage pour prospect ${prospectId}...`);
+                    const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(calp)
+                    });
+                    
+                    console.log('📥 Réponse sauvegarde:', response.status);
+                    
+                    if (response.ok) {
+                        console.log('✅ Calpinage sauvegardé, génération du schéma unifilaire...');
+                        
+                        // Si on est dans une fenêtre enfant, informer la fenêtre parent
+                        if (window.opener && !window.opener.closed) {
+                            try {
+                                window.opener.postMessage({
+                                    type: 'etape_terminee',
+                                    prospectId: prospectId,
+                                    etape: 'Calepinage',
+                                    ordre: 3
+                                }, '*');
+                                console.log('📨 Message envoyé à la fenêtre parent');
+                            } catch (e) {
+                                console.log('⚠️ Impossible de notifier la fenêtre parent:', e);
+                            }
+                        }
+                        
+                        // Ouvrir le schéma unifilaire après sauvegarde réussie
+                        const schemaUrl = `/api/crm/prospects/${prospectId}/schema-unifilaire`;
+                        console.log('🚀 Ouverture schéma unifilaire:', schemaUrl);
+                        window.open(schemaUrl, '_blank');
+                    } else {
+                        const errorText = await response.text();
+                        console.error('❌ Erreur sauvegarde:', response.status, errorText);
+                        alert('❌ Erreur lors de la sauvegarde du calpinage: ' + errorText);
+                    }
+                } catch (error) {
+                    console.error('❌ Erreur réseau:', error);
+                    alert('❌ Erreur réseau: ' + error.message);
+                }
+            });
+            console.log('✅ [DEBUG] Event listener attaché au bouton schema unifilaire');
+        } else {
+            console.error('❌ [DEBUG] Bouton genererSchemaUnifilaire introuvable!');
+        }
 
         initMap();
         updateModulePreview();
