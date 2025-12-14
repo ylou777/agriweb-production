@@ -1873,42 +1873,84 @@
         function updateCableDistances() {
             if (zones.length === 0) return;
             
-            // Calculer centre de gravité des zones PV
-            let totalLat = 0, totalLon = 0;
-            zones.forEach(zone => {
-                const center = zone.layer.getBounds().getCenter();
-                totalLat += center.lat;
-                totalLon += center.lng;
-            });
-            const pvCenter = L.latLng(totalLat / zones.length, totalLon / zones.length);
-            
             let distances = {
-                dc_strings: 0,  // Zones PV → Onduleur(s)
-                ac_onduleur_tgbt: 0,  // Onduleur → TGBT
-                ac_tgbt_injection: 0   // TGBT → Point d'injection
+                dc_strings: 0,  // Distance moyenne ou max
+                ac_onduleur_tgbt: 0,
+                ac_tgbt_injection: 0,
+                zones_detail: []  // Détail par zone
             };
             
-            // 1. Distance DC (zones PV → onduleurs)
+            // 1. Distance DC (zones PV → onduleurs) - GESTION MULTI-ZONES/MULTI-ONDULEURS
             if (equipments.onduleurs.length > 0) {
-                // Distance moyenne des zones au groupe d'onduleurs
-                let onduLat = 0, onduLon = 0;
-                equipments.onduleurs.forEach(ond => {
-                    onduLat += ond.marker.getLatLng().lat;
-                    onduLon += ond.marker.getLatLng().lng;
-                });
-                const onduCenter = L.latLng(onduLat / equipments.onduleurs.length, onduLon / equipments.onduleurs.length);
-                distances.dc_strings = map.distance(pvCenter, onduCenter);
+                if (equipments.onduleurs.length === 1) {
+                    // UN SEUL ONDULEUR : calculer distance de chaque zone
+                    const onduleurPos = equipments.onduleurs[0].marker.getLatLng();
+                    let maxDistance = 0;
+                    
+                    zones.forEach(zone => {
+                        const zoneCenter = zone.layer.getBounds().getCenter();
+                        const dist = map.distance(zoneCenter, onduleurPos);
+                        maxDistance = Math.max(maxDistance, dist);
+                        
+                        distances.zones_detail.push({
+                            zone: zone.numero,
+                            onduleur: 1,
+                            distance: dist
+                        });
+                    });
+                    
+                    distances.dc_strings = maxDistance; // Prendre la plus longue
+                    
+                } else {
+                    // PLUSIEURS ONDULEURS : attribuer chaque zone au onduleur le plus proche
+                    zones.forEach(zone => {
+                        const zoneCenter = zone.layer.getBounds().getCenter();
+                        let minDist = Infinity;
+                        let closestOndu = 0;
+                        
+                        equipments.onduleurs.forEach((ond, idx) => {
+                            const onduPos = ond.marker.getLatLng();
+                            const dist = map.distance(zoneCenter, onduPos);
+                            if (dist < minDist) {
+                                minDist = dist;
+                                closestOndu = idx + 1;
+                            }
+                        });
+                        
+                        distances.zones_detail.push({
+                            zone: zone.numero,
+                            onduleur: closestOndu,
+                            distance: minDist
+                        });
+                    });
+                    
+                    // Distance DC = moyenne pondérée par puissance
+                    const totalPuissance = zones.reduce((sum, z) => sum + z.puissanceKw, 0);
+                    let distancePonderee = 0;
+                    zones.forEach((zone, idx) => {
+                        const poids = zone.puissanceKw / totalPuissance;
+                        distancePonderee += distances.zones_detail[idx].distance * poids;
+                    });
+                    distances.dc_strings = distancePonderee;
+                }
             }
             
             // 2. Distance AC onduleur → TGBT
             if (equipments.onduleurs.length > 0 && equipments.tgbt) {
-                let onduLat = 0, onduLon = 0;
-                equipments.onduleurs.forEach(ond => {
-                    onduLat += ond.marker.getLatLng().lat;
-                    onduLon += ond.marker.getLatLng().lng;
-                });
-                const onduCenter = L.latLng(onduLat / equipments.onduleurs.length, onduLon / equipments.onduleurs.length);
-                distances.ac_onduleur_tgbt = map.distance(onduCenter, equipments.tgbt.marker.getLatLng());
+                if (equipments.onduleurs.length === 1) {
+                    // Un seul onduleur
+                    distances.ac_onduleur_tgbt = map.distance(
+                        equipments.onduleurs[0].marker.getLatLng(), 
+                        equipments.tgbt.marker.getLatLng()
+                    );
+                } else {
+                    // Plusieurs onduleurs : distance moyenne au TGBT
+                    let totalDist = 0;
+                    equipments.onduleurs.forEach(ond => {
+                        totalDist += map.distance(ond.marker.getLatLng(), equipments.tgbt.marker.getLatLng());
+                    });
+                    distances.ac_onduleur_tgbt = totalDist / equipments.onduleurs.length;
+                }
             }
             
             // 3. Distance AC TGBT → Injection
@@ -1949,6 +1991,25 @@
             
             if (distances.ac_tgbt_injection > 0) {
                 html += `<span class="badge bg-success">AC TGBT→Injection: ${distances.ac_tgbt_injection.toFixed(1)} m</span>`;
+            }
+            
+            // Tableau détaillé si plusieurs zones ou onduleurs
+            if (distances.zones_detail && distances.zones_detail.length > 0 && (zones.length > 1 || equipments.onduleurs.length > 1)) {
+                html += '<br><small class="text-muted mt-2 d-block"><strong>Détail attribution zones → onduleurs:</strong></small>';
+                html += '<table class="table table-sm table-bordered mt-1" style="font-size:0.85em;"><thead class="table-light"><tr><th>Zone</th><th>→ Onduleur</th><th>Distance</th></tr></thead><tbody>';
+                
+                distances.zones_detail.forEach(detail => {
+                    const zone = zones.find(z => z.numero === detail.zone);
+                    const puissance = zone ? zone.puissanceKw.toFixed(2) : '?';
+                    html += `<tr>
+                        <td><strong>Zone ${detail.zone}</strong> (${puissance} kWc)</td>
+                        <td>Onduleur ${detail.onduleur}</td>
+                        <td>${detail.distance.toFixed(1)} m</td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table>';
+                html += `<small class="text-muted"><em>💡 Attribution automatique au onduleur le plus proche</em></small>`;
             }
             
             if (distances.dc_strings === 0 && distances.ac_onduleur_tgbt === 0 && distances.ac_tgbt_injection === 0) {
