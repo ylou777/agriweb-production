@@ -35,12 +35,12 @@ class SchemaUnifilaire:
     def _calculer_configuration_electrique(self):
         """Calcule la configuration électrique optimale selon les modules et zones"""
         
-        # Données module (valeurs typiques si non fournies)
-        self.module_puissance = self.module.get('puissance', 550)  # Wc
-        self.module_voc = self.module.get('voc', 49.5)  # V (tension circuit ouvert)
-        self.module_vmpp = self.module.get('vmpp', 41.8)  # V (tension MPP)
-        self.module_isc = self.module.get('isc', 13.9)  # A (courant court-circuit)
-        self.module_impp = self.module.get('impp', 13.2)  # A (courant MPP)
+        # Données module (valeurs typiques si non fournies) - CONVERSION EN NUMERIC
+        self.module_puissance = float(self.module.get('puissance', 550))  # Wc
+        self.module_voc = float(self.module.get('voc', 49.5))  # V (tension circuit ouvert)
+        self.module_vmpp = float(self.module.get('vmpp', 41.8))  # V (tension MPP)
+        self.module_isc = float(self.module.get('isc', 13.9))  # A (courant court-circuit)
+        self.module_impp = float(self.module.get('impp', 13.2))  # A (courant MPP)
         
         # Calculer puissance totale
         self.nb_modules_total = sum(zone.get('nbModules', 0) for zone in self.zones)
