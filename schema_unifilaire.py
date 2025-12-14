@@ -306,7 +306,8 @@ class SchemaUnifilaire:
         in_onduleur = self.courant_max_ac / 1.25  # Retour au nominal
         calibre_disjoncteur_min = in_onduleur * 1.45
         
-        self.calibre_disjoncteur_ac = min([c for c in calibres_disjoncteurs if c >= calibre_disjoncteur_min])
+        calibres_valides_disj = [c for c in calibres_disjoncteurs if c >= calibre_disjoncteur_min]
+        self.calibre_disjoncteur_ac = min(calibres_valides_disj) if calibres_valides_disj else calibres_disjoncteurs[-1]
         
         # Type différentiel: Type A (onduleurs récents) ou Type B (onduleurs + batteries)
         self.type_differentiel = 'Type A 30mA'
@@ -318,7 +319,8 @@ class SchemaUnifilaire:
         calibre_sectionneur_dc_min = isc_total * 1.25
         
         calibres_sectionneurs_dc = [16, 25, 32, 40, 63, 80, 100, 125]
-        self.calibre_sectionneur_dc = min([c for c in calibres_sectionneurs_dc if c >= calibre_sectionneur_dc_min])
+        calibres_valides_sect = [c for c in calibres_sectionneurs_dc if c >= calibre_sectionneur_dc_min]
+        self.calibre_sectionneur_dc = min(calibres_valides_sect) if calibres_valides_sect else calibres_sectionneurs_dc[-1]
         
         # Tension nominale sectionneur DC
         v_oc_max = max(s['v_oc'] * 1.25 for s in self.configuration_strings)  # Facteur température
@@ -333,7 +335,8 @@ class SchemaUnifilaire:
         if len(self.configuration_strings) > 2:
             isc_string_max = max(s['i_sc'] for s in self.configuration_strings)
             calibres_fusibles = [10, 12, 15, 16, 20, 25, 32]
-            calibre_fusible = min([c for c in calibres_fusibles if c >= isc_string_max * 1.5])
+            calibres_valides_fus = [c for c in calibres_fusibles if c >= isc_string_max * 1.5]
+            calibre_fusible = min(calibres_valides_fus) if calibres_valides_fus else calibres_fusibles[-1]
             self.fusibles_strings = f'{calibre_fusible}A gPV (1000V DC)'
         else:
             self.fusibles_strings = 'Non requis (≤2 strings)'
