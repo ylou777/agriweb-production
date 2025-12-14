@@ -349,72 +349,86 @@ class SchemaUnifilaire:
         return output_path
     
     def _dessiner_cartouche(self, c, width, height):
-        """Dessine le cartouche normalisé en bas de page"""
+        """Dessine le cartouche professionnel avec informations client"""
         
-        # Cartouche (coin bas droit)
-        cart_width = 18*cm
-        cart_height = 3.5*cm
-        cart_x = width - cart_width - 1*cm
-        cart_y = 1*cm
+        # === CARTOUCHE PRINCIPAL (en haut, pleine largeur) ===
+        cart_main_height = 5*cm
+        cart_main_y = height - cart_main_height - 0.5*cm
         
         c.setStrokeColor(colors.black)
         c.setLineWidth(2)
+        c.rect(1.5*cm, cart_main_y, width - 3*cm, cart_main_height)
+        
+        # Bandeau titre
+        c.setFillColor(colors.HexColor('#28a745'))
+        c.rect(1.5*cm, cart_main_y + cart_main_height - 1*cm, width - 3*cm, 1*cm, fill=1, stroke=0)
+        
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(2*cm, cart_main_y + cart_main_height - 0.7*cm, "🌱 AgriWeb Pro - SCHÉMA UNIFILAIRE NF C 15-712")
+        c.setFillColor(colors.black)
+        
+        # Informations client (2 colonnes)
+        y_info = cart_main_y + cart_main_height - 1.8*cm
+        
+        # Colonne gauche
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(2*cm, y_info, "CLIENT:")
+        c.setFont("Helvetica", 9)
+        nom_client = f"{self.prospect.get('nom', '')} {self.prospect.get('prenom', '')}".strip() or "Non renseigné"
+        c.drawString(2*cm, y_info - 0.5*cm, nom_client[:40])
+        
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(2*cm, y_info - 1.2*cm, "ADRESSE:")
+        c.setFont("Helvetica", 9)
+        adresse = self.prospect.get('adresse', 'Non renseignée')
+        c.drawString(2*cm, y_info - 1.7*cm, adresse[:50])
+        
+        ville = f"{self.prospect.get('code_postal', '')} {self.prospect.get('commune', '')}"
+        c.drawString(2*cm, y_info - 2.1*cm, ville[:50])
+        
+        # Colonne droite
+        col2_x = width / 2 + 1*cm
+        
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(col2_x, y_info, "PARCELLES CADASTRALES:")
+        c.setFont("Helvetica", 9)
+        parcelles = self.prospect.get('references_cadastrales', 'Non renseignées')
+        if isinstance(parcelles, list):
+            parcelles = ', '.join(parcelles[:3])
+        c.drawString(col2_x, y_info - 0.5*cm, str(parcelles)[:40])
+        
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(col2_x, y_info - 1.2*cm, "PUISSANCE INSTALLATION:")
+        c.setFont("Helvetica", 9)
+        c.drawString(col2_x, y_info - 1.7*cm, f"{self.puissance_totale_kwc:.2f} kWc ({self.nb_modules_total} modules)")
+        
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(col2_x, y_info - 2.4*cm, "DATE D'ÉDITION:")
+        c.setFont("Helvetica", 9)
+        c.drawString(col2_x, y_info - 2.9*cm, datetime.now().strftime("%d/%m/%Y"))
+        
+        # Trait séparateur vertical
+        c.setLineWidth(1)
+        c.line(width/2, cart_main_y, width/2, cart_main_y + cart_main_height - 1*cm)
+        
+        # === CARTOUCHE BAS (infos techniques) ===
+        cart_width = 8*cm
+        cart_height = 2.5*cm
+        cart_x = width - cart_width - 1.5*cm
+        cart_y = 1*cm
+        
+        c.setLineWidth(2)
         c.rect(cart_x, cart_y, cart_width, cart_height)
         
-        # Titre projet
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.7*cm, "SCHÉMA UNIFILAIRE - INSTALLATION PHOTOVOLTAÏQUE")
-        
-        c.setFont("Helvetica", 10)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.3*cm, f"Norme: NF C 15-712-1 (Installations photovoltaïques)")
-        
-        # Séparateur
-        c.setLineWidth(1)
-        c.line(cart_x, cart_y + cart_height - 1.6*cm, cart_x + cart_width, cart_y + cart_height - 1.6*cm)
-        
-        # Informations projet
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.1*cm, "Projet:")
-        c.setFont("Helvetica", 9)
-        nom_prospect = f"{self.prospect.get('nom', '')} {self.prospect.get('prenom', '')}".strip() or "N/A"
-        c.drawString(cart_x + 2*cm, cart_y + cart_height - 2.1*cm, nom_prospect)
+        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.6*cm, "Indice: A")
+        c.drawString(cart_x + 3*cm, cart_y + cart_height - 0.6*cm, "Page: 1/2")
         
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.6*cm, "Adresse:")
-        c.setFont("Helvetica", 9)
-        adresse = self.prospect.get('adresse', 'N/A')
-        if len(adresse) > 60:
-            adresse = adresse[:57] + '...'
-        c.drawString(cart_x + 2*cm, cart_y + cart_height - 2.6*cm, adresse)
-        
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 3.1*cm, "Puissance:")
-        c.setFont("Helvetica", 9)
-        c.drawString(cart_x + 2*cm, cart_y + cart_height - 3.1*cm, f"{self.puissance_totale_kwc:.2f} kWc - {self.nb_modules_total} modules {self.module_puissance}Wc")
-        
-        # Date et indice
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + cart_width - 5*cm, cart_y + cart_height - 2.1*cm, "Date:")
-        c.setFont("Helvetica", 9)
-        c.drawString(cart_x + cart_width - 3.5*cm, cart_y + cart_height - 2.1*cm, datetime.now().strftime('%d/%m/%Y'))
-        
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + cart_width - 5*cm, cart_y + cart_height - 2.6*cm, "Indice:")
-        c.setFont("Helvetica", 9)
-        c.drawString(cart_x + cart_width - 3.5*cm, cart_y + cart_height - 2.6*cm, "A")
-        
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + cart_width - 5*cm, cart_y + cart_height - 3.1*cm, "Page:")
-        c.setFont("Helvetica", 9)
-        c.drawString(cart_x + cart_width - 3.5*cm, cart_y + cart_height - 3.1*cm, "1/2")
-        
-        # Logo AgriWeb (coin haut gauche)
-        c.setFont("Helvetica-Bold", 14)
-        c.setFillColor(colors.HexColor('#28a745'))
-        c.drawString(1.5*cm, height - 2*cm, "🌱 AgriWeb Pro")
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica", 9)
-        c.drawString(1.5*cm, height - 2.5*cm, "Plateforme géospatiale photovoltaïque")
+        c.setFont("Helvetica", 8)
+        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Norme: NF C 15-712-1")
+        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "Installations PV raccordées réseau")
+        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.2*cm, "AgriWeb Pro - Édition automatique")
     
     def _dessiner_schema_principal(self, c, width, height):
         """Dessine le schéma unifilaire principal"""
@@ -423,17 +437,22 @@ class SchemaUnifilaire:
         schema_x_start = 2*cm
         schema_x_end = width - 2*cm
         schema_y_start = 6*cm
-        schema_y_end = height - 4*cm
+        schema_y_end = height - 11*cm  # Ajusté pour cartouche haut
         
         schema_width = schema_x_end - schema_x_start
         schema_height = schema_y_end - schema_y_start
         
+        # === CADRE GLOBAL SCHÉMA ===
+        c.setStrokeColor(colors.grey)
+        c.setLineWidth(1)
+        c.rect(schema_x_start, schema_y_start, schema_width, schema_height)
+        
         # === PARTIE GAUCHE: CHAMP PHOTOVOLTAÏQUE ===
         
         # Titre section
-        c.setFont("Helvetica-Bold", 12)
+        c.setFont("Helvetica-Bold", 11)
         c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawString(schema_x_start, schema_y_end, "CHAMP PHOTOVOLTAÏQUE (DC)")
+        c.drawString(schema_x_start + 0.5*cm, schema_y_end - 0.7*cm, "CHAMP PHOTOVOLTAÏQUE (DC)")
         c.setFillColor(colors.black)
         
         # Dessiner les zones et strings
@@ -450,52 +469,62 @@ class SchemaUnifilaire:
         for zone_num in sorted(zones_dict.keys()):
             strings_zone = zones_dict[zone_num]
             
-            # Titre zone
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(schema_x_start + 0.5*cm, y_current, f"Zone {zone_num}")
-            c.setFont("Helvetica", 8)
+            # Titre zone (avec fond coloré)
+            c.setFillColor(colors.HexColor('#e3f2fd'))
+            c.rect(schema_x_start + 0.5*cm, y_current - 0.3*cm, 5*cm, 0.6*cm, fill=1, stroke=0)
+            
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(schema_x_start + 0.7*cm, y_current - 0.1*cm, f"Zone {zone_num}")
             
             # Infos zone
             zone_data = next((z for z in self.zones if z.get('numero') == zone_num), {})
-            c.drawString(schema_x_start + 0.5*cm, y_current - 0.4*cm, 
+            c.setFont("Helvetica", 7)
+            c.drawString(schema_x_start + 2*cm, y_current - 0.1*cm, 
                         f"Orient: {zone_data.get('orientation', '?')}° - Inclin: {zone_data.get('inclinaison', '?')}°")
             
-            y_current -= 1*cm
+            y_current -= 1.1*cm
             
             # Dessiner chaque string
             for string in strings_zone:
                 self._dessiner_string(c, schema_x_start + 1*cm, y_current, string)
-                y_current -= 1.8*cm
+                y_current -= 1.5*cm  # Réduit espacement pour éviter superposition
             
-            y_current -= 0.5*cm  # Espacement entre zones
+            y_current -= 0.3*cm  # Espacement entre zones réduit
         
         # === PARTIE CENTRALE: BOÎTE DE JONCTION DC ===
         
         boite_x = schema_x_start + schema_width * 0.35
         boite_y = schema_y_start + schema_height * 0.5
         boite_width = 4*cm
-        boite_height = 5*cm
+        boite_height = 4.5*cm
         
+        # Titre au-dessus de la boîte
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawCentredString(boite_x + boite_width/2, schema_y_end - 0.3*cm, "BOÎTE DE JONCTION DC")
+        c.drawCentredString(boite_x + boite_width/2, boite_y + boite_height/2 + 0.5*cm, "BOÎTE DE JONCTION DC")
         c.setFillColor(colors.black)
         
-        # Rectangle boîte
+        # Rectangle boîte avec fond
+        c.setFillColor(colors.HexColor('#fffbf0'))
         c.setLineWidth(2)
-        c.rect(boite_x, boite_y - boite_height/2, boite_width, boite_height)
+        c.rect(boite_x, boite_y - boite_height/2, boite_width, boite_height, fill=1, stroke=1)
+        c.setFillColor(colors.black)
         
         # Contenu boîte
-        c.setFont("Helvetica", 8)
-        y_boite = boite_y + boite_height/2 - 0.7*cm
+        c.setFont("Helvetica-Bold", 8)
+        y_boite = boite_y + boite_height/2 - 0.8*cm
         
         c.drawCentredString(boite_x + boite_width/2, y_boite, "Sectionneurs DC")
-        y_boite -= 0.5*cm
+        y_boite -= 0.4*cm
+        c.setFont("Helvetica", 7)
         c.drawCentredString(boite_x + boite_width/2, y_boite, f"{self.calibre_sectionneur_dc}A - {self.tension_sectionneur_dc}")
         
-        y_boite -= 0.7*cm
+        y_boite -= 0.8*cm
+        c.setFont("Helvetica-Bold", 8)
         c.drawCentredString(boite_x + boite_width/2, y_boite, "Parafoudre DC")
-        y_boite -= 0.5*cm
+        y_boite -= 0.4*cm
+        c.setFont("Helvetica", 7)
         c.drawCentredString(boite_x + boite_width/2, y_boite, self.parafoudre_dc.split('-')[0].strip())
         
         if 'Non requis' not in self.fusibles_strings:
@@ -708,15 +737,19 @@ class SchemaUnifilaire:
         c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.8*cm, "NOTES DE CALCULS - NF C 15-712")
         
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + cart_width - 5*cm, cart_y + cart_height - 0.8*cm, "Page: 2/2")
+        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.6*cm, "Page: 2/2")
         
-        # Titre page
-        c.setFont("Helvetica-Bold", 16)
+        # Titre page avec bandeau
+        y_titre = height - 2.5*cm
         c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawString(2*cm, height - 3*cm, "NOTES DE CALCULS ET VÉRIFICATIONS DE CONFORMITÉ")
+        c.rect(1.5*cm, y_titre - 0.5*cm, width - 3*cm, 1.2*cm, fill=1, stroke=1)
+        
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(2*cm, y_titre, "NOTES DE CALCULS ET VÉRIFICATIONS DE CONFORMITÉ")
         c.setFillColor(colors.black)
         
-        y = height - 5*cm
+        y = height - 4.5*cm
         
         # === 1. CONFIGURATION ÉLECTRIQUE ===
         
