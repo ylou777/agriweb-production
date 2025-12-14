@@ -2413,47 +2413,7 @@
 
         // Sauvegarder le calpinage
         document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
-            const data = {
-                zones: zones.map(z => {
-                    // Convertir les bounds Leaflet en format sérialisable
-                    const bounds = z.layer.getBounds();
-                    return {
-                        numero: z.numero,
-                        surfaceM2: z.surfaceM2,
-                        nbModules: z.nbModules,
-                        nbCols: z.nbCols,
-                        nbRows: z.nbRows,
-                        puissanceKw: z.puissanceKw,
-                        orientation: z.orientation,
-                        inclinaison: z.inclinaison,
-                        productible: z.productible,
-                        monthly_data: z.monthly_data || null,
-                        moduleOrientation: z.moduleOrientation || 'paysage',
-                        largeurMetres: z.largeurMetres,
-                        longueurMetres: z.longueurMetres,
-                        rotationAngle: z.rotationAngle || 0,
-                        bounds: {
-                            _southWest: {
-                                lat: bounds.getSouthWest().lat,
-                                lng: bounds.getSouthWest().lng
-                            },
-                            _northEast: {
-                                lat: bounds.getNorthEast().lat,
-                                lng: bounds.getNorthEast().lng
-                            }
-                        }
-                    };
-                }),
-                module: {
-                    longueur: document.getElementById('moduleLongueur').value,
-                    largeur: document.getElementById('moduleLargeur').value,
-                    puissance: document.getElementById('modulePuissance').value
-                },
-                totaux: {
-                    puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
-                    productibleTotal: zones.reduce((sum, z) => sum + z.productible, 0)
-                }
-            };
+            const data = prepareCalepinageData();
             
             console.log('Données à sauvegarder:', data);
             
@@ -2559,6 +2519,51 @@
                 alert('❌ Erreur réseau');
             }
         });
+        
+        // Fonction pour préparer les données de calepinage
+        function prepareCalepinageData() {
+            return {
+                zones: zones.map(z => {
+                    // Convertir les bounds Leaflet en format sérialisable
+                    const bounds = z.layer.getBounds();
+                    return {
+                        numero: z.numero,
+                        surfaceM2: z.surfaceM2,
+                        nbModules: z.nbModules,
+                        nbCols: z.nbCols,
+                        nbRows: z.nbRows,
+                        puissanceKw: z.puissanceKw,
+                        orientation: z.orientation,
+                        inclinaison: z.inclinaison,
+                        productible: z.productible,
+                        monthly_data: z.monthly_data || null,
+                        moduleOrientation: z.moduleOrientation || 'paysage',
+                        largeurMetres: z.largeurMetres,
+                        longueurMetres: z.longueurMetres,
+                        rotationAngle: z.rotationAngle || 0,
+                        bounds: {
+                            _southWest: {
+                                lat: bounds.getSouthWest().lat,
+                                lng: bounds.getSouthWest().lng
+                            },
+                            _northEast: {
+                                lat: bounds.getNorthEast().lat,
+                                lng: bounds.getNorthEast().lng
+                            }
+                        }
+                    };
+                }),
+                module: {
+                    longueur: document.getElementById('moduleLongueur').value,
+                    largeur: document.getElementById('moduleLargeur').value,
+                    puissance: document.getElementById('modulePuissance').value
+                },
+                totaux: {
+                    puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
+                    productibleTotal: zones.reduce((sum, z) => sum + z.productible, 0)
+                }
+            };
+        }
         
         // Bouton génération schéma unifilaire NF C 15-712
         const btnSchemaUnifilaire = document.getElementById('genererSchemaUnifilaire');
