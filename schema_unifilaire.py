@@ -237,8 +237,9 @@ class SchemaUnifilaire:
         # Prendre le max des deux contraintes
         section_dc_calculee = max(section_dc_min_courant, section_dc_chute_tension)
         
-        # Arrondir à la section normalisée supérieure
-        self.section_cable_dc = min([s for s in sections_normalisees if s >= section_dc_calculee])
+        # Arrondir à la section normalisée supérieure (avec sécurité si aucune section ne convient)
+        sections_valides = [s for s in sections_normalisees if s >= section_dc_calculee]
+        self.section_cable_dc = min(sections_valides) if sections_valides else sections_normalisees[-1]
         
         # 2. CÂBLES PAR STRING (moins de courant)
         i_max_string = max(s['i_sc'] * 1.25 for s in self.configuration_strings)
@@ -279,7 +280,8 @@ class SchemaUnifilaire:
             section_ac_chute_tension = (math.sqrt(3) * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / (0.03 * 400)
         
         section_ac_calculee = max(section_ac_min_courant, section_ac_chute_tension)
-        self.section_cable_ac = min([s for s in sections_normalisees if s >= section_ac_calculee])
+        sections_valides_ac = [s for s in sections_normalisees if s >= section_ac_calculee]
+        self.section_cable_ac = min(sections_valides_ac) if sections_valides_ac else sections_normalisees[-1]
         
         self.courant_max_ac = i_max_ac
         
