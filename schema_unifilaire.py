@@ -13,6 +13,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import math
 from datetime import datetime
+from equipements_database import MODULES_PV_DATABASE, ONDULEURS_DATABASE, get_onduleur_optimal
 
 class SchemaUnifilaire:
     """Générateur de schéma unifilaire conforme NF C 15-712-1"""
@@ -58,46 +59,60 @@ class SchemaUnifilaire:
         self._calculer_protections()
     
     def _choisir_onduleur(self):
-        """Choisit l'onduleur adapté selon la puissance DC"""
+        """Choisit l'onduleur adapté selon la puissance DC depuis la base de données"""
         
-        # Base de données onduleurs (marques courantes France)
-        onduleurs_db = [
-            # Huawei (leader France)
-            {'marque': 'Huawei', 'modele': 'SUN2000-3KTL-L1', 'p_ac': 3000, 'p_dc_max': 4500, 'mppt': 2, 'v_min': 90, 'v_max': 560, 'i_max': 12.5},
-            {'marque': 'Huawei', 'modele': 'SUN2000-5KTL-L1', 'p_ac': 5000, 'p_dc_max': 7500, 'mppt': 2, 'v_min': 90, 'v_max': 560, 'i_max': 15},
-            {'marque': 'Huawei', 'modele': 'SUN2000-6KTL-M1', 'p_ac': 6000, 'p_dc_max': 9000, 'mppt': 2, 'v_min': 140, 'v_max': 980, 'i_max': 12.5},
-            {'marque': 'Huawei', 'modele': 'SUN2000-8KTL-M1', 'p_ac': 8000, 'p_dc_max': 12000, 'mppt': 2, 'v_min': 140, 'v_max': 980, 'i_max': 12.5},
-            {'marque': 'Huawei', 'modele': 'SUN2000-10KTL-M1', 'p_ac': 10000, 'p_dc_max': 15000, 'mppt': 2, 'v_min': 140, 'v_max': 980, 'i_max': 12.5},
-            {'marque': 'Huawei', 'modele': 'SUN2000-12KTL-M2', 'p_ac': 12000, 'p_dc_max': 18000, 'mppt': 2, 'v_min': 140, 'v_max': 980, 'i_max': 15},
-            {'marque': 'Huawei', 'modele': 'SUN2000-15KTL-M2', 'p_ac': 15000, 'p_dc_max': 22500, 'mppt': 2, 'v_min': 140, 'v_max': 980, 'i_max': 15},
-            {'marque': 'Huawei', 'modele': 'SUN2000-20KTL-M2', 'p_ac': 20000, 'p_dc_max': 30000, 'mppt': 2, 'v_min': 140, 'v_max': 980, 'i_max': 22},
-            
-            # Fronius (premium Autriche)
-            {'marque': 'Fronius', 'modele': 'Primo 3.0-1', 'p_ac': 3000, 'p_dc_max': 4500, 'mppt': 2, 'v_min': 80, 'v_max': 1000, 'i_max': 16},
-            {'marque': 'Fronius', 'modele': 'Primo 5.0-1', 'p_ac': 5000, 'p_dc_max': 7500, 'mppt': 2, 'v_min': 80, 'v_max': 1000, 'i_max': 16},
-            {'marque': 'Fronius', 'modele': 'Symo 10.0-3-M', 'p_ac': 10000, 'p_dc_max': 15000, 'mppt': 2, 'v_min': 150, 'v_max': 1000, 'i_max': 16},
-            
-            # SMA (leader allemand)
-            {'marque': 'SMA', 'modele': 'Sunny Boy 3.0', 'p_ac': 3000, 'p_dc_max': 4500, 'mppt': 2, 'v_min': 100, 'v_max': 600, 'i_max': 15},
-            {'marque': 'SMA', 'modele': 'Sunny Boy 5.0', 'p_ac': 5000, 'p_dc_max': 7500, 'mppt': 2, 'v_min': 100, 'v_max': 600, 'i_max': 15},
-            {'marque': 'SMA', 'modele': 'Sunny Tripower 10.0', 'p_ac': 10000, 'p_dc_max': 15000, 'mppt': 2, 'v_min': 150, 'v_max': 800, 'i_max': 20},
-            
-            # Enphase (micro-onduleurs pour petites puissances)
-            {'marque': 'Enphase', 'modele': 'IQ8+ (x12)', 'p_ac': 3360, 'p_dc_max': 5040, 'mppt': 12, 'v_min': 16, 'v_max': 60, 'i_max': 14},
-        ]
-        
-        # Sélection onduleur avec ratio DC/AC optimal (1.2-1.3)
         p_dc_totale = self.puissance_totale_kwc * 1000
-        onduleurs_compatibles = [
-            ond for ond in onduleurs_db 
-            if ond['p_dc_max'] >= p_dc_totale * 0.95  # Marge 5%
-        ]
+        
+        # Ratio DC/AC entre 1.0 et 1.5 (plage large pour compatibilité)
+        # Ratio optimal: 1.15-1.3, mais scoring favorise les meilleurs ratios
+        p_ac_min = p_dc_totale / 1.5
+        p_ac_max = p_dc_totale / 1.0
+        
+        # Filtrer onduleurs compatibles
+        onduleurs_compatibles = []
+        for ref, data in ONDULEURS_DATABASE.items():
+            if (p_ac_min <= data['p_ac_nominale'] <= p_ac_max and 
+                data['p_dc_max'] >= p_dc_totale * 0.95):
+                
+                # Calculer score de compatibilité
+                ratio = p_dc_totale / data['p_ac_nominale']
+                score_ratio = 100 - abs(ratio - 1.25) * 100  # Optimal = 1.25
+                score_rendement = data['rendement_max']
+                score_total = score_ratio * 0.6 + score_rendement * 0.4
+                
+                onduleurs_compatibles.append({
+                    'ref': ref,
+                    'data': data,
+                    'score': score_total,
+                    'ratio': ratio
+                })
         
         if onduleurs_compatibles:
-            # Choisir le plus petit onduleur compatible (meilleur ratio)
-            self.onduleur = min(onduleurs_compatibles, key=lambda x: x['p_ac'])
+            # Trier par score (meilleur ratio + rendement)
+            meilleur = max(onduleurs_compatibles, key=lambda x: x['score'])
+            data = meilleur['data']
+            
+            # Adapter au format attendu par le reste du code
+            self.onduleur = {
+                'marque': data['fabricant'],
+                'modele': data['modele'],
+                'p_ac': data['p_ac_nominale'],
+                'p_dc_max': data['p_dc_max'],
+                'mppt': data['nb_mppt'],
+                'v_min': data['v_dc_min'],
+                'v_max': data['v_dc_max'],
+                'i_max': data['i_dc_max_par_mppt'],
+                'rendement': data['rendement_max'],
+                'type_reseau': data['type_reseau'],
+                'garantie': data['garantie'],
+                'prix': data.get('prix_indicatif', 0)
+            }
+            
+            print(f"✅ Onduleur sélectionné: {self.onduleur['marque']} {self.onduleur['modele']} "
+                  f"({self.onduleur['p_ac']/1000:.1f}kW AC, rendement {self.onduleur['rendement']}%, "
+                  f"ratio DC/AC {meilleur['ratio']:.2f})")
         else:
-            # Par défaut, onduleur générique
+            # Par défaut, onduleur générique si aucun compatible
             self.onduleur = {
                 'marque': 'Onduleur',
                 'modele': f'{int(self.puissance_totale_kwc)}kW',
@@ -106,10 +121,15 @@ class SchemaUnifilaire:
                 'mppt': 2,
                 'v_min': 150,
                 'v_max': 980,
-                'i_max': 15
+                'i_max': 15,
+                'rendement': 97.0,
+                'type_reseau': 'Triphasé' if p_dc_totale > 6000 else 'Monophasé',
+                'garantie': 10,
+                'prix': 0
             }
-        
-        print(f"✅ Onduleur sélectionné: {self.onduleur['marque']} {self.onduleur['modele']} ({self.onduleur['p_ac']/1000}kW AC)")
+            
+            print(f"⚠️ Aucun onduleur compatible trouvé, onduleur générique créé: "
+                  f"{self.onduleur['marque']} {self.onduleur['modele']}")
     
     def _calculer_strings(self):
         """Calcule la configuration optimale des strings par zone"""

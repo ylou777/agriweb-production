@@ -379,6 +379,66 @@ def register_crm_routes(app):
         }), 400
 
     # ============================================================================
+    # ROUTES API - EQUIPEMENTS PV
+    # ============================================================================
+
+    @app.route('/api/equipements/modules')
+    def get_modules_database():
+        """API - Base de données modules photovoltaïques"""
+        try:
+            from equipements_database import MODULES_PV_DATABASE
+            return jsonify({
+                'success': True,
+                'count': len(MODULES_PV_DATABASE),
+                'modules': MODULES_PV_DATABASE
+            })
+        except Exception as e:
+            print(f"❌ Erreur chargement base modules: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/equipements/onduleurs')
+    def get_onduleurs_database():
+        """API - Base de données onduleurs"""
+        try:
+            from equipements_database import ONDULEURS_DATABASE
+            return jsonify({
+                'success': True,
+                'count': len(ONDULEURS_DATABASE),
+                'onduleurs': ONDULEURS_DATABASE
+            })
+        except Exception as e:
+            print(f"❌ Erreur chargement base onduleurs: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/equipements/module/<reference>')
+    def get_module_details(reference):
+        """API - Détails d'un module spécifique"""
+        try:
+            from equipements_database import MODULES_PV_DATABASE
+            if reference in MODULES_PV_DATABASE:
+                return jsonify({
+                    'success': True,
+                    'module': MODULES_PV_DATABASE[reference]
+                })
+            return jsonify({'success': False, 'error': 'Module non trouvé'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/equipements/onduleur/<reference>')
+    def get_onduleur_details(reference):
+        """API - Détails d'un onduleur spécifique"""
+        try:
+            from equipements_database import ONDULEURS_DATABASE
+            if reference in ONDULEURS_DATABASE:
+                return jsonify({
+                    'success': True,
+                    'onduleur': ONDULEURS_DATABASE[reference]
+                })
+            return jsonify({'success': False, 'error': 'Onduleur non trouvé'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
     # ROUTES API - EXPORT PROSPECTS
     # ============================================================================
 
