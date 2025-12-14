@@ -2530,7 +2530,7 @@ def register_crm_routes(app):
                 execute_query('''
                     UPDATE project_etapes 
                     SET statut = 'termine',
-                        date_completion = CURRENT_TIMESTAMP
+                        date_fin_reelle = CURRENT_TIMESTAMP
                     WHERE project_id = %s 
                     AND nom_etape = 'Calepinage'
                     AND statut != 'termine'
