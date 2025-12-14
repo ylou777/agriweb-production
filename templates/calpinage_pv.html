@@ -404,6 +404,9 @@
                     <button class="btn btn-success btn-lg" id="genererEtude">
                         📄 Générer l'étude de productible
                     </button>
+                    <button class="btn btn-warning btn-lg" id="genererSchemaUnifilaire">
+                        ⚡ Schéma unifilaire NF C 15-712
+                    </button>
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
                         💾 Sauvegarder le calpinage
                     </button>
@@ -2321,6 +2324,51 @@
                     
                     // Ouvrir l'étude après sauvegarde réussie
                     window.open(`/api/crm/prospects/${prospectId}/etude-productible`, '_blank');
+                } else {
+                    alert('❌ Erreur lors de la sauvegarde du calpinage');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Erreur réseau');
+            }
+        });
+        
+        // Bouton génération schéma unifilaire NF C 15-712
+        document.getElementById('genererSchemaUnifilaire').addEventListener('click', async () => {
+            if (zones.length === 0) {
+                alert('⚠️ Veuillez d\'abord dessiner et configurer au moins une zone PV');
+                return;
+            }
+            
+            // Sauvegarder d'abord le calpinage
+            const calp = prepareCalepinageData();
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(calp)
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Calpinage sauvegardé, génération du schéma unifilaire...');
+                    
+                    // Si on est dans une fenêtre enfant, informer la fenêtre parent
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            window.opener.postMessage({
+                                type: 'etape_terminee',
+                                prospectId: prospectId,
+                                etape: 'Calepinage',
+                                ordre: 3
+                            }, '*');
+                        } catch (e) {
+                            console.log('Impossible de notifier la fenêtre parent:', e);
+                        }
+                    }
+                    
+                    // Ouvrir le schéma unifilaire après sauvegarde réussie
+                    window.open(`/api/crm/prospects/${prospectId}/schema-unifilaire`, '_blank');
                 } else {
                     alert('❌ Erreur lors de la sauvegarde du calpinage');
                 }

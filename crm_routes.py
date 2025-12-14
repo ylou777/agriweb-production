@@ -2390,6 +2390,105 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return f"Erreur lors de la génération du PDF: {str(e)}", 500
+    
+    # ============================================================================
+    # SCHÉMA UNIFILAIRE NF C 15-712
+    # ============================================================================
+    @app.route('/api/crm/prospects/<int:prospect_id>/schema-unifilaire')
+    def generer_schema_unifilaire(prospect_id):
+        """Générer un schéma unifilaire conforme NF C 15-712 à partir du calepinage"""
+        try:
+            from schema_unifilaire import SchemaUnifilaire
+            from io import BytesIO
+            
+            # Récupérer le prospect et son calpinage
+            result = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not result:
+                return "Prospect non trouvé", 404
+            
+            prospect = dict(result)
+            
+            # Parser data_json pour récupérer le calpinage
+            try:
+                data_json = json.loads(prospect['data_json']) if prospect['data_json'] else {}
+                calpinage = data_json.get('calpinage', {})
+            except:
+                calpinage = {}
+            
+            if not calpinage or not calpinage.get('zones'):
+                return "Aucun calepinage trouvé. Veuillez d'abord créer un calepinage.", 400
+            
+            # Données prospect pour le schéma
+            prospect_data = {
+                'nom': prospect.get('nom', ''),
+                'prenom': prospect.get('prenom', ''),
+                'adresse': prospect.get('adresse', '')
+            }
+            
+            # Générer le schéma unifilaire
+            print(f"📐 [SCHEMA UNIFILAIRE] Génération pour prospect {prospect_id}")
+            schema = SchemaUnifilaire(calpinage, prospect_data)
+            
+            # Générer le PDF en mémoire
+            buffer = BytesIO()
+            temp_path = f"/tmp/schema_unifilaire_{prospect_id}.pdf"
+            schema.generer_schema_pdf(temp_path)
+            
+            # Lire le fichier généré
+            with open(temp_path, 'rb') as f:
+                buffer.write(f.read())
+            
+            buffer.seek(0)
+            
+            # Supprimer le fichier temporaire
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            
+            # Nom du fichier
+            nom_prospect = f"{prospect.get('nom', '')}_{prospect.get('prenom', '')}".strip().replace(' ', '_') or 'Prospect'
+            filename = f"Schema_Unifilaire_NF_C15-712_{nom_prospect}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            
+            print(f"✅ [SCHEMA UNIFILAIRE] PDF généré: {filename}")
+            
+            # Marquer l'étape "Calepinage" (ordre 3) comme terminée si un projet existe
+            project = execute_query(
+                'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if project:
+                project_id = project['id']
+                # Mettre à jour l'étape Calepinage
+                execute_query('''
+                    UPDATE project_etapes 
+                    SET statut = 'termine',
+                        date_completion = CURRENT_TIMESTAMP
+                    WHERE project_id = %s 
+                    AND nom_etape = 'Calepinage'
+                    AND statut != 'termine'
+                ''', (project_id,))
+                
+                print(f"✅ [SCHEMA UNIFILAIRE] Étape 'Calepinage' marquée terminée pour projet {project_id}")
+            
+            return send_file(
+                buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return f"Erreur lors de la génération du schéma unifilaire: {str(e)}", 500
 
     # ============================================================================
     # ROUTE DEBUG - FORMES JURIDIQUES
