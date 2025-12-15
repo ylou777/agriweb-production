@@ -20,10 +20,14 @@ class PlansStrings:
         self.zones = calpinage_data.get('zones', [])
         self.module = calpinage_data.get('module', {})
         self.config_elec = calpinage_data.get('configuration_electrique', {})
+        self.distances = calpinage_data.get('distances', {})
         
         # Dimensions module (en mètres)
         self.module_longueur = float(self.module.get('longueur', 2.278))  # m
         self.module_largeur = float(self.module.get('largeur', 1.134))  # m
+        
+        # Distance DC champ → onduleur (en mètres)
+        self.distance_dc_onduleur = float(self.distances.get('dc_strings', 25.0))
         
     def generer_plans_pdf(self, output_path=None):
         """Génère le PDF complet avec un plan par zone"""
@@ -112,6 +116,7 @@ class PlansStrings:
             ['Tension Vmpp module:', f"{self.module.get('vmpp', 41.8)} V"],
             ['Courant Isc module:', f"{self.module.get('isc', 13.9)} A"],
             ['Section câble strings:', f"{section_cable} mm²"],
+            ['📏 Distance champ → onduleur:', f"{self.distance_dc_onduleur:.1f} m"],
             ['🎯 Câble DC total optimisé:', f"{longueur_cable_total:.1f} m"],
         ]
         
@@ -135,8 +140,13 @@ class PlansStrings:
         c.drawString(3*cm, y - 1.8*cm, "• Utiliser uniquement connecteurs MC4 certifiés")
         c.drawString(3*cm, y - 2.4*cm, "• Conformité NF C 15-712-1:2017")
         
-        # Date et référence
+        # Note calcul câbles
         c.setFont("Helvetica", 8)
+        c.setFillColor(colors.HexColor('#2ecc71'))
+        c.drawString(3*cm, y - 3.2*cm, f"ℹ Câbles DC = Longueur intra-string (serpentin optimisé) + Distance champ→onduleur ({self.distance_dc_onduleur:.1f}m)")
+        
+        # Date et référence
+        c.setFillColor(colors.black)
         c.drawString(width - 10*cm, 2*cm, f"Date: {datetime.now().strftime('%d/%m/%Y')}")
         c.drawString(width - 10*cm, 1.5*cm, f"Réf: STRINGS-{self.prospect.get('id', '000')}")
     
@@ -265,7 +275,9 @@ class PlansStrings:
             i_mpp_string = float(self.module.get('impp', 13.2))
             
             # Calculer longueur de câble pour ce string (en mètres)
-            longueur_cable = self._calculer_longueur_cable_string(module_indices, nb_cols)
+            # Longueur intra-string (entre modules) + distance jusqu'à onduleur
+            longueur_intra_string = self._calculer_longueur_cable_string(module_indices, nb_cols)
+            longueur_totale_string = longueur_intra_string + self.distance_dc_onduleur
             
             strings.append({
                 'numero': i + 1,
@@ -275,7 +287,8 @@ class PlansStrings:
                 'v_mpp': v_mpp_string,
                 'i_sc': i_sc_string,
                 'i_mpp': i_mpp_string,
-                'longueur_cable': longueur_cable,
+                'longueur_cable': longueur_totale_string,
+                'longueur_intra_string': longueur_intra_string,  # Pour info
                 'color': self._get_string_color(i)
             })
             
@@ -536,6 +549,12 @@ class PlansStrings:
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
         c.drawString(leg_x, leg_y + 1.5*cm, "LÉGENDE STRINGS:")
+        
+        # Note sur distance onduleur
+        c.setFont("Helvetica", 8)
+        c.setFillColor(colors.HexColor('#666666'))
+        c.drawString(leg_x, leg_y + 0.8*cm, 
+                    f"📏 Câble DC inclut: câblage intra-string + distance champ→onduleur ({self.distance_dc_onduleur:.1f}m)")
         
         # Table des strings avec longueur câble
         strings_data = [
