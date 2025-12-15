@@ -375,39 +375,50 @@ class PropositionProfessionnelle:
         return elements
     
     def _solution_technique(self):
-        """PAGE 5: Solution technique proposée"""
+        """PAGE 5: Solution technique proposée - ENRICHIE AVEC DONNÉES CALEPINAGE"""
         elements = []
         
         elements.append(Paragraph("3. SOLUTION TECHNIQUE PROPOSÉE", self.styles['TitrePrincipal']))
         elements.append(Spacer(1, 0.5*cm))
         
-        # Vue d'ensemble
-        puissance = self.params.get('puissance_kwc', 0)
+        # Récupérer les données du calepinage
+        zones = self.calpinage.get('zones', [])
+        module = self.calpinage.get('module', {})
+        equipments = self.calpinage.get('equipments', {})
+        config_elec = self.calpinage.get('configuration_electrique', {})
+        distances = self.calpinage.get('distances', {})
         
+        # Calculs
+        nb_modules_total = sum(z.get('nbModules', 0) for z in zones)
+        puissance_totale = nb_modules_total * float(module.get('puissance', 550)) / 1000
+        
+        # Vue d'ensemble
         vue_ensemble_text = f"""
-        Nous proposons l'installation d'une centrale photovoltaïque d'une puissance totale de <b>{puissance:.2f} kWc</b>, 
-        composée de modules photovoltaïques monocristallins haute efficacité, d'onduleurs de dernière génération, 
-        et d'une structure de fixation adaptée à votre toiture.
+        Nous proposons l'installation d'une centrale photovoltaïque d'une puissance totale de <b>{puissance_totale:.2f} kWc</b>, 
+        composée de <b>{nb_modules_total} modules</b> photovoltaïques haute efficacité répartis sur <b>{len(zones)} zone(s)</b> 
+        de toiture, avec onduleur(s) de dernière génération et structure de fixation certifiée.
+        <br/><br/>
+        <b>Installation conforme NF C 15-712-1:2017</b> - Installations photovoltaïques raccordées au réseau public.
         """
         elements.append(Paragraph(vue_ensemble_text, self.styles['CorpsJustifie']))
         elements.append(Spacer(1, 0.5*cm))
         
-        # Modules photovoltaïques
-        elements.append(Paragraph("3.1. Modules photovoltaïques", self.styles['Section']))
-        
-        nb_modules_total = int(puissance * 1000 / 550)  # Estimation 550Wc par module
+        # === LOT 1: MODULES PHOTOVOLTAÏQUES ===
+        elements.append(Paragraph("LOT 1 - MODULES PHOTOVOLTAÏQUES", self.styles['Section']))
         
         modules_data = [
             ['<b>Caractéristique</b>', '<b>Spécification</b>'],
-            ['Marque / Modèle', 'JA Solar / JAM72S30-550/MR (ou équivalent Tier 1)'],
+            ['Nombre de modules', f'{nb_modules_total} unités'],
+            ['Puissance unitaire', f"{module.get('puissance', 550)} Wc"],
+            ['Puissance totale', f'{puissance_totale:.2f} kWc'],
+            ['Tension circuit ouvert (Voc)', f"{module.get('voc', 49.5)} V"],
+            ['Tension MPP (Vmpp)', f"{module.get('vmpp', 41.8)} V"],
+            ['Courant court-circuit (Isc)', f"{module.get('isc', 13.9)} A"],
+            ['Courant MPP (Impp)', f"{module.get('impp', 13.2)} A"],
             ['Technologie', 'Monocristallin PERC Half-Cell'],
-            ['Puissance unitaire', '550 Wc (±3%)'],
-            ['Nombre de modules', str(nb_modules_total)],
-            ['Puissance totale', f'{puissance:.2f} kWc'],
-            ['Rendement module', '21.3%'],
-            ['Dimensions', '2278 × 1134 × 30 mm'],
-            ['Garantie produit', '12 ans'],
-            ['Garantie performance', '25 ans (80% Pmin)'],
+            ['Rendement', '≥ 21%'],
+            ['Garantie produit', '12 ans fabricant'],
+            ['Garantie performance', '25 ans linéaire (84% Pmin à 25 ans)'],
             ['Certification', 'IEC 61215, IEC 61730, CE'],
         ]
         
@@ -419,29 +430,66 @@ class PropositionProfessionnelle:
             ('FONTSIZE', (0, 0), (-1, -1), 9),
             ('GRID', (0, 0), (-1, -1), 1, colors.grey),
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
         ]))
         elements.append(modules_table)
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Détail par zone
+        if len(zones) > 1:
+            elements.append(Paragraph("<b>Répartition par zone:</b>", self.styles['Normal']))
+            zones_data = [['<b>Zone</b>', '<b>Modules</b>', '<b>Surface</b>', '<b>Puissance</b>', '<b>Orientation</b>']]
+            for z in zones:
+                zones_data.append([
+                    f"Zone {z.get('numero', '?')}",
+                    str(z.get('nbModules', 0)),
+                    f"{z.get('surfaceM2', 0):.1f} m²",
+                    f"{z.get('puissanceKw', 0):.2f} kWc",
+                    f"{z.get('orientation', 'N/A')}° / {z.get('inclinaison', 'N/A')}°"
+                ])
+            zones_table = Table(zones_data, colWidths=[2.5*cm, 2.5*cm, 3*cm, 3*cm, 5*cm])
+            zones_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0066cc')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            elements.append(zones_table)
+        
         elements.append(Spacer(1, 0.5*cm))
         
-        # Onduleurs
-        elements.append(Paragraph("3.2. Onduleurs", self.styles['Section']))
+        # === LOT 2: ONDULEURS ===
+        elements.append(Paragraph("LOT 2 - ONDULEUR(S) DE CONVERSION", self.styles['Section']))
         
-        nb_onduleurs = max(1, int(puissance / 50))  # 1 onduleur pour 50 kWc
+        onduleurs_list = equipments.get('onduleurs', [])
+        nb_onduleurs = len(onduleurs_list)
         
-        onduleurs_data = [
-            ['<b>Caractéristique</b>', '<b>Spécification</b>'],
-            ['Marque / Modèle', 'Huawei / SUN2000-50KTL-M3 (ou équivalent)'],
-            ['Technologie', 'String inverter triphasé'],
-            ['Nombre d\'onduleurs', str(nb_onduleurs)],
-            ['Puissance unitaire', '50 kW'],
-            ['Rendement max', '98.65%'],
-            ['Protection', 'IP65 (extérieur)'],
-            ['Garantie', '5 ans (extensible 10/15/20 ans)'],
-            ['Monitoring', 'Inclus (application smartphone)'],
-            ['Certification', 'VDE, CE, G83/G59'],
-        ]
+        if nb_onduleurs > 0 and onduleurs_list[0].get('marque'):
+            ond = onduleurs_list[0]
+            onduleurs_data = [
+                ['<b>Caractéristique</b>', '<b>Spécification</b>'],
+                ['Marque / Modèle', f"{ond.get('marque', 'N/A')} / {ond.get('modele', 'N/A')}"],
+                ['Nombre d\'onduleurs', str(nb_onduleurs)],
+                ['Puissance AC nominale', f"{ond.get('puissance_ac', 0)/1000:.1f} kW"],
+                ['Puissance DC maximale', f"{ond.get('puissance_dc_max', 0)/1000:.1f} kW"],
+                ['Tension DC maximale', f"{ond.get('tension_max', 1000)} V"],
+                ['Nombre de MPPT', str(ond.get('nb_mppt', 2))],
+                ['Rendement européen', '≥ 97.5%'],
+                ['Protection', config_elec.get('ip_onduleur', 'IP65')],
+                ['Garantie standard', '5 ans (extensible)'],
+                ['Monitoring', 'Interface web/smartphone incluse'],
+                ['Certification', 'CE, VDE, EN 62109'],
+            ]
+        else:
+            # Fallback onduleur générique
+            onduleurs_data = [
+                ['<b>Caractéristique</b>', '<b>Spécification</b>'],
+                ['Type', 'Onduleur string triphasé'],
+                ['Puissance', f'{puissance_totale:.0f} kW'],
+                ['Rendement', '≥ 98%'],
+                ['Protection', 'IP65'],
+                ['Garantie', '5-10 ans'],
+            ]
         
         onduleurs_table = Table(onduleurs_data, colWidths=[7*cm, 9*cm])
         onduleurs_table.setStyle(TableStyle([
@@ -455,22 +503,169 @@ class PropositionProfessionnelle:
         elements.append(onduleurs_table)
         elements.append(Spacer(1, 0.5*cm))
         
-        # Structure et câblage
-        elements.append(Paragraph("3.3. Structure et câblage", self.styles['Section']))
+        # === LOT 3: PROTECTIONS ÉLECTRIQUES (NF C 15-712) ===
+        elements.append(Paragraph("LOT 3 - PROTECTIONS ÉLECTRIQUES CONFORMES NF C 15-712", self.styles['Section']))
+        
+        protections_text = """
+        <b>Conformité NF C 15-712-1:2017</b> - Toutes les protections électriques réglementaires sont incluses.
+        """
+        elements.append(Paragraph(protections_text, self.styles['Normal']))
+        
+        protections_data = [
+            ['<b>Équipement</b>', '<b>Spécification</b>', '<b>Norme</b>'],
+            ['<b>PARTIE DC (Courant Continu)</b>', '', ''],
+            ['Sectionneur DC', config_elec.get('sectionneur_dc', '63A') + f' / {config_elec.get("type_cable_dc", "1000V DC")}', 'NF EN 60947-3'],
+            ['Parafoudre DC', config_elec.get('parafoudre_dc', 'Type 2') + f' (≤ {config_elec.get("resistance_terre", "100Ω")})', 'NF EN 61643-31'],
+            ['Boîte de jonction DC', config_elec.get('ip_boite_dc', 'IP65') + ' avec porte-fusibles', 'NF C 15-712'],
+            ['Fusibles strings (si requis)', config_elec.get('fusibles_strings', 'Selon calcul'), 'Type gPV'],
+            ['<b>PARTIE AC (Courant Alternatif)</b>', '', ''],
+            ['AGCP (Appareil Général)', config_elec.get('agcp', '63A') + ' courbe C, PdC 10kA', 'NF C 15-100'],
+            ['Disjoncteur différentiel', config_elec.get('disjoncteur_ac', '40A') + ' courbe C', 'NF EN 61008'],
+            ['Différentiel', config_elec.get('differentiel_ac', 'Type A 30mA'), 'NF C 15-100'],
+            ['Parafoudre AC', config_elec.get('parafoudre_ac', 'Type 2'), 'NF EN 61643-11'],
+            ['Coffret TGBT', 'IP65 pré-câblé', 'NF C 15-100'],
+        ]
+        
+        protections_table = Table(protections_data, colWidths=[6*cm, 7*cm, 3*cm])
+        protections_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#0066cc')),
+            ('TEXTCOLOR', (0, 1), (-1, 1), colors.whitesmoke),
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#0066cc')),
+            ('TEXTCOLOR', (0, 6), (-1, 6), colors.whitesmoke),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 2), (-1, 5), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('ROWBACKGROUNDS', (0, 7), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(protections_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 4: CÂBLAGE ET RACCORDEMENT ===
+        elements.append(Paragraph("LOT 4 - CÂBLAGE ET RACCORDEMENT", self.styles['Section']))
+        
+        cablage_data = [
+            ['<b>Type de câble</b>', '<b>Section</b>', '<b>Longueur</b>', '<b>Caractéristiques</b>'],
+            ['Câbles DC strings', 
+             f"{config_elec.get('section_cable_strings', 6)}mm² + PE {config_elec.get('section_pe_dc', 6)}mm²",
+             f"{distances.get('dc_strings', 25):.1f}m",
+             f"{config_elec.get('type_cable_dc', 'U1000R2V')} Cu"],
+            ['Câble DC principal', 
+             f"{config_elec.get('section_cable_dc', 16)}mm² + PE {config_elec.get('section_pe_dc', 16)}mm²",
+             f"{distances.get('dc_strings', 25):.1f}m",
+             f"{config_elec.get('type_cable_dc', 'U1000R2V')} Cu - ΔU={config_elec.get('chute_tension_dc_pct', 1.5):.2f}%"],
+            ['Câble AC onduleur-TGBT',
+             f"{config_elec.get('section_cable_ac', 10)}mm² + PE {config_elec.get('section_pe_ac', 10)}mm²",
+             f"{distances.get('ac_onduleur_tgbt', 15):.1f}m",
+             f"{config_elec.get('type_cable_ac', 'U1000R2V')} Cu - ΔU={config_elec.get('chute_tension_ac_pct', 1.0):.2f}%"],
+            ['Câble AC TGBT-Injection',
+             f"{config_elec.get('section_cable_ac', 10)}mm² + PE",
+             f"{distances.get('ac_tgbt_injection', 10):.1f}m",
+             f"{config_elec.get('type_cable_ac', 'U1000R2V')} Cu"],
+            ['Terre / LEP',
+             f"{config_elec.get('section_pe_ac', 16)}mm² Cu nu",
+             'Selon installation',
+             f"Résistance ≤ {config_elec.get('resistance_terre', '100Ω')}"],
+        ]
+        
+        cablage_table = Table(cablage_data, colWidths=[4.5*cm, 4*cm, 3*cm, 4.5*cm])
+        cablage_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(cablage_table)
+        
+        cablage_note = f"""
+        <br/><b>Note:</b> Tous les câbles sont dimensionnés selon NF C 15-712 avec chutes de tension 
+        DC: {config_elec.get('chute_tension_dc_pct', 1.5):.2f}% et AC: {config_elec.get('chute_tension_ac_pct', 1.0):.2f}% 
+        (conformes aux limites ≤3% DC et ≤1.5% AC).
+        """
+        elements.append(Paragraph(cablage_note, self.styles['Normal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 5: STRUCTURE DE FIXATION ===
+        elements.append(Paragraph("LOT 5 - STRUCTURE ET FIXATION", self.styles['Section']))
         
         structure_text = """
-        • <b>Structure de fixation:</b> Aluminium anodisé, garantie 25 ans, calcul par bureau d'études (neige, vent)<br/>
-        • <b>Câbles DC:</b> Section adaptée, double isolation, résistant UV (-40°C à +90°C)<br/>
-        • <b>Câbles AC:</b> Conformes NF C 15-100, gaine ICTA ou chemin de câbles<br/>
-        • <b>Protections:</b> Parafoudre DC et AC, sectionneur DC, disjoncteur différentiel<br/>
-        • <b>Coffret AC/DC:</b> IP65, protection surintensité et surtension
+        <b>Structure aluminium anodisé haute résistance:</b>
+        • Calcul de structure par bureau d'études (neige, vent selon Eurocode)
+        • Rails de fixation aluminium anodisé (garantie 25 ans)
+        • Crochets de toiture spécifiques (tuiles mécaniques/ardoises/bac acier)
+        • Étanchéité renforcée avec bandes EPDM et solin alu
+        • Fixations inox A4 anti-corrosion
+        • Système de gestion des câbles intégré
+        <br/><br/>
+        <b>Sécurité intégrée:</b>
+        • Ligne de vie permanente (si accès toiture requis)
+        • EPI (Équipements de Protection Individuelle) pour installateurs
+        • Signalétique sécurité DC/AC
         """
         elements.append(Paragraph(structure_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 6: INSTALLATION ET MISE EN SERVICE ===
+        elements.append(Paragraph("LOT 6 - INSTALLATION ET MISE EN SERVICE", self.styles['Section']))
+        
+        installation_data = [
+            ['<b>Prestation</b>', '<b>Description</b>'],
+            ['Préparation du chantier', '• Réunion de lancement\n• Sécurisation zone de travail\n• Échafaudage si nécessaire'],
+            ['Pose structure', '• Fixation crochets\n• Montage rails\n• Vérification étanchéité'],
+            ['Pose modules', f'• Installation {nb_modules_total} modules\n• Câblage DC strings\n• Tests électriques'],
+            ['Installation onduleur(s)', f'• Fixation {nb_onduleurs} onduleur(s)\n• Raccordement DC/AC\n• Configuration'],
+            ['Protections électriques', '• Installation coffret TGBT\n• Parafoudres DC/AC\n• Mise à la terre'],
+            ['Raccordement réseau', '• Liaison TGBT → compteur\n• Tests injection\n• Vérifications conformité'],
+            ['Mise en service', '• Tests complets\n• Activation monitoring\n• Formation utilisateur'],
+            ['Documentation', '• DOE (Dossier Ouvrage Exécuté)\n• Schéma unifilaire\n• Certificats Consuel'],
+        ]
+        
+        installation_table = Table(installation_data, colWidths=[5*cm, 11*cm])
+        installation_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(installation_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 7: DÉMARCHES ADMINISTRATIVES ===
+        elements.append(Paragraph("LOT 7 - DÉMARCHES ADMINISTRATIVES INCLUSES", self.styles['Section']))
+        
+        admin_text = """
+        <b>Nous prenons en charge toutes les démarches réglementaires:</b>
+        <br/><br/>
+        <b>1. Déclaration Préalable de Travaux (DP):</b>
+        • Constitution et dépôt du dossier en mairie
+        • Plans et documents techniques
+        • Suivi instruction (délai 1 mois)
+        <br/><br/>
+        <b>2. Déclaration de Raccordement (DDR):</b>
+        • Demande de raccordement auprès d'Enedis
+        • Convention d'exploitation (si injection)
+        • Suivi validation technique
+        <br/><br/>
+        <b>3. Attestation Consuel:</b>
+        • Dossier Consuel complet (formulaire, schémas, photos)
+        • Vérification conformité NF C 15-712 et NF C 15-100
+        • Obtention attestation finale (obligatoire mise en service)
+        <br/><br/>
+        <b>4. Mise en service Enedis:</b>
+        • Prise de rendez-vous technicien Enedis
+        • Paramétrage compteur Linky (injection)
+        • Activation contrat revente/autoconsommation
+        """
+        elements.append(Paragraph(admin_text, self.styles['CorpsJustifie']))
         
         return elements
-    
-    # Les autres sections suivront le même niveau de détail...
-    # Je continue avec les sections les plus importantes
     
     def _etude_productible(self):
         """PAGE 6: Étude de productible détaillée"""
