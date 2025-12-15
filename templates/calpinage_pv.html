@@ -2080,6 +2080,13 @@
             panel.innerHTML = html;
         }
         
+        // Fonction pour mettre à jour l'affichage des distances (utile pour la restauration)
+        function updateDistanceDisplay() {
+            if (window.cableDistances) {
+                displayCableDistances(window.cableDistances);
+            }
+        }
+        
         // Event listeners pour saisie manuelle distances
         function setupManualDistanceListeners() {
             ['distanceDC', 'distanceAC1', 'distanceAC2'].forEach(id => {
@@ -3091,16 +3098,69 @@
                     onduleurs: equipments.onduleurs.map(ond => ({
                         num: ond.num,
                         lat: ond.marker.getLatLng().lat,
-                        lng: ond.marker.getLatLng().lng
+                        lng: ond.marker.getLatLng().lng,
+                        // Sauvegarder la configuration complète de l'onduleur
+                        modele: ond.modele || null,
+                        marque: ond.marque || null,
+                        puissance_ac: ond.puissance_ac || null,
+                        puissance_dc_max: ond.puissance_dc_max || null,
+                        tension_max: ond.tension_max || null,
+                        nb_mppt: ond.nb_mppt || null
                     })),
                     tgbt: equipments.tgbt ? {
                         lat: equipments.tgbt.marker.getLatLng().lat,
-                        lng: equipments.tgbt.marker.getLatLng().lng
+                        lng: equipments.tgbt.marker.getLatLng().lng,
+                        // Configuration TGBT
+                        calibre_agcp: equipments.tgbt.calibre_agcp || null,
+                        calibre_disjoncteur: equipments.tgbt.calibre_disjoncteur || null,
+                        type_differentiel: equipments.tgbt.type_differentiel || null
                     } : null,
                     injection: equipments.injection ? {
                         lat: equipments.injection.marker.getLatLng().lat,
-                        lng: equipments.injection.marker.getLatLng().lng
+                        lng: equipments.injection.marker.getLatLng().lng,
+                        // Configuration réseau
+                        type_reseau: equipments.injection.type_reseau || '230V Monophasé',
+                        puissance_compteur: equipments.injection.puissance_compteur || null
                     } : null
+                },
+                // Sauvegarder la configuration électrique complète (câbles, protections, etc.)
+                configuration_electrique: {
+                    // Protections DC
+                    sectionneur_dc: window.electricConfig?.sectionneur_dc || null,
+                    parafoudre_dc: window.electricConfig?.parafoudre_dc || null,
+                    fusibles_strings: window.electricConfig?.fusibles_strings || null,
+                    
+                    // Câbles DC
+                    section_cable_strings: window.electricConfig?.section_cable_strings || null,
+                    section_cable_dc: window.electricConfig?.section_cable_dc || null,
+                    type_cable_dc: window.electricConfig?.type_cable_dc || 'U1000R2V',
+                    
+                    // Protections AC
+                    agcp: window.electricConfig?.agcp || null,
+                    disjoncteur_ac: window.electricConfig?.disjoncteur_ac || null,
+                    differentiel_ac: window.electricConfig?.differentiel_ac || null,
+                    parafoudre_ac: window.electricConfig?.parafoudre_ac || null,
+                    
+                    // Câbles AC
+                    section_cable_ac: window.electricConfig?.section_cable_ac || null,
+                    type_cable_ac: window.electricConfig?.type_cable_ac || 'U1000R2V',
+                    
+                    // Terre
+                    section_pe_dc: window.electricConfig?.section_pe_dc || null,
+                    section_pe_ac: window.electricConfig?.section_pe_ac || null,
+                    resistance_terre: window.electricConfig?.resistance_terre || '≤100Ω',
+                    
+                    // Chutes de tension
+                    chute_tension_dc_pct: window.electricConfig?.chute_tension_dc_pct || null,
+                    chute_tension_ac_pct: window.electricConfig?.chute_tension_ac_pct || null,
+                    
+                    // IP
+                    ip_boite_dc: window.electricConfig?.ip_boite_dc || 'IP65',
+                    ip_onduleur: window.electricConfig?.ip_onduleur || 'IP65',
+                    
+                    // Consuel
+                    num_consuel: window.electricConfig?.num_consuel || null,
+                    date_maj: new Date().toISOString()
                 },
                 distances: window.cableDistances || {
                     dc_strings: 25,  // Défaut si pas calculé
@@ -3275,6 +3335,72 @@
             calculerTotaux();
             
             console.log(`${zones.length} zone(s) chargée(s) depuis la sauvegarde`);
+            
+            // Restaurer les équipements électriques si sauvegardés
+            if (savedCalpinage.equipments) {
+                console.log('🔌 Restauration des équipements électriques...');
+                
+                // Restaurer les onduleurs
+                if (savedCalpinage.equipments.onduleurs && savedCalpinage.equipments.onduleurs.length > 0) {
+                    savedCalpinage.equipments.onduleurs.forEach(ondData => {
+                        const latlng = L.latLng(ondData.lat, ondData.lng);
+                        placeOnduleur(latlng);
+                    });
+                    console.log(`✅ ${savedCalpinage.equipments.onduleurs.length} onduleur(s) restauré(s)`);
+                }
+                
+                // Restaurer le TGBT
+                if (savedCalpinage.equipments.tgbt) {
+                    const latlng = L.latLng(savedCalpinage.equipments.tgbt.lat, savedCalpinage.equipments.tgbt.lng);
+                    placeTGBT(latlng);
+                    console.log('✅ TGBT restauré');
+                }
+                
+                // Restaurer le point d'injection
+                if (savedCalpinage.equipments.injection) {
+                    const latlng = L.latLng(savedCalpinage.equipments.injection.lat, savedCalpinage.equipments.injection.lng);
+                    placeInjection(latlng);
+                    console.log('✅ Point d\'injection restauré');
+                }
+                
+                // Restaurer les distances calculées
+                if (savedCalpinage.distances) {
+                    window.cableDistances = savedCalpinage.distances;
+                    updateDistanceDisplay();
+                    console.log('✅ Distances câbles restaurées:', savedCalpinage.distances);
+                }
+                
+                // Restaurer la configuration électrique complète
+                if (savedCalpinage.configuration_electrique) {
+                    window.electricConfig = savedCalpinage.configuration_electrique;
+                    console.log('✅ Configuration électrique restaurée:', window.electricConfig);
+                    
+                    // Restaurer les valeurs dans les équipements si présentes
+                    if (savedCalpinage.equipments.onduleurs && savedCalpinage.equipments.onduleurs.length > 0) {
+                        savedCalpinage.equipments.onduleurs.forEach((ondData, index) => {
+                            if (equipments.onduleurs[index]) {
+                                equipments.onduleurs[index].modele = ondData.modele;
+                                equipments.onduleurs[index].marque = ondData.marque;
+                                equipments.onduleurs[index].puissance_ac = ondData.puissance_ac;
+                                equipments.onduleurs[index].puissance_dc_max = ondData.puissance_dc_max;
+                                equipments.onduleurs[index].tension_max = ondData.tension_max;
+                                equipments.onduleurs[index].nb_mppt = ondData.nb_mppt;
+                            }
+                        });
+                    }
+                    
+                    if (savedCalpinage.equipments.tgbt && equipments.tgbt) {
+                        equipments.tgbt.calibre_agcp = savedCalpinage.equipments.tgbt.calibre_agcp;
+                        equipments.tgbt.calibre_disjoncteur = savedCalpinage.equipments.tgbt.calibre_disjoncteur;
+                        equipments.tgbt.type_differentiel = savedCalpinage.equipments.tgbt.type_differentiel;
+                    }
+                    
+                    if (savedCalpinage.equipments.injection && equipments.injection) {
+                        equipments.injection.type_reseau = savedCalpinage.equipments.injection.type_reseau;
+                        equipments.injection.puissance_compteur = savedCalpinage.equipments.injection.puissance_compteur;
+                    }
+                }
+            }
         }
     </script>
 </body>

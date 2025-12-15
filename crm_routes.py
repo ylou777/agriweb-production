@@ -2499,6 +2499,42 @@ def register_crm_routes(app):
             temp_path = f"/tmp/schema_unifilaire_{prospect_id}.pdf"
             schema.generer_schema_pdf(temp_path)
             
+            # Sauvegarder la configuration électrique calculée dans le calepinage
+            try:
+                electric_config = schema.get_configuration_electrique_json()
+                
+                # Mettre à jour le calepinage avec la config électrique
+                calpinage['configuration_electrique'] = electric_config
+                
+                # Sauvegarder aussi les infos onduleur dans equipments
+                if 'equipments' not in calpinage:
+                    calpinage['equipments'] = {'onduleurs': [], 'tgbt': None, 'injection': None}
+                
+                if len(calpinage['equipments'].get('onduleurs', [])) > 0:
+                    # Enrichir l'onduleur existant avec les infos calculées
+                    calpinage['equipments']['onduleurs'][0].update({
+                        'modele': schema.onduleur['modele'],
+                        'marque': schema.onduleur['marque'],
+                        'puissance_ac': schema.onduleur['p_ac'],
+                        'puissance_dc_max': schema.onduleur['p_dc_max'],
+                        'tension_max': schema.onduleur['v_max'],
+                        'nb_mppt': schema.onduleur['mppt']
+                    })
+                
+                # Mettre à jour data_json
+                data_json['calpinage'] = calpinage
+                execute_query("""
+                    UPDATE agriweb_prospects 
+                    SET data_json = %s,
+                        date_modification = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (json.dumps(data_json), prospect_id))
+                
+                print(f"✅ [SCHEMA] Configuration électrique sauvegardée pour prospect {prospect_id}")
+            except Exception as save_error:
+                print(f"⚠️ [SCHEMA] Erreur sauvegarde config électrique: {save_error}")
+                # Continuer même si sauvegarde échoue
+            
             # Lire le fichier généré
             with open(temp_path, 'rb') as f:
                 buffer.write(f.read())

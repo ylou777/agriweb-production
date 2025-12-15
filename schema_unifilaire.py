@@ -30,8 +30,116 @@ class SchemaUnifilaire:
         self.module = calpinage_data.get('module', {})
         self.zones = calpinage_data.get('zones', [])
         
-        # Calculs électriques automatiques
-        self._calculer_configuration_electrique()
+        # Vérifier si une configuration électrique existe déjà (sauvegardée)
+        saved_config = calpinage_data.get('configuration_electrique', {})
+        
+        if saved_config and saved_config.get('date_maj'):
+            print("✅ [SCHEMA] Restauration configuration électrique sauvegardée")
+            self._restaurer_configuration_electrique(saved_config, calpinage_data)
+        else:
+            print("🔄 [SCHEMA] Calcul automatique configuration électrique")
+            # Calculs électriques automatiques si pas de config sauvegardée
+            self._calculer_configuration_electrique()
+    
+    def _restaurer_configuration_electrique(self, saved_config, calpinage_data):
+        """Restaure la configuration électrique depuis les données sauvegardées"""
+        
+        # Restaurer les données module
+        self.module_puissance = float(self.module.get('puissance', 550))
+        self.module_voc = float(self.module.get('voc', 49.5))
+        self.module_vmpp = float(self.module.get('vmpp', 41.8))
+        self.module_isc = float(self.module.get('isc', 13.9))
+        self.module_impp = float(self.module.get('impp', 13.2))
+        
+        # Calculer totaux
+        self.nb_modules_total = sum(zone.get('nbModules', 0) for zone in self.zones)
+        self.puissance_totale_kwc = self.nb_modules_total * self.module_puissance / 1000
+        
+        # Restaurer l'onduleur depuis les equipments sauvegardés
+        equipments = calpinage_data.get('equipments', {})
+        onduleurs_saved = equipments.get('onduleurs', [])
+        
+        if onduleurs_saved and len(onduleurs_saved) > 0:
+            ond = onduleurs_saved[0]
+            self.onduleur = {
+                'marque': ond.get('marque', 'Onduleur'),
+                'modele': ond.get('modele', 'Generic'),
+                'p_ac': ond.get('puissance_ac', int(self.puissance_totale_kwc * 1000)),
+                'p_dc_max': ond.get('puissance_dc_max', int(self.puissance_totale_kwc * 1000 * 1.2)),
+                'mppt': ond.get('nb_mppt', 2),
+                'v_min': 150,
+                'v_max': 1000,
+                'i_max': 30,
+                'rendement': 98,
+                'type_reseau': '230V',
+                'garantie': '10 ans',
+                'prix': 0
+            }
+        else:
+            # Fallback: recalculer onduleur
+            self._choisir_onduleur()
+        
+        # Restaurer les strings (ou recalculer si pas sauvegardés)
+        self._calculer_strings()
+        
+        # Restaurer les sections de câbles sauvegardées
+        self.section_cable_string = saved_config.get('section_cable_strings') or 6
+        self.section_cable_dc = saved_config.get('section_cable_dc') or 16
+        self.type_cable_dc = saved_config.get('type_cable_dc', 'U1000R2V')
+        self.section_cable_ac = saved_config.get('section_cable_ac') or 10
+        self.type_cable_ac = saved_config.get('type_cable_ac', 'U1000R2V')
+        
+        # Restaurer les sections PE
+        self.section_pe_dc = saved_config.get('section_pe_dc') or 16
+        self.section_pe_ac = saved_config.get('section_pe_ac') or 10
+        self.section_terre_principal = f"{self.section_pe_ac}mm²"
+        
+        # Restaurer les distances
+        distances = calpinage_data.get('distances', {})
+        self.longueur_dc = distances.get('dc_strings', 25)
+        self.longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt', 15)
+        self.longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection', 10)
+        
+        # Restaurer les chutes de tension
+        self.chute_tension_dc_pct = saved_config.get('chute_tension_dc_pct') or 1.5
+        self.chute_tension_ac_pct = saved_config.get('chute_tension_ac_pct') or 1.0
+        
+        # Restaurer les protections DC
+        self.calibre_sectionneur_dc = saved_config.get('sectionneur_dc') or '63A'
+        self.tension_sectionneur_dc = '1000V DC'
+        self.fusibles_strings = saved_config.get('fusibles_strings', 'Non requis')
+        
+        # Restaurer les protections AC
+        agcp_saved = saved_config.get('agcp')
+        self.calibre_agcp = agcp_saved or '63A'
+        self.courbe_agcp = 'C'
+        self.pouvoir_coupure_agcp = '10kA'
+        
+        disj_saved = saved_config.get('disjoncteur_ac')
+        self.calibre_disjoncteur_ac = disj_saved or '40A'
+        self.courbe_disjoncteur_ac = 'C'
+        self.pouvoir_coupure_ac = '10kA'
+        
+        diff_saved = saved_config.get('differentiel_ac')
+        self.type_differentiel = diff_saved or 'Type A 30mA'
+        
+        # Restaurer les IP
+        self.ip_boite_dc = saved_config.get('ip_boite_dc', 'IP65')
+        self.ip_onduleur = saved_config.get('ip_onduleur', 'IP65')
+        
+        # Restaurer terre
+        self.resistance_terre_max = saved_config.get('resistance_terre', '≤100Ω')
+        
+        # Restaurer Consuel
+        self.num_consuel = saved_config.get('num_consuel', '')
+        
+        # Type réseau
+        injection_saved = equipments.get('injection', {})
+        self.type_reseau = injection_saved.get('type_reseau', '230V Monophasé')
+        
+        print(f"✅ Config restaurée: Onduleur {self.onduleur['marque']} {self.onduleur['modele']}, "
+              f"AGCP {self.calibre_agcp}, Disj {self.calibre_disjoncteur_ac}, "
+              f"Câbles DC:{self.section_cable_dc}mm² AC:{self.section_cable_ac}mm²")
     
     def _calculer_configuration_electrique(self):
         """Calcule la configuration électrique optimale selon les modules et zones"""
@@ -442,6 +550,47 @@ class SchemaUnifilaire:
         c.save()
         print(f"✅ Schéma unifilaire généré: {output_path}")
         return output_path
+    
+    def get_configuration_electrique_json(self):
+        """Retourne la configuration électrique au format JSON pour sauvegarde"""
+        return {
+            # Protections DC
+            'sectionneur_dc': self.calibre_sectionneur_dc,
+            'parafoudre_dc': 'SPD Type 2',
+            'fusibles_strings': self.fusibles_strings,
+            
+            # Câbles DC
+            'section_cable_strings': self.section_cable_string,
+            'section_cable_dc': self.section_cable_dc,
+            'type_cable_dc': self.type_cable_dc,
+            
+            # Protections AC
+            'agcp': self.calibre_agcp,
+            'disjoncteur_ac': self.calibre_disjoncteur_ac,
+            'differentiel_ac': self.type_differentiel,
+            'parafoudre_ac': 'SPD Type 2',
+            
+            # Câbles AC
+            'section_cable_ac': self.section_cable_ac,
+            'type_cable_ac': self.type_cable_ac,
+            
+            # Terre
+            'section_pe_dc': self.section_pe_dc,
+            'section_pe_ac': self.section_pe_ac,
+            'resistance_terre': self.resistance_terre_max,
+            
+            # Chutes de tension
+            'chute_tension_dc_pct': round(self.chute_tension_dc_pct, 2),
+            'chute_tension_ac_pct': round(self.chute_tension_ac_pct, 2),
+            
+            # IP
+            'ip_boite_dc': self.ip_boite_dc,
+            'ip_onduleur': self.ip_onduleur,
+            
+            # Consuel
+            'num_consuel': getattr(self, 'num_consuel', ''),
+            'date_maj': datetime.now().isoformat()
+        }
     
     def _dessiner_cartouche(self, c, width, height):
         """Dessine le cartouche professionnel avec informations client"""
