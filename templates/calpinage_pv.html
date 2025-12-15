@@ -365,6 +365,46 @@
                             <div class="vr mx-2"></div>
                             <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
                         </div>
+                        
+                        <!-- Saisie manuelle distances câbles -->
+                        <div class="border-top pt-3 mt-2">
+                            <div class="d-flex align-items-center mb-2">
+                                <strong class="me-2">📏 Distances câbles (manuelles):</strong>
+                                <small class="text-muted">⚠️ Saisie manuelle nécessaire pour bâtiments multi-étages</small>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">
+                                        <span class="badge bg-warning text-dark">DC</span> Modules → Onduleur (m)
+                                    </label>
+                                    <input type="number" class="form-control form-control-sm" id="distanceDC" 
+                                           placeholder="Auto" min="0" step="0.5" 
+                                           title="Distance totale câbles DC depuis les modules jusqu'à l'onduleur (incluant passages verticaux)">
+                                    <small class="text-muted">Auto: <span id="distanceDCAuto">--</span> m</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">
+                                        <span class="badge bg-primary">AC</span> Onduleur → TGBT (m)
+                                    </label>
+                                    <input type="number" class="form-control form-control-sm" id="distanceAC1" 
+                                           placeholder="Auto" min="0" step="0.5"
+                                           title="Distance câble AC entre onduleur et TGBT (incluant passages verticaux)">
+                                    <small class="text-muted">Auto: <span id="distanceAC1Auto">--</span> m</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label small mb-1">
+                                        <span class="badge bg-success">AC</span> TGBT → Injection (m)
+                                    </label>
+                                    <input type="number" class="form-control form-control-sm" id="distanceAC2" 
+                                           placeholder="Auto" min="0" step="0.5"
+                                           title="Distance câble AC entre TGBT et point d'injection réseau">
+                                    <small class="text-muted">Auto: <span id="distanceAC2Auto">--</span> m</small>
+                                </div>
+                            </div>
+                            <small class="text-info d-block mt-1">
+                                💡 <strong>Astuce:</strong> Distances 2D calculées automatiquement. Ajoutez passages verticaux (étages, combles) manuellement.
+                            </small>
+                        </div>
                     </div>
                     
                     <div class="card-body p-0">
@@ -1958,16 +1998,21 @@
                 distances.ac_tgbt_injection = map.distance(equipments.tgbt.marker.getLatLng(), equipments.injection.marker.getLatLng());
             }
             
+            // Sauvegarder les distances auto pour comparaison
+            window.lastAutoDistances = distances;
+            
             // Afficher dans l'interface
             displayCableDistances(distances);
-            
-            // Stocker pour utilisation dans le schéma unifilaire
-            window.cableDistances = distances;
             
             console.log('📏 Distances câbles calculées:', distances);
         }
         
         function displayCableDistances(distances) {
+            // Afficher les valeurs auto dans les placeholders
+            document.getElementById('distanceDCAuto').textContent = distances.dc_strings > 0 ? distances.dc_strings.toFixed(1) : '--';
+            document.getElementById('distanceAC1Auto').textContent = distances.ac_onduleur_tgbt > 0 ? distances.ac_onduleur_tgbt.toFixed(1) : '--';
+            document.getElementById('distanceAC2Auto').textContent = distances.ac_tgbt_injection > 0 ? distances.ac_tgbt_injection.toFixed(1) : '--';
+            
             // Chercher ou créer un panneau d'affichage
             let panel = document.getElementById('cableDistancesPanel');
             if (!panel) {
@@ -1979,18 +2024,34 @@
                 mapFooter.appendChild(panel);
             }
             
+            // Utiliser valeurs manuelles si renseignées, sinon valeurs auto
+            const finalDC = parseFloat(document.getElementById('distanceDC').value) || distances.dc_strings;
+            const finalAC1 = parseFloat(document.getElementById('distanceAC1').value) || distances.ac_onduleur_tgbt;
+            const finalAC2 = parseFloat(document.getElementById('distanceAC2').value) || distances.ac_tgbt_injection;
+            
+            // Stocker les valeurs finales
+            window.cableDistances = {
+                dc_strings: finalDC,
+                ac_onduleur_tgbt: finalAC1,
+                ac_tgbt_injection: finalAC2,
+                zones_detail: distances.zones_detail || []
+            };
+            
             let html = '<strong>📏 Distances câbles (NF C 15-712):</strong><br>';
             
-            if (distances.dc_strings > 0) {
-                html += `<span class="badge bg-warning text-dark me-2">DC Strings: ${distances.dc_strings.toFixed(1)} m</span>`;
+            if (finalDC > 0) {
+                const isManual = document.getElementById('distanceDC').value !== '';
+                html += `<span class="badge bg-warning text-dark me-2">DC Strings: ${finalDC.toFixed(1)} m ${isManual ? '✏️' : '🔄'}</span>`;
             }
             
-            if (distances.ac_onduleur_tgbt > 0) {
-                html += `<span class="badge bg-primary me-2">AC Onduleur→TGBT: ${distances.ac_onduleur_tgbt.toFixed(1)} m</span>`;
+            if (finalAC1 > 0) {
+                const isManual = document.getElementById('distanceAC1').value !== '';
+                html += `<span class="badge bg-primary me-2">AC Onduleur→TGBT: ${finalAC1.toFixed(1)} m ${isManual ? '✏️' : '🔄'}</span>`;
             }
             
-            if (distances.ac_tgbt_injection > 0) {
-                html += `<span class="badge bg-success">AC TGBT→Injection: ${distances.ac_tgbt_injection.toFixed(1)} m</span>`;
+            if (finalAC2 > 0) {
+                const isManual = document.getElementById('distanceAC2').value !== '';
+                html += `<span class="badge bg-success">AC TGBT→Injection: ${finalAC2.toFixed(1)} m ${isManual ? '✏️' : '🔄'}</span>`;
             }
             
             // Tableau détaillé si plusieurs zones ou onduleurs
@@ -2012,11 +2073,26 @@
                 html += `<small class="text-muted"><em>💡 Attribution automatique au onduleur le plus proche</em></small>`;
             }
             
-            if (distances.dc_strings === 0 && distances.ac_onduleur_tgbt === 0 && distances.ac_tgbt_injection === 0) {
+            if (finalDC === 0 && finalAC1 === 0 && finalAC2 === 0) {
                 html += '<small class="text-muted">Placez les équipements électriques pour calculer les distances</small>';
             }
             
             panel.innerHTML = html;
+        }
+        
+        // Event listeners pour saisie manuelle distances
+        function setupManualDistanceListeners() {
+            ['distanceDC', 'distanceAC1', 'distanceAC2'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('input', () => {
+                        // Recalculer et afficher les distances avec les valeurs manuelles
+                        if (window.lastAutoDistances) {
+                            displayCableDistances(window.lastAutoDistances);
+                        }
+                    });
+                }
+            });
         }
         
         function updateMeasurementsPanel() {
@@ -3102,6 +3178,9 @@
 
         initMap();
         updateModulePreview();
+        
+        // Initialiser les event listeners pour saisie manuelle distances
+        setupManualDistanceListeners();
         
         // Initialiser le module sélectionné (charger les specs)
         loadModuleSpecs();
