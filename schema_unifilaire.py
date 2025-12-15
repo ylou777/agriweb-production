@@ -585,38 +585,27 @@ class SchemaUnifilaire:
         else:
             cable_start_x = strings_x + 0.8*cm
         
-        # Câble DC vers boîte jonction (horizontal)
+        # === 2. BOÎTE DE JONCTION DC + PROTECTIONS ===
+        
+        # Câble principal DC (depuis strings vers boîte jonction)
         c.setStrokeColor(colors.red)
-        c.setLineWidth(3)
+        c.setLineWidth(2.5)
         c.line(cable_start_x, strings_y, boite_dc_x - 1.5*cm, boite_dc_y)
         c.setFont("Helvetica", 6)
         c.setFillColor(colors.red)
-        c.drawString(cable_start_x + 5*mm, strings_y + 3*mm, 
+        mid_x_strings = (cable_start_x + boite_dc_x) / 2
+        c.drawString(mid_x_strings, strings_y + 5*mm, 
                     f"{self.section_cable_string}mm²")
         c.setFillColor(colors.black)
         c.setStrokeColor(colors.black)
         
-        # === 2. BOÎTE DE JONCTION DC + PROTECTIONS ===
-        
-        # Câble principal DC entrant (depuis strings)
-        c.setStrokeColor(colors.red)
-        c.setLineWidth(2.5)
-        c.line(cable_start_x + 1.5*cm, strings_y, boite_dc_x - 1.5*cm, boite_dc_y)
-        c.setFont("Helvetica", 6)
-        c.setFillColor(colors.red)
-        mid_x_strings = (cable_start_x + boite_dc_x) / 2
-        c.drawString(mid_x_strings, (strings_y + boite_dc_y)/2 + 3*mm, 
-                    f"120mm² DC")
-        c.setFillColor(colors.black)
-        c.setStrokeColor(colors.black)
-        
         # Sectionneur DC (au dessus de la boîte)
-        sect_dc_y = boite_dc_y + 2*cm
+        sect_dc_y = boite_dc_y + 2.8*cm
         SymbolesElectriques.sectionneur(c, boite_dc_x - 5*mm, sect_dc_y, orientation='horizontal')
         c.setFont("Helvetica", 6)
-        c.drawString(boite_dc_x - 1.2*cm, sect_dc_y + 6*mm, 
+        c.drawString(boite_dc_x - 1.2*cm, sect_dc_y + 7*mm, 
                    f"{self.calibre_sectionneur_dc}A")
-        c.drawString(boite_dc_x - 1.5*cm, sect_dc_y + 10*mm, 
+        c.drawString(boite_dc_x - 1.5*cm, sect_dc_y + 12*mm, 
                    f"{self.tension_sectionneur_dc}")
         
         # Boîte de jonction (rectangle)
@@ -626,13 +615,13 @@ class SchemaUnifilaire:
         c.drawCentredString(boite_dc_x, boite_dc_y, "BOITE DC")
         
         # Parafoudre DC (en dessous de la boîte)
-        para_dc_y = boite_dc_y - 2.2*cm
+        para_dc_y = boite_dc_y - 2.8*cm
         SymbolesElectriques.parafoudre(c, boite_dc_x, para_dc_y, orientation='vertical')
         c.setFont("Helvetica", 6)
-        c.drawString(boite_dc_x + 5*mm, para_dc_y - 8*mm, "SPD Type 2")
+        c.drawString(boite_dc_x + 5*mm, para_dc_y - 10*mm, "SPD Type 2")
         
         # Terre
-        SymbolesElectriques.terre(c, boite_dc_x, para_dc_y - 12*mm)
+        SymbolesElectriques.terre(c, boite_dc_x, para_dc_y - 15*mm)
         
         # === 3. CÂBLE DC PRINCIPAL → ONDULEUR ===
         
@@ -646,11 +635,11 @@ class SchemaUnifilaire:
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(colors.red)
         mid_dc_x = (boite_dc_x + onduleur_x) / 2
-        c.drawCentredString(mid_dc_x, boite_dc_y + 7*mm, 
-                           f"Longueur DC: {self.longueur_dc:.1f}m")
+        c.drawCentredString(mid_dc_x, boite_dc_y - 8*mm, 
+                           f"DC: {self.section_cable_dc}mm² Cu")
         c.setFont("Helvetica", 6)
-        c.drawCentredString(mid_dc_x, boite_dc_y + 2*mm, 
-                           f"{self.section_cable_dc}mm² Cu")
+        c.drawCentredString(mid_dc_x, boite_dc_y - 12*mm, 
+                           f"L={self.longueur_dc:.1f}m")
         c.setFillColor(colors.black)
         
         # === 4. ONDULEUR ===
@@ -681,23 +670,23 @@ class SchemaUnifilaire:
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(colors.blue)
         mid_ac_x = (onduleur_x + prot_ac_x) / 2
-        c.drawCentredString(mid_ac_x, onduleur_y + 7*mm, 
-                           f"Longueur AC: {self.longueur_ac_onduleur_tgbt:.1f}m")
-        c.setFont("Helvetica", 6)
         phases_str = f"{nb_phases}P+" if nb_phases > 1 else ""
-        c.drawCentredString(mid_ac_x, onduleur_y + 2*mm, 
-                           f"{phases_str}{self.section_cable_ac}mm²")
+        c.drawCentredString(mid_ac_x, onduleur_y - 8*mm, 
+                           f"AC: {phases_str}{self.section_cable_ac}mm²")
+        c.setFont("Helvetica", 6)
+        c.drawCentredString(mid_ac_x, onduleur_y - 12*mm, 
+                           f"L={self.longueur_ac_onduleur_tgbt:.1f}m")
         c.setFillColor(colors.black)
         
         # === 6. PROTECTIONS AC (TGBT) ===
         
         # Disjoncteur différentiel (au dessus)
-        disj_y = prot_ac_y + 1.8*cm
+        disj_y = prot_ac_y + 2.5*cm
         SymbolesElectriques.differentiel(c, prot_ac_x, disj_y, orientation='horizontal')
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x - 1*cm, disj_y + 10*mm, 
+        c.drawString(prot_ac_x - 1*cm, disj_y + 7*mm, 
                    f"{self.calibre_disjoncteur_ac}A")
-        c.drawString(prot_ac_x - 1.2*cm, disj_y + 14*mm, 
+        c.drawString(prot_ac_x - 1.2*cm, disj_y + 12*mm, 
                    f"{self.type_differentiel}")
         
         # Boîte TGBT (rectangle)
@@ -707,13 +696,13 @@ class SchemaUnifilaire:
         c.drawCentredString(prot_ac_x, prot_ac_y, "TGBT")
         
         # Parafoudre AC (en dessous)
-        para_ac_y = prot_ac_y - 2*cm
+        para_ac_y = prot_ac_y - 2.6*cm
         SymbolesElectriques.parafoudre(c, prot_ac_x, para_ac_y, orientation='vertical')
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 5*mm, para_ac_y - 8*mm, "SPD Type 2")
+        c.drawString(prot_ac_x + 5*mm, para_ac_y - 10*mm, "SPD Type 2")
         
         # Terre
-        SymbolesElectriques.terre(c, prot_ac_x, para_ac_y - 12*mm)
+        SymbolesElectriques.terre(c, prot_ac_x, para_ac_y - 15*mm)
         
         # === 7. POINT D'INJECTION RÉSEAU ===
         
@@ -725,8 +714,8 @@ class SchemaUnifilaire:
         # Annotation distance injection
         c.setFont("Helvetica", 6)
         mid_inj_x = (prot_ac_x + injection_x) / 2
-        c.drawCentredString(mid_inj_x, prot_ac_y + 8*mm, 
-                           f"Distance: {self.longueur_ac_tgbt_injection:.1f}m")
+        c.drawCentredString(mid_inj_x, prot_ac_y - 8*mm, 
+                           f"L={self.longueur_ac_tgbt_injection:.1f}m")
         
         # Symbole compteur
         SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
