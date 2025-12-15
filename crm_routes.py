@@ -2587,6 +2587,115 @@ def register_crm_routes(app):
             return f"Erreur lors de la génération du schéma unifilaire: {str(e)}", 500
 
     # ============================================================================
+    # ROUTE - GÉNÉRATION PLANS DE STRINGS
+    # ============================================================================
+    @app.route('/api/crm/prospects/<int:prospect_id>/plans-strings')
+    def generer_plans_strings(prospect_id):
+        """Génère les plans détaillés de câblage des strings par zone"""
+        print(f"\n{'='*80}")
+        print(f"🎨 [PLANS STRINGS] Génération pour prospect {prospect_id}")
+        print(f"{'='*80}\n")
+        
+        try:
+            # Récupérer le prospect
+            prospect = execute_query(
+                'SELECT * FROM agriweb_prospects WHERE id = %s',
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not prospect:
+                print(f"❌ [PLANS STRINGS] Prospect {prospect_id} non trouvé")
+                return "Prospect non trouvé", 404
+            
+            # Récupérer les données de calepinage
+            data_json = prospect.get('data_json', {})
+            if isinstance(data_json, str):
+                import json
+                data_json = json.loads(data_json) if data_json else {}
+            
+            calpinage = data_json.get('calpinage', {})
+            
+            if not calpinage or not calpinage.get('zones'):
+                print(f"❌ [PLANS STRINGS] Pas de calepinage disponible pour prospect {prospect_id}")
+                return "Aucun calepinage disponible. Veuillez d'abord réaliser le calepinage.", 400
+            
+            zones = calpinage.get('zones', [])
+            if not zones:
+                print(f"❌ [PLANS STRINGS] Aucune zone définie dans le calepinage")
+                return "Aucune zone définie dans le calepinage", 400
+            
+            # Récupérer les informations du module
+            module_info = calpinage.get('module', {})
+            if not module_info:
+                print(f"⚠️ [PLANS STRINGS] Informations module manquantes")
+                return "Informations du module manquantes dans le calepinage", 400
+            
+            # Récupérer les onduleurs
+            equipments = calpinage.get('equipments', {})
+            onduleurs = equipments.get('onduleurs', [])
+            
+            # Créer un buffer pour le PDF
+            from io import BytesIO
+            buffer = BytesIO()
+            
+            # Générer les plans avec PlansStrings
+            import os
+            import tempfile
+            from plans_strings import PlansStrings
+            
+            # Créer un fichier temporaire
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
+            os.close(temp_fd)
+            
+            print(f"📄 [PLANS STRINGS] Génération du PDF...")
+            print(f"   - Nombre de zones: {len(zones)}")
+            print(f"   - Module: {module_info.get('marque', '')} {module_info.get('modele', '')}")
+            print(f"   - Onduleurs: {len(onduleurs)}")
+            
+            # Générer le PDF
+            plans = PlansStrings(
+                zones=zones,
+                module_info=module_info,
+                onduleurs=onduleurs,
+                nom_projet=f"{prospect.get('nom', '')} {prospect.get('prenom', '')}".strip() or "Installation PV",
+                adresse_projet=prospect.get('adresse', ''),
+                filepath=temp_path
+            )
+            
+            plans.generer_plans_pdf()
+            
+            # Lire le fichier généré
+            with open(temp_path, 'rb') as f:
+                buffer.write(f.read())
+            
+            buffer.seek(0)
+            
+            # Supprimer le fichier temporaire
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            
+            # Nom du fichier
+            nom_prospect = f"{prospect.get('nom', '')}_{prospect.get('prenom', '')}".strip().replace(' ', '_') or 'Prospect'
+            filename = f"Plans_Strings_{nom_prospect}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            
+            print(f"✅ [PLANS STRINGS] PDF généré: {filename}")
+            
+            return send_file(
+                buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return f"Erreur lors de la génération des plans de strings: {str(e)}", 500
+
+    # ============================================================================
     # ROUTE DEBUG - FORMES JURIDIQUES
     # ============================================================================
     @app.route('/api/crm/debug/formes-juridiques')

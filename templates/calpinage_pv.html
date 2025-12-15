@@ -506,6 +506,9 @@
                     <button class="btn btn-warning btn-lg" id="genererSchemaUnifilaire">
                         ⚡ Schéma unifilaire NF C 15-712
                     </button>
+                    <button class="btn btn-info btn-lg" id="genererPlansStrings">
+                        🎨 Plans de strings détaillés
+                    </button>
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
                         💾 Sauvegarder le calpinage
                     </button>
@@ -3234,6 +3237,55 @@
             console.log('✅ [DEBUG] Event listener attaché au bouton schema unifilaire');
         } else {
             console.error('❌ [DEBUG] Bouton genererSchemaUnifilaire introuvable!');
+        }
+
+        // Event listener pour générer les plans de strings
+        const btnPlansStrings = document.getElementById('genererPlansStrings');
+        if (btnPlansStrings) {
+            console.log('✅ [DEBUG] Bouton genererPlansStrings trouvé');
+            btnPlansStrings.addEventListener('click', async () => {
+                console.log('🎨 [PLANS STRINGS] Bouton cliqué');
+                
+                // Vérifier qu'il y a au moins une zone
+                if (zones.length === 0) {
+                    alert('⚠️ Veuillez d\'abord créer au moins une zone avec des modules.');
+                    return;
+                }
+                
+                // Préparer les données
+                const calData = prepareCalepinageData();
+                console.log('📦 [PLANS STRINGS] Données préparées:', calData);
+                
+                try {
+                    // Sauvegarder d'abord le calpinage
+                    const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(calData)
+                    });
+                    
+                    if (response.ok) {
+                        console.log('✅ [PLANS STRINGS] Sauvegarde réussie');
+                        
+                        // Ouvrir les plans de strings après sauvegarde réussie
+                        const plansUrl = `/api/crm/prospects/${prospectId}/plans-strings`;
+                        console.log('🚀 Ouverture plans de strings:', plansUrl);
+                        window.open(plansUrl, '_blank');
+                    } else {
+                        const errorText = await response.text();
+                        console.error('❌ Erreur sauvegarde:', response.status, errorText);
+                        alert('❌ Erreur lors de la sauvegarde du calpinage: ' + errorText);
+                    }
+                } catch (error) {
+                    console.error('❌ Erreur réseau:', error);
+                    alert('❌ Erreur réseau: ' + error.message);
+                }
+            });
+            console.log('✅ [DEBUG] Event listener attaché au bouton plans strings');
+        } else {
+            console.error('❌ [DEBUG] Bouton genererPlansStrings introuvable!');
         }
 
         initMap();
