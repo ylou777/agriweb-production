@@ -66,9 +66,14 @@ class PlansStrings:
         c.setFillColor(colors.black)
         c.drawCentredString(width/2, height - 6.5*cm, "Installation Photovoltaïque")
         
+        c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(colors.HexColor('#2ecc71'))
+        c.drawCentredString(width/2, height - 7.5*cm, "🔌 Parcours optimisé en serpentin pour minimiser les câbles DC")
+        
         # Informations client
         y = height - 10*cm
         c.setFont("Helvetica-Bold", 12)
+        c.setFillColor(colors.black)
         c.drawString(5*cm, y, "CLIENT:")
         c.setFont("Helvetica", 11)
         c.drawString(5*cm, y - 0.6*cm, f"{self.prospect.get('nom', '')} {self.prospect.get('prenom', '')}")
@@ -84,6 +89,13 @@ class PlansStrings:
         nb_modules_total = sum(z.get('nbModules', 0) for z in self.zones)
         puissance_totale = nb_modules_total * float(self.module.get('puissance', 550)) / 1000
         
+        # Calculer longueur totale câbles optimisée
+        longueur_cable_total = 0.0
+        for zone in self.zones:
+            strings_config = self._calculer_strings_zone(zone)
+            for string in strings_config:
+                longueur_cable_total += string['longueur_cable']
+        
         info_data = [
             ['Nombre de zones:', str(nb_zones)],
             ['Nombre total de modules:', str(nb_modules_total)],
@@ -93,6 +105,7 @@ class PlansStrings:
             ['Tension Vmpp module:', f"{self.module.get('vmpp', 41.8)} V"],
             ['Courant Isc module:', f"{self.module.get('isc', 13.9)} A"],
             ['Section câble strings:', f"{self.config_elec.get('section_cable_strings', 6)} mm²"],
+            ['🎯 Câble DC total optimisé:', f"{longueur_cable_total:.1f} m"],
         ]
         
         y_info = y - 1*cm
@@ -223,12 +236,20 @@ class PlansStrings:
         # Ajuster pour distribution équilibrée
         modules_par_string = math.ceil(nb_modules / nb_strings)
         
-        # Créer configuration strings
+        # Créer configuration strings avec ordre optimisé pour câblage
         strings = []
+        
+        # Créer un parcours en serpentin pour minimiser longueur câbles
+        module_order = self._calculer_parcours_serpentin(nb_rows, nb_cols, nb_modules)
+        
         modules_restants = nb_modules
+        start_idx = 0
         
         for i in range(nb_strings):
             nb_mod_string = min(modules_par_string, modules_restants)
+            
+            # Récupérer les indices des modules pour ce string dans l'ordre optimisé
+            module_indices = module_order[start_idx:start_idx + nb_mod_string]
             
             # Calculer tension et courant
             v_oc_string = v_oc * nb_mod_string
@@ -236,19 +257,104 @@ class PlansStrings:
             i_sc_string = float(self.module.get('isc', 13.9))
             i_mpp_string = float(self.module.get('impp', 13.2))
             
+            # Calculer longueur de câble pour ce string (en mètres)
+            longueur_cable = self._calculer_longueur_cable_string(module_indices, nb_cols)
+            
             strings.append({
                 'numero': i + 1,
                 'nb_modules': nb_mod_string,
+                'module_indices': module_indices,  # Ordre réel des modules
                 'v_oc': v_oc_string,
                 'v_mpp': v_mpp_string,
                 'i_sc': i_sc_string,
                 'i_mpp': i_mpp_string,
+                'longueur_cable': longueur_cable,
                 'color': self._get_string_color(i)
             })
             
             modules_restants -= nb_mod_string
+            start_idx += nb_mod_string
         
         return strings
+    
+    def _calculer_parcours_serpentin(self, nb_rows, nb_cols, nb_modules):
+        """
+        Calcule un parcours en serpentin (boustrophédon) pour minimiser les câbles.
+        Parcourt ligne par ligne en alternant le sens (gauche→droite puis droite→gauche).
+        
+        Exemple 3×4:
+        →→→
+        ←←←
+        →→→
+        
+        Retourne: liste ordonnée des indices de modules
+        """
+        parcours = []
+        module_idx = 0
+        
+        for row in range(nb_rows):
+            if row % 2 == 0:  # Lignes paires: gauche → droite
+                for col in range(nb_cols):
+                    if module_idx < nb_modules:
+                        # Indice dans grille standard (row, col)
+                        grid_idx = row * nb_cols + col
+                        parcours.append(grid_idx)
+                        module_idx += 1
+            else:  # Lignes impaires: droite → gauche (serpentin)
+                for col in range(nb_cols - 1, -1, -1):
+                    if module_idx < nb_modules:
+                        grid_idx = row * nb_cols + col
+                        parcours.append(grid_idx)
+                        module_idx += 1
+        
+        return parcours
+    
+    def _calculer_longueur_cable_string(self, module_indices, nb_cols):
+        """
+        Calcule la longueur totale de câble DC nécessaire pour un string.
+        
+        Args:
+            module_indices: Liste des indices de modules dans l'ordre de câblage
+            nb_cols: Nombre de colonnes dans la zone
+        
+        Returns:
+            Longueur totale en mètres
+        """
+        if len(module_indices) < 2:
+            return 0.0
+        
+        longueur_totale = 0.0
+        
+        for i in range(len(module_indices) - 1):
+            idx1 = module_indices[i]
+            idx2 = module_indices[i + 1]
+            
+            # Position dans la grille
+            row1 = idx1 // nb_cols
+            col1 = idx1 % nb_cols
+            row2 = idx2 // nb_cols
+            col2 = idx2 % nb_cols
+            
+            # Distance en nombre de modules
+            delta_row = abs(row2 - row1)
+            delta_col = abs(col2 - col1)
+            
+            # Longueur réelle (en tenant compte dimensions modules)
+            # Connexion entre modules adjacents = largeur ou longueur module
+            if delta_row == 0 and delta_col == 1:  # Adjacents horizontalement
+                longueur_totale += self.module_longueur
+            elif delta_row == 1 and delta_col == 0:  # Adjacents verticalement
+                longueur_totale += self.module_largeur
+            else:  # Non adjacents (saut) - câble de raccordement
+                longueur_totale += math.sqrt(
+                    (delta_col * self.module_longueur) ** 2 + 
+                    (delta_row * self.module_largeur) ** 2
+                )
+        
+        # Ajouter 10% pour connecteurs et marge
+        longueur_totale *= 1.1
+        
+        return round(longueur_totale, 2)
     
     def _get_string_color(self, index):
         """Retourne une couleur unique pour chaque string"""
@@ -294,54 +400,54 @@ class PlansStrings:
         start_x = x + (width - total_w) / 2
         start_y = y + (height - total_h) / 2
         
-        # Attribution modules aux strings
+        # Attribution modules aux strings selon ordre optimisé
         module_to_string = {}
-        module_idx = 0
         
         for string in strings_config:
-            for i in range(string['nb_modules']):
-                module_to_string[module_idx] = string
-                module_idx += 1
+            for grid_idx in string['module_indices']:
+                module_to_string[grid_idx] = string
         
-        # Dessiner chaque module
-        module_idx = 0
-        for row in range(nb_rows):
-            for col in range(nb_cols):
-                if module_idx >= zone.get('nbModules', 0):
-                    break
-                
-                mx = start_x + col * mod_w
-                my = start_y + (nb_rows - 1 - row) * mod_h  # Inverser Y
-                
-                # Couleur selon string
-                string_info = module_to_string.get(module_idx)
-                if string_info:
-                    c.setFillColor(string_info['color'])
-                    c.setStrokeColor(string_info['color'])
-                else:
-                    c.setFillColor(colors.lightgrey)
-                    c.setStrokeColor(colors.grey)
-                
-                # Rectangle module avec transparence
+        # Dessiner chaque module dans la grille
+        for grid_idx in range(zone.get('nbModules', 0)):
+            row = grid_idx // nb_cols
+            col = grid_idx % nb_cols
+            
+            mx = start_x + col * mod_w
+            my = start_y + (nb_rows - 1 - row) * mod_h  # Inverser Y
+            
+            # Couleur selon string
+            string_info = module_to_string.get(grid_idx)
+            if string_info:
+                c.setFillColor(string_info['color'])
+                c.setStrokeColor(string_info['color'])
+            else:
+                c.setFillColor(colors.lightgrey)
+                c.setStrokeColor(colors.grey)
+            
+            # Rectangle module avec transparence
+            if string_info:
                 c.setFillColorRGB(string_info['color'].red, 
                                  string_info['color'].green, 
                                  string_info['color'].blue, 
                                  alpha=0.3)
                 c.rect(mx, my, mod_w, mod_h, fill=1, stroke=1)
                 
-                # Numéro module
+                # Numéro module (position dans le string)
+                # Trouver position dans le string
+                string_position = string_info['module_indices'].index(grid_idx) + 1
+                
                 c.setFillColor(colors.black)
                 c.setFont("Helvetica-Bold", 6 if mod_w < 2*cm else 8)
                 c.drawCentredString(mx + mod_w/2, my + mod_h/2 + 2*mm, 
-                                   f"M{module_idx + 1}")
+                                   f"#{string_position}")
                 
                 # Numéro string
                 c.setFont("Helvetica", 5 if mod_w < 2*cm else 6)
                 c.setFillColor(string_info['color'])
                 c.drawCentredString(mx + mod_w/2, my + mod_h/2 - 2*mm, 
                                    f"S{string_info['numero']}")
-                
-                module_idx += 1
+            else:
+                c.rect(mx, my, mod_w, mod_h, fill=1, stroke=1)
         
         # Flèches de câblage pour chaque string
         self._dessiner_cablage_strings(c, zone, strings_config, module_to_string,
@@ -349,18 +455,17 @@ class PlansStrings:
     
     def _dessiner_cablage_strings(self, c, zone, strings_config, module_to_string,
                                   start_x, start_y, mod_w, mod_h, nb_cols, nb_rows):
-        """Dessine les flèches de câblage entre modules d'un même string"""
+        """Dessine les flèches de câblage entre modules d'un même string selon parcours optimisé"""
         
         c.setLineWidth(1.5)
         
         for string in strings_config:
             c.setStrokeColor(string['color'])
             
-            # Trouver les modules de ce string
-            modules_string = [idx for idx, s in module_to_string.items() 
-                            if s['numero'] == string['numero']]
+            # Utiliser l'ordre optimisé des modules dans le string
+            modules_string = string['module_indices']
             
-            # Dessiner ligne continue entre modules du string
+            # Dessiner ligne continue entre modules du string dans l'ordre
             for i in range(len(modules_string) - 1):
                 mod1_idx = modules_string[i]
                 mod2_idx = modules_string[i + 1]
@@ -418,22 +523,23 @@ class PlansStrings:
         c.setFillColor(colors.black)
         c.drawString(leg_x, leg_y + 1.5*cm, "LÉGENDE STRINGS:")
         
-        # Table des strings
+        # Table des strings avec longueur câble
         strings_data = [
-            ['<b>String</b>', '<b>Modules</b>', '<b>Voc</b>', '<b>Vmpp</b>', '<b>Isc</b>', '<b>Impp</b>']
+            ['<b>String</b>', '<b>Modules</b>', '<b>Câble DC</b>', '<b>Voc</b>', '<b>Vmpp</b>', '<b>Isc</b>', '<b>Impp</b>']
         ]
         
         for string in strings_config:
             strings_data.append([
                 f"String {string['numero']}",
                 f"{string['nb_modules']} modules",
+                f"{string['longueur_cable']:.1f} m",
                 f"{string['v_oc']:.1f} V",
                 f"{string['v_mpp']:.1f} V",
                 f"{string['i_sc']:.1f} A",
                 f"{string['i_mpp']:.1f} A"
             ])
         
-        strings_table = Table(strings_data, colWidths=[3*cm, 3*cm, 2.5*cm, 2.5*cm, 2.5*cm, 2.5*cm])
+        strings_table = Table(strings_data, colWidths=[2.5*cm, 2.5*cm, 2*cm, 2*cm, 2*cm, 2*cm, 2*cm])
         
         # Style avec couleurs
         style = [
