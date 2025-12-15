@@ -385,9 +385,9 @@ class SchemaUnifilaire:
                         section_min_courant = max(sections_normalisees[i], 4)  # Min 4mm² extérieur
                         break
                 
-                # Section selon chute tension (max 3% NF C 15-712 article 7.12.1.1)
+                # Section selon chute tension (max 2% NF C 15-712 article 7.12.1.1)
                 # ΔU = 2 * ρ * L * I / S  =>  S = 2 * ρ * L * I / ΔU_max
-                delta_u_max = 0.03 * v_mpp_string  # 3% de Vmpp
+                delta_u_max = 0.02 * v_mpp_string  # 2% de Vmpp
                 section_chute_tension = (2 * rho_cuivre * longueur_string * i_string) / delta_u_max
                 
                 # Prendre le max des deux contraintes
@@ -502,7 +502,7 @@ class SchemaUnifilaire:
             self.chute_tension_ac_pct = (delta_u_ac / 400) * 100
         
         print(f"✅ Sections câbles calculées selon longueurs réelles strings:")
-        print(f"   DC strings: {self.section_cable_string}mm² (ΔU: {self.chute_tension_dc_pct:.2f}% ≤ 3%)")
+        print(f"   DC strings: {self.section_cable_string}mm² (ΔU: {self.chute_tension_dc_pct:.2f}% ≤ 2%)")
         print(f"   DC collecteur: {self.section_cable_dc}mm² ({longueur_dc_strings:.1f}m)")
         print(f"   AC onduleur-TGBT: {self.section_cable_ac}mm² (ΔU: {self.chute_tension_ac_pct:.2f}% ≤ 2%)")
         print(f"   AC TGBT-injection: {longueur_ac_tgbt_injection:.1f}m")
