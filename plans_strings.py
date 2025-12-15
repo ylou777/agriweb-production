@@ -96,6 +96,13 @@ class PlansStrings:
             for string in strings_config:
                 longueur_cable_total += string['longueur_cable']
         
+        # Section câble strings (valeur par défaut si non configurée)
+        section_cable = self.config_elec.get('section_cable_strings')
+        if not section_cable or section_cable == 'None':
+            # Calcul section selon courant (règle: 1mm² par 5A)
+            isc = float(self.module.get('isc', 13.9))
+            section_cable = max(4, int(isc / 5) * 2)  # Minimum 4mm², arrondi pair
+        
         info_data = [
             ['Nombre de zones:', str(nb_zones)],
             ['Nombre total de modules:', str(nb_modules_total)],
@@ -104,7 +111,7 @@ class PlansStrings:
             ['Tension Voc module:', f"{self.module.get('voc', 49.5)} V"],
             ['Tension Vmpp module:', f"{self.module.get('vmpp', 41.8)} V"],
             ['Courant Isc module:', f"{self.module.get('isc', 13.9)} A"],
-            ['Section câble strings:', f"{self.config_elec.get('section_cable_strings', 6)} mm²"],
+            ['Section câble strings:', f"{section_cable} mm²"],
             ['🎯 Câble DC total optimisé:', f"{longueur_cable_total:.1f} m"],
         ]
         
@@ -313,6 +320,10 @@ class PlansStrings:
         """
         Calcule la longueur totale de câble DC nécessaire pour un string.
         
+        Distance réaliste entre connecteurs:
+        - Modules adjacents horizontalement: ~0.5m (connecteurs côté court)
+        - Modules adjacents verticalement: ~0.3m (connecteurs côté long)
+        
         Args:
             module_indices: Liste des indices de modules dans l'ordre de câblage
             nb_cols: Nombre de colonnes dans la zone
@@ -324,6 +335,10 @@ class PlansStrings:
             return 0.0
         
         longueur_totale = 0.0
+        
+        # Distances réalistes entre connecteurs MC4
+        distance_horizontale = 0.5  # mètres entre modules adjacents sur une ligne
+        distance_verticale = 0.3    # mètres entre modules adjacents entre lignes
         
         for i in range(len(module_indices) - 1):
             idx1 = module_indices[i]
@@ -339,20 +354,19 @@ class PlansStrings:
             delta_row = abs(row2 - row1)
             delta_col = abs(col2 - col1)
             
-            # Longueur réelle (en tenant compte dimensions modules)
-            # Connexion entre modules adjacents = largeur ou longueur module
+            # Longueur réelle de câble entre connecteurs
             if delta_row == 0 and delta_col == 1:  # Adjacents horizontalement
-                longueur_totale += self.module_longueur
+                longueur_totale += distance_horizontale
             elif delta_row == 1 and delta_col == 0:  # Adjacents verticalement
-                longueur_totale += self.module_largeur
-            else:  # Non adjacents (saut) - câble de raccordement
+                longueur_totale += distance_verticale
+            else:  # Non adjacents (saut) - câble de raccordement plus long
                 longueur_totale += math.sqrt(
-                    (delta_col * self.module_longueur) ** 2 + 
-                    (delta_row * self.module_largeur) ** 2
+                    (delta_col * distance_horizontale) ** 2 + 
+                    (delta_row * distance_verticale) ** 2
                 )
         
-        # Ajouter 10% pour connecteurs et marge
-        longueur_totale *= 1.1
+        # Ajouter 15% pour connecteurs, courbures et marge installation
+        longueur_totale *= 1.15
         
         return round(longueur_totale, 2)
     
