@@ -2653,17 +2653,21 @@ def register_crm_routes(app):
             print(f"   - Module: {module_info.get('marque', '')} {module_info.get('modele', '')}")
             print(f"   - Onduleurs: {len(onduleurs)}")
             
+            # Préparer les données au format attendu par PlansStrings
+            prospect_data = {
+                'nom': prospect.get('nom', ''),
+                'prenom': prospect.get('prenom', ''),
+                'adresse': prospect.get('adresse', ''),
+                'commune': prospect.get('commune', '')
+            }
+            
             # Générer le PDF
             plans = PlansStrings(
-                zones=zones,
-                module_info=module_info,
-                onduleurs=onduleurs,
-                nom_projet=f"{prospect.get('nom', '')} {prospect.get('prenom', '')}".strip() or "Installation PV",
-                adresse_projet=prospect.get('adresse', ''),
-                filepath=temp_path
+                calpinage_data=calpinage,
+                prospect_data=prospect_data
             )
             
-            plans.generer_plans_pdf()
+            plans.generer_plans_pdf(output_path=temp_path)
             
             # Lire le fichier généré
             with open(temp_path, 'rb') as f:
