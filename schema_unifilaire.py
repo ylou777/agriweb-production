@@ -223,7 +223,7 @@ class SchemaUnifilaire:
         print(f"   AC TGBT → injection: {longueur_ac_tgbt_injection:.1f} m")
         
         # 2. CÂBLES DC (strings → onduleur)
-        # Chute tension max: 3% selon NF C 15-712 article 7.12.1.1
+        # Chute tension max: 2% selon NF C 15-712 article 7.12.1.1
         
         # Courant max DC (tous strings en parallèle)
         i_max_dc = sum(s['i_sc'] * 1.25 for s in self.configuration_strings)  # Facteur 1.25 sécurité
@@ -243,7 +243,7 @@ class SchemaUnifilaire:
         rho_cuivre = 0.01851  # Ω.mm²/m à 70°C
         v_mpp_moyenne = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
         
-        section_dc_chute_tension = (2 * rho_cuivre * longueur_dc_strings * i_max_dc) / (0.03 * v_mpp_moyenne)
+        section_dc_chute_tension = (2 * rho_cuivre * longueur_dc_strings * i_max_dc) / (0.02 * v_mpp_moyenne)
         
         # Prendre le max des deux contraintes
         section_dc_calculee = max(section_dc_min_courant, section_dc_chute_tension)
@@ -284,11 +284,11 @@ class SchemaUnifilaire:
                 section_ac_min_courant = sections_normalisees[i]
                 break
         
-        # Chute tension AC (max 3%)
+        # Chute tension AC (max 2%)
         if nb_phases == 1:
-            section_ac_chute_tension = (2 * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / (0.03 * 230)
+            section_ac_chute_tension = (2 * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / (0.02 * 230)
         else:
-            section_ac_chute_tension = (math.sqrt(3) * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / (0.03 * 400)
+            section_ac_chute_tension = (math.sqrt(3) * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / (0.02 * 400)
         
         section_ac_calculee = max(section_ac_min_courant, section_ac_chute_tension)
         sections_valides_ac = [s for s in sections_normalisees if s >= section_ac_calculee]
@@ -849,13 +849,13 @@ class SchemaUnifilaire:
             ['Type câble', 'Section (mm²)', 'Courant max (A)', 'Chute tension', 'Référence norme'],
             ['Câbles strings DC', f"{self.section_cable_string}", 
              f"{max(s['i_sc'] * 1.25 for s in self.configuration_strings):.1f}", 
-             '< 3%', 'NF C 15-712 art. 7.12.1.1'],
+             '< 2%', 'NF C 15-712 art. 7.12.1.1'],
             ['Câble principal DC', f"{self.section_cable_dc}", 
              f"{sum(s['i_sc'] * 1.25 for s in self.configuration_strings):.1f}", 
-             '< 3%', 'NF C 15-712 art. 7.12.1.1'],
+             '< 2%', 'NF C 15-712 art. 7.12.1.1'],
             ['Câble onduleur AC', f"{self.section_cable_ac}", 
              f"{self.courant_max_ac:.1f}", 
-             '< 3%', 'NF C 15-100'],
+             '< 2%', 'NF C 15-100'],
         ]
         
         table2 = Table(table_data2, colWidths=[5*cm, 3*cm, 3*cm, 3*cm, 4.5*cm])
@@ -924,7 +924,7 @@ class SchemaUnifilaire:
             "✅ Tension maximale DC < tension max onduleur (facteur température inclus)",
             "✅ Tension minimale DC > tension min MPPT onduleur",
             "✅ Courant max DC < courant max onduleur",
-            "✅ Chutes de tension DC et AC < 3%",
+            "✅ Chutes de tension DC et AC < 2%",
             "✅ Sections câbles conformes NF C 15-100 (courants admissibles)",
             "✅ Protections différentielles AC 30mA Type A minimum",
             "✅ Parafoudres DC et AC Type 2 (obligatoire)",
