@@ -1,7 +1,7 @@
 """
 Générateur de schéma unifilaire conforme NF C 15-712
 Pour installations photovoltaïques raccordées au réseau
-AgriWeb 2025 - Version Professionnelle
+AgriWeb 2025 - Version Professionnelle avec symboles normalisés
 """
 
 from reportlab.lib.pagesizes import A4
@@ -14,6 +14,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 import math
 from datetime import datetime
 from equipements_database import MODULES_PV_DATABASE, ONDULEURS_DATABASE, get_onduleur_optimal
+from symboles_electriques import SymbolesElectriques
 
 class SchemaUnifilaire:
     """Générateur de schéma unifilaire conforme NF C 15-712-1"""
@@ -479,7 +480,7 @@ class SchemaUnifilaire:
         c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.2*cm, "AgriWeb Pro - Édition automatique")
     
     def _dessiner_schema_principal(self, c, width, height):
-        """Dessine le schéma unifilaire principal"""
+        """Dessine le schéma unifilaire principal avec symboles normalisés NF C 03-201"""
         
         # Zone de dessin (éviter cartouche et marges)
         schema_x_start = 2*cm
@@ -495,278 +496,231 @@ class SchemaUnifilaire:
         c.setLineWidth(1)
         c.rect(schema_x_start, schema_y_start, schema_width, schema_height)
         
-        # === PARTIE GAUCHE: CHAMP PHOTOVOLTAÏQUE ===
+        # === COORDONNÉES LAYOUT HORIZONTAL ===
+        # Positionnement des éléments de gauche à droite
         
-        # Titre section
-        c.setFont("Helvetica-Bold", 11)
+        # Zone strings (gauche)
+        strings_x = schema_x_start + 2*cm
+        strings_y_start = schema_y_end - 2*cm
+        
+        # Boîte jonction DC
+        boite_dc_x = schema_x_start + 8*cm
+        boite_dc_y = schema_y_start + schema_height/2
+        
+        # Onduleur (centre)
+        onduleur_x = boite_dc_x + 6*cm
+        onduleur_y = boite_dc_y
+        
+        # Protections AC
+        prot_ac_x = onduleur_x + 6*cm
+        prot_ac_y = onduleur_y
+        
+        # Point injection (droite)
+        injection_x = prot_ac_x + 5*cm
+        injection_y = prot_ac_y
+        
+        # === TITRE SECTIONS ===
+        c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawString(schema_x_start + 0.5*cm, schema_y_end - 0.7*cm, "CHAMP PHOTOVOLTAÏQUE (DC)")
-        c.setFillColor(colors.black)
+        c.drawString(strings_x - 1*cm, schema_y_end - 0.5*cm, "CHAMP PV")
         
-        # Dessiner les zones et strings
-        y_current = schema_y_end - 1.5*cm
-        
-        # Regrouper strings par zone
-        zones_dict = {}
-        for string in self.configuration_strings:
-            zone_num = string['zone']
-            if zone_num not in zones_dict:
-                zones_dict[zone_num] = []
-            zones_dict[zone_num].append(string)
-        
-        for zone_num in sorted(zones_dict.keys()):
-            strings_zone = zones_dict[zone_num]
-            
-            # Titre zone (avec fond coloré)
-            c.setFillColor(colors.HexColor('#e3f2fd'))
-            c.rect(schema_x_start + 0.5*cm, y_current - 0.3*cm, 5*cm, 0.6*cm, fill=1, stroke=0)
-            
-            c.setFillColor(colors.black)
-            c.setFont("Helvetica-Bold", 9)
-            c.drawString(schema_x_start + 0.7*cm, y_current - 0.1*cm, f"Zone {zone_num}")
-            
-            # Infos zone
-            zone_data = next((z for z in self.zones if z.get('numero') == zone_num), {})
-            c.setFont("Helvetica", 7)
-            c.drawString(schema_x_start + 2*cm, y_current - 0.1*cm, 
-                        f"Orient: {zone_data.get('orientation', '?')}° - Inclin: {zone_data.get('inclinaison', '?')}°")
-            
-            y_current -= 1.1*cm
-            
-            # Dessiner chaque string
-            for string in strings_zone:
-                self._dessiner_string(c, schema_x_start + 1*cm, y_current, string)
-                y_current -= 1.5*cm  # Réduit espacement pour éviter superposition
-            
-            y_current -= 0.3*cm  # Espacement entre zones réduit
-        
-        # === PARTIE CENTRALE: BOÎTE DE JONCTION DC ===
-        
-        boite_x = schema_x_start + schema_width * 0.35
-        boite_y = schema_y_start + schema_height * 0.5
-        boite_width = 4*cm
-        boite_height = 4.5*cm
-        
-        # Titre au-dessus de la boîte
-        c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawCentredString(boite_x + boite_width/2, boite_y + boite_height/2 + 0.5*cm, "BOÎTE DE JONCTION DC")
-        c.setFillColor(colors.black)
+        c.drawCentredString(boite_dc_x, schema_y_end - 0.5*cm, "PROTECTION DC")
         
-        # Rectangle boîte avec fond
-        c.setFillColor(colors.HexColor('#fffbf0'))
-        c.setLineWidth(2)
-        c.rect(boite_x, boite_y - boite_height/2, boite_width, boite_height, fill=1, stroke=1)
-        c.setFillColor(colors.black)
-        
-        # Contenu boîte
-        c.setFont("Helvetica-Bold", 8)
-        y_boite = boite_y + boite_height/2 - 0.8*cm
-        
-        c.drawCentredString(boite_x + boite_width/2, y_boite, "Sectionneurs DC")
-        y_boite -= 0.4*cm
-        c.setFont("Helvetica", 7)
-        c.drawCentredString(boite_x + boite_width/2, y_boite, f"{self.calibre_sectionneur_dc}A - {self.tension_sectionneur_dc}")
-        
-        y_boite -= 0.8*cm
-        c.setFont("Helvetica-Bold", 8)
-        c.drawCentredString(boite_x + boite_width/2, y_boite, "Parafoudre DC")
-        y_boite -= 0.4*cm
-        c.setFont("Helvetica", 7)
-        c.drawCentredString(boite_x + boite_width/2, y_boite, self.parafoudre_dc.split('-')[0].strip())
-        
-        if 'Non requis' not in self.fusibles_strings:
-            y_boite -= 0.7*cm
-            c.drawCentredString(boite_x + boite_width/2, y_boite, "Fusibles strings")
-            y_boite -= 0.5*cm
-            c.drawCentredString(boite_x + boite_width/2, y_boite, self.fusibles_strings.split('(')[0].strip())
-        
-        # Connexions strings → boîte DC
-        for i, string in enumerate(self.configuration_strings):
-            # Ligne depuis strings vers boîte (simplifiée)
-            x_string_end = schema_x_start + 7*cm
-            y_string = schema_y_end - 2*cm - (i * 0.8*cm)
-            
-            c.setStrokeColor(colors.red)
-            c.setLineWidth(1)
-            c.line(x_string_end, y_string, boite_x, boite_y)
-        
-        c.setStrokeColor(colors.black)
-        
-        # === PARTIE DROITE: ONDULEUR ===
-        
-        onduleur_x = boite_x + boite_width + 4*cm
-        onduleur_y = boite_y
-        onduleur_width = 5*cm
-        onduleur_height = 6*cm
-        
-        c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor('#28a745'))
-        c.drawCentredString(onduleur_x + onduleur_width/2, schema_y_end - 0.3*cm, "ONDULEUR")
-        c.setFillColor(colors.black)
+        c.drawCentredString(onduleur_x, schema_y_end - 0.5*cm, "ONDULEUR")
         
-        # Rectangle onduleur
-        c.setLineWidth(2)
-        c.rect(onduleur_x, onduleur_y - onduleur_height/2, onduleur_width, onduleur_height)
-        
-        # Symbole onduleur (sinusoïde simplifiée)
-        c.setLineWidth(1.5)
-        wave_y = onduleur_y
-        wave_x_start = onduleur_x + 0.5*cm
-        wave_width = onduleur_width - 1*cm
-        
-        # Texte onduleur
-        c.setFont("Helvetica-Bold", 9)
-        y_ond = onduleur_y + onduleur_height/2 - 1*cm
-        c.drawCentredString(onduleur_x + onduleur_width/2, y_ond, self.onduleur['marque'])
-        y_ond -= 0.5*cm
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(onduleur_x + onduleur_width/2, y_ond, self.onduleur['modele'])
-        
-        y_ond -= 0.7*cm
-        c.drawCentredString(onduleur_x + onduleur_width/2, y_ond, f"P AC: {self.onduleur['p_ac']/1000:.1f} kW")
-        y_ond -= 0.4*cm
-        c.drawCentredString(onduleur_x + onduleur_width/2, y_ond, f"P DC max: {self.onduleur['p_dc_max']/1000:.1f} kW")
-        y_ond -= 0.4*cm
-        c.drawCentredString(onduleur_x + onduleur_width/2, y_ond, f"{self.onduleur['mppt']} MPPT")
-        
-        # Connexion boîte DC → onduleur
-        c.setStrokeColor(colors.red)
-        c.setLineWidth(3)
-        c.line(boite_x + boite_width, boite_y, onduleur_x, onduleur_y)
-        
-        # Annotation câble DC principal
-        c.setFont("Helvetica", 7)
-        c.setFillColor(colors.red)
-        c.drawString(boite_x + boite_width + 0.3*cm, boite_y + 0.3*cm, f"{self.section_cable_dc}mm² Cu")
-        c.setFillColor(colors.black)
-        c.setStrokeColor(colors.black)
-        
-        # === PARTIE EXTRÊME DROITE: RÉSEAU AC ===
-        
-        reseau_x = onduleur_x + onduleur_width + 4*cm
-        reseau_y = onduleur_y
-        
-        c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor('#dc3545'))
-        c.drawCentredString(reseau_x + 2*cm, schema_y_end - 0.3*cm, "RÉSEAU AC")
+        c.drawCentredString(prot_ac_x, schema_y_end - 0.5*cm, "PROTECTION AC")
+        
+        c.setFillColor(colors.black)
+        c.drawCentredString(injection_x, schema_y_end - 0.5*cm, "RÉSEAU")
+        
         c.setFillColor(colors.black)
         
-        # Boîte protections AC
-        prot_width = 4*cm
-        prot_height = 5*cm
+        # === 1. CHAMP PHOTOVOLTAÏQUE (STRINGS) ===
         
+        y_string = strings_y_start
+        
+        for idx, string in enumerate(self.configuration_strings):
+            # Symbole module PV
+            SymbolesElectriques.string_pv(c, strings_x, y_string, 
+                                         nb_modules=string['nb_modules'], 
+                                         compact=True)
+            
+            # Annotations string
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(strings_x + 1.2*cm, y_string + 2*mm, 
+                        f"String {string['zone']}-{string['string_num']}")
+            c.setFont("Helvetica", 6)
+            c.drawString(strings_x + 1.2*cm, y_string - 3*mm, 
+                        f"{string['nb_modules']}×{int(self.module_puissance)}Wc = {string['puissance_wc']/1000:.2f}kWc")
+            c.drawString(strings_x + 1.2*cm, y_string - 7*mm, 
+                        f"Voc:{string['v_oc']:.1f}V Vmpp:{string['v_mpp']:.1f}V")
+            c.drawString(strings_x + 1.2*cm, y_string - 11*mm, 
+                        f"Isc:{string['i_sc']:.1f}A Impp:{string['i_mpp']:.1f}A")
+            
+            # Fusible string (si nécessaire)
+            if 'Non requis' not in self.fusibles_strings:
+                fusible_x = strings_x + 5*cm
+                SymbolesElectriques.fusible(c, fusible_x, y_string, orientation='horizontal')
+                c.setFont("Helvetica", 6)
+                c.drawString(fusible_x + 5*mm, y_string + 2*mm, 
+                            self.fusibles_strings.split('A')[0].strip() + 'A')
+            
+            # Câble DC vers boîte jonction
+            cable_start_x = strings_x + 5.5*cm if 'Non requis' not in self.fusibles_strings else strings_x + 1*cm
+            SymbolesElectriques.cable_dc(c, cable_start_x, y_string, boite_dc_x - 2*cm, y_string, 
+                                        section=self.section_cable_string)
+            
+            # Ligne verticale vers boîte (simplifiée)
+            c.setStrokeColor(colors.red)
+            c.setLineWidth(1.5)
+            c.line(boite_dc_x - 2*cm, y_string, boite_dc_x - 1.5*cm, boite_dc_y)
+            c.setStrokeColor(colors.black)
+            
+            y_string -= 2*cm  # Espacement entre strings
+        
+        # === 2. BOÎTE DE JONCTION DC + PROTECTIONS ===
+        
+        # Boîte de jonction
+        SymbolesElectriques.boite_jonction(c, boite_dc_x, boite_dc_y, 
+                                          width=3*cm, height=3.5*cm, 
+                                          label="BOÎTE DC")
+        
+        # Sectionneur DC (au dessus de la boîte)
+        sect_dc_y = boite_dc_y + 2.5*cm
+        SymbolesElectriques.sectionneur(c, boite_dc_x, sect_dc_y, orientation='horizontal')
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(boite_dc_x, sect_dc_y + 6*mm, 
+                           f"{self.calibre_sectionneur_dc}A {self.tension_sectionneur_dc}")
+        
+        # Parafoudre DC (en dessous de la boîte)
+        para_dc_y = boite_dc_y - 2*cm
+        SymbolesElectriques.parafoudre(c, boite_dc_x, para_dc_y, orientation='vertical')
+        c.setFont("Helvetica", 6)
+        c.drawString(boite_dc_x + 5*mm, para_dc_y - 8*mm, "SPD Type 2")
+        
+        # Terre
+        SymbolesElectriques.terre(c, boite_dc_x, para_dc_y - 12*mm)
+        
+        # === 3. CÂBLE DC PRINCIPAL → ONDULEUR ===
+        
+        # Ligne horizontale boîte → onduleur
+        SymbolesElectriques.cable_dc(c, boite_dc_x + 1.5*cm, boite_dc_y, 
+                                     onduleur_x - 2*cm, onduleur_y, 
+                                     section=self.section_cable_dc)
+        
+        # Annotation distance DC
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.red)
+        mid_dc_x = (boite_dc_x + onduleur_x) / 2
+        c.drawCentredString(mid_dc_x, boite_dc_y + 1*cm, 
+                           f"Longueur DC: {self.longueur_dc:.1f}m")
+        c.setFillColor(colors.black)
+        
+        # === 4. ONDULEUR ===
+        
+        SymbolesElectriques.onduleur(c, onduleur_x, onduleur_y, width=4*cm, height=4*cm)
+        
+        # Infos onduleur
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(onduleur_x, onduleur_y - 3*cm, 
+                           f"{self.onduleur['marque']} {self.onduleur['modele']}")
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(onduleur_x, onduleur_y - 3.5*cm, 
+                           f"P AC: {self.onduleur['p_ac']/1000:.1f}kW | P DC max: {self.onduleur['p_dc_max']/1000:.1f}kW")
+        c.drawCentredString(onduleur_x, onduleur_y - 4*cm, 
+                           f"{self.onduleur['mppt']} MPPT | η={self.onduleur.get('rendement_max', 97)}%")
+        
+        # === 5. CÂBLE AC ONDULEUR → PROTECTIONS ===
+        
+        nb_phases = 3 if '400V' in self.type_reseau else 1
+        SymbolesElectriques.cable_ac(c, onduleur_x + 2*cm, onduleur_y, 
+                                     prot_ac_x - 2*cm, prot_ac_y, 
+                                     section=self.section_cable_ac, 
+                                     nb_phases=nb_phases)
+        
+        # Annotation distance AC
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.blue)
+        mid_ac_x = (onduleur_x + prot_ac_x) / 2
+        c.drawCentredString(mid_ac_x, onduleur_y + 1*cm, 
+                           f"Longueur AC: {self.longueur_ac_onduleur_tgbt:.1f}m")
+        c.setFillColor(colors.black)
+        
+        # === 6. PROTECTIONS AC (TGBT) ===
+        
+        # Boîte TGBT
+        SymbolesElectriques.boite_jonction(c, prot_ac_x, prot_ac_y, 
+                                          width=2.5*cm, height=3*cm, 
+                                          label="TGBT")
+        
+        # Disjoncteur différentiel
+        disj_y = prot_ac_y + 2*cm
+        SymbolesElectriques.differentiel(c, prot_ac_x, disj_y, orientation='horizontal')
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(prot_ac_x, disj_y + 8*mm, 
+                           f"{self.calibre_disjoncteur_ac}A {self.type_differentiel}")
+        
+        # Parafoudre AC
+        para_ac_y = prot_ac_y - 1.8*cm
+        SymbolesElectriques.parafoudre(c, prot_ac_x, para_ac_y, orientation='vertical')
+        c.setFont("Helvetica", 6)
+        c.drawString(prot_ac_x + 5*mm, para_ac_y - 8*mm, "SPD Type 2")
+        
+        # Terre
+        SymbolesElectriques.terre(c, prot_ac_x, para_ac_y - 12*mm)
+        
+        # === 7. POINT D'INJECTION RÉSEAU ===
+        
+        # Ligne TGBT → réseau
+        c.setStrokeColor(colors.black)
         c.setLineWidth(2)
-        c.rect(reseau_x, reseau_y - prot_height/2, prot_width, prot_height)
+        c.line(prot_ac_x + 1.25*cm, prot_ac_y, injection_x - 1*cm, injection_y)
+        
+        # Symbole compteur
+        SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.5*cm)
+        
+        # Label réseau
+        c.setFont("Helvetica-Bold", 9)
+        c.drawCentredString(injection_x, injection_y - 1.5*cm, self.type_reseau)
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(injection_x, injection_y - 2*cm, "RÉSEAU PUBLIC")
+        
+        # Annotation distance injection
+        c.setFont("Helvetica", 6)
+        c.drawCentredString((prot_ac_x + injection_x)/2, prot_ac_y + 8*mm, 
+                           f"Distance: {self.longueur_ac_tgbt_injection:.1f}m")
+        
+        # === LÉGENDE ===
+        
+        legende_y = schema_y_start + 1*cm
         
         c.setFont("Helvetica-Bold", 8)
-        y_prot = reseau_y + prot_height/2 - 0.7*cm
-        c.drawCentredString(reseau_x + prot_width/2, y_prot, "PROTECTIONS AC")
-        
-        y_prot -= 0.6*cm
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(reseau_x + prot_width/2, y_prot, f"Disjoncteur {self.calibre_disjoncteur_ac}A")
-        
-        y_prot -= 0.5*cm
-        c.drawCentredString(reseau_x + prot_width/2, y_prot, self.type_differentiel)
-        
-        y_prot -= 0.6*cm
-        c.drawCentredString(reseau_x + prot_width/2, y_prot, "Parafoudre AC")
-        y_prot -= 0.4*cm
-        c.drawCentredString(reseau_x + prot_width/2, y_prot, "Type 2")
-        
-        y_prot -= 0.6*cm
-        c.drawCentredString(reseau_x + prot_width/2, y_prot, self.type_reseau)
-        
-        # Connexion onduleur → protections AC
-        c.setStrokeColor(colors.blue)
-        c.setLineWidth(3)
-        c.line(onduleur_x + onduleur_width, onduleur_y, reseau_x, reseau_y)
-        
-        # Annotation câble AC
-        c.setFont("Helvetica", 7)
-        c.setFillColor(colors.blue)
-        c.drawString(onduleur_x + onduleur_width + 0.3*cm, onduleur_y + 0.3*cm, f"{self.section_cable_ac}mm² Cu")
-        c.setFillColor(colors.black)
-        
-        # Symbole réseau (after protections)
-        reseau_symbol_x = reseau_x + prot_width + 1*cm
-        
-        # Cercle réseau
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(2)
-        c.circle(reseau_symbol_x, reseau_y, 0.8*cm)
-        
-        c.setFont("Helvetica-Bold", 10)
-        c.drawCentredString(reseau_symbol_x, reseau_y + 0.2*cm, "~")
-        c.setFont("Helvetica", 8)
-        c.drawCentredString(reseau_symbol_x, reseau_y - 0.3*cm, "RÉSEAU")
-        
-        c.line(reseau_x + prot_width, reseau_y, reseau_symbol_x - 0.8*cm, reseau_y)
-        
-        # === LÉGENDE COULEURS ===
-        
-        legende_y = schema_y_start + 0.5*cm
-        
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(schema_x_start, legende_y, "LÉGENDE:")
+        c.drawString(schema_x_start + 0.5*cm, legende_y, "LÉGENDE:")
         
         # DC (rouge)
         c.setStrokeColor(colors.red)
-        c.setLineWidth(3)
-        c.line(schema_x_start + 2.5*cm, legende_y + 0.1*cm, schema_x_start + 3.5*cm, legende_y + 0.1*cm)
+        c.setLineWidth(2.5)
+        c.line(schema_x_start + 2*cm, legende_y, schema_x_start + 3*cm, legende_y)
         c.setStrokeColor(colors.black)
-        c.setFont("Helvetica", 8)
-        c.drawString(schema_x_start + 3.8*cm, legende_y, "Courant continu (DC)")
+        c.setFont("Helvetica", 7)
+        c.drawString(schema_x_start + 3.2*cm, legende_y - 1*mm, "Courant continu DC")
         
         # AC (bleu)
         c.setStrokeColor(colors.blue)
-        c.setLineWidth(3)
-        c.line(schema_x_start + 9*cm, legende_y + 0.1*cm, schema_x_start + 10*cm, legende_y + 0.1*cm)
+        c.setLineWidth(2.5)
+        c.line(schema_x_start + 7.5*cm, legende_y, schema_x_start + 8.5*cm, legende_y)
         c.setStrokeColor(colors.black)
-        c.drawString(schema_x_start + 10.3*cm, legende_y, "Courant alternatif (AC)")
+        c.drawString(schema_x_start + 8.7*cm, legende_y - 1*mm, "Courant alternatif AC")
         
-        # Terre (vert/jaune)
-        c.setStrokeColor(colors.green)
+        # Terre
+        c.setStrokeColor(colors.HexColor('#28a745'))
         c.setLineWidth(2)
-        c.line(schema_x_start + 16*cm, legende_y + 0.1*cm, schema_x_start + 17*cm, legende_y + 0.1*cm)
+        c.line(schema_x_start + 13.5*cm, legende_y, schema_x_start + 14.5*cm, legende_y)
         c.setStrokeColor(colors.black)
-        c.drawString(schema_x_start + 17.3*cm, legende_y, f"Terre (max {self.resistance_terre_max})")
-    
-    def _dessiner_string(self, c, x, y, string_data):
-        """Dessine un string de panneaux PV"""
-        
-        # Rectangle string
-        c.setLineWidth(1)
-        c.setStrokeColor(colors.HexColor('#0d6efd'))
-        c.rect(x, y, 5*cm, 1.2*cm)
-        
-        # Texte string
-        c.setFont("Helvetica-Bold", 8)
-        c.drawString(x + 0.2*cm, y + 0.9*cm, f"String {string_data['zone']}-{string_data['string_num']}")
-        
-        c.setFont("Helvetica", 7)
-        c.drawString(x + 0.2*cm, y + 0.5*cm, f"{string_data['nb_modules']} × {self.module_puissance}Wc = {string_data['puissance_wc']/1000:.2f} kWc")
-        c.drawString(x + 0.2*cm, y + 0.1*cm, f"Vmpp: {string_data['v_mpp']:.1f}V - Impp: {string_data['i_mpp']:.1f}A")
-        
-        # Symboles panneaux (petits carrés)
-        nb_symboles = min(string_data['nb_modules'], 8)  # Max 8 symboles affichés
-        symbole_size = 0.15*cm
-        symbole_spacing = 0.2*cm
-        
-        for i in range(nb_symboles):
-            symbole_x = x + 3.5*cm + (i * symbole_spacing)
-            symbole_y = y + 0.5*cm
-            
-            c.setFillColor(colors.HexColor('#ffc107'))
-            c.rect(symbole_x, symbole_y, symbole_size, symbole_size, fill=1, stroke=0)
-        
-        if string_data['nb_modules'] > nb_symboles:
-            c.setFont("Helvetica", 6)
-            c.drawString(x + 3.5*cm + (nb_symboles * symbole_spacing), y + 0.5*cm, f"...×{string_data['nb_modules']}")
-        
-        c.setStrokeColor(colors.black)
-        c.setFillColor(colors.black)
+        c.drawString(schema_x_start + 14.7*cm, legende_y - 1*mm, f"Terre (≤{self.resistance_terre_max})")
     
     def _dessiner_notes_calculs(self, c, width, height):
         """Dessine la page des notes de calculs et vérifications"""
