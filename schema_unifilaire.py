@@ -560,7 +560,7 @@ class SchemaUnifilaire:
         strings_y = schema_y_end - 3*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
-        boite_dc_x = center_x
+        boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
         boite_dc_y = schema_y_end - 9*cm
         
         # === ZONE 3: ONDULEUR (centre) ===
@@ -647,27 +647,21 @@ class SchemaUnifilaire:
         
         # === 2. BOÎTE DE JONCTION DC + PROTECTIONS ===
         
-        # Câble principal DC (depuis strings vers boîte jonction - vertical)
+        # Câble principal DC (depuis strings vers boîte jonction - avec coude)
         c.setStrokeColor(colors.red)
         c.setLineWidth(2.5)
-        c.line(cable_start_x, cable_start_y, boite_dc_x, boite_dc_y + 1.5*cm)
+        # Partie verticale (strings → niveau boîte)
+        c.line(cable_start_x, cable_start_y, cable_start_x, boite_dc_y)
+        # Partie horizontale (vers boîte)
+        c.line(cable_start_x, boite_dc_y, boite_dc_x - 3*cm - 8*mm, boite_dc_y)
+        
         c.setFont("Helvetica", 6)
         c.setFillColor(colors.red)
-        mid_y_strings = (cable_start_y + boite_dc_y) / 2
-        # Annotation à droite du câble vertical
-        c.drawString(boite_dc_x + 0.8*cm, mid_y_strings, 
+        # Annotation sur partie verticale
+        c.drawString(cable_start_x + 5*mm, (cable_start_y + boite_dc_y) / 2, 
                     f"{self.section_cable_string}mm²")
         c.setFillColor(colors.black)
         c.setStrokeColor(colors.black)
-        
-        # Sectionneur DC (au dessus de la boîte)
-        sect_dc_y = boite_dc_y + 2.5*cm
-        SymbolesElectriques.sectionneur(c, boite_dc_x, sect_dc_y, orientation='vertical')
-        c.setFont("Helvetica", 6)
-        c.drawString(boite_dc_x + 8*mm, sect_dc_y + 3*mm, 
-                   f"{self.calibre_sectionneur_dc}A")
-        c.drawString(boite_dc_x + 8*mm, sect_dc_y - 3*mm, 
-                   f"{self.tension_sectionneur_dc}")
         
         # Boîte de jonction (rectangle)
         c.setLineWidth(2)
@@ -677,15 +671,33 @@ class SchemaUnifilaire:
         c.setFont("Helvetica", 6)
         c.drawCentredString(boite_dc_x, boite_dc_y - 5*mm, f"{self.ip_boite_dc}")
         
-        # Parafoudre DC (en dessous de la boîte)
-        para_dc_y = boite_dc_y - 2.5*cm
-        SymbolesElectriques.parafoudre(c, boite_dc_x - 0.3*cm, para_dc_y, orientation='vertical')
+        # Sectionneur DC (à gauche de la boîte)
+        sect_dc_x = boite_dc_x - 3*cm
+        sect_dc_y = boite_dc_y
+        SymbolesElectriques.sectionneur(c, sect_dc_x, sect_dc_y, orientation='horizontal')
         c.setFont("Helvetica", 6)
-        c.drawString(boite_dc_x + 8*mm, para_dc_y - 3*mm, "SPD Type 2")
+        c.drawString(sect_dc_x - 1.2*cm, sect_dc_y + 8*mm, 
+                   f"{self.calibre_sectionneur_dc}A")
+        c.drawString(sect_dc_x - 1.5*cm, sect_dc_y + 3*mm, 
+                   f"{self.tension_sectionneur_dc}")
         
-        # Terre
-        terre_dc_y = para_dc_y - 15*mm
-        SymbolesElectriques.terre(c, boite_dc_x - 0.3*cm, terre_dc_y)
+        # Ligne horizontale câble DC → sectionneur → boîte
+        c.setStrokeColor(colors.red)
+        c.setLineWidth(2.5)
+        c.line(cable_start_x, boite_dc_y, sect_dc_x - 8*mm, boite_dc_y)
+        c.line(sect_dc_x + 8*mm, boite_dc_y, boite_dc_x - 1.5*cm, boite_dc_y)
+        c.setStrokeColor(colors.black)
+        
+        # Parafoudre DC (à droite de la boîte, aligné verticalement)
+        para_dc_x = boite_dc_x + 2.5*cm
+        para_dc_y = boite_dc_y
+        SymbolesElectriques.parafoudre(c, para_dc_x, para_dc_y, orientation='vertical')
+        c.setFont("Helvetica", 6)
+        c.drawString(para_dc_x + 6*mm, para_dc_y - 8*mm, "SPD Type 2")
+        
+        # Terre (sous parafoudre)
+        terre_dc_y = para_dc_y - 18*mm
+        SymbolesElectriques.terre(c, para_dc_x, terre_dc_y)
         
         # === 3. CÂBLE DC PRINCIPAL → ONDULEUR ===
         
