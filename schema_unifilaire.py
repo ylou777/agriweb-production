@@ -311,7 +311,7 @@ class SchemaUnifilaire:
             print(f"   String Zone {s['zone']}-{s['string_num']}: {s['nb_modules']} modules, {s['v_mpp']:.1f}V MPP, {s['i_mpp']:.1f}A")
     
     def _calculer_sections_cables(self):
-        """Calcule les sections de câbles selon NF C 15-712 et NF C 15-100 avec distances réelles"""
+        """Calcule les sections de câbles selon NF C 15-712 et NF C 15-100 avec longueurs réelles des strings"""
         
         # PROTECTION: Vérifier que nous avons des strings configurés
         if not self.configuration_strings:
@@ -332,22 +332,94 @@ class SchemaUnifilaire:
         longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt', 15)  # Défaut 15m
         longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection', 10)  # Défaut 10m
         
-        print(f"📏 Distances câbles (calepinage réel):")
+        # 1.bis CALCULER LES LONGUEURS RÉELLES DE CHAQUE STRING avec plans_strings
+        try:
+            from plans_strings import PlansStrings
+            
+            # Créer instance PlansStrings pour calculer les longueurs
+            plans_temp = PlansStrings(self.calpinage, self.prospect)
+            
+            # Récupérer les longueurs de câbles par string pour chaque zone
+            longueurs_strings = []
+            for zone in self.zones:
+                strings_config = plans_temp._calculer_strings_zone(zone)
+                for string in strings_config:
+                    longueurs_strings.append({
+                        'longueur': string['longueur_cable'],
+                        'longueur_intra': string['longueur_intra_string'],
+                        'i_sc': string['i_sc'],
+                        'v_mpp': string['v_mpp']
+                    })
+            
+            print(f"📏 Longueurs câbles strings calculées: {len(longueurs_strings)} strings")
+            for i, ls in enumerate(longueurs_strings[:3]):  # Afficher les 3 premiers
+                print(f"   String {i+1}: {ls['longueur']:.1f}m (intra:{ls['longueur_intra']:.1f}m)")
+            
+        except Exception as e:
+            print(f"⚠️ Erreur calcul longueurs strings: {e}, utilisation distance globale")
+            longueurs_strings = []
+        
+        print(f"📏 Distances câbles (calepinage):")
         print(f"   DC strings → onduleur: {longueur_dc_strings:.1f} m")
         print(f"   AC onduleur → TGBT: {longueur_ac_onduleur_tgbt:.1f} m")
         print(f"   AC TGBT → injection: {longueur_ac_tgbt_injection:.1f} m")
         
-        # 2. CÂBLES DC (strings → onduleur)
+        # 2. CÂBLES PAR STRING - Calcul individualisé selon longueur réelle
+        sections_normalisees = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
+        courants_admissibles = [18, 24, 32, 41, 57, 76, 96, 119, 144, 184, 223, 259, 299, 338, 396]  # Ampères
+        rho_cuivre = 0.01851  # Ω.mm²/m à 70°C
+        
+        sections_strings_calculees = []
+        
+        if longueurs_strings:
+            # Calcul section pour chaque string selon sa longueur réelle
+            for ls in longueurs_strings:
+                i_string = ls['i_sc'] * 1.25  # Facteur sécurité
+                v_mpp_string = ls['v_mpp']
+                longueur_string = ls['longueur']
+                
+                # Section min selon courant
+                section_min_courant = 2.5
+                for i, courant_adm in enumerate(courants_admissibles):
+                    if courant_adm >= i_string:
+                        section_min_courant = max(sections_normalisees[i], 4)  # Min 4mm² extérieur
+                        break
+                
+                # Section selon chute tension (max 3% NF C 15-712 article 7.12.1.1)
+                # ΔU = 2 * ρ * L * I / S  =>  S = 2 * ρ * L * I / ΔU_max
+                delta_u_max = 0.03 * v_mpp_string  # 3% de Vmpp
+                section_chute_tension = (2 * rho_cuivre * longueur_string * i_string) / delta_u_max
+                
+                # Prendre le max des deux contraintes
+                section_calculee = max(section_min_courant, section_chute_tension)
+                
+                # Arrondir à section normalisée supérieure
+                sections_valides = [s for s in sections_normalisees if s >= section_calculee]
+                section_finale = min(sections_valides) if sections_valides else sections_normalisees[-1]
+                
+                sections_strings_calculees.append(section_finale)
+            
+            # Section string = max de toutes les sections calculées (uniformisation)
+            self.section_cable_string = max(sections_strings_calculees)
+            
+            print(f"✅ Sections strings calculées: {sections_strings_calculees[:5]}... → {self.section_cable_string}mm² (max)")
+        else:
+            # Fallback: calcul classique
+            i_max_string = max(s['i_sc'] * 1.25 for s in self.configuration_strings)
+            section_string_min = 2.5
+            for i, courant_adm in enumerate(courants_admissibles):
+                if courant_adm >= i_max_string:
+                    section_string_min = max(sections_normalisees[i], 4)
+                    break
+            self.section_cable_string = section_string_min
+        
+        # 3. CÂBLES DC COLLECTEUR (parallèle strings → onduleur)
         # Chute tension max: 2% selon NF C 15-712 article 7.12.1.1
         
         # Courant max DC (tous strings en parallèle)
         i_max_dc = sum(s['i_sc'] * 1.25 for s in self.configuration_strings)  # Facteur 1.25 sécurité
         
-        # Section minimale selon courant (tableau NF C 15-100)
-        # Câble cuivre, isolant PVC, température 70°C, méthode de pose B1 (câbles encastrés)
-        sections_normalisees = [1.5, 2.5, 4, 6, 10, 16, 25, 35, 50, 70, 95, 120, 150, 185, 240]
-        courants_admissibles = [18, 24, 32, 41, 57, 76, 96, 119, 144, 184, 223, 259, 299, 338, 396]  # Ampères
-        
+        # Section minimale selon courant
         section_dc_min_courant = 2.5  # mm² par défaut
         for i, courant_adm in enumerate(courants_admissibles):
             if courant_adm >= i_max_dc:
@@ -355,7 +427,6 @@ class SchemaUnifilaire:
                 break
         
         # Vérification chute de tension (V = 2 * ρ * L * I / S)
-        rho_cuivre = 0.01851  # Ω.mm²/m à 70°C
         v_mpp_moyenne = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
         
         section_dc_chute_tension = (2 * rho_cuivre * longueur_dc_strings * i_max_dc) / (0.02 * v_mpp_moyenne)
@@ -363,21 +434,11 @@ class SchemaUnifilaire:
         # Prendre le max des deux contraintes
         section_dc_calculee = max(section_dc_min_courant, section_dc_chute_tension)
         
-        # Arrondir à la section normalisée supérieure (avec sécurité si aucune section ne convient)
+        # Arrondir à la section normalisée supérieure
         sections_valides = [s for s in sections_normalisees if s >= section_dc_calculee]
         self.section_cable_dc = min(sections_valides) if sections_valides else sections_normalisees[-1]
         
-        # 2. CÂBLES PAR STRING (moins de courant)
-        i_max_string = max(s['i_sc'] * 1.25 for s in self.configuration_strings)
-        section_string_min = 2.5  # Section minimale NF C 15-712
-        for i, courant_adm in enumerate(courants_admissibles):
-            if courant_adm >= i_max_string:
-                section_string_min = max(sections_normalisees[i], 4)  # Min 4mm² recommandé extérieur
-                break
-        
-        self.section_cable_string = section_string_min
-        
-        # 3. CÂBLE AC ONDULEUR → TGBT (distance réelle du calepinage)
+        # 4. CÂBLE AC ONDULEUR → TGBT (distance réelle du calepinage)
         puissance_ac = self.onduleur['p_ac']
         
         # Courant AC (monophasé 230V ou triphasé 400V selon puissance)
@@ -416,10 +477,34 @@ class SchemaUnifilaire:
         self.longueur_ac_onduleur_tgbt = longueur_ac_onduleur_tgbt
         self.longueur_ac_tgbt_injection = longueur_ac_tgbt_injection
         
-        print(f"✅ Sections câbles calculées selon distances réelles:")
-        print(f"   DC strings: {self.section_cable_string}mm² ({longueur_dc_strings:.1f}m)")
-        print(f"   DC principal: {self.section_cable_dc}mm² ({longueur_dc_strings:.1f}m)")
-        print(f"   AC onduleur-TGBT: {self.section_cable_ac}mm² ({longueur_ac_onduleur_tgbt:.1f}m)")
+        # CALCULER LES CHUTES DE TENSION RÉELLES avec sections finales
+        # Chute tension strings (formule: ΔU% = 2 * ρ * L * I / (S * U) * 100)
+        if longueurs_strings:
+            chutes_tension_strings = []
+            for i, ls in enumerate(longueurs_strings):
+                delta_u = (2 * rho_cuivre * ls['longueur'] * ls['i_sc'] * 1.25) / self.section_cable_string
+                delta_u_pct = (delta_u / ls['v_mpp']) * 100
+                chutes_tension_strings.append(delta_u_pct)
+            
+            self.chute_tension_dc_pct = max(chutes_tension_strings)  # Pire cas
+            print(f"   Chutes tension strings: {min(chutes_tension_strings):.2f}%-{max(chutes_tension_strings):.2f}% (max {self.chute_tension_dc_pct:.2f}%)")
+        else:
+            # Chute tension DC collecteur
+            delta_u_dc = (2 * rho_cuivre * longueur_dc_strings * i_max_dc) / self.section_cable_dc
+            self.chute_tension_dc_pct = (delta_u_dc / v_mpp_moyenne) * 100
+        
+        # Chute tension AC
+        if nb_phases == 1:
+            delta_u_ac = (2 * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / self.section_cable_ac
+            self.chute_tension_ac_pct = (delta_u_ac / 230) * 100
+        else:
+            delta_u_ac = (math.sqrt(3) * rho_cuivre * longueur_ac_onduleur_tgbt * i_max_ac) / self.section_cable_ac
+            self.chute_tension_ac_pct = (delta_u_ac / 400) * 100
+        
+        print(f"✅ Sections câbles calculées selon longueurs réelles strings:")
+        print(f"   DC strings: {self.section_cable_string}mm² (ΔU: {self.chute_tension_dc_pct:.2f}% ≤ 3%)")
+        print(f"   DC collecteur: {self.section_cable_dc}mm² ({longueur_dc_strings:.1f}m)")
+        print(f"   AC onduleur-TGBT: {self.section_cable_ac}mm² (ΔU: {self.chute_tension_ac_pct:.2f}% ≤ 2%)")
         print(f"   AC TGBT-injection: {longueur_ac_tgbt_injection:.1f}m")
     
     def _calculer_protections(self):
