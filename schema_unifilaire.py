@@ -132,6 +132,12 @@ class SchemaUnifilaire:
         
         # Restaurer Consuel
         self.num_consuel = saved_config.get('num_consuel', '')
+        self.numero_consuel = self.num_consuel or 'À compléter après dépôt'
+        self.indice_revision = 'A'
+        self.date_edition = datetime.now().strftime('%d/%m/%Y')
+        
+        # Dispositif de coupure générale DC
+        self.coupure_generale_dc = f'Sectionneur DC par string - {self.calibre_sectionneur_dc}A'
         
         # Type réseau
         injection_saved = equipments.get('injection', {})
