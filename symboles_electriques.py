@@ -15,22 +15,29 @@ class SymbolesElectriques:
         Dessine un symbole de module photovoltaïque
         Symbol: Carré avec diagonales (cellule PV)
         """
-        c.setLineWidth(1.5)
+        c.setLineWidth(2)
         c.setStrokeColor(colors.black)
+        c.setFillColor(colors.white)
         
         # Carré principal
-        c.rect(x - size/2, y - size/2, size, size)
+        c.rect(x - size/2, y - size/2, size, size, stroke=1, fill=0)
         
         # Diagonales (représentant la cellule)
         c.line(x - size/2, y - size/2, x + size/2, y + size/2)
         c.line(x - size/2, y + size/2, x + size/2, y - size/2)
         
-        # Flèche photon (optionnel)
-        arrow_x = x - size/2 - 3*mm
-        c.setLineWidth(1)
-        c.line(arrow_x, y + size/3, arrow_x + 2*mm, y + size/3 - 2*mm)
-        c.line(arrow_x, y + size/6, arrow_x + 2*mm, y + size/6 - 2*mm)
-        c.line(arrow_x, y, arrow_x + 2*mm, y - 2*mm)
+        # Flèches photon (3 flèches à gauche)
+        arrow_x = x - size/2 - 4*mm
+        c.setLineWidth(1.5)
+        for i in range(3):
+            ay = y + size/3 - i*size/4
+            c.line(arrow_x, ay, arrow_x + 3*mm, ay - 2*mm)
+            c.line(arrow_x + 3*mm, ay - 2*mm, arrow_x + 2*mm, ay - 1*mm)
+            c.line(arrow_x + 3*mm, ay - 2*mm, arrow_x + 2.5*mm, ay - 3*mm)
+        
+        # Réinitialiser
+        c.setStrokeColor(colors.black)
+        c.setFillColor(colors.black)
         
     @staticmethod
     def string_pv(c, x, y, nb_modules=20, compact=True):
@@ -61,6 +68,7 @@ class SymbolesElectriques:
         """
         c.setLineWidth(2)
         c.setStrokeColor(colors.black)
+        c.setFillColor(colors.black)
         
         if orientation == 'horizontal':
             # Ligne entrée
@@ -70,14 +78,18 @@ class SymbolesElectriques:
             # Ligne sortie
             c.line(x + 3*mm, y, x + 8*mm, y)
             # Point de contact
-            c.circle(x - 3*mm, y, 1*mm, fill=1)
-            c.circle(x + 3*mm, y, 1*mm, fill=1)
+            c.circle(x - 3*mm, y, 1.5*mm, fill=1, stroke=0)
+            c.circle(x + 3*mm, y, 1.5*mm, fill=1, stroke=0)
         else:  # vertical
             c.line(x, y - 8*mm, x, y - 3*mm)
             c.line(x, y - 3*mm, x + 4*mm, y + 2*mm)
             c.line(x, y + 3*mm, x, y + 8*mm)
-            c.circle(x, y - 3*mm, 1*mm, fill=1)
-            c.circle(x, y + 3*mm, 1*mm, fill=1)
+            c.circle(x, y - 3*mm, 1.5*mm, fill=1, stroke=0)
+            c.circle(x, y + 3*mm, 1.5*mm, fill=1, stroke=0)
+        
+        # Réinitialiser
+        c.setStrokeColor(colors.black)
+        c.setFillColor(colors.black)
     
     @staticmethod
     def disjoncteur(c, x, y, orientation='horizontal'):
@@ -188,22 +200,30 @@ class SymbolesElectriques:
         Dessine un symbole de fusible
         Symbol: Rectangle avec trait au centre
         """
-        c.setLineWidth(1.5)
+        c.setLineWidth(2)
         c.setStrokeColor(colors.black)
+        c.setFillColor(colors.white)
         
         if orientation == 'vertical':
             # Lignes connexion
             c.line(x, y - 8*mm, x, y - 4*mm)
             c.line(x, y + 4*mm, x, y + 8*mm)
             # Rectangle fusible
-            c.rect(x - 2*mm, y - 4*mm, 4*mm, 8*mm)
+            c.rect(x - 2.5*mm, y - 4*mm, 5*mm, 8*mm, stroke=1, fill=1)
             # Trait interne
+            c.setLineWidth(1.5)
             c.line(x, y - 3*mm, x, y + 3*mm)
         else:
             c.line(x - 8*mm, y, x - 4*mm, y)
             c.line(x + 4*mm, y, x + 8*mm, y)
-            c.rect(x - 4*mm, y - 2*mm, 8*mm, 4*mm)
+            c.rect(x - 4*mm, y - 2.5*mm, 8*mm, 5*mm, stroke=1, fill=1)
+            c.setLineWidth(1.5)
             c.line(x - 3*mm, y, x + 3*mm, y)
+        
+        # Réinitialiser
+        c.setLineWidth(2)
+        c.setStrokeColor(colors.black)
+        c.setFillColor(colors.black)
     
     @staticmethod
     def compteur(c, x, y, size=1.5*cm):

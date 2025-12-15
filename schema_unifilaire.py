@@ -575,18 +575,19 @@ class SchemaUnifilaire:
         
         # Fusible (si requis)
         if 'Non requis' not in self.fusibles_strings:
-            fusible_x = strings_x + 2.5*cm
+            fusible_x = strings_x + 2*cm
             SymbolesElectriques.fusible(c, fusible_x, strings_y, orientation='horizontal')
             c.setFont("Helvetica", 6)
-            c.drawString(fusible_x - 3*mm, strings_y + 5*mm, 
+            c.setFillColor(colors.black)
+            c.drawString(fusible_x - 5*mm, strings_y + 6*mm, 
                         self.fusibles_strings.split('A')[0].strip() + 'A')
             cable_start_x = fusible_x + 1*cm
         else:
-            cable_start_x = strings_x + 1*cm
+            cable_start_x = strings_x + 0.8*cm
         
         # Câble DC vers boîte jonction (horizontal)
         c.setStrokeColor(colors.red)
-        c.setLineWidth(2.5)
+        c.setLineWidth(3)
         c.line(cable_start_x, strings_y, boite_dc_x - 1.5*cm, boite_dc_y)
         c.setFont("Helvetica", 6)
         c.setFillColor(colors.red)
@@ -738,36 +739,39 @@ class SchemaUnifilaire:
         
         # === LÉGENDE ===
         
-        legende_y = schema_y_start + 8*mm
-        legende_x = schema_x_start + 1*cm
+        legende_y = schema_y_start + 1.2*cm
+        legende_x = schema_x_start + 0.5*cm
         
-        c.setFont("Helvetica-Bold", 7)
+        c.setFont("Helvetica-Bold", 8)
         c.drawString(legende_x, legende_y, "LÉGENDE:")
         
-        # Symbole string dans légende
-        SymbolesElectriques.string_pv(c, legende_x + 2.5*cm, legende_y - 1*mm, 
-                                     nb_modules=20, compact=True)
+        # Symbole string dans légende (plus haut pour éviter coupure)
+        legend_string_x = legende_x + 2*cm
+        SymbolesElectriques.module_pv(c, legend_string_x, legende_y + 2*mm, size=0.6*cm)
         c.setFont("Helvetica", 6)
-        c.drawString(legende_x + 3.3*cm, legende_y - 1*mm, "String×20 modules DC")
+        c.drawString(legend_string_x + 5*mm, legende_y + 2*mm, f"String×20 modules DC")
         
         # DC (rouge)
+        dc_line_x = legende_x + 6.5*cm
         c.setStrokeColor(colors.red)
-        c.setLineWidth(2)
-        c.line(legende_x + 8*cm, legende_y, legende_x + 9*cm, legende_y)
+        c.setLineWidth(2.5)
+        c.line(dc_line_x, legende_y + 2*mm, dc_line_x + 1*cm, legende_y + 2*mm)
         c.setStrokeColor(colors.black)
         c.setFont("Helvetica", 6)
-        c.drawString(legende_x + 9.2*cm, legende_y - 1*mm, "Courant continu DC")
+        c.drawString(dc_line_x + 1.2*cm, legende_y, "Courant continu DC")
         
         # AC (noir)
+        ac_line_x = legende_x + 11*cm
         c.setStrokeColor(colors.black)
-        c.setLineWidth(2)
-        c.line(legende_x + 13*cm, legende_y, legende_x + 14*cm, legende_y)
+        c.setLineWidth(2.5)
+        c.line(ac_line_x, legende_y + 2*mm, ac_line_x + 1*cm, legende_y + 2*mm)
         c.setStrokeColor(colors.black)
-        c.drawString(legende_x + 14.2*cm, legende_y - 1*mm, "Courant alternatif AC")
+        c.drawString(ac_line_x + 1.2*cm, legende_y, "Courant alternatif AC")
         
         # Terre
-        SymbolesElectriques.terre(c, legende_x + 18*cm, legende_y + 3*mm)
-        c.drawString(legende_x + 18.5*cm, legende_y - 1*mm, f"Terre (≤{self.resistance_terre_max})")
+        terre_x = legende_x + 16*cm
+        SymbolesElectriques.terre(c, terre_x, legende_y + 5*mm)
+        c.drawString(terre_x + 5*mm, legende_y, f"Terre (≤{self.resistance_terre_max})")
     
     def _dessiner_notes_calculs(self, c, width, height):
         """Dessine la page des notes de calculs et vérifications"""
