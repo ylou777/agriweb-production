@@ -127,11 +127,11 @@ class PlansStrings:
         self._dessiner_cartouche_zone(c, zone, width, height)
         
         # === ZONE DE DESSIN PRINCIPALE ===
-        # Zone de dessin: 80% de la page
+        # Réserver espace pour légende en bas (7cm)
         dessin_x = 2*cm
-        dessin_y = 3*cm
+        dessin_y = 8*cm
         dessin_width = width - 4*cm
-        dessin_height = height - 10*cm
+        dessin_height = height - 15*cm
         
         # Cadre zone de dessin
         c.setStrokeColor(colors.grey)
@@ -410,12 +410,13 @@ class PlansStrings:
     def _dessiner_legende_strings(self, c, strings_config, width, height):
         """Dessine la légende des strings en bas de page"""
         
-        leg_y = 2*cm
+        # Positionner sous la zone de dessin avec marge
+        leg_y = 6.5*cm
         leg_x = 2*cm
         
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
-        c.drawString(leg_x, leg_y + 2*cm, "LÉGENDE STRINGS:")
+        c.drawString(leg_x, leg_y + 1.5*cm, "LÉGENDE STRINGS:")
         
         # Table des strings
         strings_data = [
@@ -451,6 +452,9 @@ class PlansStrings:
         
         strings_table.setStyle(TableStyle(style))
         
-        # Dessiner table
+        # Calculer hauteur de la table
         strings_table.wrapOn(c, width, height)
-        strings_table.drawOn(c, leg_x, leg_y - 0.5*cm)
+        table_height = strings_table._height
+        
+        # Dessiner table
+        strings_table.drawOn(c, leg_x, leg_y - table_height)
