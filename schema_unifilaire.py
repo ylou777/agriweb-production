@@ -107,7 +107,7 @@ class SchemaUnifilaire:
         # Restaurer les protections DC
         self.calibre_sectionneur_dc = saved_config.get('sectionneur_dc') or '63A'
         self.tension_sectionneur_dc = '1000V DC'
-        self.fusibles_strings = saved_config.get('fusibles_strings', 'Non requis')
+        self.fusibles_strings = saved_config.get('fusibles_strings') or 'Non requis'
         
         # Restaurer les protections AC
         agcp_saved = saved_config.get('agcp')
@@ -873,7 +873,7 @@ class SchemaUnifilaire:
                         f"Isc:{i_sc_total:.1f}A")
         
         # Fusible (si requis) - positionné entre strings et boîte
-        if 'Non requis' not in self.fusibles_strings:
+        if self.fusibles_strings and 'Non requis' not in self.fusibles_strings:
             fusible_x = strings_x
             fusible_y = strings_y - 2.5*cm
             SymbolesElectriques.fusible(c, fusible_x, fusible_y, orientation='vertical')
