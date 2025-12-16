@@ -487,6 +487,10 @@ class PlansStrings:
         # Flèches de câblage pour chaque string
         self._dessiner_cablage_strings(c, zone, strings_config, module_to_string,
                                        start_x, start_y, mod_w, mod_h, nb_cols, nb_rows)
+        
+        # Chemins de câbles DC vers onduleur
+        self._dessiner_chemins_onduleur(c, zone, strings_config, 
+                                       start_x, start_y, total_w, total_h, mod_w, mod_h, nb_cols, nb_rows)
     
     def _dessiner_cablage_strings(self, c, zone, strings_config, module_to_string,
                                   start_x, start_y, mod_w, mod_h, nb_cols, nb_rows):
@@ -547,6 +551,81 @@ class PlansStrings:
         p.close()
         c.drawPath(p, fill=1, stroke=0)
     
+    def _dessiner_chemins_onduleur(self, c, zone, strings_config, 
+                                   start_x, start_y, total_w, total_h, mod_w, mod_h, nb_cols, nb_rows):
+        """Dessine les chemins de câbles DC depuis le champ vers l'onduleur"""
+        
+        # Position de l'onduleur (en bas à droite du champ)
+        onduleur_x = start_x + total_w + 2*cm
+        onduleur_y = start_y + total_h / 2
+        
+        # Dessiner symbole onduleur
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(2)
+        
+        # Rectangle onduleur
+        ond_w = 2*cm
+        ond_h = 3*cm
+        c.setFillColor(colors.HexColor('#ecf0f1'))
+        c.rect(onduleur_x - ond_w/2, onduleur_y - ond_h/2, ond_w, ond_h, fill=1, stroke=1)
+        
+        # Label
+        c.setFont("Helvetica-Bold", 8)
+        c.setFillColor(colors.black)
+        c.drawCentredString(onduleur_x, onduleur_y + 0.3*cm, "ONDULEUR")
+        c.setFont("Helvetica", 6)
+        c.drawCentredString(onduleur_x, onduleur_y - 0.2*cm, "DC")
+        
+        # Distance affichée
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#e74c3c'))
+        c.drawCentredString(onduleur_x, onduleur_y - 0.8*cm, f"📏 {self.distance_dc_onduleur:.1f}m")
+        
+        # Dessiner les chemins depuis chaque string
+        for string in strings_config:
+            # Dernier module du string
+            last_mod_idx = string['module_indices'][-1]
+            row = last_mod_idx // nb_cols
+            col = last_mod_idx % nb_cols
+            
+            # Position centre du dernier module
+            mod_x = start_x + col * mod_w + mod_w/2
+            mod_y = start_y + (nb_rows - 1 - row) * mod_h + mod_h/2
+            
+            # Chemin en 2 segments (sortie vers droite, puis vers onduleur)
+            # Point intermédiaire à droite du champ
+            inter_x = start_x + total_w + 0.5*cm
+            inter_y = mod_y
+            
+            # Couleur du string
+            c.setStrokeColor(string['color'])
+            c.setLineWidth(2)
+            c.setDash([3, 2])  # Ligne pointillée pour chemin DC
+            
+            # Segment 1: module → sortie champ
+            c.line(mod_x, mod_y, inter_x, inter_y)
+            
+            # Segment 2: sortie champ → onduleur
+            c.line(inter_x, inter_y, onduleur_x - ond_w/2, onduleur_y)
+            
+            # Flèche vers onduleur
+            c.setDash([])  # Retour ligne continue pour flèche
+            arrow_start_x = (inter_x + onduleur_x - ond_w/2) / 2
+            arrow_start_y = (inter_y + onduleur_y) / 2
+            self._draw_arrow(c, arrow_start_x, arrow_start_y, 
+                           onduleur_x - ond_w/2, onduleur_y, string['color'])
+            
+            # Label longueur câble pour ce string
+            c.setFont("Helvetica", 6)
+            c.setFillColor(string['color'])
+            label_x = inter_x + 2*mm
+            label_y = inter_y + 2*mm
+            c.drawString(label_x, label_y, f"S{string['numero']}: {string['longueur_cable']:.1f}m")
+        
+        # Remettre style normal
+        c.setDash([])
+        c.setStrokeColor(colors.black)
+    
     def _dessiner_legende_strings(self, c, strings_config, width, height):
         """Dessine la légende des strings en bas de page"""
         
@@ -557,6 +636,25 @@ class PlansStrings:
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
         c.drawString(leg_x, leg_y + 1.5*cm, "LÉGENDE STRINGS:")
+        
+        # Symboles de câblage
+        sym_x = leg_x + 15*cm
+        sym_y = leg_y + 1.5*cm
+        
+        # Ligne continue = câblage intra-string
+        c.setStrokeColor(colors.HexColor('#3498db'))
+        c.setLineWidth(1.5)
+        c.line(sym_x, sym_y, sym_x + 1*cm, sym_y)
+        c.setFont("Helvetica", 7)
+        c.setFillColor(colors.black)
+        c.drawString(sym_x + 1.2*cm, sym_y - 2*mm, "Câblage intra-string")
+        
+        # Ligne pointillée = chemin vers onduleur
+        c.setStrokeColor(colors.HexColor('#e74c3c'))
+        c.setDash([3, 2])
+        c.line(sym_x, sym_y - 0.5*cm, sym_x + 1*cm, sym_y - 0.5*cm)
+        c.setDash([])
+        c.drawString(sym_x + 1.2*cm, sym_y - 0.5*cm - 2*mm, "Chemin DC → onduleur")
         
         # Note sur distance onduleur
         c.setFont("Helvetica", 8)
