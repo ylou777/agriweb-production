@@ -62,18 +62,18 @@ class SchemaUnifilaire:
         if onduleurs_saved and len(onduleurs_saved) > 0:
             ond = onduleurs_saved[0]
             self.onduleur = {
-                'marque': ond.get('marque', 'Onduleur'),
-                'modele': ond.get('modele', 'Generic'),
-                'p_ac': ond.get('puissance_ac', int(self.puissance_totale_kwc * 1000)),
-                'p_dc_max': ond.get('puissance_dc_max', int(self.puissance_totale_kwc * 1000 * 1.2)),
-                'mppt': ond.get('nb_mppt', 2),
-                'v_min': 150,
-                'v_max': 1000,
-                'i_max': 30,
-                'rendement': 98,
-                'type_reseau': '230V',
-                'garantie': '10 ans',
-                'prix': 0
+                'marque': ond.get('marque') or 'Onduleur',
+                'modele': ond.get('modele') or 'Generic',
+                'p_ac': ond.get('puissance_ac') or int(self.puissance_totale_kwc * 1000),
+                'p_dc_max': ond.get('puissance_dc_max') or int(self.puissance_totale_kwc * 1000 * 1.2),
+                'mppt': ond.get('nb_mppt') or 2,
+                'v_min': ond.get('tension_min') or 150,
+                'v_max': ond.get('tension_max') or 1000,
+                'i_max': ond.get('courant_max') or 30,
+                'rendement': ond.get('rendement') or 98,
+                'type_reseau': ond.get('type_reseau') or '230V',
+                'garantie': ond.get('garantie') or '10 ans',
+                'prix': ond.get('prix') or 0
             }
         else:
             # Fallback: recalculer onduleur
