@@ -70,12 +70,20 @@ class PlansStrings:
         c.setFillColor(colors.black)
         c.drawCentredString(width/2, height - 6.5*cm, "Installation Photovoltaïque")
         
-        c.setFont("Helvetica-Bold", 12)
+        c.setFont("Helvetica-Bold", 11)
         c.setFillColor(colors.HexColor('#2ecc71'))
         c.drawCentredString(width/2, height - 7.5*cm, "🔌 Parcours optimisé en serpentin pour minimiser les câbles DC")
         
+        # Note importante NF C 15-712
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(colors.HexColor('#e74c3c'))
+        c.drawCentredString(width/2, height - 8.5*cm, "⚠️ NF C 15-712: Câbles + et - de chaque string doivent être accolés/torsadés")
+        c.setFont("Helvetica", 9)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawCentredString(width/2, height - 9.2*cm, "(Éviter les boucles d'induction - Article 7.12.1.2)")
+        
         # Informations client
-        y = height - 10*cm
+        y = height - 11*cm
         c.setFont("Helvetica-Bold", 12)
         c.setFillColor(colors.black)
         c.drawString(5*cm, y, "CLIENT:")
@@ -85,7 +93,7 @@ class PlansStrings:
         c.drawString(5*cm, y - 1.8*cm, f"{self.prospect.get('commune', '')}")
         
         # Caractéristiques installation
-        y = height - 15*cm
+        y = height - 16*cm
         c.setFont("Helvetica-Bold", 12)
         c.drawString(5*cm, y, "CARACTÉRISTIQUES INSTALLATION:")
         
@@ -543,7 +551,7 @@ class PlansStrings:
         """Dessine la légende des strings en bas de page"""
         
         # Positionner sous la zone de dessin avec marge
-        leg_y = 6.5*cm
+        leg_y = 7*cm  # Augmenté pour faire de la place à la note NF C 15-712
         leg_x = 2*cm
         
         c.setFont("Helvetica-Bold", 10)
@@ -555,6 +563,12 @@ class PlansStrings:
         c.setFillColor(colors.HexColor('#666666'))
         c.drawString(leg_x, leg_y + 0.8*cm, 
                     f"📏 Câble DC inclut: câblage intra-string + distance champ→onduleur ({self.distance_dc_onduleur:.1f}m)")
+        
+        # Note NF C 15-712 - Boucles d'induction
+        c.setFont("Helvetica-Bold", 8)
+        c.setFillColor(colors.HexColor('#e74c3c'))
+        c.drawString(leg_x, leg_y + 0.2*cm, 
+                    "⚠️ IMPORTANT: Câbles + et - doivent être accolés/torsadés (pas de boucle d'induction - NF C 15-712 art. 7.12.1.2)")
         
         # Table des strings avec longueur câble
         strings_data = [

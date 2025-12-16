@@ -1131,6 +1131,16 @@ class SchemaUnifilaire:
         terre_x = legende_x + 18*cm
         SymbolesElectriques.terre(c, terre_x, legende_y + 5*mm)
         c.drawString(terre_x + 6*mm, legende_y, f"Terre (≤{self.resistance_terre_max})")
+        
+        # Note importante NF C 15-712 - Boucles d'induction
+        note_y = legende_y - 0.8*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#e74c3c'))
+        c.drawString(legende_x, note_y, "⚠️ IMPORTANT NF C 15-712 art. 7.12.1.2:")
+        c.setFont("Helvetica", 6)
+        c.setFillColor(colors.black)
+        c.drawString(legende_x + 5*cm, note_y, 
+                    "Câbles + et - de chaque string doivent être accolés ou torsadés pour éviter les boucles d'induction")
     
     def _dessiner_notes_calculs(self, c, width, height):
         """Dessine la page des notes de calculs et vérifications"""
