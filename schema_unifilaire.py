@@ -659,11 +659,11 @@ class SchemaUnifilaire:
         if output_path is None:
             output_path = f"schema_unifilaire_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         
-        # Créer le canvas PDF (A3 paysage pour plus d'espace)
-        from reportlab.lib.pagesizes import A3, landscape
-        page_width, page_height = landscape(A3)
+        # Créer le canvas PDF (A3 portrait pour schéma vertical traditionnel)
+        from reportlab.lib.pagesizes import A3
+        page_width, page_height = A3  # Format portrait (29.7 x 42 cm)
         
-        c = canvas.Canvas(output_path, pagesize=landscape(A3))
+        c = canvas.Canvas(output_path, pagesize=A3)
         
         # === PAGE 1: SCHÉMA UNIFILAIRE ===
         self._dessiner_cartouche(c, page_width, page_height)
@@ -804,11 +804,11 @@ class SchemaUnifilaire:
     def _dessiner_schema_principal(self, c, width, height):
         """Dessine le schéma unifilaire principal avec symboles normalisés NF C 03-201"""
         
-        # Zone de dessin (éviter cartouche et marges)
-        schema_x_start = 1.5*cm
-        schema_x_end = width - 1.5*cm
-        schema_y_start = 5*cm
-        schema_y_end = height - 11*cm  # Ajusté pour cartouche haut
+        # Zone de dessin (éviter cartouche et marges) - Format A3 portrait
+        schema_x_start = 2*cm
+        schema_x_end = width - 2*cm
+        schema_y_start = 3*cm
+        schema_y_end = height - 4*cm  # Plus de place en haut pour format portrait
         
         schema_width = schema_x_end - schema_x_start
         schema_height = schema_y_end - schema_y_start
@@ -821,7 +821,7 @@ class SchemaUnifilaire:
         # === TITRE SCHÉMA ===
         c.setFont("Helvetica-Bold", 12)
         c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawCentredString(width/2, schema_y_end + 0.5*cm, "SCHÉMA UNIFILAIRE - Installation photovoltaïque NF C 15-712-1")
+        c.drawCentredString(width/2, height - 2*cm, "SCHÉMA UNIFILAIRE - Installation photovoltaïque NF C 15-712-1")
         c.setFillColor(colors.black)
         
         # === COORDONNÉES LAYOUT VERTICAL (disposition traditionnelle) ===
