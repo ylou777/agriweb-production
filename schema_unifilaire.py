@@ -112,13 +112,17 @@ class SchemaUnifilaire:
         # Restaurer les protections AC
         agcp_saved = saved_config.get('agcp')
         self.calibre_agcp = agcp_saved or '63A'
-        self.courbe_agcp = 'C'
-        self.pouvoir_coupure_agcp = '10kA'
+        self.courbe_agcp = saved_config.get('courbe_agcp') or 'C'
+        self.pouvoir_coupure_agcp = saved_config.get('pouvoir_coupure_agcp') or '10kA'
         
         disj_saved = saved_config.get('disjoncteur_ac')
         self.calibre_disjoncteur_ac = disj_saved or '40A'
-        self.courbe_disjoncteur_ac = 'C'
-        self.pouvoir_coupure_ac = '10kA'
+        self.courbe_disjoncteur_ac = saved_config.get('courbe_disjoncteur_ac') or 'C'
+        self.pouvoir_coupure_ac = saved_config.get('pouvoir_coupure_ac') or '10kA'
+        
+        # Sectionneur AC
+        self.calibre_sectionneur_ac = saved_config.get('sectionneur_ac') or self.calibre_disjoncteur_ac
+        self.type_sectionneur_ac = 'Sectionneur AC cadenassable'
         
         diff_saved = saved_config.get('differentiel_ac')
         self.type_differentiel = diff_saved or 'Type A 30mA'
@@ -126,6 +130,13 @@ class SchemaUnifilaire:
         # Restaurer les IP
         self.ip_boite_dc = saved_config.get('ip_boite_dc', 'IP65')
         self.ip_onduleur = saved_config.get('ip_onduleur', 'IP65')
+        
+        # Restaurer parafoudres
+        self.parafoudre_dc = saved_config.get('parafoudre_dc') or 'Type 2 - 1000V DC - 20A'
+        self.parafoudre_ac = saved_config.get('parafoudre_ac') or 'Type 2 - 275V AC - 20kA'
+        
+        # Restaurer sensibilité différentiel
+        self.sensibilite_differentiel = saved_config.get('sensibilite_differentiel') or 30
         
         # Restaurer terre
         self.resistance_terre_max = saved_config.get('resistance_terre', '≤100Ω')
@@ -142,6 +153,25 @@ class SchemaUnifilaire:
         # Type réseau
         injection_saved = equipments.get('injection', {})
         self.type_reseau = injection_saved.get('type_reseau', '230V Monophasé')
+        
+        # Courant max AC (calculé depuis puissance onduleur)
+        puissance_ac = self.onduleur.get('p_ac', 0)
+        if puissance_ac > 0:
+            if puissance_ac <= 6000:
+                self.courant_max_ac = (puissance_ac / 230) * 1.25
+            else:
+                self.courant_max_ac = (puissance_ac / (400 * math.sqrt(3))) * 1.25
+        else:
+            self.courant_max_ac = saved_config.get('courant_max_ac') or 25.0
+        
+        # Section terre principal
+        self.section_terre_principal = saved_config.get('section_terre_principal') or f"{self.section_pe_ac}mm²"
+        
+        # Chutes de tension (calculs de vérification)
+        self.chute_tension_dc = saved_config.get('chute_tension_dc') or 0.0
+        self.chute_tension_dc_pct = saved_config.get('chute_tension_dc_pct') or 0.0
+        self.chute_tension_ac = saved_config.get('chute_tension_ac') or 0.0
+        self.chute_tension_ac_pct = saved_config.get('chute_tension_ac_pct') or 1.0
         
         print(f"✅ Config restaurée: Onduleur {self.onduleur['marque']} {self.onduleur['modele']}, "
               f"AGCP {self.calibre_agcp}, Disj {self.calibre_disjoncteur_ac}, "
