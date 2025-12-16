@@ -833,42 +833,43 @@ class SchemaUnifilaire:
         
         # === ZONE 1: CHAMP PV (tout en haut) ===
         strings_x = center_x - 8*cm  # À gauche
-        strings_y = schema_y_end - 3*cm
+        strings_y = schema_y_end - 4*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
         boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
-        boite_dc_y = schema_y_end - 9*cm
+        boite_dc_y = schema_y_end - 12*cm  # Plus d'espace
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 15*cm
+        onduleur_y = schema_y_end - 20*cm  # Plus d'espace
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 21*cm
+        prot_ac_y = schema_y_end - 30*cm  # Plus d'espace
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
-        injection_y = schema_y_start + 5*cm
+        injection_y = schema_y_start + 3*cm
         
         # === TITRE SECTIONS (disposées verticalement à gauche) ===
         titre_x = schema_x_start + 0.8*cm
         
         c.setFont("Helvetica-Bold", 9)
         c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawString(titre_x, schema_y_end - 2.5*cm, "CHAMP PV")
+        c.drawString(titre_x, strings_y + 0.5*cm, "CHAMP PV")
         
         c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(titre_x, schema_y_end - 8.5*cm, "PROTECTION DC")
+        c.drawString(titre_x, boite_dc_y + 0.5*cm, "RÉSEAU")
+        c.drawString(titre_x + 0.1*cm, boite_dc_y - 0.3*cm, "PROTECTION DC")
         
         c.setFillColor(colors.HexColor('#28a745'))
-        c.drawString(titre_x, schema_y_end - 14.5*cm, "ONDULEUR")
+        c.drawString(titre_x, onduleur_y + 0.5*cm, "ONDULEUR")
         
         c.setFillColor(colors.HexColor('#dc3545'))
-        c.drawString(titre_x, schema_y_end - 20.5*cm, "PROTECTION AC")
+        c.drawString(titre_x, prot_ac_y + 2*cm, "PROTECTION AC")
         
         c.setFillColor(colors.black)
-        c.drawString(titre_x, schema_y_start + 5.5*cm, "RÉSEAU")
+        c.drawString(titre_x, injection_y + 0.5*cm, "RÉSEAU")
         
         c.setFillColor(colors.black)
         
