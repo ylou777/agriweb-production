@@ -105,7 +105,7 @@ class SchemaUnifilaire:
         self.chute_tension_ac_pct = saved_config.get('chute_tension_ac_pct') or 1.0
         
         # Restaurer les protections DC
-        self.calibre_sectionneur_dc = saved_config.get('sectionneur_dc') or '63A'
+        self.calibre_sectionneur_dc = (saved_config.get('sectionneur_dc') or '63').replace('A', '')
         self.tension_sectionneur_dc = '1000V DC'
         self.fusibles_strings = saved_config.get('fusibles_strings') or 'Non requis'
         
@@ -723,8 +723,8 @@ class SchemaUnifilaire:
         """Dessine le cartouche professionnel avec informations client"""
         
         # === CARTOUCHE PRINCIPAL (en haut, pleine largeur) ===
-        cart_main_height = 5*cm
-        cart_main_y = height - cart_main_height - 0.5*cm
+        cart_main_height = 4.5*cm
+        cart_main_y = height - cart_main_height - 0.3*cm
         
         c.setStrokeColor(colors.black)
         c.setLineWidth(2)
@@ -833,19 +833,19 @@ class SchemaUnifilaire:
         
         # === ZONE 1: CHAMP PV (tout en haut) ===
         strings_x = center_x - 8*cm  # À gauche
-        strings_y = schema_y_end - 4*cm
+        strings_y = schema_y_end - 6*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
         boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
-        boite_dc_y = schema_y_end - 12*cm  # Plus d'espace
+        boite_dc_y = schema_y_end - 14*cm
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 20*cm  # Plus d'espace
+        onduleur_y = schema_y_end - 22*cm
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 30*cm  # Plus d'espace
+        prot_ac_y = schema_y_end - 32*cm
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
@@ -859,8 +859,7 @@ class SchemaUnifilaire:
         c.drawString(titre_x, strings_y + 0.5*cm, "CHAMP PV")
         
         c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(titre_x, boite_dc_y + 0.5*cm, "RÉSEAU")
-        c.drawString(titre_x + 0.1*cm, boite_dc_y - 0.3*cm, "PROTECTION DC")
+        c.drawString(titre_x, boite_dc_y + 0.5*cm, "PROTECTION DC")
         
         c.setFillColor(colors.HexColor('#28a745'))
         c.drawString(titre_x, onduleur_y + 0.5*cm, "ONDULEUR")
@@ -943,24 +942,19 @@ class SchemaUnifilaire:
         # Boîte de jonction (rectangle)
         c.setLineWidth(2)
         c.rect(boite_dc_x - 1.5*cm, boite_dc_y - 1.5*cm, 3*cm, 3*cm)
-        c.setFont("Helvetica-Bold", 8)
-        c.drawCentredString(boite_dc_x, boite_dc_y + 1.2*cm, "230V Monophasé")
-        c.drawCentredString(boite_dc_x, boite_dc_y + 0.7*cm, "BOÎTE DC")
-        c.setFont("Helvetica-Bold", 7)
-        c.drawCentredString(boite_dc_x, boite_dc_y + 0.2*cm, "RÉSEAU PUBLIC")
-        c.setFont("Helvetica", 6)
-        c.drawCentredString(boite_dc_x, boite_dc_y - 0.3*cm, f"{self.ip_boite_dc}")
+        c.setFont("Helvetica-Bold", 9)
+        c.drawCentredString(boite_dc_x, boite_dc_y + 0.9*cm, "BOÎTE DC")
+        c.setFont("Helvetica", 7)
+        c.drawCentredString(boite_dc_x, boite_dc_y + 0.4*cm, f"{self.ip_boite_dc}")
         
-        # Sectionneur DC (dans la boîte, en haut)
+        # Sectionneur DC (dans la boîte, centré)
         sect_dc_x = boite_dc_x
-        sect_dc_y = boite_dc_y - 0.8*cm
+        sect_dc_y = boite_dc_y - 0.2*cm
         SymbolesElectriques.sectionneur(c, sect_dc_x, sect_dc_y, orientation='horizontal')
-        c.setFont("Helvetica-Bold", 6)
-        c.drawCentredString(sect_dc_x, sect_dc_y - 0.5*cm, 
-                   f"{self.calibre_sectionneur_dc}A")
+        c.setFont("Helvetica", 6)
+        c.drawCentredString(sect_dc_x, sect_dc_y - 0.6*cm, f"{self.calibre_sectionneur_dc}A")
         c.setFont("Helvetica", 5)
-        c.drawCentredString(sect_dc_x, sect_dc_y - 0.7*cm, 
-                   f"{self.tension_sectionneur_dc}")
+        c.drawCentredString(sect_dc_x, sect_dc_y - 0.9*cm, f"{self.tension_sectionneur_dc}")
         
         # Ligne horizontale câble DC → boîte (entrée par la gauche)
         c.setStrokeColor(colors.red)

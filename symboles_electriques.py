@@ -155,7 +155,7 @@ class SymbolesElectriques:
     def onduleur(c, x, y, width=4*cm, height=3*cm):
         """
         Dessine un symbole d'onduleur NF C 15-712
-        Symbol: Rectangle DC (gauche) + Résistance (centre) + Partie AC (droite)
+        Symbol: Rectangle DC (gauche) + Flèche + Sinusoïde AC (droite)
         """
         c.setLineWidth(2)
         c.setStrokeColor(colors.black)
@@ -169,40 +169,22 @@ class SymbolesElectriques:
         
         # Texte DC
         c.setFont("Helvetica-Bold", 10)
-        c.drawCentredString(x - width/2 + dc_width/2, y + 2*mm, "DC")
+        c.drawCentredString(x - width/2 + dc_width/2, y + 3*mm, "DC")
         
-        # Flèche DC → AC (entre partie DC et résistance)
-        arrow_x = x - width/6
-        arrow_y = y + 2*mm
-        c.line(arrow_x - 3*mm, arrow_y, arrow_x + 3*mm, arrow_y)
-        c.line(arrow_x + 3*mm, arrow_y, arrow_x + 1*mm, arrow_y - 2*mm)
-        c.line(arrow_x + 3*mm, arrow_y, arrow_x + 1*mm, arrow_y + 2*mm)
-        
-        # Résistance (zigzag au centre, sous la flèche)
+        # Flèche DC → AC (au centre)
+        arrow_y = y
         c.setLineWidth(1.5)
-        resist_y = y - 2*mm
-        resist_start_x = x - 8*mm
-        resist_end_x = x + 8*mm
-        resist_height = 4*mm
-        
-        # Dessiner le zigzag de la résistance
-        path = c.beginPath()
-        path.moveTo(resist_start_x, resist_y)
-        num_peaks = 8
-        for i in range(num_peaks + 1):
-            px = resist_start_x + (resist_end_x - resist_start_x) * i / num_peaks
-            py = resist_y + (resist_height if i % 2 else -resist_height)
-            path.lineTo(px, py)
-        path.lineTo(resist_end_x, resist_y)
-        c.drawPath(path, stroke=1, fill=0)
+        c.line(x - width/6, arrow_y, x + width/6, arrow_y)
+        c.line(x + width/6, arrow_y, x + width/6 - 3*mm, arrow_y - 2*mm)
+        c.line(x + width/6, arrow_y, x + width/6 - 3*mm, arrow_y + 2*mm)
         
         # Texte AC (côté droit)
         c.setFont("Helvetica-Bold", 10)
-        c.drawCentredString(x + width/3, y + 2*mm, "AC")
+        c.drawCentredString(x + width/3, y + 3*mm, "AC")
         
-        # Symbole ~ (sinusoïde, en bas à droite)
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(x + width/4, y - height/4, "~")
+        # Sinusoïde simple (symbole ~)
+        c.setFont("Helvetica-Bold", 20)
+        c.drawCentredString(x + width/3, y - 5*mm, "~")
     
     @staticmethod
     def fusible(c, x, y, orientation='vertical'):
