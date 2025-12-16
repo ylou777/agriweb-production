@@ -333,31 +333,37 @@ class SchemaUnifilaire:
         longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection', 10)  # Défaut 10m
         
         # 1.bis CALCULER LES LONGUEURS RÉELLES DE CHAQUE STRING avec plans_strings
-        try:
-            from plans_strings import PlansStrings
-            
-            # Créer instance PlansStrings pour calculer les longueurs
-            plans_temp = PlansStrings(self.calpinage, self.prospect)
-            
-            # Récupérer les longueurs de câbles par string pour chaque zone
-            longueurs_strings = []
-            for zone in self.zones:
-                strings_config = plans_temp._calculer_strings_zone(zone)
-                for string in strings_config:
-                    longueurs_strings.append({
-                        'longueur': string['longueur_cable'],
-                        'longueur_intra': string['longueur_intra_string'],
-                        'i_sc': string['i_sc'],
-                        'v_mpp': string['v_mpp']
-                    })
-            
-            print(f"📏 Longueurs câbles strings calculées: {len(longueurs_strings)} strings")
-            for i, ls in enumerate(longueurs_strings[:3]):  # Afficher les 3 premiers
-                print(f"   String {i+1}: {ls['longueur']:.1f}m (intra:{ls['longueur_intra']:.1f}m)")
-            
-        except Exception as e:
-            print(f"⚠️ Erreur calcul longueurs strings: {e}, utilisation distance globale")
-            longueurs_strings = []
+        longueurs_strings = []
+        
+        if self.zones and len(self.zones) > 0:
+            try:
+                from plans_strings import PlansStrings
+                
+                # Créer instance PlansStrings pour calculer les longueurs
+                plans_temp = PlansStrings(self.calpinage, self.prospect)
+                
+                # Récupérer les longueurs de câbles par string pour chaque zone
+                for zone in self.zones:
+                    strings_config = plans_temp._calculer_strings_zone(zone)
+                    if strings_config:
+                        for string in strings_config:
+                            longueurs_strings.append({
+                                'longueur': string.get('longueur_cable', 0),
+                                'longueur_intra': string.get('longueur_intra_string', 0),
+                                'i_sc': string.get('i_sc', 0),
+                                'v_mpp': string.get('v_mpp', 0)
+                            })
+                
+                if longueurs_strings:
+                    print(f"📏 Longueurs câbles strings calculées: {len(longueurs_strings)} strings")
+                    for i, ls in enumerate(longueurs_strings[:3]):  # Afficher les 3 premiers
+                        print(f"   String {i+1}: {ls['longueur']:.1f}m (intra:{ls['longueur_intra']:.1f}m)")
+                
+            except Exception as e:
+                print(f"⚠️ Erreur calcul longueurs strings: {e}, utilisation distance globale")
+                longueurs_strings = []
+        else:
+            print(f"⚠️ Aucune zone définie, utilisation distance globale")
         
         print(f"📏 Distances câbles (calepinage):")
         print(f"   DC strings → onduleur: {longueur_dc_strings:.1f} m")
