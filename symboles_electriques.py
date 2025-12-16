@@ -154,45 +154,55 @@ class SymbolesElectriques:
     @staticmethod
     def onduleur(c, x, y, width=4*cm, height=3*cm):
         """
-        Dessine un symbole d'onduleur
-        Symbol: Rectangle avec DC→AC et sinusoïde
+        Dessine un symbole d'onduleur NF C 15-712
+        Symbol: Rectangle DC (gauche) + Résistance (centre) + Partie AC (droite)
         """
         c.setLineWidth(2)
         c.setStrokeColor(colors.black)
         
-        # Rectangle principal
+        # Rectangle principal (contour global)
         c.rect(x - width/2, y - height/2, width, height)
         
-        # Texte DC / AC
+        # Rectangle partie DC (gauche, 1/3 de la largeur)
+        dc_width = width / 3
+        c.rect(x - width/2, y - height/2, dc_width, height)
+        
+        # Texte DC
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(x - width/2 + 3*mm, y + 2*mm, "DC")
-        c.drawString(x + width/2 - 8*mm, y + 2*mm, "AC")
+        c.drawCentredString(x - width/2 + dc_width/2, y + 2*mm, "DC")
         
-        # Flèche centrale
+        # Flèche DC → AC (entre partie DC et résistance)
+        arrow_x = x - width/6
         arrow_y = y + 2*mm
-        c.line(x - 5*mm, arrow_y, x + 5*mm, arrow_y)
-        c.line(x + 5*mm, arrow_y, x + 3*mm, arrow_y - 2*mm)
-        c.line(x + 5*mm, arrow_y, x + 3*mm, arrow_y + 2*mm)
+        c.line(arrow_x - 3*mm, arrow_y, arrow_x + 3*mm, arrow_y)
+        c.line(arrow_x + 3*mm, arrow_y, arrow_x + 1*mm, arrow_y - 2*mm)
+        c.line(arrow_x + 3*mm, arrow_y, arrow_x + 1*mm, arrow_y + 2*mm)
         
-        # Sinusoïde (symbole AC)
+        # Résistance (zigzag au centre, sous la flèche)
         c.setLineWidth(1.5)
-        wave_y = y - height/4
-        wave_points = []
-        for i in range(30):
-            wx = x - width/3 + (i * width/15)
-            wy = wave_y + 3*mm * (i % 2 * 2 - 1) * 0.7
-            wave_points.append((wx, wy))
+        resist_y = y - 2*mm
+        resist_start_x = x - 8*mm
+        resist_end_x = x + 8*mm
+        resist_height = 4*mm
         
+        # Dessiner le zigzag de la résistance
         path = c.beginPath()
-        if wave_points:
-            path.moveTo(wave_points[0][0], wave_points[0][1])
-            for wx, wy in wave_points[1:]:
-                path.lineTo(wx, wy)
-            c.drawPath(path)
+        path.moveTo(resist_start_x, resist_y)
+        num_peaks = 8
+        for i in range(num_peaks + 1):
+            px = resist_start_x + (resist_end_x - resist_start_x) * i / num_peaks
+            py = resist_y + (resist_height if i % 2 else -resist_height)
+            path.lineTo(px, py)
+        path.lineTo(resist_end_x, resist_y)
+        c.drawPath(path, stroke=1, fill=0)
         
-        # Symbole ~ (AC)
+        # Texte AC (côté droit)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawCentredString(x + width/3, y + 2*mm, "AC")
+        
+        # Symbole ~ (sinusoïde, en bas à droite)
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(x + width/2 - 8*mm, y - height/4 - 2*mm, "~")
+        c.drawString(x + width/4, y - height/4, "~")
     
     @staticmethod
     def fusible(c, x, y, orientation='vertical'):
