@@ -944,25 +944,28 @@ class SchemaUnifilaire:
         c.setLineWidth(2)
         c.rect(boite_dc_x - 1.5*cm, boite_dc_y - 1.5*cm, 3*cm, 3*cm)
         c.setFont("Helvetica-Bold", 8)
-        c.drawCentredString(boite_dc_x, boite_dc_y + 3*mm, "BOITE DC")
+        c.drawCentredString(boite_dc_x, boite_dc_y + 1.2*cm, "230V Monophasé")
+        c.drawCentredString(boite_dc_x, boite_dc_y + 0.7*cm, "BOÎTE DC")
+        c.setFont("Helvetica-Bold", 7)
+        c.drawCentredString(boite_dc_x, boite_dc_y + 0.2*cm, "RÉSEAU PUBLIC")
         c.setFont("Helvetica", 6)
-        c.drawCentredString(boite_dc_x, boite_dc_y - 5*mm, f"{self.ip_boite_dc}")
+        c.drawCentredString(boite_dc_x, boite_dc_y - 0.3*cm, f"{self.ip_boite_dc}")
         
-        # Sectionneur DC (à gauche de la boîte)
-        sect_dc_x = boite_dc_x - 3*cm
-        sect_dc_y = boite_dc_y
+        # Sectionneur DC (dans la boîte, en haut)
+        sect_dc_x = boite_dc_x
+        sect_dc_y = boite_dc_y - 0.8*cm
         SymbolesElectriques.sectionneur(c, sect_dc_x, sect_dc_y, orientation='horizontal')
-        c.setFont("Helvetica", 6)
-        c.drawString(sect_dc_x - 1.2*cm, sect_dc_y + 8*mm, 
+        c.setFont("Helvetica-Bold", 6)
+        c.drawCentredString(sect_dc_x, sect_dc_y - 0.5*cm, 
                    f"{self.calibre_sectionneur_dc}A")
-        c.drawString(sect_dc_x - 1.5*cm, sect_dc_y + 3*mm, 
+        c.setFont("Helvetica", 5)
+        c.drawCentredString(sect_dc_x, sect_dc_y - 0.7*cm, 
                    f"{self.tension_sectionneur_dc}")
         
-        # Ligne horizontale câble DC → sectionneur → boîte
+        # Ligne horizontale câble DC → boîte (entrée par la gauche)
         c.setStrokeColor(colors.red)
         c.setLineWidth(2.5)
-        c.line(cable_start_x, boite_dc_y, sect_dc_x - 8*mm, boite_dc_y)
-        c.line(sect_dc_x + 8*mm, boite_dc_y, boite_dc_x - 1.5*cm, boite_dc_y)
+        c.line(cable_start_x, boite_dc_y, boite_dc_x - 1.5*cm, boite_dc_y)
         c.setStrokeColor(colors.black)
         
         # Parafoudre DC (à droite de la boîte, aligné verticalement)
@@ -1046,13 +1049,13 @@ class SchemaUnifilaire:
         
         # AGCP - Appareil Général de Commande et Protection (au dessus TGBT)
         agcp_x = prot_ac_x
-        agcp_y = prot_ac_y + 4*cm
+        agcp_y = prot_ac_y + 6*cm  # Plus d'espace
         SymbolesElectriques.disjoncteur(c, agcp_x, agcp_y, orientation='vertical')
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(agcp_x + 8*mm, agcp_y + 8*mm, "AGCP")
+        c.drawString(agcp_x + 1*cm, agcp_y + 0.5*cm, "AGCP")
         c.setFont("Helvetica", 6)
-        c.drawString(agcp_x + 8*mm, agcp_y + 3*mm, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
-        c.drawString(agcp_x + 8*mm, agcp_y - 3*mm, f"PdC: {self.pouvoir_coupure_agcp}")
+        c.drawString(agcp_x + 1*cm, agcp_y, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
+        c.drawString(agcp_x + 1*cm, agcp_y - 0.5*cm, f"PdC: {self.pouvoir_coupure_agcp}")
         
         # Ligne verticale Sectionneur AC → AGCP
         c.setStrokeColor(colors.black)
@@ -1060,16 +1063,16 @@ class SchemaUnifilaire:
         c.line(sect_ac_x, sect_ac_y - 8*mm, agcp_x, agcp_y + 8*mm)
         
         # Ligne verticale AGCP → Disjoncteur différentiel
-        disj_y = prot_ac_y + 2*cm
+        disj_y = prot_ac_y + 3*cm  # Plus d'espace
         c.line(agcp_x, agcp_y - 8*mm, agcp_x, disj_y + 8*mm)
         # Disjoncteur différentiel (entre AGCP et TGBT)
         SymbolesElectriques.differentiel(c, prot_ac_x, disj_y, orientation='vertical')
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 8*mm, disj_y + 3*mm, 
+        c.drawString(prot_ac_x + 1*cm, disj_y + 0.5*cm, 
                    f"{self.calibre_disjoncteur_ac}A courbe {self.courbe_disjoncteur_ac}")
-        c.drawString(prot_ac_x + 8*mm, disj_y - 3*mm, 
+        c.drawString(prot_ac_x + 1*cm, disj_y, 
                    f"{self.type_differentiel}")
-        c.drawString(prot_ac_x + 8*mm, disj_y - 8*mm, 
+        c.drawString(prot_ac_x + 1*cm, disj_y - 0.5*cm, 
                    f"PdC: {self.pouvoir_coupure_ac}")
         
         # Ligne verticale disjoncteur → TGBT
