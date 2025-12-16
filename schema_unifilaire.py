@@ -111,17 +111,17 @@ class SchemaUnifilaire:
         
         # Restaurer les protections AC
         agcp_saved = saved_config.get('agcp')
-        self.calibre_agcp = agcp_saved or '63A'
+        self.calibre_agcp = (agcp_saved or '63').replace('A', '')  # Enlever 'A' si présent
         self.courbe_agcp = saved_config.get('courbe_agcp') or 'C'
         self.pouvoir_coupure_agcp = saved_config.get('pouvoir_coupure_agcp') or '10kA'
         
         disj_saved = saved_config.get('disjoncteur_ac')
-        self.calibre_disjoncteur_ac = disj_saved or '40A'
+        self.calibre_disjoncteur_ac = (disj_saved or '40').replace('A', '')  # Enlever 'A' si présent
         self.courbe_disjoncteur_ac = saved_config.get('courbe_disjoncteur_ac') or 'C'
         self.pouvoir_coupure_ac = saved_config.get('pouvoir_coupure_ac') or '10kA'
         
         # Sectionneur AC
-        self.calibre_sectionneur_ac = saved_config.get('sectionneur_ac') or self.calibre_disjoncteur_ac
+        self.calibre_sectionneur_ac = (saved_config.get('sectionneur_ac') or self.calibre_disjoncteur_ac)
         self.type_sectionneur_ac = 'Sectionneur AC cadenassable'
         
         diff_saved = saved_config.get('differentiel_ac')
