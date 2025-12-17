@@ -837,15 +837,15 @@ class SchemaUnifilaire:
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
         boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
-        boite_dc_y = schema_y_end - 11*cm
+        boite_dc_y = schema_y_end - 12*cm  # Plus d'espace car boîte agrandie
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 18*cm
+        onduleur_y = schema_y_end - 20*cm  # Plus d'espace
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 26*cm
+        prot_ac_y = schema_y_end - 28*cm  # Plus d'espace
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
