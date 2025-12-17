@@ -835,17 +835,17 @@ class SchemaUnifilaire:
         strings_x = center_x - 8*cm  # À gauche
         strings_y = schema_y_end - 4*cm
         
-        # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
-        boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
-        boite_dc_y = schema_y_end - 12*cm  # Plus d'espace car boîte agrandie
+        # === ZONE 2: BOÎTE DC + PROTECTIONS (à droite des strings, même hauteur) ===
+        boite_dc_x = center_x + 4*cm  # À droite des modules
+        boite_dc_y = schema_y_end - 5*cm  # À la même hauteur que les strings
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 20*cm  # Plus d'espace
+        onduleur_y = schema_y_end - 13*cm  # Plus d'espace maintenant
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 28*cm  # Plus d'espace
+        prot_ac_y = schema_y_end - 22*cm  # Plus d'espace
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
@@ -923,19 +923,17 @@ class SchemaUnifilaire:
         
         # === 2. BOÎTE DE JONCTION DC + PROTECTIONS ===
         
-        # Câble principal DC (depuis strings vers boîte jonction - avec coude)
+        # Câble principal DC (depuis strings vers boîte jonction - horizontal direct)
         c.setStrokeColor(colors.red)
         c.setLineWidth(2.5)
-        # Partie verticale (strings → niveau boîte)
-        c.line(cable_start_x, cable_start_y, cable_start_x, boite_dc_y)
-        # Partie horizontale (vers boîte)
-        c.line(cable_start_x, boite_dc_y, boite_dc_x - 3*cm - 8*mm, boite_dc_y)
+        # Ligne horizontale directe (strings → boîte à droite)
+        c.line(cable_start_x, strings_y, boite_dc_x - 2*cm, boite_dc_y)
         
         c.setFont("Helvetica", 6)
         c.setFillColor(colors.red)
-        # Annotation sur partie verticale
-        c.drawString(cable_start_x + 5*mm, (cable_start_y + boite_dc_y) / 2, 
-                    f"{self.section_cable_string}mm²")
+        # Annotation au milieu du câble
+        mid_cable_x = (cable_start_x + boite_dc_x - 2*cm) / 2
+        c.drawString(mid_cable_x, strings_y + 3*mm, f"{self.section_cable_string}mm²")
         c.setFillColor(colors.black)
         c.setStrokeColor(colors.black)
         
@@ -996,13 +994,16 @@ class SchemaUnifilaire:
         
         # === 3. CÂBLE DC PRINCIPAL → ONDULEUR ===
         
-        # Ligne verticale boîte → onduleur
+        # Ligne de la boîte vers onduleur (en deux segments: descente puis vers centre)
         c.setStrokeColor(colors.red)
         c.setLineWidth(2.5)
+        # Descente depuis boîte
         c.line(boite_dc_x, boite_dc_y - 2*cm, boite_dc_x, onduleur_y + 1.8*cm)
+        # Ligne horizontale vers onduleur au centre
+        c.line(boite_dc_x, onduleur_y + 1.8*cm, onduleur_x, onduleur_y + 1.8*cm)
         c.setStrokeColor(colors.black)
         
-        # Annotation câble DC principal + type + PE (à droite du câble)
+        # Annotation câble DC principal + type + PE (à droite de la partie verticale)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(colors.red)
         mid_dc_y = (boite_dc_y + onduleur_y) / 2
