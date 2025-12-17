@@ -945,14 +945,14 @@ class SchemaUnifilaire:
         c.setFont("Helvetica", 7)
         c.drawCentredString(boite_dc_x, boite_dc_y + 0.8*cm, f"{self.ip_boite_dc}")
         
-        # Fusibles DC (si requis) - en haut de la boîte
+        # Fusibles DC (si requis) - en haut de la boîte, bien visibles
         if self.fusibles_strings and self.fusibles_strings != 'Non requis':
-            fusible_y = boite_dc_y + 0.3*cm
-            SymbolesElectriques.fusible(c, boite_dc_x - 0.5*cm, fusible_y, orientation='horizontal')
-            c.setFont("Helvetica", 6)
-            c.drawCentredString(boite_dc_x, fusible_y - 0.5*cm, f"Fusibles gPV")
+            fusible_y = boite_dc_y + 0.8*cm
+            SymbolesElectriques.fusible(c, boite_dc_x, fusible_y, orientation='horizontal')
+            c.setFont("Helvetica-Bold", 6)
+            c.drawCentredString(boite_dc_x, fusible_y + 0.5*cm, f"Fusibles gPV")
             c.setFont("Helvetica", 5)
-            c.drawCentredString(boite_dc_x, fusible_y - 0.8*cm, self.fusibles_strings)
+            c.drawCentredString(boite_dc_x, fusible_y - 0.5*cm, self.fusibles_strings)
         
         # Sectionneur DC (au centre de la boîte)
         sect_dc_x = boite_dc_x
@@ -971,9 +971,9 @@ class SchemaUnifilaire:
         c.line(cable_start_x, boite_dc_y, boite_dc_x - 2*cm, boite_dc_y)
         c.setStrokeColor(colors.black)
         
-        # Parafoudre DC (à droite de la boîte, bien visible)
-        para_dc_x = boite_dc_x + 3.5*cm
-        para_dc_y = boite_dc_y + 0.5*cm
+        # Parafoudre DC (collé à droite de la boîte, bien visible)
+        para_dc_x = boite_dc_x + 2.3*cm
+        para_dc_y = boite_dc_y
         SymbolesElectriques.parafoudre(c, para_dc_x, para_dc_y, orientation='vertical')
         
         # Cadre autour du parafoudre pour le rendre visible
@@ -1068,13 +1068,11 @@ class SchemaUnifilaire:
         agcp_y = prot_ac_y + 6*cm
         SymbolesElectriques.disjoncteur(c, agcp_x, agcp_y, orientation='vertical')
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(agcp_x + 1.2*cm, agcp_y + 0.5*cm, "AGCP")
+        c.drawString(agcp_x + 1.2*cm, agcp_y + 0.4*cm, "AGCP")
         c.setFont("Helvetica", 6)
-        c.drawString(agcp_x + 1.2*cm, agcp_y + 0.1*cm, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
+        c.drawString(agcp_x + 1.2*cm, agcp_y, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
         c.setFont("Helvetica", 5)
-        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.2*cm, f"Ph+N+PE 10mm²")
-        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.5*cm, f"PdC: {self.pouvoir_coupure_agcp}")
-        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.8*cm, f"L=49.7m")
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.4*cm, f"PdC: {self.pouvoir_coupure_agcp}")
         
         # Ligne verticale Sectionneur AC → AGCP
         c.setStrokeColor(colors.black)
@@ -1087,12 +1085,10 @@ class SchemaUnifilaire:
         # Disjoncteur différentiel (entre AGCP et TGBT)
         SymbolesElectriques.differentiel(c, prot_ac_x, disj_y, orientation='vertical')
         c.setFont("Helvetica-Bold", 6)
-        c.drawString(prot_ac_x + 1.2*cm, disj_y + 0.5*cm, "Sect. AC")
-        c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 1.2*cm, disj_y + 0.1*cm, f"{self.calibre_disjoncteur_ac}A courbe {self.courbe_disjoncteur_ac}")
+        c.drawString(prot_ac_x + 1.2*cm, disj_y + 0.3*cm, "Sect. AC")
         c.setFont("Helvetica", 5)
-        c.drawString(prot_ac_x + 1.2*cm, disj_y - 0.2*cm, f"Type A 30mA")
-        c.drawString(prot_ac_x + 1.2*cm, disj_y - 0.5*cm, f"PdC: {self.pouvoir_coupure_ac}")
+        c.drawString(prot_ac_x + 1.2*cm, disj_y - 0.1*cm, f"{self.calibre_disjoncteur_ac}A courbe {self.courbe_disjoncteur_ac}")
+        c.drawString(prot_ac_x + 1.2*cm, disj_y - 0.4*cm, f"Type A 30mA")
         
         # Ligne verticale disjoncteur → TGBT
         c.line(prot_ac_x, disj_y - 8*mm, prot_ac_x, prot_ac_y + 1.25*cm)
