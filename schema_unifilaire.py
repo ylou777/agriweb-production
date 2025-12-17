@@ -784,10 +784,10 @@ class SchemaUnifilaire:
         c.line(width/2, cart_main_y, width/2, cart_main_y + cart_main_height - 1*cm)
         
         # === CARTOUCHE BAS (infos techniques) ===
-        cart_width = 8*cm
-        cart_height = 2.5*cm
-        cart_x = width - cart_width - 1.5*cm
-        cart_y = 1*cm
+        cart_width = 7*cm
+        cart_height = 2.2*cm
+        cart_x = 1.5*cm  # À gauche au lieu de droite
+        cart_y = 0.8*cm
         
         c.setLineWidth(2)
         c.rect(cart_x, cart_y, cart_width, cart_height)
@@ -807,8 +807,8 @@ class SchemaUnifilaire:
         # Zone de dessin (éviter cartouche et marges) - Format A3 portrait
         schema_x_start = 2*cm
         schema_x_end = width - 2*cm
-        schema_y_start = 3*cm
-        schema_y_end = height - 4*cm  # Plus de place en haut pour format portrait
+        schema_y_start = 4*cm  # Plus d'espace en bas pour cartouche
+        schema_y_end = height - 5.5*cm  # Espace pour cartouche de 4.5cm + marge
         
         schema_width = schema_x_end - schema_x_start
         schema_height = schema_y_end - schema_y_start
@@ -833,23 +833,23 @@ class SchemaUnifilaire:
         
         # === ZONE 1: CHAMP PV (tout en haut) ===
         strings_x = center_x - 8*cm  # À gauche
-        strings_y = schema_y_end - 6*cm
+        strings_y = schema_y_end - 4*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
         boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
-        boite_dc_y = schema_y_end - 14*cm
+        boite_dc_y = schema_y_end - 11*cm
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 22*cm
+        onduleur_y = schema_y_end - 18*cm
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 32*cm
+        prot_ac_y = schema_y_end - 26*cm
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
-        injection_y = schema_y_start + 3*cm
+        injection_y = schema_y_start + 6*cm
         
         # === TITRE SECTIONS (disposées verticalement à gauche) ===
         titre_x = schema_x_start + 0.8*cm
@@ -1043,13 +1043,16 @@ class SchemaUnifilaire:
         
         # AGCP - Appareil Général de Commande et Protection (au dessus TGBT)
         agcp_x = prot_ac_x
-        agcp_y = prot_ac_y + 6*cm  # Plus d'espace
+        agcp_y = prot_ac_y + 6*cm
         SymbolesElectriques.disjoncteur(c, agcp_x, agcp_y, orientation='vertical')
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(agcp_x + 1*cm, agcp_y + 0.5*cm, "AGCP")
+        c.drawString(agcp_x + 1.2*cm, agcp_y + 0.5*cm, "AGCP")
         c.setFont("Helvetica", 6)
-        c.drawString(agcp_x + 1*cm, agcp_y, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
-        c.drawString(agcp_x + 1*cm, agcp_y - 0.5*cm, f"PdC: {self.pouvoir_coupure_agcp}")
+        c.drawString(agcp_x + 1.2*cm, agcp_y + 0.1*cm, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.3*cm, f"AC Ph+N+PE 10mm²")
+        c.setFont("Helvetica", 5)
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.6*cm, f"PdC: {self.pouvoir_coupure_agcp}")
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.9*cm, f"U1000R2V - L=49.7m")
         
         # Ligne verticale Sectionneur AC → AGCP
         c.setStrokeColor(colors.black)
@@ -1061,13 +1064,13 @@ class SchemaUnifilaire:
         c.line(agcp_x, agcp_y - 8*mm, agcp_x, disj_y + 8*mm)
         # Disjoncteur différentiel (entre AGCP et TGBT)
         SymbolesElectriques.differentiel(c, prot_ac_x, disj_y, orientation='vertical')
+        c.setFont("Helvetica-Bold", 6)
+        c.drawString(prot_ac_x + 1.2*cm, disj_y + 0.5*cm, "Sect. AC")
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 1*cm, disj_y + 0.5*cm, 
-                   f"{self.calibre_disjoncteur_ac}A courbe {self.courbe_disjoncteur_ac}")
-        c.drawString(prot_ac_x + 1*cm, disj_y, 
-                   f"{self.type_differentiel}")
-        c.drawString(prot_ac_x + 1*cm, disj_y - 0.5*cm, 
-                   f"PdC: {self.pouvoir_coupure_ac}")
+        c.drawString(prot_ac_x + 1.2*cm, disj_y + 0.1*cm, f"{self.calibre_disjoncteur_ac}A courbe {self.courbe_disjoncteur_ac}")
+        c.setFont("Helvetica", 5)
+        c.drawString(prot_ac_x + 1.2*cm, disj_y - 0.2*cm, f"Type A 30mA")
+        c.drawString(prot_ac_x + 1.2*cm, disj_y - 0.5*cm, f"PdC: {self.pouvoir_coupure_ac}")
         
         # Ligne verticale disjoncteur → TGBT
         c.line(prot_ac_x, disj_y - 8*mm, prot_ac_x, prot_ac_y + 1.25*cm)
