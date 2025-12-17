@@ -849,7 +849,7 @@ class SchemaUnifilaire:
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
-        injection_y = schema_y_start + 6*cm
+        injection_y = schema_y_start + 8*cm
         
         # === TITRE SECTIONS (disposées verticalement à gauche) ===
         titre_x = schema_x_start + 0.8*cm
@@ -1049,10 +1049,10 @@ class SchemaUnifilaire:
         c.drawString(agcp_x + 1.2*cm, agcp_y + 0.5*cm, "AGCP")
         c.setFont("Helvetica", 6)
         c.drawString(agcp_x + 1.2*cm, agcp_y + 0.1*cm, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
-        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.3*cm, f"AC Ph+N+PE 10mm²")
         c.setFont("Helvetica", 5)
-        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.6*cm, f"PdC: {self.pouvoir_coupure_agcp}")
-        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.9*cm, f"U1000R2V - L=49.7m")
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.2*cm, f"Ph+N+PE 10mm²")
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.5*cm, f"PdC: {self.pouvoir_coupure_agcp}")
+        c.drawString(agcp_x + 1.2*cm, agcp_y - 0.8*cm, f"L=49.7m")
         
         # Ligne verticale Sectionneur AC → AGCP
         c.setStrokeColor(colors.black)
@@ -1082,20 +1082,16 @@ class SchemaUnifilaire:
         c.drawCentredString(prot_ac_x, prot_ac_y, "TGBT")
         
         # Parafoudre AC (en dessous TGBT)
-        para_ac_y = prot_ac_y - 2.5*cm
+        para_ac_y = prot_ac_y - 2*cm
         SymbolesElectriques.parafoudre(c, prot_ac_x - 0.3*cm, para_ac_y, orientation='vertical')
         c.setFont("Helvetica", 6)
         c.drawString(prot_ac_x + 8*mm, para_ac_y - 3*mm, "SPD Type 2")
         
         # Terre avec liaison équipotentielle
-        terre_y = para_ac_y - 18*mm
+        terre_y = para_ac_y - 1.4*cm
         SymbolesElectriques.terre(c, prot_ac_x - 0.3*cm, terre_y)
         c.setFont("Helvetica", 5)
-        c.drawCentredString(prot_ac_x - 0.3*cm, terre_y - 10*mm, f"≤{self.resistance_terre_max}")
-        c.setFont("Helvetica", 4.5)
-        c.drawCentredString(prot_ac_x - 0.3*cm, terre_y - 14*mm, f"LEP")
-        c.setFont("Helvetica", 5)
-        c.drawCentredString(prot_ac_x - 0.3*cm, terre_y - 18*mm, f"PE: {self.section_terre_principal}")
+        c.drawCentredString(prot_ac_x - 0.3*cm, terre_y - 8*mm, f"PE: {self.section_terre_principal}")
         
         # === 7. POINT D'INJECTION RÉSEAU ===
         
