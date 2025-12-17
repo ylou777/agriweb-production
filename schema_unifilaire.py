@@ -939,38 +939,59 @@ class SchemaUnifilaire:
         c.setFillColor(colors.black)
         c.setStrokeColor(colors.black)
         
-        # Boîte de jonction (rectangle)
+        # Boîte de jonction (rectangle agrandi pour contenir fusibles)
         c.setLineWidth(2)
-        c.rect(boite_dc_x - 1.5*cm, boite_dc_y - 1.5*cm, 3*cm, 3*cm)
+        c.rect(boite_dc_x - 2*cm, boite_dc_y - 2*cm, 4*cm, 4*cm)
         c.setFont("Helvetica-Bold", 9)
-        c.drawCentredString(boite_dc_x, boite_dc_y + 0.9*cm, "BOÎTE DC")
+        c.drawCentredString(boite_dc_x, boite_dc_y + 1.3*cm, "BOÎTE DC")
         c.setFont("Helvetica", 7)
-        c.drawCentredString(boite_dc_x, boite_dc_y + 0.4*cm, f"{self.ip_boite_dc}")
+        c.drawCentredString(boite_dc_x, boite_dc_y + 0.8*cm, f"{self.ip_boite_dc}")
         
-        # Sectionneur DC (dans la boîte, centré)
+        # Fusibles DC (si requis) - en haut de la boîte
+        if self.fusibles_strings and self.fusibles_strings != 'Non requis':
+            fusible_y = boite_dc_y + 0.3*cm
+            SymbolesElectriques.fusible(c, boite_dc_x - 0.5*cm, fusible_y, orientation='horizontal')
+            c.setFont("Helvetica", 6)
+            c.drawCentredString(boite_dc_x, fusible_y - 0.5*cm, f"Fusibles gPV")
+            c.setFont("Helvetica", 5)
+            c.drawCentredString(boite_dc_x, fusible_y - 0.8*cm, self.fusibles_strings)
+        
+        # Sectionneur DC (au centre de la boîte)
         sect_dc_x = boite_dc_x
-        sect_dc_y = boite_dc_y - 0.2*cm
+        sect_dc_y = boite_dc_y - 0.5*cm
         SymbolesElectriques.sectionneur(c, sect_dc_x, sect_dc_y, orientation='horizontal')
+        c.setFont("Helvetica-Bold", 6)
+        c.drawCentredString(sect_dc_x, sect_dc_y - 0.7*cm, "Sectionneur DC")
         c.setFont("Helvetica", 6)
-        c.drawCentredString(sect_dc_x, sect_dc_y - 0.6*cm, f"{self.calibre_sectionneur_dc}A")
+        c.drawCentredString(sect_dc_x, sect_dc_y - 1*cm, f"{self.calibre_sectionneur_dc}A")
         c.setFont("Helvetica", 5)
-        c.drawCentredString(sect_dc_x, sect_dc_y - 0.9*cm, f"{self.tension_sectionneur_dc}")
+        c.drawCentredString(sect_dc_x, sect_dc_y - 1.3*cm, f"{self.tension_sectionneur_dc}")
         
         # Ligne horizontale câble DC → boîte (entrée par la gauche)
         c.setStrokeColor(colors.red)
         c.setLineWidth(2.5)
-        c.line(cable_start_x, boite_dc_y, boite_dc_x - 1.5*cm, boite_dc_y)
+        c.line(cable_start_x, boite_dc_y, boite_dc_x - 2*cm, boite_dc_y)
         c.setStrokeColor(colors.black)
         
-        # Parafoudre DC (à droite de la boîte, aligné verticalement)
-        para_dc_x = boite_dc_x + 2.5*cm
-        para_dc_y = boite_dc_y
+        # Parafoudre DC (à droite de la boîte, bien visible)
+        para_dc_x = boite_dc_x + 3.5*cm
+        para_dc_y = boite_dc_y + 0.5*cm
         SymbolesElectriques.parafoudre(c, para_dc_x, para_dc_y, orientation='vertical')
-        c.setFont("Helvetica", 6)
-        c.drawString(para_dc_x + 6*mm, para_dc_y - 8*mm, "SPD Type 2")
         
-        # Terre (sous parafoudre)
-        terre_dc_y = para_dc_y - 18*mm
+        # Cadre autour du parafoudre pour le rendre visible
+        c.setLineWidth(1)
+        c.setStrokeColor(colors.grey)
+        c.rect(para_dc_x - 8*mm, para_dc_y - 10*mm, 16*mm, 20*mm)
+        c.setStrokeColor(colors.black)
+        c.setLineWidth(2)
+        
+        c.setFont("Helvetica-Bold", 7)
+        c.drawCentredString(para_dc_x, para_dc_y + 8*mm, "SPD DC")
+        c.setFont("Helvetica", 6)
+        c.drawCentredString(para_dc_x, para_dc_y - 8*mm, "Type 2")
+        
+        # Terre (sous parafoudre DC)
+        terre_dc_y = para_dc_y - 22*mm
         SymbolesElectriques.terre(c, para_dc_x, terre_dc_y)
         
         # === 3. CÂBLE DC PRINCIPAL → ONDULEUR ===
@@ -978,7 +999,7 @@ class SchemaUnifilaire:
         # Ligne verticale boîte → onduleur
         c.setStrokeColor(colors.red)
         c.setLineWidth(2.5)
-        c.line(boite_dc_x, boite_dc_y - 1.5*cm, boite_dc_x, onduleur_y + 1.8*cm)
+        c.line(boite_dc_x, boite_dc_y - 2*cm, boite_dc_x, onduleur_y + 1.8*cm)
         c.setStrokeColor(colors.black)
         
         # Annotation câble DC principal + type + PE (à droite du câble)
