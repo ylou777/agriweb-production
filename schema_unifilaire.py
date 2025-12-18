@@ -132,6 +132,12 @@ class SchemaUnifilaire:
         
         # Restaurer Consuel
         self.num_consuel = saved_config.get('num_consuel', '')
+        self.numero_consuel = saved_config.get('numero_consuel', '')
+        
+        # Métadonnées document
+        self.indice_revision = saved_config.get('indice_revision', 'A')
+        self.date_edition = saved_config.get('date_edition', datetime.now().strftime('%d/%m/%Y'))
+        self.coupure_generale_dc = saved_config.get('coupure_generale_dc', True)
         
         # Type réseau
         injection_saved = equipments.get('injection', {})
@@ -154,6 +160,12 @@ class SchemaUnifilaire:
         # Calculer puissance totale
         self.nb_modules_total = sum(zone.get('nbModules', 0) for zone in self.zones)
         self.puissance_totale_kwc = self.nb_modules_total * self.module_puissance / 1000
+        
+        # Métadonnées document
+        self.indice_revision = 'A'
+        self.date_edition = datetime.now().strftime('%d/%m/%Y')
+        self.numero_consuel = ''
+        self.coupure_generale_dc = True
         
         # Choix onduleur selon puissance
         self._choisir_onduleur()
