@@ -120,8 +120,13 @@ class SchemaUnifilaire:
         self.courbe_disjoncteur_ac = 'C'
         self.pouvoir_coupure_ac = '10kA'
         
+        # Sectionneur AC
+        self.calibre_sectionneur_ac = saved_config.get('sectionneur_ac') or self.calibre_disjoncteur_ac
+        self.type_sectionneur_ac = 'Sectionneur AC cadenassable'
+        
         diff_saved = saved_config.get('differentiel_ac')
         self.type_differentiel = diff_saved or 'Type A 30mA'
+        self.sensibilite_differentiel = 30
         
         # Restaurer les IP
         self.ip_boite_dc = saved_config.get('ip_boite_dc', 'IP65')
