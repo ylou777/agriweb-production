@@ -33,8 +33,23 @@ class SchemaUnifilaire:
         # Vérifier si une configuration électrique existe déjà (sauvegardée)
         saved_config = calpinage_data.get('configuration_electrique', {})
         
+        # Calculer la puissance totale actuelle du calepinage
+        nb_modules_actuel = sum(zone.get('nbModules', 0) for zone in self.zones)
+        module_puissance = float(self.module.get('puissance', 550))
+        puissance_actuelle_kwc = nb_modules_actuel * module_puissance / 1000
+        
+        # Vérifier si la config sauvegardée correspond au calepinage actuel
+        config_valide = False
         if saved_config and saved_config.get('date_maj'):
-            print("✅ [SCHEMA] Restauration configuration électrique sauvegardée")
+            puissance_saved = saved_config.get('puissance_totale_kwc', 0)
+            # Tolérance de 5% pour éviter recalculs intempestifs dus aux arrondis
+            if abs(puissance_actuelle_kwc - puissance_saved) / puissance_saved < 0.05 if puissance_saved > 0 else False:
+                config_valide = True
+                print(f"✅ [SCHEMA] Restauration configuration électrique sauvegardée ({puissance_saved:.1f}kWc)")
+            else:
+                print(f"⚠️ [SCHEMA] Calepinage modifié ({puissance_saved:.1f}kWc → {puissance_actuelle_kwc:.1f}kWc), recalcul nécessaire")
+        
+        if config_valide:
             self._restaurer_configuration_electrique(saved_config, calpinage_data)
         else:
             print("🔄 [SCHEMA] Calcul automatique configuration électrique")
