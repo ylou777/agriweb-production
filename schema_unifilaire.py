@@ -33,21 +33,20 @@ class SchemaUnifilaire:
         # Vérifier si une configuration électrique existe déjà (sauvegardée)
         saved_config = calpinage_data.get('configuration_electrique', {})
         
-        # Calculer la puissance totale actuelle du calepinage
+        # Calculer le nombre de modules actuel du calepinage
         nb_modules_actuel = sum(zone.get('nbModules', 0) for zone in self.zones)
-        module_puissance = float(self.module.get('puissance', 550))
-        puissance_actuelle_kwc = nb_modules_actuel * module_puissance / 1000
         
         # Vérifier si la config sauvegardée correspond au calepinage actuel
         config_valide = False
         if saved_config and saved_config.get('date_maj'):
-            puissance_saved = saved_config.get('puissance_totale_kwc', 0)
-            # Tolérance de 5% pour éviter recalculs intempestifs dus aux arrondis
-            if abs(puissance_actuelle_kwc - puissance_saved) / puissance_saved < 0.05 if puissance_saved > 0 else False:
+            nb_modules_saved = saved_config.get('nb_modules', 0)
+            # Comparer le nombre de modules (pas la puissance, car le module peut avoir changé)
+            if nb_modules_actuel == nb_modules_saved:
                 config_valide = True
-                print(f"✅ [SCHEMA] Restauration configuration électrique sauvegardée ({puissance_saved:.1f}kWc)")
+                puissance_saved = saved_config.get('puissance_totale_kwc', 0)
+                print(f"✅ [SCHEMA] Restauration configuration électrique ({nb_modules_saved} modules, {puissance_saved:.1f}kWc)")
             else:
-                print(f"⚠️ [SCHEMA] Calepinage modifié ({puissance_saved:.1f}kWc → {puissance_actuelle_kwc:.1f}kWc), recalcul nécessaire")
+                print(f"⚠️ [SCHEMA] Calepinage modifié ({nb_modules_saved} → {nb_modules_actuel} modules), recalcul nécessaire")
         
         if config_valide:
             self._restaurer_configuration_electrique(saved_config, calpinage_data)
@@ -597,7 +596,16 @@ class SchemaUnifilaire:
     
     def get_configuration_electrique_json(self):
         """Retourne la configuration électrique au format JSON pour sauvegarde"""
+        # Calculer les données du calepinage pour validation ultérieure
+        nb_modules_total = sum(zone.get('nbModules', 0) for zone in self.zones)
+        module_puissance = float(self.module.get('puissance', 550))
+        puissance_totale = nb_modules_total * module_puissance / 1000
+        
         return {
+            # Données calepinage (pour validation)
+            'nb_modules': nb_modules_total,
+            'puissance_totale_kwc': round(puissance_totale, 2),
+            
             # Protections DC
             'sectionneur_dc': self.calibre_sectionneur_dc,
             'parafoudre_dc': 'SPD Type 2',
