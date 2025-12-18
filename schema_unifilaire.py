@@ -721,7 +721,7 @@ class SchemaUnifilaire:
         c.rect(schema_x_start, schema_y_start, schema_width, schema_height)
         
         # === TITRE SCHÉMA ===
-        c.setFont("Helvetica-Bold", 12)
+        c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.HexColor('#0d6efd'))
         c.drawCentredString(width/2, schema_y_end + 0.5*cm, "SCHÉMA UNIFILAIRE - Installation photovoltaïque NF C 15-712-1")
         c.setFillColor(colors.black)
@@ -841,13 +841,13 @@ class SchemaUnifilaire:
         c.setFillColor(colors.black)
         c.setStrokeColor(colors.black)
         
-        # Boîte de jonction (rectangle)
-        c.setLineWidth(2)
-        c.rect(boite_dc_x - 1.5*cm, boite_dc_y - 1.5*cm, 3*cm, 3*cm)
-        c.setFont("Helvetica-Bold", 8)
-        c.drawCentredString(boite_dc_x, boite_dc_y + 3*mm, "BOITE DC")
-        c.setFont("Helvetica", 6)
-        c.drawCentredString(boite_dc_x, boite_dc_y - 5*mm, f"{self.ip_boite_dc}")
+        # Boîte de jonction (rectangle compact)
+        c.setLineWidth(1.5)
+        c.rect(boite_dc_x - 1*cm, boite_dc_y - 1*cm, 2*cm, 2*cm)
+        c.setFont("Helvetica-Bold", 6)
+        c.drawCentredString(boite_dc_x, boite_dc_y + 2*mm, "BOITE DC")
+        c.setFont("Helvetica", 5)
+        c.drawCentredString(boite_dc_x, boite_dc_y - 3*mm, f"{self.ip_boite_dc}")
         
         # Sectionneur DC (à gauche de la boîte)
         sect_dc_x = boite_dc_x - 3*cm
@@ -900,7 +900,7 @@ class SchemaUnifilaire:
         
         # === 4. ONDULEUR ===
         
-        SymbolesElectriques.onduleur(c, onduleur_x, onduleur_y, width=3.5*cm, height=3.5*cm)
+        SymbolesElectriques.onduleur(c, onduleur_x, onduleur_y, width=2*cm, height=2*cm)
         
         # Infos onduleur (à droite du symbole)
         c.setFont("Helvetica-Bold", 7)
@@ -976,10 +976,10 @@ class SchemaUnifilaire:
         # Ligne verticale disjoncteur → TGBT
         c.line(prot_ac_x, disj_y - 8*mm, prot_ac_x, prot_ac_y + 1.25*cm)
         
-        # Boîte TGBT (rectangle)
-        c.setLineWidth(2)
-        c.rect(prot_ac_x - 1.25*cm, prot_ac_y - 1.25*cm, 2.5*cm, 2.5*cm)
-        c.setFont("Helvetica-Bold", 8)
+        # Boîte TGBT (rectangle compact)
+        c.setLineWidth(1.5)
+        c.rect(prot_ac_x - 0.75*cm, prot_ac_y - 0.75*cm, 1.5*cm, 1.5*cm)
+        c.setFont("Helvetica-Bold", 6)
         c.drawCentredString(prot_ac_x, prot_ac_y, "TGBT")
         
         # Parafoudre AC (en dessous TGBT)
