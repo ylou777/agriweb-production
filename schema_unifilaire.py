@@ -120,6 +120,7 @@ class SchemaUnifilaire:
         self.calibre_sectionneur_dc = saved_config.get('sectionneur_dc') or '63A'
         self.tension_sectionneur_dc = '1000V DC'
         self.fusibles_strings = saved_config.get('fusibles_strings', 'Non requis')
+        self.parafoudre_dc = saved_config.get('parafoudre_dc') or 'Type 2 - 1000V DC - 20A'
         
         # Restaurer les protections AC
         agcp_saved = saved_config.get('agcp')
