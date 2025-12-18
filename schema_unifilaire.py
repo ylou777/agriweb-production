@@ -706,11 +706,11 @@ class SchemaUnifilaire:
     def _dessiner_schema_principal(self, c, width, height):
         """Dessine le schéma unifilaire principal avec symboles normalisés NF C 03-201"""
         
-        # Zone de dessin (éviter cartouche et marges)
-        schema_x_start = 1.5*cm
-        schema_x_end = width - 1.5*cm
-        schema_y_start = 5*cm
-        schema_y_end = height - 11*cm  # Ajusté pour cartouche haut
+        # Zone de dessin (éviter cartouche et marges) - OPTIMISÉ
+        schema_x_start = 1*cm
+        schema_x_end = width - 1*cm
+        schema_y_start = 4*cm
+        schema_y_end = height - 5*cm  # Marges réduites
         
         schema_width = schema_x_end - schema_x_start
         schema_height = schema_y_end - schema_y_start
@@ -734,43 +734,43 @@ class SchemaUnifilaire:
         center_x = schema_x_start + schema_width / 2
         
         # === ZONE 1: CHAMP PV (tout en haut) ===
-        strings_x = center_x - 8*cm  # À gauche
-        strings_y = schema_y_end - 3*cm
+        strings_x = center_x - 6*cm
+        strings_y = schema_y_end - 2*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
-        boite_dc_x = center_x + 2*cm  # Décalée à droite pour faire place au sectionneur
-        boite_dc_y = schema_y_end - 9*cm
+        boite_dc_x = center_x + 2*cm
+        boite_dc_y = schema_y_end - 5*cm
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 15*cm
+        onduleur_y = schema_y_end - 9*cm
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 21*cm
+        prot_ac_y = schema_y_end - 14*cm
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
-        injection_y = schema_y_start + 5*cm
+        injection_y = schema_y_start + 2*cm
         
         # === TITRE SECTIONS (disposées verticalement à gauche) ===
         titre_x = schema_x_start + 0.8*cm
         
-        c.setFont("Helvetica-Bold", 9)
+        c.setFont("Helvetica-Bold", 8)
         c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawString(titre_x, schema_y_end - 2.5*cm, "CHAMP PV")
+        c.drawString(titre_x, strings_y + 0.3*cm, "CHAMP PV")
         
         c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(titre_x, schema_y_end - 8.5*cm, "PROTECTION DC")
+        c.drawString(titre_x, boite_dc_y + 0.3*cm, "PROTECTION DC")
         
         c.setFillColor(colors.HexColor('#28a745'))
-        c.drawString(titre_x, schema_y_end - 14.5*cm, "ONDULEUR")
+        c.drawString(titre_x, onduleur_y + 0.3*cm, "ONDULEUR")
         
         c.setFillColor(colors.HexColor('#dc3545'))
-        c.drawString(titre_x, schema_y_end - 20.5*cm, "PROTECTION AC")
+        c.drawString(titre_x, prot_ac_y + 1.5*cm, "PROTECTION AC")
         
         c.setFillColor(colors.black)
-        c.drawString(titre_x, schema_y_start + 5.5*cm, "RÉSEAU")
+        c.drawString(titre_x, injection_y + 0.3*cm, "RÉSEAU")
         
         c.setFillColor(colors.black)
         
