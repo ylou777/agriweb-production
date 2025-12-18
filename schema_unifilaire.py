@@ -561,11 +561,11 @@ class SchemaUnifilaire:
         if output_path is None:
             output_path = f"schema_unifilaire_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         
-        # Créer le canvas PDF (A3 paysage pour plus d'espace)
-        from reportlab.lib.pagesizes import A3, landscape
-        page_width, page_height = landscape(A3)
+        # Créer le canvas PDF (A3 portrait pour schéma vertical traditionnel)
+        from reportlab.lib.pagesizes import A3
+        page_width, page_height = A3
         
-        c = canvas.Canvas(output_path, pagesize=landscape(A3))
+        c = canvas.Canvas(output_path, pagesize=A3)
         
         # === PAGE 1: SCHÉMA UNIFILAIRE ===
         self._dessiner_cartouche(c, page_width, page_height)
