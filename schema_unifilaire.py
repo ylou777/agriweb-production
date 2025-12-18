@@ -877,6 +877,19 @@ class SchemaUnifilaire:
         nb_strings_total = len(self.configuration_strings)
         puissance_totale_strings = sum(s['puissance_wc'] for s in self.configuration_strings) / 1000
         
+        # Calculer nombre de modules moyen par string (pour affichage)
+        if nb_strings_total > 0:
+            nb_modules_par_string = [s['nb_modules'] for s in self.configuration_strings]
+            nb_mod_min = min(nb_modules_par_string)
+            nb_mod_max = max(nb_modules_par_string)
+            # Affichage: si tous identiques → "2×10mod", sinon "2 strings (10-12mod)"
+            if nb_mod_min == nb_mod_max:
+                string_label = f"{nb_strings_total}×{nb_mod_min}mod"
+            else:
+                string_label = f"{nb_strings_total} strings ({nb_mod_min}-{nb_mod_max}mod)"
+        else:
+            string_label = f"{self.nb_modules_total}mod"
+        
         # Symbole module PV principal
         SymbolesElectriques.string_pv(c, strings_x, strings_y, 
                                      nb_modules=self.nb_modules_total, 
@@ -885,7 +898,7 @@ class SchemaUnifilaire:
         # Info condensée - AU-DESSUS pour éviter superposition
         c.setFont("Helvetica", 7)
         c.drawString(strings_x - 5*mm, strings_y + 1.2*cm, 
-                    f"{nb_strings_total}×{self.nb_modules_total//nb_strings_total}mod | {puissance_totale_strings:.1f}kWc")
+                    f"{string_label} | {puissance_totale_strings:.1f}kWc")
         
         # Fusibles DC par string (si >2 strings) - AVANT boîte selon NFC15-712
         if self.fusibles_strings and self.fusibles_strings != 'Non requis' and nb_strings_total > 2:
