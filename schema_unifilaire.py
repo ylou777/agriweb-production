@@ -94,6 +94,11 @@ class SchemaUnifilaire:
         self.section_pe_ac = saved_config.get('section_pe_ac') or 10
         self.section_terre_principal = f"{self.section_pe_ac}mm²"
         
+        # Type réseau (AVANT calcul courant_max_ac)
+        equipments = calpinage_data.get('equipments', {})
+        injection_saved = equipments.get('injection', {})
+        self.type_reseau = injection_saved.get('type_reseau', '230V Monophasé')
+        
         # Restaurer les distances
         distances = calpinage_data.get('distances', {})
         self.longueur_dc = distances.get('dc_strings', 25)
@@ -150,10 +155,6 @@ class SchemaUnifilaire:
         self.indice_revision = saved_config.get('indice_revision', 'A')
         self.date_edition = saved_config.get('date_edition', datetime.now().strftime('%d/%m/%Y'))
         self.coupure_generale_dc = saved_config.get('coupure_generale_dc', True)
-        
-        # Type réseau
-        injection_saved = equipments.get('injection', {})
-        self.type_reseau = injection_saved.get('type_reseau', '230V Monophasé')
         
         print(f"✅ Config restaurée: Onduleur {self.onduleur['marque']} {self.onduleur['modele']}, "
               f"AGCP {self.calibre_agcp}, Disj {self.calibre_disjoncteur_ac}, "
