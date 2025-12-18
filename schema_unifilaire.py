@@ -141,6 +141,9 @@ class SchemaUnifilaire:
         self.type_differentiel = diff_saved or 'Type A 30mA'
         self.sensibilite_differentiel = 30
         
+        # Parafoudre AC
+        self.parafoudre_ac = saved_config.get('parafoudre_ac') or 'Type 2 - 275V AC - 20kA'
+        
         # Restaurer les IP
         self.ip_boite_dc = saved_config.get('ip_boite_dc', 'IP65')
         self.ip_onduleur = saved_config.get('ip_onduleur', 'IP65')
