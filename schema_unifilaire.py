@@ -100,6 +100,13 @@ class SchemaUnifilaire:
         self.longueur_ac_onduleur_tgbt = distances.get('ac_onduleur_tgbt', 15)
         self.longueur_ac_tgbt_injection = distances.get('ac_tgbt_injection', 10)
         
+        # Calculer courant max AC depuis l'onduleur
+        puissance_ac = self.onduleur.get('p_ac', self.puissance_totale_kwc * 1000)
+        if '230V' in self.type_reseau or 'Mono' in self.type_reseau:
+            self.courant_max_ac = (puissance_ac / 230) * 1.25
+        else:
+            self.courant_max_ac = (puissance_ac / (400 * math.sqrt(3))) * 1.25
+        
         # Restaurer les chutes de tension
         self.chute_tension_dc_pct = saved_config.get('chute_tension_dc_pct') or 1.5
         self.chute_tension_ac_pct = saved_config.get('chute_tension_ac_pct') or 1.0
