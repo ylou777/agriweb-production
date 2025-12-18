@@ -1047,19 +1047,11 @@ class SchemaUnifilaire:
         c.drawString(sect_ac_x + 8*mm, sect_ac_y + 3*mm, f"Sect. AC")
         c.drawString(sect_ac_x + 8*mm, sect_ac_y - 3*mm, f"{self.calibre_sectionneur_ac}A")
         
-        # Annotation câble AC + distance + type + PE (à droite du câble)
-        c.setFont("Helvetica-Bold", 7)
-        c.setFillColor(colors.blue)
-        mid_ac_y = (onduleur_y + prot_ac_y) / 2
-        phases_str = f"{nb_phases}P+N+" if nb_phases > 1 else "Ph+N+"
-        c.drawString(onduleur_x + 0.8*cm, mid_ac_y + 0.8*cm, 
-                           f"AC: {phases_str}PE {self.section_cable_ac}mm²")
+        # Annotation câble AC (simple, à droite)
         c.setFont("Helvetica", 6)
-        c.drawString(onduleur_x + 0.8*cm, mid_ac_y + 0.3*cm, 
-                           f"{self.type_cable_ac} - L={self.longueur_ac_onduleur_tgbt:.1f}m")
-        c.drawString(onduleur_x + 0.8*cm, mid_ac_y - 0.2*cm, 
-                           f"ΔU={self.chute_tension_ac_pct:.2f}%")
         c.setFillColor(colors.black)
+        mid_ac_y = (onduleur_y + prot_ac_y) / 2
+        c.drawString(onduleur_x + 0.8*cm, mid_ac_y, f"L={self.longueur_ac_onduleur_tgbt:.1f}m")
         
         # === 6. PROTECTIONS AC (TGBT) ===
         
@@ -1117,20 +1109,6 @@ class SchemaUnifilaire:
         c.setStrokeColor(colors.black)
         c.setLineWidth(2.5)
         c.line(prot_ac_x, prot_ac_y - 1.25*cm, injection_x, injection_y + 0.8*cm)
-        
-        # Flèche sens injection (production → réseau) - à droite du câble
-        c.setFillColor(colors.HexColor('#28a745'))
-        mid_inj_y = (prot_ac_y + injection_y) / 2
-        c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 0.8*cm, mid_inj_y + 0.5*cm, "▼ Production")
-        c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(prot_ac_x + 0.8*cm, mid_inj_y - 0.5*cm, "▲ Soutirage")
-        c.setFillColor(colors.black)
-        
-        # Annotation distance injection (à droite)
-        c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 0.8*cm, mid_inj_y, 
-                           f"L={self.longueur_ac_tgbt_injection:.1f}m")
         
         # Symbole compteur
         SymbolesElectriques.compteur(c, injection_x, injection_y, size=1.3*cm)
