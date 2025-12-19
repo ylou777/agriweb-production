@@ -948,9 +948,6 @@ class SchemaUnifilaire:
         
         # Sectionneur AC (entre onduleur et AGCP)
         SymbolesElectriques.sectionneur(c, sect_ac_x, sect_ac_y, orientation='vertical')
-        c.setFont("Helvetica", 6)
-        c.drawString(sect_ac_x + 8*mm, sect_ac_y + 3*mm, f"Sect. AC")
-        c.drawString(sect_ac_x + 8*mm, sect_ac_y - 3*mm, f"{self.calibre_sectionneur_ac}A")
         
         # Ligne verticale Sectionneur AC → AGCP
         agcp_x = prot_ac_x
@@ -976,10 +973,10 @@ class SchemaUnifilaire:
         # AGCP - Appareil Général de Commande et Protection (au dessus TGBT)
         SymbolesElectriques.disjoncteur(c, agcp_x, agcp_y, orientation='vertical')
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(agcp_x + 8*mm, agcp_y + 8*mm, "AGCP")
+        c.drawString(agcp_x + 2.5*cm, agcp_y + 8*mm, "AGCP")
         c.setFont("Helvetica", 6)
-        c.drawString(agcp_x + 8*mm, agcp_y + 3*mm, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
-        c.drawString(agcp_x + 8*mm, agcp_y - 3*mm, f"PdC: {self.pouvoir_coupure_agcp}")
+        c.drawString(agcp_x + 2.5*cm, agcp_y + 3*mm, f"{self.calibre_agcp}A courbe {self.courbe_agcp}")
+        c.drawString(agcp_x + 2.5*cm, agcp_y - 3*mm, f"PdC: {self.pouvoir_coupure_agcp}")
         
         # Ligne verticale AGCP → Disjoncteur différentiel
         disj_y = prot_ac_y + 2*cm
