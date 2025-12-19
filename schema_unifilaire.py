@@ -808,24 +808,30 @@ class SchemaUnifilaire:
                                      nb_modules=self.nb_modules_total, 
                                      compact=True)
         
-        # Annotations groupées - à droite du symbole
+        # Détails individuels de chaque string - à droite du symbole
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(strings_x + 2*cm, strings_y + 0.5*cm, 
+        c.drawString(strings_x + 2*cm, strings_y + 0.8*cm, 
                     f"{nb_strings_total} String{'s' if nb_strings_total > 1 else ''}")
-        c.setFont("Helvetica", 6)
-        c.drawString(strings_x + 2*cm, strings_y, 
-                    f"{self.nb_modules_total}×{int(self.module_puissance)}Wc")
-        c.drawString(strings_x + 2*cm, strings_y - 0.5*cm, 
-                    f"= {puissance_totale_strings:.2f}kWc")
         
-        # Tension/courant moyens - à droite
-        if self.configuration_strings:
-            v_mpp_moy = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
-            i_sc_total = sum(s['i_sc'] for s in self.configuration_strings)
-            c.drawString(strings_x + 2*cm, strings_y - 1*cm, 
-                        f"Vmpp:{v_mpp_moy:.1f}V")
-            c.drawString(strings_x + 2*cm, strings_y - 1.5*cm, 
-                        f"Isc:{i_sc_total:.1f}A")
+        # Afficher chaque string avec ses caractéristiques
+        c.setFont("Helvetica", 6)
+        y_offset = strings_y + 0.3*cm
+        for i, string_config in enumerate(self.configuration_strings, 1):
+            nb_mod = string_config['nb_modules']
+            p_wc = string_config['puissance_wc']
+            v_mpp = string_config['v_mpp']
+            i_sc = string_config['i_sc']
+            
+            c.drawString(strings_x + 2*cm, y_offset, 
+                        f"{i}×{nb_mod}×{int(self.module_puissance)}Wc")
+            c.drawString(strings_x + 5*cm, y_offset, 
+                        f"= {p_wc/1000:.2f}kWc")
+            y_offset -= 0.4*cm
+            c.drawString(strings_x + 2*cm, y_offset, 
+                        f"Vmpp:{v_mpp:.1f}V")
+            c.drawString(strings_x + 5*cm, y_offset, 
+                        f"Isc:{i_sc:.1f}A")
+            y_offset -= 0.5*cm
         
         # Fusible (si requis) - positionné entre strings et boîte
         if 'Non requis' not in self.fusibles_strings:
@@ -908,16 +914,16 @@ class SchemaUnifilaire:
         c.line(boite_dc_x, boite_dc_y - 1.5*cm, boite_dc_x, onduleur_y + 1.8*cm)
         c.setStrokeColor(colors.black)
         
-        # Annotation câble DC principal + type + PE (à droite du câble)
+        # Annotation câble DC principal + type + PE (à gauche du câble)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(colors.red)
         mid_dc_y = (boite_dc_y + onduleur_y) / 2
-        c.drawString(boite_dc_x + 0.8*cm, mid_dc_y + 0.8*cm, 
+        c.drawString(boite_dc_x - 5*cm, mid_dc_y + 0.8*cm, 
                            f"DC: {self.section_cable_dc}mm²+PE {self.section_pe_dc}mm² Cu")
         c.setFont("Helvetica", 6)
-        c.drawString(boite_dc_x + 0.8*cm, mid_dc_y + 0.3*cm, 
-                           f"{self.type_cable_dc} - L={self.longueur_dc:.1f}m")
-        c.drawString(boite_dc_x + 0.8*cm, mid_dc_y - 0.2*cm, 
+        c.drawString(boite_dc_x - 5*cm, mid_dc_y + 0.3*cm, 
+                           f"{self.type_cable_dc} ou équivalent PV - L={self.longueur_dc:.1f}m")
+        c.drawString(boite_dc_x - 5*cm, mid_dc_y - 0.2*cm, 
                            f"ΔU={self.chute_tension_dc_pct:.2f}%")
         c.setFillColor(colors.black)
         
@@ -952,17 +958,17 @@ class SchemaUnifilaire:
         c.drawString(sect_ac_x + 8*mm, sect_ac_y + 3*mm, f"Sect. AC")
         c.drawString(sect_ac_x + 8*mm, sect_ac_y - 3*mm, f"{self.calibre_sectionneur_ac}A")
         
-        # Annotation câble AC + distance + type + PE (à droite du câble)
+        # Annotation câble AC + distance + type + PE (à gauche du câble)
         c.setFont("Helvetica-Bold", 7)
         c.setFillColor(colors.blue)
         mid_ac_y = (onduleur_y + prot_ac_y) / 2
         phases_str = f"{nb_phases}P+N+" if nb_phases > 1 else "Ph+N+"
-        c.drawString(onduleur_x + 0.8*cm, mid_ac_y + 0.8*cm, 
+        c.drawString(onduleur_x - 5*cm, mid_ac_y + 0.8*cm, 
                            f"AC: {phases_str}PE {self.section_cable_ac}mm²")
         c.setFont("Helvetica", 6)
-        c.drawString(onduleur_x + 0.8*cm, mid_ac_y + 0.3*cm, 
+        c.drawString(onduleur_x - 5*cm, mid_ac_y + 0.3*cm, 
                            f"{self.type_cable_ac} - L={self.longueur_ac_onduleur_tgbt:.1f}m")
-        c.drawString(onduleur_x + 0.8*cm, mid_ac_y - 0.2*cm, 
+        c.drawString(onduleur_x - 5*cm, mid_ac_y - 0.2*cm, 
                            f"ΔU={self.chute_tension_ac_pct:.2f}%")
         c.setFillColor(colors.black)
         
@@ -1028,18 +1034,18 @@ class SchemaUnifilaire:
         c.setLineWidth(2.5)
         c.line(prot_ac_x, prot_ac_y - 1.25*cm, injection_x, injection_y + 0.8*cm)
         
-        # Flèche sens injection (production → réseau) - à droite du câble
+        # Flèche sens injection (production → réseau) - à gauche du câble
         c.setFillColor(colors.HexColor('#28a745'))
         mid_inj_y = (prot_ac_y + injection_y) / 2
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 0.8*cm, mid_inj_y + 0.5*cm, "▼ Production")
+        c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.5*cm, "▼ Production")
         c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(prot_ac_x + 0.8*cm, mid_inj_y - 0.5*cm, "▲ Soutirage")
+        c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.5*cm, "▲ Soutirage")
         c.setFillColor(colors.black)
         
-        # Annotation distance injection (à droite)
+        # Annotation distance injection (à gauche)
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 0.8*cm, mid_inj_y, 
+        c.drawString(prot_ac_x - 3*cm, mid_inj_y, 
                            f"L={self.longueur_ac_tgbt_injection:.1f}m")
         
         # Symbole compteur
