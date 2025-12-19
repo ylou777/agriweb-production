@@ -513,11 +513,11 @@ class SchemaUnifilaire:
         self.section_pe_ac = self.section_cable_ac
         
         # 2. PROTECTION DC (sectionneurs + parafoudres)
-        # Sectionneur DC: 1.25 × Isc total
+        # Sectionneur DC: 1.5 × Isc total (NF C 15-712 art. 7.12.3.1)
         isc_total = sum(s['i_sc'] for s in self.configuration_strings)
-        calibre_sectionneur_dc_min = isc_total * 1.25
+        calibre_sectionneur_dc_min = isc_total * 1.5  # Facteur 1.5 sécurité
         
-        calibres_sectionneurs_dc = [16, 25, 32, 40, 63, 80, 100, 125]
+        calibres_sectionneurs_dc = [16, 25, 32, 40, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800]
         calibres_valides_sect = [c for c in calibres_sectionneurs_dc if c >= calibre_sectionneur_dc_min]
         self.calibre_sectionneur_dc = min(calibres_valides_sect) if calibres_valides_sect else calibres_sectionneurs_dc[-1]
         
