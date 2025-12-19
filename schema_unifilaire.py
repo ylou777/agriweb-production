@@ -733,7 +733,7 @@ class SchemaUnifilaire:
         schema_x_start = 1*cm
         schema_x_end = width - 1*cm
         schema_y_start = 4*cm
-        schema_y_end = height - 5*cm  # Marges réduites
+        schema_y_end = height - 7*cm  # Espace pour le titre
         
         schema_width = schema_x_end - schema_x_start
         schema_height = schema_y_end - schema_y_start
@@ -758,23 +758,23 @@ class SchemaUnifilaire:
         
         # === ZONE 1: CHAMP PV (tout en haut) ===
         strings_x = center_x - 6*cm
-        strings_y = schema_y_end - 2*cm
+        strings_y = schema_y_end - 3*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
         boite_dc_x = center_x + 2*cm
-        boite_dc_y = schema_y_end - 5*cm
+        boite_dc_y = schema_y_end - 7*cm
         
         # === ZONE 3: ONDULEUR (centre) ===
         onduleur_x = center_x
-        onduleur_y = schema_y_end - 9*cm
+        onduleur_y = schema_y_end - 12*cm
         
         # === ZONE 4: PROTECTIONS AC (bas-milieu) ===
         prot_ac_x = center_x
-        prot_ac_y = schema_y_end - 14*cm
+        prot_ac_y = schema_y_end - 18*cm
         
         # === ZONE 5: POINT INJECTION RÉSEAU (tout en bas) ===
         injection_x = center_x
-        injection_y = schema_y_start + 2*cm
+        injection_y = schema_y_start + 3*cm
         
         # === TITRE SECTIONS (disposées verticalement à gauche) ===
         titre_x = schema_x_start + 0.8*cm
