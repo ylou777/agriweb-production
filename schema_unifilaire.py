@@ -984,11 +984,11 @@ class SchemaUnifilaire:
         # Disjoncteur différentiel (entre AGCP et TGBT)
         SymbolesElectriques.differentiel(c, prot_ac_x, disj_y, orientation='vertical')
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x + 8*mm, disj_y + 3*mm, 
-                   f"{self.calibre_disjoncteur_ac}A courbe {self.courbe_disjoncteur_ac}")
-        c.drawString(prot_ac_x + 8*mm, disj_y - 3*mm, 
+        c.drawString(prot_ac_x + 2.5*cm, disj_y + 3*mm, 
                    f"{self.type_differentiel}")
-        c.drawString(prot_ac_x + 8*mm, disj_y - 8*mm, 
+        c.drawString(prot_ac_x + 2.5*cm, disj_y - 3*mm, 
+                   f"Type A 30mA")
+        c.drawString(prot_ac_x + 2.5*cm, disj_y - 8*mm, 
                    f"PdC: {self.pouvoir_coupure_ac}")
         
         # Ligne verticale disjoncteur → TGBT
