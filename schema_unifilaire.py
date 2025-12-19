@@ -681,15 +681,17 @@ class SchemaUnifilaire:
         
         # Bandeau titre
         c.setFillColor(colors.HexColor('#28a745'))
-        c.rect(1.5*cm, cart_main_y + cart_main_height - 1*cm, width - 3*cm, 1*cm, fill=1, stroke=0)
+        c.rect(1.5*cm, cart_main_y + cart_main_height - 1.2*cm, width - 3*cm, 1.2*cm, fill=1, stroke=0)
         
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 16)
         c.drawString(2*cm, cart_main_y + cart_main_height - 0.7*cm, "🌱 AgriWeb Pro - SCHÉMA UNIFILAIRE NF C 15-712")
+        c.setFont("Helvetica", 9)
+        c.drawString(2*cm, cart_main_y + cart_main_height - 1.05*cm, "Installation photovoltaïque raccordée au réseau")
         c.setFillColor(colors.black)
         
         # Informations client (2 colonnes)
-        y_info = cart_main_y + cart_main_height - 1.8*cm
+        y_info = cart_main_y + cart_main_height - 2*cm
         
         # Colonne gauche
         c.setFont("Helvetica-Bold", 10)
@@ -799,8 +801,8 @@ class SchemaUnifilaire:
         # Afficher le poste de raccordement si injection réseau
         y_poste = y_info - 2.4*cm
         if self.type_raccordement in ['autoconso_injection', 'injection_totale']:
-            # Déterminer quel poste utiliser selon la puissance (≤36kVA = BT, >36kVA = HTA)
-            if self.puissance_totale_kwc <= 36:
+            # Déterminer quel poste utiliser selon la puissance (<1MWc = BT, ≥1MWc = HTA)
+            if self.puissance_totale_kwc < 1000:
                 poste_nom = self.prospect.get('poste_bt_nom', '')
                 poste_distance = self.prospect.get('poste_bt_distance_m', None)
                 poste_type = 'BT'
@@ -863,8 +865,8 @@ class SchemaUnifilaire:
     
     def _dessiner_plan_situation(self, c, width, height):
         """Dessine un plan de situation simplifié montrant l'emplacement du poste de raccordement"""
-        # Déterminer quel poste afficher
-        if self.puissance_totale_kwc <= 36:
+        # Déterminer quel poste afficher (<1MWc = BT, ≥1MWc = HTA)
+        if self.puissance_totale_kwc < 1000:
             poste_nom = self.prospect.get('poste_bt_nom', '')
             poste_distance = self.prospect.get('poste_bt_distance_m', None)
             poste_lat = self.prospect.get('poste_bt_lat', None)
@@ -967,12 +969,6 @@ class SchemaUnifilaire:
         c.setStrokeColor(colors.grey)
         c.setLineWidth(1)
         c.rect(schema_x_start, schema_y_start, schema_width, schema_height)
-        
-        # === TITRE SCHÉMA ===
-        c.setFont("Helvetica-Bold", 10)
-        c.setFillColor(colors.HexColor('#0d6efd'))
-        c.drawCentredString(width/2, schema_y_end + 0.5*cm, "SCHÉMA UNIFILAIRE - Installation photovoltaïque NF C 15-712-1")
-        c.setFillColor(colors.black)
         
         # === COORDONNÉES LAYOUT VERTICAL (disposition traditionnelle) ===
         # Schéma unifilaire vertical classique : HAUT → BAS
