@@ -160,8 +160,17 @@ class PropositionProfessionnelle:
         elements.append(Paragraph("PROPOSITION COMMERCIALE", self.styles['TitrePrincipal']))
         elements.append(Spacer(1, 0.3*cm))
         
-        type_projet = self.params.get('type_projet', 'autoconsommation').replace('_', ' ').title()
-        elements.append(Paragraph(f"Installation Photovoltaïque en {type_projet}", self.styles['SousTitre']))
+        # Récupérer type raccordement depuis calepinage (cohérence avec schéma unifilaire)
+        type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
+        
+        # Mapping pour affichage
+        type_projet_display = {
+            'autoconso_injection': 'Autoconsommation avec Revente du Surplus',
+            'autoconso_sans_injection': 'Autoconsommation Sans Injection',
+            'injection_totale': 'Vente Totale (Obligation d’Achat)'
+        }.get(type_raccordement, 'Autoconsommation')
+        
+        elements.append(Paragraph(f"Installation Photovoltaïque en {type_projet_display}", self.styles['SousTitre']))
         
         elements.append(Spacer(1, 2*cm))
         
@@ -172,7 +181,7 @@ class PropositionProfessionnelle:
             ['CARACTÉRISTIQUES DU PROJET'],
             [''],
             [f'<b>Puissance:</b> {puissance:.2f} kWc'],
-            [f'<b>Type:</b> {type_projet}'],
+            [f'<b>Type raccordement:</b> {type_projet_display}'],
             [f'<b>Localisation:</b> {self.prospect.get("commune", "N/A")} ({self.prospect.get("departement", "")})'],
             [''],
             [f'<b>Proposition valable jusqu\'au:</b> {(datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")}'],
@@ -768,23 +777,23 @@ class PropositionProfessionnelle:
         # Récupérer les paramètres
         puissance = self.params.get('puissance_kwc', 0)
         prix_kwc = self.params.get('prix_kwc', 850)
-        type_projet = self.params.get('type_projet', 'autoconsommation')
+        type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
         
         investissement_ht = puissance * prix_kwc
         investissement_ttc = investissement_ht * 1.10  # TVA 10%
         
         production_annuelle = puissance * 1100
         
-        # Section autoconsommation ou vente totale
-        if type_projet == 'autoconsommation':
-            elements.extend(self._section_autoconsommation(investissement_ht, production_annuelle))
-        else:
+        # Section selon type de raccordement
+        if type_raccordement == 'injection_totale':
             elements.extend(self._section_vente_totale(investissement_ht, production_annuelle))
+        else:  # autoconso_injection ou autoconso_sans_injection
+            elements.extend(self._section_autoconsommation(investissement_ht, production_annuelle, type_raccordement))
         
         return elements
     
-    def _section_autoconsommation(self, investissement_ht, production_annuelle):
-        """Sous-section pour autoconsommation avec courbes horaires"""
+    def _section_autoconsommation(self, investissement_ht, production_annuelle, type_raccordement='autoconso_injection'):
+        """Sous-section pour autoconsommation (avec ou sans injection)"""
         sub_elements = []
         
         consommation = self.params.get('consommation_annuelle_kwh', production_annuelle * 1.2)
@@ -793,10 +802,19 @@ class PropositionProfessionnelle:
         tarif_revente = self.params.get('tarif_revente_kwh', 0.13)
         
         energie_autoconsommee = production_annuelle * taux_autoconso
-        energie_revendue = production_annuelle - energie_autoconsommee
         economie_autoconso = energie_autoconsommee * tarif_achat
-        revenu_revente = energie_revendue * tarif_revente
-        gain_annuel = economie_autoconso + revenu_revente
+        
+        # Gestion de l'injection selon le type
+        if type_raccordement == 'autoconso_sans_injection':
+            # Sans injection : surplus perdu
+            energie_revendue = 0
+            revenu_revente = 0
+            gain_annuel = economie_autoconso
+        else:
+            # Avec injection : surplus vendu
+            energie_revendue = production_annuelle - energie_autoconsommee
+            revenu_revente = energie_revendue * tarif_revente
+            gain_annuel = economie_autoconso + revenu_revente
         
         # Tableau récapitulatif
         recap_data = [
