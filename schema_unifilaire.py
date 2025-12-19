@@ -805,10 +805,18 @@ class SchemaUnifilaire:
             if self.puissance_totale_kwc < 1000:
                 poste_nom = self.prospect.get('poste_bt_nom', '')
                 poste_distance = self.prospect.get('poste_bt_distance_m', None)
+                poste_puissance = self.prospect.get('poste_bt_puissance', None)
+                poste_etat = self.prospect.get('poste_bt_etat', '')
+                poste_lat = self.prospect.get('poste_bt_lat', None)
+                poste_lon = self.prospect.get('poste_bt_lon', None)
                 poste_type = 'BT'
             else:
                 poste_nom = self.prospect.get('poste_hta_nom', '')
                 poste_distance = self.prospect.get('poste_hta_distance_m', None)
+                poste_puissance = self.prospect.get('poste_hta_puissance', None)
+                poste_etat = self.prospect.get('poste_hta_etat', '')
+                poste_lat = self.prospect.get('poste_hta_lat', None)
+                poste_lon = self.prospect.get('poste_hta_lon', None)
                 poste_type = 'HTA'
             
             if poste_nom or poste_distance:
@@ -816,14 +824,33 @@ class SchemaUnifilaire:
                 c.drawString(col2_x, y_poste, f"POSTE {poste_type} RACCORDEMENT:")
                 c.setFont("Helvetica", 9)
                 
+                # Nom du poste
                 poste_info = poste_nom[:30] if poste_nom else 'Non renseigné'
                 c.drawString(col2_x, y_poste - 0.5*cm, poste_info)
+                y_line = y_poste - 0.9*cm
                 
+                # Distance
                 if poste_distance is not None:
-                    c.drawString(col2_x, y_poste - 0.9*cm, f"Distance: {int(poste_distance)}m")
-                    y_poste -= 1.5*cm
-                else:
-                    y_poste -= 1.1*cm
+                    c.drawString(col2_x, y_line, f"Distance: {int(poste_distance)}m")
+                    y_line -= 0.4*cm
+                
+                # Puissance
+                if poste_puissance is not None:
+                    c.drawString(col2_x, y_line, f"Puissance: {poste_puissance} kVA")
+                    y_line -= 0.4*cm
+                
+                # Statut
+                if poste_etat:
+                    c.drawString(col2_x, y_line, f"Statut: {poste_etat}")
+                    y_line -= 0.4*cm
+                
+                # Coordonnées GPS
+                if poste_lat and poste_lon:
+                    c.setFont("Helvetica", 8)
+                    c.drawString(col2_x, y_line, f"GPS: {poste_lat:.5f}, {poste_lon:.5f}")
+                    y_line -= 0.4*cm
+                
+                y_poste = y_line
             else:
                 y_poste -= 0.6*cm
         
@@ -869,12 +896,19 @@ class SchemaUnifilaire:
         if self.puissance_totale_kwc < 1000:
             poste_nom = self.prospect.get('poste_bt_nom', '')
             poste_distance = self.prospect.get('poste_bt_distance_m', None)
+            poste_puissance = self.prospect.get('poste_bt_puissance', None)
+            poste_etat = self.prospect.get('poste_bt_etat', '')
             poste_lat = self.prospect.get('poste_bt_lat', None)
             poste_lon = self.prospect.get('poste_bt_lon', None)
             poste_type = 'BT'
         else:
             poste_nom = self.prospect.get('poste_hta_nom', '')
             poste_distance = self.prospect.get('poste_hta_distance_m', None)
+            poste_puissance = self.prospect.get('poste_hta_puissance', None)
+            poste_etat = self.prospect.get('poste_hta_etat', '')
+            poste_lat = self.prospect.get('poste_hta_lat', None)
+            poste_lon = self.prospect.get('poste_hta_lon', None)
+            poste_type = 'HTA'
             poste_lat = self.prospect.get('poste_hta_lat', None)
             poste_lon = self.prospect.get('poste_hta_lon', None)
             poste_type = 'HTA'
@@ -943,15 +977,25 @@ class SchemaUnifilaire:
             label_y = poste_y + 0.3*cm
             c.drawCentredString(label_x, label_y, f"{int(poste_distance)}m")
             
-            # Nom du poste
+            # Nom du poste et infos
+            info_y = poste_y - 0.5*cm
             if poste_nom:
-                c.setFont("Helvetica", 6)
-                c.drawCentredString(poste_x, poste_y - 0.5*cm, poste_nom[:20])
+                c.setFont("Helvetica-Bold", 6)
+                c.drawCentredString(poste_x, info_y, poste_nom[:20])
+                info_y -= 0.25*cm
+            
+            # Puissance et statut
+            c.setFont("Helvetica", 5)
+            if poste_puissance:
+                c.drawCentredString(poste_x, info_y, f"{poste_puissance} kVA")
+                info_y -= 0.2*cm
+            if poste_etat:
+                c.drawCentredString(poste_x, info_y, poste_etat)
         
         # Coordonnées GPS si disponibles
         if poste_lat and poste_lon:
             c.setFont("Helvetica", 6)
-            c.drawString(plan_x + 0.2*cm, plan_y + 0.2*cm, f"GPS Poste: {poste_lat:.5f}, {poste_lon:.5f}")
+            c.drawString(plan_x + 0.2*cm, plan_y + 0.2*cm, f"GPS: {poste_lat:.5f}, {poste_lon:.5f}")
     
     def _dessiner_schema_principal(self, c, width, height):
         """Dessine le schéma unifilaire principal avec symboles normalisés NF C 03-201"""

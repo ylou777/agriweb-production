@@ -2497,16 +2497,18 @@ def register_crm_routes(app):
                 'code_postal': '',  # Pas dans la DB, sera extrait de commune si besoin
                 'commune': prospect.get('commune', ''),
                 'references_cadastrales': prospect.get('parcelles_cadastrales', ''),
-                # Poste de raccordement BT (pour injection < 36 kVA)
+                # Poste de raccordement BT (pour injection < 1MWc)
                 'poste_bt_nom': prospect.get('poste_bt_nom', ''),
                 'poste_bt_distance_m': prospect.get('poste_bt_distance_m', None),
                 'poste_bt_puissance': prospect.get('poste_bt_puissance', None),
+                'poste_bt_etat': prospect.get('poste_bt_etat', ''),
                 'poste_bt_lat': prospect.get('poste_bt_lat', None),
                 'poste_bt_lon': prospect.get('poste_bt_lon', None),
-                # Poste de raccordement HTA (pour injection > 36 kVA)
+                # Poste de raccordement HTA (pour injection >= 1MWc)
                 'poste_hta_nom': prospect.get('poste_hta_nom', ''),
                 'poste_hta_distance_m': prospect.get('poste_hta_distance_m', None),
                 'poste_hta_puissance': prospect.get('poste_hta_puissance', None),
+                'poste_hta_etat': prospect.get('poste_hta_etat', ''),
                 'poste_hta_lat': prospect.get('poste_hta_lat', None),
                 'poste_hta_lon': prospect.get('poste_hta_lon', None)
             }
