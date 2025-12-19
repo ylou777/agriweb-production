@@ -404,15 +404,24 @@ class SchemaUnifilaire:
         sections_valides = [s for s in sections_normalisees if s >= section_dc_calculee]
         self.section_cable_dc = min(sections_valides) if sections_valides else sections_normalisees[-1]
         
-        # 2. CÂBLES PAR STRING (moins de courant)
+        # 2. CÂBLES PAR STRING (calcul avec chute de tension selon distance réelle)
         i_max_string = max(s['i_sc'] * 1.25 for s in self.configuration_strings)
-        section_string_min = 2.5  # Section minimale NF C 15-712
+        
+        # Section minimale selon courant admissible
+        section_string_min_courant = 4  # Section minimale NF C 15-712 pour extérieur
         for i, courant_adm in enumerate(courants_admissibles):
             if courant_adm >= i_max_string:
-                section_string_min = max(sections_normalisees[i], 4)  # Min 4mm² recommandé extérieur
+                section_string_min_courant = max(sections_normalisees[i], 4)  # Min 4mm² recommandé extérieur
                 break
         
-        self.section_cable_string = section_string_min
+        # Chute de tension sur câbles strings (longueur réelle du calepinage)
+        # Chaque string a sa propre longueur depuis les modules jusqu'à la boîte DC
+        section_string_chute_tension = (2 * rho_cuivre * longueur_dc_strings * i_max_string) / (0.02 * v_mpp_moyenne)
+        
+        # Prendre le max des deux contraintes
+        section_string_calculee = max(section_string_min_courant, section_string_chute_tension)
+        sections_valides_string = [s for s in sections_normalisees if s >= section_string_calculee]
+        self.section_cable_string = min(sections_valides_string) if sections_valides_string else sections_normalisees[-1]
         
         # 3. CÂBLE AC ONDULEUR → TGBT (distance réelle du calepinage)
         puissance_ac = self.onduleur['p_ac']
