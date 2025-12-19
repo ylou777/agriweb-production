@@ -762,10 +762,39 @@ class SchemaUnifilaire:
         c.setFont("Helvetica", 9)
         c.drawString(col2_x, y_info - 1.7*cm, f"{self.puissance_totale_kwc:.2f} kWc ({self.nb_modules_total} modules)")
         
+        # Afficher le poste de raccordement si injection réseau
+        y_poste = y_info - 2.4*cm
+        if self.type_raccordement in ['autoconso_injection', 'injection_totale']:
+            # Déterminer quel poste utiliser selon la puissance (≤36kVA = BT, >36kVA = HTA)
+            if self.puissance_totale_kwc <= 36:
+                poste_nom = self.prospect.get('poste_bt_nom', '')
+                poste_distance = self.prospect.get('poste_bt_distance_m', None)
+                poste_type = 'BT'
+            else:
+                poste_nom = self.prospect.get('poste_hta_nom', '')
+                poste_distance = self.prospect.get('poste_hta_distance_m', None)
+                poste_type = 'HTA'
+            
+            if poste_nom or poste_distance:
+                c.setFont("Helvetica-Bold", 10)
+                c.drawString(col2_x, y_poste, f"POSTE {poste_type} RACCORDEMENT:")
+                c.setFont("Helvetica", 9)
+                
+                poste_info = poste_nom[:30] if poste_nom else 'Non renseigné'
+                c.drawString(col2_x, y_poste - 0.5*cm, poste_info)
+                
+                if poste_distance is not None:
+                    c.drawString(col2_x, y_poste - 0.9*cm, f"Distance: {int(poste_distance)}m")
+                    y_poste -= 1.5*cm
+                else:
+                    y_poste -= 1.1*cm
+            else:
+                y_poste -= 0.6*cm
+        
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(col2_x, y_info - 2.4*cm, "DATE D'ÉDITION:")
+        c.drawString(col2_x, y_poste, "DATE D'ÉDITION:")
         c.setFont("Helvetica", 9)
-        c.drawString(col2_x, y_info - 2.9*cm, datetime.now().strftime("%d/%m/%Y"))
+        c.drawString(col2_x, y_poste - 0.5*cm, datetime.now().strftime("%d/%m/%Y"))
         
         # Trait séparateur vertical
         c.setLineWidth(1)
@@ -793,6 +822,100 @@ class SchemaUnifilaire:
             c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Norme: NF C 15-712-1:2017")
             c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "Installations PV ≤ 250kVA")
         c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.2*cm, f"N° CONSUEL: {self.numero_consuel}")
+        
+        # === PLAN DE SITUATION (si injection réseau) ===
+        if self.type_raccordement in ['autoconso_injection', 'injection_totale']:
+            self._dessiner_plan_situation(c, width, height)
+    
+    def _dessiner_plan_situation(self, c, width, height):
+        """Dessine un plan de situation simplifié montrant l'emplacement du poste de raccordement"""
+        # Déterminer quel poste afficher
+        if self.puissance_totale_kwc <= 36:
+            poste_nom = self.prospect.get('poste_bt_nom', '')
+            poste_distance = self.prospect.get('poste_bt_distance_m', None)
+            poste_lat = self.prospect.get('poste_bt_lat', None)
+            poste_lon = self.prospect.get('poste_bt_lon', None)
+            poste_type = 'BT'
+        else:
+            poste_nom = self.prospect.get('poste_hta_nom', '')
+            poste_distance = self.prospect.get('poste_hta_distance_m', None)
+            poste_lat = self.prospect.get('poste_hta_lat', None)
+            poste_lon = self.prospect.get('poste_hta_lon', None)
+            poste_type = 'HTA'
+        
+        # Ne dessiner que si on a au moins la distance
+        if not (poste_nom or poste_distance):
+            return
+        
+        # Position du plan (coin bas gauche)
+        plan_x = 1.5*cm
+        plan_y = 1*cm
+        plan_width = 6*cm
+        plan_height = 3*cm
+        
+        # Cadre du plan
+        c.setLineWidth(1.5)
+        c.rect(plan_x, plan_y, plan_width, plan_height)
+        
+        # Titre
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(plan_x + 0.3*cm, plan_y + plan_height - 0.5*cm, f"PLAN DE SITUATION - Poste {poste_type}")
+        
+        # Dessiner l'installation (rectangle au centre)
+        install_width = 1.2*cm
+        install_height = 0.8*cm
+        install_x = plan_x + plan_width/2 - install_width/2
+        install_y = plan_y + plan_height/2 - install_height/2
+        
+        c.setFillColorRGB(0.9, 0.9, 0.9)
+        c.rect(install_x, install_y, install_width, install_height, fill=1, stroke=1)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", 6)
+        c.drawCentredString(install_x + install_width/2, install_y + install_height/2 - 0.1*cm, "Installation PV")
+        
+        # Dessiner le poste (symbole électrique)
+        if poste_distance:
+            # Calculer position du poste (on le met à gauche de l'installation)
+            # Échelle approximative : 100m = 2cm
+            distance_cm = min(poste_distance / 100 * 2, plan_width - 2)
+            poste_x = install_x - distance_cm
+            poste_y = install_y + install_height/2
+            
+            # Limiter le poste dans le cadre
+            if poste_x < plan_x + 0.5*cm:
+                poste_x = plan_x + 0.5*cm
+            
+            # Symbole poste (cercle avec croix)
+            c.setFillColorRGB(1, 0.8, 0)
+            c.circle(poste_x, poste_y, 0.25*cm, fill=1, stroke=1)
+            c.setFillColorRGB(0, 0, 0)
+            c.setLineWidth(0.5)
+            c.line(poste_x - 0.15*cm, poste_y, poste_x + 0.15*cm, poste_y)
+            c.line(poste_x, poste_y - 0.15*cm, poste_x, poste_y + 0.15*cm)
+            
+            # Ligne de liaison
+            c.setStrokeColorRGB(1, 0, 0)
+            c.setLineWidth(0.5)
+            c.setDash(3, 2)
+            c.line(poste_x + 0.25*cm, poste_y, install_x, install_y + install_height/2)
+            c.setDash()  # Reset dash
+            c.setStrokeColorRGB(0, 0, 0)
+            
+            # Label distance
+            c.setFont("Helvetica-Bold", 7)
+            label_x = (poste_x + install_x) / 2
+            label_y = poste_y + 0.3*cm
+            c.drawCentredString(label_x, label_y, f"{int(poste_distance)}m")
+            
+            # Nom du poste
+            if poste_nom:
+                c.setFont("Helvetica", 6)
+                c.drawCentredString(poste_x, poste_y - 0.5*cm, poste_nom[:20])
+        
+        # Coordonnées GPS si disponibles
+        if poste_lat and poste_lon:
+            c.setFont("Helvetica", 6)
+            c.drawString(plan_x + 0.2*cm, plan_y + 0.2*cm, f"GPS Poste: {poste_lat:.5f}, {poste_lon:.5f}")
     
     def _dessiner_schema_principal(self, c, width, height):
         """Dessine le schéma unifilaire principal avec symboles normalisés NF C 03-201"""
