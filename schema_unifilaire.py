@@ -761,7 +761,7 @@ class SchemaUnifilaire:
         strings_y = schema_y_end - 3*cm
         
         # === ZONE 2: BOÎTE DC + PROTECTIONS (haut-milieu) ===
-        boite_dc_x = center_x + 2*cm
+        boite_dc_x = center_x  # Aligné avec onduleur
         boite_dc_y = schema_y_end - 7*cm
         
         # === ZONE 3: ONDULEUR (centre) ===
