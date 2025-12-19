@@ -1092,8 +1092,20 @@ def get_all_postes(lat, lon, radius_deg=0.1):
     for feature in features:
         geom_shp = shape(feature["geometry"])
         dist = geom_shp.distance(point) * 111000  # Conversion en mètres
+        
+        # Normaliser les propriétés pour le template
+        props = feature["properties"]
+        normalized_props = {
+            "nom": props.get("lib_poste") or props.get("libelle") or props.get("nom") or "Poste BT",
+            "etat": props.get("etat") or props.get("statut") or "Actif",
+            "puissance": props.get("puissance") or props.get("capacite") or props.get("p_inst") or "N/A",
+            "tension": props.get("tension") or props.get("u_nom") or "400V",
+            # Conserver aussi les propriétés originales
+            **props
+        }
+        
         postes.append({
-            "properties": feature["properties"],
+            "properties": normalized_props,
             "distance": round(dist, 2),
             "geometry": mapping(geom_shp)
         })
