@@ -695,7 +695,15 @@ class SchemaUnifilaire:
         c.setFont("Helvetica-Bold", 10)
         c.drawString(2*cm, y_info, "CLIENT:")
         c.setFont("Helvetica", 9)
-        nom_client = f"{self.prospect.get('nom', '')} {self.prospect.get('prenom', '')}".strip() or "Non renseigné"
+        # Gérer le nom complet (peut être déjà complet dans 'nom')
+        nom = self.prospect.get('nom', '').strip()
+        prenom = self.prospect.get('prenom', '').strip()
+        if nom and prenom:
+            nom_client = f"{nom} {prenom}"
+        elif nom:
+            nom_client = nom
+        else:
+            nom_client = "Non renseigné"
         c.drawString(2*cm, y_info - 0.5*cm, nom_client[:40])
         
         c.setFont("Helvetica-Bold", 10)
@@ -704,8 +712,19 @@ class SchemaUnifilaire:
         adresse = self.prospect.get('adresse', 'Non renseignée')
         c.drawString(2*cm, y_info - 1.7*cm, adresse[:50])
         
-        ville = f"{self.prospect.get('code_postal', '')} {self.prospect.get('commune', '')}"
-        c.drawString(2*cm, y_info - 2.1*cm, ville[:50])
+        # Extraire code postal de la commune si nécessaire (format: "23000 Guéret")
+        code_postal = self.prospect.get('code_postal', '').strip()
+        commune = self.prospect.get('commune', '').strip()
+        if not code_postal and commune:
+            # Essayer d'extraire le code postal du début de commune
+            import re
+            match = re.match(r'^(\d{5})\s+(.+)$', commune)
+            if match:
+                code_postal = match.group(1)
+                commune = match.group(2)
+        
+        ville = f"{code_postal} {commune}".strip()
+        c.drawString(2*cm, y_info - 2.1*cm, ville[:50] if ville else "Non renseignée")
         
         # Colonne droite
         col2_x = width / 2 + 1*cm
@@ -713,9 +732,29 @@ class SchemaUnifilaire:
         c.setFont("Helvetica-Bold", 10)
         c.drawString(col2_x, y_info, "PARCELLES CADASTRALES:")
         c.setFont("Helvetica", 9)
-        parcelles = self.prospect.get('references_cadastrales', 'Non renseignées')
-        if isinstance(parcelles, list):
-            parcelles = ', '.join(parcelles[:3])
+        parcelles = self.prospect.get('references_cadastrales', '')
+        
+        # Gérer les différents formats de parcelles
+        if parcelles:
+            if isinstance(parcelles, str):
+                # Si c'est une chaîne JSON, essayer de la parser
+                import json
+                try:
+                    parcelles_obj = json.loads(parcelles)
+                    if isinstance(parcelles_obj, list):
+                        parcelles = ', '.join([str(p) for p in parcelles_obj[:3]])
+                    else:
+                        parcelles = str(parcelles)
+                except:
+                    # Déjà une chaîne simple
+                    pass
+            elif isinstance(parcelles, list):
+                parcelles = ', '.join([str(p) for p in parcelles[:3]])
+            else:
+                parcelles = str(parcelles)
+        else:
+            parcelles = 'Non renseignées'
+        
         c.drawString(col2_x, y_info - 0.5*cm, str(parcelles)[:40])
         
         c.setFont("Helvetica-Bold", 10)

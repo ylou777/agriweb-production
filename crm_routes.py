@@ -2484,10 +2484,19 @@ def register_crm_routes(app):
                 return "Aucun calepinage trouvé. Veuillez d'abord créer un calepinage.", 400
             
             # Données prospect pour le schéma
+            # Priorité: contact_nom > representant_nom > dirigeant_nom > nom_prospect
+            nom_client = (prospect.get('contact_nom') or 
+                         prospect.get('representant_nom') or 
+                         prospect.get('dirigeant_nom') or 
+                         prospect.get('nom_prospect') or '')
+            
             prospect_data = {
-                'nom': prospect.get('nom', ''),
-                'prenom': prospect.get('prenom', ''),
-                'adresse': prospect.get('adresse', '')
+                'nom': nom_client,  # Nom complet du client
+                'prenom': '',  # Pas de séparation nom/prénom dans la DB
+                'adresse': prospect.get('adresse', ''),
+                'code_postal': '',  # Pas dans la DB, sera extrait de commune si besoin
+                'commune': prospect.get('commune', ''),
+                'references_cadastrales': prospect.get('parcelles_cadastrales', '')
             }
             
             # Générer le schéma unifilaire
