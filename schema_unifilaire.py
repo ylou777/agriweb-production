@@ -732,30 +732,64 @@ class SchemaUnifilaire:
         c.setFont("Helvetica-Bold", 10)
         c.drawString(col2_x, y_info, "PARCELLES CADASTRALES:")
         c.setFont("Helvetica", 9)
-        parcelles = self.prospect.get('references_cadastrales', '')
+        parcelles_raw = self.prospect.get('references_cadastrales', '')
         
         # Gérer les différents formats de parcelles
-        if parcelles:
-            if isinstance(parcelles, str):
+        parcelles_list = []
+        if parcelles_raw:
+            if isinstance(parcelles_raw, str):
                 # Si c'est une chaîne JSON, essayer de la parser
                 import json
                 try:
-                    parcelles_obj = json.loads(parcelles)
+                    parcelles_obj = json.loads(parcelles_raw)
                     if isinstance(parcelles_obj, list):
-                        parcelles = ', '.join([str(p) for p in parcelles_obj[:3]])
+                        # Liste de dictionnaires ou de strings
+                        for p in parcelles_obj[:3]:
+                            if isinstance(p, dict):
+                                # Format: {'commune': 'XXX', 'prefixe': 'YYY', 'section': 'ZZ', 'numero': '0123'}
+                                ref = ''
+                                if p.get('prefixe'):
+                                    ref += p['prefixe'] + ' '
+                                if p.get('section'):
+                                    ref += p['section'] + ' '
+                                if p.get('numero'):
+                                    ref += p['numero']
+                                parcelles_list.append(ref.strip() if ref.strip() else str(p))
+                            else:
+                                parcelles_list.append(str(p))
+                    elif isinstance(parcelles_obj, dict):
+                        # Un seul dict
+                        ref = ''
+                        if parcelles_obj.get('prefixe'):
+                            ref += parcelles_obj['prefixe'] + ' '
+                        if parcelles_obj.get('section'):
+                            ref += parcelles_obj['section'] + ' '
+                        if parcelles_obj.get('numero'):
+                            ref += parcelles_obj['numero']
+                        parcelles_list.append(ref.strip() if ref.strip() else str(parcelles_obj))
                     else:
-                        parcelles = str(parcelles)
+                        parcelles_list.append(str(parcelles_obj))
                 except:
                     # Déjà une chaîne simple
-                    pass
-            elif isinstance(parcelles, list):
-                parcelles = ', '.join([str(p) for p in parcelles[:3]])
+                    parcelles_list.append(parcelles_raw)
+            elif isinstance(parcelles_raw, list):
+                for p in parcelles_raw[:3]:
+                    if isinstance(p, dict):
+                        ref = ''
+                        if p.get('prefixe'):
+                            ref += p['prefixe'] + ' '
+                        if p.get('section'):
+                            ref += p['section'] + ' '
+                        if p.get('numero'):
+                            ref += p['numero']
+                        parcelles_list.append(ref.strip() if ref.strip() else str(p))
+                    else:
+                        parcelles_list.append(str(p))
             else:
-                parcelles = str(parcelles)
-        else:
-            parcelles = 'Non renseignées'
+                parcelles_list.append(str(parcelles_raw))
         
-        c.drawString(col2_x, y_info - 0.5*cm, str(parcelles)[:40])
+        parcelles_display = ', '.join(parcelles_list) if parcelles_list else 'Non renseignées'
+        c.drawString(col2_x, y_info - 0.5*cm, parcelles_display[:40])
         
         c.setFont("Helvetica-Bold", 10)
         c.drawString(col2_x, y_info - 1.2*cm, "PUISSANCE INSTALLATION:")
