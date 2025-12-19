@@ -869,6 +869,7 @@
                                             <tr>
                                                 <th>Nom du poste</th>
                                                 <th>Distance</th>
+                                                <th>Coordonnées GPS</th>
                                                 <th>Statut</th>
                                                 <th>Puissance</th>
                                             </tr>
@@ -880,6 +881,20 @@
                                                 <td>
                                                     {% if poste.get('distance') is not none %}
                                                         <span class="distance-badge">{{ "%.0f"|format(poste.get('distance', 0)) }} m</span>
+                                                    {% else %}
+                                                        <span class="text-muted">N/A</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% set lat = poste.get('properties', {}).get('latitude') %}
+                                                    {% set lon = poste.get('properties', {}).get('longitude') %}
+                                                    {% if lat and lon %}
+                                                        <small class="text-muted">
+                                                            {{ "%.5f"|format(lat) }}, {{ "%.5f"|format(lon) }}
+                                                            <a href="https://www.google.com/maps?q={{ lat }},{{ lon }}" target="_blank" class="ms-1" title="Voir sur Google Maps">
+                                                                <i class="bi bi-geo-alt"></i>
+                                                            </a>
+                                                        </small>
                                                     {% else %}
                                                         <span class="text-muted">N/A</span>
                                                     {% endif %}
