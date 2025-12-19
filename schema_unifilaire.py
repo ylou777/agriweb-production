@@ -30,6 +30,12 @@ class SchemaUnifilaire:
         self.module = calpinage_data.get('module', {})
         self.zones = calpinage_data.get('zones', [])
         
+        # Type de raccordement (3 cas possibles)
+        # 'autoconso_injection' : Autoconsommation avec vente du surplus (bidirectionnel)
+        # 'autoconso_sans_injection' : Autoconsommation sans injection (unidirectionnel - soutirage uniquement)
+        # 'injection_totale' : Vente totale (production uniquement vers réseau)
+        self.type_raccordement = calpinage_data.get('type_raccordement', 'autoconso_injection')
+        
         # Vérifier si une configuration électrique existe déjà (sauvegardée)
         saved_config = calpinage_data.get('configuration_electrique', {})
         
@@ -1079,13 +1085,29 @@ class SchemaUnifilaire:
         c.setLineWidth(2.5)
         c.line(prot_ac_x, prot_ac_y - 0.75*cm, injection_x, injection_y + 0.65*cm)
         
-        # Flèche sens injection (production → réseau) - à gauche du câble
-        c.setFillColor(colors.HexColor('#28a745'))
+        # Flèche sens injection selon type raccordement - à gauche du câble
         mid_inj_y = (prot_ac_y + injection_y) / 2
         c.setFont("Helvetica", 6)
-        c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.5*cm, "▼ Production")
-        c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.5*cm, "▲ Soutirage")
+        
+        if self.type_raccordement == 'autoconso_injection':
+            # Autoconsommation + injection (bidirectionnel)
+            c.setFillColor(colors.HexColor('#28a745'))
+            c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.5*cm, "▼ Production")
+            c.setFillColor(colors.HexColor('#ffc107'))
+            c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.5*cm, "▲ Soutirage")
+        elif self.type_raccordement == 'autoconso_sans_injection':
+            # Autoconsommation sans injection (unidirectionnel - soutirage uniquement)
+            c.setFillColor(colors.HexColor('#ffc107'))
+            c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.2*cm, "▲ Soutirage uniquement")
+            c.setFillColor(colors.HexColor('#dc3545'))
+            c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.3*cm, "(Sans injection réseau)")
+        elif self.type_raccordement == 'injection_totale':
+            # Injection totale (production uniquement vers réseau)
+            c.setFillColor(colors.HexColor('#28a745'))
+            c.drawString(prot_ac_x - 3*cm, mid_inj_y + 0.2*cm, "▼ Injection totale")
+            c.setFillColor(colors.HexColor('#0d6efd'))
+            c.drawString(prot_ac_x - 3*cm, mid_inj_y - 0.3*cm, "(Vente totale)")
+        
         c.setFillColor(colors.black)
         
         # Annotation distance injection (à gauche)
