@@ -36,6 +36,11 @@ class SchemaUnifilaire:
         # 'injection_totale' : Vente totale (production uniquement vers réseau)
         self.type_raccordement = calpinage_data.get('type_raccordement', 'autoconso_injection')
         
+        # Batterie de stockage (optionnel - NF C 15-712-2)
+        equipments = calpinage_data.get('equipments', {})
+        self.batterie = equipments.get('batterie', None)
+        self.avec_batterie = self.batterie is not None
+        
         # Vérifier si une configuration électrique existe déjà (sauvegardée)
         saved_config = calpinage_data.get('configuration_electrique', {})
         
@@ -501,8 +506,12 @@ class SchemaUnifilaire:
         calibres_valides_disj = [c for c in calibres_disjoncteurs if c >= calibre_disjoncteur_min]
         self.calibre_disjoncteur_ac = min(calibres_valides_disj) if calibres_valides_disj else calibres_disjoncteurs[-1]
         
-        # Type différentiel: Type A (onduleurs récents) ou Type B (onduleurs + batteries)
-        self.type_differentiel = 'Type A 30mA'
+        # Type différentiel: Type A (onduleurs seuls) ou Type B (onduleurs + batteries)
+        # NF C 15-712-2: Type B obligatoire si batterie (courants DC résiduels)
+        if self.avec_batterie:
+            self.type_differentiel = 'Type B 30mA'
+        else:
+            self.type_differentiel = 'Type A 30mA'
         self.sensibilite_differentiel = 30  # mA
         self.courbe_disjoncteur_ac = 'C'  # Courbe C pour onduleurs
         self.pouvoir_coupure_ac = '10kA'  # Pouvoir de coupure minimum
@@ -737,8 +746,13 @@ class SchemaUnifilaire:
         c.drawString(cart_x + 3*cm, cart_y + cart_height - 0.6*cm, "Page: 1/2")
         
         c.setFont("Helvetica", 8)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Norme: NF C 15-712-1:2017")
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "Installations PV ≤ 250kVA")
+        # Adapter la norme selon présence batterie
+        if self.avec_batterie:
+            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Normes: NF C 15-712-1 & 15-712-2")
+            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "PV + Stockage ≤ 250kVA")
+        else:
+            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Norme: NF C 15-712-1:2017")
+            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "Installations PV ≤ 250kVA")
         c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.2*cm, f"N° CONSUEL: {self.numero_consuel}")
     
     def _dessiner_schema_principal(self, c, width, height):
@@ -996,6 +1010,62 @@ class SchemaUnifilaire:
                            f"P AC: {self.onduleur['p_ac']/1000:.1f}kW | P DC max: {self.onduleur['p_dc_max']/1000:.1f}kW")
         c.drawString(onduleur_x + 2*cm, onduleur_y - 0.2*cm, 
                            f"{self.onduleur['mppt']} MPPT | η={self.onduleur.get('rendement_max', 97)}% | {self.ip_onduleur}")
+        
+        # === 4.bis BATTERIE DE STOCKAGE (si présente - NF C 15-712-2) ===
+        
+        if self.avec_batterie:
+            batterie_x = onduleur_x + 5*cm
+            batterie_y = onduleur_y
+            
+            # Symbole batterie
+            c.setLineWidth(1.5)
+            c.rect(batterie_x - 0.8*cm, batterie_y - 0.8*cm, 1.6*cm, 1.6*cm)
+            c.setFont("Helvetica-Bold", 6)
+            c.drawCentredString(batterie_x, batterie_y + 2*mm, "BAT")
+            c.setFont("Helvetica", 5)
+            c.drawCentredString(batterie_x, batterie_y - 3*mm, "BMS")
+            
+            # Infos batterie (à droite)
+            c.setFont("Helvetica-Bold", 7)
+            c.drawString(batterie_x + 1.2*cm, batterie_y + 0.6*cm, 
+                        f"{self.batterie.get('marque', 'Batterie')} {self.batterie.get('modele', '')}")
+            c.setFont("Helvetica", 6)
+            capacite_kwh = self.batterie.get('capacite_kwh', 0)
+            tension_v = self.batterie.get('tension_nominale', 48)
+            c.drawString(batterie_x + 1.2*cm, batterie_y + 0.1*cm, 
+                        f"{capacite_kwh:.1f}kWh | {tension_v}V DC")
+            c.drawString(batterie_x + 1.2*cm, batterie_y - 0.4*cm, 
+                        f"BMS intégré | Li-Ion")
+            
+            # Connexion onduleur ↔ batterie (liaison DC bidirectionnelle)
+            c.setStrokeColor(colors.HexColor('#9400D3'))  # Violet pour batterie
+            c.setLineWidth(2)
+            c.line(onduleur_x + 1*cm, onduleur_y, batterie_x - 0.8*cm, batterie_y)
+            
+            # Annotations liaison batterie
+            c.setFont("Helvetica", 5)
+            c.setFillColor(colors.HexColor('#9400D3'))
+            c.drawString(onduleur_x + 2*cm, onduleur_y - 0.8*cm, "DC Batterie")
+            c.setFillColor(colors.black)
+            c.setStrokeColor(colors.black)
+            
+            # Protection batterie (fusible/disjoncteur DC)
+            fusible_bat_x = (onduleur_x + batterie_x) / 2
+            fusible_bat_y = onduleur_y
+            SymbolesElectriques.fusible(c, fusible_bat_x, fusible_bat_y, orientation='horizontal')
+            calibre_fusible_bat = int(capacite_kwh * 1000 / tension_v * 1.5) if capacite_kwh > 0 else 50
+            c.setFont("Helvetica", 5)
+            c.drawString(fusible_bat_x - 0.5*cm, fusible_bat_y + 5*mm, f"{calibre_fusible_bat}A")
+            
+            # Parafoudre DC batterie (en dessous)
+            para_bat_y = batterie_y - 2*cm
+            SymbolesElectriques.parafoudre(c, batterie_x, para_bat_y, orientation='vertical')
+            c.setFont("Helvetica", 5)
+            c.drawString(batterie_x + 5*mm, para_bat_y - 5*mm, "SPD Type 2")
+            
+            # Terre batterie
+            terre_bat_y = para_bat_y - 15*mm
+            SymbolesElectriques.terre(c, batterie_x, terre_bat_y)
         
         # === 5. CÂBLE AC ONDULEUR → PROTECTIONS ===
         
