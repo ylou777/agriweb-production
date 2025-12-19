@@ -806,54 +806,101 @@ class SchemaUnifilaire:
         
         c.setFillColor(colors.black)
         
-        # === 1. CHAMP PHOTOVOLTAÏQUE (STRINGS GROUPÉS) ===
+        # === 1. CHAMP PHOTOVOLTAÏQUE (STRINGS EN PARALLÈLE) ===
         
-        # Regrouper tous les strings en un seul bloc avec symbole
         nb_strings_total = len(self.configuration_strings)
         puissance_totale_strings = sum(s['puissance_wc'] for s in self.configuration_strings) / 1000
         
-        # Symbole module PV principal (représentant tous les strings)
-        SymbolesElectriques.string_pv(c, strings_x, strings_y, 
-                                     nb_modules=self.nb_modules_total, 
-                                     compact=True)
+        # Afficher 3 strings représentatifs en parallèle (pour illustration)
+        # Espacement horizontal entre strings
+        espacement_strings = 2.5*cm
+        nb_strings_affichés = min(3, nb_strings_total)  # Afficher max 3 strings
         
-        # Annotations résumé global - à droite du symbole
+        # Position de départ (centrer les strings affichés)
+        start_x = strings_x - ((nb_strings_affichés - 1) * espacement_strings / 2)
+        
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(strings_x + 2*cm, strings_y + 0.5*cm, 
-                    f"{nb_strings_total} String{'s' if nb_strings_total > 1 else ''}")
+        c.drawString(strings_x + 3*cm, strings_y + 0.8*cm, 
+                    f"{nb_strings_total} String{'s' if nb_strings_total > 1 else ''} en parallèle")
         c.setFont("Helvetica", 6)
-        c.drawString(strings_x + 2*cm, strings_y, 
-                    f"{self.nb_modules_total}×{int(self.module_puissance)}Wc")
-        c.drawString(strings_x + 2*cm, strings_y - 0.5*cm, 
-                    f"= {puissance_totale_strings:.2f}kWc")
+        c.drawString(strings_x + 3*cm, strings_y + 0.3*cm, 
+                    f"{self.nb_modules_total}×{int(self.module_puissance)}Wc = {puissance_totale_strings:.2f}kWc")
         
-        # Tension/courant totaux
         if self.configuration_strings:
             v_mpp_moy = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
             i_sc_total = sum(s['i_sc'] for s in self.configuration_strings)
-            c.drawString(strings_x + 2*cm, strings_y - 1*cm, 
+            c.drawString(strings_x + 3*cm, strings_y - 0.2*cm, 
                         f"Vmpp:{v_mpp_moy:.1f}V")
-            c.drawString(strings_x + 2*cm, strings_y - 1.5*cm, 
+            c.drawString(strings_x + 3*cm, strings_y - 0.7*cm, 
                         f"Isc:{i_sc_total:.1f}A")
         
-        # Fusible (si requis) - positionné entre strings et boîte
-        if 'Non requis' not in self.fusibles_strings:
-            fusible_x = strings_x
-            fusible_y = strings_y - 2.5*cm
-            SymbolesElectriques.fusible(c, fusible_x, fusible_y, orientation='vertical')
-            c.setFont("Helvetica", 6)
-            c.setFillColor(colors.black)
-            c.drawString(fusible_x + 8*mm, fusible_y, 
-                        self.fusibles_strings.split('A')[0].strip() + 'A')
-            # Ligne strings → fusible (vertical)
-            c.setStrokeColor(colors.red)
-            c.setLineWidth(2.5)
-            c.line(strings_x, strings_y - 1*cm, fusible_x, fusible_y + 6*mm)
-            cable_start_x = fusible_x
-            cable_start_y = fusible_y - 8*mm
-        else:
-            cable_start_x = strings_x
-            cable_start_y = strings_y - 1*cm
+        # Dessiner chaque string avec son fusible
+        strings_y_bottom = []
+        for i in range(nb_strings_affichés):
+            string_x = start_x + i * espacement_strings
+            
+            # Symbole string (module PV)
+            SymbolesElectriques.string_pv(c, string_x, strings_y, 
+                                         nb_modules=self.configuration_strings[0]['nb_modules'], 
+                                         compact=True)
+            
+            # Annotation nombre de modules au-dessus
+            c.setFont("Helvetica", 5)
+            c.drawString(string_x - 0.3*cm, strings_y + 1.2*cm, 
+                        f"×{self.configuration_strings[i]['nb_modules']}")
+            
+            # Fusible sous chaque string (si requis)
+            if 'Non requis' not in self.fusibles_strings:
+                fusible_y = strings_y - 1.8*cm
+                SymbolesElectriques.fusible(c, string_x, fusible_y, orientation='vertical')
+                
+                # Annotation fusible
+                calibre_fusible = self.fusibles_strings.split('A')[0].strip()
+                c.setFont("Helvetica", 5)
+                c.drawString(string_x + 5*mm, fusible_y, f"{calibre_fusible}A")
+                
+                # Ligne string → fusible
+                c.setStrokeColor(colors.red)
+                c.setLineWidth(1.5)
+                c.line(string_x, strings_y - 0.8*cm, string_x, fusible_y + 6*mm)
+                c.line(string_x, fusible_y - 8*mm, string_x, fusible_y - 1.2*cm)
+                
+                strings_y_bottom.append((string_x, fusible_y - 1.2*cm))
+            else:
+                c.setStrokeColor(colors.red)
+                c.setLineWidth(1.5)
+                c.line(string_x, strings_y - 0.8*cm, string_x, strings_y - 2*cm)
+                strings_y_bottom.append((string_x, strings_y - 2*cm))
+        
+        # Points de suspension si plus de 3 strings
+        if nb_strings_total > 3:
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(start_x + 3 * espacement_strings, strings_y - 1*cm, "...")
+        
+        # Regroupement des strings vers la boîte DC (collecteur horizontal)
+        c.setStrokeColor(colors.red)
+        c.setLineWidth(2.5)
+        
+        # Point de convergence (milieu)
+        convergence_y = strings_y - 3*cm
+        convergence_x = strings_x
+        
+        # Lignes verticales depuis chaque string vers le collecteur
+        c.setLineWidth(1.5)
+        for x, y in strings_y_bottom:
+            c.line(x, y, x, convergence_y)
+        
+        # Ligne horizontale collecteur
+        c.setLineWidth(2.5)
+        min_x = min(x for x, _ in strings_y_bottom)
+        max_x = max(x for x, _ in strings_y_bottom)
+        c.line(min_x, convergence_y, max_x, convergence_y)
+        
+        # Ligne principale vers boîte DC
+        cable_start_x = convergence_x
+        cable_start_y = convergence_y
+        
+        c.setStrokeColor(colors.black)
         
         # === 2. BOÎTE DE JONCTION DC + PROTECTIONS ===
         
