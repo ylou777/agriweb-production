@@ -496,20 +496,20 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
                     clean_value(parking.get('lat')), clean_value(parking.get('lon')), clean_value(parking.get('surface_m2')),
                     clean_value(parking.get('surface_m2', 0)) / 10000 if clean_value(parking.get('surface_m2')) else None,
                     json.dumps(parking.get('parcelles', [])),
-                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')),
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
-                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking),
                     parking.get('amenity'), parking.get('shop'), parking.get('building'),
@@ -531,20 +531,20 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
                     clean_value(toiture.get('lat')), clean_value(toiture.get('lon')), clean_value(toiture.get('surface_m2')),
                     clean_value(toiture.get('surface_m2', 0)) / 10000 if clean_value(toiture.get('surface_m2')) else None,
                     json.dumps(toiture.get('parcelles', [])),
-                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')),
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
-                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture),
                     toiture.get('amenity'), toiture.get('shop'), toiture.get('building'),
@@ -566,20 +566,20 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
                     clean_value(friche.get('lat')), clean_value(friche.get('lon')), clean_value(friche.get('surface_m2')),
                     clean_value(friche.get('surface_m2', 0)) / 10000 if clean_value(friche.get('surface_m2')) else None,
                     json.dumps(friche.get('parcelles', [])),
-                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')),
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
-                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche),
                     friche.get('amenity'), friche.get('shop'), friche.get('building'),

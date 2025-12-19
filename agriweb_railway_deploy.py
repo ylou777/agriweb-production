@@ -11057,7 +11057,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'lon': coords[0],
                     'lat': coords[1],
                     'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('libelle') or ''
+                    'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or '',
+                    'puissance': pr.get('puissance') or pr.get('capacite') or pr.get('p_inst'),
+                    'etat': pr.get('etat') or pr.get('statut') or 'Actif'
                 }
             except Exception:
                 return {}
