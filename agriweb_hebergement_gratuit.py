@@ -15135,32 +15135,48 @@ def rapport_commune_complet():
                     return None
                 elif isinstance(obj, (str, int, float, bool)):
                     if isinstance(obj, str):
-                        # Échapper les backslashes et caractères problématiques
-                        return obj.replace('\\', '/').replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+                        # Nettoyer les caractères problématiques mais garder les données lisibles
+                        # Remplacer backslash simple par double backslash, mais éviter double échappement
+                        cleaned = obj.replace('\\', '\\\\') if '\\' in obj and '\\\\' not in obj else obj
+                        # Nettoyer les guillemets non échappés
+                        cleaned = cleaned.replace('"', '\\"') if '"' in cleaned and '\\"' not in cleaned else cleaned
+                        return cleaned
                     return obj
                 elif isinstance(obj, dict):
-                    return {k: clean_for_json(v) for k, v in obj.items()}
+                    return {str(k): clean_for_json(v) for k, v in obj.items()}
                 elif isinstance(obj, (list, tuple)):
                     return [clean_for_json(item) for item in obj]
                 else:
                     # Pour les objets non sérialisables, convertir en string
-                    return str(obj)
+                    try:
+                        return str(obj)
+                    except:
+                        return None
             
             try:
+                import json
                 # Nettoyer le rapport avant sérialisation
                 clean_rapport = clean_for_json(rapport)
-                return jsonify(clean_rapport)
+                # Utiliser json.dumps avec options robustes
+                json_str = json.dumps(clean_rapport, ensure_ascii=False, default=str, separators=(',', ':'))
+                return Response(json_str, mimetype='application/json; charset=utf-8')
             except Exception as json_error:
                 print(f"❌ [JSON] Erreur sérialisation JSON: {json_error}")
-                # Nettoyer les données pour éviter les erreurs d'échappement
-                import json
+                import traceback
+                traceback.print_exc()
+                # Dernière tentative: supprimer les données problématiques
                 try:
-                    # Utiliser ensure_ascii=False pour gérer les caractères spéciaux
-                    clean_json = json.dumps(clean_rapport, ensure_ascii=False, default=str)
-                    return Response(clean_json, mimetype='application/json')
-                except Exception as e2:
-                    print(f"❌ [JSON] Échec nettoyage: {e2}")
-                    raise json_error
+                    # Version minimale du rapport
+                    minimal_rapport = {
+                        'commune_info': rapport.get('commune_info', {}),
+                        'error': 'Données trop volumineuses ou contenant des caractères spéciaux',
+                        'message': 'Veuillez utiliser le format HTML pour consulter le rapport complet'
+                    }
+                    json_str = json.dumps(minimal_rapport, ensure_ascii=False, default=str)
+                    return Response(json_str, mimetype='application/json; charset=utf-8'), 500
+                except Exception as e3:
+                    print(f"❌ [JSON] Échec total: {e3}")
+                    return jsonify({"error": "Impossible de sérialiser le rapport", "details": str(json_error)}), 500
         
     except Exception as e:
         print(f"❌ [RAPPORT_COMPLET] Erreur inattendue: {e}")
