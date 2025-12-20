@@ -1651,7 +1651,16 @@
                         distance_m: {{ report.poste_bt.distance_m or 0 }},
                         lat: {{ report.poste_bt.lat or 0 }},
                         lon: {{ report.poste_bt.lon or 0 }},
-                        puissance: {{ report.poste_bt.puissance or 0 }}
+                        puissance: {{ report.poste_bt.puissance or 0 }},
+                        etat: '{{ report.poste_bt.etat or "Actif" }}',
+                        commune: '{{ report.poste_bt.commune or "" }}',
+                        code_commune: '{{ report.poste_bt.code_commune or "" }}',
+                        epci: '{{ report.poste_bt.epci or "" }}',
+                        code_epci: '{{ report.poste_bt.code_epci or "" }}',
+                        departement: '{{ report.poste_bt.departement or "" }}',
+                        code_departement: '{{ report.poste_bt.code_departement or "" }}',
+                        region: '{{ report.poste_bt.region or "" }}',
+                        code_region: '{{ report.poste_bt.code_region or "" }}'
                     },
                     {% endif %}
                     {% if report.poste_hta %}
@@ -1661,7 +1670,16 @@
                         distance_m: {{ report.poste_hta.distance_m or 0 }},
                         lat: {{ report.poste_hta.lat or 0 }},
                         lon: {{ report.poste_hta.lon or 0 }},
-                        puissance: {{ report.poste_hta.puissance or 0 }}
+                        puissance: {{ report.poste_hta.puissance or 0 }},
+                        etat: '{{ report.poste_hta.etat or "Actif" }}',
+                        commune: '{{ report.poste_hta.commune or "" }}',
+                        code_commune: '{{ report.poste_hta.code_commune or "" }}',
+                        epci: '{{ report.poste_hta.epci or "" }}',
+                        code_epci: '{{ report.poste_hta.code_epci or "" }}',
+                        departement: '{{ report.poste_hta.departement or "" }}',
+                        code_departement: '{{ report.poste_hta.code_departement or "" }}',
+                        region: '{{ report.poste_hta.region or "" }}',
+                        code_region: '{{ report.poste_hta.code_region or "" }}'
                     },
                     {% endif %}
                     lien_streetview: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={{ report.lat }},{{ report.lon }}`,

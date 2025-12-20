@@ -497,10 +497,14 @@ def register_crm_routes(app):
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
                         poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
@@ -509,8 +513,12 @@ def register_crm_routes(app):
                     json.dumps(parking.get('parcelles', [])),
                     clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
                     clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking),
                     parking.get('amenity'), parking.get('shop'), parking.get('building'),
                     parking.get('landuse'), parking.get('office'), parking.get('industrial')
@@ -532,10 +540,14 @@ def register_crm_routes(app):
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
                         poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
@@ -544,8 +556,12 @@ def register_crm_routes(app):
                     json.dumps(toiture.get('parcelles', [])),
                     clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
                     clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture),
                     toiture.get('amenity'), toiture.get('shop'), toiture.get('building'),
                     toiture.get('landuse'), toiture.get('office'), toiture.get('industrial')
@@ -567,10 +583,14 @@ def register_crm_routes(app):
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
                         poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
@@ -579,8 +599,12 @@ def register_crm_routes(app):
                     json.dumps(friche.get('parcelles', [])),
                     clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
                     clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche),
                     friche.get('amenity'), friche.get('shop'), friche.get('building'),
                     friche.get('landuse'), friche.get('office'), friche.get('industrial')

@@ -10224,6 +10224,26 @@ def rapport_map_point():
             if postes_bt:
                 report_data["postes"] = postes_bt
                 report_data["postes_bt"] = postes_bt
+                # Ajouter le poste BT le plus proche pour l'export CRM
+                if len(postes_bt) > 0:
+                    premier_poste = postes_bt[0]
+                    props = premier_poste.get('properties', {})
+                    report_data["poste_bt"] = {
+                        'nom': props.get('nom', ''),
+                        'distance_m': premier_poste.get('distance', 0),
+                        'lat': props.get('latitude'),
+                        'lon': props.get('longitude'),
+                        'puissance': props.get('puissance'),
+                        'etat': props.get('etat', 'Actif'),
+                        'commune': props.get('nom_commun', ''),
+                        'code_commune': props.get('code_commu', ''),
+                        'epci': props.get('nom_epci', ''),
+                        'code_epci': props.get('code_epci', ''),
+                        'departement': props.get('nom_depart', ''),
+                        'code_departement': props.get('code_depar', ''),
+                        'region': props.get('nom_region', ''),
+                        'code_region': props.get('code_regio', '')
+                    }
                 log_step("CONTEXT", f"Postes BT trouvés: {len(postes_bt)}", "SUCCESS")
                 # DEBUG: Afficher la structure du premier poste
                 if len(postes_bt) > 0:
@@ -10241,6 +10261,26 @@ def rapport_map_point():
             if postes_hta:
                 report_data["ht_postes"] = postes_hta
                 report_data["postes_hta"] = postes_hta
+                # Ajouter le poste HTA le plus proche pour l'export CRM
+                if len(postes_hta) > 0:
+                    premier_poste_hta = postes_hta[0]
+                    props_hta = premier_poste_hta.get('properties', {})
+                    report_data["poste_hta"] = {
+                        'nom': props_hta.get('nom', ''),
+                        'distance_m': premier_poste_hta.get('distance', 0),
+                        'lat': props_hta.get('latitude'),
+                        'lon': props_hta.get('longitude'),
+                        'puissance': props_hta.get('puissance'),
+                        'etat': props_hta.get('etat', 'Actif'),
+                        'commune': props_hta.get('nom_commun', ''),
+                        'code_commune': props_hta.get('code_commu', ''),
+                        'epci': props_hta.get('nom_epci', ''),
+                        'code_epci': props_hta.get('code_epci', ''),
+                        'departement': props_hta.get('nom_depart', ''),
+                        'code_departement': props_hta.get('code_depar', ''),
+                        'region': props_hta.get('nom_region', ''),
+                        'code_region': props_hta.get('code_regio', '')
+                    }
                 log_step("CONTEXT", f"Postes HTA trouvés: {len(postes_hta)}", "SUCCESS")
                 
         except Exception as e:
@@ -14131,7 +14171,15 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'fonction': pr.get('fonction') or pr.get('Fonction') or '',
                     'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
                     'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
-                    'type': pr.get('type') or pr.get('Type') or ''
+                    'type': pr.get('type') or pr.get('Type') or '',
+                    'commune': pr.get('nom_commun') or pr.get('commune') or '',
+                    'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
+                    'epci': pr.get('nom_epci') or '',
+                    'code_epci': pr.get('code_epci') or '',
+                    'departement': pr.get('nom_depart') or pr.get('departement') or '',
+                    'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
+                    'region': pr.get('nom_region') or pr.get('region') or '',
+                    'code_region': pr.get('code_regio') or pr.get('code_region') or ''
                 }
             except Exception:
                 return {}
