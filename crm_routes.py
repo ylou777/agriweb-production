@@ -504,7 +504,7 @@ def register_crm_routes(app):
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
@@ -547,7 +547,7 @@ def register_crm_routes(app):
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
@@ -590,7 +590,7 @@ def register_crm_routes(app):
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
