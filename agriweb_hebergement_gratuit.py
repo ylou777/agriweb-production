@@ -13823,7 +13823,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         
                         props = {
                             "surface_toiture_m2": round(surface_m2, 2),
-                            "min_distance_bt_m": round(d_bt, 2) if d_bt is not none else None,
+                            "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
                             "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None,
                             "poste_bt_proche": poste_bt_proche,
                             "poste_hta_proche": poste_hta_proche,
