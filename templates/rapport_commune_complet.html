@@ -288,8 +288,8 @@
                                     <th>Référence cadastrale</th>
                                     <th>Culture</th>
                                     <th>Surface (ha)</th>
-                                    <th>Distance BT</th>
-                                    <th>Distance HTA</th>
+                                    <th>BT le plus proche</th>
+                                    <th>HTA le plus proche</th>
                                     <th>Position</th>
                                     <th>Zoom</th>
                                 </tr>
@@ -321,15 +321,38 @@
                                     </td>
                                     <td>{{ "%.2f"|format(props.surface or 0) }}</td>
                                     <td>
-                                        {% if props.distance_bt %}
-                                            <span class="badge bg-success">{{ "%.0f"|format(props.distance_bt) }} m</span>
+                                        {% set bt = props.poste_bt_proche or {} %}
+                                        {% if bt.distance_m %}
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                {% if bt.commune %}🏘️ {{ bt.commune }}<br>{% endif %}
+                                                {% if bt.epci %}🏛️ {{ bt.epci }}<br>{% endif %}
+                                                {% if bt.departement %}📍 {{ bt.departement }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if props.distance_hta %}
-                                            <span class="badge bg-info">{{ "%.0f"|format(props.distance_hta) }} m</span>
+                                        {% set hta = props.poste_hta_proche or {} %}
+                                        {% if hta.distance_m %}
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                {% if hta.commune %}🏘️ {{ hta.commune }}<br>{% endif %}
+                                                {% if hta.epci %}🏛️ {{ hta.epci }}<br>{% endif %}
+                                                {% if hta.departement %}📍 {{ hta.departement }}<br>{% endif %}
+                                                📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
