@@ -14766,12 +14766,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
             if (last_map_params or {}).get("html"):
                 # Utilise l'endpoint /generated_map qui renvoie le HTML en mémoire
                 rapport["carte_url"] = "/generated_map"
-                try:
-                    rapport["carte_static_url"] = (
-                        f"https://staticmap.openstreetmap.de/staticmap.php?center={lat},{lon}&zoom=13&size=800x500&maptype=mapnik"
-                    )
-                except Exception:
-                    pass
+                # Note: carte_static_url désactivée car staticmap.openstreetmap.de n'est plus disponible
                 # On saute la (re)génération d'une autre carte
                 raise StopIteration()
 
@@ -14914,13 +14909,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 rapport["carte_url"] = f"/static/{carte_rel}"
             except Exception as _:
                 rapport.setdefault("carte_url", "/static/map.html")
-            # Provide a simple static map URL for printing fallback
-            try:
-                rapport["carte_static_url"] = (
-                    f"https://staticmap.openstreetmap.de/staticmap.php?center={lat},{lon}&zoom=13&size=800x500&maptype=mapnik"
-                )
-            except Exception:
-                pass
+            # Note: carte_static_url désactivée car staticmap.openstreetmap.de n'est plus disponible
         except StopIteration:
             # Carte de recherche utilisée, rien d'autre à faire
             pass
