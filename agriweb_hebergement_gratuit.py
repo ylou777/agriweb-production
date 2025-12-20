@@ -4160,11 +4160,24 @@ def get_all_postes(lat, lon, radius_deg=0.1):
         geom_shp = shape(feature["geometry"])
         dist = geom_shp.distance(point) * 111000  # Conversion en mètres
         props = feature["properties"].copy() if feature.get("properties") else {}
+        
+        # Extraction des coordonnées de la géométrie
+        coords = feature["geometry"].get("coordinates", [])
+        poste_lon, poste_lat = coords[0], coords[1] if len(coords) >= 2 else (None, None)
+        
+        # Normalisation des propriétés pour le rapport
+        props["nom"] = props.get("nom") or props.get("nom_commun") or props.get("lib_poste") or props.get("libelle") or "Poste BT"
+        props["etat"] = props.get("etat") or props.get("statut") or "Actif"
+        props["puissance"] = props.get("puissance") or props.get("capacite") or props.get("p_inst") or "N/A"
+        props["latitude"] = poste_lat
+        props["longitude"] = poste_lon
         props["distance"] = round(dist, 2)
+        
         postes.append({
             "type": "Feature",
             "properties": props,
-            "geometry": mapping(geom_shp)
+            "geometry": mapping(geom_shp),
+            "distance": round(dist, 2)  # Aussi en racine pour compatibilité template
         })
     # print(f"[DEBUG] {len(postes)} postes trouvés, distances: {[p['distance'] for p in postes[:3]]}")  # Optimisé pour performance
     return postes  # Pas de slicing ici
@@ -10212,6 +10225,17 @@ def rapport_map_point():
                 report_data["postes"] = postes_bt
                 report_data["postes_bt"] = postes_bt
                 log_step("CONTEXT", f"Postes BT trouvés: {len(postes_bt)}", "SUCCESS")
+                # DEBUG: Afficher la structure du premier poste
+                if len(postes_bt) > 0:
+                    print(f"🔍 [DEBUG POSTE BT] Structure premier poste:")
+                    print(f"  - Type: {postes_bt[0].get('type')}")
+                    print(f"  - Distance racine: {postes_bt[0].get('distance')}")
+                    print(f"  - Properties keys: {list(postes_bt[0].get('properties', {}).keys())}")
+                    print(f"  - Nom: {postes_bt[0].get('properties', {}).get('nom')}")
+                    print(f"  - Latitude: {postes_bt[0].get('properties', {}).get('latitude')}")
+                    print(f"  - Longitude: {postes_bt[0].get('properties', {}).get('longitude')}")
+                    print(f"  - Etat: {postes_bt[0].get('properties', {}).get('etat')}")
+                    print(f"  - Puissance: {postes_bt[0].get('properties', {}).get('puissance')}")
             
             postes_hta = get_nearest_ht_postes(lat_float, lon_float) or []
             if postes_hta:

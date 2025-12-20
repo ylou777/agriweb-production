@@ -864,11 +864,15 @@
                             </div>
                             <div class="card-body">
                                 <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
+                                    <table class="table table-sm table-hover">
+                                        <thead class="table-light">
                                             <tr>
                                                 <th>Nom du poste</th>
                                                 <th>Distance</th>
+                                                <th>Commune</th>
+                                                <th>EPCI</th>
+                                                <th>Département</th>
+                                                <th>Région</th>
                                                 <th>Coordonnées GPS</th>
                                                 <th>Statut</th>
                                                 <th>Puissance</th>
@@ -877,13 +881,37 @@
                                         <tbody>
                                             {% for poste in report.postes_bt %}
                                             <tr>
-                                                <td>{{ poste.get('properties', {}).get('nom', 'Poste BT') }}</td>
+                                                <td><strong>{{ poste.get('properties', {}).get('nom', 'Poste BT') }}</strong></td>
                                                 <td>
                                                     {% if poste.get('distance') is not none %}
-                                                        <span class="distance-badge">{{ "%.0f"|format(poste.get('distance', 0)) }} m</span>
+                                                        <span class="distance-badge">{{ "%.1f"|format(poste.get('distance', 0)) }} m</span>
                                                     {% else %}
                                                         <span class="text-muted">N/A</span>
                                                     {% endif %}
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        {{ poste.get('properties', {}).get('nom_commun', 'N/A') }}
+                                                        <br><span class="text-muted">Code: {{ poste.get('properties', {}).get('code_commu', 'N/A') }}</span>
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        {{ poste.get('properties', {}).get('nom_epci', 'N/A') }}
+                                                        <br><span class="text-muted">Code: {{ poste.get('properties', {}).get('code_epci', 'N/A') }}</span>
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        {{ poste.get('properties', {}).get('nom_depart', 'N/A') }}
+                                                        <br><span class="text-muted">{{ poste.get('properties', {}).get('code_depar', 'N/A') }}</span>
+                                                    </small>
+                                                </td>
+                                                <td>
+                                                    <small>
+                                                        {{ poste.get('properties', {}).get('nom_region', 'N/A') }}
+                                                        <br><span class="text-muted">{{ poste.get('properties', {}).get('code_regio', 'N/A') }}</span>
+                                                    </small>
                                                 </td>
                                                 <td>
                                                     {% set lat = poste.get('properties', {}).get('latitude') %}
