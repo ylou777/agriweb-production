@@ -15127,7 +15127,19 @@ def rapport_commune_complet():
             })
         else:
             # Format JSON par défaut (pour les appels API)
-            return jsonify(rapport)
+            try:
+                return jsonify(rapport)
+            except Exception as json_error:
+                print(f"❌ [JSON] Erreur sérialisation JSON: {json_error}")
+                # Nettoyer les données pour éviter les erreurs d'échappement
+                import json
+                try:
+                    # Utiliser ensure_ascii=False pour gérer les caractères spéciaux
+                    clean_json = json.dumps(rapport, ensure_ascii=False, default=str)
+                    return Response(clean_json, mimetype='application/json')
+                except Exception as e2:
+                    print(f"❌ [JSON] Échec nettoyage: {e2}")
+                    raise json_error
         
     except Exception as e:
         print(f"❌ [RAPPORT_COMPLET] Erreur inattendue: {e}")
