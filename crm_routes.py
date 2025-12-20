@@ -618,19 +618,36 @@ def register_crm_routes(app):
             
             # Exporter les parcelles RPG
             for rpg in data.get('rpg', []):
+                poste_bt = rpg.get('poste_bt_proche', {})
+                poste_hta = rpg.get('poste_hta_proche', {})
+                
                 result = execute_query('''
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_hta_distance_m, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
+                        data_json
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parcelle_rpg', rpg.get('commune'), rpg.get('departement'), rpg.get('adresse'),
                     rpg.get('latitude'), rpg.get('longitude'),
                     rpg.get('surface', 0) * 10000 if rpg.get('surface') else None,
                     rpg.get('surface'), rpg.get('parcelle_cadastrale'),
-                    rpg.get('distance_bt'), rpg.get('distance_hta'), json.dumps(rpg)
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
+                    clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
+                    clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
+                    json.dumps(rpg)
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
