@@ -15127,15 +15127,36 @@ def rapport_commune_complet():
             })
         else:
             # Format JSON par défaut (pour les appels API)
+            
+            # Fonction de nettoyage récursif pour éviter les erreurs JSON
+            def clean_for_json(obj):
+                """Nettoie récursivement un objet pour le rendre JSON-safe"""
+                if obj is None:
+                    return None
+                elif isinstance(obj, (str, int, float, bool)):
+                    if isinstance(obj, str):
+                        # Échapper les backslashes et caractères problématiques
+                        return obj.replace('\\', '/').replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
+                    return obj
+                elif isinstance(obj, dict):
+                    return {k: clean_for_json(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [clean_for_json(item) for item in obj]
+                else:
+                    # Pour les objets non sérialisables, convertir en string
+                    return str(obj)
+            
             try:
-                return jsonify(rapport)
+                # Nettoyer le rapport avant sérialisation
+                clean_rapport = clean_for_json(rapport)
+                return jsonify(clean_rapport)
             except Exception as json_error:
                 print(f"❌ [JSON] Erreur sérialisation JSON: {json_error}")
                 # Nettoyer les données pour éviter les erreurs d'échappement
                 import json
                 try:
                     # Utiliser ensure_ascii=False pour gérer les caractères spéciaux
-                    clean_json = json.dumps(rapport, ensure_ascii=False, default=str)
+                    clean_json = json.dumps(clean_rapport, ensure_ascii=False, default=str)
                     return Response(clean_json, mimetype='application/json')
                 except Exception as e2:
                     print(f"❌ [JSON] Échec nettoyage: {e2}")
