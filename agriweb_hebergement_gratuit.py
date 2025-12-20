@@ -7603,8 +7603,8 @@ def search_by_commune():
     request_count = len(search_by_commune.request_counter[client_ip])
     # print(f"[IP_TRACKING] IP: {client_ip}, Requêtes/minute: {request_count}")  # Optimisé pour performance
     
-    # Bloquer si trop de requêtes (plus de 20 par minute = suspect - AUGMENTÉ pour usage normal)
-    if request_count > 20:
+    # Bloquer si trop de requêtes (plus de 50 par minute = suspect - AUGMENTÉ pour rapport complexe)
+    if request_count > 50:
         search_by_commune.blocked_ips[client_ip] = (current_time, f"Trop de requêtes: {request_count}/min")
         # print(f"[AUTO_BLOCK] IP {client_ip} bloquée automatiquement")  # Optimisé pour performance
         return jsonify({
@@ -7629,7 +7629,7 @@ def search_by_commune():
         json.dumps(request_params, sort_keys=True).encode('utf-8')
     ).hexdigest()
     
-    cache_window = 120  # 120 secondes (2 minutes) pour éviter les boucles infinies
+    cache_window = 30  # 30 secondes pour éviter les loops tout en permettant rafraîchissements rapides
     
     # print(f"[ANTI-LOOP] === PROTECTION DOUBLE ACTIVE ===")  # Optimisé pour performance
     # print(f"[SIGNATURE] Signature requête: {request_signature}")  # Optimisé pour performance
