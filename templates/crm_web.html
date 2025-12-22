@@ -421,6 +421,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-info" onclick="generateCerfa()">
+                        <i class="bi bi-file-earmark-pdf"></i> Générer CERFA
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-primary" onclick="saveProspect()">
                         <i class="bi bi-save"></i> Enregistrer
@@ -1952,6 +1955,38 @@
             } catch (error) {
                 console.error('Erreur:', error);
                 showError('Erreur lors de la suppression');
+            }
+        }
+
+        async function generateCerfa() {
+            const id = document.getElementById('edit-id').value;
+            if (!id) return;
+            
+            try {
+                showSuccess('⏳ Génération du CERFA en cours...');
+                
+                const response = await fetch(`/api/crm/prospects/${id}/generate-cerfa`);
+                
+                if (response.ok) {
+                    // Télécharger le PDF
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `CERFA_Raccordement_${id}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showSuccess('✅ CERFA généré avec succès !');
+                } else {
+                    const error = await response.json();
+                    showError('Erreur lors de la génération du CERFA: ' + (error.error || 'Erreur inconnue'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la génération du CERFA');
             }
         }
 
