@@ -2903,8 +2903,20 @@ def register_crm_routes(app):
                 prospect['data_json'] = data_json
             
             # Générer la proposition professionnelle
-            proposition = PropositionProfessionnelle(prospect, calpinage, parametres)
-            buffer = proposition.generer_pdf()
+            try:
+                print(f"🔧 Création instance PropositionProfessionnelle...")
+                proposition = PropositionProfessionnelle(prospect, calpinage, parametres)
+                print(f"📄 Génération PDF...")
+                buffer = proposition.generer_pdf()
+                print(f"✅ PDF généré avec succès!")
+            except Exception as e:
+                import traceback
+                print(f"❌ Erreur dans PropositionProfessionnelle: {e}")
+                print(f"📊 Prospect: {prospect.get('id')} - {prospect.get('commune')}")
+                print(f"📊 Calpinage keys: {list(calpinage.keys()) if calpinage else 'None'}")
+                print(f"📊 Parametres: {parametres}")
+                traceback.print_exc()
+                raise
             
             buffer.seek(0)
             
