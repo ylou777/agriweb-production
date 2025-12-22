@@ -2876,12 +2876,12 @@ def register_crm_routes(app):
             # Préparer les paramètres pour la proposition
             parametres = {
                 'type_projet': data.get('type_projet', 'autoconsommation'),
-                'puissance_kwc': float(data.get('puissance_kwc', 100)),
-                'prix_kwc': float(data.get('prix_kwc', 850)),
-                'consommation_annuelle_kwh': float(data.get('consommation_annuelle_kwh', 0)),
-                'tarif_achat_kwh': float(data.get('tarif_achat_kwh', 0.20)),
-                'tarif_revente_kwh': float(data.get('tarif_revente_kwh', 0.13)),
-                'taux_autoconso': float(data.get('taux_autoconso', 70)),
+                'puissance_kwc': float(data.get('puissance_kwc', 100)) if data.get('puissance_kwc') else 100.0,
+                'prix_kwc': float(data.get('prix_kwc', 850)) if data.get('prix_kwc') else 850.0,
+                'consommation_annuelle_kwh': float(data.get('consommation_annuelle_kwh', 0)) if data.get('consommation_annuelle_kwh') else 0.0,
+                'tarif_achat_kwh': float(data.get('tarif_achat_kwh', 0.20)) if data.get('tarif_achat_kwh') else 0.20,
+                'tarif_revente_kwh': float(data.get('tarif_revente_kwh', 0.13)) if data.get('tarif_revente_kwh') else 0.13,
+                'taux_autoconso': float(data.get('taux_autoconso', 70)) if data.get('taux_autoconso') else 70.0,
                 'pvgis_hourly_data': data.get('pvgis_hourly_data'),  # Optionnel
                 'enedis_hourly_data': data.get('enedis_hourly_data'),  # Optionnel
             }
