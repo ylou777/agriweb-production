@@ -1110,27 +1110,359 @@ class PropositionProfessionnelle:
         return elements
     
     def _etude_financiere(self):
-        """PAGE 7: Étude financière complète"""
+        """PAGE 7: Étude financière approfondie professionnelle"""
         elements = []
         
-        elements.append(Paragraph("5. ÉTUDE FINANCIÈRE ET RENTABILITÉ", self.styles['TitrePrincipal']))
+        elements.append(Paragraph("6. ÉTUDE FINANCIÈRE APPROFONDIE", self.styles['TitrePrincipal']))
         elements.append(Spacer(1, 0.5*cm))
         
-        # Récupérer les paramètres
+        # ========== 6.1 INVESTISSEMENT INITIAL ==========
+        elements.append(Paragraph("6.1. Investissement Initial Détaillé", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
         puissance = self.params.get('puissance_kwc', 0)
         prix_kwc = self.params.get('prix_kwc', 850)
         type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
         
+        # Décomposition investissement
+        prix_modules_total = puissance * 250  # ~250€/kWc pour modules
+        prix_onduleurs = puissance * 150      # ~150€/kWc pour onduleurs
+        prix_structure = puissance * 120      # ~120€/kWc pour structure
+        prix_elec_protection = puissance * 100  # ~100€/kWc protections
+        prix_cablage = puissance * 50         # ~50€/kWc câblage
+        prix_main_oeuvre = puissance * 180    # ~180€/kWc pose
+        
         investissement_ht = puissance * prix_kwc
-        investissement_ttc = investissement_ht * 1.10  # TVA 10%
+        tva = investissement_ht * 0.10  # TVA 10%
+        investissement_ttc = investissement_ht + tva
         
-        production_annuelle = puissance * 1100
+        invest_data = [
+            ['<b>Poste de dépense</b>', '<b>Prix unitaire</b>', '<b>Montant HT</b>'],
+            [f'Modules photovoltaïques ({puissance:.1f} kWc)', f'{250} €/kWc', f'{prix_modules_total:,.2f} €'],
+            [f'Onduleur(s) et convertisseurs', f'{150} €/kWc', f'{prix_onduleurs:,.2f} €'],
+            [f'Structures de fixation + étanchéité', f'{120} €/kWc', f'{prix_structure:,.2f} €'],
+            [f'Protections électriques (AGCP, diff., parafoudres)', f'{100} €/kWc', f'{prix_elec_protection:,.2f} €'],
+            [f'Câblage DC/AC + chemins câbles', f'{50} €/kWc', f'{prix_cablage:,.2f} €'],
+            [f'Main d\'œuvre qualifiée + mise en service', f'{180} €/kWc', f'{prix_main_oeuvre:,.2f} €'],
+            ['', '<b>TOTAL HT</b>', f'<b>{investissement_ht:,.2f} €</b>'],
+            ['', 'TVA 10%', f'{tva:,.2f} €'],
+            ['', '<b>TOTAL TTC</b>', f'<b>{investissement_ttc:,.2f} €</b>'],
+        ]
         
-        # Section selon type de raccordement
-        if type_raccordement == 'injection_totale':
-            elements.extend(self._section_vente_totale(investissement_ht, production_annuelle))
-        else:  # autoconso_injection ou autoconso_sans_injection
-            elements.extend(self._section_autoconsommation(investissement_ht, production_annuelle, type_raccordement))
+        invest_table = Table(invest_data, colWidths=[9*cm, 3.5*cm, 3.5*cm])
+        invest_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('BACKGROUND', (0, -3), (-1, -3), colors.HexColor('#e3f2fd')),
+            ('FONTNAME', (0, -3), (-1, -3), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#1976d2')),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.whitesmoke),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ]))
+        elements.append(invest_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.2 REVENUS PRÉVISIONNELS ==========
+        elements.append(Paragraph("6.2. Revenus Prévisionnels Annuels", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        production_annuelle = puissance * 1100  # kWh/kWc/an (moyenne France)
+        consommation = self.params.get('consommation_annuelle_kwh', production_annuelle * 1.2)
+        taux_autoconso = self.params.get('taux_autoconso', 70) / 100
+        tarif_achat = self.params.get('tarif_achat_kwh', 0.20)
+        tarif_revente = self.params.get('tarif_revente_kwh', 0.13)
+        
+        energie_autoconsommee = production_annuelle * taux_autoconso
+        economie_autoconso = energie_autoconsommee * tarif_achat
+        
+        if type_raccordement == 'autoconso_sans_injection':
+            energie_revendue = 0
+            revenu_revente = 0
+        else:
+            energie_revendue = production_annuelle - energie_autoconsommee
+            revenu_revente = energie_revendue * tarif_revente
+        
+        gain_annuel_brut = economie_autoconso + revenu_revente
+        
+        # Coûts exploitation annuels
+        cout_maintenance = investissement_ht * 0.01  # 1% maintenance annuelle
+        cout_assurance = investissement_ht * 0.002   # 0.2% assurance
+        cout_raccordement_annuel = 30 if type_raccordement != 'autoconso_sans_injection' else 0  # TURPE
+        
+        cout_annuel_total = cout_maintenance + cout_assurance + cout_raccordement_annuel
+        gain_annuel_net = gain_annuel_brut - cout_annuel_total
+        
+        revenus_data = [
+            ['<b>Flux annuels</b>', '<b>Énergie (kWh)</b>', '<b>Prix (€/kWh)</b>', '<b>Montant (€)</b>'],
+            ['<b>REVENUS</b>', '', '', ''],
+            [f'Autoconsommation (économie)', f'{energie_autoconsommee:,.0f}', f'{tarif_achat:.3f}', f'{economie_autoconso:,.2f}'],
+            [f'Revente surplus', f'{energie_revendue:,.0f}', f'{tarif_revente:.3f}', f'{revenu_revente:,.2f}'],
+            ['<b>Total revenus bruts</b>', '', '', f'<b>{gain_annuel_brut:,.2f} €</b>'],
+            ['', '', '', ''],
+            ['<b>CHARGES EXPLOITATION</b>', '', '', ''],
+            [f'Maintenance préventive', '', '', f'-{cout_maintenance:,.2f}'],
+            [f'Assurance', '', '', f'-{cout_assurance:,.2f}'],
+            [f'Raccordement réseau (TURPE)', '', '', f'-{cout_raccordement_annuel:,.2f}'],
+            ['<b>Total charges</b>', '', '', f'<b>-{cout_annuel_total:,.2f} €</b>'],
+            ['', '', '', ''],
+            ['<b>GAIN NET ANNUEL</b>', '', '', f'<b>{gain_annuel_net:,.2f} €</b>'],
+        ]
+        
+        revenus_table = Table(revenus_data, colWidths=[7*cm, 3*cm, 2.5*cm, 3.5*cm])
+        revenus_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#c8e6c9')),
+            ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#a5d6a7')),
+            ('FONTNAME', (0, 4), (-1, 4), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#ffccbc')),
+            ('FONTNAME', (0, 6), (-1, 6), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 10), (-1, 10), colors.HexColor('#ffab91')),
+            ('FONTNAME', (0, 10), (-1, 10), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#4caf50')),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.whitesmoke),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ]))
+        elements.append(revenus_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.3 CASH-FLOW SUR 20 ANS ==========
+        elements.append(Paragraph("6.3. Cash-Flow et Amortissement sur 20 ans", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Calcul cash-flow avec dégradation modules et inflation électricité
+        taux_degradation = 0.005  # 0.5%/an dégradation modules
+        taux_inflation_elec = 0.04  # 4%/an augmentation prix électricité
+        
+        cashflow_data = [
+            ['<b>Année</b>', '<b>Production (kWh)</b>', '<b>Revenus (€)</b>', '<b>Charges (€)</b>', '<b>Cash-Flow (€)</b>', '<b>Cumulé (€)</b>']
+        ]
+        
+        cumul = -investissement_ttc
+        annee_retour_invest = 0
+        
+        for annee in range(1, 21):
+            # Production avec dégradation
+            prod_annee = production_annuelle * ((1 - taux_degradation) ** annee)
+            
+            # Revenus avec inflation
+            tarif_achat_annee = tarif_achat * ((1 + taux_inflation_elec) ** annee)
+            tarif_revente_annee = tarif_revente * ((1 + taux_inflation_elec) ** annee)
+            
+            eco_auto = (prod_annee * taux_autoconso) * tarif_achat_annee
+            rev_vente = (prod_annee * (1 - taux_autoconso)) * tarif_revente_annee if type_raccordement != 'autoconso_sans_injection' else 0
+            revenus_annee = eco_auto + rev_vente
+            
+            # Charges (maintenance indexée sur inflation)
+            charges_annee = cout_annuel_total * ((1 + 0.02) ** annee)  # 2% inflation charges
+            
+            # Cash-flow
+            cf_annee = revenus_annee - charges_annee
+            cumul += cf_annee
+            
+            # Détecter année retour investissement
+            if cumul > 0 and annee_retour_invest == 0:
+                annee_retour_invest = annee
+            
+            # Afficher seulement années clés pour ne pas surcharger
+            if annee in [1, 5, 10, 15, 20]:
+                cashflow_data.append([
+                    f'{annee}',
+                    f'{prod_annee:,.0f}',
+                    f'{revenus_annee:,.0f}',
+                    f'{charges_annee:,.0f}',
+                    f'{cf_annee:,.0f}',
+                    f'{cumul:,.0f}'
+                ])
+        
+        cashflow_table = Table(cashflow_data, colWidths=[2*cm, 3*cm, 2.5*cm, 2.5*cm, 2.5*cm, 3.5*cm])
+        cashflow_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(cashflow_table)
+        elements.append(Spacer(1, 0.3*cm))
+        
+        note_cashflow = f"""
+        <i><b>Note:</b> Hypothèses: dégradation modules 0.5%/an, inflation électricité 4%/an, inflation charges 2%/an.
+        Retour sur investissement estimé à <b>{annee_retour_invest} ans</b>. Cash-flow cumulé à 20 ans: <b>{cumul:,.0f} €</b></i>
+        """
+        elements.append(Paragraph(note_cashflow, self.styles['Normal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.4 INDICATEURS FINANCIERS ==========
+        elements.append(Paragraph("6.4. Indicateurs de Rentabilité", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Calcul TRI (Taux de Rentabilité Interne) simplifié
+        tri_simple = (gain_annuel_net / investissement_ttc) * 100
+        
+        # Calcul VAN (Valeur Actuelle Nette) avec taux actualisation 3%
+        taux_actualisation = 0.03
+        van = -investissement_ttc
+        for annee in range(1, 21):
+            prod_annee = production_annuelle * ((1 - taux_degradation) ** annee)
+            tarif_achat_annee = tarif_achat * ((1 + taux_inflation_elec) ** annee)
+            tarif_revente_annee = tarif_revente * ((1 + taux_inflation_elec) ** annee)
+            eco_auto = (prod_annee * taux_autoconso) * tarif_achat_annee
+            rev_vente = (prod_annee * (1 - taux_autoconso)) * tarif_revente_annee if type_raccordement != 'autoconso_sans_injection' else 0
+            revenus_annee = eco_auto + rev_vente
+            charges_annee = cout_annuel_total * ((1 + 0.02) ** annee)
+            cf_annee = revenus_annee - charges_annee
+            van += cf_annee / ((1 + taux_actualisation) ** annee)
+        
+        # Temps retour simple
+        temps_retour = investissement_ttc / gain_annuel_net if gain_annuel_net > 0 else 0
+        
+        # Économies totales 25 ans (durée de vie)
+        economies_25ans = cumul + (gain_annuel_net * 5)  # Approximation années 21-25
+        
+        indicateurs_data = [
+            ['<b>Indicateur</b>', '<b>Valeur</b>', '<b>Interprétation</b>'],
+            ['Temps de retour simple', f'{temps_retour:.1f} ans', 'Sans actualisation ni inflation'],
+            ['Temps de retour réel', f'{annee_retour_invest} ans', 'Avec dégradation + inflation électricité'],
+            ['Taux de Rentabilité Interne (TRI)', f'{tri_simple:.1f}%', 'Excellent si > 8%'],
+            ['Valeur Actuelle Nette (VAN 20 ans)', f'{van:,.0f} €', 'Taux actualisation 3%'],
+            ['Cash-flow cumulé (20 ans)', f'{cumul:,.0f} €', 'Gain net actualisé'],
+            ['Économies totales (25 ans)', f'{economies_25ans:,.0f} €', 'Durée de vie modules'],
+            ['Prix kWh solaire sur 25 ans', f'{investissement_ttc / (production_annuelle * 25):.3f} €/kWh', f'vs {tarif_achat:.3f} €/kWh réseau'],
+        ]
+        
+        indicateurs_table = Table(indicateurs_data, colWidths=[6*cm, 4*cm, 6*cm])
+        indicateurs_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(indicateurs_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.5 ANALYSE DE SENSIBILITÉ ==========
+        elements.append(Paragraph("6.5. Analyse de Sensibilité", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        sensi_intro = """
+        L'analyse de sensibilité permet d'évaluer l'impact des variations de paramètres clés sur la rentabilité du projet.
+        Trois scénarios sont présentés : pessimiste, central (base de calcul), et optimiste.
+        """
+        elements.append(Paragraph(sensi_intro, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Scénarios
+        scenarios = {
+            'Pessimiste': {
+                'taux_autoconso': taux_autoconso * 0.85,
+                'inflation_elec': 0.02,
+                'degradation': 0.007,
+            },
+            'Central': {
+                'taux_autoconso': taux_autoconso,
+                'inflation_elec': 0.04,
+                'degradation': 0.005,
+            },
+            'Optimiste': {
+                'taux_autoconso': min(taux_autoconso * 1.15, 0.95),
+                'inflation_elec': 0.06,
+                'degradation': 0.003,
+            }
+        }
+        
+        scenarios_data = [
+            ['<b>Scénario</b>', '<b>Autoconso</b>', '<b>Inflation élec</b>', '<b>Temps retour</b>', '<b>VAN 20 ans</b>']
+        ]
+        
+        for nom_scenario, params_scenario in scenarios.items():
+            # Calcul VAN pour ce scénario
+            van_scenario = -investissement_ttc
+            for annee in range(1, 21):
+                prod_annee = production_annuelle * ((1 - params_scenario['degradation']) ** annee)
+                tarif_achat_annee = tarif_achat * ((1 + params_scenario['inflation_elec']) ** annee)
+                tarif_revente_annee = tarif_revente * ((1 + params_scenario['inflation_elec']) ** annee)
+                eco_auto = (prod_annee * params_scenario['taux_autoconso']) * tarif_achat_annee
+                rev_vente = (prod_annee * (1 - params_scenario['taux_autoconso'])) * tarif_revente_annee if type_raccordement != 'autoconso_sans_injection' else 0
+                revenus_annee = eco_auto + rev_vente
+                charges_annee = cout_annuel_total * ((1 + 0.02) ** annee)
+                cf_annee = revenus_annee - charges_annee
+                van_scenario += cf_annee / ((1 + taux_actualisation) ** annee)
+            
+            # Estimation temps retour (simplifié)
+            gain_scenario_an1 = (production_annuelle * params_scenario['taux_autoconso'] * tarif_achat * (1 + params_scenario['inflation_elec'])) - cout_annuel_total
+            temps_retour_scenario = investissement_ttc / gain_scenario_an1 if gain_scenario_an1 > 0 else 0
+            
+            scenarios_data.append([
+                nom_scenario,
+                f'{params_scenario["taux_autoconso"]*100:.0f}%',
+                f'{params_scenario["inflation_elec"]*100:.0f}%',
+                f'{temps_retour_scenario:.1f} ans',
+                f'{van_scenario:,.0f} €'
+            ])
+        
+        scenarios_table = Table(scenarios_data, colWidths=[3*cm, 3*cm, 3*cm, 3*cm, 4*cm])
+        scenarios_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffebee'), colors.white, colors.HexColor('#e8f5e9')]),
+            ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#fff9c4')),  # Scénario central en jaune
+        ]))
+        elements.append(scenarios_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.6 AIDES ET SUBVENTIONS ==========
+        elements.append(Paragraph("6.6. Aides Financières et Fiscalité", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        aides_text = """
+        <b>Aides potentiellement mobilisables :</b><br/><br/>
+        
+        <b>• Prime à l'autoconsommation (État) :</b><br/>
+        Pour les installations ≤ 100 kWc en autoconsommation avec revente du surplus.
+        Versée sur 5 ans par Enedis. Montant dégressif selon puissance (consulter arrêté tarifaire en vigueur).<br/><br/>
+        
+        <b>• Obligation d'Achat (OA) :</b><br/>
+        Contrat de rachat garanti sur 20 ans pour le surplus (autoconsommation) ou la totalité (vente totale).
+        Tarifs fixés par arrêté trimestriel de la CRE.<br/><br/>
+        
+        <b>• TVA réduite 10% :</b><br/>
+        Applicable aux installations photovoltaïques ≤ 3 kWc. Au-delà, TVA 20%.<br/><br/>
+        
+        <b>• Exonération fiscale :</b><br/>
+        Production vendue exonérée d'impôt sur le revenu si puissance ≤ 3 kWc et raccordement en 2 points maximum.<br/><br/>
+        
+        <b>• Aides régionales/départementales :</b><br/>
+        Certaines collectivités proposent des aides complémentaires. Renseignements auprès de l'ADEME ou de votre région.<br/><br/>
+        
+        <b>• Certificats d'Économie d'Énergie (CEE) :</b><br/>
+        Prime CEE pour isolation ou travaux complémentaires. Cumulable avec prime autoconsommation.<br/><br/>
+        
+        <i><b>Note:</b> Ces informations sont données à titre indicatif. Les conditions d'éligibilité et montants évoluent.
+        Vérification systématique des dispositifs en vigueur lors du dépôt du dossier.</i>
+        """
+        elements.append(Paragraph(aides_text, self.styles['CorpsJustifie']))
         
         return elements
     
