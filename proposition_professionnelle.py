@@ -29,6 +29,13 @@ class PropositionProfessionnelle:
         self.styles = getSampleStyleSheet()
         self._create_custom_styles()
         
+        # Extraire rapport_commune depuis data_json
+        try:
+            data_json = json.loads(prospect.get('data_json', '{}')) if isinstance(prospect.get('data_json'), str) else prospect.get('data_json', {})
+            self.rapport_commune = data_json.get('rapport_commune', {})
+        except:
+            self.rapport_commune = {}
+        
     def _create_custom_styles(self):
         """Créer des styles personnalisés professionnels"""
         
@@ -115,6 +122,12 @@ class PropositionProfessionnelle:
         
         story.extend(self._analyse_site())
         story.append(PageBreak())
+        
+        # Ajouter les vues du calepinage si disponibles
+        calepinage_section = self._vues_calepinage()
+        if calepinage_section:
+            story.extend(calepinage_section)
+            story.append(PageBreak())
         
         story.extend(self._solution_technique())
         story.append(PageBreak())
@@ -318,68 +331,294 @@ class PropositionProfessionnelle:
         return elements
     
     def _analyse_site(self):
-        """PAGE 4: Analyse du site"""
+        """PAGE 4: Analyse complète du site avec urbanisme et risques"""
         elements = []
         
-        elements.append(Paragraph("2. ANALYSE DU SITE ET DIAGNOSTIC", self.styles['TitrePrincipal']))
+        elements.append(Paragraph("2. ANALYSE COMPLÈTE DU SITE", self.styles['TitrePrincipal']))
         elements.append(Spacer(1, 0.5*cm))
         
-        # Localisation
+        # ========== 2.1 LOCALISATION ==========
         elements.append(Paragraph("2.1. Localisation", self.styles['Section']))
         
         localisation_text = f"""
         <b>Adresse:</b> {self.prospect.get('adresse', 'N/A')}<br/>
         <b>Commune:</b> {self.prospect.get('commune', 'N/A')} ({self.prospect.get('departement', '')})<br/>
-        <b>Coordonnées GPS:</b> {self.prospect.get('latitude', 'N/A'):.6f}, {self.prospect.get('longitude', 'N/A'):.6f}<br/>
+        <b>Code postal:</b> {self.prospect.get('code_postal', 'N/A')}<br/>
+        <b>Coordonnées GPS:</b> {self.prospect.get('latitude', 0):.6f}, {self.prospect.get('longitude', 0):.6f}<br/>
         <b>Zone climatique:</b> H2 (tempérée)<br/>
         <b>Irradiation annuelle:</b> 1400-1600 kWh/m²/an
         """
         elements.append(Paragraph(localisation_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # ========== 2.2 URBANISME ==========
+        if self.rapport_commune:
+            elements.append(Paragraph("2.2. Contexte Urbanistique", self.styles['Section']))
+            
+            # PLU / Document d'urbanisme
+            plu = self.rapport_commune.get('plu', {})
+            if plu:
+                urbanisme_data = [
+                    ['<b>Document d\'urbanisme</b>', '<b>Information</b>'],
+                    ['Type de document', plu.get('type', 'PLU')],
+                    ['Date d\'approbation', plu.get('date_approbation', 'N/A')],
+                    ['Zonage', plu.get('zonage', 'À déterminer')],
+                    ['Règlement applicable', plu.get('reglement_zone', 'Consultation PLU nécessaire')],
+                ]
+                
+                urbanisme_table = Table(urbanisme_data, colWidths=[7*cm, 9*cm])
+                urbanisme_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f0f0')])
+                ]))
+                elements.append(urbanisme_table)
+                elements.append(Spacer(1, 0.3*cm))
+            
+            # Servitudes et contraintes
+            servitudes = self.rapport_commune.get('servitudes', [])
+            if servitudes:
+                elements.append(Paragraph("<b>Servitudes d'utilité publique:</b>", self.styles['Normal']))
+                for serv in servitudes[:5]:  # Limiter à 5 servitudes
+                    elements.append(Paragraph(f"• {serv.get('nom', 'Servitude')} - {serv.get('description', '')}",
+                                            self.styles['Normal']))
+                elements.append(Spacer(1, 0.3*cm))
+            
+            # ABF / Monuments historiques
+            abf = self.rapport_commune.get('abf', {})
+            if abf and abf.get('perimetre_protection'):
+                abf_text = f"""
+                <b>⚠️ PÉRIMÈTRE DE PROTECTION ABF (Architecte des Bâtiments de France)</b><br/>
+                <b>Distance au monument:</b> {abf.get('distance_monument', 'N/A')} mètres<br/>
+                <b>Avis ABF requis:</b> {'Oui' if abf.get('avis_requis') else 'Non'}<br/>
+                <b>Recommandations:</b> Intégration architecturale soignée, modules noirs recommandés
+                """
+                elements.append(Paragraph(abf_text, self.styles['Encadre']))
+                elements.append(Spacer(1, 0.3*cm))
+        
         elements.append(Spacer(1, 0.3*cm))
         
-        # Caractéristiques du bâtiment
-        elements.append(Paragraph("2.2. Caractéristiques du site", self.styles['Section']))
+        # ========== 2.3 ANALYSE DES RISQUES ==========
+        elements.append(Paragraph("2.3. Analyse des Risques Naturels et Technologiques", self.styles['Section']))
+        
+        if self.rapport_commune:
+            risques = self.rapport_commune.get('risques', {})
+            
+            risques_data = [
+                ['<b>Type de risque</b>', '<b>Niveau</b>', '<b>Mesures prévues</b>'],
+            ]
+            
+            # Risque inondation
+            inondation = risques.get('inondation', {})
+            niveau_inond = inondation.get('niveau', 'Faible')
+            mesures_inond = 'Étanchéité renforcée des passages de câbles' if niveau_inond != 'Faible' else 'Installation standard'
+            risques_data.append(['Inondation', niveau_inond, mesures_inond])
+            
+            # Risque sismique
+            sismique = risques.get('sismique', {})
+            zone_sismique = sismique.get('zone', '2')
+            mesures_sismic = f'Fixations parasismiques zone {zone_sismique}' if int(zone_sismique) >= 3 else 'Fixations standard'
+            risques_data.append(['Sismique', f'Zone {zone_sismique}', mesures_sismic])
+            
+            # Risque retrait-gonflement argiles
+            argile = risques.get('argile', {})
+            niveau_argile = argile.get('niveau', 'Faible')
+            risques_data.append(['Retrait-gonflement argiles', niveau_argile, 'Surveillance structure'])
+            
+            # Risque industriel
+            industriel = risques.get('industriel', {})
+            if industriel.get('installations', []):
+                nb_install = len(industriel['installations'])
+                risques_data.append(['Industriel (ICPE)', f'{nb_install} installation(s)', 'Respect distances sécurité'])
+            
+            risques_table = Table(risques_data, colWidths=[5*cm, 4*cm, 7*cm])
+            risques_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#dc3545')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#fff0f0')])
+            ]))
+            elements.append(risques_table)
+        else:
+            elements.append(Paragraph("Analyse des risques en cours - Consultation Géorisques", self.styles['Normal']))
+        
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # ========== 2.4 CARACTÉRISTIQUES DU SITE ==========
+        elements.append(Paragraph("2.4. Caractéristiques du Bâtiment", self.styles['Section']))
         
         surface = self.prospect.get('surface_m2', 0)
         type_bat = self.prospect.get('type', 'N/A')
         
+        # Récupérer données calepinage si disponibles
+        zones = self.calpinage.get('zones', [])
+        nb_zones = len(zones)
+        
         batiment_text = f"""
         <b>Type de structure:</b> {type_bat.title()}<br/>
-        <b>Surface disponible:</b> {surface:,.0f} m²<br/>
-        <b>Type de toiture:</b> À déterminer lors de la visite technique<br/>
-        <b>Orientation:</b> Optimisée selon calepinage (Sud ±30°)<br/>
-        <b>Inclinaison:</b> Variable selon zones (25-35°)<br/>
-        <b>Ombrages:</b> Analyse détaillée nécessaire sur site
+        <b>Surface totale:</b> {surface:,.0f} m²<br/>
+        <b>Nombre de zones exploitables:</b> {nb_zones}<br/>
+        <b>Type de toiture:</b> À confirmer lors visite technique<br/>
+        <b>Orientation(s):</b> Optimisée selon calepinage (Sud ±30°)<br/>
+        <b>Inclinaison(s):</b> Variable selon zones (15-35°)
         """
         elements.append(Paragraph(batiment_text, self.styles['CorpsJustifie']))
         elements.append(Spacer(1, 0.3*cm))
         
-        # Raccordement
-        elements.append(Paragraph("2.3. Raccordement électrique", self.styles['Section']))
+        # ========== 2.5 RACCORDEMENT ÉLECTRIQUE ==========
+        elements.append(Paragraph("2.5. Raccordement Électrique", self.styles['Section']))
         
         distance_bt = self.prospect.get('poste_bt_distance_m', 'N/A')
         distance_hta = self.prospect.get('poste_hta_distance_m', 'N/A')
+        poste_bt_nom = self.prospect.get('poste_bt_nom', 'N/A')
+        poste_hta_nom = self.prospect.get('poste_hta_nom', 'N/A')
         
         raccordement_text = f"""
-        <b>Poste BT le plus proche:</b> {distance_bt} mètres<br/>
-        <b>Poste HTA le plus proche:</b> {distance_hta} mètres<br/>
-        <b>Puissance disponible:</b> À vérifier auprès d'Enedis<br/>
-        <b>Type de raccordement:</b> BT (< 250 kVA) ou HTA (> 250 kVA) selon puissance finale
+        <b>Poste BT le plus proche:</b> {poste_bt_nom} - {distance_bt} mètres<br/>
+        <b>Poste HTA le plus proche:</b> {poste_hta_nom} - {distance_hta} mètres<br/>
+        <b>Puissance installation:</b> {self.params.get('puissance_kwc', 0):.1f} kWc<br/>
+        <b>Type de raccordement:</b> BT (< 250 kVA) ou HTA (> 250 kVA) selon puissance finale<br/>
+        <b>Gestionnaire réseau:</b> Enedis<br/>
+        <b>Démarches:</b> Demande de raccordement (DDR) + Convention d'autoconsommation/CRAE
         """
         elements.append(Paragraph(raccordement_text, self.styles['CorpsJustifie']))
         
         # Encadré important
         important_text = """
-        <b>⚠️ NOTE IMPORTANTE:</b> Cette analyse préliminaire devra être confirmée par une visite technique 
-        approfondie incluant :
-        • Relevé précis des dimensions et orientations
-        • Analyse des ombrages (diagramme solaire)
-        • Vérification de la structure porteuse
-        • État du tableau électrique
-        • Contraintes d'urbanisme locales
+        <b>⚠️ VISITE TECHNIQUE APPROFONDIE NÉCESSAIRE</b><br/>
+        Cette analyse préliminaire devra être confirmée par une visite technique incluant :<br/>
+        • Relevé précis des dimensions et orientations de toiture(s)<br/>
+        • Analyse des ombrages (diagramme solaire, obstacles)<br/>
+        • Vérification de la structure porteuse (charpente, étanchéité)<br/>
+        • État du tableau électrique et schéma unifilaire existant<br/>
+        • Vérification conformité installations électriques<br/>
+        • Contraintes d'accès et conditions de pose
         """
         elements.append(Spacer(1, 0.5*cm))
         elements.append(Paragraph(important_text, self.styles['Encadre']))
+        
+        return elements
+    
+    def _vues_calepinage(self):
+        """Affiche les rendus 3D et plans du calepinage si disponibles"""
+        elements = []
+        
+        # Vérifier si on a des données de calepinage
+        if not self.calpinage or not self.calpinage.get('zones'):
+            return elements
+        
+        elements.append(Paragraph("2.6. VUES DU PROJET - CALEPINAGE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        intro_text = """
+        Les vues ci-dessous présentent l'implantation précise des modules photovoltaïques 
+        sur votre bâtiment, issues de notre outil de calepinage professionnel. Ces représentations 
+        3D et plans techniques ont été réalisées à partir des données cadastrales et images satellitaires.
+        """
+        elements.append(Paragraph(intro_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Récupérer les images du calepinage depuis data_json
+        try:
+            data_json = json.loads(self.prospect.get('data_json', '{}')) if isinstance(self.prospect.get('data_json'), str) else self.prospect.get('data_json', {})
+            calpinage_data = data_json.get('calpinage', {})
+            
+            # Image rendu 3D
+            image_3d = calpinage_data.get('image_3d')  # Base64 ou URL
+            if image_3d:
+                elements.append(Paragraph("<b>Vue 3D de l'installation</b>", self.styles['Section']))
+                # TODO: Convertir base64 en image ReportLab
+                # Pour l'instant, on affiche un placeholder
+                elements.append(Paragraph("[Image 3D du calepinage - à intégrer]", self.styles['Normal']))
+                elements.append(Spacer(1, 0.3*cm))
+            
+            # Plan de toiture avec modules
+            image_plan = calpinage_data.get('image_plan')  # Base64 ou URL
+            if image_plan:
+                elements.append(Paragraph("<b>Plan de toiture avec modules</b>", self.styles['Section']))
+                elements.append(Paragraph("[Plan de toiture - à intégrer]", self.styles['Normal']))
+                elements.append(Spacer(1, 0.3*cm))
+        except Exception as e:
+            print(f"⚠️ Erreur chargement images calepinage: {e}")
+        
+        # Tableau récapitulatif des zones
+        elements.append(Paragraph("<b>Répartition par zone</b>", self.styles['Section']))
+        elements.append(Spacer(1, 0.2*cm))
+        
+        zones = self.calpinage.get('zones', [])
+        module = self.calpinage.get('module', {})
+        puissance_module = float(module.get('puissance', 550))
+        
+        zones_data = [
+            ['<b>Zone</b>', '<b>Orientation</b>', '<b>Inclinaison</b>', '<b>Modules</b>', '<b>Puissance</b>']
+        ]
+        
+        for i, zone in enumerate(zones, 1):
+            orientation = zone.get('orientation', 'N/A')
+            inclinaison = zone.get('inclinaison', 'N/A')
+            nb_modules = zone.get('nbModules', 0)
+            puissance_zone = nb_modules * puissance_module / 1000
+            
+            zones_data.append([
+                f'Zone {i}',
+                f'{orientation}°',
+                f'{inclinaison}°',
+                str(nb_modules),
+                f'{puissance_zone:.2f} kWc'
+            ])
+        
+        # Total
+        nb_modules_total = sum(z.get('nbModules', 0) for z in zones)
+        puissance_totale = nb_modules_total * puissance_module / 1000
+        zones_data.append([
+            '<b>TOTAL</b>',
+            '',
+            '',
+            f'<b>{nb_modules_total}</b>',
+            f'<b>{puissance_totale:.2f} kWc</b>'
+        ])
+        
+        zones_table = Table(zones_data, colWidths=[3*cm, 3*cm, 3*cm, 2.5*cm, 3.5*cm])
+        zones_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#28a745')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f0f8f0')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d4edda')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        elements.append(zones_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Caractéristiques techniques
+        config_elec = self.calpinage.get('configuration_electrique', {})
+        if config_elec:
+            elements.append(Paragraph("<b>Configuration électrique</b>", self.styles['Section']))
+            elements.append(Spacer(1, 0.2*cm))
+            
+            strings = config_elec.get('strings', [])
+            nb_strings = len(strings)
+            nb_onduleurs = len(self.calpinage.get('equipments', {}).get('onduleurs', []))
+            
+            config_text = f"""
+            <b>Nombre de strings:</b> {nb_strings}<br/>
+            <b>Nombre d'onduleurs:</b> {nb_onduleurs}<br/>
+            <b>Configuration:</b> {config_elec.get('type_configuration', 'Optimisée')}
+            """
+            elements.append(Paragraph(config_text, self.styles['CorpsJustifie']))
         
         return elements
     
