@@ -523,15 +523,15 @@ class PropositionProfessionnelle:
         protections_data = [
             ['<b>Équipement</b>', '<b>Spécification</b>', '<b>Norme</b>'],
             ['<b>PARTIE DC (Courant Continu)</b>', '', ''],
-            ['Sectionneur DC', config_elec.get('sectionneur_dc', '63A') + f' / {config_elec.get("type_cable_dc", "1000V DC")}', 'NF EN 60947-3'],
-            ['Parafoudre DC', config_elec.get('parafoudre_dc', 'Type 2') + f' (≤ {config_elec.get("resistance_terre", "100Ω")})', 'NF EN 61643-31'],
-            ['Boîte de jonction DC', config_elec.get('ip_boite_dc', 'IP65') + ' avec porte-fusibles', 'NF C 15-712'],
-            ['Fusibles strings (si requis)', config_elec.get('fusibles_strings', 'Selon calcul'), 'Type gPV'],
+            ['Sectionneur DC', str(config_elec.get('sectionneur_dc', '63A')) + f' / {config_elec.get("type_cable_dc", "1000V DC")}', 'NF EN 60947-3'],
+            ['Parafoudre DC', str(config_elec.get('parafoudre_dc', 'Type 2')) + f' (≤ {config_elec.get("resistance_terre", "100Ω")})', 'NF EN 61643-31'],
+            ['Boîte de jonction DC', str(config_elec.get('ip_boite_dc', 'IP65')) + ' avec porte-fusibles', 'NF C 15-712'],
+            ['Fusibles strings (si requis)', str(config_elec.get('fusibles_strings', 'Selon calcul')), 'Type gPV'],
             ['<b>PARTIE AC (Courant Alternatif)</b>', '', ''],
-            ['AGCP (Appareil Général)', config_elec.get('agcp', '63A') + ' courbe C, PdC 10kA', 'NF C 15-100'],
-            ['Disjoncteur différentiel', config_elec.get('disjoncteur_ac', '40A') + ' courbe C', 'NF EN 61008'],
-            ['Différentiel', config_elec.get('differentiel_ac', 'Type A 30mA'), 'NF C 15-100'],
-            ['Parafoudre AC', config_elec.get('parafoudre_ac', 'Type 2'), 'NF EN 61643-11'],
+            ['AGCP (Appareil Général)', str(config_elec.get('agcp', '63A')) + ' courbe C, PdC 10kA', 'NF C 15-100'],
+            ['Disjoncteur différentiel', str(config_elec.get('disjoncteur_ac', '40A')) + ' courbe C', 'NF EN 61008'],
+            ['Différentiel', str(config_elec.get('differentiel_ac', 'Type A 30mA')), 'NF C 15-100'],
+            ['Parafoudre AC', str(config_elec.get('parafoudre_ac', 'Type 2')), 'NF EN 61643-11'],
             ['Coffret TGBT', 'IP65 pré-câblé', 'NF C 15-100'],
         ]
         
