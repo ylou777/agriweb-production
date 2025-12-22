@@ -26182,3 +26182,18 @@ shapely.errors.GEOSException: TopologyException: side location conflict at 2.413
 2025-12-20 11:02:17,168 INFO 127.0.0.1 - - [20/Dec/2025 11:02:17] "GET /static/cartes/recherche_15_Rue_des_Lilas_75019_Paris_f6ab8b25_20251220_110149.html?cache=1766224934928 HTTP/1.1" 200 -
 2025-12-20 11:03:42,432 INFO 127.0.0.1 - - [20/Dec/2025 11:03:42] "GET /rapport_point?lat=48.878414&lon=2.395659&address=15+Rue+des+Lilas+75019+Paris&parcelle_numero=N/A&distance_poste_proche=28.5+m&zone_plu=N/A&irradiation_solaire=&altitude=&potentiel_solaire_count=0&potentiel_solaire_zones=&api_cadastre_success=true&api_cadastre_commune=Paris&api_cadastre_section=DY&api_cadastre_numero=0011&api_urbanisme_layers=17&api_urbanisme_features=1253&api_urbanisme_zones=acte-sup,assiette-sup-l,assiette-sup-p,assiette-sup-s,document,generateur-sup-l,generateur-sup-p,generateur-sup-s,info-lin,info-pct,info-surf,municipality,prescription-lin,prescription-pct,prescription-surf,secteur-cc,zone-urba&api_nature_success=false&api_nature_commune=&api_nature_dept=&api_nature_postal=&rpg_count=0&rpg_cultures=&rpg_surfaces=&parcelles_count=0&parcelles_sections=&plu_count=0&plu_zones=&plu_destdomi=&zaer_count=0&zaer_zones=&zaer_filieres=&postes_bt_count=1&postes_bt_distances=28.47&postes_hta_count=1&postes_hta_distances=1233.46&postes_hta_capacites=&capacites_reseau_count=1&sirene_count=632&sirene_activites=&eleveurs_count=0&parkings_count=0&friches_count=2&friches_types=&search_timestamp=1766224943985&data_source=search_by_address&search_radius=0.1&interface_version=3.2.1 HTTP/1.1" 200 -
 2025-12-20 11:03:43,063 INFO 127.0.0.1 - - [20/Dec/2025 11:03:43] "GET /static/cartes/rapport_15_Rue_des_Lilas_75019_Paris_1bcdc365_20251220_110327.html HTTP/1.1" 200 -
+2025-12-22 14:44:18,072 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2025-12-22 14:44:18,073 INFO [33mPress CTRL+C to quit[0m
+2025-12-22 14:44:29,761 INFO 127.0.0.1 - - [22/Dec/2025 14:44:29] "GET / HTTP/1.1" 200 -
+2025-12-22 14:44:35,546 INFO 127.0.0.1 - - [22/Dec/2025 14:44:35] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-12-22 14:44:37,513 INFO 127.0.0.1 - - [22/Dec/2025 14:44:37] "GET /auth/login HTTP/1.1" 200 -
+2025-12-22 14:44:42,012 INFO 127.0.0.1 - - [22/Dec/2025 14:44:42] "[32mPOST /auth/login HTTP/1.1[0m" 302 -
+2025-12-22 14:44:42,527 INFO 127.0.0.1 - - [22/Dec/2025 14:44:42] "GET /app HTTP/1.1" 200 -
+2025-12-22 14:44:45,379 INFO 127.0.0.1 - - [22/Dec/2025 14:44:45] "GET /static/autocomplete.css HTTP/1.1" 200 -
+2025-12-22 14:44:45,393 INFO 127.0.0.1 - - [22/Dec/2025 14:44:45] "GET /static/advanced_layer_control.css HTTP/1.1" 200 -
+2025-12-22 14:44:45,539 INFO 127.0.0.1 - - [22/Dec/2025 14:44:45] "GET /static/autocomplete.js HTTP/1.1" 200 -
+2025-12-22 14:44:46,114 INFO 127.0.0.1 - - [22/Dec/2025 14:44:46] "GET /static/map.html HTTP/1.1" 200 -
+2025-12-22 14:44:47,226 INFO 127.0.0.1 - - [22/Dec/2025 14:44:47] "GET /static/main.js HTTP/1.1" 200 -
+2025-12-22 14:44:52,565 INFO 127.0.0.1 - - [22/Dec/2025 14:44:52] "GET /crm HTTP/1.1" 200 -
+2025-12-22 14:44:53,544 INFO 127.0.0.1 - - [22/Dec/2025 14:44:53] "GET /api/crm/prospects HTTP/1.1" 200 -

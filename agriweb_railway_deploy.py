@@ -11537,8 +11537,11 @@ def generate_integrated_commune_report(commune_name, filters=None):
             "features": zones_data
         }
         rapport["parkings_analysis"] = parkings_analysis
+        rapport["parkings_details"] = parkings_details
         rapport["friches_analysis"] = friches_analysis
+        rapport["friches_details"] = friches_details
         rapport["toitures_analysis"] = toitures_analysis
+        rapport["toitures_details"] = toitures_details
             
         rapport["infrastructures_analysis"] = {
             "energie": {

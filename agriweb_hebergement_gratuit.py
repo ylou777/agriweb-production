@@ -5057,6 +5057,51 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
     from shapely.ops import transform as shp_transform
     from pyproj import Transformer
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+    
+    # Fonction helper pour trouver le poste le plus proche avec détails complets
+    def find_nearest_poste_details(pt_lon, pt_lat, postes_list):
+        try:
+            from shapely.geometry import Point
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            for poste in (postes_list or []):
+                try:
+                    g = poste.get('geometry')
+                    if not g:
+                        continue
+                    d = shape(g).distance(p) * 111000
+                    if best_d is None or (d < best_d):
+                        best = poste
+                        best_d = d
+                except Exception:
+                    continue
+            if best is None:
+                return {}
+            coords = best.get('geometry', {}).get('coordinates', [None, None])
+            pr = best.get('properties', {})
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': coords[0],
+                'lat': coords[1],
+                'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
+                'nom': pr.get('nom') or pr.get('libelle') or '',
+                'tension': pr.get('tension') or pr.get('Tension') or '',
+                'fonction': pr.get('fonction') or pr.get('Fonction') or '',
+                'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
+                'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
+                'type': pr.get('type') or pr.get('Type') or '',
+                'commune': pr.get('nom_commun') or pr.get('commune') or '',
+                'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
+                'epci': pr.get('nom_epci') or '',
+                'code_epci': pr.get('code_epci') or '',
+                'departement': pr.get('nom_depart') or pr.get('departement') or '',
+                'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
+                'region': pr.get('nom_region') or pr.get('region') or '',
+                'code_region': pr.get('code_regio') or pr.get('code_region') or ''
+            }
+        except Exception:
+            return {}
 
     rpg_parcelles = []
     for feat in (rpg_raw or []):
@@ -5073,16 +5118,22 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
         if ha < min_area_ha or ha > max_area_ha:
             continue
 
-        # c) distances réseaux (m)
+        # c) distances réseaux (m) et enrichissement avec détails complets des postes
         cent   = poly.centroid.coords[0]
         d_bt   = calculate_min_distance(cent, postes_bt_data)
         d_hta  = calculate_min_distance(cent, postes_hta_data)
+        
+        # Enrichissement avec les détails complets du poste le plus proche
+        poste_bt_proche = find_nearest_poste_details(cent[0], cent[1], postes_bt_data) if postes_bt_data else {}
+        poste_hta_proche = find_nearest_poste_details(cent[0], cent[1], postes_hta_data) if postes_hta_data else {}
 
         props.update({
             "surface": round(ha, 3),
             "coords": [cent[1], cent[0]],
             "distance_bt": round(d_bt, 2) if d_bt is not None else None,
             "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+            "poste_bt_proche": poste_bt_proche,
+            "poste_hta_proche": poste_hta_proche,
             "lien_geoportail": f"https://www.geoportail.gouv.fr/carte?c={cent[0]},{cent[1]}&z=18"
         })
         rpg_parcelles.append(props)
@@ -13723,51 +13774,6 @@ def generate_integrated_commune_report(commune_name, filters=None):
         toitures_data = []
         if filters.get("filter_toitures", False):
             try:
-                # Fonction helper pour trouver le poste le plus proche avec détails complets
-                def find_nearest_poste_details(pt_lon, pt_lat, postes_list):
-                    try:
-                        from shapely.geometry import Point
-                        p = Point(pt_lon, pt_lat)
-                        best = None
-                        best_d = None
-                        for poste in (postes_list or []):
-                            try:
-                                g = poste.get('geometry')
-                                if not g:
-                                    continue
-                                d = shape(g).distance(p) * 111000
-                                if best_d is None or (d < best_d):
-                                    best = poste
-                                    best_d = d
-                            except Exception:
-                                continue
-                        if best is None:
-                            return {}
-                        coords = best.get('geometry', {}).get('coordinates', [None, None])
-                        pr = best.get('properties', {})
-                        return {
-                            'distance_m': round(best_d, 2) if best_d is not None else None,
-                            'lon': coords[0],
-                            'lat': coords[1],
-                            'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                            'nom': pr.get('nom') or pr.get('libelle') or '',
-                            'tension': pr.get('tension') or pr.get('Tension') or '',
-                            'fonction': pr.get('fonction') or pr.get('Fonction') or '',
-                            'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
-                            'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
-                            'type': pr.get('type') or pr.get('Type') or '',
-                            'commune': pr.get('nom_commun') or pr.get('commune') or '',
-                            'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
-                            'epci': pr.get('nom_epci') or '',
-                            'code_epci': pr.get('code_epci') or '',
-                            'departement': pr.get('nom_depart') or pr.get('departement') or '',
-                            'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
-                            'region': pr.get('nom_region') or pr.get('region') or '',
-                            'code_region': pr.get('code_regio') or pr.get('code_region') or ''
-                        }
-                    except Exception:
-                        return {}
-                
                 # Paramètres de filtre
                 min_surface = float(filters.get("toitures_min_surface", 100.0))
                 filter_by_distance = bool(filters.get("filter_by_distance", False))
@@ -13818,8 +13824,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         props_src = (b.get("properties") or {}).copy()
                         
                         # Enrichissement avec les détails complets du poste le plus proche
-                        poste_bt_proche = find_nearest_poste_details(centroid[0], centroid[1], postes_bt_data) if postes_bt_data else {}
-                        poste_hta_proche = find_nearest_poste_details(centroid[0], centroid[1], postes_hta_data) if postes_hta_data else {}
+                        poste_bt_proche = _find_nearest_poste(centroid[0], centroid[1], postes_bt_data) if postes_bt_data else {}
+                        poste_hta_proche = _find_nearest_poste(centroid[0], centroid[1], postes_hta_data) if postes_hta_data else {}
                         
                         props = {
                             "surface_toiture_m2": round(surface_m2, 2),
@@ -13918,9 +13924,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     if not _distance_ok(d_bt, d_hta):
                         continue
                     
-                    # Enrichissement avec les détails complets des postes
-                    poste_bt_proche = find_nearest_poste_details(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
-                    poste_hta_proche = find_nearest_poste_details(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
+                    # Enrichissement avec les détails complets des postes (utilise _find_nearest_poste)
+                    poste_bt_proche = _find_nearest_poste(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
+                    poste_hta_proche = _find_nearest_poste(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
                     
                     # Annoter pour réutiliser ensuite
                     props = (feat.get('properties') or {}).copy()
@@ -13991,8 +13997,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         continue
                     
                     # Enrichissement avec les détails complets des postes
-                    poste_bt_proche = find_nearest_poste_details(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
-                    poste_hta_proche = find_nearest_poste_details(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
+                    poste_bt_proche = _find_nearest_poste(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
+                    poste_hta_proche = _find_nearest_poste(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
                     
                     props = (feat.get('properties') or {}).copy()
                     props.update({
@@ -14493,8 +14499,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                     
                     # Enrichissement avec les détails complets des postes
-                    poste_bt_proche = find_nearest_poste_details(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
-                    poste_hta_proche = find_nearest_poste_details(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
+                    poste_bt_proche = _find_nearest_poste(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
+                    poste_hta_proche = _find_nearest_poste(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
                     
                     # Références cadastrales (méthode simplifiée - comme zones urbaines)
                     parcelles_refs = get_parcelles_for_feature(parcelle["geometry"])
@@ -14711,8 +14717,23 @@ def generate_integrated_commune_report(commune_name, filters=None):
             "features": zones_data
         }
         rapport["parkings_analysis"] = parkings_analysis
+        rapport["parkings_details"] = parkings_details
         rapport["friches_analysis"] = friches_analysis
+        rapport["friches_details"] = friches_details
         rapport["toitures_analysis"] = toitures_analysis
+        rapport["toitures_details"] = toitures_details
+        
+        # Debug: vérifier le contenu des details
+        print(f"\n🔍 [DEBUG RAPPORT DETAILS]")
+        print(f"    📦 parkings_details: {len(parkings_details)} éléments")
+        if parkings_details:
+            print(f"       Premier parking - poste_bt_proche: {parkings_details[0].get('poste_bt_proche', 'MANQUANT')}")
+        print(f"    🏠 toitures_details: {len(toitures_details)} éléments")
+        if toitures_details:
+            print(f"       Première toiture - poste_bt_proche: {toitures_details[0].get('poste_bt_proche', 'MANQUANT')}")
+        print(f"    🏚️ friches_details: {len(friches_details)} éléments")
+        if friches_details:
+            print(f"       Première friche - poste_bt_proche: {friches_details[0].get('poste_bt_proche', 'MANQUANT')}")
             
         rapport["infrastructures_analysis"] = {
             "energie": {
@@ -15104,7 +15125,7 @@ def rapport_commune_complet():
         except Exception:
             pass
 
-        if export_format == "html" or is_browser_rmaisequest:
+        if export_format == "html" or is_browser_request:
             # Retourner une page HTML avec le rapport
             from flask import render_template
             return render_template('rapport_commune_complet.html', rapport=rapport, filters=filters)

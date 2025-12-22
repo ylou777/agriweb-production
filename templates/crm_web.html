@@ -1356,7 +1356,15 @@
                 puissance: prospect.poste_bt_puissance,
                 lat: prospect.poste_bt_lat,
                 lon: prospect.poste_bt_lon,
-                proprietaire: prospect.poste_bt_proprietaire
+                proprietaire: prospect.poste_bt_proprietaire,
+                commune: prospect.poste_bt_commune,
+                code_commune: prospect.poste_bt_code_commune,
+                epci: prospect.poste_bt_epci,
+                code_epci: prospect.poste_bt_code_epci,
+                departement: prospect.poste_bt_departement,
+                code_departement: prospect.poste_bt_code_departement,
+                region: prospect.poste_bt_region,
+                code_region: prospect.poste_bt_code_region
             };
             
             let poste_hta_info = {
@@ -1364,7 +1372,15 @@
                 puissance: prospect.poste_hta_puissance,
                 lat: prospect.poste_hta_lat,
                 lon: prospect.poste_hta_lon,
-                proprietaire: prospect.poste_hta_proprietaire
+                proprietaire: prospect.poste_hta_proprietaire,
+                commune: prospect.poste_hta_commune,
+                code_commune: prospect.poste_hta_code_commune,
+                epci: prospect.poste_hta_epci,
+                code_epci: prospect.poste_hta_code_epci,
+                departement: prospect.poste_hta_departement,
+                code_departement: prospect.poste_hta_code_departement,
+                region: prospect.poste_hta_region,
+                code_region: prospect.poste_hta_code_region
             };
             
             // Si les colonnes ne sont pas remplies, essayer data_json
@@ -1384,7 +1400,15 @@
                             puissance: poste_bt_info.puissance || data.poste_bt_info.puissance,
                             lat: poste_bt_info.lat || data.poste_bt_info.lat,
                             lon: poste_bt_info.lon || data.poste_bt_info.lon,
-                            proprietaire: poste_bt_info.proprietaire || data.poste_bt_info.proprietaire
+                            proprietaire: poste_bt_info.proprietaire || data.poste_bt_info.proprietaire,
+                            commune: poste_bt_info.commune || data.poste_bt_info.commune,
+                            code_commune: poste_bt_info.code_commune || data.poste_bt_info.code_commune,
+                            epci: poste_bt_info.epci || data.poste_bt_info.epci,
+                            code_epci: poste_bt_info.code_epci || data.poste_bt_info.code_epci,
+                            departement: poste_bt_info.departement || data.poste_bt_info.departement,
+                            code_departement: poste_bt_info.code_departement || data.poste_bt_info.code_departement,
+                            region: poste_bt_info.region || data.poste_bt_info.region,
+                            code_region: poste_bt_info.code_region || data.poste_bt_info.code_region
                         };
                     }
                     
@@ -1394,7 +1418,15 @@
                             puissance: poste_hta_info.puissance || data.poste_hta_info.puissance,
                             lat: poste_hta_info.lat || data.poste_hta_info.lat,
                             lon: poste_hta_info.lon || data.poste_hta_info.lon,
-                            proprietaire: poste_hta_info.proprietaire || data.poste_hta_info.proprietaire
+                            proprietaire: poste_hta_info.proprietaire || data.poste_hta_info.proprietaire,
+                            commune: poste_hta_info.commune || data.poste_hta_info.commune,
+                            code_commune: poste_hta_info.code_commune || data.poste_hta_info.code_commune,
+                            epci: poste_hta_info.epci || data.poste_hta_info.epci,
+                            code_epci: poste_hta_info.code_epci || data.poste_hta_info.code_epci,
+                            departement: poste_hta_info.departement || data.poste_hta_info.departement,
+                            code_departement: poste_hta_info.code_departement || data.poste_hta_info.code_departement,
+                            region: poste_hta_info.region || data.poste_hta_info.region,
+                            code_region: poste_hta_info.code_region || data.poste_hta_info.code_region
                         };
                     }
                 } catch (e) {
@@ -1500,6 +1532,8 @@
                                         <i class="bi bi-eye-fill text-info"></i>
                                     </a>
                                 ` : ''}
+                                <br>
+                                ${poste_bt_info.commune ? `<small class="text-muted ms-4">📍 ${poste_bt_info.commune} (${poste_bt_info.code_commune || ''})${poste_bt_info.epci ? ` - ${poste_bt_info.epci}` : ''}${poste_bt_info.departement ? ` - ${poste_bt_info.departement}` : ''}${poste_bt_info.region ? ` - ${poste_bt_info.region}` : ''}</small>` : ''}
                             </div>
                             ` : ''}
                             
@@ -1516,6 +1550,8 @@
                                         <i class="bi bi-eye-fill text-info"></i>
                                     </a>
                                 ` : ''}
+                                <br>
+                                ${poste_hta_info.commune ? `<small class="text-muted ms-4">📍 ${poste_hta_info.commune} (${poste_hta_info.code_commune || ''})${poste_hta_info.epci ? ` - ${poste_hta_info.epci}` : ''}${poste_hta_info.departement ? ` - ${poste_hta_info.departement}` : ''}${poste_hta_info.region ? ` - ${poste_hta_info.region}` : ''}</small>` : ''}
                             </div>
                             ` : ''}
                             

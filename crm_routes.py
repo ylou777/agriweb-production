@@ -1110,6 +1110,44 @@ def register_crm_routes(app):
             return jsonify({'success': False, 'error': str(e)}), 500
 
     # ============================================================================
+    # ROUTES API - GÉNÉRATION CERFA
+    # ============================================================================
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/generate-cerfa', methods=['GET'])
+    def generate_prospect_cerfa(prospect_id):
+        """Génère un formulaire CERFA pré-rempli pour le prospect"""
+        try:
+            from cerfa_generator import generate_cerfa_pdf
+            
+            # Récupérer les données du prospect
+            prospect = execute_query('''
+                SELECT * FROM agriweb_prospects WHERE id = %s
+            ''', (prospect_id,), fetch_one=True)
+            
+            if not prospect:
+                return jsonify({'success': False, 'error': 'Prospect introuvable'}), 404
+            
+            # Générer le PDF
+            pdf_buffer = generate_cerfa_pdf(prospect)
+            
+            # Nom du fichier
+            nom_fichier = f"CERFA_Raccordement_{prospect.get('nom_prospect', prospect.get('commune', prospect_id))}.pdf"
+            nom_fichier = nom_fichier.replace(' ', '_').replace('/', '_')
+            
+            return send_file(
+                pdf_buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=nom_fichier
+            )
+            
+        except Exception as e:
+            print(f"❌ [CERFA GENERATION] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
     # ROUTES API - RENDEZ-VOUS
     # ============================================================================
 
