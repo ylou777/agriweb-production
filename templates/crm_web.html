@@ -1789,12 +1789,23 @@
                         ? JSON.parse(prospect.parcelles_cadastrales) 
                         : prospect.parcelles_cadastrales;
                     if (Array.isArray(parcelles) && parcelles.length > 0) {
-                        infosHtml += `
-                            <div class="col-md-12 mt-2">
-                                <small class="text-muted"><i class="bi bi-map"></i> Parcelles cadastrales:</small><br>
-                                <strong>${parcelles.join(', ')}</strong>
-                            </div>
-                        `;
+                        // Extraire les références cadastrales (peuvent être des strings ou des objets)
+                        const parcellesStr = parcelles.map(p => {
+                            if (typeof p === 'string') return p;
+                            if (typeof p === 'object' && p !== null) {
+                                return p.id || p.reference || p.numero || JSON.stringify(p).substring(0, 20);
+                            }
+                            return String(p);
+                        }).filter(Boolean);
+                        
+                        if (parcellesStr.length > 0) {
+                            infosHtml += `
+                                <div class="col-md-12 mt-2">
+                                    <small class="text-muted"><i class="bi bi-map"></i> Parcelles cadastrales:</small><br>
+                                    <strong>${parcellesStr.join(', ')}</strong>
+                                </div>
+                            `;
+                        }
                     }
                 } catch (e) {
                     console.error('Erreur parsing parcelles:', e);
