@@ -405,6 +405,15 @@
                             </a>
                         </div>
                         
+                        <!-- Section Informations Techniques -->
+                        <div class="col-md-12">
+                            <hr>
+                            <h6 class="text-success"><i class="bi bi-info-circle"></i> Informations Techniques</h6>
+                        </div>
+                        <div class="col-md-12" id="edit-infos-techniques">
+                            <!-- Sera rempli dynamiquement par JavaScript -->
+                        </div>
+                        
                         <div class="col-md-12">
                             <label class="form-label">Notes</label>
                             <textarea id="edit-notes" class="form-control" rows="4"></textarea>
@@ -1749,6 +1758,122 @@
                 lienSocieteCom.style.display = 'none';
             }
             
+            // Afficher les informations techniques
+            const infosDiv = document.getElementById('edit-infos-techniques');
+            let infosHtml = '<div class="row g-2">';
+            
+            // Adresse et surface
+            infosHtml += `
+                <div class="col-md-12">
+                    <small class="text-muted"><i class="bi bi-geo-alt"></i> Adresse:</small><br>
+                    <strong>${prospect.adresse || 'N/A'}</strong>
+                </div>
+            `;
+            
+            if (prospect.surface_m2 || prospect.surface_ha) {
+                const surface = prospect.surface_ha 
+                    ? `${parseFloat(prospect.surface_ha).toFixed(2)} ha` 
+                    : `${parseInt(prospect.surface_m2)} m²`;
+                infosHtml += `
+                    <div class="col-md-6">
+                        <small class="text-muted"><i class="bi bi-rulers"></i> Surface:</small><br>
+                        <strong>${surface}</strong>
+                    </div>
+                `;
+            }
+            
+            // Parcelles cadastrales
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    const parcelles = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    if (Array.isArray(parcelles) && parcelles.length > 0) {
+                        infosHtml += `
+                            <div class="col-md-12 mt-2">
+                                <small class="text-muted"><i class="bi bi-map"></i> Parcelles cadastrales:</small><br>
+                                <strong>${parcelles.join(', ')}</strong>
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    console.error('Erreur parsing parcelles:', e);
+                }
+            }
+            
+            // Poste BT
+            if (prospect.poste_bt_distance_m) {
+                infosHtml += `
+                    <div class="col-md-12 mt-3">
+                        <div class="alert alert-warning mb-0 py-2">
+                            <strong><i class="bi bi-lightning"></i> Poste BT:</strong> ${prospect.poste_bt_nom || 'N/A'} 
+                            (${parseInt(prospect.poste_bt_distance_m)}m)
+                `;
+                
+                // Informations détaillées BT
+                const btInfos = [];
+                if (prospect.poste_bt_puissance) btInfos.push(`Puissance: ${prospect.poste_bt_puissance}`);
+                if (prospect.poste_bt_etat) btInfos.push(`État: ${prospect.poste_bt_etat}`);
+                if (prospect.poste_bt_commune) btInfos.push(`Commune: ${prospect.poste_bt_commune}`);
+                if (prospect.poste_bt_epci) btInfos.push(`EPCI: ${prospect.poste_bt_epci}`);
+                if (prospect.poste_bt_departement) btInfos.push(`Département: ${prospect.poste_bt_departement}`);
+                if (prospect.poste_bt_region) btInfos.push(`Région: ${prospect.poste_bt_region}`);
+                
+                if (btInfos.length > 0) {
+                    infosHtml += `<br><small>${btInfos.join(' • ')}</small>`;
+                }
+                
+                if (prospect.poste_bt_lat && prospect.poste_bt_lon) {
+                    infosHtml += `
+                        <br><a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_bt_lat},${prospect.poste_bt_lon}" 
+                           target="_blank" class="btn btn-sm btn-outline-info mt-1">
+                            <i class="bi bi-eye-fill"></i> Street View
+                        </a>
+                    `;
+                }
+                
+                infosHtml += `</div></div>`;
+            }
+            
+            // Poste HTA
+            if (prospect.poste_hta_distance_m) {
+                infosHtml += `
+                    <div class="col-md-12 mt-2">
+                        <div class="alert alert-danger mb-0 py-2">
+                            <strong><i class="bi bi-lightning-charge"></i> Poste HTA:</strong> ${prospect.poste_hta_nom || 'N/A'} 
+                            (${parseInt(prospect.poste_hta_distance_m)}m)
+                `;
+                
+                // Informations détaillées HTA
+                const htaInfos = [];
+                if (prospect.poste_hta_puissance) htaInfos.push(`Puissance: ${prospect.poste_hta_puissance}`);
+                if (prospect.poste_hta_etat) htaInfos.push(`État: ${prospect.poste_hta_etat}`);
+                if (prospect.poste_hta_commune) htaInfos.push(`Commune: ${prospect.poste_hta_commune}`);
+                if (prospect.poste_hta_epci) htaInfos.push(`EPCI: ${prospect.poste_hta_epci}`);
+                if (prospect.poste_hta_departement) htaInfos.push(`Département: ${prospect.poste_hta_departement}`);
+                if (prospect.poste_hta_region) htaInfos.push(`Région: ${prospect.poste_hta_region}`);
+                
+                if (htaInfos.length > 0) {
+                    infosHtml += `<br><small>${htaInfos.join(' • ')}</small>`;
+                }
+                
+                if (prospect.poste_hta_lat && prospect.poste_hta_lon) {
+                    infosHtml += `
+                        <br><a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_hta_lat},${prospect.poste_hta_lon}" 
+                           target="_blank" class="btn btn-sm btn-outline-info mt-1">
+                            <i class="bi bi-eye-fill"></i> Street View
+                        </a>
+                    `;
+                }
+                
+                infosHtml += `</div></div>`;
+            }
+            
+            infosHtml += '</div>';
+            infosDiv.innerHTML = infosHtml;
+            
+            editModal.show();
+        }
             editModal.show();
         }
 
