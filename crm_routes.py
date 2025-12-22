@@ -2827,7 +2827,6 @@ def register_crm_routes(app):
 
     # ============================================================================
     # PROPOSITION COMMERCIALE PROFESSIONNELLE
-    # ============================================================================
     @app.route('/api/crm/prospects/<int:prospect_id>/proposition-complete', methods=['POST'])
     def generer_proposition_complete(prospect_id):
         """
@@ -2846,9 +2845,10 @@ def register_crm_routes(app):
         """
         try:
             from proposition_professionnelle import PropositionProfessionnelle
+            from io import BytesIO
             
             # Récupérer les données de la requête
-            data = request.json
+            data = request.json or {}
             
             # Récupérer le prospect
             prospect_result = execute_query(
@@ -2864,27 +2864,39 @@ def register_crm_routes(app):
             
             # Parser data_json pour récupérer toutes les données
             try:
-                data_json = json.loads(prospect['data_json']) if prospect['data_json'] else {}
+                data_json = json.loads(prospect['data_json']) if prospect.get('data_json') else {}
                 calpinage = data_json.get('calpinage', {})
                 visite_technique = data_json.get('visite_technique', {})
                 rapport_commune = data_json.get('rapport_commune', {})
-            except:
+            except Exception as e:
+                print(f"⚠️ Erreur parsing data_json: {e}")
                 calpinage = {}
                 visite_technique = {}
                 rapport_commune = {}
             
+            # Fonction helper pour conversion sécurisée
+            def safe_float(value, default=0.0):
+                try:
+                    if value is None or value == '':
+                        return default
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+            
             # Préparer les paramètres pour la proposition
             parametres = {
                 'type_projet': data.get('type_projet', 'autoconsommation'),
-                'puissance_kwc': float(data.get('puissance_kwc', 100)) if data.get('puissance_kwc') else 100.0,
-                'prix_kwc': float(data.get('prix_kwc', 850)) if data.get('prix_kwc') else 850.0,
-                'consommation_annuelle_kwh': float(data.get('consommation_annuelle_kwh', 0)) if data.get('consommation_annuelle_kwh') else 0.0,
-                'tarif_achat_kwh': float(data.get('tarif_achat_kwh', 0.20)) if data.get('tarif_achat_kwh') else 0.20,
-                'tarif_revente_kwh': float(data.get('tarif_revente_kwh', 0.13)) if data.get('tarif_revente_kwh') else 0.13,
-                'taux_autoconso': float(data.get('taux_autoconso', 70)) if data.get('taux_autoconso') else 70.0,
+                'puissance_kwc': safe_float(data.get('puissance_kwc'), 100.0),
+                'prix_kwc': safe_float(data.get('prix_kwc'), 850.0),
+                'consommation_annuelle_kwh': safe_float(data.get('consommation_annuelle_kwh'), 0.0),
+                'tarif_achat_kwh': safe_float(data.get('tarif_achat_kwh'), 0.20),
+                'tarif_revente_kwh': safe_float(data.get('tarif_revente_kwh'), 0.13),
+                'taux_autoconso': safe_float(data.get('taux_autoconso'), 70.0),
                 'pvgis_hourly_data': data.get('pvgis_hourly_data'),  # Optionnel
                 'enedis_hourly_data': data.get('enedis_hourly_data'),  # Optionnel
             }
+            
+            print(f"📊 Génération proposition - Paramètres: {parametres}")
             
             # Enrichir prospect avec rapport_commune pour contraintes urbanisme
             if rapport_commune:
