@@ -188,7 +188,7 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Onduleur 125kW', 'onduleur', 85.00, '€/kW', 125, 'SMA', 'Sunny Central 125 UP', 17.00, 'SMA Solar'),
 ('Onduleur 150kW', 'onduleur', 82.00, '€/kW', 150, 'SMA', 'Sunny Central 150 UP', 17.00, 'SMA Solar'),
 ('Onduleur 200kW', 'onduleur', 79.00, '€/kW', 200, 'SMA', 'Sunny Central 200 UP', 17.00, 'SMA Solar'),
-('Onduleur 250kW', 'onduleur', 76.00, '€/kW', 250, 16.00, 'SMA', 'Sunny Central 250 UP', 16.00, 'SMA Solar'),
+('Onduleur 250kW', 'onduleur', 76.00, '€/kW', 250, 'SMA', 'Sunny Central 250 UP', 16.00, 'SMA Solar'),
 ('Onduleur 300kW', 'onduleur', 74.00, '€/kW', 300, 'SMA', 'Sunny Central 300 UP', 16.00, 'SMA Solar'),
 ('Onduleur 330kW', 'onduleur', 73.00, '€/kW', 330, 'SMA', 'Sunny Central 330 UP', 16.00, 'SMA Solar'),
 -- Sungrow (250-500kW)
