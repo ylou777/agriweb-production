@@ -201,9 +201,16 @@ class PropositionProfessionnelle:
         self.prix_total_ht = devis_data.get('total_ht', 0)
         
         # Si pas de devis, calculer depuis prix_kwc
-        if self.prix_total_ttc == 0 and self.params.get('prix_kwc'):
-            prix_kwc = self.params.get('prix_kwc', 850)
-            self.prix_total_ht = self.puissance_reelle_kwc * prix_kwc
+        if self.prix_total_ttc == 0 or self.prix_total_ht == 0:
+            prix_kwc = self.params.get('prix_kwc', 850)  # Fallback: 850€/kWc
+            if self.prix_total_ht == 0:
+                self.prix_total_ht = self.puissance_reelle_kwc * prix_kwc
+            if self.prix_total_ttc == 0:
+                self.prix_total_ttc = self.prix_total_ht * 1.20
+        
+        # Sécurité: si toujours 0, forcer une valeur minimale
+        if self.prix_total_ht == 0:
+            self.prix_total_ht = self.puissance_reelle_kwc * 850
             self.prix_total_ttc = self.prix_total_ht * 1.20
         
         # 3. POSTE BT/HTA réel
