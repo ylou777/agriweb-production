@@ -3014,14 +3014,12 @@ def register_crm_routes(app):
             with open(sql_file, 'r', encoding='utf-8') as f:
                 sql_script = f.read()
             
-            # Exécuter le script (note: execute_query ne supporte pas multi-statements)
-            # On doit utiliser une connexion directe
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(sql_script)
-            conn.commit()
-            cursor.close()
-            conn.close()
+            # Exécuter le script avec context manager
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql_script)
+                conn.commit()
+                cursor.close()
             
             print("✅ Tables de paramétrage initialisées")
             
