@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime, timedelta
 import json
+from database_adapter import execute_query
 
 class PropositionProfessionnelle:
     """Générateur de proposition commerciale photovoltaïque professionnelle"""
@@ -27,6 +28,14 @@ class PropositionProfessionnelle:
         self.calpinage = calpinage
         self.params = parametres
         self.styles = getSampleStyleSheet()
+        
+        # === CHARGER PARAMÉTRAGE ENTREPRISE DEPUIS BDD ===
+        self._charger_parametrage_entreprise()
+        
+        # === CHARGER PRIX DEPUIS BDD ===
+        self._charger_prix_organes()
+        
+        # Créer styles avec couleurs personnalisées
         self._create_custom_styles()
         
         # Extraire rapport_commune depuis data_json
@@ -38,16 +47,88 @@ class PropositionProfessionnelle:
         
         # === CALCUL DONNÉES RÉELLES DEPUIS CALEPINAGE (source de vérité) ===
         self._extraire_donnees_reelles()
+    
+    def _charger_parametrage_entreprise(self):
+        """Charger paramétrage entreprise depuis BDD"""
+        try:
+            result = execute_query(
+                'SELECT * FROM parametrage_entreprise WHERE actif = TRUE ORDER BY id DESC LIMIT 1',
+                fetch_one=True
+            )
+            
+            if result:
+                self.entreprise = dict(result)
+                print(f"✅ Paramétrage entreprise chargé: {self.entreprise.get('nom_entreprise')}")
+            else:
+                # Valeurs par défaut si pas de paramétrage
+                self.entreprise = {
+                    'nom_entreprise': 'Votre Société Photovoltaïque',
+                    'adresse': '123 Avenue du Soleil',
+                    'code_postal': '75001',
+                    'ville': 'Paris',
+                    'telephone': '01 23 45 67 89',
+                    'email': 'contact@votresociete.fr',
+                    'siret': '12345678900012',
+                    'rge_numero': 'RGE-2024-001',
+                    'couleur_primaire': '#003d7a',
+                    'couleur_secondaire': '#0066cc',
+                    'couleur_accent': '#28a745',
+                    'logo_base64': None
+                }
+                print("⚠️ Pas de paramétrage entreprise, valeurs par défaut utilisées")
+        except Exception as e:
+            print(f"⚠️ Erreur chargement paramétrage entreprise: {e}")
+            # Valeurs par défaut en cas d'erreur
+            self.entreprise = {
+                'nom_entreprise': 'Votre Société Photovoltaïque',
+                'couleur_primaire': '#003d7a',
+                'couleur_secondaire': '#0066cc',
+                'couleur_accent': '#28a745'
+            }
+    
+    def _charger_prix_organes(self):
+        """Charger prix des organes depuis BDD"""
+        try:
+            result = execute_query(
+                'SELECT * FROM parametrage_prix_organes WHERE actif = TRUE ORDER BY categorie, nom_organe',
+                fetch_all=True
+            )
+            
+            if result:
+                self.prix_organes = {}
+                for row in result:
+                    r = dict(row)
+                    key = f"{r['categorie']}_{r.get('marque', '')}_{r.get('puissance_wc', '')}_{r.get('puissance_kw', '')}"
+                    key = key.lower().replace(' ', '_').replace('none', '')
+                    self.prix_organes[key] = r
+                
+                print(f"✅ {len(self.prix_organes)} prix organes chargés depuis BDD")
+            else:
+                # Prix par défaut si table vide
+                self.prix_organes = {
+                    'module_default': {'prix_unitaire_ht': 0.32, 'unite': '€/Wc', 'marge_commerciale_pct': 15.0},
+                    'onduleur_default': {'prix_unitaire_ht': 90.00, 'unite': '€/kW', 'marge_commerciale_pct': 18.0},
+                    'structure_default': {'prix_unitaire_ht': 45.00, 'unite': '€/m²', 'marge_commerciale_pct': 15.0}
+                }
+                print("⚠️ Pas de prix en BDD, valeurs par défaut utilisées")
+        except Exception as e:
+            print(f"⚠️ Erreur chargement prix: {e}")
+            self.prix_organes = {}
         
     def _create_custom_styles(self):
-        """Créer des styles personnalisés professionnels"""
+        """Créer des styles personnalisés avec couleurs depuis BDD"""
+        
+        # Couleurs personnalisées de l'entreprise
+        couleur_primaire = self.entreprise.get('couleur_primaire', '#003d7a')
+        couleur_secondaire = self.entreprise.get('couleur_secondaire', '#0066cc')
+        couleur_accent = self.entreprise.get('couleur_accent', '#28a745')
         
         # Style titre principal
         self.styles.add(ParagraphStyle(
             name='TitrePrincipal',
             parent=self.styles['Heading1'],
             fontSize=28,
-            textColor=colors.HexColor('#003d7a'),
+            textColor=colors.HexColor(couleur_primaire),
             spaceAfter=20,
             alignment=TA_CENTER,
             fontName='Helvetica-Bold'
@@ -58,7 +139,7 @@ class PropositionProfessionnelle:
             name='SousTitre',
             parent=self.styles['Heading2'],
             fontSize=16,
-            textColor=colors.HexColor('#0066cc'),
+            textColor=colors.HexColor(couleur_secondaire),
             spaceAfter=12,
             spaceBefore=15,
             fontName='Helvetica-Bold'
@@ -69,7 +150,7 @@ class PropositionProfessionnelle:
             name='Section',
             parent=self.styles['Heading3'],
             fontSize=14,
-            textColor=colors.HexColor('#003d7a'),
+            textColor=colors.HexColor(couleur_primaire),
             spaceAfter=10,
             spaceBefore=12,
             fontName='Helvetica-Bold',
@@ -243,12 +324,36 @@ class PropositionProfessionnelle:
         elements = []
         
         # Espace en haut
-        elements.append(Spacer(1, 3*cm))
+        elements.append(Spacer(1, 2*cm))
         
-        # Logo (si disponible)
-        # elements.append(RLImage('logo.png', width=6*cm, height=2*cm))
-        elements.append(Paragraph("VOTRE SOCIÉTÉ PHOTOVOLTAÏQUE", self.styles['TitrePrincipal']))
-        elements.append(Spacer(1, 0.5*cm))
+        # Logo (si disponible depuis paramétrage)
+        if self.entreprise.get('logo_base64'):
+            try:
+                import base64
+                from io import BytesIO as IOBytesIO
+                from reportlab.lib.utils import ImageReader
+                
+                # Décoder logo base64
+                logo_data = self.entreprise['logo_base64']
+                if ',' in logo_data:
+                    logo_data = logo_data.split(',')[1]
+                
+                logo_bytes = base64.b64decode(logo_data)
+                logo_buffer = IOBytesIO(logo_bytes)
+                
+                # Afficher logo
+                logo_img = RLImage(ImageReader(logo_buffer), width=8*cm, height=3*cm, kind='proportional')
+                elements.append(logo_img)
+                elements.append(Spacer(1, 0.5*cm))
+            except Exception as e:
+                print(f"⚠️ Erreur affichage logo: {e}")
+                # Fallback au nom de l'entreprise
+                elements.append(Paragraph(self.entreprise.get('nom_entreprise', 'VOTRE SOCIÉTÉ PHOTOVOLTAÏQUE'), self.styles['TitrePrincipal']))
+                elements.append(Spacer(1, 0.5*cm))
+        else:
+            # Pas de logo, afficher nom entreprise
+            elements.append(Paragraph(self.entreprise.get('nom_entreprise', 'VOTRE SOCIÉTÉ PHOTOVOLTAÏQUE'), self.styles['TitrePrincipal']))
+            elements.append(Spacer(1, 0.5*cm))
         
         # Titre principal
         elements.append(Paragraph("PROPOSITION COMMERCIALE", self.styles['TitrePrincipal']))
@@ -1322,22 +1427,65 @@ class PropositionProfessionnelle:
         
         type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
         
-        # Décomposition investissement proportionnelle au prix réel
-        prix_modules_total = investissement_ht * 0.30     # 30% modules
-        prix_onduleurs = investissement_ht * 0.18         # 18% onduleurs
-        prix_structure = investissement_ht * 0.15         # 15% structure
-        prix_elec_protection = investissement_ht * 0.12   # 12% protections
-        prix_cablage = investissement_ht * 0.05          # 5% câblage
-        prix_main_oeuvre = investissement_ht * 0.20       # 20% pose
+        # Décomposition investissement - chercher prix dans BDD ou proportionnelle
+        # Modules
+        prix_module_data = None
+        for key, val in self.prix_organes.items():
+            if 'module' in key:
+                prix_module_data = val
+                break
+        
+        if prix_module_data and prix_module_data.get('unite') == '€/Wc':
+            prix_modules_total = prix_module_data['prix_unitaire_ht'] * (puissance * 1000)
+            prix_unitaire_module_kwc = prix_module_data['prix_unitaire_ht'] * 1000
+        else:
+            prix_modules_total = investissement_ht * 0.30
+            prix_unitaire_module_kwc = 250
+        
+        # Onduleurs
+        prix_onduleur_data = None
+        for key, val in self.prix_organes.items():
+            if 'onduleur' in key:
+                prix_onduleur_data = val
+                break
+        
+        if prix_onduleur_data and prix_onduleur_data.get('unite') == '€/kW':
+            prix_onduleurs = prix_onduleur_data['prix_unitaire_ht'] * puissance
+            prix_unitaire_ond_kwc = prix_onduleur_data['prix_unitaire_ht']
+        else:
+            prix_onduleurs = investissement_ht * 0.18
+            prix_unitaire_ond_kwc = 150
+        
+        # Structure
+        prix_structure_data = None
+        for key, val in self.prix_organes.items():
+            if 'structure' in key:
+                prix_structure_data = val
+                break
+        
+        prix_structure = prix_structure_data['prix_unitaire_ht'] * puissance if prix_structure_data else investissement_ht * 0.15
+        prix_unitaire_struct_kwc = prix_structure_data['prix_unitaire_ht'] if prix_structure_data else 120
+        
+        # Protections (fallback to proportional)
+        prix_elec_protection = investissement_ht * 0.12
+        prix_unitaire_prot_kwc = 100
+        
+        # Câblage (fallback)
+        prix_cablage = investissement_ht * 0.05
+        prix_unitaire_cable_kwc = 50
+        
+        # Main d'oeuvre (fallback)
+        prix_main_oeuvre = investissement_ht * 0.20
+        prix_unitaire_mo_kwc = 180
         
         invest_data = [
             ['<b>Poste de dépense</b>', '<b>Prix unitaire</b>', '<b>Montant HT</b>'],
-            [f'Modules photovoltaïques ({puissance:.1f} kWc)', f'{250} €/kWc', f'{prix_modules_total:,.2f} €'],
-            [f'Onduleur(s) et convertisseurs', f'{150} €/kWc', f'{prix_onduleurs:,.2f} €'],
-            [f'Structures de fixation + étanchéité', f'{120} €/kWc', f'{prix_structure:,.2f} €'],
-            [f'Protections électriques (AGCP, diff., parafoudres)', f'{100} €/kWc', f'{prix_elec_protection:,.2f} €'],
-            [f'Câblage DC/AC + chemins câbles', f'{50} €/kWc', f'{prix_cablage:,.2f} €'],
-            [f'Main d\'œuvre qualifiée + mise en service', f'{180} €/kWc', f'{prix_main_oeuvre:,.2f} €'],
+            [f'Modules photovoltaïques ({puissance:.1f} kWc)', f'{prix_unitaire_module_kwc:.0f} €/kWc', f'{prix_modules_total:,.2f} €'],
+            [f'Onduleur(s) et convertisseurs', f'{prix_unitaire_ond_kwc:.0f} €/kWc', f'{prix_onduleurs:,.2f} €'],
+            [f'Structures de fixation + étanchéité', f'{prix_unitaire_struct_kwc:.0f} €/kWc', f'{prix_structure:,.2f} €'],
+            [f'Protections électriques (AGCP, diff., parafoudres)', f'{prix_unitaire_prot_kwc:.0f} €/kWc', f'{prix_elec_protection:,.2f} €'],
+            [f'Câblage DC/AC + chemins câbles', f'{prix_unitaire_cable_kwc:.0f} €/kWc', f'{prix_cablage:,.2f} €'],
+            [f'Main d\'œuvre qualifiée + mise en service', f'{prix_unitaire_mo_kwc:.0f} €/kWc', f'{prix_main_oeuvre:,.2f} €'],
             ['', '<b>TOTAL HT</b>', f'<b>{investissement_ht:,.2f} €</b>'],
             ['', 'TVA 10%', f'{tva:,.2f} €'],
             ['', '<b>TOTAL TTC</b>', f'<b>{investissement_ttc:,.2f} €</b>'],
@@ -1897,14 +2045,53 @@ class PropositionProfessionnelle:
         nb_modules_total = self.nb_modules_total
         investissement_total = self.prix_total_ht
         
-        # Onduleurs Huawei (1 onduleur 50kW par tranche)
+        # Onduleurs (1 onduleur 50kW par tranche)
         nb_onduleurs = max(1, int(np.ceil(puissance_kwc / 50)))
         
-        # Prix unitaires calculés proportionnellement au total
-        prix_module_unit = (investissement_total * 0.30) / nb_modules_total if nb_modules_total > 0 else 180
-        prix_onduleur_unit = (investissement_total * 0.18) / nb_onduleurs if nb_onduleurs > 0 else 4500
-        prix_structure_m2 = 45  # €/m² rails + fixations
+        # PRIX DEPUIS BDD ou calcul proportionnel
+        # Chercher prix module dans BDD
+        prix_module_data = None
+        for key, val in self.prix_organes.items():
+            if 'module' in key:
+                prix_module_data = val
+                break
+        
+        if prix_module_data and prix_module_data.get('unite') == '€/Wc':
+            # Prix au Wc
+            prix_module_unit = prix_module_data['prix_unitaire_ht'] * self.module_puissance
+            cout_modules = nb_modules_total * prix_module_unit
+        else:
+            # Fallback: proportionnel au total
+            prix_module_unit = (investissement_total * 0.30) / nb_modules_total if nb_modules_total > 0 else 180
+            cout_modules = nb_modules_total * prix_module_unit
+        
+        # Chercher prix onduleur dans BDD
+        prix_onduleur_data = None
+        for key, val in self.prix_organes.items():
+            if 'onduleur' in key:
+                prix_onduleur_data = val
+                break
+        
+        if prix_onduleur_data and prix_onduleur_data.get('unite') == '€/kW':
+            # Prix au kW
+            puissance_ond_kw = 50 if puissance_kwc >= 50 else 25
+            prix_onduleur_unit = prix_onduleur_data['prix_unitaire_ht'] * puissance_ond_kw
+            cout_onduleurs = nb_onduleurs * prix_onduleur_unit
+        else:
+            # Fallback
+            prix_onduleur_unit = (investissement_total * 0.18) / nb_onduleurs if nb_onduleurs > 0 else 4500
+            cout_onduleurs = nb_onduleurs * prix_onduleur_unit
+        
+        # Prix structure
+        prix_structure_data = None
+        for key, val in self.prix_organes.items():
+            if 'structure' in key:
+                prix_structure_data = val
+                break
+        
+        prix_structure_m2 = prix_structure_data['prix_unitaire_ht'] if prix_structure_data else 45.0
         surface_modules = nb_modules_total * 2.7  # m² par module
+        cout_structure = surface_modules * prix_structure_m2
         
         # Décomposition devis NF C 15-752-1
         devis_data = [
@@ -1913,14 +2100,14 @@ class PropositionProfessionnelle:
             # 1. MODULES
             ['1. MODULES PHOTOVOLTAÏQUES', '', '', '', ''],
             ['', f'Modules JA Solar JAM72S30-{self.module_puissance}/MR - {self.module_puissance}Wc', nb_modules_total, f'{prix_module_unit:.2f} €', 
-             f'{nb_modules_total * prix_module_unit:,.2f} €'],
+             f'{cout_modules:,.2f} €'],
             ['', 'Certification IEC 61215, IEC 61730, Tier 1', '', '', ''],
             ['', 'Garantie produit 12 ans, performance 25 ans', '', '', ''],
             
             # 2. ONDULEURS
             ['2. ONDULEURS ET ÉQUIPEMENTS ÉLECTRIQUES', '', '', '', ''],
             ['', f'Onduleur Huawei SUN2000-{50 if puissance_kwc >= 50 else 25}KTL-M3', 
-             nb_onduleurs, f'{prix_onduleur_unit:.2f} €', f'{nb_onduleurs * prix_onduleur_unit:,.2f} €'],
+             nb_onduleurs, f'{prix_onduleur_unit:.2f} €', f'{cout_onduleurs:,.2f} €'],
             ['', 'Rendement 98.65%, monitoring inclus', '', '', ''],
             ['', 'Coffret AC/DC protections (parafoudre, sectionneur)', 1, '850 €', '850.00 €'],
             ['', 'Câbles solaires 6mm² certifiés EN 50618', 1, '1200 €', '1200.00 €'],
