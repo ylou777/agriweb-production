@@ -36,6 +36,9 @@ class PropositionProfessionnelle:
         except:
             self.rapport_commune = {}
         
+        # === CALCUL DONNÉES RÉELLES DEPUIS CALEPINAGE (source de vérité) ===
+        self._extraire_donnees_reelles()
+        
     def _create_custom_styles(self):
         """Créer des styles personnalisés professionnels"""
         
@@ -93,6 +96,84 @@ class PropositionProfessionnelle:
             borderPadding=10,
             fontName='Helvetica-Bold'
         ))
+    
+    def _extraire_donnees_reelles(self):
+        """Extrait les données réelles depuis le calepinage (source de vérité)"""
+        
+        # 1. PUISSANCE RÉELLE
+        zones = self.calpinage.get('zones', [])
+        totaux = self.calpinage.get('totaux', {})
+        
+        # Priorité: totaux.nbModules si disponible, sinon somme des zones
+        nb_modules = totaux.get('nbModules', 0)
+        if nb_modules == 0:
+            nb_modules = sum(z.get('nbModules', 0) for z in zones)
+        
+        module_puissance = totaux.get('puissanceModule', 550)  # Watts par module
+        self.puissance_reelle_kwc = round(nb_modules * module_puissance / 1000, 2)
+        self.nb_modules_total = nb_modules
+        self.module_puissance = module_puissance
+        
+        # 2. PRIX RÉEL depuis devis
+        devis_data = self.calpinage.get('devis', {})
+        self.prix_total_ttc = devis_data.get('total_ttc', 0)
+        self.prix_total_ht = devis_data.get('total_ht', 0)
+        
+        # Si pas de devis, calculer depuis prix_kwc
+        if self.prix_total_ttc == 0 and self.params.get('prix_kwc'):
+            prix_kwc = self.params.get('prix_kwc', 850)
+            self.prix_total_ht = self.puissance_reelle_kwc * prix_kwc
+            self.prix_total_ttc = self.prix_total_ht * 1.20
+        
+        # 3. POSTE BT/HTA réel
+        try:
+            data_json = json.loads(self.prospect.get('data_json', '{}')) if isinstance(self.prospect.get('data_json'), str) else self.prospect.get('data_json', {})
+            
+            # Extraire poste BT
+            poste_bt_data = data_json.get('poste_bt', {})
+            if isinstance(poste_bt_data, dict):
+                self.poste_bt_nom = poste_bt_data.get('nom') or poste_bt_data.get('name') or "Non identifié"
+                self.poste_bt_distance = poste_bt_data.get('distance_m', 0)
+            else:
+                self.poste_bt_nom = "Non identifié"
+                self.poste_bt_distance = 0
+            
+            # Extraire poste HTA
+            poste_hta_data = data_json.get('poste_hta', {})
+            if isinstance(poste_hta_data, dict):
+                self.poste_hta_nom = poste_hta_data.get('nom') or poste_hta_data.get('name') or "Non identifié"
+                self.poste_hta_distance = poste_hta_data.get('distance_m', 0)
+            else:
+                self.poste_hta_nom = "Non identifié"
+                self.poste_hta_distance = 0
+                
+        except Exception as e:
+            print(f"⚠️ Erreur extraction postes: {e}")
+            self.poste_bt_nom = "Non identifié"
+            self.poste_bt_distance = 0
+            self.poste_hta_nom = "Non identifié"
+            self.poste_hta_distance = 0
+        
+        # 4. DÉPARTEMENT formaté
+        dept = self.prospect.get('departement', '')
+        if isinstance(dept, dict):
+            self.departement_nom = dept.get('nom', '')
+            self.departement_code = dept.get('code', '')
+        else:
+            self.departement_nom = dept
+            self.departement_code = ''
+        
+        # 5. CONFIGURATION ÉLECTRIQUE
+        config_elec = self.calpinage.get('configuration_electrique', {})
+        self.nb_onduleurs = len(config_elec.get('onduleurs', []))
+        self.nb_strings = sum(ond.get('nb_strings', 0) for ond in config_elec.get('onduleurs', []))
+        
+        print(f"✅ Données réelles extraites:")
+        print(f"   - Puissance: {self.puissance_reelle_kwc} kWc ({self.nb_modules_total} modules × {self.module_puissance}W)")
+        print(f"   - Prix: {self.prix_total_ttc:,.2f} € TTC")
+        print(f"   - Poste BT: {self.poste_bt_nom} à {self.poste_bt_distance}m")
+        print(f"   - Poste HTA: {self.poste_hta_nom} à {self.poste_hta_distance}m")
+        print(f"   - Département: {self.departement_code} - {self.departement_nom}")
     
     def generer_pdf(self):
         """Génère le PDF complet de la proposition"""
@@ -187,15 +268,14 @@ class PropositionProfessionnelle:
         
         elements.append(Spacer(1, 2*cm))
         
-        # Encadré informations projet
-        puissance = self.params.get('puissance_kwc', 0)
+        # Encadré informations projet - DONNÉES RÉELLES
         
         info_data = [
             ['CARACTÉRISTIQUES DU PROJET'],
             [''],
-            [f'<b>Puissance:</b> {puissance:.2f} kWc'],
+            [f'<b>Puissance:</b> {self.puissance_reelle_kwc:.2f} kWc ({self.nb_modules_total} modules)'],
             [f'<b>Type raccordement:</b> {type_projet_display}'],
-            [f'<b>Localisation:</b> {self.prospect.get("commune", "N/A")} ({self.prospect.get("departement", "")})'],
+            [f'<b>Localisation:</b> {self.prospect.get("commune", "N/A")} ({self.departement_code})'],
             [''],
             [f'<b>Proposition valable jusqu\'au:</b> {(datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")}'],
         ]
@@ -555,15 +635,11 @@ class PropositionProfessionnelle:
         # ========== 2.5 RACCORDEMENT ÉLECTRIQUE ==========
         elements.append(Paragraph("2.5. Raccordement Électrique", self.styles['Section']))
         
-        distance_bt = self.prospect.get('poste_bt_distance_m', 'N/A')
-        distance_hta = self.prospect.get('poste_hta_distance_m', 'N/A')
-        poste_bt_nom = self.prospect.get('poste_bt_nom', 'N/A')
-        poste_hta_nom = self.prospect.get('poste_hta_nom', 'N/A')
-        
+        # Utiliser les données RÉELLES extraites
         raccordement_text = f"""
-        <b>Poste BT le plus proche:</b> {poste_bt_nom} - {distance_bt} mètres<br/>
-        <b>Poste HTA le plus proche:</b> {poste_hta_nom} - {distance_hta} mètres<br/>
-        <b>Puissance installation:</b> {self.params.get('puissance_kwc', 0):.1f} kWc<br/>
+        <b>Poste BT le plus proche:</b> {self.poste_bt_nom} - {self.poste_bt_distance:.0f} mètres<br/>
+        <b>Poste HTA le plus proche:</b> {self.poste_hta_nom} - {self.poste_hta_distance:.0f} mètres<br/>
+        <b>Puissance installation:</b> {self.puissance_reelle_kwc:.2f} kWc<br/>
         <b>Type de raccordement:</b> BT (< 250 kVA) ou HTA (> 250 kVA) selon puissance finale<br/>
         <b>Gestionnaire réseau:</b> Enedis<br/>
         <b>Démarches:</b> Demande de raccordement (DDR) + Convention d'autoconsommation/CRAE
@@ -1000,7 +1076,8 @@ class PropositionProfessionnelle:
         elements.append(Paragraph("5. ÉTUDE DE PRODUCTIBLE SOLAIRE", self.styles['TitrePrincipal']))
         elements.append(Spacer(1, 0.5*cm))
         
-        puissance = self.params.get('puissance_kwc', 0)
+        # Puissance RÉELLE depuis calepinage
+        puissance = self.puissance_reelle_kwc
         lat = self.prospect.get('latitude', 46.0)
         lon = self.prospect.get('longitude', 2.0)
         
@@ -1219,21 +1296,22 @@ class PropositionProfessionnelle:
         elements.append(Paragraph("6.1. Investissement Initial Détaillé", self.styles['Section']))
         elements.append(Spacer(1, 0.3*cm))
         
-        puissance = self.params.get('puissance_kwc', 0)
-        prix_kwc = self.params.get('prix_kwc', 850)
+        # Puissance et prix RÉELS
+        puissance = self.puissance_reelle_kwc
+        investissement_ttc = self.prix_total_ttc
+        investissement_ht = self.prix_total_ht
+        tva = investissement_ttc - investissement_ht
+        prix_kwc = investissement_ht / puissance if puissance > 0 else 850
+        
         type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
         
-        # Décomposition investissement
-        prix_modules_total = puissance * 250  # ~250€/kWc pour modules
-        prix_onduleurs = puissance * 150      # ~150€/kWc pour onduleurs
-        prix_structure = puissance * 120      # ~120€/kWc pour structure
-        prix_elec_protection = puissance * 100  # ~100€/kWc protections
-        prix_cablage = puissance * 50         # ~50€/kWc câblage
-        prix_main_oeuvre = puissance * 180    # ~180€/kWc pose
-        
-        investissement_ht = puissance * prix_kwc
-        tva = investissement_ht * 0.10  # TVA 10%
-        investissement_ttc = investissement_ht + tva
+        # Décomposition investissement proportionnelle au prix réel
+        prix_modules_total = investissement_ht * 0.30     # 30% modules
+        prix_onduleurs = investissement_ht * 0.18         # 18% onduleurs
+        prix_structure = investissement_ht * 0.15         # 15% structure
+        prix_elec_protection = investissement_ht * 0.12   # 12% protections
+        prix_cablage = investissement_ht * 0.05          # 5% câblage
+        prix_main_oeuvre = investissement_ht * 0.20       # 20% pose
         
         invest_data = [
             ['<b>Poste de dépense</b>', '<b>Prix unitaire</b>', '<b>Montant HT</b>'],
@@ -1797,24 +1875,17 @@ class PropositionProfessionnelle:
         elements.append(Paragraph("8. DEVIS DÉTAILLÉ", self.styles['Section']))
         elements.append(Spacer(1, 0.3*cm))
         
-        # Récupération données calepinage réelles
-        zones = self.calpinage.get('zones', [])
-        if zones:
-            puissance_kwc = sum(z.get('puissanceKw', 0) for z in zones)
-            nb_modules_total = sum(z.get('nbModules', 0) for z in zones)
-        else:
-            puissance_kwc = self.params.get('puissance_kwc', 100)
-            nb_modules_total = int(puissance_kwc * 1000 / 550)
-        
-        prix_kwc = self.params.get('prix_kwc', 850)
-        investissement_total = puissance_kwc * prix_kwc
+        # DONNÉES RÉELLES depuis calepinage
+        puissance_kwc = self.puissance_reelle_kwc
+        nb_modules_total = self.nb_modules_total
+        investissement_total = self.prix_total_ht
         
         # Onduleurs Huawei (1 onduleur 50kW par tranche)
         nb_onduleurs = max(1, int(np.ceil(puissance_kwc / 50)))
         
-        # Prix unitaires marché 2025
-        prix_module_unit = 180  # €/module Tier 1 550Wc
-        prix_onduleur_unit = 4500 if puissance_kwc >= 50 else 2500
+        # Prix unitaires calculés proportionnellement au total
+        prix_module_unit = (investissement_total * 0.30) / nb_modules_total if nb_modules_total > 0 else 180
+        prix_onduleur_unit = (investissement_total * 0.18) / nb_onduleurs if nb_onduleurs > 0 else 4500
         prix_structure_m2 = 45  # €/m² rails + fixations
         surface_modules = nb_modules_total * 2.7  # m² par module
         
@@ -1824,7 +1895,7 @@ class PropositionProfessionnelle:
             
             # 1. MODULES
             ['1. MODULES PHOTOVOLTAÏQUES', '', '', '', ''],
-            ['', f'Modules JA Solar JAM72S30-550/MR - 550Wc', nb_modules_total, f'{prix_module_unit} €', 
+            ['', f'Modules JA Solar JAM72S30-{self.module_puissance}/MR - {self.module_puissance}Wc', nb_modules_total, f'{prix_module_unit:.2f} €', 
              f'{nb_modules_total * prix_module_unit:,.2f} €'],
             ['', 'Certification IEC 61215, IEC 61730, Tier 1', '', '', ''],
             ['', 'Garantie produit 12 ans, performance 25 ans', '', '', ''],
@@ -1832,7 +1903,7 @@ class PropositionProfessionnelle:
             # 2. ONDULEURS
             ['2. ONDULEURS ET ÉQUIPEMENTS ÉLECTRIQUES', '', '', '', ''],
             ['', f'Onduleur Huawei SUN2000-{50 if puissance_kwc >= 50 else 25}KTL-M3', 
-             nb_onduleurs, f'{prix_onduleur_unit} €', f'{nb_onduleurs * prix_onduleur_unit:,.2f} €'],
+             nb_onduleurs, f'{prix_onduleur_unit:.2f} €', f'{nb_onduleurs * prix_onduleur_unit:,.2f} €'],
             ['', 'Rendement 98.65%, monitoring inclus', '', '', ''],
             ['', 'Coffret AC/DC protections (parafoudre, sectionneur)', 1, '850 €', '850.00 €'],
             ['', 'Câbles solaires 6mm² certifiés EN 50618', 1, '1200 €', '1200.00 €'],
