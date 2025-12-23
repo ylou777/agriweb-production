@@ -2973,3 +2973,269 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
+    # ROUTES PARAMÉTRAGE SYSTÈME
+    # ============================================================================
+    
+    @app.route('/api/crm/parametrage')
+    def page_parametrage():
+        """Page de paramétrage système"""
+        return render_template('parametrage.html')
+    
+    @app.route('/api/crm/parametrage/check-init')
+    def check_init_parametrage():
+        """Vérifier si les tables de paramétrage existent"""
+        try:
+            # Vérifier existence table parametrage_entreprise
+            result = execute_query("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'parametrage_entreprise'
+                )
+            """, fetch_one=True)
+            
+            initialized = result['exists'] if result else False
+            
+            return jsonify({
+                'success': True,
+                'initialized': initialized
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/init-database', methods=['POST'])
+    def init_database_parametrage():
+        """Initialiser les tables de paramétrage avec données par défaut"""
+        try:
+            # Lire et exécuter le script SQL
+            sql_file = os.path.join(os.path.dirname(__file__), 'create_tables_parametrage.sql')
+            
+            with open(sql_file, 'r', encoding='utf-8') as f:
+                sql_script = f.read()
+            
+            # Exécuter le script (note: execute_query ne supporte pas multi-statements)
+            # On doit utiliser une connexion directe
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(sql_script)
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            print("✅ Tables de paramétrage initialisées")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Tables créées avec succès'
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/entreprise', methods=['GET', 'POST'])
+    def parametrage_entreprise():
+        """GET: Charger les infos entreprise, POST: Sauvegarder"""
+        try:
+            if request.method == 'GET':
+                # Charger les données
+                result = execute_query(
+                    'SELECT * FROM parametrage_entreprise WHERE actif = TRUE ORDER BY id DESC LIMIT 1',
+                    fetch_one=True
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'entreprise': dict(result) if result else None
+                })
+            
+            else:  # POST
+                data = request.json
+                
+                # Vérifier si une entreprise existe déjà
+                existing = execute_query(
+                    'SELECT id FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # UPDATE
+                    execute_query("""
+                        UPDATE parametrage_entreprise SET
+                            nom_entreprise = %s,
+                            adresse = %s,
+                            code_postal = %s,
+                            ville = %s,
+                            telephone = %s,
+                            email = %s,
+                            site_web = %s,
+                            siret = %s,
+                            tva_intracommunautaire = %s,
+                            rge_numero = %s,
+                            rge_date_validite = %s,
+                            qualibat_numero = %s,
+                            qualibat_date_validite = %s,
+                            qualifelec_numero = %s,
+                            logo_base64 = %s,
+                            date_modification = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (
+                        data.get('nom_entreprise'),
+                        data.get('adresse'),
+                        data.get('code_postal'),
+                        data.get('ville'),
+                        data.get('telephone'),
+                        data.get('email'),
+                        data.get('site_web'),
+                        data.get('siret'),
+                        data.get('tva_intracommunautaire'),
+                        data.get('rge_numero'),
+                        data.get('rge_date_validite'),
+                        data.get('qualibat_numero'),
+                        data.get('qualibat_date_validite'),
+                        data.get('qualifelec_numero'),
+                        data.get('logo_base64'),
+                        existing['id']
+                    ))
+                else:
+                    # INSERT
+                    execute_query("""
+                        INSERT INTO parametrage_entreprise (
+                            nom_entreprise, adresse, code_postal, ville, telephone, email, site_web,
+                            siret, tva_intracommunautaire, rge_numero, rge_date_validite,
+                            qualibat_numero, qualibat_date_validite, qualifelec_numero, logo_base64
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        data.get('nom_entreprise'),
+                        data.get('adresse'),
+                        data.get('code_postal'),
+                        data.get('ville'),
+                        data.get('telephone'),
+                        data.get('email'),
+                        data.get('site_web'),
+                        data.get('siret'),
+                        data.get('tva_intracommunautaire'),
+                        data.get('rge_numero'),
+                        data.get('rge_date_validite'),
+                        data.get('qualibat_numero'),
+                        data.get('qualibat_date_validite'),
+                        data.get('qualifelec_numero'),
+                        data.get('logo_base64')
+                    ))
+                
+                print("✅ Paramétrage entreprise sauvegardé")
+                return jsonify({'success': True})
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/prix', methods=['GET', 'POST'])
+    def parametrage_prix():
+        """GET: Lister les prix, POST: Ajouter un prix"""
+        try:
+            if request.method == 'GET':
+                # Filtres optionnels
+                categorie = request.args.get('categorie')
+                search = request.args.get('search')
+                
+                query = 'SELECT * FROM parametrage_prix_organes WHERE actif = TRUE'
+                params = []
+                
+                if categorie:
+                    query += ' AND categorie = %s'
+                    params.append(categorie)
+                
+                if search:
+                    query += ' AND (nom_organe ILIKE %s OR marque ILIKE %s OR modele ILIKE %s)'
+                    params.extend([f'%{search}%', f'%{search}%', f'%{search}%'])
+                
+                query += ' ORDER BY categorie, nom_organe'
+                
+                result = execute_query(query, tuple(params), fetch_all=True)
+                
+                return jsonify({
+                    'success': True,
+                    'prix': [dict(row) for row in result] if result else []
+                })
+            
+            else:  # POST
+                data = request.json
+                
+                execute_query("""
+                    INSERT INTO parametrage_prix_organes (
+                        nom_organe, categorie, marque, modele, prix_unitaire_ht, unite, marge_commerciale_pct
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    data.get('nom_organe'),
+                    data.get('categorie'),
+                    data.get('marque'),
+                    data.get('modele'),
+                    data.get('prix_unitaire_ht'),
+                    data.get('unite'),
+                    data.get('marge_commerciale_pct', 15.0)
+                ))
+                
+                print(f"✅ Prix ajouté: {data.get('nom_organe')}")
+                return jsonify({'success': True})
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/prix/<int:prix_id>', methods=['DELETE'])
+    def delete_prix(prix_id):
+        """Supprimer un prix (soft delete)"""
+        try:
+            execute_query(
+                'UPDATE parametrage_prix_organes SET actif = FALSE WHERE id = %s',
+                (prix_id,)
+            )
+            
+            print(f"✅ Prix {prix_id} supprimé")
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/graphique', methods=['GET', 'POST'])
+    def parametrage_graphique():
+        """GET: Charger les couleurs, POST: Sauvegarder"""
+        try:
+            if request.method == 'GET':
+                result = execute_query(
+                    'SELECT couleur_primaire, couleur_secondaire, couleur_accent FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',
+                    fetch_one=True
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'graphique': dict(result) if result else None
+                })
+            
+            else:  # POST
+                data = request.json
+                
+                execute_query("""
+                    UPDATE parametrage_entreprise SET
+                        couleur_primaire = %s,
+                        couleur_secondaire = %s,
+                        couleur_accent = %s,
+                        date_modification = CURRENT_TIMESTAMP
+                    WHERE actif = TRUE
+                """, (
+                    data.get('couleur_primaire'),
+                    data.get('couleur_secondaire'),
+                    data.get('couleur_accent')
+                ))
+                
+                print("✅ Couleurs sauvegardées")
+                return jsonify({'success': True})
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+

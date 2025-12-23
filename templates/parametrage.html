@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paramétrage - AgriWeb CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .nav-pills .nav-link.active {
+            background-color: #0066cc;
+        }
+        .preview-logo {
+            max-width: 300px;
+            max-height: 150px;
+            border: 2px dashed #ddd;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .color-preview {
+            width: 50px;
+            height: 50px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+        .price-card {
+            transition: transform 0.2s;
+        }
+        .price-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .table-striped tbody tr:hover {
+            background-color: #f0f8ff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/api/crm/dashboard">
+                <i class="fas fa-solar-panel"></i> AgriWeb CRM
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api/crm/dashboard">
+                            <i class="fas fa-home"></i> Tableau de bord
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/api/crm/parametrage">
+                            <i class="fas fa-cog"></i> Paramétrage
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <h1 class="mb-4">
+                    <i class="fas fa-cog text-primary"></i> Paramétrage Système
+                </h1>
+                
+                <!-- Vérification initialisation BDD -->
+                <div id="alertInit" class="alert alert-warning alert-dismissible fade show" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Base de données non initialisée!</strong>
+                    <p class="mb-2">Les tables de paramétrage n'existent pas encore. Cliquez ci-dessous pour les créer avec les données par défaut.</p>
+                    <button type="button" class="btn btn-success btn-sm" onclick="initDatabase()">
+                        <i class="fas fa-database"></i> Initialiser la base de données
+                    </button>
+                </div>
+
+                <!-- Onglets de navigation -->
+                <ul class="nav nav-pills mb-4" id="paramTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="entreprise-tab" data-bs-toggle="pill" data-bs-target="#entreprise" type="button">
+                            <i class="fas fa-building"></i> Entreprise
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="prix-tab" data-bs-toggle="pill" data-bs-target="#prix" type="button">
+                            <i class="fas fa-euro-sign"></i> Prix & Tarifs
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="graphique-tab" data-bs-toggle="pill" data-bs-target="#graphique" type="button">
+                            <i class="fas fa-palette"></i> Graphique
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Contenu des onglets -->
+                <div class="tab-content" id="paramTabContent">
+                    
+                    <!-- ================================ -->
+                    <!-- ONGLET 1: ENTREPRISE -->
+                    <!-- ================================ -->
+                    <div class="tab-pane fade show active" id="entreprise">
+                        <div class="card">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0"><i class="fas fa-building"></i> Informations Entreprise</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="formEntreprise">
+                                    <div class="row">
+                                        <!-- Coordonnées -->
+                                        <div class="col-md-6">
+                                            <h6 class="text-primary mb-3">Coordonnées</h6>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Nom de l'entreprise *</label>
+                                                <input type="text" class="form-control" name="nom_entreprise" required>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Adresse</label>
+                                                <textarea class="form-control" name="adresse" rows="2"></textarea>
+                                            </div>
+                                            
+                                            <div class="row">
+                                                <div class="col-md-4 mb-3">
+                                                    <label class="form-label">Code postal</label>
+                                                    <input type="text" class="form-control" name="code_postal">
+                                                </div>
+                                                <div class="col-md-8 mb-3">
+                                                    <label class="form-label">Ville</label>
+                                                    <input type="text" class="form-control" name="ville">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Téléphone</label>
+                                                <input type="tel" class="form-control" name="telephone">
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Email</label>
+                                                <input type="email" class="form-control" name="email">
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">Site web</label>
+                                                <input type="url" class="form-control" name="site_web" placeholder="https://...">
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Identifiants légaux & Certifications -->
+                                        <div class="col-md-6">
+                                            <h6 class="text-primary mb-3">Identifiants légaux</h6>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">SIRET</label>
+                                                <input type="text" class="form-control" name="siret" maxlength="14">
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">TVA Intracommunautaire</label>
+                                                <input type="text" class="form-control" name="tva_intracommunautaire">
+                                            </div>
+                                            
+                                            <h6 class="text-primary mb-3 mt-4">Certifications</h6>
+                                            
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">N° RGE</label>
+                                                    <input type="text" class="form-control" name="rge_numero">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Validité RGE</label>
+                                                    <input type="date" class="form-control" name="rge_date_validite">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="row">
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">N° Qualibat</label>
+                                                    <input type="text" class="form-control" name="qualibat_numero">
+                                                </div>
+                                                <div class="col-md-6 mb-3">
+                                                    <label class="form-label">Validité Qualibat</label>
+                                                    <input type="date" class="form-control" name="qualibat_date_validite">
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <label class="form-label">N° Qualifelec</label>
+                                                <input type="text" class="form-control" name="qualifelec_numero">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Logo -->
+                                    <hr class="my-4">
+                                    <h6 class="text-primary mb-3">Logo de l'entreprise</h6>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="mb-3">
+                                                <label class="form-label">Charger un logo (PNG, JPG, SVG)</label>
+                                                <input type="file" class="form-control" id="inputLogo" accept="image/*">
+                                                <small class="text-muted">Taille recommandée: 400x150px, max 500KB</small>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Aperçu</label>
+                                            <div>
+                                                <img id="previewLogo" class="preview-logo" src="" alt="Aucun logo" style="display: none;">
+                                                <p id="noLogo" class="text-muted">Aucun logo chargé</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" name="logo_base64" id="logoBase64">
+                                    
+                                    <hr class="my-4">
+                                    <div class="text-end">
+                                        <button type="submit" class="btn btn-primary btn-lg">
+                                            <i class="fas fa-save"></i> Enregistrer
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ================================ -->
+                    <!-- ONGLET 2: PRIX & TARIFS -->
+                    <!-- ================================ -->
+                    <div class="tab-pane fade" id="prix">
+                        <div class="row mb-3">
+                            <div class="col-md-8">
+                                <h5><i class="fas fa-euro-sign text-success"></i> Gestion des Prix</h5>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalAddPrix">
+                                    <i class="fas fa-plus"></i> Ajouter un prix
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Filtres -->
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <div class="row align-items-end">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Catégorie</label>
+                                        <select class="form-select" id="filterCategorie">
+                                            <option value="">Toutes</option>
+                                            <option value="module">Modules</option>
+                                            <option value="onduleur">Onduleurs</option>
+                                            <option value="structure">Structure</option>
+                                            <option value="cable">Câbles</option>
+                                            <option value="protection">Protections</option>
+                                            <option value="main_oeuvre">Main d'œuvre</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Recherche</label>
+                                        <input type="text" class="form-control" id="searchPrix" placeholder="Nom, marque...">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-primary" onclick="chargerPrix()">
+                                            <i class="fas fa-search"></i> Filtrer
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tableau des prix -->
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Organe</th>
+                                                <th>Catégorie</th>
+                                                <th>Marque</th>
+                                                <th>Prix HT</th>
+                                                <th>Unité</th>
+                                                <th>Marge %</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tablePrix">
+                                            <tr>
+                                                <td colspan="7" class="text-center">
+                                                    <i class="fas fa-spinner fa-spin"></i> Chargement...
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ================================ -->
+                    <!-- ONGLET 3: GRAPHIQUE -->
+                    <!-- ================================ -->
+                    <div class="tab-pane fade" id="graphique">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <h5 class="mb-0"><i class="fas fa-palette"></i> Charte Graphique</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="formGraphique">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <h6 class="text-info mb-3">Couleurs</h6>
+                                            
+                                            <div class="mb-4">
+                                                <label class="form-label">Couleur primaire (titres, en-têtes)</label>
+                                                <div class="input-group">
+                                                    <input type="color" class="form-control form-control-color" name="couleur_primaire" value="#003d7a">
+                                                    <input type="text" class="form-control" id="txtPrimaire" value="#003d7a" readonly>
+                                                </div>
+                                                <div class="color-preview" id="previewPrimaire" style="background-color: #003d7a;"></div>
+                                            </div>
+                                            
+                                            <div class="mb-4">
+                                                <label class="form-label">Couleur secondaire (sous-titres)</label>
+                                                <div class="input-group">
+                                                    <input type="color" class="form-control form-control-color" name="couleur_secondaire" value="#0066cc">
+                                                    <input type="text" class="form-control" id="txtSecondaire" value="#0066cc" readonly>
+                                                </div>
+                                                <div class="color-preview" id="previewSecondaire" style="background-color: #0066cc;"></div>
+                                            </div>
+                                            
+                                            <div class="mb-4">
+                                                <label class="form-label">Couleur accent (boutons, icônes)</label>
+                                                <div class="input-group">
+                                                    <input type="color" class="form-control form-control-color" name="couleur_accent" value="#28a745">
+                                                    <input type="text" class="form-control" id="txtAccent" value="#28a745" readonly>
+                                                </div>
+                                                <div class="color-preview" id="previewAccent" style="background-color: #28a745;"></div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="col-md-8">
+                                            <h6 class="text-info mb-3">Aperçu</h6>
+                                            <div class="border p-4" id="previewDoc" style="background: white;">
+                                                <h1 style="color: #003d7a; font-family: Arial, sans-serif;">PROPOSITION COMMERCIALE</h1>
+                                                <h2 style="color: #0066cc; font-family: Arial, sans-serif;">Installation Photovoltaïque</h2>
+                                                <p style="color: #333;">Votre projet d'installation solaire personnalisée avec notre expertise.</p>
+                                                <button class="btn mt-3" style="background-color: #28a745; color: white;">
+                                                    <i class="fas fa-download"></i> Télécharger la proposition
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <hr class="my-4">
+                                    <div class="text-end">
+                                        <button type="submit" class="btn btn-info btn-lg text-white">
+                                            <i class="fas fa-save"></i> Enregistrer les couleurs
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Ajout Prix -->
+    <div class="modal fade" id="modalAddPrix" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="fas fa-plus"></i> Ajouter un prix</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="formAddPrix">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nom de l'organe *</label>
+                                <input type="text" class="form-control" name="nom_organe" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Catégorie *</label>
+                                <select class="form-select" name="categorie" required>
+                                    <option value="module">Module</option>
+                                    <option value="onduleur">Onduleur</option>
+                                    <option value="structure">Structure</option>
+                                    <option value="cable">Câble</option>
+                                    <option value="protection">Protection</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Marque</label>
+                                <input type="text" class="form-control" name="marque">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Modèle</label>
+                                <input type="text" class="form-control" name="modele">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Prix unitaire HT *</label>
+                                <input type="number" step="0.01" class="form-control" name="prix_unitaire_ht" required>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Unité *</label>
+                                <select class="form-select" name="unite" required>
+                                    <option value="€/Wc">€/Wc</option>
+                                    <option value="€/kW">€/kW</option>
+                                    <option value="€/m²">€/m²</option>
+                                    <option value="€/ml">€/ml</option>
+                                    <option value="€/u">€/u (unité)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Marge %</label>
+                                <input type="number" step="0.1" class="form-control" name="marge_commerciale_pct" value="15">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="button" class="btn btn-success" onclick="savePrix()">
+                        <i class="fas fa-save"></i> Enregistrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ========================================
+        // INITIALISATION
+        // ========================================
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            verifierInit();
+            chargerEntreprise();
+            chargerPrix();
+            chargerGraphique();
+            
+            // Event listeners
+            document.getElementById('formEntreprise').addEventListener('submit', saveEntreprise);
+            document.getElementById('formGraphique').addEventListener('submit', saveGraphique);
+            document.getElementById('inputLogo').addEventListener('change', previewLogoFile);
+            
+            // Couleurs live preview
+            document.querySelectorAll('input[type="color"]').forEach(input => {
+                input.addEventListener('input', updateColorPreview);
+            });
+        });
+        
+        // ========================================
+        // VÉRIFICATION INITIALISATION BDD
+        // ========================================
+        
+        async function verifierInit() {
+            try {
+                const response = await fetch('/api/crm/parametrage/check-init');
+                const data = await response.json();
+                
+                if (!data.initialized) {
+                    document.getElementById('alertInit').style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Erreur vérification init:', error);
+            }
+        }
+        
+        async function initDatabase() {
+            if (!confirm('Voulez-vous initialiser les tables de paramétrage avec les données par défaut?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/crm/parametrage/init-database', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Base de données initialisée avec succès!');
+                    document.getElementById('alertInit').style.display = 'none';
+                    chargerEntreprise();
+                    chargerPrix();
+                } else {
+                    alert('❌ Erreur: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Erreur init:', error);
+                alert('❌ Erreur réseau');
+            }
+        }
+        
+        // ========================================
+        // ENTREPRISE
+        // ========================================
+        
+        async function chargerEntreprise() {
+            try {
+                const response = await fetch('/api/crm/parametrage/entreprise');
+                const data = await response.json();
+                
+                if (data.success && data.entreprise) {
+                    const form = document.getElementById('formEntreprise');
+                    Object.keys(data.entreprise).forEach(key => {
+                        const input = form.elements[key];
+                        if (input && data.entreprise[key]) {
+                            input.value = data.entreprise[key];
+                        }
+                    });
+                    
+                    // Logo
+                    if (data.entreprise.logo_base64) {
+                        document.getElementById('previewLogo').src = data.entreprise.logo_base64;
+                        document.getElementById('previewLogo').style.display = 'block';
+                        document.getElementById('noLogo').style.display = 'none';
+                        document.getElementById('logoBase64').value = data.entreprise.logo_base64;
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur chargement entreprise:', error);
+            }
+        }
+        
+        function previewLogoFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const base64 = event.target.result;
+                document.getElementById('previewLogo').src = base64;
+                document.getElementById('previewLogo').style.display = 'block';
+                document.getElementById('noLogo').style.display = 'none';
+                document.getElementById('logoBase64').value = base64;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        async function saveEntreprise(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/api/crm/parametrage/entreprise', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ Informations entreprise enregistrées!');
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur save entreprise:', error);
+                alert('❌ Erreur réseau');
+            }
+        }
+        
+        // ========================================
+        // PRIX
+        // ========================================
+        
+        async function chargerPrix() {
+            const categorie = document.getElementById('filterCategorie').value;
+            const search = document.getElementById('searchPrix').value;
+            
+            try {
+                let url = '/api/crm/parametrage/prix';
+                const params = new URLSearchParams();
+                if (categorie) params.append('categorie', categorie);
+                if (search) params.append('search', search);
+                if (params.toString()) url += '?' + params.toString();
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('tablePrix');
+                tbody.innerHTML = '';
+                
+                if (data.prix && data.prix.length > 0) {
+                    data.prix.forEach(p => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><strong>${p.nom_organe}</strong><br><small class="text-muted">${p.modele || ''}</small></td>
+                            <td><span class="badge bg-secondary">${p.categorie}</span></td>
+                            <td>${p.marque || '-'}</td>
+                            <td><strong>${parseFloat(p.prix_unitaire_ht).toFixed(2)} €</strong></td>
+                            <td>${p.unite}</td>
+                            <td>${parseFloat(p.marge_commerciale_pct).toFixed(1)}%</td>
+                            <td>
+                                <button class="btn btn-sm btn-warning" onclick="editPrix(${p.id})">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deletePrix(${p.id})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Aucun prix trouvé</td></tr>';
+                }
+            } catch (error) {
+                console.error('Erreur chargement prix:', error);
+            }
+        }
+        
+        async function savePrix() {
+            const form = document.getElementById('formAddPrix');
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/api/crm/parametrage/prix', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ Prix ajouté!');
+                    bootstrap.Modal.getInstance(document.getElementById('modalAddPrix')).hide();
+                    form.reset();
+                    chargerPrix();
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur save prix:', error);
+                alert('❌ Erreur réseau');
+            }
+        }
+        
+        async function deletePrix(id) {
+            if (!confirm('Supprimer ce prix?')) return;
+            
+            try {
+                const response = await fetch(`/api/crm/parametrage/prix/${id}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ Prix supprimé!');
+                    chargerPrix();
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur delete prix:', error);
+                alert('❌ Erreur réseau');
+            }
+        }
+        
+        // ========================================
+        // GRAPHIQUE
+        // ========================================
+        
+        async function chargerGraphique() {
+            try {
+                const response = await fetch('/api/crm/parametrage/graphique');
+                const data = await response.json();
+                
+                if (data.success && data.graphique) {
+                    const form = document.getElementById('formGraphique');
+                    ['couleur_primaire', 'couleur_secondaire', 'couleur_accent'].forEach(key => {
+                        if (data.graphique[key]) {
+                            form.elements[key].value = data.graphique[key];
+                            updateColorPreview({target: form.elements[key]});
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Erreur chargement graphique:', error);
+            }
+        }
+        
+        function updateColorPreview(e) {
+            const input = e.target;
+            const name = input.name;
+            
+            if (name === 'couleur_primaire') {
+                document.getElementById('previewPrimaire').style.backgroundColor = input.value;
+                document.getElementById('txtPrimaire').value = input.value;
+                document.querySelector('#previewDoc h1').style.color = input.value;
+            } else if (name === 'couleur_secondaire') {
+                document.getElementById('previewSecondaire').style.backgroundColor = input.value;
+                document.getElementById('txtSecondaire').value = input.value;
+                document.querySelector('#previewDoc h2').style.color = input.value;
+            } else if (name === 'couleur_accent') {
+                document.getElementById('previewAccent').style.backgroundColor = input.value;
+                document.getElementById('txtAccent').value = input.value;
+                document.querySelector('#previewDoc button').style.backgroundColor = input.value;
+            }
+        }
+        
+        async function saveGraphique(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                const response = await fetch('/api/crm/parametrage/graphique', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ Couleurs enregistrées!');
+                } else {
+                    alert('❌ Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur save graphique:', error);
+                alert('❌ Erreur réseau');
+            }
+        }
+    </script>
+</body>
+</html>
