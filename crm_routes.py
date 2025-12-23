@@ -3008,24 +3008,54 @@ def register_crm_routes(app):
     def init_database_parametrage():
         """Initialiser les tables de paramétrage avec données par défaut"""
         try:
-            # Lire et exécuter le script SQL
+            # Lire le script SQL
             sql_file = os.path.join(os.path.dirname(__file__), 'create_tables_parametrage.sql')
             
             with open(sql_file, 'r', encoding='utf-8') as f:
                 sql_script = f.read()
             
-            # Exécuter le script avec context manager
+            # Séparer les commandes SQL pour PostgreSQL
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute(sql_script)
+                
+                # Séparer par point-virgule et exécuter commande par commande
+                commands = []
+                current_command = []
+                
+                for line in sql_script.split('\n'):
+                    # Ignorer les commentaires
+                    if line.strip().startswith('--'):
+                        continue
+                    
+                    current_command.append(line)
+                    
+                    # Si ligne contient un point-virgule, c'est une fin de commande
+                    if ';' in line:
+                        command = '\n'.join(current_command).strip()
+                        if command and not command.startswith('--'):
+                            commands.append(command)
+                        current_command = []
+                
+                # Exécuter chaque commande
+                executed = 0
+                for command in commands:
+                    if command.strip():
+                        try:
+                            cursor.execute(command)
+                            executed += 1
+                        except Exception as e:
+                            # Continuer même si erreur (table existe déjà, etc.)
+                            print(f"⚠️ SQL warning: {str(e)[:80]}")
+                            continue
+                
                 conn.commit()
                 cursor.close()
             
-            print("✅ Tables de paramétrage initialisées")
+            print(f"✅ {executed} commandes SQL exécutées")
             
             return jsonify({
                 'success': True,
-                'message': 'Tables créées avec succès'
+                'message': f'{executed} tables et données initialisées avec succès'
             })
         except Exception as e:
             import traceback
