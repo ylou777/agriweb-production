@@ -351,31 +351,6 @@ class PropositionProfessionnelle:
         elements.append(sommaire_table)
         
         return elements
-            ['3.', 'Solution technique proposée', '5'],
-            ['4.', 'Étude de productible', '6'],
-            ['5.', 'Étude financière et rentabilité', '7'],
-            ['6.', 'Devis détaillé', '8'],
-            ['7.', 'Planning de réalisation', '9'],
-            ['8.', 'Garanties et maintenance', '10'],
-            ['9.', 'Aspects réglementaires', '11'],
-            ['10.', 'Conditions générales de vente', '12'],
-        ]
-        
-        sommaire_table = Table(sommaire_data, colWidths=[1.5*cm, 12*cm, 3*cm])
-        sommaire_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
-            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')])
-        ]))
-        elements.append(sommaire_table)
-        
-        return elements
     
     def _presentation_entreprise(self):
         """PAGE 3: Présentation de l'entreprise"""
