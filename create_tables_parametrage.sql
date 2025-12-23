@@ -143,7 +143,12 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 -- Trina Solar (économique)
 ('Module PV 450Wc', 'module', 0.38, '€/Wc', 450, 'Trina Solar', 'Vertex S TSM-450DE19', 15.00, 'Solarwatt'),
 ('Module PV 540Wc', 'module', 0.33, '€/Wc', 540, 'Trina Solar', 'Vertex S TSM-540DE19', 15.00, 'Solarwatt')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET
+    prix_unitaire_ht = EXCLUDED.prix_unitaire_ht,
+    puissance_wc = EXCLUDED.puissance_wc,
+    marge_commerciale_pct = EXCLUDED.marge_commerciale_pct,
+    fournisseur = EXCLUDED.fournisseur,
+    date_modification = CURRENT_TIMESTAMP;
 
 -- Prix onduleurs (gamme complète par puissance)
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_kw, marque, modele, marge_commerciale_pct, fournisseur) VALUES
@@ -190,7 +195,12 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Onduleur 250kW', 'onduleur', 75.00, '€/kW', 250, 'Sungrow', 'SG250HX', 16.00, 'Sungrow France'),
 ('Onduleur 320kW', 'onduleur', 73.00, '€/kW', 320, 'Sungrow', 'SG320HX', 16.00, 'Sungrow France'),
 ('Onduleur 500kW', 'onduleur', 70.00, '€/kW', 500, 'Sungrow', 'SG500HX', 15.00, 'Sungrow France')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET
+    prix_unitaire_ht = EXCLUDED.prix_unitaire_ht,
+    puissance_kw = EXCLUDED.puissance_kw,
+    marge_commerciale_pct = EXCLUDED.marge_commerciale_pct,
+    fournisseur = EXCLUDED.fournisseur,
+    date_modification = CURRENT_TIMESTAMP;
 
 -- Prix structure et fixations (complet)
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
@@ -203,7 +213,11 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Boulons M8x30 inox', 'structure', 0.45, '€/u', 20.00, 'Würth', 'Boulons tête hexagonale'),
 ('Collier serrage', 'structure', 1.80, '€/u', 20.00, 'K2 Systems', 'Collier fixation module'),
 ('Équerre renfort', 'structure', 4.50, '€/u', 15.00, 'Schletter', 'Équerre renfort structure')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET
+    prix_unitaire_ht = EXCLUDED.prix_unitaire_ht,
+    marge_commerciale_pct = EXCLUDED.marge_commerciale_pct,
+    fournisseur = EXCLUDED.fournisseur,
+    date_modification = CURRENT_TIMESTAMP;
 
 -- Prix câbles (toutes sections)
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
@@ -236,7 +250,11 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Câble terre 35mm²', 'cable', 10.50, '€/ml', 18.00, 'Nexans', 'Câble cuivre nu 35mm²'),
 ('Câble terre 50mm²', 'cable', 14.50, '€/ml', 18.00, 'Nexans', 'Câble cuivre nu 50mm²'),
 ('Câble terre 70mm²', 'cable', 19.50, '€/ml', 18.00, 'Nexans', 'Câble cuivre nu 70mm²')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET
+    prix_unitaire_ht = EXCLUDED.prix_unitaire_ht,
+    marge_commerciale_pct = EXCLUDED.marge_commerciale_pct,
+    fournisseur = EXCLUDED.fournisseur,
+    date_modification = CURRENT_TIMESTAMP;
 
 -- Prix protections électriques (complet schéma unifilaire)
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
@@ -319,7 +337,11 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Poste préfabriqué béton 250kVA', 'protection', 45000.00, '€/u', 12.00, 'Cahors', 'Poste préfabriqué béton complet 250kVA'),
 ('Poste préfabriqué béton 630kVA', 'protection', 65000.00, '€/u', 12.00, 'Cahors', 'Poste préfabriqué béton complet 630kVA'),
 ('Poste préfabriqué béton 1000kVA', 'protection', 85000.00, '€/u', 12.00, 'Cahors', 'Poste préfabriqué béton complet 1000kVA')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET
+    prix_unitaire_ht = EXCLUDED.prix_unitaire_ht,
+    marge_commerciale_pct = EXCLUDED.marge_commerciale_pct,
+    fournisseur = EXCLUDED.fournisseur,
+    date_modification = CURRENT_TIMESTAMP;
 
 -- Composants de mise à la terre
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
@@ -330,7 +352,7 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Conducteur cuivre nu 25mm²', 'terre', 7.50, '€/ml', 20.00, 'Nexans', 'Conducteur cuivre nu 25mm²'),
 ('Conducteur cuivre nu 35mm²', 'terre', 10.00, '€/ml', 20.00, 'Nexans', 'Conducteur cuivre nu 35mm²'),
 ('Borne connexion terre', 'terre', 12.50, '€/u', 20.00, 'Legrand', 'Borne de connexion terre modulaire')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET prix_unitaire_ht = EXCLUDED.prix_unitaire_ht, marge_commerciale_pct = EXCLUDED.marge_commerciale_pct, date_modification = CURRENT_TIMESTAMP;
 
 -- Batteries de stockage (optionnel)
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_kw, marge_commerciale_pct, fournisseur, description) VALUES
@@ -341,7 +363,7 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Batterie Lithium 30kWh', 'batterie', 850.00, '€/kWh', 30, 22.00, 'BYD', 'BYD Battery-Box Premium HVM'),
 ('Onduleur hybride 10kW', 'onduleur', 185.00, '€/kW', 10, 20.00, 'Huawei', 'SUN2000-10KTL-M1 Hybrid'),
 ('Onduleur hybride 15kW', 'onduleur', 175.00, '€/kW', 15, 20.00, 'Huawei', 'SUN2000-15KTL-M2 Hybrid')
-ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+ON CONFLICT (nom_organe, categorie, marque, modele) DO UPDATE SET prix_unitaire_ht = EXCLUDED.prix_unitaire_ht, marge_commerciale_pct = EXCLUDED.marge_commerciale_pct, date_modification = CURRENT_TIMESTAMP;
 
 -- Main d'œuvre
 INSERT INTO parametrage_main_oeuvre (type_prestation, tarif_horaire_ht, nb_heures_unitaire, description, competence_requise) VALUES
