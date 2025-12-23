@@ -171,7 +171,25 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 -- Fronius (qualité autrichienne)
 ('Onduleur 10kW', 'onduleur', 140.00, '€/kW', 10, 'Fronius', 'Symo 10.0-3-M', 18.00, 'Fronius France'),
 ('Onduleur 15kW', 'onduleur', 130.00, '€/kW', 15, 'Fronius', 'Symo 15.0-3-M', 18.00, 'Fronius France'),
-('Onduleur 20kW', 'onduleur', 120.00, '€/kW', 20, 'Fronius', 'Symo 20.0-3-M', 18.00, 'Fronius France')
+('Onduleur 20kW', 'onduleur', 120.00, '€/kW', 20, 'Fronius', 'Symo 20.0-3-M', 18.00, 'Fronius France'),
+-- === GRANDES PUISSANCES (150-500kW) ===
+-- Huawei SUN2000 H3 Series (150-215kW)
+('Onduleur 150kW', 'onduleur', 76.00, '€/kW', 150, 'Huawei', 'SUN2000-150KTL-H3', 17.00, 'Huawei France'),
+('Onduleur 175kW', 'onduleur', 74.00, '€/kW', 175, 'Huawei', 'SUN2000-175KTL-H3', 17.00, 'Huawei France'),
+('Onduleur 185kW', 'onduleur', 73.00, '€/kW', 185, 'Huawei', 'SUN2000-185KTL-H3', 17.00, 'Huawei France'),
+('Onduleur 200kW', 'onduleur', 72.00, '€/kW', 200, 'Huawei', 'SUN2000-200KTL-H3', 17.00, 'Huawei France'),
+('Onduleur 215kW', 'onduleur', 71.00, '€/kW', 215, 'Huawei', 'SUN2000-215KTL-H3', 17.00, 'Huawei France'),
+-- SMA Sunny Central (125-330kW)
+('Onduleur 125kW', 'onduleur', 85.00, '€/kW', 125, 'SMA', 'Sunny Central 125 UP', 17.00, 'SMA Solar'),
+('Onduleur 150kW', 'onduleur', 82.00, '€/kW', 150, 'SMA', 'Sunny Central 150 UP', 17.00, 'SMA Solar'),
+('Onduleur 200kW', 'onduleur', 79.00, '€/kW', 200, 'SMA', 'Sunny Central 200 UP', 17.00, 'SMA Solar'),
+('Onduleur 250kW', 'onduleur', 76.00, '€/kW', 250, 16.00, 'SMA', 'Sunny Central 250 UP', 16.00, 'SMA Solar'),
+('Onduleur 300kW', 'onduleur', 74.00, '€/kW', 300, 'SMA', 'Sunny Central 300 UP', 16.00, 'SMA Solar'),
+('Onduleur 330kW', 'onduleur', 73.00, '€/kW', 330, 'SMA', 'Sunny Central 330 UP', 16.00, 'SMA Solar'),
+-- Sungrow (250-500kW)
+('Onduleur 250kW', 'onduleur', 75.00, '€/kW', 250, 'Sungrow', 'SG250HX', 16.00, 'Sungrow France'),
+('Onduleur 320kW', 'onduleur', 73.00, '€/kW', 320, 'Sungrow', 'SG320HX', 16.00, 'Sungrow France'),
+('Onduleur 500kW', 'onduleur', 70.00, '€/kW', 500, 'Sungrow', 'SG500HX', 15.00, 'Sungrow France')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
 -- Prix structure et fixations (complet)
@@ -204,11 +222,20 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Câble U1000R2V 3G50mm²', 'cable', 22.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x50mm² + terre'),
 ('Câble U1000R2V 3G70mm²', 'cable', 30.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x70mm² + terre'),
 ('Câble U1000R2V 3G95mm²', 'cable', 38.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x95mm² + terre'),
+-- === CÂBLES AC GRANDES PUISSANCES ===
+('Câble U1000R2V 3G120mm²', 'cable', 48.00, '€/ml', 18.00, 'Nexans', 'Câble AC 3x120mm² + terre'),
+('Câble U1000R2V 3G150mm²', 'cable', 58.00, '€/ml', 18.00, 'Nexans', 'Câble AC 3x150mm² + terre'),
+('Câble U1000R2V 3G185mm²', 'cable', 70.00, '€/ml', 18.00, 'Nexans', 'Câble AC 3x185mm² + terre'),
+('Câble U1000R2V 3G240mm²', 'cable', 88.00, '€/ml', 18.00, 'Nexans', 'Câble AC 3x240mm² + terre'),
 -- Câbles de terre
 ('Câble terre 6mm²', 'cable', 2.20, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 6mm²'),
 ('Câble terre 10mm²', 'cable', 3.50, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 10mm²'),
 ('Câble terre 16mm²', 'cable', 5.00, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 16mm²'),
-('Câble terre 25mm²', 'cable', 7.50, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 25mm²')
+('Câble terre 25mm²', 'cable', 7.50, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 25mm²'),
+-- === CÂBLES TERRE GRANDES PUISSANCES ===
+('Câble terre 35mm²', 'cable', 10.50, '€/ml', 18.00, 'Nexans', 'Câble cuivre nu 35mm²'),
+('Câble terre 50mm²', 'cable', 14.50, '€/ml', 18.00, 'Nexans', 'Câble cuivre nu 50mm²'),
+('Câble terre 70mm²', 'cable', 19.50, '€/ml', 18.00, 'Nexans', 'Câble cuivre nu 70mm²')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
 -- Prix protections électriques (complet schéma unifilaire)
@@ -251,6 +278,26 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('Fusible gPV 15A', 'protection', 12.50, '€/u', 25.00, 'Mersen', 'Fusible gPV 15A 1000V DC'),
 ('Fusible gPV 20A', 'protection', 13.20, '€/u', 25.00, 'Mersen', 'Fusible gPV 20A 1000V DC'),
 ('Fusible gPV 25A', 'protection', 14.00, '€/u', 25.00, 'Mersen', 'Fusible gPV 25A 1000V DC'),
+-- === FUSIBLES GRANDES PUISSANCES ===
+('Fusible gPV 32A', 'protection', 15.50, '€/u', 25.00, 'Mersen', 'Fusible gPV 32A 1500V DC'),
+('Fusible gPV 40A', 'protection', 17.00, '€/u', 25.00, 'Mersen', 'Fusible gPV 40A 1500V DC'),
+('Fusible gPV 50A', 'protection', 19.50, '€/u', 25.00, 'Mersen', 'Fusible gPV 50A 1500V DC'),
+('Fusible gPV 63A', 'protection', 22.00, '€/u', 25.00, 'Mersen', 'Fusible gPV 63A 1500V DC'),
+('Fusible gPV 80A', 'protection', 26.50, '€/u', 25.00, 'Bussmann', 'Fusible gPV 80A 1500V DC'),
+('Fusible gPV 100A', 'protection', 32.00, '€/u', 25.00, 'Bussmann', 'Fusible gPV 100A 1500V DC'),
+-- === SECTIONNEURS DC GRANDES PUISSANCES ===
+('Sectionneur DC 315A 1500V', 'protection', 950.00, '€/u', 18.00, 'Socomec', 'Sectionneur cadenassable DC 315A 1500V'),
+('Sectionneur DC 400A 1500V', 'protection', 1250.00, '€/u', 18.00, 'Socomec', 'Sectionneur cadenassable DC 400A 1500V'),
+('Sectionneur DC 630A 1500V', 'protection', 1850.00, '€/u', 18.00, 'Socomec', 'Sectionneur cadenassable DC 630A 1500V'),
+-- === DISJONCTEURS AC GRANDES PUISSANCES ===
+('Disjoncteur 200A C courbe', 'protection', 380.00, '€/u', 18.00, 'Schneider', 'Disjoncteur 3P 200A courbe C 36kA'),
+('Disjoncteur 250A C courbe', 'protection', 485.00, '€/u', 18.00, 'Schneider', 'Disjoncteur 3P 250A courbe C 36kA'),
+('Disjoncteur 315A C courbe', 'protection', 620.00, '€/u', 18.00, 'Schneider', 'Disjoncteur 3P 315A courbe C 50kA'),
+('Disjoncteur 400A C courbe', 'protection', 820.00, '€/u', 18.00, 'Schneider', 'Disjoncteur 3P 400A courbe C 50kA'),
+-- === BOÎTES DE JONCTION GRANDES PUISSANCES ===
+('Boîte DC 16 strings 1500V', 'protection', 1850.00, '€/u', 20.00, 'Phoenix Contact', 'Boîte jonction 16 entrées + parafoudre'),
+('Boîte DC 20 strings 1500V', 'protection', 2350.00, '€/u', 20.00, 'Phoenix Contact', 'Boîte jonction 20 entrées + parafoudre'),
+('Boîte DC 24 strings 1500V', 'protection', 2850.00, '€/u', 20.00, 'Phoenix Contact', 'Boîte jonction 24 entrées + parafoudre'),
 -- Coffrets et tableaux
 ('Coffret AC/DC petit', 'protection', 650.00, '€/u', 20.00, 'Legrand', 'Coffret pré-équipé < 50kWc'),
 ('Coffret AC/DC moyen', 'protection', 1200.00, '€/u', 20.00, 'Legrand', 'Coffret pré-équipé 50-100kWc'),
@@ -259,7 +306,19 @@ INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, u
 ('TGBT 36 modules', 'protection', 420.00, '€/u', 15.00, 'Schneider', 'Tableau Gamma 36 modules'),
 -- Compteurs et monitoring
 ('Compteur énergie MID', 'protection', 185.00, '€/u', 20.00, 'Carlo Gavazzi', 'Compteur triphasé certifié MID'),
-('Box monitoring', 'protection', 450.00, '€/u', 25.00, 'Huawei', 'SmartLogger 3000A avec 4G')
+('Box monitoring', 'protection', 450.00, '€/u', 25.00, 'Huawei', 'SmartLogger 3000A avec 4G'),
+-- === TRANSFORMATEURS HTA (pour installations >1MWc) ===
+('Transformateur HTA/BT 250kVA', 'protection', 12500.00, '€/u', 15.00, 'Schneider', 'Transformateur 20kV/400V 250kVA huile'),
+('Transformateur HTA/BT 400kVA', 'protection', 18500.00, '€/u', 15.00, 'Schneider', 'Transformateur 20kV/400V 400kVA huile'),
+('Transformateur HTA/BT 630kVA', 'protection', 24500.00, '€/u', 15.00, 'Schneider', 'Transformateur 20kV/400V 630kVA huile'),
+('Transformateur HTA/BT 800kVA', 'protection', 29500.00, '€/u', 15.00, 'Schneider', 'Transformateur 20kV/400V 800kVA huile'),
+('Transformateur HTA/BT 1000kVA', 'protection', 35500.00, '€/u', 15.00, 'Schneider', 'Transformateur 20kV/400V 1000kVA huile'),
+('Cellule HTA arrivée', 'protection', 8500.00, '€/u', 15.00, 'Schneider', 'Cellule HTA arrivée 20kV 630A'),
+('Cellule HTA protection', 'protection', 11500.00, '€/u', 15.00, 'Schneider', 'Cellule HTA protection 20kV 630A + disjoncteur'),
+('Cellule HTA départ', 'protection', 9500.00, '€/u', 15.00, 'Schneider', 'Cellule HTA départ 20kV 630A'),
+('Poste préfabriqué béton 250kVA', 'protection', 45000.00, '€/u', 12.00, 'Cahors', 'Poste préfabriqué béton complet 250kVA'),
+('Poste préfabriqué béton 630kVA', 'protection', 65000.00, '€/u', 12.00, 'Cahors', 'Poste préfabriqué béton complet 630kVA'),
+('Poste préfabriqué béton 1000kVA', 'protection', 85000.00, '€/u', 12.00, 'Cahors', 'Poste préfabriqué béton complet 1000kVA')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
 -- Composants de mise à la terre
