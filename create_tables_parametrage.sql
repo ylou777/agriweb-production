@@ -131,42 +131,157 @@ INSERT INTO parametrage_entreprise (
     '#28a745'
 ) ON CONFLICT DO NOTHING;
 
--- Prix modules photovoltaïques
-INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_wc, marque, modele, marge_commerciale_pct) VALUES
-('Module PV 550Wc', 'module', 0.32, '€/Wc', 550, 'JA Solar', 'JAM72S30-550/MR', 15.00),
-('Module PV 600Wc', 'module', 0.30, '€/Wc', 600, 'JA Solar', 'JAM72S30-600/MR', 15.00),
-('Module PV 665Wc', 'module', 0.28, '€/Wc', 665, 'Longi', 'LR5-72HIH-665M', 15.00)
+-- Prix modules photovoltaïques (gamme complète)
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_wc, marque, modele, marge_commerciale_pct, fournisseur) VALUES
+-- JA Solar (marque premium)
+('Module PV 500Wc', 'module', 0.35, '€/Wc', 500, 'JA Solar', 'JAM72S30-500/MR', 15.00, 'Krannich Solar'),
+('Module PV 550Wc', 'module', 0.32, '€/Wc', 550, 'JA Solar', 'JAM72S30-550/MR', 15.00, 'Krannich Solar'),
+('Module PV 600Wc', 'module', 0.30, '€/Wc', 600, 'JA Solar', 'JAM72S30-600/MR', 15.00, 'Krannich Solar'),
+-- Longi (haute performance)
+('Module PV 665Wc', 'module', 0.28, '€/Wc', 665, 'Longi', 'LR5-72HIH-665M', 15.00, 'Alma Solar'),
+('Module PV 700Wc', 'module', 0.26, '€/Wc', 700, 'Longi', 'LR5-72HIH-700M', 15.00, 'Alma Solar'),
+-- Trina Solar (économique)
+('Module PV 450Wc', 'module', 0.38, '€/Wc', 450, 'Trina Solar', 'Vertex S TSM-450DE19', 15.00, 'Solarwatt'),
+('Module PV 540Wc', 'module', 0.33, '€/Wc', 540, 'Trina Solar', 'Vertex S TSM-540DE19', 15.00, 'Solarwatt')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
--- Prix onduleurs
-INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_kw, marque, modele, marge_commerciale_pct) VALUES
-('Onduleur 25kW', 'onduleur', 100.00, '€/kW', 25, 'Huawei', 'SUN2000-25KTL-M3', 18.00),
-('Onduleur 50kW', 'onduleur', 90.00, '€/kW', 50, 'Huawei', 'SUN2000-50KTL-M3', 18.00),
-('Onduleur 100kW', 'onduleur', 80.00, '€/kW', 100, 'Huawei', 'SUN2000-100KTL-M3', 18.00),
-('Onduleur 25kW', 'onduleur', 105.00, '€/kW', 25, 'SMA', 'Sunny Tripower CORE1', 18.00)
+-- Prix onduleurs (gamme complète par puissance)
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_kw, marque, modele, marge_commerciale_pct, fournisseur) VALUES
+-- Huawei (marque leader)
+('Onduleur 8kW', 'onduleur', 140.00, '€/kW', 8, 'Huawei', 'SUN2000-8KTL-M1', 18.00, 'Huawei France'),
+('Onduleur 10kW', 'onduleur', 130.00, '€/kW', 10, 'Huawei', 'SUN2000-10KTL-M1', 18.00, 'Huawei France'),
+('Onduleur 12kW', 'onduleur', 120.00, '€/kW', 12, 'Huawei', 'SUN2000-12KTL-M2', 18.00, 'Huawei France'),
+('Onduleur 15kW', 'onduleur', 110.00, '€/kW', 15, 'Huawei', 'SUN2000-15KTL-M2', 18.00, 'Huawei France'),
+('Onduleur 20kW', 'onduleur', 105.00, '€/kW', 20, 'Huawei', 'SUN2000-20KTL-M2', 18.00, 'Huawei France'),
+('Onduleur 25kW', 'onduleur', 100.00, '€/kW', 25, 'Huawei', 'SUN2000-25KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 30kW', 'onduleur', 95.00, '€/kW', 30, 'Huawei', 'SUN2000-30KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 40kW', 'onduleur', 92.00, '€/kW', 40, 'Huawei', 'SUN2000-40KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 50kW', 'onduleur', 90.00, '€/kW', 50, 'Huawei', 'SUN2000-50KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 60kW', 'onduleur', 87.00, '€/kW', 60, 'Huawei', 'SUN2000-60KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 100kW', 'onduleur', 80.00, '€/kW', 100, 'Huawei', 'SUN2000-100KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 110kW', 'onduleur', 78.00, '€/kW', 110, 'Huawei', 'SUN2000-110KTL-M3', 18.00, 'Huawei France'),
+('Onduleur 125kW', 'onduleur', 75.00, '€/kW', 125, 'Huawei', 'SUN2000-125KTL-M3', 18.00, 'Huawei France'),
+-- SMA (premium allemand)
+('Onduleur 10kW', 'onduleur', 145.00, '€/kW', 10, 'SMA', 'Sunny Tripower 10.0', 18.00, 'SMA Solar'),
+('Onduleur 15kW', 'onduleur', 135.00, '€/kW', 15, 'SMA', 'Sunny Tripower 15.0', 18.00, 'SMA Solar'),
+('Onduleur 20kW', 'onduleur', 125.00, '€/kW', 20, 'SMA', 'Sunny Tripower 20.0', 18.00, 'SMA Solar'),
+('Onduleur 25kW', 'onduleur', 115.00, '€/kW', 25, 'SMA', 'Sunny Tripower CORE1', 18.00, 'SMA Solar'),
+('Onduleur 50kW', 'onduleur', 105.00, '€/kW', 50, 'SMA', 'Sunny Tripower CORE2', 18.00, 'SMA Solar'),
+('Onduleur 110kW', 'onduleur', 95.00, '€/kW', 110, 'SMA', 'Sunny Central 110', 18.00, 'SMA Solar'),
+-- Fronius (qualité autrichienne)
+('Onduleur 10kW', 'onduleur', 140.00, '€/kW', 10, 'Fronius', 'Symo 10.0-3-M', 18.00, 'Fronius France'),
+('Onduleur 15kW', 'onduleur', 130.00, '€/kW', 15, 'Fronius', 'Symo 15.0-3-M', 18.00, 'Fronius France'),
+('Onduleur 20kW', 'onduleur', 120.00, '€/kW', 20, 'Fronius', 'Symo 20.0-3-M', 18.00, 'Fronius France')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
--- Prix structure et fixations
-INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct) VALUES
-('Rails aluminium', 'structure', 45.00, '€/m²', 15.00),
-('Crochets toiture', 'structure', 8.50, '€/u', 15.00),
-('Étanchéité EPDM', 'structure', 12.00, '€/u', 15.00)
+-- Prix structure et fixations (complet)
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
+('Rails aluminium 4.2m', 'structure', 45.00, '€/m²', 15.00, 'K2 Systems', 'Rails de montage alu anodisé'),
+('Crochets toiture tuiles', 'structure', 8.50, '€/u', 15.00, 'Schletter', 'Crochets inox A4 tuiles mécaniques'),
+('Crochets toiture ardoise', 'structure', 9.20, '€/u', 15.00, 'Schletter', 'Crochets inox A4 ardoise'),
+('Crochets bac acier', 'structure', 12.50, '€/u', 15.00, 'K2 Systems', 'Système fixation bac acier'),
+('Étanchéité EPDM', 'structure', 12.00, '€/u', 15.00, 'Würth', 'Manchon étanchéité toiture'),
+('Écrous M8 inox', 'structure', 0.35, '€/u', 20.00, 'Würth', 'Écrous autofreinés inox A4'),
+('Boulons M8x30 inox', 'structure', 0.45, '€/u', 20.00, 'Würth', 'Boulons tête hexagonale'),
+('Collier serrage', 'structure', 1.80, '€/u', 20.00, 'K2 Systems', 'Collier fixation module'),
+('Équerre renfort', 'structure', 4.50, '€/u', 15.00, 'Schletter', 'Équerre renfort structure')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
--- Prix câbles
-INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct) VALUES
-('Câble solaire 6mm²', 'cable', 3.50, '€/ml', 20.00),
-('Câble U1000R2V 3G16mm²', 'cable', 8.00, '€/ml', 20.00),
-('Câble U1000R2V 3G25mm²', 'cable', 12.00, '€/ml', 20.00)
+-- Prix câbles (toutes sections)
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
+-- Câbles DC solaires
+('Câble solaire 4mm²', 'cable', 2.80, '€/ml', 20.00, 'Lapp Kabel', 'Câble DC PV 1x4mm² -40°C/+90°C'),
+('Câble solaire 6mm²', 'cable', 3.50, '€/ml', 20.00, 'Lapp Kabel', 'Câble DC PV 1x6mm² -40°C/+90°C'),
+('Câble solaire 10mm²', 'cable', 5.20, '€/ml', 20.00, 'Lapp Kabel', 'Câble DC PV 1x10mm² -40°C/+90°C'),
+('Câble solaire 16mm²', 'cable', 7.80, '€/ml', 20.00, 'Lapp Kabel', 'Câble DC PV 1x16mm² -40°C/+90°C'),
+('Câble solaire 25mm²', 'cable', 11.50, '€/ml', 20.00, 'Lapp Kabel', 'Câble DC PV 1x25mm² -40°C/+90°C'),
+-- Câbles AC
+('Câble U1000R2V 3G6mm²', 'cable', 4.50, '€/ml', 20.00, 'Nexans', 'Câble AC 3x6mm² + terre'),
+('Câble U1000R2V 3G10mm²', 'cable', 6.20, '€/ml', 20.00, 'Nexans', 'Câble AC 3x10mm² + terre'),
+('Câble U1000R2V 3G16mm²', 'cable', 8.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x16mm² + terre'),
+('Câble U1000R2V 3G25mm²', 'cable', 12.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x25mm² + terre'),
+('Câble U1000R2V 3G35mm²', 'cable', 16.50, '€/ml', 20.00, 'Nexans', 'Câble AC 3x35mm² + terre'),
+('Câble U1000R2V 3G50mm²', 'cable', 22.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x50mm² + terre'),
+('Câble U1000R2V 3G70mm²', 'cable', 30.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x70mm² + terre'),
+('Câble U1000R2V 3G95mm²', 'cable', 38.00, '€/ml', 20.00, 'Nexans', 'Câble AC 3x95mm² + terre'),
+-- Câbles de terre
+('Câble terre 6mm²', 'cable', 2.20, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 6mm²'),
+('Câble terre 10mm²', 'cable', 3.50, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 10mm²'),
+('Câble terre 16mm²', 'cable', 5.00, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 16mm²'),
+('Câble terre 25mm²', 'cable', 7.50, '€/ml', 20.00, 'Nexans', 'Câble cuivre nu 25mm²')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
--- Prix protections électriques
-INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct) VALUES
-('Coffret AC/DC', 'protection', 850.00, '€/u', 20.00),
-('Parafoudre DC Type II', 'protection', 250.00, '€/u', 25.00),
-('Parafoudre AC Type II', 'protection', 180.00, '€/u', 25.00),
-('Sectionneur DC', 'protection', 320.00, '€/u', 20.00),
-('Disjoncteur 63A', 'protection', 145.00, '€/u', 20.00)
+-- Prix protections électriques (complet schéma unifilaire)
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
+-- Boîtes de jonction DC
+('Boîte jonction DC 2 strings', 'protection', 320.00, '€/u', 20.00, 'Weidmüller', 'Boîte DC 2 entrées IP65'),
+('Boîte jonction DC 4 strings', 'protection', 450.00, '€/u', 20.00, 'Weidmüller', 'Boîte DC 4 entrées IP65'),
+('Boîte jonction DC 6 strings', 'protection', 580.00, '€/u', 20.00, 'Weidmüller', 'Boîte DC 6 entrées IP65'),
+('Boîte jonction DC 8 strings', 'protection', 720.00, '€/u', 20.00, 'Weidmüller', 'Boîte DC 8 entrées IP65'),
+('Boîte jonction DC 12 strings', 'protection', 950.00, '€/u', 20.00, 'Weidmüller', 'Boîte DC 12 entrées IP65'),
+-- Parafoudres DC
+('Parafoudre DC Type II 1000V', 'protection', 250.00, '€/u', 25.00, 'Phoenix Contact', 'SPD Type 2 DC 1000V 20kA'),
+('Parafoudre DC Type I+II 1500V', 'protection', 380.00, '€/u', 25.00, 'Phoenix Contact', 'SPD Type 1+2 DC 1500V 40kA'),
+-- Parafoudres AC
+('Parafoudre AC Type II mono', 'protection', 180.00, '€/u', 25.00, 'Schneider', 'SPD Type 2 AC 230V 20kA'),
+('Parafoudre AC Type II tri', 'protection', 285.00, '€/u', 25.00, 'Schneider', 'SPD Type 2 AC 400V 40kA'),
+('Parafoudre AC Type I+II tri', 'protection', 420.00, '€/u', 25.00, 'Schneider', 'SPD Type 1+2 AC 400V 65kA'),
+-- Sectionneurs DC
+('Sectionneur DC 32A 1000V', 'protection', 185.00, '€/u', 20.00, 'ABB', 'Sectionneur cadenassable DC 32A'),
+('Sectionneur DC 63A 1000V', 'protection', 240.00, '€/u', 20.00, 'ABB', 'Sectionneur cadenassable DC 63A'),
+('Sectionneur DC 125A 1000V', 'protection', 380.00, '€/u', 20.00, 'ABB', 'Sectionneur cadenassable DC 125A'),
+('Sectionneur DC 160A 1000V', 'protection', 485.00, '€/u', 20.00, 'ABB', 'Sectionneur cadenassable DC 160A'),
+('Sectionneur DC 250A 1500V', 'protection', 720.00, '€/u', 20.00, 'ABB', 'Sectionneur cadenassable DC 250A'),
+-- Disjoncteurs AC (AGCP)
+('Disjoncteur 20A C courbe', 'protection', 45.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 20A courbe C 6kA'),
+('Disjoncteur 32A C courbe', 'protection', 52.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 32A courbe C 6kA'),
+('Disjoncteur 40A C courbe', 'protection', 68.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 40A courbe C 10kA'),
+('Disjoncteur 63A C courbe', 'protection', 95.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 63A courbe C 10kA'),
+('Disjoncteur 80A C courbe', 'protection', 125.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 80A courbe C 15kA'),
+('Disjoncteur 100A C courbe', 'protection', 165.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 100A courbe C 15kA'),
+('Disjoncteur 125A C courbe', 'protection', 210.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 125A courbe C 25kA'),
+('Disjoncteur 160A C courbe', 'protection', 280.00, '€/u', 20.00, 'Schneider', 'Disjoncteur 3P 160A courbe C 25kA'),
+-- Différentiels
+('Différentiel 30mA Type A 40A', 'protection', 135.00, '€/u', 20.00, 'Schneider', 'Inter diff 3P 30mA Type A 40A'),
+('Différentiel 30mA Type A 63A', 'protection', 165.00, '€/u', 20.00, 'Schneider', 'Inter diff 3P 30mA Type A 63A'),
+('Différentiel 300mA Type A 63A', 'protection', 220.00, '€/u', 20.00, 'Schneider', 'Inter diff 3P 300mA Type A 63A'),
+('Différentiel 300mA Type A 125A', 'protection', 385.00, '€/u', 20.00, 'Schneider', 'Inter diff 3P 300mA Type A 125A'),
+-- Fusibles strings
+('Fusible gPV 10A', 'protection', 12.50, '€/u', 25.00, 'Mersen', 'Fusible gPV 10A 1000V DC'),
+('Fusible gPV 15A', 'protection', 12.50, '€/u', 25.00, 'Mersen', 'Fusible gPV 15A 1000V DC'),
+('Fusible gPV 20A', 'protection', 13.20, '€/u', 25.00, 'Mersen', 'Fusible gPV 20A 1000V DC'),
+('Fusible gPV 25A', 'protection', 14.00, '€/u', 25.00, 'Mersen', 'Fusible gPV 25A 1000V DC'),
+-- Coffrets et tableaux
+('Coffret AC/DC petit', 'protection', 650.00, '€/u', 20.00, 'Legrand', 'Coffret pré-équipé < 50kWc'),
+('Coffret AC/DC moyen', 'protection', 1200.00, '€/u', 20.00, 'Legrand', 'Coffret pré-équipé 50-100kWc'),
+('Coffret AC/DC grand', 'protection', 2400.00, '€/u', 20.00, 'Legrand', 'Coffret pré-équipé > 100kWc'),
+('TGBT 18 modules', 'protection', 280.00, '€/u', 15.00, 'Schneider', 'Tableau Gamma 18 modules'),
+('TGBT 36 modules', 'protection', 420.00, '€/u', 15.00, 'Schneider', 'Tableau Gamma 36 modules'),
+-- Compteurs et monitoring
+('Compteur énergie MID', 'protection', 185.00, '€/u', 20.00, 'Carlo Gavazzi', 'Compteur triphasé certifié MID'),
+('Box monitoring', 'protection', 450.00, '€/u', 25.00, 'Huawei', 'SmartLogger 3000A avec 4G')
+ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+
+-- Composants de mise à la terre
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, marge_commerciale_pct, fournisseur, description) VALUES
+('Piquet de terre acier 1.5m', 'terre', 18.00, '€/u', 20.00, 'Legrand', 'Piquet terre acier cuivré 1.5m'),
+('Piquet de terre acier 2m', 'terre', 24.00, '€/u', 20.00, 'Legrand', 'Piquet terre acier cuivré 2m'),
+('Barrette de mesure terre', 'terre', 32.00, '€/u', 20.00, 'Schneider', 'Barrette coupure + mesure terre'),
+('Cosse de masse structure', 'terre', 4.50, '€/u', 25.00, 'K2 Systems', 'Cosse équipotentielle structure'),
+('Conducteur cuivre nu 25mm²', 'terre', 7.50, '€/ml', 20.00, 'Nexans', 'Conducteur cuivre nu 25mm²'),
+('Conducteur cuivre nu 35mm²', 'terre', 10.00, '€/ml', 20.00, 'Nexans', 'Conducteur cuivre nu 35mm²'),
+('Borne connexion terre', 'terre', 12.50, '€/u', 20.00, 'Legrand', 'Borne de connexion terre modulaire')
+ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
+
+-- Batteries de stockage (optionnel)
+INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_kw, marge_commerciale_pct, fournisseur, description) VALUES
+('Batterie Lithium 5kWh', 'batterie', 1100.00, '€/kWh', 5, 22.00, 'Huawei', 'LUNA2000-5-S0 Li-ion'),
+('Batterie Lithium 10kWh', 'batterie', 950.00, '€/kWh', 10, 22.00, 'Huawei', 'LUNA2000-10-S0 Li-ion'),
+('Batterie Lithium 15kWh', 'batterie', 900.00, '€/kWh', 15, 22.00, 'Huawei', 'LUNA2000-15-S0 Li-ion'),
+('Batterie Lithium 20kWh', 'batterie', 875.00, '€/kWh', 20, 22.00, 'BYD', 'BYD Battery-Box Premium HVS'),
+('Batterie Lithium 30kWh', 'batterie', 850.00, '€/kWh', 30, 22.00, 'BYD', 'BYD Battery-Box Premium HVM'),
+('Onduleur hybride 10kW', 'onduleur', 185.00, '€/kW', 10, 20.00, 'Huawei', 'SUN2000-10KTL-M1 Hybrid'),
+('Onduleur hybride 15kW', 'onduleur', 175.00, '€/kW', 15, 20.00, 'Huawei', 'SUN2000-15KTL-M2 Hybrid')
 ON CONFLICT (nom_organe, categorie, marque, modele) DO NOTHING;
 
 -- Main d'œuvre
