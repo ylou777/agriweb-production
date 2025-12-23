@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <!-- html2canvas pour capture screenshot -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         #map { 
             height: 600px; 
@@ -2945,6 +2947,29 @@
         // Sauvegarder le calpinage
         document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
             const data = prepareCalepinageData();
+            
+            // Capturer screenshot de la carte avec leaflet-image
+            console.log('📸 Capture screenshot de la carte...');
+            try {
+                // Utiliser leaflet-simple-map-screenshoter
+                const mapContainer = document.getElementById('map');
+                
+                // Méthode 1: html2canvas (plus fiable)
+                if (typeof html2canvas !== 'undefined') {
+                    const canvas = await html2canvas(mapContainer, {
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff'
+                    });
+                    data.screenshot_map = canvas.toDataURL('image/png');
+                    console.log('✅ Screenshot capturé via html2canvas');
+                } else {
+                    // Méthode 2: Leaflet easyPrint  
+                    console.log('⚠️ html2canvas non disponible, screenshot non capturé');
+                }
+            } catch (err) {
+                console.error('❌ Erreur capture screenshot:', err);
+            }
             
             console.log('Données à sauvegarder:', data);
             

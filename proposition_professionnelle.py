@@ -686,21 +686,38 @@ class PropositionProfessionnelle:
             data_json = json.loads(self.prospect.get('data_json', '{}')) if isinstance(self.prospect.get('data_json'), str) else self.prospect.get('data_json', {})
             calpinage_data = data_json.get('calpinage', {})
             
-            # Image rendu 3D
-            image_3d = calpinage_data.get('image_3d')  # Base64 ou URL
-            if image_3d:
-                elements.append(Paragraph("<b>Vue 3D de l'installation</b>", self.styles['Section']))
-                # TODO: Convertir base64 en image ReportLab
-                # Pour l'instant, on affiche un placeholder
-                elements.append(Paragraph("[Image 3D du calepinage - à intégrer]", self.styles['Normal']))
+            # Image screenshot de la carte
+            screenshot_map = calpinage_data.get('screenshot_map')  # Base64 PNG
+            if screenshot_map and screenshot_map.startswith('data:image'):
+                elements.append(Paragraph("<b>Vue de la carte avec implantation</b>", self.styles['Section']))
+                elements.append(Spacer(1, 0.2*cm))
+                
+                try:
+                    # Décoder base64
+                    import base64
+                    from io import BytesIO as IOBytesIO
+                    from reportlab.lib.utils import ImageReader
+                    
+                    # Extraire la partie base64 (enlever "data:image/png;base64,")
+                    img_data = screenshot_map.split(',')[1] if ',' in screenshot_map else screenshot_map
+                    img_bytes = base64.b64decode(img_data)
+                    img_buffer = IOBytesIO(img_bytes)
+                    
+                    # Créer image ReportLab
+                    img = RLImage(ImageReader(img_buffer), width=15*cm, height=10*cm)
+                    elements.append(img)
+                    elements.append(Spacer(1, 0.5*cm))
+                    print(f"✅ Screenshot carte ajouté à la proposition")
+                except Exception as e:
+                    print(f"⚠️ Erreur décodage screenshot: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    elements.append(Paragraph("Vue de la carte non disponible", self.styles['Normal']))
+                    elements.append(Spacer(1, 0.3*cm))
+            else:
+                elements.append(Paragraph("💡 Astuce: Sauvegardez le calepinage pour capturer automatiquement la vue de la carte", self.styles['Normal']))
                 elements.append(Spacer(1, 0.3*cm))
-            
-            # Plan de toiture avec modules
-            image_plan = calpinage_data.get('image_plan')  # Base64 ou URL
-            if image_plan:
-                elements.append(Paragraph("<b>Plan de toiture avec modules</b>", self.styles['Section']))
-                elements.append(Paragraph("[Plan de toiture - à intégrer]", self.styles['Normal']))
-                elements.append(Spacer(1, 0.3*cm))
+                
         except Exception as e:
             print(f"⚠️ Erreur chargement images calepinage: {e}")
         
