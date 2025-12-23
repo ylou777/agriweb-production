@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS parametrage_prix_organes (
     -- Métadonnées
     fournisseur VARCHAR(100),
     reference_fournisseur VARCHAR(100),
+    description TEXT,  -- Description détaillée du produit
     delai_livraison_jours INTEGER,
     stock_disponible BOOLEAN DEFAULT TRUE,
     date_dernier_prix DATE DEFAULT CURRENT_DATE,

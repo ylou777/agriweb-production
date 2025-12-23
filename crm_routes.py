@@ -3038,24 +3038,29 @@ def register_crm_routes(app):
                 
                 # Exécuter chaque commande
                 executed = 0
+                errors = []
                 for command in commands:
                     if command.strip():
                         try:
                             cursor.execute(command)
                             executed += 1
                         except Exception as e:
-                            # Continuer même si erreur (table existe déjà, etc.)
-                            print(f"⚠️ SQL warning: {str(e)[:80]}")
+                            # Enregistrer les erreurs mais continuer
+                            error_msg = f"{str(e)[:100]}"
+                            print(f"⚠️ SQL warning: {error_msg}")
+                            errors.append(error_msg)
                             continue
                 
                 conn.commit()
                 cursor.close()
             
-            print(f"✅ {executed} commandes SQL exécutées")
+            print(f"✅ {executed} commandes SQL exécutées, {len(errors)} erreurs")
             
             return jsonify({
                 'success': True,
-                'message': f'{executed} tables et données initialisées avec succès'
+                'message': f'{executed} commandes exécutées avec succès',
+                'errors': errors[:10] if errors else [],  # Max 10 premières erreurs
+                'total_errors': len(errors)
             })
         except Exception as e:
             import traceback
