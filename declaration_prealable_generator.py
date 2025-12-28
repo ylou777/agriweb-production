@@ -244,50 +244,73 @@ class DeclarationPrealableGenerator:
         y -= 0.6*cm
         c.setFont("Helvetica", 9)
         
-        # Utiliser les données cadastrales réelles de l'API IGN en priorité
-        if self.cadastre_data and self.cadastre_data.get('success'):
-            # Données réelles de l'API
+        # PRIORITÉ 1: Utiliser TOUJOURS les parcelles du prospect
+        parcelles = self._extract_parcelles()
+        
+        if parcelles and len(parcelles) > 0:
+            # Afficher toutes les parcelles du prospect (max 5)
+            for i, parcelle in enumerate(parcelles[:5]):
+                section = parcelle.get('section', '')
+                numero = parcelle.get('numero', '')
+                surface = parcelle.get('surface', '')
+                
+                # Formater la surface
+                surface_str = str(surface) if surface else ''
+                if surface_str and not surface_str.endswith('m²'):
+                    surface_str = f"{surface_str} m²"
+                
+                self._field_labeled(c, 2*cm, y, "Section :", section, width=2*cm)
+                self._field_labeled(c, 5*cm, y, "N° :", numero, width=3*cm)
+                self._field_labeled(c, 9*cm, y, "Surface :", surface_str, width=5*cm)
+                
+                # Badge si données validées
+                if section and numero:
+                    c.setFillColor(colors.HexColor('#00C851'))
+                    c.setFont("Helvetica-Bold", 6)
+                    c.drawString(14.5*cm, y - 0.15*cm, "✓ PROSPECT")
+                    c.setFillColor(colors.black)
+                    c.setFont("Helvetica", 9)
+                
+                y -= 0.6*cm
+                
+                # Si plusieurs parcelles, ajouter un petit espace
+                if i < len(parcelles[:5]) - 1:
+                    y -= 0.2*cm
+        
+        elif self.cadastre_data and self.cadastre_data.get('success'):
+            # PRIORITÉ 2: API IGN si pas de parcelles dans prospect
             section = self.cadastre_data.get('section', '')
             numero = self.cadastre_data.get('numero', '')
             contenance = self.cadastre_data.get('contenance', 0)
             
-            # Convertir contenance (m²) en hectares si > 10000
+            # Convertir contenance (m²)
             if contenance > 10000:
                 surface = f"{contenance / 10000:.2f} ha"
             else:
                 surface = f"{contenance} m²"
             
-            # Afficher avec badge "API IGN"
             self._field_labeled(c, 2*cm, y, "Section :", section, width=2*cm)
             self._field_labeled(c, 5*cm, y, "N° :", numero, width=3*cm)
-            self._field_labeled(c, 9*cm, y, "Surface :", surface, width=4*cm)
+            self._field_labeled(c, 9*cm, y, "Surface :", surface, width=5*cm)
             
-            # Marque de validation API
-            c.setFillColor(colors.HexColor('#00C851'))
+            # Marque API IGN
+            c.setFillColor(colors.HexColor('#FF9800'))
             c.setFont("Helvetica-Bold", 6)
-            c.drawString(13.5*cm, y - 0.15*cm, "✓ API IGN CADASTRE")
+            c.drawString(14.5*cm, y - 0.15*cm, "✓ API IGN")
             c.setFillColor(colors.black)
             c.setFont("Helvetica", 9)
-            
             y -= 0.6*cm
         else:
-            # Fallback: données du prospect
-            parcelles = self._extract_parcelles()
-            if parcelles:
-                for i, parcelle in enumerate(parcelles[:3]):  # Max 3 parcelles affichées
-                    section = parcelle.get('section', '')
-                    numero = parcelle.get('numero', '')
-                    surface = parcelle.get('surface', '')
-                    
-                    self._field_labeled(c, 2*cm, y, "Section :", section, width=2*cm)
-                    self._field_labeled(c, 5*cm, y, "N° :", numero, width=3*cm)
-                    self._field_labeled(c, 9*cm, y, "Surface (m²) :", str(surface), width=4*cm)
-                    y -= 0.6*cm
-            else:
-                # Champs vides
-                self._field_labeled(c, 2*cm, y, "Section :", '', width=2*cm)
-                self._field_labeled(c, 5*cm, y, "N° :", '', width=3*cm)
-                self._field_labeled(c, 9*cm, y, "Surface (m²) :", '', width=4*cm)
+            # PRIORITÉ 3: Champs vides à compléter
+            self._field_labeled(c, 2*cm, y, "Section :", '', width=2*cm)
+            self._field_labeled(c, 5*cm, y, "N° :", '', width=3*cm)
+            self._field_labeled(c, 9*cm, y, "Surface :", '', width=5*cm)
+            
+            c.setFillColor(colors.HexColor('#D32F2F'))
+            c.setFont("Helvetica-Oblique", 7)
+            c.drawString(14.5*cm, y - 0.15*cm, "À compléter")
+            c.setFillColor(colors.black)
+            c.setFont("Helvetica", 9)
         
         # Cadre de fin
         c.setStrokeColor(colors.grey)
@@ -856,9 +879,21 @@ class DeclarationPrealableGenerator:
                 c.drawCentredString(0, -0.2*cm, f"{largeur:.1f} m")
                 c.restoreState()
                 
-                # Info cadastre si disponible
-                if self.cadastre_data and self.cadastre_data.get('success'):
+                # Info cadastre: afficher TOUTES les parcelles du prospect
+                parcelles = self._extract_parcelles()
+                if parcelles and len(parcelles) > 0:
                     c.setFillColor(colors.HexColor('#00C851'))
+                    c.setFont("Helvetica-Bold", 7)
+                    
+                    # Construire texte avec toutes les parcelles
+                    parcelles_str = ", ".join([f"{p.get('section', '')}{p.get('numero', '')}" for p in parcelles if p.get('section') or p.get('numero')])
+                    if parcelles_str:
+                        c.drawString(1.5*cm, self.height - 20.5*cm, f"✓ Parcelle(s) cadastrale(s): {parcelles_str}")
+                    
+                    c.setFillColor(colors.black)
+                elif self.cadastre_data and self.cadastre_data.get('success'):
+                    # Fallback API IGN
+                    c.setFillColor(colors.HexColor('#FF9800'))
                     c.setFont("Helvetica-Bold", 7)
                     section = self.cadastre_data.get('section', '')
                     numero = self.cadastre_data.get('numero', '')
