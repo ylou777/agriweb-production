@@ -8,6 +8,9 @@ from datetime import datetime
 from database_adapter import execute_query, get_db_connection
 import json
 import os
+import io
+import zipfile
+from declaration_prealable_generator import generate_declaration_prealable_complete
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -3359,4 +3362,121 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
+    
+    # ============================================================================
+    # ROUTES GÉNÉRATION DOCUMENTS - DÉCLARATION PRÉALABLE
+    # ============================================================================
+    
+    @app.route('/api/crm/prospect/<int:prospect_id>/generer-dp', methods=['POST'])
+    def generer_declaration_prealable(prospect_id):
+        """
+        Génère le dossier complet de Déclaration Préalable de Travaux (DP)
+        pour un prospect avec son calpinage intégré.
+        
+        Retourne un fichier ZIP contenant les 9 documents PDF:
+        - Formulaire CERFA 13703*09 (4 pages)
+        - Plan DP1 - Plan de situation
+        - Plan DP2 - Plan de masse coté
+        - Plan DP3 - Plan en coupe
+        - Plan DP4 - Façades état actuel
+        - Plan DP5 - Façades état projeté
+        - Plan DP6 - Insertion paysagère
+        - Plan DP7 - Environnement proche
+        - Plan DP8 - Environnement lointain
+        """
+        try:
+            print(f"\n{'='*70}")
+            print(f"📄 [GÉNÉRATION DP] Début pour prospect {prospect_id}")
+            print(f"{'='*70}")
+            
+            # 1. Récupérer le prospect depuis la base de données
+            row = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not row:
+                print(f"❌ [GÉNÉRATION DP] Prospect {prospect_id} non trouvé")
+                return jsonify({
+                    'success': False,
+                    'error': f'Prospect {prospect_id} non trouvé'
+                }), 404
+            
+            # Convertir en dictionnaire
+            prospect_data = dict(row)
+            print(f"✓ Prospect récupéré: {prospect_data.get('nom_entreprise', prospect_data.get('nom', 'N/A'))}")
+            
+            # 2. Extraire le calpinage depuis data_json
+            calpinage_data = None
+            if prospect_data.get('data_json'):
+                # Parser si c'est une chaîne JSON
+                if isinstance(prospect_data['data_json'], str):
+                    try:
+                        data_json = json.loads(prospect_data['data_json'])
+                        calpinage_data = data_json.get('calpinage')
+                    except Exception as e:
+                        print(f"⚠️ [GÉNÉRATION DP] Erreur parsing data_json: {e}")
+                # Sinon c'est déjà un dict (PostgreSQL JSONB)
+                elif isinstance(prospect_data['data_json'], dict):
+                    calpinage_data = prospect_data['data_json'].get('calpinage')
+            
+            if calpinage_data:
+                nb_modules = sum(zone.get('nbModules', 0) for zone in calpinage_data.get('zones', []))
+                orientation = calpinage_data.get('zones', [{}])[0].get('moduleOrientation', 'N/A') if calpinage_data.get('zones') else 'N/A'
+                print(f"✓ Calpinage trouvé: {nb_modules} modules, orientation: {orientation}")
+            else:
+                print(f"⚠️ [GÉNÉRATION DP] Aucun calpinage trouvé pour ce prospect")
+            
+            # 3. Générer le dossier complet DP
+            print(f"\n📊 Génération des 9 documents PDF...")
+            pdfs = generate_declaration_prealable_complete(prospect_data, calpinage_data)
+            
+            if not pdfs:
+                print(f"❌ [GÉNÉRATION DP] Échec de génération des PDFs")
+                return jsonify({
+                    'success': False,
+                    'error': 'Erreur lors de la génération des documents PDF'
+                }), 500
+            
+            print(f"✅ {len(pdfs)} documents PDF générés")
+            
+            # 4. Créer un fichier ZIP en mémoire
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for filename, pdf_bytes in pdfs.items():
+                    zip_file.writestr(filename, pdf_bytes.getvalue())
+                    print(f"  ✓ Ajouté au ZIP: {filename}")
+            
+            zip_buffer.seek(0)
+            
+            # 5. Nom du fichier ZIP
+            commune = prospect_data.get('commune', 'Inconnu').replace(' ', '_')
+            nom = prospect_data.get('nom_entreprise', prospect_data.get('nom', 'Prospect')).replace(' ', '_')
+            zip_filename = f"DP_Complet_{commune}_{nom}_{datetime.now().strftime('%Y%m%d')}.zip"
+            
+            print(f"\n{'='*70}")
+            print(f"✅ [GÉNÉRATION DP] Dossier complet créé: {zip_filename}")
+            print(f"{'='*70}\n")
+            
+            # 6. Retourner le fichier ZIP pour téléchargement
+            return send_file(
+                zip_buffer,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name=zip_filename
+            )
+            
+        except Exception as e:
+            print(f"\n{'='*70}")
+            print(f"❌ [GÉNÉRATION DP] ERREUR")
+            print(f"{'='*70}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                'success': False,
+                'error': f'Erreur lors de la génération: {str(e)}'
+            }), 500
 
