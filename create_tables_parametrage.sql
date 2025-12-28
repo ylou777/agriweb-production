@@ -132,6 +132,35 @@ INSERT INTO parametrage_entreprise (
     '#28a745'
 ) ON CONFLICT DO NOTHING;
 
+-- Migration: Ajouter les colonnes manquantes si elles n'existent pas
+DO $$
+BEGIN
+    -- Ajout colonne description
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='parametrage_prix_organes' AND column_name='description') THEN
+        ALTER TABLE parametrage_prix_organes ADD COLUMN description TEXT;
+    END IF;
+    
+    -- Ajout colonne marque
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='parametrage_prix_organes' AND column_name='marque') THEN
+        ALTER TABLE parametrage_prix_organes ADD COLUMN marque VARCHAR(100);
+    END IF;
+    
+    -- Ajout colonne modele
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='parametrage_prix_organes' AND column_name='modele') THEN
+        ALTER TABLE parametrage_prix_organes ADD COLUMN modele VARCHAR(100);
+    END IF;
+    
+    -- Ajout colonne fournisseur
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='parametrage_prix_organes' AND column_name='fournisseur') THEN
+        ALTER TABLE parametrage_prix_organes ADD COLUMN fournisseur VARCHAR(100);
+    END IF;
+    
+    -- Ajout colonne reference_fournisseur
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='parametrage_prix_organes' AND column_name='reference_fournisseur') THEN
+        ALTER TABLE parametrage_prix_organes ADD COLUMN reference_fournisseur VARCHAR(100);
+    END IF;
+END $$;
+
 -- Prix modules photovoltaïques (gamme complète)
 INSERT INTO parametrage_prix_organes (nom_organe, categorie, prix_unitaire_ht, unite, puissance_wc, marque, modele, marge_commerciale_pct, fournisseur) VALUES
 -- JA Solar (marque premium)
