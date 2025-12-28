@@ -16873,6 +16873,59 @@ def admin_migrate_osm():
     except Exception as e:
         return f"❌ Erreur migration: {str(e)}", 500
 
+# ============================================================================
+# ROUTE ADMIN - MIGRATION PARAMETRAGE PRIX
+# ============================================================================
+@app.route('/admin/migrate-parametrage', methods=['GET'])
+def admin_migrate_parametrage():
+    """Endpoint pour ajouter les colonnes manquantes à parametrage_prix_organes"""
+    try:
+        from database_adapter import execute_query
+        results = []
+        
+        # Liste des colonnes à ajouter
+        columns_to_add = [
+            ('description', 'TEXT'),
+            ('marque', 'VARCHAR(100)'),
+            ('modele', 'VARCHAR(100)'),
+            ('reference', 'VARCHAR(100)'),
+            ('fournisseur', 'VARCHAR(100)')
+        ]
+        
+        results.append("🔧 Migration de la table parametrage_prix_organes")
+        results.append("")
+        
+        for col_name, col_type in columns_to_add:
+            try:
+                execute_query(f"ALTER TABLE parametrage_prix_organes ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                results.append(f"✅ Colonne {col_name} ({col_type}) ajoutée/vérifiée")
+            except Exception as col_err:
+                error_msg = str(col_err).lower()
+                if "already exists" in error_msg or "duplicate column" in error_msg:
+                    results.append(f"ℹ️  Colonne {col_name} existe déjà")
+                else:
+                    results.append(f"❌ Erreur {col_name}: {str(col_err)}")
+        
+        # Vérifier les colonnes créées
+        try:
+            check_query = """
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'parametrage_prix_organes'
+                ORDER BY column_name
+            """
+            columns = execute_query(check_query)
+            results.append("")
+            results.append("📊 Colonnes dans parametrage_prix_organes:")
+            for col in columns:
+                results.append(f"  • {col['column_name']} ({col['data_type']})")
+        except Exception as e:
+            results.append(f"⚠️  Impossible de vérifier les colonnes: {e}")
+        
+        return "<br>".join(results), 200
+    except Exception as e:
+        return f"❌ Erreur migration: {str(e)}", 500
+
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 if __name__ == "__main__":
