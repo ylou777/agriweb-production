@@ -3004,7 +3004,7 @@ def register_crm_routes(app):
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     
-    @app.route('/api/crm/parametrage/init-database', methods=['POST'])
+    @app.route('/api/crm/parametrage/init-database', methods=['GET', 'POST'])
     def init_database_parametrage():
         """Initialiser les tables de paramétrage avec données par défaut"""
         try:
@@ -3061,6 +3061,94 @@ def register_crm_routes(app):
                 'message': f'{executed} commandes exécutées avec succès',
                 'errors': errors[:10] if errors else [],  # Max 10 premières erreurs
                 'total_errors': len(errors)
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/migrate-database', methods=['POST'])
+    def migrate_database_parametrage():
+        """Migration: Ajouter les colonnes manquantes à parametrage_prix_organes"""
+        try:
+            migration_queries = [
+                # 1. Ajouter description
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'description'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN description TEXT;
+                    END IF;
+                END $$;
+                """,
+                # 2. Ajouter delai_livraison_jours
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'delai_livraison_jours'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN delai_livraison_jours INTEGER;
+                    END IF;
+                END $$;
+                """,
+                # 3. Ajouter stock_disponible
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'stock_disponible'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN stock_disponible BOOLEAN DEFAULT TRUE;
+                    END IF;
+                END $$;
+                """,
+                # 4. Ajouter date_dernier_prix
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'date_dernier_prix'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN date_dernier_prix DATE DEFAULT CURRENT_DATE;
+                    END IF;
+                END $$;
+                """
+            ]
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                executed = 0
+                errors = []
+                
+                for query in migration_queries:
+                    try:
+                        cursor.execute(query)
+                        executed += 1
+                    except Exception as e:
+                        errors.append(str(e)[:100])
+                
+                conn.commit()
+                cursor.close()
+            
+            return jsonify({
+                'success': True,
+                'message': f'{executed} migrations exécutées',
+                'errors': errors
             })
         except Exception as e:
             import traceback
