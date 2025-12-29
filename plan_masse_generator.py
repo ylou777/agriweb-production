@@ -82,85 +82,203 @@ class PlanMasseGenerator:
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
         
+        # Calculer bbox réelle basée sur les dimensions
+        bbox_meters = self._calculate_bbox_from_data()
+        
         if lat and lon:
-            # Image satellite de fond
-            satellite_img = self._fetch_satellite_image(lat, lon, zoom=19, width=1200, height=1000)
+            # Image satellite de fond avec bbox correcte
+            satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1200, height=1000)
             if satellite_img:
                 c.drawImage(ImageReader(satellite_img), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
-                          preserveAspectRatio=True, mask='auto')
+                          preserveAspectRatio=False, mask='auto')
         
-        # Centre du plan
-        center_x = plan_x + plan_width / 2
-        center_y = plan_y + plan_height / 2
+        # Système de coordonnées : conversion GPS → PDF
+        # Centre du plan = position GPS du bâtiment
+        self.plan_bbox = {
+            'x': plan_x,
+            'y': plan_y,
+            'width': plan_width,
+            'height': plan_height,
+            'lat_center': lat,
+            'lon_center': lon,
+            'meters_per_cm': bbox_meters / (plan_width / cm) if plan_width > 0 else 1
+        }
         
-        # 1. PARCELLES CADASTRALES
-        self._draw_parcelles(c, center_x, center_y, lat, lon)
+        # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
+        self._draw_parcelles_geojson(c)
         
-        # 2. BÂTIMENT
-        self._draw_batiment(c, center_x, center_y)
+        # 2. BÂTIMENT (à la position GPS)
+        self._draw_batiment_gps(c)
         
-        # 3. MODULES PV selon CALPINAGE RÉEL
+        # 3. MODULES PV selon COORDONNÉES GPS DU CALPINAGE
         if self.calpinage:
-            self._draw_modules_pv_reels(c, center_x, center_y, lat, lon)
+            self._draw_modules_pv_gps(c)
         
         # 4. COTATIONS
-        self._draw_cotations(c, center_x, center_y)
+        self._draw_cotations_gps(c)
         
+    def _calculate_bbox_from_data(self):
+        """Calcule la taille de la bbox en mètres basée sur les données"""
+        # Estimer depuis les parcelles ou défaut 60m
+        parcelles = self._extract_parcelles()
+        if parcelles:
+            total_surface = sum(float(p.get('surface', 0)) for p in parcelles)
+            if total_surface > 0:
+                # Approximation: bbox = racine(surface) * 1.5 pour avoir de la marge
+                return (total_surface ** 0.5) * 1.5
+        
+        # Défaut: 60m de rayon (120m de côté)
+        return 60
+    
+    def _lat_lon_to_pdf(self, lat, lon):
+        """Convertit coordonnées GPS en coordonnées PDF"""
+        if not hasattr(self, 'plan_bbox'):
+            return (0, 0)
+        
+        bbox = self.plan_bbox
+        
+        # Conversion approximative GPS → mètres (projection Web Mercator simplifiée)
+        # 1 degré latitude ≈ 111 km
+        # 1 degré longitude ≈ 111 km * cos(latitude)
+        lat_center = bbox['lat_center']
+        lon_center = bbox['lon_center']
+        
+        delta_lat = lat - lat_center
+        delta_lon = lon - lon_center
+        
+        # Conversion en mètres
+        meters_y = delta_lat * 111000  # Nord positif
+        meters_x = delta_lon * 111000 * 0.7  # cos(45°) approximatif pour France
+        
+        # Conversion mètres → cm PDF
+        meters_per_cm = bbox['meters_per_cm']
+        offset_x = (meters_x / meters_per_cm) * cm
+        offset_y = (meters_y / meters_per_cm) * cm
+        
+        # Position PDF
+        pdf_x = bbox['x'] + bbox['width'] / 2 + offset_x
+        pdf_y = bbox['y'] + bbox['height'] / 2 + offset_y
+        
+        return (pdf_x, pdf_y)
+    
     def _draw_parcelles(self, c, center_x, center_y, lat, lon):
-        """Dessine les limites des parcelles cadastrales"""
+        """Dessine les parcelles avec leurs vraies géométries GeoJSON si disponibles"""
         parcelles = self._extract_parcelles()
         
         if not parcelles:
             return
         
-        # Échelle approximative : 1 mètre = 0.3 cm sur le plan (échelle 1/333)
-        echelle = 0.3  # cm par mètre
-        
-        # Pour chaque parcelle
         for i, parcelle in enumerate(parcelles):
             section = parcelle.get('section', '')
             numero = parcelle.get('numero', '')
             surface = parcelle.get('surface', 0)
+            geojson = parcelle.get('geojson')
             
-            # Estimer dimensions parcelle depuis surface
-            try:
-                surface_m2 = float(surface)
-                # Approximation rectangulaire (ratio 1.5:1)
-                largeur = (surface_m2 / 1.5) ** 0.5
-                longueur = largeur * 1.5
-            except:
-                largeur = 30
-                longueur = 45
+            # Si géométrie GeoJSON disponible, l'utiliser
+            if geojson and isinstance(geojson, dict):
+                self._draw_parcelle_from_geojson(c, geojson, section, numero, surface)
+            else:
+                # Fallback: rectangle approximatif centré
+                self._draw_parcelle_approximative(c, section, numero, surface, i, len(parcelles))
+    
+    def _draw_parcelle_from_geojson(self, c, geojson, section, numero, surface):
+        """Dessine une parcelle depuis sa géométrie GeoJSON réelle"""
+        try:
+            geometry = geojson.get('geometry', geojson)
+            coords = geometry.get('coordinates', [])
+            geom_type = geometry.get('type', '')
             
-            # Décalage si plusieurs parcelles
-            offset_x = (i - len(parcelles)/2) * 5 * cm
+            if geom_type == 'Polygon' and coords:
+                # Prendre le premier ring (exterior)
+                exterior_ring = coords[0]
+                
+                # Convertir chaque point GPS → PDF
+                path = c.beginPath()
+                first_point = True
+                
+                for coord in exterior_ring:
+                    lon, lat = coord[0], coord[1]
+                    pdf_x, pdf_y = self._lat_lon_to_pdf(lat, lon)
+                    
+                    if first_point:
+                        path.moveTo(pdf_x, pdf_y)
+                        first_point = False
+                        label_x, label_y = pdf_x, pdf_y  # Position étiquette
+                    else:
+                        path.lineTo(pdf_x, pdf_y)
+                
+                path.close()
+                
+                # Dessiner contour parcelle
+                c.setStrokeColor(colors.HexColor('#FF00FF'))  # Magenta
+                c.setLineWidth(3)
+                c.setDash(8, 4)
+                c.drawPath(path, stroke=1, fill=0)
+                c.setDash()
+                
+                # Étiquette
+                c.setFillColor(colors.HexColor('#FF00FF'))
+                c.setFont("Helvetica-Bold", 9)
+                c.drawString(label_x + 0.3*cm, label_y + 0.3*cm, 
+                            f"Parcelle {section}{numero}")
+                c.setFont("Helvetica", 8)
+                c.drawString(label_x + 0.3*cm, label_y - 0.2*cm, 
+                            f"{surface} m²")
+                return
+        except Exception as e:
+            print(f"[PLAN] Erreur dessin parcelle GeoJSON: {e}")
+            pass
+    
+    def _draw_parcelle_approximative(self, c, section, numero, surface, index, total):
+        """Dessine une parcelle approximative (rectangle)"""
+        if not hasattr(self, 'plan_bbox'):
+            return
             
-            # Dimensions sur le plan
-            parc_w = longueur * echelle * cm
-            parc_h = largeur * echelle * cm
-            
-            # Position
-            parc_x = center_x - parc_w/2 + offset_x
-            parc_y = center_y - parc_h/2
-            
-            # Contour parcelle
-            c.setStrokeColor(colors.HexColor('#FF00FF'))  # Magenta
-            c.setLineWidth(3)
-            c.setDash(8, 4)
-            c.rect(parc_x, parc_y, parc_w, parc_h, fill=0, stroke=1)
-            c.setDash()  # Reset
-            
-            # Étiquette parcelle
-            c.setFillColor(colors.HexColor('#FF00FF'))
-            c.setFont("Helvetica-Bold", 9)
-            label = f"Parcelle {section}{numero}\n{surface} m²"
-            c.drawString(parc_x + 0.3*cm, parc_y + parc_h + 0.3*cm, 
-                        f"Parcelle {section}{numero}")
-            c.setFont("Helvetica", 8)
-            c.drawString(parc_x + 0.3*cm, parc_y + parc_h - 0.2*cm, 
-                        f"{surface} m²")
+        bbox = self.plan_bbox
+        center_x = bbox['x'] + bbox['width'] / 2
+        center_y = bbox['y'] + bbox['height'] / 2
+        
+        # Estimer dimensions
+        try:
+            surface_m2 = float(surface)
+            largeur = (surface_m2 / 1.5) ** 0.5
+            longueur = largeur * 1.5
+        except:
+            largeur = 30
+            longueur = 45
+        
+        # Échelle
+        meters_per_cm = bbox['meters_per_cm']
+        parc_w = (longueur / meters_per_cm) * cm
+        parc_h = (largeur / meters_per_cm) * cm
+        
+        # Décalage si plusieurs parcelles
+        offset_x = (index - total/2) * 5 * cm
+        
+        parc_x = center_x - parc_w/2 + offset_x
+        parc_y = center_y - parc_h/2
+        
+        # Contour
+        c.setStrokeColor(colors.HexColor('#FF00FF'))
+        c.setLineWidth(3)
+        c.setDash(8, 4)
+        c.rect(parc_x, parc_y, parc_w, parc_h, fill=0, stroke=1)
+        c.setDash()
+        
+        # Étiquette
+        c.setFillColor(colors.HexColor('#FF00FF'))
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(parc_x + 0.3*cm, parc_y + parc_h + 0.3*cm, 
+                    f"Parcelle {section}{numero}")
+        c.setFont("Helvetica", 8)
+        c.drawString(parc_x + 0.3*cm, parc_y + parc_h - 0.2*cm, 
+                    f"{surface} m²")
+    
+    def _draw_parcelles(self, c, center_x, center_y, lat, lon):
+        """DEPRECATED - Utiliser _draw_parcelles_geojson"""
+        pass
     
     def _draw_batiment(self, c, center_x, center_y):
         """Dessine le bâtiment"""

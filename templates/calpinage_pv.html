@@ -3438,6 +3438,25 @@
                 // Préparer les données
                 const calData = prepareCalepinageData();
                 
+                // 🔥 CAPTURER LE SCREENSHOT AVANT SAUVEGARDE
+                console.log('📸 Capture screenshot pour plan de masse...');
+                try {
+                    const mapContainer = document.getElementById('map');
+                    if (typeof html2canvas !== 'undefined') {
+                        const canvas = await html2canvas(mapContainer, {
+                            useCORS: true,
+                            allowTaint: true,
+                            backgroundColor: '#ffffff'
+                        });
+                        calData.screenshot_map = canvas.toDataURL('image/png');
+                        console.log('✅ Screenshot capturé (longueur:', calData.screenshot_map.length, 'caractères)');
+                    } else {
+                        console.warn('⚠️ html2canvas non disponible');
+                    }
+                } catch (err) {
+                    console.error('❌ Erreur capture screenshot:', err);
+                }
+                
                 try {
                     // Sauvegarder d'abord le calpinage
                     btnPlanMasse.disabled = true;

@@ -124,25 +124,37 @@ class PlanMasseGeneratorV2:
         
         if calpinage_image:
             # Utiliser l'image capturée du calpinage
-            c.drawImage(ImageReader(calpinage_image), 
-                      plan_x, plan_y, 
-                      width=plan_width, height=plan_height,
-                      preserveAspectRatio=False, mask='auto')
-            print("[PLAN] Image du calpinage utilisée")
+            try:
+                c.drawImage(ImageReader(calpinage_image), 
+                          plan_x, plan_y, 
+                          width=plan_width, height=plan_height,
+                          preserveAspectRatio=False, mask='auto')
+                print("[PLAN] ✅ Image du calpinage utilisée")
+            except Exception as e:
+                print(f"[PLAN] ❌ Erreur affichage image calpinage: {e}")
+                # Fond gris en cas d'erreur
+                c.setFillColor(colors.HexColor('#F5F5F5'))
+                c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
         else:
             # Fallback: télécharger image satellite
             satellite_img = self._fetch_satellite_with_bbox(lat, lon, bbox_meters)
             if satellite_img:
-                c.drawImage(ImageReader(satellite_img), 
-                          plan_x, plan_y, 
-                          width=plan_width, height=plan_height,
-                          preserveAspectRatio=False, mask='auto')
-                print("[PLAN] Image satellite ArcGIS utilisée")
+                try:
+                    c.drawImage(ImageReader(satellite_img), 
+                              plan_x, plan_y, 
+                              width=plan_width, height=plan_height,
+                              preserveAspectRatio=False, mask='auto')
+                    print("[PLAN] ✅ Image satellite ArcGIS utilisée")
+                except Exception as e:
+                    print(f"[PLAN] ❌ Erreur affichage satellite: {e}")
+                    # Fond gris en cas d'erreur
+                    c.setFillColor(colors.HexColor('#F5F5F5'))
+                    c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
             else:
                 # Fond gris si pas d'image
-                c.setFillColor(colors.HexColor('#F5F5F5'))
+                c.setFillColor(colors.HexColor('#E8F5E9'))  # Vert très clair (terrain)
                 c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
-                print("[PLAN] Aucune image disponible")
+                print("[PLAN] ⚠️ Fond par défaut (aucune image disponible)")
         
         # 1. PARCELLES CADASTRALES
         self._draw_parcelles_with_geojson(c)
