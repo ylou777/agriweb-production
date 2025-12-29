@@ -3067,7 +3067,6 @@
         async function captureMapScreenshot() {
             try {
                 if (typeof html2canvas !== 'undefined') {
-                    // 🔥 CAPTURER uniquement le conteneur Leaflet (sans div parente avec padding)
                     const mapContainer = document.getElementById('map');
                     const leafletContainer = mapContainer.querySelector('.leaflet-container');
                     
@@ -3076,29 +3075,58 @@
                         return null;
                     }
                     
-                    // 🔥 MASQUER les contrôles Leaflet pour capture propre (sans zoom/attribution)
-                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
-                    controls.forEach(ctrl => ctrl.style.display = 'none');
+                    // 🔥 STOPPER toutes les animations Leaflet
+                    map._panAnim && map._panAnim.stop();
+                    map._zoomAnim && map._zoomAnim.stop();
                     
-                    // Attendre un instant pour le rendu
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    // 🔥 FORCER position stable sans transformations CSS
+                    const mapPane = leafletContainer.querySelector('.leaflet-map-pane');
+                    if (mapPane) {
+                        const currentTransform = mapPane.style.transform;
+                        mapPane.style.transform = 'translate3d(0px, 0px, 0px)'; // Reset position
+                        
+                        // Invalider et redessiner
+                        map.invalidateSize(false);
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        
+                        // Restaurer transform après invalidateSize
+                        mapPane.style.transform = currentTransform;
+                    }
                     
-                    // Capturer UNIQUEMENT le conteneur Leaflet (pas la div parente)
+                    // 🔥 MASQUER tous les contrôles UI
+                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom, .leaflet-control-zoom, .leaflet-control-attribution');
+                    controls.forEach(ctrl => {
+                        ctrl.style.display = 'none';
+                    });
+                    
+                    // Attendre rendu final
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    console.log('📸 Capture Leaflet:', leafletContainer.offsetWidth, 'x', leafletContainer.offsetHeight, 'px');
+                    
                     const canvas = await html2canvas(leafletContainer, {
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: '#ffffff',
                         scrollX: 0,
                         scrollY: 0,
-                        windowWidth: leafletContainer.scrollWidth,
-                        windowHeight: leafletContainer.scrollHeight
+                        x: 0,
+                        y: 0,
+                        width: leafletContainer.offsetWidth,
+                        height: leafletContainer.offsetHeight,
+                        scale: 1, // Échelle 1:1 pour précision
+                        logging: false,
+                        removeContainer: false
                     });
+                    
                     const screenshot = canvas.toDataURL('image/png');
                     
                     // 🔥 RESTAURER les contrôles
-                    controls.forEach(ctrl => ctrl.style.display = '');
+                    controls.forEach(ctrl => {
+                        ctrl.style.display = '';
+                    });
                     
-                    console.log('✅ Screenshot capturé depuis .leaflet-container (', canvas.width, 'x', canvas.height, 'px, longueur:', screenshot.length, 'caractères)');
+                    console.log('✅ Screenshot capturé:', canvas.width, 'x', canvas.height, 'px, base64:', screenshot.length, 'caractères');
                     return screenshot;
                 } else {
                     console.warn('⚠️ html2canvas non disponible');
@@ -3108,8 +3136,12 @@
                 console.error('❌ Erreur capture screenshot:', err);
                 // Restaurer les contrôles en cas d'erreur
                 const mapContainer = document.getElementById('map');
-                const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
-                controls.forEach(ctrl => ctrl.style.display = '');
+                if (mapContainer) {
+                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom');
+                    controls.forEach(ctrl => {
+                        ctrl.style.display = '';
+                    });
+                }
                 return null;
             }
         }
