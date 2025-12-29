@@ -3475,6 +3475,10 @@
                         return;
                     }
                     
+                    console.log('✅ Calpinage sauvegardé, attente commit DB...');
+                    // Attendre 500ms pour laisser PostgreSQL commiter la transaction
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
                     // Générer le plan de masse
                     btnPlanMasse.innerHTML = '⏳ Génération du plan...';
                     
