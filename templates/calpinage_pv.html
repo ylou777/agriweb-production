@@ -2954,28 +2954,9 @@
         document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
             const data = prepareCalepinageData();
             
-            // Capturer screenshot de la carte avec leaflet-image
+            // Capturer screenshot avec la fonction centralisée
             console.log('📸 Capture screenshot de la carte...');
-            try {
-                // Utiliser leaflet-simple-map-screenshoter
-                const mapContainer = document.getElementById('map');
-                
-                // Méthode 1: html2canvas (plus fiable)
-                if (typeof html2canvas !== 'undefined') {
-                    const canvas = await html2canvas(mapContainer, {
-                        useCORS: true,
-                        allowTaint: true,
-                        backgroundColor: '#ffffff'
-                    });
-                    data.screenshot_map = canvas.toDataURL('image/png');
-                    console.log('✅ Screenshot capturé via html2canvas');
-                } else {
-                    // Méthode 2: Leaflet easyPrint  
-                    console.log('⚠️ html2canvas non disponible, screenshot non capturé');
-                }
-            } catch (err) {
-                console.error('❌ Erreur capture screenshot:', err);
-            }
+            data.screenshot_map = await captureMapScreenshot();
             
             console.log('Données à sauvegarder:', data);
             
