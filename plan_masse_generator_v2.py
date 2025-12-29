@@ -90,6 +90,12 @@ class PlanMasseGeneratorV2:
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
         
+        print(f"[PLAN] Latitude: {lat}, Longitude: {lon}")
+        print(f"[PLAN] Calpinage disponible: {self.calpinage is not None}")
+        if self.calpinage:
+            print(f"[PLAN] Zones calpinage: {len(self.calpinage.get('zones', []))}")
+            print(f"[PLAN] Screenshot présent: {'screenshot_map' in self.calpinage}")
+        
         if not lat or not lon:
             # Si pas de GPS, afficher message
             c.setFont("Helvetica", 12)
@@ -263,6 +269,8 @@ class PlanMasseGeneratorV2:
         """Dessine les parcelles avec leurs géométries GeoJSON"""
         parcelles = self._extract_parcelles()
         
+        print(f"[PLAN] Nombre de parcelles: {len(parcelles)}")
+        
         for parcelle in parcelles:
             section = parcelle.get('section', '')
             numero = parcelle.get('numero', '')
@@ -325,6 +333,8 @@ class PlanMasseGeneratorV2:
         """Dessine le bâtiment à sa position GPS"""
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
+        
+        print(f"[PLAN] Dessin bâtiment - GPS: ({lat}, {lon})")
         
         if not lat or not lon:
             return
