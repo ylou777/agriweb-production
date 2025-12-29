@@ -3475,15 +3475,16 @@
                         return;
                     }
                     
-                    console.log('✅ Calpinage sauvegardé');
+                    console.log('✅ Calpinage sauvegardé, attente commit DB...');
                     
-                    // Générer le plan de masse (envoyer le calpinage pour éviter race condition DB)
+                    // Attendre 1 seconde pour garantir que PostgreSQL a committé la transaction
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // Générer le plan de masse
                     btnPlanMasse.innerHTML = '⏳ Génération du plan...';
                     
                     const planResponse = await fetch(`/api/crm/prospect/${prospectId}/generer-plan-masse`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ calpinage: calData })
+                        method: 'POST'
                     });
                     
                     if (!planResponse.ok) {
