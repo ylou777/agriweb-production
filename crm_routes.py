@@ -2190,7 +2190,9 @@ def register_crm_routes(app):
         """Sauvegarder les données de calpinage dans data_json du prospect"""
         try:
             data = request.json
-            print(f"[CALPINAGE SAVE] prospect_id={prospect_id}, zones={len(data.get('zones', []))}")
+            screenshot_present = 'screenshot_map' in data and data.get('screenshot_map')
+            screenshot_len = len(data.get('screenshot_map', '')) if screenshot_present else 0
+            print(f"[CALPINAGE SAVE] prospect_id={prospect_id}, zones={len(data.get('zones', []))}, screenshot={'✅ OUI' if screenshot_present else '❌ NON'} ({screenshot_len} chars)")
             
             # Récupérer le prospect
             row = execute_query(
