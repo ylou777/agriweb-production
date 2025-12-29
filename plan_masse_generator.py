@@ -166,8 +166,13 @@ class PlanMasseGenerator:
         """Dessine le bâtiment"""
         echelle = 0.3  # cm par mètre
         
-        longueur = self.data.get('longueur_batiment_m', 15)
-        largeur = self.data.get('largeur_batiment_m', 10)
+        # Dimensions avec conversion sécurisée
+        try:
+            longueur = float(self.data.get('longueur_batiment_m', 15))
+            largeur = float(self.data.get('largeur_batiment_m', 10))
+        except (ValueError, TypeError):
+            longueur = 15
+            largeur = 10
         
         bat_w = longueur * echelle * cm
         bat_h = largeur * echelle * cm
@@ -194,9 +199,24 @@ class PlanMasseGenerator:
         
         echelle = 0.3  # cm par mètre
         
-        # Récupérer dimensions module
-        module_longueur = self.calpinage.get('module', {}).get('longueur', 2278) / 1000  # en m
-        module_largeur = self.calpinage.get('module', {}).get('largeur', 1134) / 1000   # en m
+        # Récupérer dimensions module avec conversion sécurisée
+        try:
+            module_longueur_mm = self.calpinage.get('module', {}).get('longueur', 2278)
+            module_largeur_mm = self.calpinage.get('module', {}).get('largeur', 1134)
+            
+            # Convertir en float si string
+            if isinstance(module_longueur_mm, str):
+                module_longueur_mm = float(module_longueur_mm)
+            if isinstance(module_largeur_mm, str):
+                module_largeur_mm = float(module_largeur_mm)
+            
+            # Convertir mm → m
+            module_longueur = module_longueur_mm / 1000
+            module_largeur = module_largeur_mm / 1000
+        except (ValueError, TypeError):
+            # Valeurs par défaut si conversion échoue
+            module_longueur = 2.278  # m
+            module_largeur = 1.134   # m
         
         # Pour chaque zone du calpinage
         for zone in self.calpinage['zones']:
