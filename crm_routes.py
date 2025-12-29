@@ -11,7 +11,7 @@ import os
 import io
 import zipfile
 from declaration_prealable_generator import generate_declaration_prealable_complete
-from plan_masse_generator import generate_plan_masse
+from plan_masse_generator_v2 import generate_plan_masse
 
 # ============================================================================
 # HELPER FUNCTIONS
