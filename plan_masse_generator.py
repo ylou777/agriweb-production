@@ -204,15 +204,9 @@ class PlanMasseGenerator:
             module_longueur_mm = self.calpinage.get('module', {}).get('longueur', 2278)
             module_largeur_mm = self.calpinage.get('module', {}).get('largeur', 1134)
             
-            # Convertir en float si string
-            if isinstance(module_longueur_mm, str):
-                module_longueur_mm = float(module_longueur_mm)
-            if isinstance(module_largeur_mm, str):
-                module_largeur_mm = float(module_largeur_mm)
-            
-            # Convertir mm → m
-            module_longueur = module_longueur_mm / 1000
-            module_largeur = module_largeur_mm / 1000
+            # Convertir en float (gère string et int)
+            module_longueur = float(module_longueur_mm) / 1000  # mm → m
+            module_largeur = float(module_largeur_mm) / 1000    # mm → m
         except (ValueError, TypeError):
             # Valeurs par défaut si conversion échoue
             module_longueur = 2.278  # m
@@ -409,7 +403,7 @@ class PlanMasseGenerator:
         if self.calpinage and 'zones' in self.calpinage:
             total_modules = sum(z.get('nbModules', 0) for z in self.calpinage['zones'])
             puissance_module = self.calpinage.get('module', {}).get('puissance', 560)
-            puissance_totale = total_modules * puissance_module / 1000  # kWc
+            puissance_totale = total_modules * float(puissance_module) / 1000  # kWc
             
             c.setFont("Helvetica-Bold", 9)
             c.drawString(x + 0.3*cm, info_y, "Installation photovoltaïque :")
