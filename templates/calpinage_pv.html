@@ -511,6 +511,9 @@
                     <button class="btn btn-info btn-lg" id="genererPlansStrings">
                         🎨 Plans de strings détaillés
                     </button>
+                    <button class="btn btn-secondary btn-lg" id="genererPlanMasse">
+                        📐 Plan de Masse Cadastral
+                    </button>
                     <button class="btn btn-danger btn-lg" id="genererDP">
                         📋 Déclaration Préalable (DP) Complète
                     </button>
@@ -3417,6 +3420,84 @@
             console.log('✅ [DEBUG] Event listener attaché au bouton génération DP');
         } else {
             console.error('❌ [DEBUG] Bouton genererDP introuvable!');
+        }
+
+        // Event listener pour générer le Plan de Masse Cadastral
+        const btnPlanMasse = document.getElementById('genererPlanMasse');
+        if (btnPlanMasse) {
+            console.log('✅ [DEBUG] Bouton genererPlanMasse trouvé');
+            btnPlanMasse.addEventListener('click', async () => {
+                console.log('📐 [PLAN MASSE] Bouton cliqué');
+                
+                // Vérifier qu'il y a au moins une zone
+                if (zones.length === 0) {
+                    alert('⚠️ Veuillez d\'abord créer au moins une zone avec des modules.');
+                    return;
+                }
+                
+                // Préparer les données
+                const calData = prepareCalepinageData();
+                
+                try {
+                    // Sauvegarder d'abord le calpinage
+                    btnPlanMasse.disabled = true;
+                    btnPlanMasse.innerHTML = '⏳ Sauvegarde du calpinage...';
+                    
+                    const saveResponse = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(calData)
+                    });
+                    
+                    if (!saveResponse.ok) {
+                        alert('❌ Erreur sauvegarde calpinage');
+                        btnPlanMasse.disabled = false;
+                        btnPlanMasse.innerHTML = '📐 Plan de Masse Cadastral';
+                        return;
+                    }
+                    
+                    // Générer le plan de masse
+                    btnPlanMasse.innerHTML = '⏳ Génération du plan...';
+                    
+                    const planResponse = await fetch(`/api/crm/prospect/${prospectId}/generer-plan-masse`, {
+                        method: 'POST'
+                    });
+                    
+                    if (!planResponse.ok) {
+                        const errorData = await planResponse.json();
+                        alert(`❌ Erreur: ${errorData.error || 'Erreur inconnue'}`);
+                        btnPlanMasse.disabled = false;
+                        btnPlanMasse.innerHTML = '📐 Plan de Masse Cadastral';
+                        return;
+                    }
+                    
+                    // Télécharger le PDF
+                    const blob = await planResponse.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'Plan_Masse_Cadastral.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    btnPlanMasse.disabled = false;
+                    btnPlanMasse.innerHTML = '✅ Téléchargé !';
+                    
+                    setTimeout(() => {
+                        btnPlanMasse.innerHTML = '📐 Plan de Masse Cadastral';
+                    }, 3000);
+                    
+                } catch (error) {
+                    console.error('❌ Erreur:', error);
+                    alert('❌ Erreur réseau: ' + error.message);
+                    btnPlanMasse.disabled = false;
+                    btnPlanMasse.innerHTML = '📐 Plan de Masse Cadastral';
+                }
+            });
+        } else {
+            console.error('❌ [DEBUG] Bouton genererPlanMasse introuvable!');
         }
 
         initMap();

@@ -11,6 +11,7 @@ import os
 import io
 import zipfile
 from declaration_prealable_generator import generate_declaration_prealable_complete
+from plan_masse_generator import generate_plan_masse
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -3478,5 +3479,81 @@ def register_crm_routes(app):
             return jsonify({
                 'success': False,
                 'error': f'Erreur lors de la génération: {str(e)}'
+            }), 500
+    
+    @app.route('/api/crm/prospect/<int:prospect_id>/generer-plan-masse', methods=['POST'])
+    def generer_plan_masse_cadastral(prospect_id):
+        """
+        Génère un plan de masse cadastral avec implantation PV selon calpinage
+        
+        Retourne un PDF A3 professionnel avec:
+        - Fond satellite haute résolution
+        - Parcelles cadastrales délimitées
+        - Bâtiment coté
+        - Modules PV positionnés selon le calpinage réel
+        - Légende et cartouche technique
+        """
+        try:
+            print(f"\n{'='*70}")
+            print(f"📐 [PLAN DE MASSE] Génération pour prospect {prospect_id}")
+            print(f"{'='*70}")
+            
+            # 1. Récupérer le prospect
+            row = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not row:
+                return jsonify({
+                    'success': False,
+                    'error': f'Prospect {prospect_id} non trouvé'
+                }), 404
+            
+            prospect_data = dict(row)
+            
+            # 2. Extraire calpinage
+            calpinage_data = None
+            if prospect_data.get('data_json'):
+                if isinstance(prospect_data['data_json'], str):
+                    try:
+                        data_json = json.loads(prospect_data['data_json'])
+                        calpinage_data = data_json.get('calpinage')
+                    except:
+                        pass
+                elif isinstance(prospect_data['data_json'], dict):
+                    calpinage_data = prospect_data['data_json'].get('calpinage')
+            
+            if calpinage_data:
+                nb_modules = sum(z.get('nbModules', 0) for z in calpinage_data.get('zones', []))
+                print(f"✓ Calpinage: {nb_modules} modules")
+            
+            # 3. Générer le plan de masse
+            pdf_buffer = generate_plan_masse(prospect_data, calpinage_data)
+            
+            # 4. Nom du fichier
+            commune = prospect_data.get('commune', 'Inconnu').replace(' ', '_')
+            filename = f"Plan_Masse_Cadastral_{commune}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            
+            print(f"✅ [PLAN DE MASSE] Fichier créé: {filename}")
+            print(f"{'='*70}\n")
+            
+            # 5. Retourner le PDF
+            return send_file(
+                pdf_buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            print(f"❌ [PLAN DE MASSE] ERREUR: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                'success': False,
+                'error': f'Erreur: {str(e)}'
             }), 500
 
