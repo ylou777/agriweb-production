@@ -3066,26 +3066,39 @@
         // Fonction pour capturer le screenshot de la carte
         async function captureMapScreenshot() {
             try {
-                const mapContainer = document.getElementById('map');
                 if (typeof html2canvas !== 'undefined') {
+                    // 🔥 CAPTURER uniquement le conteneur Leaflet (sans div parente avec padding)
+                    const mapContainer = document.getElementById('map');
+                    const leafletContainer = mapContainer.querySelector('.leaflet-container');
+                    
+                    if (!leafletContainer) {
+                        console.error('❌ Conteneur Leaflet introuvable');
+                        return null;
+                    }
+                    
                     // 🔥 MASQUER les contrôles Leaflet pour capture propre (sans zoom/attribution)
-                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
+                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
                     controls.forEach(ctrl => ctrl.style.display = 'none');
                     
                     // Attendre un instant pour le rendu
                     await new Promise(resolve => setTimeout(resolve, 100));
                     
-                    const canvas = await html2canvas(mapContainer, {
+                    // Capturer UNIQUEMENT le conteneur Leaflet (pas la div parente)
+                    const canvas = await html2canvas(leafletContainer, {
                         useCORS: true,
                         allowTaint: true,
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        scrollX: 0,
+                        scrollY: 0,
+                        windowWidth: leafletContainer.scrollWidth,
+                        windowHeight: leafletContainer.scrollHeight
                     });
                     const screenshot = canvas.toDataURL('image/png');
                     
                     // 🔥 RESTAURER les contrôles
                     controls.forEach(ctrl => ctrl.style.display = '');
                     
-                    console.log('✅ Screenshot capturé (longueur:', screenshot.length, 'caractères)');
+                    console.log('✅ Screenshot capturé depuis .leaflet-container (', canvas.width, 'x', canvas.height, 'px, longueur:', screenshot.length, 'caractères)');
                     return screenshot;
                 } else {
                     console.warn('⚠️ html2canvas non disponible');
@@ -3094,7 +3107,8 @@
             } catch (err) {
                 console.error('❌ Erreur capture screenshot:', err);
                 // Restaurer les contrôles en cas d'erreur
-                const controls = document.querySelectorAll('.leaflet-control-container, .leaflet-control');
+                const mapContainer = document.getElementById('map');
+                const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
                 controls.forEach(ctrl => ctrl.style.display = '');
                 return null;
             }
