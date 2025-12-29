@@ -3082,7 +3082,30 @@
             }
         });
         
-        // Fonction pour préparer les données de calepinage
+        // Fonction pour capturer le screenshot de la carte
+        async function captureMapScreenshot() {
+            try {
+                const mapContainer = document.getElementById('map');
+                if (typeof html2canvas !== 'undefined') {
+                    const canvas = await html2canvas(mapContainer, {
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: '#ffffff'
+                    });
+                    const screenshot = canvas.toDataURL('image/png');
+                    console.log('✅ Screenshot capturé (longueur:', screenshot.length, 'caractères)');
+                    return screenshot;
+                } else {
+                    console.warn('⚠️ html2canvas non disponible');
+                    return null;
+                }
+            } catch (err) {
+                console.error('❌ Erreur capture screenshot:', err);
+                return null;
+            }
+        }
+        
+        // Fonction pour préparer les données de calepinage (SANS screenshot - à ajouter séparément)
         function prepareCalepinageData() {
             return {
                 zones: zones.map(z => {
@@ -3219,9 +3242,13 @@
                 
                 console.log('📊 Zones présentes:', zones.length);
                 
-                // Sauvegarder d'abord le calpinage
+                // Sauvegarder d'abord le calpinage (avec screenshot)
                 const calp = prepareCalepinageData();
-                console.log('📦 Données calpinage préparées:', calp);
+                console.log('📦 Données calpinage préparées');
+                
+                // Capturer le screenshot
+                console.log('📸 Capture screenshot...');
+                calp.screenshot_map = await captureMapScreenshot();
                 
                 try {
                     console.log(`📡 Sauvegarde calpinage pour prospect ${prospectId}...`);
@@ -3283,9 +3310,13 @@
                     return;
                 }
                 
-                // Préparer les données
+                // Préparer les données (avec screenshot)
                 const calData = prepareCalepinageData();
-                console.log('📦 [PLANS STRINGS] Données préparées:', calData);
+                console.log('📦 [PLANS STRINGS] Données préparées');
+                
+                // Capturer le screenshot
+                console.log('📸 Capture screenshot...');
+                calData.screenshot_map = await captureMapScreenshot();
                 
                 try {
                     // Sauvegarder d'abord le calpinage
@@ -3332,11 +3363,15 @@
                     return;
                 }
                 
-                // Préparer les données
+                // Préparer les données (avec screenshot)
                 const calData = prepareCalepinageData();
-                console.log('📦 [GÉNÉRATION DP] Données préparées:', calData);
+                console.log('📦 [GÉNÉRATION DP] Données préparées');
                 
-                try {
+                // Capturer le screenshot
+                console.log('📸 Capture screenshot...');
+                calData.screenshot_map = await captureMapScreenshot();
+                
+                try:
                     // Sauvegarder d'abord le calpinage
                     btnGenererDP.disabled = true;
                     btnGenererDP.innerHTML = '⏳ Sauvegarde du calpinage...';
