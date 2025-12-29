@@ -3488,9 +3488,6 @@ def register_crm_routes(app):
         """
         Génère un plan de masse cadastral avec implantation PV selon calpinage
         
-        Accepte le calpinage dans le body de la requête POST (pour éviter les problèmes 
-        de transaction PostgreSQL - le calpinage vient d'être sauvegardé)
-        
         Retourne un PDF A3 professionnel avec:
         - Fond satellite haute résolution
         - Parcelles cadastrales délimitées
@@ -3518,25 +3515,17 @@ def register_crm_routes(app):
             
             prospect_data = dict(row)
             
-            # 2. Récupérer calpinage (priorité au body de la requête pour éviter race condition)
+            # 2. Extraire calpinage depuis la base de données
             calpinage_data = None
-            
-            # D'abord essayer de récupérer depuis le body de la requête POST
-            if request.json and 'calpinage' in request.json:
-                calpinage_data = request.json['calpinage']
-                print(f"✓ Calpinage reçu depuis requête POST (évite race condition DB)")
-            # Sinon fallback sur la base de données
-            elif prospect_data.get('data_json'):
+            if prospect_data.get('data_json'):
                 if isinstance(prospect_data['data_json'], str):
                     try:
                         data_json = json.loads(prospect_data['data_json'])
                         calpinage_data = data_json.get('calpinage')
-                        print(f"✓ Calpinage chargé depuis base de données")
                     except:
                         pass
                 elif isinstance(prospect_data['data_json'], dict):
                     calpinage_data = prospect_data['data_json'].get('calpinage')
-                    print(f"✓ Calpinage chargé depuis base de données")
             
             if calpinage_data:
                 nb_modules = sum(z.get('nbModules', 0) for z in calpinage_data.get('zones', []))
