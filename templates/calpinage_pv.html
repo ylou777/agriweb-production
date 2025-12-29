@@ -3068,12 +3068,23 @@
             try {
                 const mapContainer = document.getElementById('map');
                 if (typeof html2canvas !== 'undefined') {
+                    // 🔥 MASQUER les contrôles Leaflet pour capture propre (sans zoom/attribution)
+                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
+                    controls.forEach(ctrl => ctrl.style.display = 'none');
+                    
+                    // Attendre un instant pour le rendu
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
                     const canvas = await html2canvas(mapContainer, {
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: '#ffffff'
                     });
                     const screenshot = canvas.toDataURL('image/png');
+                    
+                    // 🔥 RESTAURER les contrôles
+                    controls.forEach(ctrl => ctrl.style.display = '');
+                    
                     console.log('✅ Screenshot capturé (longueur:', screenshot.length, 'caractères)');
                     return screenshot;
                 } else {
@@ -3082,6 +3093,9 @@
                 }
             } catch (err) {
                 console.error('❌ Erreur capture screenshot:', err);
+                // Restaurer les contrôles en cas d'erreur
+                const controls = document.querySelectorAll('.leaflet-control-container, .leaflet-control');
+                controls.forEach(ctrl => ctrl.style.display = '');
                 return null;
             }
         }
