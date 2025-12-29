@@ -35,7 +35,7 @@ prospect_test = {
     ]
 }
 
-# Calpinage avec coordonnées GPS réelles
+# Calpinage avec coordonnées GPS réelles + screenshot simulé
 calpinage_test = {
     'module': {
         'longueur': '2278',
@@ -57,7 +57,9 @@ calpinage_test = {
                 {'lat': 44.6371, 'lng': -1.0687}
             ]
         }
-    ]
+    ],
+    # Simuler un screenshot (commenté car pas de vraie image en test)
+    # 'screenshot_map': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 }
 
 print("=" * 70)

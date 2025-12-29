@@ -113,17 +113,30 @@ class PlanMasseGeneratorV2:
             'meters_per_pixel_y': bbox_meters / plan_height * cm
         }
         
-        # Image satellite de fond
-        satellite_img = self._fetch_satellite_with_bbox(lat, lon, bbox_meters)
-        if satellite_img:
-            c.drawImage(ImageReader(satellite_img), 
+        # Image de fond : priorité à l'image du calpinage, sinon image satellite
+        calpinage_image = self._get_calpinage_screenshot()
+        
+        if calpinage_image:
+            # Utiliser l'image capturée du calpinage
+            c.drawImage(ImageReader(calpinage_image), 
                       plan_x, plan_y, 
                       width=plan_width, height=plan_height,
                       preserveAspectRatio=False, mask='auto')
+            print("[PLAN] Image du calpinage utilisée")
         else:
-            # Fond gris si pas d'image
-            c.setFillColor(colors.HexColor('#F5F5F5'))
-            c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
+            # Fallback: télécharger image satellite
+            satellite_img = self._fetch_satellite_with_bbox(lat, lon, bbox_meters)
+            if satellite_img:
+                c.drawImage(ImageReader(satellite_img), 
+                          plan_x, plan_y, 
+                          width=plan_width, height=plan_height,
+                          preserveAspectRatio=False, mask='auto')
+                print("[PLAN] Image satellite ArcGIS utilisée")
+            else:
+                # Fond gris si pas d'image
+                c.setFillColor(colors.HexColor('#F5F5F5'))
+                c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
+                print("[PLAN] Aucune image disponible")
         
         # 1. PARCELLES CADASTRALES
         self._draw_parcelles_with_geojson(c)
@@ -181,6 +194,32 @@ class PlanMasseGeneratorV2:
         pdf_y = proj['plan_y'] + proj['plan_height'] / 2 + pixel_y
         
         return (pdf_x, pdf_y)
+    
+    def _get_calpinage_screenshot(self):
+        """Récupère l'image capturée du calpinage si disponible"""
+        if not self.calpinage:
+            return None
+        
+        screenshot_data = self.calpinage.get('screenshot_map')
+        
+        if not screenshot_data:
+            return None
+        
+        try:
+            # Décoder base64 en image
+            import base64
+            
+            # Retirer le préfixe "data:image/png;base64," si présent
+            if screenshot_data.startswith('data:image'):
+                screenshot_data = screenshot_data.split(',', 1)[1]
+            
+            # Décoder base64
+            image_data = base64.b64decode(screenshot_data)
+            return io.BytesIO(image_data)
+            
+        except Exception as e:
+            print(f"[PLAN] Erreur décodage screenshot calpinage: {e}")
+            return None
     
     def _fetch_satellite_with_bbox(self, lat, lon, bbox_meters):
         """Récupère image satellite avec bbox précise"""
