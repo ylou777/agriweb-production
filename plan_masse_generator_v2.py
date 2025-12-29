@@ -89,13 +89,13 @@ class PlanMasseGeneratorV2:
         calpinage_image = self._get_calpinage_screenshot()
         
         if calpinage_image:
-            # Afficher l'image du calpinage en plein écran
+            # Afficher l'image du calpinage en préservant les proportions
             try:
                 c.drawImage(ImageReader(calpinage_image), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
-                          preserveAspectRatio=False, mask='auto')
-                print("[PLAN] ✅ Image du calpinage utilisée comme fond")
+                          preserveAspectRatio=True, mask='auto', anchor='c')
+                print("[PLAN] ✅ Image du calpinage utilisée (proportions préservées)")
             except Exception as e:
                 print(f"[PLAN] ❌ Erreur affichage image: {e}")
                 # Fond par défaut
