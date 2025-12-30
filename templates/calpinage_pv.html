@@ -8,7 +8,9 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <!-- html2canvas pour capture screenshot -->
+    <!-- leaflet-image pour capture screenshot Leaflet (meilleur que html2canvas) -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet-image@0.4.0/leaflet-image.js"></script>
+    <!-- html2canvas en fallback -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         #map { 
@@ -3066,7 +3068,38 @@
         // Fonction pour capturer le screenshot de la carte
         async function captureMapScreenshot() {
             try {
+                // 🔥 MÉTHODE 1: leaflet-image (natif pour Leaflet, capture SVG/Canvas correctement)
+                if (typeof leafletImage !== 'undefined') {
+                    console.log('📸 Utilisation de leaflet-image (capture native Leaflet)');
+                    
+                    // Masquer les contrôles
+                    const leafletContainer = document.getElementById('map').querySelector('.leaflet-container');
+                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
+                    controls.forEach(ctrl => ctrl.style.display = 'none');
+                    
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    
+                    return new Promise((resolve, reject) => {
+                        leafletImage(map, function(err, canvas) {
+                            // Restaurer les contrôles
+                            controls.forEach(ctrl => ctrl.style.display = '');
+                            
+                            if (err) {
+                                console.error('❌ Erreur leaflet-image:', err);
+                                reject(err);
+                                return;
+                            }
+                            
+                            const screenshot = canvas.toDataURL('image/png');
+                            console.log('✅ Screenshot capturé via leaflet-image:', canvas.width, 'x', canvas.height, 'px');
+                            resolve(screenshot);
+                        });
+                    });
+                }
+                
+                // 🔥 MÉTHODE 2: html2canvas (fallback si leaflet-image non disponible)
                 if (typeof html2canvas !== 'undefined') {
+                    console.log('📸 Fallback: html2canvas');
                     const mapContainer = document.getElementById('map');
                     const leafletContainer = mapContainer.querySelector('.leaflet-container');
                     
@@ -3135,12 +3168,13 @@
                         ctrl.style.display = '';
                     });
                     
-                    console.log('✅ Screenshot capturé:', canvas.width, 'x', canvas.height, 'px, base64:', screenshot.length, 'caractères');
+                    console.log('✅ Screenshot capturé via html2canvas:', canvas.width, 'x', canvas.height, 'px');
                     return screenshot;
-                } else {
-                    console.warn('⚠️ html2canvas non disponible');
-                    return null;
                 }
+                
+                console.warn('⚠️ Aucune bibliothèque de capture disponible');
+                return null;
+                
             } catch (err) {
                 console.error('❌ Erreur capture screenshot:', err);
                 // Restaurer les contrôles en cas d'erreur
