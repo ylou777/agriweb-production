@@ -89,15 +89,41 @@ class PlanMasseGeneratorV2:
         calpinage_image = self._get_calpinage_screenshot()
         
         if calpinage_image:
-            # Afficher l'image du calpinage en préservant les proportions
+            # Afficher l'image du calpinage en remplissant toute la zone (pas de décalage)
             try:
+                # Obtenir les dimensions réelles de l'image
+                img = Image.open(calpinage_image)
+                img_width, img_height = img.size
+                print(f"[PLAN] 📏 Dimensions image: {img_width}x{img_height}px")
+                
+                # Calculer le ratio pour remplir complètement la zone (couvrir)
+                ratio_width = plan_width / img_width
+                ratio_height = plan_height / img_height
+                
+                # Utiliser le ratio le plus grand pour couvrir toute la zone
+                ratio = max(ratio_width, ratio_height)
+                
+                # Calculer les nouvelles dimensions
+                new_width = img_width * ratio
+                new_height = img_height * ratio
+                
+                # Centrer l'image dans la zone
+                offset_x = (plan_width - new_width) / 2
+                offset_y = (plan_height - new_height) / 2
+                
+                # Réinitialiser le buffer pour la relecture
+                calpinage_image.seek(0)
+                
+                # Dessiner l'image sans preserveAspectRatio pour contrôle total
                 c.drawImage(ImageReader(calpinage_image), 
-                          plan_x, plan_y, 
-                          width=plan_width, height=plan_height,
-                          preserveAspectRatio=True, mask='auto', anchor='c')
-                print("[PLAN] ✅ Image du calpinage utilisée (proportions préservées)")
+                          plan_x + offset_x, plan_y + offset_y, 
+                          width=new_width, height=new_height,
+                          preserveAspectRatio=False, mask='auto')
+                print(f"[PLAN] ✅ Image positionnée: {new_width:.1f}x{new_height:.1f} (ratio: {ratio:.3f})")
             except Exception as e:
                 print(f"[PLAN] ❌ Erreur affichage image: {e}")
+                import traceback
+                traceback.print_exc()
                 # Fond par défaut
                 c.setFillColor(colors.HexColor('#E8F5E9'))
                 c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)

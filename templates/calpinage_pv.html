@@ -516,9 +516,6 @@
                     <button class="btn btn-secondary btn-lg" id="genererPlanMasse">
                         📐 Plan de Masse Cadastral
                     </button>
-                    <button class="btn btn-danger btn-lg" id="genererDP">
-                        📋 Déclaration Préalable (DP) Complète
-                    </button>
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
                         💾 Sauvegarder le calpinage
                     </button>
@@ -3432,113 +3429,6 @@
             console.log('✅ [DEBUG] Event listener attaché au bouton plans strings');
         } else {
             console.error('❌ [DEBUG] Bouton genererPlansStrings introuvable!');
-        }
-
-        // Event listener pour générer la Déclaration Préalable complète
-        const btnGenererDP = document.getElementById('genererDP');
-        if (btnGenererDP) {
-            console.log('✅ [DEBUG] Bouton genererDP trouvé');
-            btnGenererDP.addEventListener('click', async () => {
-                console.log('📋 [GÉNÉRATION DP] Bouton cliqué');
-                
-                // Vérifier qu'il y a au moins une zone
-                if (zones.length === 0) {
-                    alert('⚠️ Veuillez d\'abord créer au moins une zone avec des modules.');
-                    return;
-                }
-                
-                // Préparer les données (avec screenshot)
-                const calData = prepareCalepinageData();
-                console.log('📦 [GÉNÉRATION DP] Données préparées');
-                
-                // Capturer le screenshot
-                console.log('📸 Capture screenshot...');
-                calData.screenshot_map = await captureMapScreenshot();
-                
-                try {
-                    // Sauvegarder d'abord le calpinage
-                    btnGenererDP.disabled = true;
-                    btnGenererDP.innerHTML = '⏳ Sauvegarde du calpinage...';
-                    
-                    const saveResponse = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(calData)
-                    });
-                    
-                    if (!saveResponse.ok) {
-                        const errorText = await saveResponse.text();
-                        console.error('❌ Erreur sauvegarde:', saveResponse.status, errorText);
-                        alert('❌ Erreur lors de la sauvegarde du calpinage: ' + errorText);
-                        btnGenererDP.disabled = false;
-                        btnGenererDP.innerHTML = '📋 Déclaration Préalable (DP) Complète';
-                        return;
-                    }
-                    
-                    console.log('✅ [GÉNÉRATION DP] Calpinage sauvegardé');
-                    
-                    // Générer le dossier DP complet
-                    btnGenererDP.innerHTML = '⏳ Génération du dossier DP (9 documents)...';
-                    
-                    const dpResponse = await fetch(`/api/crm/prospect/${prospectId}/generer-dp`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        }
-                    });
-                    
-                    if (!dpResponse.ok) {
-                        const errorData = await dpResponse.json();
-                        console.error('❌ Erreur génération DP:', dpResponse.status, errorData);
-                        alert(`❌ Erreur lors de la génération: ${errorData.error || 'Erreur inconnue'}`);
-                        btnGenererDP.disabled = false;
-                        btnGenererDP.innerHTML = '📋 Déclaration Préalable (DP) Complète';
-                        return;
-                    }
-                    
-                    // Télécharger le fichier ZIP
-                    const blob = await dpResponse.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    
-                    // Extraire le nom du fichier depuis les headers (si disponible)
-                    const contentDisposition = dpResponse.headers.get('content-disposition');
-                    let filename = 'Dossier_DP_Complet.zip';
-                    if (contentDisposition) {
-                        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-                        if (filenameMatch && filenameMatch[1]) {
-                            filename = filenameMatch[1].replace(/['"]/g, '');
-                        }
-                    }
-                    
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                    
-                    console.log('✅ [GÉNÉRATION DP] Dossier téléchargé:', filename);
-                    
-                    btnGenererDP.disabled = false;
-                    btnGenererDP.innerHTML = '✅ Téléchargement réussi !';
-                    
-                    setTimeout(() => {
-                        btnGenererDP.innerHTML = '📋 Déclaration Préalable (DP) Complète';
-                    }, 3000);
-                    
-                } catch (error) {
-                    console.error('❌ Erreur réseau:', error);
-                    alert('❌ Erreur réseau: ' + error.message);
-                    btnGenererDP.disabled = false;
-                    btnGenererDP.innerHTML = '📋 Déclaration Préalable (DP) Complète';
-                }
-            });
-            console.log('✅ [DEBUG] Event listener attaché au bouton génération DP');
-        } else {
-            console.error('❌ [DEBUG] Bouton genererDP introuvable!');
         }
 
         // Event listener pour générer le Plan de Masse Cadastral
