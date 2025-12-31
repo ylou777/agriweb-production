@@ -48,6 +48,15 @@ class PlanMasseSimple:
                        self.plan_x, self.plan_y,
                        width=self.plan_width, height=self.plan_height,
                        preserveAspectRatio=False)
+        else:
+            # Fond gris si pas d'image satellite
+            c.setFillColor(colors.HexColor('#F5F5F5'))
+            c.rect(self.plan_x, self.plan_y, self.plan_width, self.plan_height, fill=1, stroke=0)
+            c.setFillColor(colors.HexColor('#999999'))
+            c.setFont("Helvetica", 10)
+            c.drawCentredString(self.plan_x + self.plan_width/2, 
+                              self.plan_y + self.plan_height/2,
+                              "Image satellite non disponible")
         
         # 2. Dessiner les modules directement depuis les coordonnées GPS
         if self.calpinage and 'zones' in self.calpinage:
@@ -85,39 +94,48 @@ class PlanMasseSimple:
             lon = float(self.data.get('longitude', 0))
             
             if lat == 0 or lon == 0:
+                print(f"[PLAN] ⚠️ Coordonnées GPS manquantes: lat={lat}, lon={lon}")
                 return None
             
-            # Calculer la bbox (environ 100m de rayon)
-            # À 45° latitude: 1 degré ≈ 111km
-            delta = 0.0009  # ≈ 100m
+            # Image 800x600 pour performance
+            width_px = 800
+            height_px = 600
             
-            # Image 1200x900 pour bonne qualité
-            width_px = 1200
-            height_px = 900
-            
-            # API Mapbox satellite
+            # API Mapbox satellite - zoom 18 pour détail
             mapbox_token = "pk.eyJ1IjoieWxvdTc3NyIsImEiOiJjbTRyOGJ5aTQwNHduMm1zYWJ0YWEzaTRsIn0.FVO3aJy_MiAW0wXO8rtX6w"
             
-            # Style satellite
-            url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},18,0/{width_px}x{height_px}@2x?access_token={mapbox_token}"
+            # Style satellite sans @2x pour éviter les timeouts
+            url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},18,0/{width_px}x{height_px}?access_token={mapbox_token}"
             
-            print(f"[PLAN] 📡 Téléchargement image satellite...")
-            response = requests.get(url, timeout=10)
+            print(f"[PLAN] 📡 Téléchargement image satellite: {lat},{lon}")
+            print(f"[PLAN] 🔗 URL: {url[:100]}...")
+            
+            response = requests.get(url, timeout=15)
             
             if response.status_code == 200:
                 print(f"[PLAN] ✅ Image satellite téléchargée ({len(response.content)} bytes)")
                 return io.BytesIO(response.content)
             else:
-                print(f"[PLAN] ❌ Erreur API: {response.status_code}")
+                print(f"[PLAN] ❌ Erreur API Mapbox: HTTP {response.status_code}")
+                print(f"[PLAN] Response: {response.text[:200]}")
                 return None
                 
+        except requests.Timeout:
+            print(f"[PLAN] ❌ Timeout lors du téléchargement de l'image satellite")
+            return None
         except Exception as e:
             print(f"[PLAN] ❌ Erreur satellite: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _draw_modules_from_gps(self, c):
         """Dessine les modules depuis leurs coordonnées GPS réelles"""
         try:
+            if not self.calpinage:
+                print("[PLAN] ⚠️ Pas de données de calepinage")
+                return
+                
             zones = self.calpinage.get('zones', [])
             
             if not zones:
@@ -128,8 +146,13 @@ class PlanMasseSimple:
             center_lat = float(self.data.get('latitude', 0))
             center_lon = float(self.data.get('longitude', 0))
             
+            if center_lat == 0 or center_lon == 0:
+                print(f"[PLAN] ❌ Coordonnées GPS invalides: {center_lat}, {center_lon}")
+                return
+            
             print(f"[PLAN] 📍 Centre: {center_lat}, {center_lon}")
             print(f"[PLAN] 🔲 Zones à dessiner: {len(zones)}")
+            print(f"[PLAN] 📊 Debug zones: {zones}")
             
             # Dessiner chaque zone
             for idx, zone in enumerate(zones):
@@ -271,15 +294,22 @@ class PlanMasseSimple:
         
         # Puissance totale
         total_kwc = 0
-        if self.calpinage:
-            total_kwc = sum(z.get('puissance', 0) for z in self.calpinage.get('zones', []))
+        total_modules = 0
+        if self.calpinage and 'zones' in self.calpinage:
+            zones = self.calpinage.get('zones', [])
+            print(f"[PLAN] 📊 Calcul cartouche: {len(zones)} zones")
+            for z in zones:
+                puissance = z.get('puissance', 0)
+                nb_mod = z.get('nbModules', 0)
+                total_kwc += puissance
+                total_modules += nb_mod
+                print(f"[PLAN]   Zone: {nb_mod} modules, {puissance:.2f} kWc")
+        
+        print(f"[PLAN] 📊 Total cartouche: {total_modules} modules, {total_kwc:.2f} kWc")
         
         c.drawString(x + 0.3*cm, y_text, f"Puissance totale: {total_kwc:.2f} kWc")
         
         y_text -= 0.4*cm
-        total_modules = 0
-        if self.calpinage:
-            total_modules = sum(z.get('nbModules', 0) for z in self.calpinage.get('zones', []))
         c.drawString(x + 0.3*cm, y_text, f"Nombre de modules: {total_modules}")
         
         y_text -= 0.4*cm
