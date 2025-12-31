@@ -590,6 +590,10 @@
         let zoneCounter = 0;
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
         
+        // Tile layers (globaux pour capture screenshot)
+        let tileLayerSatellite;
+        let tileLayerOSM;
+        
         // Équipements électriques
         let equipments = {
             onduleurs: [], // [{latlng, marker, label}]
@@ -1053,27 +1057,32 @@
             }).setView([prospectLat, prospectLon], 19);
             
             // Fond satellite Esri (WorldImagery) - Vue orthogonale parfaite sans perspective
-            const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            tileLayerSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 22,
                 maxNativeZoom: 19,
                 attribution: 'Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN'
             });
             
-            // Fond satellite Google (fallback)
-            const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            // Fond OSM pour capture orthogonale (sans perspective)
+            tileLayerOSM = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 22,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-                attribution: 'Google'
+                attribution: 'OpenStreetMap contributors'
             });
             
             // Contrôle de couches pour basculer entre les fonds
             const baseMaps = {
-                "🛰️ Satellite Esri (recommandé)": esriSatellite,
-                "🌍 Satellite Google": googleSatellite
+                "🛰️ Satellite Esri (recommandé)": tileLayerSatellite,
+                "🗺️ Carte OSM (capture)": tileLayerOSM
             };
             
             // Ajouter Esri par défaut
-            esriSatellite.addTo(map);
+            tileLayerSatellite.addTo(map);
+            
+            // Ajouter le contrôle de couches
+            L.control.layers(baseMaps, null, {
+                position: 'topright',
+                collapsed: true
+            }).addTo(map);
             
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
@@ -1426,12 +1435,12 @@
                     
                     const parcelleGeoJSON = L.geoJSON(feature, {
                         style: {
-                            color: '#FFD700',        // Jaune/or pour le contour
-                            weight: 3,
-                            opacity: 0.9,
-                            fillColor: '#FFD700',
-                            fillOpacity: 0.1,
-                            dashArray: '5, 5'
+                            color: '#FF0000',        // Rouge vif pour meilleure visibilité
+                            weight: 4,              // Plus épais
+                            opacity: 1.0,           // Opacité maximale
+                            fillColor: '#FF0000',
+                            fillOpacity: 0.05,      // Très transparent
+                            dashArray: '10, 5'      // Pointillés plus visibles
                         },
                         onEachFeature: function(feature, layer) {
                             // Popup avec info parcelle
@@ -1446,11 +1455,12 @@
                             `;
                             layer.bindPopup(popupContent);
                             
-                            // Tooltip avec référence
+                            // Tooltip PERMANENT avec référence
                             layer.bindTooltip(parcelleRef, {
-                                permanent: false,
+                                permanent: true,  // Toujours visible
                                 direction: 'center',
-                                className: 'parcelle-tooltip'
+                                className: 'parcelle-tooltip',
+                                opacity: 0.9
                             });
                         }
                     });
