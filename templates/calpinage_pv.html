@@ -13,6 +13,18 @@
     <!-- html2canvas en fallback -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
+        /* Tooltip pour les parcelles cadastrales */
+        .parcelle-tooltip {
+            background-color: rgba(255, 215, 0, 0.9);
+            color: #000;
+            border: 2px solid #FFD700;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 11px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
         #map { 
             height: 600px; 
             border: 2px solid #ddd;
@@ -215,6 +227,21 @@
         <div class="row">
             <!-- Colonne gauche : Carte -->
             <div class="col-lg-8">
+                <!-- Type d'installation -->
+                <div class="module-selector mb-3">
+                    <h5>🏗️ Type d'installation</h5>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <select class="form-select" id="typeInstallation" onchange="updateTypeInstallation()">
+                                <option value="toiture">🏠 Toiture (inclinée)</option>
+                                <option value="ombriere" selected>🅿️ Ombrière (parking, carport)</option>
+                                <option value="sol">🌾 Au sol (centrale, agrivoltaïque)</option>
+                            </select>
+                            <small class="text-muted" id="typeInfo">Ombrière de parking - Structure métallique surélevée</small>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Sélection du module -->
                 <div class="module-selector">
                     <h5>📐 Module Photovoltaïque</h5>
@@ -979,22 +1006,25 @@
             handle.setLatLng([rotatedLat, rotatedLng]);
         }
         
-        // Fonction utilitaire pour tourner un point autour d'un centre
+        // Fonction utilitaire pour tourner un point autour d'un centre (correction distorsion)
         function rotatePoint(point, center, angleDegres) {
-            const angleRad = angleDegres * Math.PI / 180;
-            const dx = point.lng - center.lng;
-            const dy = point.lat - center.lat;
+            const angleRad = -angleDegres * Math.PI / 180; // Inverser pour sens horaire correct
             
-            // Correction pour la distorsion lat/lng (approximation)
-            const latFactor = Math.cos(center.lat * Math.PI / 180);
-            const dxCorrected = dx * latFactor;
+            // Convertir lat/lng en mètres relatifs au centre
+            const latToMeters = 111320; // mètres par degré de latitude
+            const lngToMeters = 111320 * Math.cos(center.lat * Math.PI / 180); // correction longitude
             
-            const rotatedDx = dxCorrected * Math.cos(angleRad) - dy * Math.sin(angleRad);
-            const rotatedDy = dxCorrected * Math.sin(angleRad) + dy * Math.cos(angleRad);
+            const dx = (point.lng - center.lng) * lngToMeters;
+            const dy = (point.lat - center.lat) * latToMeters;
             
+            // Rotation en coordonnées métriques
+            const rotatedX = dx * Math.cos(angleRad) - dy * Math.sin(angleRad);
+            const rotatedY = dx * Math.sin(angleRad) + dy * Math.cos(angleRad);
+            
+            // Reconvertir en lat/lng
             return L.latLng(
-                center.lat + rotatedDy,
-                center.lng + rotatedDx / latFactor
+                center.lat + rotatedY / latToMeters,
+                center.lng + rotatedX / lngToMeters
             );
         }
         
@@ -1015,12 +1045,40 @@
 
         // Initialisation de la carte
         function initMap() {
-            map = L.map('map').setView([prospectLat, prospectLon], 19);
+            // Options de carte pour désactiver toute rotation/inclinaison
+            map = L.map('map', {
+                preferCanvas: false,
+                zoomControl: true,
+                attributionControl: true
+            }).setView([prospectLat, prospectLon], 19);
             
-            // Satellite Google
-            L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            // Fond satellite Esri (WorldImagery) - Vue orthogonale parfaite sans perspective
+            const esriSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 22,
-                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+                maxNativeZoom: 19,
+                attribution: 'Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN'
+            });
+            
+            // Fond satellite Google (fallback)
+            const googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 22,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                attribution: 'Google'
+            });
+            
+            // Contrôle de couches pour basculer entre les fonds
+            const baseMaps = {
+                "🛰️ Satellite Esri (recommandé)": esriSatellite,
+                "🌍 Satellite Google": googleSatellite
+            };
+            
+            // Ajouter Esri par défaut
+            esriSatellite.addTo(map);
+            
+            // Ajouter le contrôle de couches
+            L.control.layers(baseMaps, null, {
+                position: 'topright',
+                collapsed: true
             }).addTo(map);
 
             // Layer pour les dessins
@@ -1265,6 +1323,183 @@
                     iconSize: [10, 10]
                 })
             }).addTo(map);
+            
+            // Charger les parcelles cadastrales depuis les données du prospect
+            loadParcelles();
+        }
+        
+        // ============================================
+        // PARCELLES CADASTRALES
+        // ============================================
+        
+        let parcellesLayer = null;
+        
+        async function loadParcelles() {
+            try {
+                // Récupérer les données du prospect (rapport)
+                const response = await fetch(`/api/crm/prospects/${prospectId}`);
+                const data = await response.json();
+                
+                if (!data.data_json || !data.data_json.rapport) {
+                    console.log('Pas de rapport disponible pour charger les parcelles');
+                    return;
+                }
+                
+                const rapport = data.data_json.rapport;
+                
+                // Vérifier s'il y a des parcelles
+                if (!rapport.parcelles || rapport.parcelles.length === 0) {
+                    console.log('Aucune parcelle trouvée dans le rapport');
+                    return;
+                }
+                
+                console.log('🗺️ Chargement des parcelles cadastrales:', rapport.parcelles);
+                
+                // Créer un layer group pour les parcelles
+                parcellesLayer = L.layerGroup();
+                
+                // Pour chaque parcelle, récupérer sa géométrie depuis l'API cadastre
+                for (const parcelleRef of rapport.parcelles) {
+                    await loadParcelle(parcelleRef);
+                }
+                
+                // Ajouter le layer au contrôle de couches
+                const layersControl = document.querySelector('.leaflet-control-layers');
+                if (layersControl && map._layers) {
+                    // Trouver le contrôle de couches existant
+                    map.eachLayer(function(layer) {
+                        if (layer._layers && layer._url) {
+                            // C'est un basemap
+                        }
+                    });
+                    
+                    // Ajouter comme overlay
+                    L.control.layers(null, {
+                        "📐 Parcelles cadastrales": parcellesLayer
+                    }, {
+                        position: 'topright',
+                        collapsed: true
+                    }).addTo(map);
+                }
+                
+                // Ajouter à la carte par défaut
+                parcellesLayer.addTo(map);
+                
+            } catch (error) {
+                console.error('Erreur lors du chargement des parcelles:', error);
+            }
+        }
+        
+        async function loadParcelle(parcelleRef) {
+            try {
+                // Format parcelle: "23123 000 AE 0123" ou similaire
+                // Parser la référence cadastrale
+                const parts = parcelleRef.trim().split(/\s+/);
+                if (parts.length < 4) {
+                    console.warn('Format de parcelle invalide:', parcelleRef);
+                    return;
+                }
+                
+                const codeCommune = parts[0]; // Code INSEE
+                const prefixe = parts[1];     // Préfixe (000 généralement)
+                const section = parts[2];     // Section (AE, etc.)
+                const numero = parts[3];      // Numéro de parcelle
+                
+                // API Cadastre.gouv.fr - WFS pour récupérer la géométrie
+                const wfsUrl = 'https://inspire.cadastre.gouv.fr/scpc/wfs';
+                const params = new URLSearchParams({
+                    service: 'WFS',
+                    version: '2.0.0',
+                    request: 'GetFeature',
+                    typename: 'inspire:PL.CadastralParcel',
+                    outputFormat: 'application/json',
+                    srsName: 'EPSG:4326',
+                    cql_filter: `inspireid='${codeCommune}${prefixe}${section}${numero.padStart(4, '0')}'`
+                });
+                
+                const response = await fetch(`${wfsUrl}?${params}`);
+                const geojson = await response.json();
+                
+                if (geojson.features && geojson.features.length > 0) {
+                    // Ajouter la géométrie à la carte
+                    const feature = geojson.features[0];
+                    
+                    const parcelleGeoJSON = L.geoJSON(feature, {
+                        style: {
+                            color: '#FFD700',        // Jaune/or pour le contour
+                            weight: 3,
+                            opacity: 0.9,
+                            fillColor: '#FFD700',
+                            fillOpacity: 0.1,
+                            dashArray: '5, 5'
+                        },
+                        onEachFeature: function(feature, layer) {
+                            // Popup avec info parcelle
+                            const props = feature.properties;
+                            const popupContent = `
+                                <div style="min-width:200px;">
+                                    <strong>📐 Parcelle Cadastrale</strong><br>
+                                    <strong>Référence:</strong> ${parcelleRef}<br>
+                                    ${props.label ? `<strong>Label:</strong> ${props.label}<br>` : ''}
+                                    ${props.nationalCadastralReference ? `<strong>Ref. nationale:</strong> ${props.nationalCadastralReference}<br>` : ''}
+                                </div>
+                            `;
+                            layer.bindPopup(popupContent);
+                            
+                            // Tooltip avec référence
+                            layer.bindTooltip(parcelleRef, {
+                                permanent: false,
+                                direction: 'center',
+                                className: 'parcelle-tooltip'
+                            });
+                        }
+                    });
+                    
+                    parcellesLayer.addLayer(parcelleGeoJSON);
+                    console.log('✅ Parcelle chargée:', parcelleRef);
+                } else {
+                    console.warn('⚠️ Parcelle non trouvée dans le cadastre:', parcelleRef);
+                    
+                    // Fallback: essayer avec une API alternative
+                    await loadParcelleAlternative(codeCommune, section, numero);
+                }
+                
+            } catch (error) {
+                console.error('Erreur lors du chargement de la parcelle', parcelleRef, ':', error);
+            }
+        }
+        
+        async function loadParcelleAlternative(codeCommune, section, numero) {
+            try {
+                // Alternative: API geo.api.gouv.fr
+                const apiUrl = `https://apicarto.ign.fr/api/cadastre/parcelle`;
+                const params = new URLSearchParams({
+                    code_insee: codeCommune,
+                    section: section,
+                    numero: numero
+                });
+                
+                const response = await fetch(`${apiUrl}?${params}`);
+                const data = await response.json();
+                
+                if (data.features && data.features.length > 0) {
+                    const parcelleGeoJSON = L.geoJSON(data, {
+                        style: {
+                            color: '#FFD700',
+                            weight: 3,
+                            opacity: 0.9,
+                            fillColor: '#FFD700',
+                            fillOpacity: 0.1,
+                            dashArray: '5, 5'
+                        }
+                    });
+                    
+                    parcellesLayer.addLayer(parcelleGeoJSON);
+                    console.log('✅ Parcelle chargée (API alternative):', `${codeCommune} ${section} ${numero}`);
+                }
+            } catch (error) {
+                console.warn('API alternative échouée pour la parcelle:', error);
+            }
         }
         
         // ============================================
@@ -2240,7 +2475,8 @@
                 productible: 0,
                 moduleOrientation: moduleOrientationSelect,
                 largeurMetres: largeurMetres,
-                longueurMetres: longueurMetres
+                longueurMetres: longueurMetres,
+                typeInstallation: document.getElementById('typeInstallation').value
             };
             
             zones.push(zone);
@@ -2630,7 +2866,7 @@
             if (puissanceEl) puissanceEl.textContent = `${zone.puissanceKw.toFixed(2)} kWc`;
         }
 
-        // Dessiner les modules dans une zone
+        // Dessiner les modules dans une zone (correction distorsion)
         function dessinerModulesDansZone(zone) {
             // Supprimer l'ancien groupe de modules s'il existe
             if (zone.moduleGroup) {
@@ -2641,8 +2877,8 @@
             const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
             const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
             
-            // PAYSAGE (horizontal): module couché - largeur module va dans largeur zone
-            // PORTRAIT (vertical): module debout - longueur module va dans largeur zone
+            // PAYSAGE: module couché - longueur module (grande dim) = horizontal
+            // PORTRAIT: module debout - largeur module (petite dim) = horizontal
             let moduleHorizontal, moduleVertical;
             if (zone.moduleOrientation === 'paysage') {
                 moduleHorizontal = moduleLongueur;
@@ -2657,97 +2893,112 @@
             const ne = bounds.getNorthEast();
             const center = bounds.getCenter();
             
-            // Calculer nombre de modules qui rentrent
+            // Calculer nombre de modules
             const nbCols = Math.floor(zone.largeurMetres / (moduleHorizontal + espacement));
             const nbRows = Math.floor(zone.longueurMetres / (moduleVertical + espacement));
             
             const moduleGroup = L.layerGroup();
             
-            // Calculer l'espacement en degrés de lat/lon
-            const latPerMeter = (ne.lat - sw.lat) / zone.longueurMetres;
-            const lngPerMeter = (ne.lng - sw.lng) / zone.largeurMetres;
+            // Conversions mètres → degrés avec correction latitude
+            const latToMeters = 111320;
+            const lngToMeters = 111320 * Math.cos(center.lat * Math.PI / 180);
             
-            // Angle de rotation du CHAMP ENTIER
+            // Angle de rotation
             const rotationAngle = zone.rotationAngle || 0;
             
-            // Collecter tous les modules pour les tourner ensemble
+            // Calculer les coins de chaque module en coordonnées métriques relatives au centre
             const allModuleCorners = [];
             
-            // Calculer les coins de chaque module (grille non tournée)
+            // Coin SW du champ en mètres relatifs au centre
+            const fieldStartX = -(zone.largeurMetres / 2);
+            const fieldStartY = -(zone.longueurMetres / 2);
+            
             for (let row = 0; row < nbRows; row++) {
                 for (let col = 0; col < nbCols; col++) {
-                    const startLat = sw.lat + (row * (moduleVertical + espacement) * latPerMeter);
-                    const startLng = sw.lng + (col * (moduleHorizontal + espacement) * lngPerMeter);
-                    const endLat = startLat + (moduleVertical * latPerMeter);
-                    const endLng = startLng + (moduleHorizontal * lngPerMeter);
+                    // Position du module en mètres relatifs au centre du champ
+                    const modX = fieldStartX + (col * (moduleHorizontal + espacement));
+                    const modY = fieldStartY + (row * (moduleVertical + espacement));
                     
-                    // Les 4 coins du module (non tournés)
-                    allModuleCorners.push([
-                        L.latLng(startLat, startLng),  // SW
-                        L.latLng(startLat, endLng),    // SE
-                        L.latLng(endLat, endLng),      // NE
-                        L.latLng(endLat, startLng)     // NW
-                    ]);
+                    // Les 4 coins du module en mètres
+                    const cornersMeters = [
+                        {x: modX, y: modY},
+                        {x: modX + moduleHorizontal, y: modY},
+                        {x: modX + moduleHorizontal, y: modY + moduleVertical},
+                        {x: modX, y: modY + moduleVertical}
+                    ];
+                    
+                    allModuleCorners.push(cornersMeters);
                 }
             }
             
-            // Coins du champ (rectangle original)
-            const zoneCorners = [
-                sw,
-                L.latLng(sw.lat, ne.lng),
-                ne,
-                L.latLng(ne.lat, sw.lng)
+            // Coins du champ en mètres
+            const fieldCornersMeters = [
+                {x: fieldStartX, y: fieldStartY},
+                {x: fieldStartX + zone.largeurMetres, y: fieldStartY},
+                {x: fieldStartX + zone.largeurMetres, y: fieldStartY + zone.longueurMetres},
+                {x: fieldStartX, y: fieldStartY + zone.longueurMetres}
             ];
             
-            // Si rotation, tourner TOUT le champ autour du centre
-            if (rotationAngle !== 0) {
-                // Tourner chaque module autour du centre du champ
-                allModuleCorners.forEach(corners => {
-                    const rotatedCorners = corners.map(corner => rotatePoint(corner, center, rotationAngle));
-                    
-                    const modulePolygon = L.polygon(rotatedCorners, {
-                        color: '#0066cc',
-                        weight: 1,
-                        fillColor: '#4d94ff',
-                        fillOpacity: 0.6,
-                        interactive: false
-                    });
-                    moduleGroup.addLayer(modulePolygon);
-                });
+            // Fonction pour appliquer rotation et convertir en lat/lng
+            function metersToLatLng(point, rotate = true) {
+                let x = point.x;
+                let y = point.y;
                 
-                // Dessiner le contour du champ tourné
-                const rotatedZoneCorners = zoneCorners.map(corner => rotatePoint(corner, center, rotationAngle));
-                const zoneOutline = L.polygon(rotatedZoneCorners, {
-                    color: '#ff7800',
-                    weight: 2,
-                    fillOpacity: 0,
-                    dashArray: '5, 5',
+                if (rotate && rotationAngle !== 0) {
+                    const angleRad = -rotationAngle * Math.PI / 180;
+                    const xRot = x * Math.cos(angleRad) - y * Math.sin(angleRad);
+                    const yRot = x * Math.sin(angleRad) + y * Math.cos(angleRad);
+                    x = xRot;
+                    y = yRot;
+                }
+                
+                return L.latLng(
+                    center.lat + y / latToMeters,
+                    center.lng + x / lngToMeters
+                );
+            }
+            
+            // Dessiner les modules
+            allModuleCorners.forEach(cornersMeters => {
+                const corners = cornersMeters.map(pt => metersToLatLng(pt, true));
+                
+                const modulePolygon = L.polygon(corners, {
+                    color: '#0066cc',
+                    weight: 1,
+                    fillColor: '#4d94ff',
+                    fillOpacity: 0.6,
                     interactive: false
                 });
-                moduleGroup.addLayer(zoneOutline);
-            } else {
-                // Pas de rotation - dessiner normalement
-                allModuleCorners.forEach(corners => {
-                    const modulePolygon = L.polygon(corners, {
-                        color: '#0066cc',
-                        weight: 1,
-                        fillColor: '#4d94ff',
-                        fillOpacity: 0.6,
-                        interactive: false
-                    });
-                    moduleGroup.addLayer(modulePolygon);
-                });
-            }
+                moduleGroup.addLayer(modulePolygon);
+            });
+            
+            // Dessiner le contour du champ
+            const fieldCorners = fieldCornersMeters.map(pt => metersToLatLng(pt, rotationAngle !== 0));
+            const zoneOutline = L.polygon(fieldCorners, {
+                color: '#ff7800',
+                weight: 2,
+                fillOpacity: 0,
+                dashArray: '5, 5',
+                interactive: false
+            });
+            moduleGroup.addLayer(zoneOutline);
             
             // Ajouter le label au centre
             if (showLegende) {
+                const typeInstall = document.getElementById('typeInstallation').value;
+                const typeIcons = {
+                    'toiture': '🏠',
+                    'ombriere': '🅿️',
+                    'sol': '🌾'
+                };
+                
                 const label = L.marker(center, {
                     icon: L.divIcon({
                         className: 'module-count-label',
                         html: `<div style="background: rgba(0,0,0,0.7); color: white; padding: 5px 10px; border-radius: 4px; font-weight: bold; white-space: nowrap; pointer-events: none;">
-                            ${zone.nbModules} modules<br>${zone.puissanceKw.toFixed(2)} kWc
+                            ${typeIcons[typeInstall] || '🔆'} ${zone.nbModules} modules<br>${zone.puissanceKw.toFixed(2)} kWc
                         </div>`,
-                        iconSize: [100, 40]
+                        iconSize: [120, 40]
                     })
                 });
                 
@@ -2758,6 +3009,28 @@
             zone.moduleGroup = moduleGroup;
         }
 
+        // Mettre à jour le type d'installation
+        function updateTypeInstallation() {
+            const type = document.getElementById('typeInstallation').value;
+            const typeInfos = {
+                'toiture': 'Installation en toiture - Modules fixés sur la charpente existante',
+                'ombriere': 'Ombrière de parking - Structure métallique surélevée',
+                'sol': 'Installation au sol - Centrale photovoltaïque ou agrivoltaïque'
+            };
+            
+            document.getElementById('typeInfo').textContent = typeInfos[type] || '';
+            
+            // Mettre à jour toutes les zones existantes
+            zones.forEach(zone => {
+                zone.typeInstallation = type;
+            });
+            
+            // Rafraîchir l'affichage
+            updateAllZones();
+            
+            console.log('✅ Type d\'installation: ' + type);
+        }
+        
         // Mettre à jour toutes les zones quand on change les paramètres globaux
         function updateAllZones() {
             zones.forEach(zone => {
