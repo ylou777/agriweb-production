@@ -3065,52 +3065,34 @@
         // Fonction pour capturer le screenshot de la carte
         async function captureMapScreenshot() {
             try {
-                console.log('🔍 [DEBUG] Bibliothèques disponibles:');
-                console.log('  - leafletImage:', typeof leafletImage);
-                console.log('  - window.leafletImage:', typeof window.leafletImage);
-                console.log('  - html2canvas:', typeof html2canvas);
-                
-                // 🔥 FORCER leaflet-image si disponible
-                const leafletImageFn = typeof leafletImage !== 'undefined' ? leafletImage : window.leafletImage;
-                
-                if (leafletImageFn) {
-                    console.log('📸 Utilisation de leaflet-image (capture PARFAITE de Leaflet)');
+                // 🔥 MÉTHODE 1: leaflet-image (natif pour Leaflet, capture SVG/Canvas correctement)
+                if (typeof leafletImage !== 'undefined') {
+                    console.log('📸 Utilisation de leaflet-image (capture native Leaflet)');
                     
-                    // Masquer uniquement les contrôles UI
-                    const controls = document.querySelectorAll('.leaflet-control-container, .leaflet-control-zoom, .leaflet-control-attribution');
+                    // Masquer les contrôles
+                    const leafletContainer = document.getElementById('map').querySelector('.leaflet-container');
+                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
                     controls.forEach(ctrl => ctrl.style.display = 'none');
                     
-                    // Attendre que le masquage soit effectif
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    await new Promise(resolve => setTimeout(resolve, 100));
                     
                     return new Promise((resolve, reject) => {
-                        leafletImageFn(map, function(err, canvas) {
+                        leafletImage(map, function(err, canvas) {
                             // Restaurer les contrôles
                             controls.forEach(ctrl => ctrl.style.display = '');
                             
                             if (err) {
                                 console.error('❌ Erreur leaflet-image:', err);
-                                console.warn('⚠️ Tentative fallback vers html2canvas...');
-                                // NE PAS reject, mais retourner null pour déclencher le fallback
-                                resolve(null);
+                                reject(err);
                                 return;
                             }
                             
                             const screenshot = canvas.toDataURL('image/png');
-                            console.log('✅ Screenshot PARFAIT via leaflet-image:', canvas.width, 'x', canvas.height, 'px');
+                            console.log('✅ Screenshot capturé via leaflet-image:', canvas.width, 'x', canvas.height, 'px');
                             resolve(screenshot);
                         });
-                    }).then(result => {
-                        // Si leaflet-image a échoué, essayer html2canvas
-                        if (result === null) {
-                            throw new Error('leaflet-image failed, trying html2canvas');
-                        }
-                        return result;
-                    }).catch(async (err) => {
-                        console.warn('⚠️ leaflet-image non disponible ou erreur:', err.message);
-                        // Continuer vers html2canvas
-                        return await captureWithHtml2Canvas();
                     });
+                }
                 
                 // 🔥 MÉTHODE 2: html2canvas (fallback si leaflet-image non disponible)
                 if (typeof html2canvas !== 'undefined') {
