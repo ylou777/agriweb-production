@@ -71,13 +71,43 @@ class PlanMasseSimple:
         
         if screenshot:
             print("[PLAN] ✅ Screenshot du calpinage chargé - utilisation directe")
-            # Afficher le screenshot tel quel (modules déjà bien positionnés avec rotation)
-            c.drawImage(ImageReader(screenshot), 
-                       self.plan_x, self.plan_y,
-                       width=self.plan_width, height=self.plan_height,
-                       preserveAspectRatio=False)
             
-            print("[PLAN] ✅ Plan de masse généré à partir du screenshot exact du calpinage")
+            # Charger l'image pour obtenir ses dimensions réelles
+            from PIL import Image
+            img = Image.open(screenshot)
+            screenshot.seek(0)  # Reset pour réutilisation
+            img_width, img_height = img.size
+            print(f"[PLAN] 📐 Dimensions image: {img_width}x{img_height}px")
+            
+            # Calculer le ratio pour préserver l'aspect
+            ratio_plan = self.plan_width / self.plan_height
+            ratio_img = img_width / img_height
+            
+            print(f"[PLAN] 📐 Ratio plan: {ratio_plan:.3f}, Ratio image: {ratio_img:.3f}")
+            
+            # Ajuster les dimensions pour préserver l'aspect ET remplir l'espace
+            if ratio_img > ratio_plan:
+                # Image plus large que le plan : ajuster sur la hauteur
+                draw_height = self.plan_height
+                draw_width = draw_height * ratio_img
+                draw_x = self.plan_x - (draw_width - self.plan_width) / 2  # Centrer
+                draw_y = self.plan_y
+            else:
+                # Image plus haute que le plan : ajuster sur la largeur
+                draw_width = self.plan_width
+                draw_height = draw_width / ratio_img
+                draw_x = self.plan_x
+                draw_y = self.plan_y - (draw_height - self.plan_height) / 2  # Centrer
+            
+            print(f"[PLAN] 📐 Dimensions dessin: {draw_width/cm:.1f}x{draw_height/cm:.1f}cm à position ({draw_x/cm:.1f}, {draw_y/cm:.1f})cm")
+            
+            # Afficher le screenshot avec aspect préservé
+            c.drawImage(ImageReader(screenshot), 
+                       draw_x, draw_y,
+                       width=draw_width, height=draw_height,
+                       preserveAspectRatio=True)
+            
+            print("[PLAN] ✅ Plan de masse généré avec proportions exactes du calpinage")
         else:
             print("[PLAN] ⚠️ Pas de screenshot - affichage message")
             # Message si pas de screenshot
