@@ -11,6 +11,8 @@ Pour déclaration préalable de travaux (DP) / Permis de construire (PC)
 - Implantation des panneaux PV
 - Distances aux limites
 - Cartouche technique
+
+MÉTHODE: Utilise fond satellite + redessine modules précisément via GPS
 """
 
 from reportlab.lib.pagesizes import A3
@@ -41,6 +43,10 @@ class PlanMasseSimple:
         self.plan_width = self.width - 6*cm
         self.plan_height = self.height - 14*cm
         
+        # Échelle 1/500: 1cm sur le plan = 5m en réalité
+        self.echelle = 500
+        self.meters_per_cm = 5
+        
     def generate(self):
         """Génère le PDF"""
         buffer = io.BytesIO()
@@ -60,15 +66,18 @@ class PlanMasseSimple:
         # Échelle graphique (barre d'échelle 1/500)
         self._draw_scale_bar(c)
         
-        # 🔥 SOLUTION SIMPLE : Utiliser directement le screenshot du calepinage sauvegardé
+        # 🔥 FOND SATELLITE (pour contexte visuel)
         screenshot = self._get_screenshot_from_calpinage()
         
         if screenshot:
-            print("[PLAN] ✅ Utilisation du screenshot sauvegardé")
+            print("[PLAN] ✅ Fond satellite chargé")
             c.drawImage(ImageReader(screenshot), 
                        self.plan_x, self.plan_y,
                        width=self.plan_width, height=self.plan_height,
                        preserveAspectRatio=False)
+            
+            # 🔥 REDESSINER LES MODULES PRÉCISÉMENT par-dessus
+            self._draw_modules_from_gps(c)
         else:
             print("[PLAN] ⚠️ Pas de screenshot - affichage message")
             # Message si pas de screenshot
@@ -76,7 +85,7 @@ class PlanMasseSimple:
             c.rect(self.plan_x, self.plan_y, self.plan_width, self.plan_height, fill=1, stroke=0)
             c.setFillColor(colors.HexColor('#F57C00'))
             c.setFont("Helvetica-Bold", 12)
-            c.drawCentredString(self.plan_x + self.plan_width/2, 
+            c.drawCentredString(self.plan_x + self.plan_width/2,
                               self.plan_y + self.plan_height/2,
                               "Veuillez d'abord SAUVEGARDER le calepinage")
         
@@ -179,6 +188,81 @@ class PlanMasseSimple:
         # Texte "Échelle 1/500"
         c.setFont("Helvetica-Bold", 8)
         c.drawCentredString(x_start + bar_length/2, y + 0.5*cm, "Échelle 1/500")
+    
+    def _draw_modules_from_gps(self, c):
+        """Redessine les modules PV précisément à partir de leurs coordonnées GPS"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            print("[PLAN] ⚠️ Pas de zones PV dans le calepinage")
+            return
+        
+        zones = self.calpinage.get('zones', [])
+        if not zones:
+            print("[PLAN] ⚠️ Aucune zone PV trouvée")
+            return
+        
+        print(f"[PLAN] 🎨 Redessinage de {len(zones)} zones PV avec modules précis")
+        
+        # Calculer bounds globaux pour la conversion GPS -> PDF
+        all_lats = []
+        all_lons = []
+        
+        for zone in zones:
+            if 'bounds' in zone:
+                bounds = zone['bounds']
+                all_lats.extend([bounds['_southWest']['lat'], bounds['_northEast']['lat']])
+                all_lons.extend([bounds['_southWest']['lng'], bounds['_northEast']['lng']])
+        
+        if not all_lats or not all_lons:
+            print("[PLAN] ⚠️ Pas de coordonnées GPS trouvées dans les zones")
+            return
+        
+        # Bounds globaux
+        min_lat, max_lat = min(all_lats), max(all_lats)
+        min_lon, max_lon = min(all_lons), max(all_lons)
+        
+        print(f"[PLAN] 📍 Bounds: lat [{min_lat:.6f}, {max_lat:.6f}], lon [{min_lon:.6f}, {max_lon:.6f}]")
+        
+        # Fonction conversion GPS -> coordonnées PDF
+        def gps_to_pdf(lat, lon):
+            # Normaliser entre 0 et 1
+            x_norm = (lon - min_lon) / (max_lon - min_lon) if max_lon != min_lon else 0.5
+            y_norm = (lat - min_lat) / (max_lat - min_lat) if max_lat != min_lat else 0.5
+            
+            # Convertir en coordonnées PDF
+            pdf_x = self.plan_x + x_norm * self.plan_width
+            pdf_y = self.plan_y + y_norm * self.plan_height
+            
+            return pdf_x, pdf_y
+        
+        # Dessiner chaque module
+        c.setFillColorRGB(0.08, 0.40, 0.75, alpha=0.7)  # Bleu semi-transparent
+        c.setStrokeColor(colors.HexColor('#1565C0'))
+        c.setLineWidth(0.5)
+        
+        total_modules = 0
+        for zone in zones:
+            modules = zone.get('modules', [])
+            if not modules:
+                continue
+            
+            for module in modules:
+                if 'latlngs' not in module or len(module['latlngs']) < 4:
+                    continue
+                
+                # Convertir les 4 coins du module en coordonnées PDF
+                corners = [gps_to_pdf(corner['lat'], corner['lng']) for corner in module['latlngs']]
+                
+                # Dessiner le polygone (module)
+                path = c.beginPath()
+                path.moveTo(corners[0][0], corners[0][1])
+                for x, y in corners[1:]:
+                    path.lineTo(x, y)
+                path.close()
+                
+                c.drawPath(path, fill=1, stroke=1)
+                total_modules += 1
+        
+        print(f"[PLAN] ✅ {total_modules} modules redessinés précisément")
     
     
     def _get_screenshot_from_calpinage(self):
