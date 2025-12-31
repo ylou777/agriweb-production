@@ -41,26 +41,25 @@ class PlanMasseSimple:
         c.setLineWidth(2)
         c.rect(self.plan_x, self.plan_y, self.plan_width, self.plan_height)
         
-        # 1. Image satellite
-        sat_image = self._get_satellite_image()
-        if sat_image:
-            c.drawImage(ImageReader(sat_image), 
+        # 🔥 SOLUTION SIMPLE : Utiliser directement le screenshot du calepinage sauvegardé
+        screenshot = self._get_screenshot_from_calpinage()
+        
+        if screenshot:
+            print("[PLAN] ✅ Utilisation du screenshot sauvegardé")
+            c.drawImage(ImageReader(screenshot), 
                        self.plan_x, self.plan_y,
                        width=self.plan_width, height=self.plan_height,
                        preserveAspectRatio=False)
         else:
-            # Fond gris si pas d'image satellite
-            c.setFillColor(colors.HexColor('#F5F5F5'))
+            print("[PLAN] ⚠️ Pas de screenshot - affichage message")
+            # Message si pas de screenshot
+            c.setFillColor(colors.HexColor('#FFF3E0'))
             c.rect(self.plan_x, self.plan_y, self.plan_width, self.plan_height, fill=1, stroke=0)
-            c.setFillColor(colors.HexColor('#999999'))
-            c.setFont("Helvetica", 10)
+            c.setFillColor(colors.HexColor('#F57C00'))
+            c.setFont("Helvetica-Bold", 12)
             c.drawCentredString(self.plan_x + self.plan_width/2, 
                               self.plan_y + self.plan_height/2,
-                              "Image satellite non disponible")
-        
-        # 2. Dessiner les modules directement depuis les coordonnées GPS
-        if self.calpinage and 'zones' in self.calpinage:
-            self._draw_modules_from_gps(c)
+                              "Veuillez d'abord SAUVEGARDER le calepinage")
         
         # Légende
         self._draw_legend(c)
@@ -87,171 +86,36 @@ class PlanMasseSimple:
         c.setFont("Helvetica-Bold", 12)
         c.drawRightString(self.width - 3*cm, y, "Échelle 1/500")
     
-    def _get_satellite_image(self):
-        """Récupère l'image satellite statique"""
-        try:
-            lat = float(self.data.get('latitude', 0))
-            lon = float(self.data.get('longitude', 0))
-            
-            if lat == 0 or lon == 0:
-                print(f"[PLAN] ⚠️ Coordonnées GPS manquantes: lat={lat}, lon={lon}")
-                return None
-            
-            # Image 800x600 pour performance
-            width_px = 800
-            height_px = 600
-            
-            # API Mapbox satellite - zoom 18 pour détail
-            mapbox_token = "pk.eyJ1IjoieWxvdTc3NyIsImEiOiJjbTRyOGJ5aTQwNHduMm1zYWJ0YWEzaTRsIn0.FVO3aJy_MiAW0wXO8rtX6w"
-            
-            # Style satellite sans @2x pour éviter les timeouts
-            url = f"https://api.mapbox.com/styles/v1/mapbox/satellite-v9/static/{lon},{lat},18,0/{width_px}x{height_px}?access_token={mapbox_token}"
-            
-            print(f"[PLAN] 📡 Téléchargement image satellite: {lat},{lon}")
-            print(f"[PLAN] 🔗 URL: {url[:100]}...")
-            
-            response = requests.get(url, timeout=15)
-            
-            if response.status_code == 200:
-                print(f"[PLAN] ✅ Image satellite téléchargée ({len(response.content)} bytes)")
-                return io.BytesIO(response.content)
-            else:
-                print(f"[PLAN] ❌ Erreur API Mapbox: HTTP {response.status_code}")
-                print(f"[PLAN] Response: {response.text[:200]}")
-                return None
-                
-        except requests.Timeout:
-            print(f"[PLAN] ❌ Timeout lors du téléchargement de l'image satellite")
-            return None
-        except Exception as e:
-            print(f"[PLAN] ❌ Erreur satellite: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    def _draw_modules_from_gps(self, c):
-        """Dessine les modules depuis leurs coordonnées GPS réelles"""
+    def _get_screenshot_from_calpinage(self):
+        """Récupère le screenshot sauvegardé dans le calepinage"""
         try:
             if not self.calpinage:
                 print("[PLAN] ⚠️ Pas de données de calepinage")
-                return
-                
-            zones = self.calpinage.get('zones', [])
+                return None
             
-            if not zones:
-                print("[PLAN] ⚠️ Pas de zones dans le calepinage")
-                return
+            screenshot_data = self.calpinage.get('screenshot_map')
             
-            # Coordonnées du centre
-            center_lat = float(self.data.get('latitude', 0))
-            center_lon = float(self.data.get('longitude', 0))
+            if not screenshot_data:
+                print("[PLAN] ⚠️ Pas de screenshot dans le calepinage")
+                return None
             
-            if center_lat == 0 or center_lon == 0:
-                print(f"[PLAN] ❌ Coordonnées GPS invalides: {center_lat}, {center_lon}")
-                return
+            import base64
             
-            print(f"[PLAN] 📍 Centre: {center_lat}, {center_lon}")
-            print(f"[PLAN] 🔲 Zones à dessiner: {len(zones)}")
-            print(f"[PLAN] 📊 Debug zones: {zones}")
+            # Retirer le préfixe "data:image/png;base64," si présent
+            if screenshot_data.startswith('data:image'):
+                screenshot_data = screenshot_data.split(',', 1)[1]
             
-            # Dessiner chaque zone
-            for idx, zone in enumerate(zones):
-                bounds = zone.get('bounds', {})
-                
-                # Récupérer les coordonnées GPS des coins
-                north = bounds.get('_northEast', {}).get('lat')
-                east = bounds.get('_northEast', {}).get('lng')
-                south = bounds.get('_southWest', {}).get('lat')
-                west = bounds.get('_southWest', {}).get('lng')
-                
-                if not all([north, east, south, west]):
-                    print(f"[PLAN] ⚠️ Zone {idx}: coordonnées manquantes")
-                    continue
-                
-                # Convertir GPS → PDF
-                x1, y1 = self._gps_to_pdf(south, west, center_lat, center_lon)
-                x2, y2 = self._gps_to_pdf(north, east, center_lat, center_lon)
-                
-                # Dimensions du rectangle
-                rect_x = min(x1, x2)
-                rect_y = min(y1, y2)
-                rect_w = abs(x2 - x1)
-                rect_h = abs(y2 - y1)
-                
-                # Dessiner le rectangle de la zone
-                c.setStrokeColor(colors.HexColor('#2196F3'))
-                c.setFillColor(colors.HexColor('#2196F3'))
-                c.setFillAlpha(0.3)
-                c.setLineWidth(2)
-                c.rect(rect_x, rect_y, rect_w, rect_h, fill=1, stroke=1)
-                
-                # Dessiner les modules individuels
-                nb_modules = zone.get('nbModules', 0)
-                module_width_m = zone.get('largeurModule', 1.134)
-                module_height_m = zone.get('hauteurModule', 1.722)
-                
-                # Convertir dimensions modules en pixels PDF
-                module_w_pdf = self._meters_to_pdf(module_width_m)
-                module_h_pdf = self._meters_to_pdf(module_height_m)
-                
-                # Disposition des modules dans la zone
-                cols = zone.get('cols', 1)
-                rows = zone.get('rows', 1)
-                
-                c.setFillAlpha(1)
-                c.setFillColor(colors.HexColor('#1565C0'))
-                
-                for row in range(rows):
-                    for col in range(cols):
-                        # Position relative dans la zone
-                        mod_x = rect_x + col * module_w_pdf
-                        mod_y = rect_y + row * module_h_pdf
-                        
-                        # Dessiner le module
-                        c.rect(mod_x, mod_y, module_w_pdf, module_h_pdf, fill=1, stroke=0)
-                
-                # Label de la zone
-                c.setFillColor(colors.black)
-                c.setFont("Helvetica-Bold", 10)
-                label = f"{nb_modules} modules ({zone.get('puissance', 0):.2f} kWc)"
-                c.drawString(rect_x + 2*mm, rect_y + rect_h + 2*mm, label)
-                
-                print(f"[PLAN] ✅ Zone {idx}: {nb_modules} modules dessinés")
-                
+            # Décoder base64
+            image_data = base64.b64decode(screenshot_data)
+            print(f"[PLAN] ✅ Screenshot décodé: {len(image_data)} bytes")
+            
+            return io.BytesIO(image_data)
+            
         except Exception as e:
-            print(f"[PLAN] ❌ Erreur dessin modules: {e}")
+            print(f"[PLAN] ❌ Erreur décodage screenshot: {e}")
             import traceback
             traceback.print_exc()
-    
-    def _gps_to_pdf(self, lat, lon, center_lat, center_lon):
-        """Convertit GPS → coordonnées PDF"""
-        # Delta par rapport au centre
-        delta_lat = lat - center_lat
-        delta_lon = lon - center_lon
-        
-        # Conversion degrés → mètres
-        meters_per_deg_lat = 111000
-        meters_per_deg_lon = 111000 * math.cos(math.radians(center_lat))
-        
-        meters_y = delta_lat * meters_per_deg_lat
-        meters_x = delta_lon * meters_per_deg_lon
-        
-        # Échelle 1/500 → 1m = 2mm sur le plan
-        # Mais on a une zone de 30x20cm → représente environ 150x100m
-        scale_x = self.plan_width / 150  # pixels PDF par mètre
-        scale_y = self.plan_height / 100
-        
-        # Position PDF (centre + offset)
-        pdf_x = self.plan_x + self.plan_width / 2 + meters_x * scale_x
-        pdf_y = self.plan_y + self.plan_height / 2 + meters_y * scale_y
-        
-        return (pdf_x, pdf_y)
-    
-    def _meters_to_pdf(self, meters):
-        """Convertit des mètres en pixels PDF selon l'échelle"""
-        # Échelle approximative de la zone
-        scale = self.plan_width / 150  # pixels PDF par mètre
-        return meters * scale
+            return None
     
     def _draw_legend(self, c):
         """Légende"""
