@@ -89,21 +89,31 @@ class PlanMasseSimple:
     def _get_screenshot_from_calpinage(self):
         """Récupère le screenshot sauvegardé dans le calepinage"""
         try:
+            print(f"[PLAN] 🔍 Vérification calepinage: {self.calpinage is not None}")
+            
             if not self.calpinage:
                 print("[PLAN] ⚠️ Pas de données de calepinage")
                 return None
             
+            print(f"[PLAN] 🔍 Clés disponibles dans calepinage: {list(self.calpinage.keys()) if isinstance(self.calpinage, dict) else 'N/A'}")
+            
             screenshot_data = self.calpinage.get('screenshot_map')
             
             if not screenshot_data:
-                print("[PLAN] ⚠️ Pas de screenshot dans le calepinage")
+                print("[PLAN] ⚠️ Pas de screenshot dans le calepinage (screenshot_map manquant)")
+                print(f"[PLAN] 🔍 Contenu calepinage (premiers 500 char): {str(self.calpinage)[:500]}")
                 return None
+            
+            print(f"[PLAN] 📸 Screenshot trouvé! Longueur: {len(screenshot_data)} caractères")
             
             import base64
             
             # Retirer le préfixe "data:image/png;base64," si présent
             if screenshot_data.startswith('data:image'):
-                screenshot_data = screenshot_data.split(',', 1)[1]
+                prefix_end = screenshot_data.find(',')
+                if prefix_end > 0:
+                    screenshot_data = screenshot_data[prefix_end + 1:]
+                    print(f"[PLAN] ✂️ Préfixe data:image retiré")
             
             # Décoder base64
             image_data = base64.b64decode(screenshot_data)
