@@ -3065,6 +3065,18 @@
         // Fonction pour capturer le screenshot de la carte
         async function captureMapScreenshot() {
             try {
+                console.log('📸 CAPTURE ORTHOGONALE - Bascule temporaire vers OSM');
+                
+                // 🔥 SOLUTION: Basculer temporairement vers OSM (vue orthogonale)
+                const currentLayer = map.hasLayer(tileLayerSatellite) ? 'satellite' : 'osm';
+                
+                if (currentLayer === 'satellite') {
+                    map.removeLayer(tileLayerSatellite);
+                    map.addLayer(tileLayerOSM);
+                    // Attendre chargement des tuiles OSM
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+                
                 // 🔥 MÉTHODE 1: leaflet-image (natif pour Leaflet, capture SVG/Canvas correctement)
                 if (typeof leafletImage !== 'undefined') {
                     console.log('📸 Utilisation de leaflet-image (capture native Leaflet)');
@@ -3081,6 +3093,13 @@
                             // Restaurer les contrôles
                             controls.forEach(ctrl => ctrl.style.display = '');
                             
+                            // 🔥 Restaurer la couche satellite si nécessaire
+                            if (currentLayer === 'satellite') {
+                                map.removeLayer(tileLayerOSM);
+                                map.addLayer(tileLayerSatellite);
+                                console.log('✅ Retour à la vue satellite');
+                            }
+                            
                             if (err) {
                                 console.error('❌ Erreur leaflet-image:', err);
                                 reject(err);
@@ -3088,7 +3107,7 @@
                             }
                             
                             const screenshot = canvas.toDataURL('image/png');
-                            console.log('✅ Screenshot capturé via leaflet-image:', canvas.width, 'x', canvas.height, 'px');
+                            console.log('✅ Screenshot capturé via leaflet-image (OSM orthogonal):', canvas.width, 'x', canvas.height, 'px');
                             resolve(screenshot);
                         });
                     });
@@ -3138,7 +3157,14 @@
                         ctrl.style.display = '';
                     });
                     
-                    console.log('✅ Screenshot capturé via html2canvas:', canvas.width, 'x', canvas.height, 'px');
+                    // 🔥 Restaurer la couche satellite si nécessaire
+                    if (currentLayer === 'satellite') {
+                        map.removeLayer(tileLayerOSM);
+                        map.addLayer(tileLayerSatellite);
+                        console.log('✅ Retour à la vue satellite');
+                    }
+                    
+                    console.log('✅ Screenshot capturé via html2canvas (OSM orthogonal):', canvas.width, 'x', canvas.height, 'px');
                     return screenshot;
                 }
                 
@@ -3154,6 +3180,11 @@
                     controls.forEach(ctrl => {
                         ctrl.style.display = '';
                     });
+                    // Restaurer satellite
+                    if (map.hasLayer(tileLayerOSM)) {
+                        map.removeLayer(tileLayerOSM);
+                        map.addLayer(tileLayerSatellite);
+                    }
                 }
                 return null;
             }
