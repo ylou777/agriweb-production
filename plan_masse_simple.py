@@ -66,51 +66,52 @@ class PlanMasseSimple:
         # Échelle graphique (barre d'échelle 1/500)
         self._draw_scale_bar(c)
         
-        # 🔥 UTILISER DIRECTEMENT LE SCREENSHOT DU CALPINAGE (modules déjà positionnés)
+        # 🔥 SCREENSHOT DU CALPINAGE - AFFICHAGE DIRECT SANS DÉFORMATION
         screenshot = self._get_screenshot_from_calpinage()
         
         if screenshot:
-            print("[PLAN] ✅ Screenshot du calpinage chargé - utilisation directe")
+            print("[PLAN] ✅ Screenshot chargé - affichage sans déformation")
             
-            # Charger l'image pour obtenir ses dimensions réelles
+            # Charger l'image
             from PIL import Image
             img = Image.open(screenshot)
-            screenshot.seek(0)  # Reset pour réutilisation
+            screenshot.seek(0)
             img_width, img_height = img.size
-            print(f"[PLAN] 📐 Dimensions image: {img_width}x{img_height}px")
+            print(f"[PLAN] 📐 Image: {img_width}x{img_height}px")
             
-            # Calculer le ratio pour préserver l'aspect
-            ratio_plan = self.plan_width / self.plan_height
-            ratio_img = img_width / img_height
+            # Calculer les dimensions pour remplir le cadre en préservant l'aspect
+            img_ratio = img_width / img_height
+            plan_ratio = self.plan_width / self.plan_height
             
-            print(f"[PLAN] 📐 Ratio plan: {ratio_plan:.3f}, Ratio image: {ratio_img:.3f}")
-            
-            # Ajuster les dimensions pour préserver l'aspect ET remplir l'espace
-            if ratio_img > ratio_plan:
-                # Image plus large que le plan : ajuster sur la hauteur
-                draw_height = self.plan_height
-                draw_width = draw_height * ratio_img
-                draw_x = self.plan_x - (draw_width - self.plan_width) / 2  # Centrer
-                draw_y = self.plan_y
+            if img_ratio > plan_ratio:
+                # Image plus large : ajuster sur la largeur
+                final_width = self.plan_width
+                final_height = self.plan_width / img_ratio
+                offset_x = 0
+                offset_y = (self.plan_height - final_height) / 2
             else:
-                # Image plus haute que le plan : ajuster sur la largeur
-                draw_width = self.plan_width
-                draw_height = draw_width / ratio_img
-                draw_x = self.plan_x
-                draw_y = self.plan_y - (draw_height - self.plan_height) / 2  # Centrer
+                # Image plus haute : ajuster sur la hauteur  
+                final_height = self.plan_height
+                final_width = self.plan_height * img_ratio
+                offset_x = (self.plan_width - final_width) / 2
+                offset_y = 0
             
-            print(f"[PLAN] 📐 Dimensions dessin: {draw_width/cm:.1f}x{draw_height/cm:.1f}cm à position ({draw_x/cm:.1f}, {draw_y/cm:.1f})cm")
+            print(f"[PLAN] 📐 Affichage: {final_width/cm:.1f}x{final_height/cm:.1f}cm")
             
-            # Afficher le screenshot avec aspect préservé
-            c.drawImage(ImageReader(screenshot), 
-                       draw_x, draw_y,
-                       width=draw_width, height=draw_height,
-                       preserveAspectRatio=True)
+            # Dessiner l'image centrée
+            c.drawImage(
+                ImageReader(screenshot),
+                self.plan_x + offset_x,
+                self.plan_y + offset_y,
+                width=final_width,
+                height=final_height,
+                preserveAspectRatio=True,
+                anchor='c'
+            )
             
-            print("[PLAN] ✅ Plan de masse généré avec proportions exactes du calpinage")
+            print("[PLAN] ✅ Screenshot affiché avec proportions exactes")
         else:
-            print("[PLAN] ⚠️ Pas de screenshot - affichage message")
-            # Message si pas de screenshot
+            print("[PLAN] ⚠️ Pas de screenshot")
             c.setFillColor(colors.HexColor('#FFF3E0'))
             c.rect(self.plan_x, self.plan_y, self.plan_width, self.plan_height, fill=1, stroke=0)
             c.setFillColor(colors.HexColor('#F57C00'))
