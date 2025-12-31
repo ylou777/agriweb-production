@@ -3098,10 +3098,9 @@
                 if (typeof html2canvas !== 'undefined') {
                     console.log('📸 Fallback: html2canvas');
                     const mapContainer = document.getElementById('map');
-                    const leafletContainer = mapContainer.querySelector('.leaflet-container');
                     
-                    if (!leafletContainer) {
-                        console.error('❌ Conteneur Leaflet introuvable');
+                    if (!mapContainer) {
+                        console.error('❌ Conteneur carte introuvable');
                         return null;
                     }
                     
@@ -3109,56 +3108,30 @@
                     map._panAnim && map._panAnim.stop();
                     map._zoomAnim && map._zoomAnim.stop();
                     
-                    // 🔥 MASQUER tous les contrôles UI
-                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom, .leaflet-control-zoom, .leaflet-control-attribution');
+                    // 🔥 MASQUER tous les contrôles UI seulement
+                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom, .leaflet-control-zoom, .leaflet-control-attribution');
                     controls.forEach(ctrl => {
                         ctrl.style.display = 'none';
                     });
                     
-                    // 🔥 SAUVEGARDER l'état actuel des transformations
-                    const mapPane = leafletContainer.querySelector('.leaflet-map-pane');
-                    const overlayPane = leafletContainer.querySelector('.leaflet-overlay-pane');
-                    const markerPane = leafletContainer.querySelector('.leaflet-marker-pane');
+                    // Attendre un instant pour que le masquage soit effectif
+                    await new Promise(resolve => setTimeout(resolve, 100));
                     
-                    const savedTransforms = {
-                        mapPane: mapPane ? mapPane.style.transform : '',
-                        overlayPane: overlayPane ? overlayPane.style.transform : '',
-                        markerPane: markerPane ? markerPane.style.transform : ''
-                    };
+                    console.log('📸 Capture carte SANS modifier les transformations');
                     
-                    // 🔥 RESET toutes les transformations CSS pour capture statique
-                    if (mapPane) mapPane.style.transform = 'translate3d(0px, 0px, 0px)';
-                    if (overlayPane) overlayPane.style.transform = 'translate3d(0px, 0px, 0px)';
-                    if (markerPane) markerPane.style.transform = 'translate3d(0px, 0px, 0px)';
-                    
-                    // Forcer redessinage complet
-                    map.invalidateSize(false);
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    
-                    console.log('📸 Capture Leaflet (transform reset):', leafletContainer.offsetWidth, 'x', leafletContainer.offsetHeight, 'px');
-                    
-                    // 🔥 CAPTURER pendant que transform=0
-                    const canvas = await html2canvas(leafletContainer, {
+                    // 🔥 CAPTURER DIRECTEMENT sans toucher aux transformations
+                    const canvas = await html2canvas(mapContainer, {
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: '#ffffff',
                         scrollX: 0,
-                        scrollY: 0,
-                        x: 0,
-                        y: 0,
-                        width: leafletContainer.offsetWidth,
-                        height: leafletContainer.offsetHeight,
-                        scale: 1,
+                        scrollY: -window.scrollY,
+                        scale: 2,  // Meilleure qualité
                         logging: false,
                         removeContainer: false
                     });
                     
                     const screenshot = canvas.toDataURL('image/png');
-                    
-                    // 🔥 RESTAURER les transformations d'origine
-                    if (mapPane) mapPane.style.transform = savedTransforms.mapPane;
-                    if (overlayPane) overlayPane.style.transform = savedTransforms.overlayPane;
-                    if (markerPane) markerPane.style.transform = savedTransforms.markerPane;
                     
                     // 🔥 RESTAURER les contrôles
                     controls.forEach(ctrl => {
