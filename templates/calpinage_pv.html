@@ -3345,31 +3345,45 @@
             }
         });
         
-        // 📸 CAPTURE SCREENSHOT ULTRA-SIMPLE avec leaflet-image
+        // 📸 CAPTURE SCREENSHOT avec leaflet-image
         async function captureMapScreenshot() {
             return new Promise((resolve, reject) => {
-                console.log('📸 Capture avec leaflet-image...');
+                console.log('📸 Préparation capture...');
+                
+                // 🔥 FORCER LE REFRESH DE LA CARTE AVANT CAPTURE
+                map.invalidateSize();
+                
+                // 🔥 REDESSINER TOUS LES MODULES POUR SYNCHRONISER
+                zones.forEach(zone => {
+                    dessinerModulesDansZone(zone);
+                });
                 
                 // Masquer les contrôles
                 const controls = document.querySelectorAll('.leaflet-control');
                 controls.forEach(ctrl => ctrl.style.display = 'none');
                 
+                // Attendre que tout soit stable et rendu
                 setTimeout(() => {
+                    console.log('📸 Capture en cours...');
+                    console.log('   Zoom:', map.getZoom());
+                    console.log('   Centre:', map.getCenter());
+                    console.log('   Zones:', zones.length);
+                    
                     leafletImage(map, function(err, canvas) {
                         // Restaurer les contrôles
                         controls.forEach(ctrl => ctrl.style.display = '');
                         
                         if (err) {
-                            console.error('❌ Erreur:', err);
+                            console.error('❌ Erreur capture:', err);
                             reject(err);
                             return;
                         }
                         
                         const screenshot = canvas.toDataURL('image/png');
-                        console.log('✅ Capturé:', canvas.width + 'x' + canvas.height + 'px');
+                        console.log('✅ Screenshot:', canvas.width + 'x' + canvas.height + 'px');
                         resolve(screenshot);
                     });
-                }, 100);
+                }, 500); // Plus de temps pour stabilisation
             });
         }
         
