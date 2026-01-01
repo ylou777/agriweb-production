@@ -3396,9 +3396,9 @@
                     });
                 }
                 
-                // 🔥 MÉTHODE 2: html2canvas (fallback si leaflet-image non disponible)
+                // 🔥 MÉTHODE 2: html2canvas - CAPTURE UNIQUEMENT LE MAP PANE (sans contrôles)
                 if (typeof html2canvas !== 'undefined') {
-                    console.log('📸 Fallback: html2canvas');
+                    console.log('📸 html2canvas - capture du map pane uniquement');
                     const mapContainer = document.getElementById('map');
                     
                     if (!mapContainer) {
@@ -3406,48 +3406,52 @@
                         return null;
                     }
                     
-                    // 🔥 STOPPER toutes les animations Leaflet
+                    // 🔥 TROUVER LE PANE LEAFLET (contient uniquement carte, pas les contrôles)
+                    const mapPane = mapContainer.querySelector('.leaflet-map-pane') || 
+                                   mapContainer.querySelector('.leaflet-pane') ||
+                                   mapContainer;
+                    
+                    console.log('📸 Capture du pane:', mapPane.className);
+                    
+                    // 🔥 STOPPER animations
                     map._panAnim && map._panAnim.stop();
                     map._zoomAnim && map._zoomAnim.stop();
                     
-                    // 🔥 MASQUER tous les contrôles UI seulement
-                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom, .leaflet-control-zoom, .leaflet-control-attribution');
-                    controls.forEach(ctrl => {
-                        ctrl.style.display = 'none';
-                    });
+                    // 🔥 MASQUER les contrôles (au cas où)
+                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom');
+                    controls.forEach(ctrl => ctrl.style.visibility = 'hidden');
                     
-                    // Attendre un instant pour que le masquage soit effectif
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 200));
                     
-                    console.log('📸 Capture carte SANS modifier les transformations');
-                    
-                    // 🔥 CAPTURER DIRECTEMENT sans toucher aux transformations
+                    // 🔥 CAPTURER LE CONTENEUR ENTIER (pour avoir tout le viewport)
                     const canvas = await html2canvas(mapContainer, {
                         useCORS: true,
                         allowTaint: true,
-                        backgroundColor: '#ffffff',
+                        backgroundColor: null,
                         scrollX: 0,
                         scrollY: -window.scrollY,
-                        scale: 2,  // Meilleure qualité
+                        scale: 2,
                         logging: false,
-                        removeContainer: false
+                        ignoreElements: (element) => {
+                            // Ignorer tous les contrôles Leaflet
+                            return element.classList.contains('leaflet-control-container') ||
+                                   element.classList.contains('leaflet-control') ||
+                                   element.classList.contains('leaflet-top') ||
+                                   element.classList.contains('leaflet-bottom');
+                        }
                     });
                     
-                    const screenshot = canvas.toDataURL('image/png');
+                    // 🔥 RESTAURER
+                    controls.forEach(ctrl => ctrl.style.visibility = '');
                     
-                    // 🔥 RESTAURER les contrôles
-                    controls.forEach(ctrl => {
-                        ctrl.style.display = '';
-                    });
-                    
-                    // 🔥 Restaurer la couche satellite si nécessaire
                     if (currentLayer === 'satellite') {
                         map.removeLayer(tileLayerOSM);
                         map.addLayer(tileLayerSatellite);
-                        console.log('✅ Retour à la vue satellite');
+                        console.log('✅ Retour satellite');
                     }
                     
-                    console.log('✅ Screenshot capturé via html2canvas (OSM orthogonal):', canvas.width, 'x', canvas.height, 'px');
+                    const screenshot = canvas.toDataURL('image/png');
+                    console.log('✅ Screenshot capturé SANS contrôles:', canvas.width, 'x', canvas.height, 'px');
                     return screenshot;
                 }
                 
