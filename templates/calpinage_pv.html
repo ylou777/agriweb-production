@@ -8,9 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <!-- leaflet-image pour capture screenshot Leaflet (meilleur que html2canvas) -->
-    <script src="https://cdn.jsdelivr.net/npm/leaflet-image@0.4.0/leaflet-image.js"></script>
-    <!-- html2canvas en fallback -->
+    <!-- html2canvas pour capture screenshot -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         /* Tooltip pour les parcelles cadastrales */
@@ -3345,46 +3343,48 @@
             }
         });
         
-        // 📸 CAPTURE SCREENSHOT avec leaflet-image
+        // 📸 CAPTURE SCREENSHOT avec html2canvas (leaflet-image ne fonctionne pas)
         async function captureMapScreenshot() {
-            return new Promise((resolve, reject) => {
-                console.log('📸 Préparation capture...');
-                
-                // 🔥 FORCER LE REFRESH DE LA CARTE AVANT CAPTURE
-                map.invalidateSize();
-                
-                // 🔥 REDESSINER TOUS LES MODULES POUR SYNCHRONISER
-                zones.forEach(zone => {
-                    dessinerModulesDansZone(zone);
+            console.log('📸 Préparation capture html2canvas...');
+            
+            // Forcer refresh et redessiner
+            map.invalidateSize();
+            zones.forEach(zone => dessinerModulesDansZone(zone));
+            
+            const mapContainer = document.getElementById('map');
+            const rect = mapContainer.getBoundingClientRect();
+            
+            // Masquer les contrôles
+            const controls = document.querySelectorAll('.leaflet-control');
+            controls.forEach(ctrl => ctrl.style.visibility = 'hidden');
+            
+            // Attendre stabilisation
+            await new Promise(resolve => setTimeout(resolve, 300));
+            
+            console.log('📸 Capture en cours...', rect.width + 'x' + rect.height + 'px');
+            
+            try {
+                const canvas = await html2canvas(mapContainer, {
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: null,
+                    width: rect.width,
+                    height: rect.height,
+                    scale: 2,
+                    logging: false
                 });
                 
-                // Masquer les contrôles
-                const controls = document.querySelectorAll('.leaflet-control');
-                controls.forEach(ctrl => ctrl.style.display = 'none');
+                // Restaurer les contrôles
+                controls.forEach(ctrl => ctrl.style.visibility = '');
                 
-                // Attendre que tout soit stable et rendu
-                setTimeout(() => {
-                    console.log('📸 Capture en cours...');
-                    console.log('   Zoom:', map.getZoom());
-                    console.log('   Centre:', map.getCenter());
-                    console.log('   Zones:', zones.length);
-                    
-                    leafletImage(map, function(err, canvas) {
-                        // Restaurer les contrôles
-                        controls.forEach(ctrl => ctrl.style.display = '');
-                        
-                        if (err) {
-                            console.error('❌ Erreur capture:', err);
-                            reject(err);
-                            return;
-                        }
-                        
-                        const screenshot = canvas.toDataURL('image/png');
-                        console.log('✅ Screenshot:', canvas.width + 'x' + canvas.height + 'px');
-                        resolve(screenshot);
-                    });
-                }, 500); // Plus de temps pour stabilisation
-            });
+                const screenshot = canvas.toDataURL('image/png');
+                console.log('✅ Screenshot capturé:', canvas.width + 'x' + canvas.height + 'px');
+                return screenshot;
+            } catch (err) {
+                controls.forEach(ctrl => ctrl.style.visibility = '');
+                console.error('❌ Erreur capture:', err);
+                throw err;
+            }
         }
         
         // Fonction pour préparer les données de calepinage (SANS screenshot - à ajouter séparément)
