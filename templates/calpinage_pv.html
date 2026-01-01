@@ -3345,151 +3345,32 @@
             }
         });
         
-        // Fonction pour capturer le screenshot de la carte
+        // 📸 CAPTURE SCREENSHOT ULTRA-SIMPLE avec leaflet-image
         async function captureMapScreenshot() {
-            try {
-                console.log('📸 CAPTURE ORTHOGONALE - Bascule temporaire vers OSM');
+            return new Promise((resolve, reject) => {
+                console.log('📸 Capture avec leaflet-image...');
                 
-                // 🔥 SOLUTION: Basculer temporairement vers OSM (vue orthogonale)
-                const currentLayer = map.hasLayer(tileLayerSatellite) ? 'satellite' : 'osm';
+                // Masquer les contrôles
+                const controls = document.querySelectorAll('.leaflet-control');
+                controls.forEach(ctrl => ctrl.style.display = 'none');
                 
-                if (currentLayer === 'satellite') {
-                    map.removeLayer(tileLayerSatellite);
-                    map.addLayer(tileLayerOSM);
-                    // Attendre chargement des tuiles OSM
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                }
-                
-                // 🔥 MÉTHODE 1: leaflet-image (natif pour Leaflet, capture SVG/Canvas correctement)
-                if (typeof leafletImage !== 'undefined') {
-                    console.log('📸 Utilisation de leaflet-image (capture native Leaflet)');
-                    
-                    // Masquer les contrôles
-                    const leafletContainer = document.getElementById('map').querySelector('.leaflet-container');
-                    const controls = leafletContainer.querySelectorAll('.leaflet-control-container, .leaflet-control');
-                    controls.forEach(ctrl => ctrl.style.display = 'none');
-                    
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    
-                    return new Promise((resolve, reject) => {
-                        leafletImage(map, function(err, canvas) {
-                            // Restaurer les contrôles
-                            controls.forEach(ctrl => ctrl.style.display = '');
-                            
-                            // 🔥 Restaurer la couche satellite si nécessaire
-                            if (currentLayer === 'satellite') {
-                                map.removeLayer(tileLayerOSM);
-                                map.addLayer(tileLayerSatellite);
-                                console.log('✅ Retour à la vue satellite');
-                            }
-                            
-                            if (err) {
-                                console.error('❌ Erreur leaflet-image:', err);
-                                reject(err);
-                                return;
-                            }
-                            
-                            const screenshot = canvas.toDataURL('image/png');
-                            console.log('✅ Screenshot capturé via leaflet-image (OSM orthogonal):', canvas.width, 'x', canvas.height, 'px');
-                            resolve(screenshot);
-                        });
-                    });
-                }
-                
-                // 🔥 MÉTHODE 2: html2canvas - CAPTURE EXACTE DU VIEWPORT
-                if (typeof html2canvas !== 'undefined') {
-                    console.log('📸 html2canvas - capture viewport exact');
-                    const mapContainer = document.getElementById('map');
-                    
-                    if (!mapContainer) {
-                        console.error('❌ Conteneur carte introuvable');
-                        return null;
-                    }
-                    
-                    // 🔥 CAPTURER EXACTEMENT LE VIEWPORT LEAFLET (pas le conteneur HTML)
-                    // Trouver le pane de la carte (là où se dessine vraiment le contenu)
-                    const mapPane = mapContainer.querySelector('.leaflet-pane');
-                    const rect = mapContainer.getBoundingClientRect();
-                    console.log('📐 Dimensions carte:', rect.width, 'x', rect.height, 'px');
-                    
-                    // 🔥 STOPPER animations
-                    map._panAnim && map._panAnim.stop();
-                    map._zoomAnim && map._zoomAnim.stop();
-                    
-                    // 🔥 MASQUER TOUS les contrôles Leaflet
-                    const controls = mapContainer.querySelectorAll(
-                        '.leaflet-control-container, .leaflet-control, ' +
-                        '.leaflet-top, .leaflet-bottom, .leaflet-left, .leaflet-right, ' +
-                        '.leaflet-control-zoom, .leaflet-control-layers, ' +
-                        '.leaflet-control-attribution, .leaflet-bar'
-                    );
-                    controls.forEach(ctrl => ctrl.style.visibility = 'hidden');
-                    
-                    // Stabilisation pour s'assurer que tout est rendu
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                    
-                    // 🔥 CAPTURER AVEC PRECISION MAXIMALE
-                    const canvas = await html2canvas(mapContainer, {
-                        useCORS: true,
-                        allowTaint: true,
-                        backgroundColor: null,
-                        width: rect.width,
-                        height: rect.height,
-                        x: 0,
-                        y: 0,
-                        scrollX: 0,
-                        scrollY: 0,
-                        windowWidth: document.documentElement.scrollWidth,
-                        windowHeight: document.documentElement.scrollHeight,
-                        scale: 3,  // Haute résolution pour plan de masse
-                        logging: false,
-                        ignoreElements: (element) => {
-                            // Filtrer TOUS les éléments de contrôle Leaflet
-                            const classList = element.classList;
-                            return classList.contains('leaflet-control-container') ||
-                                   classList.contains('leaflet-control') ||
-                                   classList.contains('leaflet-top') ||
-                                   classList.contains('leaflet-bottom') ||
-                                   classList.contains('leaflet-left') ||
-                                   classList.contains('leaflet-right') ||
-                                   element.className.includes('leaflet-control');
+                setTimeout(() => {
+                    leafletImage(map, function(err, canvas) {
+                        // Restaurer les contrôles
+                        controls.forEach(ctrl => ctrl.style.display = '');
+                        
+                        if (err) {
+                            console.error('❌ Erreur:', err);
+                            reject(err);
+                            return;
                         }
+                        
+                        const screenshot = canvas.toDataURL('image/png');
+                        console.log('✅ Capturé:', canvas.width + 'x' + canvas.height + 'px');
+                        resolve(screenshot);
                     });
-                    
-                    // 🔥 RESTAURER
-                    controls.forEach(ctrl => ctrl.style.visibility = '');
-                    
-                    if (currentLayer === 'satellite') {
-                        map.removeLayer(tileLayerOSM);
-                        map.addLayer(tileLayerSatellite);
-                        console.log('✅ Retour satellite');
-                    }
-                    
-                    const screenshot = canvas.toDataURL('image/png');
-                    console.log('✅ Screenshot capturé SANS contrôles:', canvas.width, 'x', canvas.height, 'px');
-                    return screenshot;
-                }
-                
-                console.warn('⚠️ Aucune bibliothèque de capture disponible');
-                return null;
-                
-            } catch (err) {
-                console.error('❌ Erreur capture screenshot:', err);
-                // Restaurer les contrôles en cas d'erreur
-                const mapContainer = document.getElementById('map');
-                if (mapContainer) {
-                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom');
-                    controls.forEach(ctrl => {
-                        ctrl.style.display = '';
-                    });
-                    // Restaurer satellite
-                    if (map.hasLayer(tileLayerOSM)) {
-                        map.removeLayer(tileLayerOSM);
-                        map.addLayer(tileLayerSatellite);
-                    }
-                }
-                return null;
-            }
+                }, 100);
+            });
         }
         
         // Fonction pour préparer les données de calepinage (SANS screenshot - à ajouter séparément)
