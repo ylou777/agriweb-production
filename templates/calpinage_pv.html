@@ -3396,9 +3396,9 @@
                     });
                 }
                 
-                // 🔥 MÉTHODE 2: html2canvas - CAPTURE UNIQUEMENT LE MAP PANE (sans contrôles)
+                // 🔥 MÉTHODE 2: html2canvas - CAPTURE EXACTE DU VIEWPORT
                 if (typeof html2canvas !== 'undefined') {
-                    console.log('📸 html2canvas - capture du map pane uniquement');
+                    console.log('📸 html2canvas - capture viewport exact');
                     const mapContainer = document.getElementById('map');
                     
                     if (!mapContainer) {
@@ -3406,38 +3406,53 @@
                         return null;
                     }
                     
-                    // 🔥 TROUVER LE PANE LEAFLET (contient uniquement carte, pas les contrôles)
-                    const mapPane = mapContainer.querySelector('.leaflet-map-pane') || 
-                                   mapContainer.querySelector('.leaflet-pane') ||
-                                   mapContainer;
-                    
-                    console.log('📸 Capture du pane:', mapPane.className);
+                    // 🔥 CAPTURER EXACTEMENT LE VIEWPORT LEAFLET (pas le conteneur HTML)
+                    // Trouver le pane de la carte (là où se dessine vraiment le contenu)
+                    const mapPane = mapContainer.querySelector('.leaflet-pane');
+                    const rect = mapContainer.getBoundingClientRect();
+                    console.log('📐 Dimensions carte:', rect.width, 'x', rect.height, 'px');
                     
                     // 🔥 STOPPER animations
                     map._panAnim && map._panAnim.stop();
                     map._zoomAnim && map._zoomAnim.stop();
                     
-                    // 🔥 MASQUER les contrôles (au cas où)
-                    const controls = mapContainer.querySelectorAll('.leaflet-control-container, .leaflet-control, .leaflet-top, .leaflet-bottom');
+                    // 🔥 MASQUER TOUS les contrôles Leaflet
+                    const controls = mapContainer.querySelectorAll(
+                        '.leaflet-control-container, .leaflet-control, ' +
+                        '.leaflet-top, .leaflet-bottom, .leaflet-left, .leaflet-right, ' +
+                        '.leaflet-control-zoom, .leaflet-control-layers, ' +
+                        '.leaflet-control-attribution, .leaflet-bar'
+                    );
                     controls.forEach(ctrl => ctrl.style.visibility = 'hidden');
                     
-                    await new Promise(resolve => setTimeout(resolve, 200));
+                    // Stabilisation pour s'assurer que tout est rendu
+                    await new Promise(resolve => setTimeout(resolve, 300));
                     
-                    // 🔥 CAPTURER LE CONTENEUR ENTIER (pour avoir tout le viewport)
+                    // 🔥 CAPTURER AVEC PRECISION MAXIMALE
                     const canvas = await html2canvas(mapContainer, {
                         useCORS: true,
                         allowTaint: true,
                         backgroundColor: null,
+                        width: rect.width,
+                        height: rect.height,
+                        x: 0,
+                        y: 0,
                         scrollX: 0,
-                        scrollY: -window.scrollY,
-                        scale: 2,
+                        scrollY: 0,
+                        windowWidth: document.documentElement.scrollWidth,
+                        windowHeight: document.documentElement.scrollHeight,
+                        scale: 3,  // Haute résolution pour plan de masse
                         logging: false,
                         ignoreElements: (element) => {
-                            // Ignorer tous les contrôles Leaflet
-                            return element.classList.contains('leaflet-control-container') ||
-                                   element.classList.contains('leaflet-control') ||
-                                   element.classList.contains('leaflet-top') ||
-                                   element.classList.contains('leaflet-bottom');
+                            // Filtrer TOUS les éléments de contrôle Leaflet
+                            const classList = element.classList;
+                            return classList.contains('leaflet-control-container') ||
+                                   classList.contains('leaflet-control') ||
+                                   classList.contains('leaflet-top') ||
+                                   classList.contains('leaflet-bottom') ||
+                                   classList.contains('leaflet-left') ||
+                                   classList.contains('leaflet-right') ||
+                                   element.className.includes('leaflet-control');
                         }
                     });
                     

@@ -66,11 +66,11 @@ class PlanMasseSimple:
         # Échelle graphique (barre d'échelle 1/500)
         self._draw_scale_bar(c)
         
-        # 🔥 SCREENSHOT DU CALPINAGE - AFFICHAGE DIRECT SANS DÉFORMATION
+        # 🔥 SCREENSHOT DU CALPINAGE - REMPLIR TOUT LE CADRE
         screenshot = self._get_screenshot_from_calpinage()
         
         if screenshot:
-            print("[PLAN] ✅ Screenshot chargé - affichage sans déformation")
+            print("[PLAN] ✅ Screenshot chargé - remplissage complet du cadre")
             
             # Charger l'image
             from PIL import Image
@@ -79,37 +79,37 @@ class PlanMasseSimple:
             img_width, img_height = img.size
             print(f"[PLAN] 📐 Image: {img_width}x{img_height}px")
             
-            # Calculer les dimensions pour remplir le cadre en préservant l'aspect
+            # Calculer les dimensions pour remplir le cadre en gardant l'aspect ratio
             img_ratio = img_width / img_height
             plan_ratio = self.plan_width / self.plan_height
             
             if img_ratio > plan_ratio:
-                # Image plus large : ajuster sur la largeur
+                # Image plus large que le plan -> remplir la largeur
                 final_width = self.plan_width
                 final_height = self.plan_width / img_ratio
-                offset_x = 0
-                offset_y = (self.plan_height - final_height) / 2
             else:
-                # Image plus haute : ajuster sur la hauteur  
+                # Image plus haute que le plan -> remplir la hauteur
                 final_height = self.plan_height
                 final_width = self.plan_height * img_ratio
-                offset_x = (self.plan_width - final_width) / 2
-                offset_y = 0
             
-            print(f"[PLAN] 📐 Affichage: {final_width/cm:.1f}x{final_height/cm:.1f}cm")
+            # Centrer l'image dans le cadre
+            x_offset = (self.plan_width - final_width) / 2
+            y_offset = (self.plan_height - final_height) / 2
             
-            # Dessiner l'image centrée
+            print(f"[PLAN] 📐 Affichage: {final_width/cm:.1f}x{final_height/cm:.1f}cm (aspect ratio préservé)")
+            
+            # Dessiner l'image centrée avec aspect ratio correct
             c.drawImage(
                 ImageReader(screenshot),
-                self.plan_x + offset_x,
-                self.plan_y + offset_y,
+                self.plan_x + x_offset,
+                self.plan_y + y_offset,
                 width=final_width,
                 height=final_height,
                 preserveAspectRatio=True,
                 anchor='c'
             )
             
-            print("[PLAN] ✅ Screenshot affiché avec proportions exactes")
+            print("[PLAN] ✅ Screenshot affiché en remplissage total")
         else:
             print("[PLAN] ⚠️ Pas de screenshot")
             c.setFillColor(colors.HexColor('#FFF3E0'))
