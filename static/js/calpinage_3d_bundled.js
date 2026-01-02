@@ -1189,12 +1189,17 @@ class Calpinage3DViewer {
      * Créer un bâtiment 3D à partir des zones de calpinage
      */
     createBuildingFromZones(zones) {
+        console.log('🏗️ [3D] createBuildingFromZones appelé avec', zones.length, 'zone(s)');
+        
         // Supprimer l'ancien bâtiment s'il existe
         if (this.building3D) {
             this.scene.remove(this.building3D);
         }
         
-        if (!zones || zones.length === 0) return;
+        if (!zones || zones.length === 0) {
+            console.warn('⚠️ [3D] Aucune zone à créer');
+            return;
+        }
         
         // Groupe pour le bâtiment
         this.building3D = new THREE.Group();
@@ -1323,13 +1328,23 @@ class Calpinage3DViewer {
      * Ajouter les modules PV en 3D
      */
     addModules3D(zones) {
+        console.log('☀️ [3D] addModules3D appelé avec', zones.length, 'zone(s)');
+        
         // Supprimer les anciens modules
         this.modules3D.forEach(module => {
             this.scene.remove(module);
         });
         this.modules3D = [];
         
-        if (!zones || zones.length === 0) return;
+        if (!zones || zones.length === 0) {
+            console.warn('⚠️ [3D] Aucune zone pour modules');
+            return;
+        }
+        
+        // Log des zones pour debug
+        zones.forEach((zone, i) => {
+            console.log(`  Zone ${i}: modulesPositions =`, zone.modulesPositions?.length || 0, 'modules');
+        });
         
         // Calculer le centre de référence
         let centerX = 0, centerZ = 0;
@@ -1345,11 +1360,7 @@ class Calpinage3DViewer {
         
         // Créer les modules pour chaque zone
         zones.forEach(zone => {
-            // Vérifier que la zone a des modules
-            if (!zone.nbModules || zone.nbModules === 0) {
-                console.log(`⚠️ Zone ${zone.numero} n'a pas de modules`);
-                return;
-            }
+            if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
             
             const moduleLongueurMM = parseFloat(document.getElementById('moduleLongueur')?.value || 2278);
             const moduleLargeurMM = parseFloat(document.getElementById('moduleLargeur')?.value || 1134);
@@ -1375,56 +1386,33 @@ class Calpinage3DViewer {
                 emissiveIntensity: 0.1
             });
             
-            // Calculer les positions des modules en grille
-            const bounds = zone.layer.getBounds();
-            const sw = bounds.getSouthWest();
-            const ne = bounds.getNorthEast();
-            const swMeters = this.latLngToMeters(sw.lat, sw.lng);
-            const neMeters = this.latLngToMeters(ne.lat, ne.lng);
-            
-            const width = Math.abs(neMeters.x - swMeters.x);
-            const depth = Math.abs(neMeters.z - swMeters.z);
-            const centerMeters = this.latLngToMeters(
-                (sw.lat + ne.lat) / 2,
-                (sw.lng + ne.lng) / 2
-            );
-            
-            // Espacement entre modules
-            const espacement = 0.02; // 2cm
-            const nbCols = zone.nbCols || Math.floor(width / (moduleWidth + espacement));
-            const nbRows = zone.nbRows || Math.floor(depth / (moduleDepth + espacement));
-            
-            // Position de départ (coin bas-gauche)
-            const startX = centerMeters.x - centerX - (nbCols * (moduleWidth + espacement)) / 2;
-            const startZ = centerMeters.z - centerZ - (nbRows * (moduleDepth + espacement)) / 2;
-            
-            // Créer chaque module en grille
-            for (let row = 0; row < nbRows; row++) {
-                for (let col = 0; col < nbCols; col++) {
-                    const module = new THREE.Mesh(moduleGeometry, moduleMaterial);
-                    
-                    // Position du module
-                    module.position.set(
-                        startX + col * (moduleWidth + espacement) + moduleWidth / 2,
-                        this.buildingHeight + 0.1, // Légèrement au-dessus du toit
-                        startZ + row * (moduleDepth + espacement) + moduleDepth / 2
-                    );
-                    
-                    // Inclinaison du module
-                    const inclinaison = zone.inclinaison || 0;
-                    module.rotation.x = -inclinaison * Math.PI / 180;
-                    
-                    // Rotation selon l'orientation du panneau
-                    const orientation = zone.orientation || 180;
-                    module.rotation.y = -(orientation - 180) * Math.PI / 180;
-                    
-                    module.castShadow = true;
-                    module.receiveShadow = true;
-                    
-                    this.scene.add(module);
-                    this.modules3D.push(module);
-                }
-            }
+            // Créer chaque module
+            zone.modulesPositions.forEach(modulePos => {
+                const meters = this.latLngToMeters(modulePos.lat, modulePos.lng);
+                
+                const module = new THREE.Mesh(moduleGeometry, moduleMaterial);
+                
+                // Position du module
+                module.position.set(
+                    meters.x - centerX,
+                    this.buildingHeight + 0.1, // Légèrement au-dessus du toit
+                    meters.z - centerZ
+                );
+                
+                // Inclinaison du module
+                const inclinaison = zone.inclinaison || 0;
+                module.rotation.x = -inclinaison * Math.PI / 180;
+                
+                // Rotation selon l'orientation du panneau
+                const rotationAngle = zone.rotationAngle || 0;
+                module.rotation.y = -rotationAngle * Math.PI / 180;
+                
+                module.castShadow = true;
+                module.receiveShadow = true;
+                
+                this.scene.add(module);
+                this.modules3D.push(module);
+            });
         });
         
         console.log(`✅ ${this.modules3D.length} modules PV ajoutés en 3D`);

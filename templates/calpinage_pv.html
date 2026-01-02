@@ -3867,18 +3867,24 @@
          */
         function update3DFromZones() {
             if (!viewer3D || !viewer3D.isActive) {
+                console.log('⚠️ Viewer 3D non actif');
                 return;
             }
             
-            console.log(`🔄 Mise à jour 3D avec ${zones.length} zone(s)...`);
+            if (!zones || zones.length === 0) {
+                console.log('⚠️ Aucune zone à afficher en 3D');
+                return;
+            }
             
-            // Créer le bâtiment à partir des zones (passer directement le tableau zones)
+            console.log(`🏗️ Création bâtiment 3D avec ${zones.length} zone(s)`);
+            
+            // Créer le bâtiment à partir des zones (passe directement le tableau zones)
             viewer3D.createBuildingFromZones(zones);
             
-            // Ajouter les modules PV
+            // Ajouter les modules PV en 3D
             viewer3D.addModules3D(zones);
             
-            console.log(`✅ Vue 3D mise à jour avec ${zones.length} zone(s)`);
+            console.log(`✅ Vue 3D mise à jour: ${zones.length} zone(s) chargées`);
         }
         
         // Initialiser les event listeners pour saisie manuelle distances
