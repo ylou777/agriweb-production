@@ -1172,17 +1172,53 @@ class Calpinage3DViewer {
      * Ajouter un sol avec grille
      */
     addGround() {
-        // Grille au sol
+        // Grille au sol (semi-transparente)
         const gridHelper = new THREE.GridHelper(200, 40, 0x888888, 0xcccccc);
+        gridHelper.material.opacity = 0.25;
+        gridHelper.material.transparent = true;
         this.scene.add(gridHelper);
         
-        // Plan au sol (pour recevoir les ombres)
+        // Plan au sol (pour recevoir les ombres et la texture satellite)
         const groundGeometry = new THREE.PlaneGeometry(200, 200);
-        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.receiveShadow = true;
-        this.scene.add(ground);
+        const groundMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xffffff,
+            roughness: 0.9,
+            metalness: 0.1
+        });
+        this.ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        this.ground.rotation.x = -Math.PI / 2;
+        this.ground.receiveShadow = true;
+        this.scene.add(this.ground);
+    }
+    
+    /**
+     * Charger l'image satellite comme texture du sol
+     */
+    loadSatelliteTexture(imageUrl, bounds) {
+        if (!this.ground) return;
+        
+        console.log('🛰️ [3D] Chargement texture satellite...');
+        
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(
+            imageUrl,
+            (texture) => {
+                // Configuration de la texture
+                texture.wrapS = THREE.ClampToEdgeWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
+                texture.encoding = THREE.sRGBEncoding;
+                
+                // Appliquer au sol
+                this.ground.material.map = texture;
+                this.ground.material.needsUpdate = true;
+                
+                console.log('✅ [3D] Texture satellite chargée');
+            },
+            undefined,
+            (error) => {
+                console.error('❌ [3D] Erreur chargement texture:', error);
+            }
+        );
     }
     
     /**
