@@ -10,9 +10,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <!-- html2canvas pour capture screenshot -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Three.js pour la visualisation 3D WebGL - Version r140 stable avec OrbitControls classique -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r140/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.140.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Three.js pour la visualisation 3D WebGL - Version r128 stable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.rawgit.com/mrdoob/three.js/r128/examples/js/controls/OrbitControls.js"></script>
     <style>
         /* Tooltip pour les parcelles cadastrales */
         .parcelle-tooltip {
@@ -3811,19 +3811,29 @@
         
         // Initialiser le viewer 3D avec délai pour laisser Three.js se charger
         setTimeout(() => {
-            if (typeof THREE !== 'undefined' && typeof Calpinage3DViewer !== 'undefined') {
-                try {
-                    viewer3D = new Calpinage3DViewer('viewer3D');
-                    console.log('✅ Viewer 3D initialisé');
-                } catch (error) {
-                    console.error('❌ Erreur initialisation viewer 3D:', error);
-                    viewer3D = null;
+            console.log('🔍 [3D DEBUG] Vérification chargement Three.js...');
+            console.log('THREE défini:', typeof THREE !== 'undefined');
+            console.log('Calpinage3DViewer défini:', typeof Calpinage3DViewer !== 'undefined');
+            
+            if (typeof THREE !== 'undefined') {
+                console.log('✅ THREE chargé, version:', THREE.REVISION);
+                console.log('OrbitControls disponible:', typeof OrbitControls !== 'undefined');
+                
+                if (typeof Calpinage3DViewer !== 'undefined') {
+                    try {
+                        viewer3D = new Calpinage3DViewer('viewer3D');
+                        console.log('✅ Viewer 3D initialisé');
+                    } catch (error) {
+                        console.error('❌ Erreur initialisation viewer 3D:', error);
+                        viewer3D = null;
+                    }
+                } else {
+                    console.error('❌ Classe Calpinage3DViewer non trouvée');
                 }
             } else {
-                console.warn('⚠️ Three.js ou Calpinage3DViewer non chargé - Vue 3D désactivée');
-                console.log('THREE:', typeof THREE, 'Calpinage3DViewer:', typeof Calpinage3DViewer);
+                console.error('❌ THREE.js non chargé');
             }
-        }, 500);
+        }, 1000);
         
         /**
          * Basculer entre vue 2D (carte Leaflet) et vue 3D (WebGL)
