@@ -1272,11 +1272,16 @@ class Calpinage3DViewer {
         const width = zone.largeurMetres;
         const depth = zone.longueurMetres;
         
-        // Normes parking
-        const placeWidth = 2.5;  // Largeur place: 2.5m
-        const placeDepth = 5.0;  // Profondeur place: 5m
-        const hauteurPilier = 4.5; // Hauteur piliers: 4.5m
-        const hauteurFerme = 0.8;  // Hauteur ferme triangulaire: 0.8m
+        // Récupérer les paramètres depuis l'interface (avec valeurs par défaut)
+        const placeWidth = parseFloat(document.getElementById('ombriereLargeurPlace')?.value || 2.5);
+        const placeDepth = parseFloat(document.getElementById('ombriereProfondeurPlace')?.value || 5.0);
+        const hauteurPilier = parseFloat(document.getElementById('ombriereHauteur')?.value || 4.5);
+        const hauteurFerme = parseFloat(document.getElementById('ombriereHauteurFerme')?.value || 0.8);
+        const pilierRadius = parseFloat(document.getElementById('ombriereDiametrePilier')?.value || 15) / 200; // cm -> m (rayon)
+        const panneWidth = parseFloat(document.getElementById('ombriereSectionPanne')?.value || 10) / 100; // cm -> m
+        const fermeWidth = parseFloat(document.getElementById('ombriereSectionFerme')?.value || 8) / 100; // cm -> m
+        
+        console.log(`🅿️ Paramètres ombrière: Place ${placeWidth}×${placeDepth}m, H=${hauteurPilier}m, Pilier Ø${pilierRadius*2}m`);
         
         // Matériaux
         const metalMaterial = new THREE.MeshStandardMaterial({
@@ -1288,11 +1293,10 @@ class Calpinage3DViewer {
         // Groupe pour toute la structure
         const structureGroup = new THREE.Group();
         
-        // 1. PILIERS CENTRAUX (tous les 5m en profondeur, tous les 2.5m en largeur)
+        // 1. PILIERS CENTRAUX (tous les placeDepth en profondeur, tous les placeWidth en largeur)
         const nbPiliersDepth = Math.floor(depth / placeDepth) + 1;
         const nbPiliersWidth = Math.floor(width / placeWidth) + 1;
         
-        const pilierRadius = 0.15; // 15cm de diamètre
         const pilierGeometry = new THREE.CylinderGeometry(pilierRadius, pilierRadius, hauteurPilier, 8);
         
         for (let i = 0; i < nbPiliersDepth; i++) {
@@ -1312,10 +1316,9 @@ class Calpinage3DViewer {
             }
         }
         
-        console.log(`🏗️ Ombrière: ${nbPiliersDepth * nbPiliersWidth} piliers`);
+        console.log(`🏗️ Ombrière: ${nbPiliersDepth * nbPiliersWidth} piliers (espacement ${placeWidth}×${placeDepth}m)`);
         
-        // 2. PANNES (poutres horizontales dans le sens de la largeur, tous les 2.5m)
-        const panneWidth = 0.1;  // 10cm x 10cm
+        // 2. PANNES (poutres horizontales dans le sens de la largeur, tous les placeDepth)
         const panneGeometry = new THREE.BoxGeometry(width, panneWidth, panneWidth);
         
         for (let i = 0; i < nbPiliersDepth; i++) {
@@ -1330,10 +1333,9 @@ class Calpinage3DViewer {
             structureGroup.add(panne);
         }
         
-        console.log(`🏗️ Ombrière: ${nbPiliersDepth} pannes`);
+        console.log(`🏗️ Ombrière: ${nbPiliersDepth} pannes (section ${panneWidth*100}cm)`);
         
-        // 3. FERMES TRIANGULAIRES (entre les pannes, tous les 5m)
-        const fermeWidth = 0.08;
+        // 3. FERMES TRIANGULAIRES (entre les pannes, tous les placeDepth)
         for (let i = 0; i < nbPiliersDepth - 1; i++) {
             const z1 = -depth/2 + i * placeDepth;
             const z2 = z1 + placeDepth;
@@ -1349,7 +1351,7 @@ class Calpinage3DViewer {
             );
             structureGroup.add(traverse);
             
-            // Diagonales de la ferme (tous les 5m en largeur)
+            // Diagonales de la ferme (tous les placeWidth en largeur)
             for (let j = 0; j < nbPiliersWidth - 1; j++) {
                 const x1 = -width/2 + j * placeWidth;
                 const x2 = x1 + placeWidth;
@@ -1377,7 +1379,7 @@ class Calpinage3DViewer {
             }
         }
         
-        console.log(`🏗️ Ombrière: ${nbPiliersDepth - 1} fermes triangulaires`);
+        console.log(`🏗️ Ombrière: ${nbPiliersDepth - 1} fermes triangulaires (section ${fermeWidth*100}cm, hauteur ${hauteurFerme}m)`);
         
         this.scene.add(structureGroup);
         return structureGroup;

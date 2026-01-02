@@ -264,6 +264,58 @@
                     </div>
                 </div>
 
+                <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
+                <div class="module-selector" id="ombriereParams" style="display: block;">
+                    <h5>🅿️ Paramètres Ombrière de Parking</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Largeur place (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereLargeurPlace" value="2.5" step="0.1" min="2.0" max="3.5">
+                            <small class="text-muted">Standard: 2.5m, PMR: 3.3m</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Profondeur place (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereProfondeurPlace" value="5.0" step="0.1" min="4.5" max="6.0">
+                            <small class="text-muted">Réglementaire: 5.0m</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Hauteur libre (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereHauteur" value="4.5" step="0.1" min="2.5" max="6.0">
+                            <small class="text-muted">Min: 4.5m (utilitaires)</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Hauteur ferme (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereHauteurFerme" value="0.8" step="0.1" min="0.5" max="1.5">
+                            <small class="text-muted">Pente structure</small>
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Diamètre pilier (cm)</strong></label>
+                            <input type="number" class="form-control" id="ombriereDiametrePilier" value="15" step="1" min="10" max="30">
+                            <small class="text-muted">Standard: 15cm (Ø)</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Section panne (cm)</strong></label>
+                            <input type="number" class="form-control" id="ombriereSectionPanne" value="10" step="1" min="8" max="20">
+                            <small class="text-muted">Poutre horizontale</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Section ferme (cm)</strong></label>
+                            <input type="number" class="form-control" id="ombriereSectionFerme" value="8" step="1" min="6" max="15">
+                            <small class="text-muted">Diagonales structure</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Type parking</strong></label>
+                            <select class="form-select" id="ombriereTypeParking">
+                                <option value="bataille">Bataille (90°)</option>
+                                <option value="epi">Épi (45°)</option>
+                                <option value="pmr">PMR (3.3m)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Sélection du module -->
                 <div class="module-selector">
                     <h5>📐 Module Photovoltaïque</h5>
@@ -3090,6 +3142,12 @@
             };
             
             document.getElementById('typeInfo').textContent = typeInfos[type] || '';
+            
+            // Afficher/masquer les paramètres ombrière
+            const ombriereParams = document.getElementById('ombriereParams');
+            if (ombriereParams) {
+                ombriereParams.style.display = type === 'ombriere' ? 'block' : 'none';
+            }
             
             // Mettre à jour toutes les zones existantes
             zones.forEach(zone => {
