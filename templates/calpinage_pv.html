@@ -3883,7 +3883,30 @@
             
             console.log(`🏗️ Création bâtiment 3D avec ${zones.length} zone(s)`);
             
-            // Créer le bâtiment à partir des zones (passe directement le tableau zones)
+            // Extraire les positions des modules depuis les layers Leaflet
+            zones.forEach(zone => {
+                zone.modulesPositions = [];
+                if (zone.moduleGroup) {
+                    zone.moduleGroup.eachLayer(layer => {
+                        if (layer instanceof L.Polygon) {
+                            const latlngs = layer.getLatLngs()[0];
+                            if (latlngs && latlngs.length >= 4) {
+                                // Centre du module
+                                const centerLat = (latlngs[0].lat + latlngs[2].lat) / 2;
+                                const centerLng = (latlngs[0].lng + latlngs[2].lng) / 2;
+                                zone.modulesPositions.push({
+                                    lat: centerLat,
+                                    lng: centerLng,
+                                    corners: latlngs.map(ll => ({lat: ll.lat, lng: ll.lng}))
+                                });
+                            }
+                        }
+                    });
+                }
+                console.log(`📍 Zone ${zone.numero}: ${zone.modulesPositions.length} modules extraits`);
+            });
+            
+            // Créer le bâtiment à partir des zones
             viewer3D.createBuildingFromZones(zones);
             
             // Ajouter les modules PV en 3D
@@ -3912,11 +3935,13 @@
                     allowTaint: true,
                     backgroundColor: null,
                     logging: false,
-                    scale: 1
+                    scale: 0.5,  // Réduire la qualité pour éviter les erreurs
+                    width: mapContainer.offsetWidth,
+                    height: mapContainer.offsetHeight
                 });
                 
-                // Convertir le canvas en URL
-                const imageUrl = canvas.toDataURL('image/png');
+                // Convertir en JPEG avec compression pour réduire la taille
+                const imageUrl = canvas.toDataURL('image/jpeg', 0.7);
                 
                 console.log('✅ Image satellite capturée:', imageUrl.substring(0, 50) + '...');
                 
