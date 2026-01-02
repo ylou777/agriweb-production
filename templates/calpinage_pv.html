@@ -10,6 +10,11 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
     <!-- html2canvas pour capture screenshot -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- Three.js pour la visualisation 3D WebGL -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Styles 3D -->
+    <link rel="stylesheet" href="/static/css/calpinage_3d.css">
     <style>
         /* Tooltip pour les parcelles cadastrales */
         .parcelle-tooltip {
@@ -113,6 +118,28 @@
         }
         .map-container.fullscreen .fullscreen-header {
             display: flex;
+        }
+        /* Styles pour le viewer 3D */
+        #viewer3DContainer {
+            display: none;
+            position: relative;
+        }
+        #viewer3D {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+        }
+        .viewer3d-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
         }
         #toggleFullscreen.active {
             background-color: #dc3545 !important;
@@ -334,6 +361,9 @@
                     <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                         <strong>🗺️ Carte de calpinage</strong>
                         <div>
+                            <button class="btn btn-sm btn-info me-1" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">
+                                🌐 Vue 3D
+                            </button>
                             <button class="btn btn-sm btn-info me-1" id="toggleFullscreen" title="Plein écran">
                                 🔲 Plein écran
                             </button>
@@ -453,6 +483,37 @@
                         </small>
                     </div>
                 </div>
+                
+                <!-- Visualisation 3D WebGL -->
+                <div id="viewer3DContainer">
+                    <div class="card">
+                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                            <strong>🌐 Vue 3D immersive - Visualisation WebGL</strong>
+                            <div>
+                                <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
+                                    ☀️ Soleil
+                                </button>
+                                <button class="btn btn-sm btn-secondary" onclick="toggle3DView()" title="Retour vue 2D">
+                                    🗺️ Retour 2D
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-0 position-relative">
+                            <div id="viewer3D"></div>
+                            <div class="viewer3d-controls">
+                                <small class="text-muted d-block mb-2"><strong>🎮 Contrôles 3D:</strong></small>
+                                <small class="d-block">🖱️ <strong>Souris gauche:</strong> Rotation</small>
+                                <small class="d-block">🖱️ <strong>Roulette:</strong> Zoom</small>
+                                <small class="d-block">🖱️ <strong>Souris droite:</strong> Déplacer</small>
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <small class="text-success">
+                                <strong>✨ Vue 3D réaliste</strong> - Bâtiments en relief, modules PV avec ombrage dynamique, simulation soleil temps réel
+                            </small>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Colonne droite : Zones et calculs -->
@@ -555,6 +616,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <!-- Module de visualisation 3D -->
+    <script src="/static/js/calpinage_3d.js"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -2633,6 +2696,9 @@
             
             document.getElementById('zonesCount').textContent = zones.length;
             calculerTotaux();
+            
+            // Mettre à jour la vue 3D si active
+            update3DFromZones();
         }
         
         // Renuméroter les zones après suppression
@@ -3045,6 +3111,9 @@
                 recalculerZone(zone);
                 dessinerModulesDansZone(zone);
             });
+            
+            // Mettre à jour la vue 3D si active
+            update3DFromZones();
         }
 
         // Mettre à jour orientation (ancienne fonction pour compatibilité)
@@ -3737,6 +3806,69 @@
         initMap();
         updateModulePreview();
         
+        // ============================================
+        // INITIALISATION VIEWER 3D
+        // ============================================
+        let viewer3D = null;
+        
+        // Initialiser le viewer 3D
+        if (typeof Calpinage3DViewer !== 'undefined') {
+            viewer3D = new Calpinage3DViewer('viewer3D');
+            console.log('✅ Viewer 3D initialisé');
+        } else {
+            console.warn('⚠️ Module Calpinage3DViewer non chargé');
+        }
+        
+        /**
+         * Basculer entre vue 2D (carte Leaflet) et vue 3D (WebGL)
+         */
+        function toggle3DView() {
+            if (!viewer3D) {
+                alert('⚠️ Le module 3D n\'est pas disponible');
+                return;
+            }
+            
+            const container3D = document.getElementById('viewer3DContainer');
+            const mapCard = document.getElementById('mapCard');
+            
+            if (viewer3D.isActive) {
+                // Désactiver la vue 3D
+                viewer3D.toggle();
+                container3D.style.display = 'none';
+                mapCard.style.display = 'block';
+            } else {
+                // Activer la vue 3D
+                container3D.style.display = 'block';
+                mapCard.style.display = 'none';
+                viewer3D.toggle();
+                
+                // Mettre à jour avec les zones actuelles
+                update3DFromZones();
+            }
+        }
+        
+        /**
+         * Mettre à jour la vue 3D avec les zones actuelles
+         */
+        function update3DFromZones() {
+            if (!viewer3D || !viewer3D.isActive) {
+                return;
+            }
+            
+            // Convertir les zones en format compatible 3D
+            const zones3D = zones.map(zone => ({
+                id: zone.id,
+                bounds: zone.layer.getBounds(),
+                modules: zone.modulePositions || [],
+                color: zone.couleur || '#3388ff'
+            }));
+            
+            // Créer le bâtiment à partir des zones
+            viewer3D.createBuildingFromZones(zones3D, prospectLat, prospectLon);
+            
+            console.log(`✅ Vue 3D mise à jour avec ${zones.length} zone(s)`);
+        }
+        
         // Initialiser les event listeners pour saisie manuelle distances
         setupManualDistanceListeners();
         
@@ -3900,6 +4032,47 @@
                 }
             }
         }
+        
+        // ============================================
+        // FONCTIONS DE DÉMO 3D
+        // ============================================
+        
+        /**
+         * Démo de simulation soleil (animation)
+         */
+        let sunAnimationRunning = false;
+        function updateSunDemo() {
+            if (!viewer3D || !viewer3D.isActive) {
+                alert('⚠️ Activez d\'abord la vue 3D');
+                return;
+            }
+            
+            if (sunAnimationRunning) {
+                sunAnimationRunning = false;
+                document.getElementById('updateSunPosition').innerHTML = '☀️ Soleil';
+                return;
+            }
+            
+            sunAnimationRunning = true;
+            document.getElementById('updateSunPosition').innerHTML = '⏸️ Stop';
+            
+            let hour = 6; // Démarrer à 6h
+            const animationInterval = setInterval(() => {
+                if (!sunAnimationRunning || !viewer3D || !viewer3D.isActive) {
+                    clearInterval(animationInterval);
+                    document.getElementById('updateSunPosition').innerHTML = '☀️ Soleil';
+                    return;
+                }
+                
+                viewer3D.updateSunPosition(hour, 6); // Mois de juin
+                hour += 0.5;
+                
+                if (hour > 20) {
+                    hour = 6; // Boucler
+                }
+            }, 200); // Animation toutes les 200ms
+        }
     </script>
+
 </body>
 </html>
