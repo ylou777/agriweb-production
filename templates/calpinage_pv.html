@@ -3096,8 +3096,13 @@
                 zone.typeInstallation = type;
             });
             
-            // Rafraîchir l'affichage
+            // Rafraîchir l'affichage 2D
             updateAllZones();
+            
+            // Mettre à jour la vue 3D si elle est active
+            if (viewer3D && viewer3D.isActive) {
+                update3DFromZones();
+            }
             
             console.log('✅ Type d\'installation: ' + type);
         }
@@ -3884,7 +3889,37 @@
             // Ajouter les modules PV en 3D
             viewer3D.addModules3D(zones);
             
+            // Capturer et appliquer l'image satellite comme texture du sol
+            captureSatelliteTexture();
+            
             console.log(`✅ Vue 3D mise à jour: ${zones.length} zone(s) chargées`);
+        }
+        
+        /**
+         * Capturer l'image satellite de la carte Leaflet pour l'utiliser en 3D
+         */
+        function captureSatelliteTexture() {
+            if (!map || !viewer3D) return;
+            
+            console.log('📸 Capture de l\'image satellite...');
+            
+            // Utiliser leaflet-image ou html2canvas pour capturer la carte
+            // Pour simplifier, on va utiliser l'URL des tuiles Esri directement
+            const bounds = map.getBounds();
+            const center = map.getCenter();
+            const zoom = map.getZoom();
+            
+            // Construire l'URL de la tuile centrale
+            const tileX = Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom));
+            const tileY = Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+            
+            // URL de la tuile satellite Esri
+            const satelliteUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${tileX}`;
+            
+            console.log('🛰️ URL tuile satellite:', satelliteUrl);
+            
+            // Charger dans le viewer 3D
+            viewer3D.loadSatelliteTexture(satelliteUrl, bounds);
         }
         
         // Initialiser les event listeners pour saisie manuelle distances
