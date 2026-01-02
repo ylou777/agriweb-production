@@ -528,13 +528,3 @@ function toggle3DView() {
         }
     }
 }
-
-/**
- * Mettre à jour la vue 3D quand les zones changent
- */
-function update3DFromZones() {
-    if (viewer3D && viewer3D.isActive && zones) {
-        viewer3D.createBuildingFromZones(zones);
-        viewer3D.addModules3D(zones);
-    }
-}
