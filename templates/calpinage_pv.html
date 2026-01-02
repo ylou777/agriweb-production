@@ -614,8 +614,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <!-- Module de visualisation 3D -->
-    <script src="/static/js/calpinage_3d.js"></script>
+    <!-- Module de visualisation 3D - Chargement différé pour ne pas bloquer Leaflet -->
+    <script src="/static/js/calpinage_3d.js" defer></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -3809,12 +3809,17 @@
         // ============================================
         let viewer3D = null;
         
-        // Initialiser le viewer 3D
-        if (typeof Calpinage3DViewer !== 'undefined') {
-            viewer3D = new Calpinage3DViewer('viewer3D');
-            console.log('✅ Viewer 3D initialisé');
+        // Initialiser le viewer 3D (avec vérification THREE.js)
+        if (typeof THREE !== 'undefined' && typeof Calpinage3DViewer !== 'undefined') {
+            try {
+                viewer3D = new Calpinage3DViewer('viewer3D');
+                console.log('✅ Viewer 3D initialisé');
+            } catch (error) {
+                console.error('❌ Erreur initialisation viewer 3D:', error);
+                viewer3D = null;
+            }
         } else {
-            console.warn('⚠️ Module Calpinage3DViewer non chargé');
+            console.warn('⚠️ Three.js ou Calpinage3DViewer non chargé - Vue 3D désactivée');
         }
         
         /**

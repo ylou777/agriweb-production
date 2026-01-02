@@ -49,14 +49,15 @@ class Calpinage3DViewer {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        // outputEncoding deprecated in r152+, use outputColorSpace
+        // this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
         
         this.container.appendChild(this.renderer.domElement);
         
         // Contrôles orbitaux (rotation, zoom, pan)
-        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.maxPolarAngle = Math.PI / 2; // Empêcher de passer sous le sol
@@ -469,62 +470,5 @@ class Calpinage3DViewer {
             this.container.removeChild(this.renderer.domElement);
         }
         this.isActive = false;
-    }
-}
-
-// Instance globale
-let viewer3D = null;
-
-/**
- * Initialiser le viewer 3D
- */
-function init3DViewer() {
-    if (!viewer3D) {
-        viewer3D = new Calpinage3DViewer('viewer3D');
-    }
-    return viewer3D;
-}
-
-/**
- * Basculer entre vue 2D et 3D
- */
-function toggle3DView() {
-    const map2D = document.getElementById('mapCard');
-    const viewer3DContainer = document.getElementById('viewer3DContainer');
-    const toggleBtn = document.getElementById('toggle3DView');
-    
-    if (!viewer3D) {
-        viewer3D = init3DViewer();
-    }
-    
-    if (viewer3DContainer.style.display === 'none') {
-        // Passer en mode 3D
-        map2D.style.display = 'none';
-        viewer3DContainer.style.display = 'block';
-        toggleBtn.innerHTML = '🗺️ Vue 2D (Leaflet)';
-        toggleBtn.classList.remove('btn-info');
-        toggleBtn.classList.add('btn-secondary');
-        
-        viewer3D.show();
-        
-        // Charger les zones et modules
-        if (zones && zones.length > 0) {
-            viewer3D.createBuildingFromZones(zones);
-            viewer3D.addModules3D(zones);
-        }
-    } else {
-        // Passer en mode 2D
-        map2D.style.display = 'block';
-        viewer3DContainer.style.display = 'none';
-        toggleBtn.innerHTML = '🌐 Vue 3D immersive';
-        toggleBtn.classList.remove('btn-secondary');
-        toggleBtn.classList.add('btn-info');
-        
-        viewer3D.hide();
-        
-        // Rafraîchir la carte Leaflet
-        if (map) {
-            setTimeout(() => map.invalidateSize(), 100);
-        }
     }
 }
