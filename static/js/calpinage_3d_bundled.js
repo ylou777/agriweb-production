@@ -1195,49 +1195,192 @@ class Calpinage3DViewer {
      * Charger l'image satellite comme texture du sol
      */
     loadSatelliteTexture(imageUrl, bounds) {
-        if (!this.ground) return;
+        if (!this.ground) {
+            console.warn('⚠️ [3D] Pas de ground pour la texture');
+            return;
+        }
+        
+        if (!imageUrl || imageUrl.length < 100) {
+            console.error('❌ [3D] Image URL invalide:', imageUrl?.substring(0, 50));
+            return;
+        }
         
         console.log('🛰️ [3D] Chargement texture satellite...');
         console.log('   Bounds:', bounds);
+        console.log('   Image size:', (imageUrl.length / 1024).toFixed(0), 'KB');
         
-        const textureLoader = new THREE.TextureLoader();
-        textureLoader.load(
-            imageUrl,
-            (texture) => {
-                // Configuration de la texture
-                texture.wrapS = THREE.ClampToEdgeWrapping;
-                texture.wrapT = THREE.ClampToEdgeWrapping;
-                texture.encoding = THREE.sRGBEncoding;
-                texture.minFilter = THREE.LinearFilter;
-                texture.magFilter = THREE.LinearFilter;
+        // Créer une image directement (plus simple que TextureLoader)
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = () => {
+            console.log('✅ Image chargée:', img.width, 'x', img.height);
+            
+            const texture = new THREE.Texture(img);
+            texture.wrapS = THREE.ClampToEdgeWrapping;
+            texture.wrapT = THREE.ClampToEdgeWrapping;
+            texture.encoding = THREE.sRGBEncoding;
+            texture.minFilter = THREE.LinearFilter;
+            texture.magFilter = THREE.LinearFilter;
+            texture.needsUpdate = true;
+            
+            // Calculer la taille du sol en fonction des bounds
+            if (bounds && bounds.swLat && bounds.neLat) {
+                const latRef = (bounds.swLat + bounds.neLat) / 2;
+                const metersPerDegreeLat = 111320;
+                const metersPerDegreeLng = 111320 * Math.cos(latRef * Math.PI / 180);
                 
-                // Calculer la taille du sol en fonction des bounds
-                if (bounds && bounds.swLat && bounds.neLat) {
-                    const latRef = (bounds.swLat + bounds.neLat) / 2;
-                    const metersPerDegreeLat = 111320;
-                    const metersPerDegreeLng = 111320 * Math.cos(latRef * Math.PI / 180);
-                    
-                    const width = Math.abs(bounds.neLng - bounds.swLng) * metersPerDegreeLng;
-                    const height = Math.abs(bounds.neLat - bounds.swLat) * metersPerDegreeLat;
-                    
-                    console.log(`📏 Redimensionnement sol: ${width.toFixed(0)}m x ${height.toFixed(0)}m`);
-                    
-                    // Redimensionner le sol pour correspondre à la texture
-                    this.ground.geometry.dispose();
-                    this.ground.geometry = new THREE.PlaneGeometry(width, height);
-                }
+                const width = Math.abs(bounds.neLng - bounds.swLng) * metersPerDegreeLng;
+                const height = Math.abs(bounds.neLat - bounds.swLat) * metersPerDegreeLat;
                 
-                // Appliquer au sol
-                this.ground.material.map = texture;
-                this.ground.material.needsUpdate = true;
+                console.log(`📏 Redimensionnement sol: ${width.toFixed(0)}m x ${height.toFixed(0)}m`);
                 
-                console.log('✅ [3D] Texture satellite chargée et appliquée');
-            },
-            undefined,
-            (error) => {
-                console.error('❌ [3D] Erreur chargement texture:', error);
+                // Redimensionner le sol pour correspondre à la texture
+                this.ground.geometry.dispose();
+                this.ground.geometry = new THREE.PlaneGeometry(width, height);
             }
-        );
+            
+            // Appliquer au sol
+            if (this.ground.material.map) {
+                this.ground.material.map.dispose();
+            }
+            this.ground.material.map = texture;
+            this.ground.material.needsUpdate = true;
+            
+            console.log('✅ [3D] Texture satellite appliquée au sol');
+        };
+        
+        img.onerror = (error) => {
+            console.error('❌ [3D] Erreur chargement image:', error);
+            console.error('   URL length:', imageUrl.length);
+        };
+        
+        img.src = imageUrl;
+    }
+    
+    /**
+     * Créer structure ombrière de parking avec normes
+     * Normes parking: 5m largeur x 2.5m profondeur par place
+     * Structure: piliers tous les 5m, pannes tous les 2.5m, fermes triangulaires
+     */
+    createOmbriereStructure(zone) {
+        const bounds = zone.layer.getBounds();
+        const center = bounds.getCenter();
+        const centerMeters = this.latLngToMeters(center.lat, center.lng);
+        
+        // Dimensions de la zone en mètres
+        const width = zone.largeurMetres;
+        const depth = zone.longueurMetres;
+        
+        // Normes parking
+        const placeWidth = 2.5;  // Largeur place: 2.5m
+        const placeDepth = 5.0;  // Profondeur place: 5m
+        const hauteurPilier = 4.5; // Hauteur piliers: 4.5m
+        const hauteurFerme = 0.8;  // Hauteur ferme triangulaire: 0.8m
+        
+        // Matériaux
+        const metalMaterial = new THREE.MeshStandardMaterial({
+            color: 0x505050,
+            metalness: 0.8,
+            roughness: 0.3
+        });
+        
+        // Groupe pour toute la structure
+        const structureGroup = new THREE.Group();
+        
+        // 1. PILIERS CENTRAUX (tous les 5m en profondeur, tous les 2.5m en largeur)
+        const nbPiliersDepth = Math.floor(depth / placeDepth) + 1;
+        const nbPiliersWidth = Math.floor(width / placeWidth) + 1;
+        
+        const pilierRadius = 0.15; // 15cm de diamètre
+        const pilierGeometry = new THREE.CylinderGeometry(pilierRadius, pilierRadius, hauteurPilier, 8);
+        
+        for (let i = 0; i < nbPiliersDepth; i++) {
+            for (let j = 0; j < nbPiliersWidth; j++) {
+                const x = -width/2 + j * placeWidth;
+                const z = -depth/2 + i * placeDepth;
+                
+                const pilier = new THREE.Mesh(pilierGeometry, metalMaterial);
+                pilier.position.set(
+                    centerMeters.x + x,
+                    hauteurPilier / 2,
+                    centerMeters.z + z
+                );
+                pilier.castShadow = true;
+                pilier.receiveShadow = true;
+                structureGroup.add(pilier);
+            }
+        }
+        
+        console.log(`🏗️ Ombrière: ${nbPiliersDepth * nbPiliersWidth} piliers`);
+        
+        // 2. PANNES (poutres horizontales dans le sens de la largeur, tous les 2.5m)
+        const panneWidth = 0.1;  // 10cm x 10cm
+        const panneGeometry = new THREE.BoxGeometry(width, panneWidth, panneWidth);
+        
+        for (let i = 0; i < nbPiliersDepth; i++) {
+            const z = -depth/2 + i * placeDepth;
+            const panne = new THREE.Mesh(panneGeometry, metalMaterial);
+            panne.position.set(
+                centerMeters.x,
+                hauteurPilier,
+                centerMeters.z + z
+            );
+            panne.castShadow = true;
+            structureGroup.add(panne);
+        }
+        
+        console.log(`🏗️ Ombrière: ${nbPiliersDepth} pannes`);
+        
+        // 3. FERMES TRIANGULAIRES (entre les pannes, tous les 5m)
+        const fermeWidth = 0.08;
+        for (let i = 0; i < nbPiliersDepth - 1; i++) {
+            const z1 = -depth/2 + i * placeDepth;
+            const z2 = z1 + placeDepth;
+            const zCenter = (z1 + z2) / 2;
+            
+            // Traverse horizontale haute de la ferme
+            const traverseGeometry = new THREE.BoxGeometry(width, fermeWidth, fermeWidth);
+            const traverse = new THREE.Mesh(traverseGeometry, metalMaterial);
+            traverse.position.set(
+                centerMeters.x,
+                hauteurPilier + hauteurFerme,
+                centerMeters.z + zCenter
+            );
+            structureGroup.add(traverse);
+            
+            // Diagonales de la ferme (tous les 5m en largeur)
+            for (let j = 0; j < nbPiliersWidth - 1; j++) {
+                const x1 = -width/2 + j * placeWidth;
+                const x2 = x1 + placeWidth;
+                const xCenter = (x1 + x2) / 2;
+                
+                // Diagonale gauche
+                const diag1Length = Math.sqrt(Math.pow(placeWidth/2, 2) + Math.pow(hauteurFerme, 2));
+                const diag1Geometry = new THREE.BoxGeometry(fermeWidth, fermeWidth, diag1Length);
+                const diag1 = new THREE.Mesh(diag1Geometry, metalMaterial);
+                const angle1 = Math.atan2(hauteurFerme, placeWidth/2);
+                diag1.position.set(
+                    centerMeters.x + xCenter - placeWidth/4,
+                    hauteurPilier + hauteurFerme/2,
+                    centerMeters.z + zCenter
+                );
+                diag1.rotation.x = Math.PI / 2;
+                diag1.rotation.z = -angle1;
+                structureGroup.add(diag1);
+                
+                // Diagonale droite
+                const diag2 = diag1.clone();
+                diag2.position.x = centerMeters.x + xCenter + placeWidth/4;
+                diag2.rotation.z = angle1;
+                structureGroup.add(diag2);
+            }
+        }
+        
+        console.log(`🏗️ Ombrière: ${nbPiliersDepth - 1} fermes triangulaires`);
+        
+        this.scene.add(structureGroup);
+        return structureGroup;
     }
     
     /**
@@ -1251,27 +1394,50 @@ class Calpinage3DViewer {
             this.scene.remove(this.building3D);
         }
         
+        // Supprimer les anciennes structures ombrières
+        if (this.ombrieres) {
+            this.ombrieres.forEach(ombriere => this.scene.remove(ombriere));
+        }
+        this.ombrieres = [];
+        
         if (!zones || zones.length === 0) {
             console.warn('⚠️ [3D] Aucune zone à créer');
+            return;
+        }
+        
+        // Séparer ombrières et toitures
+        const zonesBatiment = zones.filter(z => z.typeInstallation !== 'ombriere');
+        const zonesOmbriere = zones.filter(z => z.typeInstallation === 'ombriere');
+        
+        // Créer les ombrières
+        zonesOmbriere.forEach(zone => {
+            console.log(`🅿️ Création ombrière pour zone ${zone.numero}`);
+            const ombriereStructure = this.createOmbriereStructure(zone);
+            this.ombrieres.push(ombriereStructure);
+        });
+        
+        // Créer le bâtiment pour les autres zones
+        if (zonesBatiment.length === 0) {
+            console.log('ℹ️ Aucune zone bâtiment (uniquement ombrières)');
             return;
         }
         
         // Groupe pour le bâtiment
         this.building3D = new THREE.Group();
         
-        // Calculer le centre moyen des zones
+        // Calculer le centre moyen des zones bâtiment
         let centerX = 0, centerZ = 0;
-        zones.forEach(zone => {
+        zonesBatiment.forEach(zone => {
             const bounds = zone.layer.getBounds();
             const center = bounds.getCenter();
             centerX += this.latLngToMeters(center.lat, center.lng).x;
             centerZ += this.latLngToMeters(center.lat, center.lng).z;
         });
-        centerX /= zones.length;
-        centerZ /= zones.length;
+        centerX /= zonesBatiment.length;
+        centerZ /= zonesBatiment.length;
         
-        // Créer une toiture pour chaque zone
-        zones.forEach((zone, index) => {
+        // Créer une toiture pour chaque zone bâtiment
+        zonesBatiment.forEach((zone, index) => {
             const bounds = zone.layer.getBounds();
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
