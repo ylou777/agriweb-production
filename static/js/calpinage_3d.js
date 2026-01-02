@@ -49,8 +49,7 @@ class Calpinage3DViewer {
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        // outputEncoding deprecated in r152+, use outputColorSpace
-        // this.renderer.outputEncoding = THREE.sRGBEncoding;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.0;
         
