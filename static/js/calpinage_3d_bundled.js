@@ -1107,7 +1107,7 @@ class Calpinage3DViewer {
         this.container.appendChild(this.renderer.domElement);
         
         // Contrôles orbitaux (rotation, zoom, pan)
-        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.05;
         this.controls.maxPolarAngle = Math.PI / 2; // Empêcher de passer sous le sol
