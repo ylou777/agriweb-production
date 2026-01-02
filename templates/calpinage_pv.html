@@ -3870,16 +3870,13 @@
                 return;
             }
             
-            // Convertir les zones en format compatible 3D
-            const zones3D = zones.map(zone => ({
-                id: zone.id,
-                bounds: zone.layer.getBounds(),
-                modules: zone.modulePositions || [],
-                color: zone.couleur || '#3388ff'
-            }));
+            console.log(`🔄 Mise à jour 3D avec ${zones.length} zone(s)...`);
             
-            // Créer le bâtiment à partir des zones
-            viewer3D.createBuildingFromZones(zones3D, prospectLat, prospectLon);
+            // Créer le bâtiment à partir des zones (passer directement le tableau zones)
+            viewer3D.createBuildingFromZones(zones);
+            
+            // Ajouter les modules PV
+            viewer3D.addModules3D(zones);
             
             console.log(`✅ Vue 3D mise à jour avec ${zones.length} zone(s)`);
         }
