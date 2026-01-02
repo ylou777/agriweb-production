@@ -3898,28 +3898,44 @@
         /**
          * Capturer l'image satellite de la carte Leaflet pour l'utiliser en 3D
          */
-        function captureSatelliteTexture() {
+        async function captureSatelliteTexture() {
             if (!map || !viewer3D) return;
             
-            console.log('📸 Capture de l\'image satellite...');
+            console.log('📸 Capture de l\'image satellite via html2canvas...');
             
-            // Utiliser leaflet-image ou html2canvas pour capturer la carte
-            // Pour simplifier, on va utiliser l'URL des tuiles Esri directement
-            const bounds = map.getBounds();
-            const center = map.getCenter();
-            const zoom = map.getZoom();
-            
-            // Construire l'URL de la tuile centrale
-            const tileX = Math.floor((center.lng + 180) / 360 * Math.pow(2, zoom));
-            const tileY = Math.floor((1 - Math.log(Math.tan(center.lat * Math.PI / 180) + 1 / Math.cos(center.lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
-            
-            // URL de la tuile satellite Esri
-            const satelliteUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tileY}/${tileX}`;
-            
-            console.log('🛰️ URL tuile satellite:', satelliteUrl);
-            
-            // Charger dans le viewer 3D
-            viewer3D.loadSatelliteTexture(satelliteUrl, bounds);
+            try {
+                // Capturer la carte Leaflet actuelle (avec toutes les tuiles satellite)
+                const mapContainer = document.getElementById('map');
+                
+                const canvas = await html2canvas(mapContainer, {
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: null,
+                    logging: false,
+                    scale: 1
+                });
+                
+                // Convertir le canvas en URL
+                const imageUrl = canvas.toDataURL('image/png');
+                
+                console.log('✅ Image satellite capturée:', imageUrl.substring(0, 50) + '...');
+                
+                // Calculer les bounds de la carte
+                const bounds = map.getBounds();
+                const sw = bounds.getSouthWest();
+                const ne = bounds.getNorthEast();
+                
+                // Charger dans le viewer 3D
+                viewer3D.loadSatelliteTexture(imageUrl, {
+                    swLat: sw.lat,
+                    swLng: sw.lng,
+                    neLat: ne.lat,
+                    neLng: ne.lng
+                });
+                
+            } catch (error) {
+                console.error('❌ Erreur capture satellite:', error);
+            }
         }
         
         // Initialiser les event listeners pour saisie manuelle distances

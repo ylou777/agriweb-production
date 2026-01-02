@@ -1198,6 +1198,7 @@ class Calpinage3DViewer {
         if (!this.ground) return;
         
         console.log('🛰️ [3D] Chargement texture satellite...');
+        console.log('   Bounds:', bounds);
         
         const textureLoader = new THREE.TextureLoader();
         textureLoader.load(
@@ -1207,12 +1208,30 @@ class Calpinage3DViewer {
                 texture.wrapS = THREE.ClampToEdgeWrapping;
                 texture.wrapT = THREE.ClampToEdgeWrapping;
                 texture.encoding = THREE.sRGBEncoding;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                
+                // Calculer la taille du sol en fonction des bounds
+                if (bounds && bounds.swLat && bounds.neLat) {
+                    const latRef = (bounds.swLat + bounds.neLat) / 2;
+                    const metersPerDegreeLat = 111320;
+                    const metersPerDegreeLng = 111320 * Math.cos(latRef * Math.PI / 180);
+                    
+                    const width = Math.abs(bounds.neLng - bounds.swLng) * metersPerDegreeLng;
+                    const height = Math.abs(bounds.neLat - bounds.swLat) * metersPerDegreeLat;
+                    
+                    console.log(`📏 Redimensionnement sol: ${width.toFixed(0)}m x ${height.toFixed(0)}m`);
+                    
+                    // Redimensionner le sol pour correspondre à la texture
+                    this.ground.geometry.dispose();
+                    this.ground.geometry = new THREE.PlaneGeometry(width, height);
+                }
                 
                 // Appliquer au sol
                 this.ground.material.map = texture;
                 this.ground.material.needsUpdate = true;
                 
-                console.log('✅ [3D] Texture satellite chargée');
+                console.log('✅ [3D] Texture satellite chargée et appliquée');
             },
             undefined,
             (error) => {
@@ -1413,16 +1432,17 @@ class Calpinage3DViewer {
             // Géométrie du module (une seule fois pour optimisation)
             const moduleGeometry = new THREE.BoxGeometry(moduleWidth, this.moduleThickness, moduleDepth);
             
-            // Matériau des modules PV (bleu foncé brillant)
+            // Matériau des modules PV (bleu plus visible avec émission)
             const moduleMaterial = new THREE.MeshStandardMaterial({
-                color: 0x1e3a8a,
-                roughness: 0.3,
-                metalness: 0.7,
-                emissive: 0x0a1f5a,
-                emissiveIntensity: 0.1
+                color: 0x2563eb, // Bleu plus clair et visible
+                roughness: 0.2,
+                metalness: 0.8,
+                emissive: 0x1e40af,
+                emissiveIntensity: 0.3 // Plus lumineux pour être visible
             });
             
             // Créer chaque module
+            let moduleCount = 0;
             zone.modulesPositions.forEach(modulePos => {
                 const meters = this.latLngToMeters(modulePos.lat, modulePos.lng);
                 
@@ -1448,10 +1468,13 @@ class Calpinage3DViewer {
                 
                 this.scene.add(module);
                 this.modules3D.push(module);
+                moduleCount++;
             });
+            
+            console.log(`  ✅ Zone ${zones.indexOf(zone)}: ${moduleCount} modules ajoutés`);
         });
         
-        console.log(`✅ ${this.modules3D.length} modules PV ajoutés en 3D`);
+        console.log(`✅ Total: ${this.modules3D.length} modules PV ajoutés en 3D`);
     }
     
     /**
