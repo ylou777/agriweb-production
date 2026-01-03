@@ -3970,8 +3970,10 @@
             // Ajouter les modules PV en 3D
             viewer3D.addModules3D(zones);
             
-            // Capturer et appliquer l'image satellite comme texture du sol
-            captureSatelliteTexture();
+            // Capturer et appliquer l'image satellite comme texture du sol (avec délai)
+            setTimeout(() => {
+                captureSatelliteTexture();
+            }, 500); // Attendre que les tuiles satellite se chargent
             
             console.log(`✅ Vue 3D mise à jour: ${zones.length} zone(s) chargées`);
         }
@@ -3980,13 +3982,26 @@
          * Capturer l'image satellite de la carte Leaflet pour l'utiliser en 3D
          */
         async function captureSatelliteTexture() {
-            if (!map || !viewer3D) return;
+            if (!map || !viewer3D) {
+                console.warn('⚠️ Carte ou viewer3D non disponible pour capture satellite');
+                return;
+            }
+            
+            if (!viewer3D.ground) {
+                console.warn('⚠️ Ground plane non initialisé dans viewer3D');
+                return;
+            }
             
             console.log('📸 Capture de l\'image satellite via html2canvas...');
             
             try {
                 // Capturer la carte Leaflet actuelle (avec toutes les tuiles satellite)
                 const mapContainer = document.getElementById('map');
+                
+                if (!mapContainer) {
+                    console.error('❌ Container carte introuvable');
+                    return;
+                }
                 
                 const canvas = await html2canvas(mapContainer, {
                     useCORS: true,
@@ -3998,15 +4013,22 @@
                     height: mapContainer.offsetHeight
                 });
                 
+                if (!canvas) {
+                    console.error('❌ Échec création canvas');
+                    return;
+                }
+                
                 // Convertir en JPEG avec compression pour réduire la taille
                 const imageUrl = canvas.toDataURL('image/jpeg', 0.7);
                 
-                console.log('✅ Image satellite capturée:', imageUrl.substring(0, 50) + '...');
+                console.log('✅ Image satellite capturée:', imageUrl.substring(0, 50) + '...', `(${(imageUrl.length/1024).toFixed(0)} KB)`);
                 
                 // Calculer les bounds de la carte
                 const bounds = map.getBounds();
                 const sw = bounds.getSouthWest();
                 const ne = bounds.getNorthEast();
+                
+                console.log('📍 Bounds carte:', `SW(${sw.lat.toFixed(6)}, ${sw.lng.toFixed(6)}) - NE(${ne.lat.toFixed(6)}, ${ne.lng.toFixed(6)})`);
                 
                 // Charger dans le viewer 3D
                 viewer3D.loadSatelliteTexture(imageUrl, {
@@ -4018,6 +4040,7 @@
                 
             } catch (error) {
                 console.error('❌ Erreur capture satellite:', error);
+                console.error('   Stack:', error.stack);
             }
         }
         
