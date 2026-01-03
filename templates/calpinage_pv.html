@@ -1734,6 +1734,8 @@
             document.getElementById('toolDelete').addEventListener('click', function() {
                 setActiveTool('delete');
                 if (activeDrawHandler) activeDrawHandler.disable();
+                if (editHandler) editHandler.disable();
+                
                 // Activer le mode suppression
                 if (!deleteHandler) {
                     deleteHandler = new L.EditToolbar.Delete(map, {
@@ -1750,6 +1752,15 @@
                         layer._path.style.stroke = '#dc3545';
                     }
                 });
+                
+                // Écouter l'événement de sauvegarde de la suppression
+                deleteHandler.save = function() {
+                    this._deletableLayers.eachLayer(function(layer) {
+                        supprimerZone(layer._leaflet_id);
+                    });
+                    this._deletableLayers = new L.LayerGroup();
+                    this.disable();
+                };
             });
             
             // Bouton effacer mesures
@@ -2747,7 +2758,13 @@
             calculerTotaux();
             
             // Mettre à jour la vue 3D si active
-            update3DFromZones();
+            try {
+                if (viewer3D && viewer3D.isActive) {
+                    update3DFromZones();
+                }
+            } catch (error) {
+                console.error('⚠️ Erreur mise à jour 3D:', error);
+            }
         }
         
         // Renuméroter les zones après suppression
@@ -3343,6 +3360,13 @@
         // Effacer toutes les zones
         document.getElementById('clearAllZones').addEventListener('click', function() {
             if (confirm('Effacer toutes les zones ?')) {
+                // Supprimer tous les groupes de modules avant de vider drawnItems
+                zones.forEach(zone => {
+                    if (zone.moduleGroup) {
+                        map.removeLayer(zone.moduleGroup);
+                    }
+                });
+                
                 drawnItems.clearLayers();
                 
                 // Supprimer toutes les poignées de rotation
@@ -3356,6 +3380,15 @@
                     '<p class="text-muted text-center">Aucune zone définie</p>';
                 document.getElementById('zonesCount').textContent = '0';
                 calculerTotaux();
+                
+                // Mettre à jour la vue 3D si active
+                try {
+                    if (viewer3D && viewer3D.isActive) {
+                        update3DFromZones();
+                    }
+                } catch (error) {
+                    console.error('⚠️ Erreur mise à jour 3D après effacement:', error);
+                }
             }
         });
 
@@ -3969,11 +4002,6 @@
             
             // Ajouter les modules PV en 3D
             viewer3D.addModules3D(zones);
-            
-            // Capturer et appliquer l'image satellite comme texture du sol (avec délai)
-            setTimeout(() => {
-                captureSatelliteTexture();
-            }, 500); // Attendre que les tuiles satellite se chargent
             
             console.log(`✅ Vue 3D mise à jour: ${zones.length} zone(s) chargées`);
         }
