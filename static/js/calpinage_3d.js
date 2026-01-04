@@ -398,6 +398,8 @@ class Calpinage3DViewer {
      * Ajouter les modules PV en 3D (VERSION CORRIGÉE - un seul affichage)
      */
     addModules3D(zones) {
+        console.log(`🔧 [addModules3D] Début - ${this.modules3D.length} groupes existants à supprimer`);
+        
         // Supprimer les anciens modules
         this.modules3D.forEach(module => {
             this.scene.remove(module);
@@ -421,9 +423,16 @@ class Calpinage3DViewer {
         // Récupérer le type d'installation
         const typeInstallation = document.getElementById('typeInstallation')?.value || 'toiture';
         
+        let totalModulesCount = 0;
+        
         // Créer les modules pour chaque zone
-        zones.forEach(zone => {
-            if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
+        zones.forEach((zone, zoneIndex) => {
+            if (!zone.modulesPositions || zone.modulesPositions.length === 0) {
+                console.log(`⚠️ Zone ${zone.numero}: aucun module`);
+                return;
+            }
+            
+            console.log(`📦 Zone ${zone.numero}: ${zone.modulesPositions.length} positions de modules`);
             
             const moduleLongueurMM = parseFloat(document.getElementById('moduleLongueur')?.value || 2278);
             const moduleLargeurMM = parseFloat(document.getElementById('moduleLargeur')?.value || 1134);
@@ -501,11 +510,14 @@ class Calpinage3DViewer {
             const rotationAngle = zone.rotationAngle || 0;
             zoneModulesGroup.rotation.y = -rotationAngle * Math.PI / 180;
             
+            totalModulesCount += zone.modulesPositions.length;
+            console.log(`✅ Zone ${zone.numero}: ${zone.modulesPositions.length} modules créés (rotation: ${rotationAngle}°)`);
+            
             this.scene.add(zoneModulesGroup);
             this.modules3D.push(zoneModulesGroup);
         });
         
-        console.log(`✅ ${this.modules3D.length} modules PV ajoutés en 3D`);
+        console.log(`✅ [addModules3D] Total: ${this.modules3D.length} groupes de zones, ${totalModulesCount} modules individuels créés`);
     }
     
     /**
