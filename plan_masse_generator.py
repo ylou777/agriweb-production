@@ -84,57 +84,61 @@ class PlanMasseGenerator:
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
         
-        # Récupérer les métadonnées de la carte (bounds GPS exacts du screenshot)
-        # map_metadata peut être dans prospect_data OU dans calpinage
-        map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
-        map_bounds = map_metadata.get('bounds', {}) if map_metadata else {}
+        # 🔥 CALCUL DES BOUNDS À PARTIR DES MODULES RÉELS (plus précis que map_metadata)
+        bounds_from_modules = self._calculate_bounds_from_modules()
         
-        print(f"[PLAN] map_metadata trouvé: {'✅' if map_metadata else '❌'}")
-        if map_bounds:
-            print(f"[PLAN] bounds GPS: N={map_bounds.get('north')}, S={map_bounds.get('south')}, E={map_bounds.get('east')}, W={map_bounds.get('west')}")
-        
-        # Utiliser les bounds exacts si disponibles, sinon calculer
-        if map_bounds:
-            # Bounds exacts de la carte Leaflet
-            lat_north = map_bounds.get('north', lat)
-            lat_south = map_bounds.get('south', lat)
-            lon_east = map_bounds.get('east', lon)
-            lon_west = map_bounds.get('west', lon)
-            
-            # Centre des bounds
+        if bounds_from_modules:
+            # Utiliser les bounds calculés depuis les positions réelles des modules
+            lat_north = bounds_from_modules['north']
+            lat_south = bounds_from_modules['south']
+            lon_east = bounds_from_modules['east']
+            lon_west = bounds_from_modules['west']
             lat_center = (lat_north + lat_south) / 2
             lon_center = (lon_east + lon_west) / 2
+            print(f"[PLAN] ✅ Bounds calculés depuis modules: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
         else:
-            # Fallback: utiliser position du prospect
-            lat_center = lat
-            lon_center = lon
-            # Calculer bbox approximative
-            bbox_meters = self._calculate_bbox_from_data()
-            delta_lat = (bbox_meters / 2) / 111000
-            delta_lon = (bbox_meters / 2) / 78000
-            lat_north = lat + delta_lat
-            lat_south = lat - delta_lat
-            lon_east = lon + delta_lon
-            lon_west = lon - delta_lon
+            # Fallback: récupérer les métadonnées de la carte
+            map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
+            map_bounds = map_metadata.get('bounds', {}) if map_metadata else {}
+            
+            print(f"[PLAN] map_metadata trouvé: {'✅' if map_metadata else '❌'}")
+            if map_bounds:
+                print(f"[PLAN] bounds GPS: N={map_bounds.get('north')}, S={map_bounds.get('south')}, E={map_bounds.get('east')}, W={map_bounds.get('west')}")
+            
+            # Utiliser les bounds exacts si disponibles, sinon calculer
+            if map_bounds:
+                lat_north = map_bounds.get('north', lat)
+                lat_south = map_bounds.get('south', lat)
+                lon_east = map_bounds.get('east', lon)
+                lon_west = map_bounds.get('west', lon)
+                lat_center = (lat_north + lat_south) / 2
+                lon_center = (lon_east + lon_west) / 2
+            else:
+                # Fallback final: utiliser position du prospect
+                lat_center = lat
+                lon_center = lon
+                bbox_meters = self._calculate_bbox_from_data()
+                delta_lat = (bbox_meters / 2) / 111000
+                delta_lon = (bbox_meters / 2) / 78000
+                lat_north = lat + delta_lat
+                lat_south = lat - delta_lat
+                lon_east = lon + delta_lon
+                lon_west = lon - delta_lon
         
         if lat and lon:
-            # Utiliser le screenshot de la carte si disponible (garantit échelle exacte)
-            map_image = self._get_map_screenshot()
-            if map_image:
-                c.drawImage(ImageReader(map_image), 
+            # 🔥 NE PAS utiliser le screenshot car il peut avoir des décalages
+            # Télécharger l'image satellite avec les bounds EXACTS des modules
+            satellite_img = self._fetch_satellite_image_with_bounds(
+                lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
+            )
+            if satellite_img:
+                print(f"[PLAN] ✅ Image satellite téléchargée avec bounds exacts")
+                c.drawImage(ImageReader(satellite_img), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
-                          preserveAspectRatio=False, mask='auto')  # FALSE pour éviter déformation
+                          preserveAspectRatio=False, mask='auto')
             else:
-                # Fallback: image satellite avec bbox correcte
-                satellite_img = self._fetch_satellite_image_with_bounds(
-                    lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
-                )
-                if satellite_img:
-                    c.drawImage(ImageReader(satellite_img), 
-                              plan_x, plan_y, 
-                              width=plan_width, height=plan_height,
-                              preserveAspectRatio=False, mask='auto')
+                print(f"[PLAN] ❌ Échec téléchargement image satellite")
         
         # Système de coordonnées : conversion GPS → PDF
         # Utilise les MÊMES bounds que l'image affichée
@@ -164,6 +168,53 @@ class PlanMasseGenerator:
         # 4. COTATIONS
         self._draw_cotations_gps(c)
         
+    def _calculate_bounds_from_modules(self):
+        """Calcule les bounds GPS en scannant tous les coins de tous les modules"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            return None
+        
+        all_lats = []
+        all_lngs = []
+        
+        # Scanner toutes les zones
+        for zone in self.calpinage['zones']:
+            modules_positions = zone.get('modulesPositions', [])
+            
+            for module_pos in modules_positions:
+                # Récupérer les 4 coins du module
+                corners = module_pos.get('corners', [])
+                
+                if corners:
+                    for corner in corners:
+                        lat = corner.get('lat')
+                        lng = corner.get('lng')
+                        if lat is not None and lng is not None:
+                            all_lats.append(lat)
+                            all_lngs.append(lng)
+                else:
+                    # Fallback: utiliser le centre
+                    lat = module_pos.get('lat')
+                    lng = module_pos.get('lng')
+                    if lat is not None and lng is not None:
+                        all_lats.append(lat)
+                        all_lngs.append(lng)
+        
+        if not all_lats or not all_lngs:
+            return None
+        
+        # Ajouter une marge de 10% pour avoir de l'espace autour
+        lat_range = max(all_lats) - min(all_lats)
+        lng_range = max(all_lngs) - min(all_lngs)
+        margin_lat = lat_range * 0.1
+        margin_lng = lng_range * 0.1
+        
+        return {
+            'north': max(all_lats) + margin_lat,
+            'south': min(all_lats) - margin_lat,
+            'east': max(all_lngs) + margin_lng,
+            'west': min(all_lngs) - margin_lng
+        }
+    
     def _calculate_bbox_from_data(self):
         """Calcule la taille de la bbox en mètres basée sur les données"""
         # Estimer depuis les parcelles ou défaut 60m
