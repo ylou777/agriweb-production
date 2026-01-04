@@ -611,7 +611,7 @@ class PlanMasseGeneratorV2:
         c.drawCentredString(pdf_x, pdf_y, "BÂTIMENT")
     
     def _draw_modules_from_calpinage_with_projection(self, c):
-        """Dessine les modules PV en utilisant la projection GPS précise depuis les métadonnées"""
+        """Dessine les modules PV en utilisant les MÊMES facteurs de conversion GPS que Leaflet"""
         if not self.calpinage or 'zones' not in self.calpinage:
             return
         
@@ -622,14 +622,39 @@ class PlanMasseGeneratorV2:
         print(f"[PLAN] 🎨 Dessin de {len(self.calpinage['zones'])} zones avec projection GPS précise...")
         
         proj = self.projection
-        bounds = proj['bounds']
+        global_bounds = proj['bounds']
         
         for zone in self.calpinage['zones']:
+            # 🔥 CRITIQUE: Utiliser les facteurs de conversion GPS de la zone (comme dans Leaflet)
+            gps_conversion = zone.get('gpsConversion')
+            if not gps_conversion:
+                print(f"[PLAN] ⚠️ Zone {zone.get('numero', '?')}: pas de gpsConversion - skip")
+                continue
+            
+            # Récupérer les bounds de la zone spécifique
+            zone_bounds = zone.get('bounds', {})
+            sw = zone_bounds.get('_southWest', {})
+            ne = zone_bounds.get('_northEast', {})
+            
+            if not sw or not ne:
+                print(f"[PLAN] ⚠️ Zone {zone.get('numero', '?')}: pas de bounds - skip")
+                continue
+            
+            # Centre de la zone (comme dans Leaflet)
+            zone_center_lat = (sw['lat'] + ne['lat']) / 2
+            zone_center_lng = (sw['lng'] + ne['lng']) / 2
+            
+            # Facteurs de conversion EXACTS (comme dans Leaflet)
+            meters_per_degree_lng = gps_conversion['metersPerDegreeLng']
+            meters_per_degree_lat = gps_conversion['metersPerDegreeLat']
+            
+            print(f"[PLAN] Zone {zone.get('numero', '?')}: facteurs GPS: {meters_per_degree_lng:.8f} lng, {meters_per_degree_lat:.8f} lat")
+            
             # Utiliser modulesPositions si disponible (plus précis)
             modules_positions = zone.get('modulesPositions', [])
             
             if modules_positions:
-                print(f"[PLAN] Zone {zone.get('numero', '?')}: {len(modules_positions)} modules avec positions GPS")
+                print(f"[PLAN] Zone {zone.get('numero', '?')}: {len(modules_positions)} modules")
                 
                 for mod_idx, mod in enumerate(modules_positions):
                     corners = mod.get('corners', [])
@@ -641,10 +666,10 @@ class PlanMasseGeneratorV2:
                         for corner in corners:
                             lat, lng = corner.get('lat'), corner.get('lng')
                             if lat and lng:
-                                # Conversion GPS → coordonnées PDF
-                                # Normaliser dans la bbox
-                                norm_x = (lng - bounds['west']) / (bounds['east'] - bounds['west'])
-                                norm_y = (bounds['north'] - lat) / (bounds['north'] - bounds['south'])  # Inverser Y
+                                # 🔥 Conversion GPS → coordonnées PDF EN UTILISANT LA BBOX GLOBALE
+                                # (l'image satellite couvre la bbox globale)
+                                norm_x = (lng - global_bounds['west']) / (global_bounds['east'] - global_bounds['west'])
+                                norm_y = (global_bounds['north'] - lat) / (global_bounds['north'] - global_bounds['south'])  # Inverser Y
                                 
                                 # Position dans le PDF
                                 pdf_x = proj['plan_x'] + norm_x * proj['plan_width']
@@ -674,8 +699,8 @@ class PlanMasseGeneratorV2:
                     for coord in coordinates:
                         lat, lng = coord.get('lat'), coord.get('lng')
                         if lat and lng:
-                            norm_x = (lng - bounds['west']) / (bounds['east'] - bounds['west'])
-                            norm_y = (bounds['north'] - lat) / (bounds['north'] - bounds['south'])
+                            norm_x = (lng - global_bounds['west']) / (global_bounds['east'] - global_bounds['west'])
+                            norm_y = (global_bounds['north'] - lat) / (global_bounds['north'] - global_bounds['south'])
                             
                             pdf_x = proj['plan_x'] + norm_x * proj['plan_width']
                             pdf_y = proj['plan_y'] + norm_y * proj['plan_height']
@@ -693,6 +718,30 @@ class PlanMasseGeneratorV2:
                         c.setDash(4, 2)
                         c.drawPath(path, stroke=1, fill=0)
                         c.setDash()
+                        
+                        # 🔥 AJOUT: Dessiner le label "X modules, Y kWc" au centre de la zone
+                        # Convertir le centre GPS de la zone en position PDF
+                        norm_center_x = (zone_center_lng - global_bounds['west']) / (global_bounds['east'] - global_bounds['west'])
+                        norm_center_y = (global_bounds['north'] - zone_center_lat) / (global_bounds['north'] - global_bounds['south'])
+                        
+                        label_pdf_x = proj['plan_x'] + norm_center_x * proj['plan_width']
+                        label_pdf_y = proj['plan_y'] + norm_center_y * proj['plan_height']
+                        
+                        # Fond noir semi-transparent pour le texte
+                        c.setFillColor(colors.black, alpha=0.7)
+                        label_width = 3*cm
+                        label_height = 1*cm
+                        c.rect(label_pdf_x - label_width/2, label_pdf_y - label_height/2, 
+                              label_width, label_height, fill=1, stroke=0)
+                        
+                        # Texte blanc
+                        c.setFillColor(colors.white)
+                        c.setFont("Helvetica-Bold", 9)
+                        nb_modules = zone.get('nbModules', 0)
+                        puissance_kw = zone.get('puissanceKw', 0)
+                        c.drawCentredString(label_pdf_x, label_pdf_y + 0.15*cm, f"🔆 {nb_modules} modules")
+                        c.setFont("Helvetica", 8)
+                        c.drawCentredString(label_pdf_x, label_pdf_y - 0.15*cm, f"{puissance_kw:.2f} kWc")
                 
                 print(f"[PLAN] ✅ Zone {zone.get('numero', '?')} dessinée avec {len(modules_positions)} modules")
             else:
