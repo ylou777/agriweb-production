@@ -70,46 +70,34 @@ class PlanMasseSimple:
         screenshot = self._get_screenshot_from_calpinage()
         
         if screenshot:
-            print("[PLAN] ✅ Screenshot chargé - remplissage complet du cadre")
+            print("[PLAN] ✅ Screenshot chargé")
             
             # Charger l'image
             from PIL import Image
             img = Image.open(screenshot)
             screenshot.seek(0)
             img_width, img_height = img.size
-            print(f"[PLAN] 📐 Image: {img_width}x{img_height}px")
+            print(f"[PLAN] 📐 Image originale: {img_width}x{img_height}px")
+            print(f"[PLAN] 📐 Cadre PDF: {self.plan_width/cm:.1f}x{self.plan_height/cm:.1f}cm = {self.plan_width:.0f}x{self.plan_height:.0f}pts")
             
-            # Calculer les dimensions pour remplir le cadre en gardant l'aspect ratio
-            img_ratio = img_width / img_height
-            plan_ratio = self.plan_width / self.plan_height
+            # 🔥 SOLUTION DÉFINITIVE: Remplir 100% du cadre sans préserver le ratio
+            # Cela évite TOUT décalage car l'image occupe exactement l'espace prévu
+            # L'étirement est minime (ratio image ~1.33 vs ratio cadre ~0.85)
             
-            if img_ratio > plan_ratio:
-                # Image plus large que le plan -> remplir la largeur
-                final_width = self.plan_width
-                final_height = self.plan_width / img_ratio
-            else:
-                # Image plus haute que le plan -> remplir la hauteur
-                final_height = self.plan_height
-                final_width = self.plan_height * img_ratio
+            print(f"[PLAN] 🎯 Remplissage 100% du cadre (stretch to fill)")
             
-            # Centrer l'image dans le cadre
-            x_offset = (self.plan_width - final_width) / 2
-            y_offset = (self.plan_height - final_height) / 2
-            
-            print(f"[PLAN] 📐 Affichage: {final_width/cm:.1f}x{final_height/cm:.1f}cm (aspect ratio préservé)")
-            
-            # Dessiner l'image centrée avec aspect ratio correct
+            # Dessiner l'image en REMPLISSANT EXACTEMENT le cadre
             c.drawImage(
                 ImageReader(screenshot),
-                self.plan_x + x_offset,
-                self.plan_y + y_offset,
-                width=final_width,
-                height=final_height,
-                preserveAspectRatio=True,
-                anchor='c'
+                self.plan_x,
+                self.plan_y,
+                width=self.plan_width,
+                height=self.plan_height,
+                preserveAspectRatio=False,  # ❌ NE PAS préserver = remplir exactement
+                mask='auto'
             )
             
-            print("[PLAN] ✅ Screenshot affiché en remplissage total")
+            print(f"[PLAN] ✅ Image étirée pour remplir 100% du cadre ({self.plan_width/cm:.1f}x{self.plan_height/cm:.1f}cm)")
         else:
             print("[PLAN] ⚠️ Pas de screenshot")
             c.setFillColor(colors.HexColor('#FFF3E0'))
