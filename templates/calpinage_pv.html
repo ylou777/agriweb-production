@@ -3039,9 +3039,22 @@
             
             const moduleGroup = L.layerGroup();
             
-            // Conversions mètres → degrés avec correction latitude
-            const latToMeters = 111320;
-            const lngToMeters = 111320 * Math.cos(center.lat * Math.PI / 180);
+            // 🔥 Conversions mètres → degrés PRÉCISES avec distance GPS réelle
+            // Au lieu d'utiliser des constantes, on mesure la distance réelle
+            const realWidthMeters = map.distance(sw, [sw.lat, ne.lng]);
+            const realHeightMeters = map.distance(sw, [ne.lat, sw.lng]);
+            const widthDegrees = ne.lng - sw.lng;
+            const heightDegrees = ne.lat - sw.lat;
+            
+            const metersPerDegreeLng = widthDegrees / realWidthMeters;
+            const metersPerDegreeLat = heightDegrees / realHeightMeters;
+            
+            console.log(`🎯 [ZONE ${zone.numero}] Facteurs conversion GPS précis:`, {
+                metersPerDegreeLng, 
+                metersPerDegreeLat,
+                realWidth: realWidthMeters,
+                realHeight: realHeightMeters
+            });
             
             // Angle de rotation
             const rotationAngle = zone.rotationAngle || 0;
@@ -3092,9 +3105,10 @@
                     y = yRot;
                 }
                 
+                // 🔥 Utiliser les facteurs de conversion GPS PRÉCIS
                 return L.latLng(
-                    center.lat + y / latToMeters,
-                    center.lng + x / lngToMeters
+                    center.lat + y * metersPerDegreeLat,
+                    center.lng + x * metersPerDegreeLng
                 );
             }
             
