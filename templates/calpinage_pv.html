@@ -3810,23 +3810,43 @@
                 // Préparer les données
                 const calData = prepareCalepinageData();
                 
-                // 🔥 CAPTURER LE SCREENSHOT AVANT SAUVEGARDE
+                // 🔥 CAPTURER LE SCREENSHOT + MÉTADONNÉES BBOX POUR ALIGNEMENT PRÉCIS
                 console.log('📸 Capture screenshot pour plan de masse...');
                 try {
                     const mapContainer = document.getElementById('map');
                     if (typeof html2canvas !== 'undefined') {
-                        // Capturer avec dimensions fixes pour ratio PDF A3 (plan: 36x26cm)
+                        // Capturer l'état de la carte
+                        const bounds = map.getBounds();
+                        const mapSize = map.getSize();
+                        
+                        calData.map_metadata = {
+                            bounds: {
+                                north: bounds.getNorth(),
+                                south: bounds.getSouth(),
+                                east: bounds.getEast(),
+                                west: bounds.getWest()
+                            },
+                            center: {
+                                lat: map.getCenter().lat,
+                                lng: map.getCenter().lng
+                            },
+                            zoom: map.getZoom(),
+                            size: {
+                                width: mapSize.x,
+                                height: mapSize.y
+                            }
+                        };
+                        
+                        console.log('📐 Métadonnées carte:', calData.map_metadata);
+                        
+                        // Capturer le screenshot tel quel
                         const canvas = await html2canvas(mapContainer, {
                             useCORS: true,
                             allowTaint: true,
-                            backgroundColor: '#ffffff',
-                            width: 1800,  // Ratio ~1.38 (largeur/hauteur) comme le cadre PDF
-                            height: 1300,
-                            windowWidth: 1800,
-                            windowHeight: 1300
+                            backgroundColor: '#ffffff'
                         });
                         calData.screenshot_map = canvas.toDataURL('image/png');
-                        console.log('✅ Screenshot capturé avec ratio PDF (1800x1300px) - longueur:', calData.screenshot_map.length, 'caractères');
+                        console.log('✅ Screenshot capturé (', canvas.width, 'x', canvas.height, 'px) - longueur:', calData.screenshot_map.length, 'caractères');
                     } else {
                         console.warn('⚠️ html2canvas non disponible');
                     }
@@ -3967,6 +3987,11 @@
          * Mettre à jour la vue 3D avec les zones actuelles
          */
         function update3DFromZones() {
+            console.log('🔍 [3D] update3DFromZones appelée');
+            console.log('🔍 [3D] viewer3D existe?', !!viewer3D);
+            console.log('🔍 [3D] viewer3D.isActive?', viewer3D ? viewer3D.isActive : 'N/A');
+            console.log('🔍 [3D] Nombre de zones:', zones ? zones.length : 0);
+            
             if (!viewer3D || !viewer3D.isActive) {
                 console.log('⚠️ Viewer 3D non actif');
                 return;
@@ -3981,9 +4006,14 @@
             
             // Extraire les positions des modules depuis les layers Leaflet
             zones.forEach(zone => {
+                console.log(`🔍 [3D] Zone ${zone.numero}:`, zone);
+                console.log(`🔍 [3D] Zone ${zone.numero} - moduleGroup existe?`, !!zone.moduleGroup);
+                
                 zone.modulesPositions = [];
                 if (zone.moduleGroup) {
+                    let moduleCount = 0;
                     zone.moduleGroup.eachLayer(layer => {
+                        moduleCount++;
                         if (layer instanceof L.Polygon) {
                             const latlngs = layer.getLatLngs()[0];
                             if (latlngs && latlngs.length >= 4) {
@@ -3998,8 +4028,10 @@
                             }
                         }
                     });
+                    console.log(`📍 Zone ${zone.numero}: ${zone.modulesPositions.length} modules extraits sur ${moduleCount} layers`);
+                } else {
+                    console.warn(`⚠️ Zone ${zone.numero}: pas de moduleGroup!`);
                 }
-                console.log(`📍 Zone ${zone.numero}: ${zone.modulesPositions.length} modules extraits`);
             });
             
             // Créer le bâtiment à partir des zones
