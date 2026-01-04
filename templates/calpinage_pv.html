@@ -3815,13 +3815,18 @@
                 try {
                     const mapContainer = document.getElementById('map');
                     if (typeof html2canvas !== 'undefined') {
+                        // Capturer avec dimensions fixes pour ratio PDF A3 (plan: 36x26cm)
                         const canvas = await html2canvas(mapContainer, {
                             useCORS: true,
                             allowTaint: true,
-                            backgroundColor: '#ffffff'
+                            backgroundColor: '#ffffff',
+                            width: 1800,  // Ratio ~1.38 (largeur/hauteur) comme le cadre PDF
+                            height: 1300,
+                            windowWidth: 1800,
+                            windowHeight: 1300
                         });
                         calData.screenshot_map = canvas.toDataURL('image/png');
-                        console.log('✅ Screenshot capturé (longueur:', calData.screenshot_map.length, 'caractères)');
+                        console.log('✅ Screenshot capturé avec ratio PDF (1800x1300px) - longueur:', calData.screenshot_map.length, 'caractères');
                     } else {
                         console.warn('⚠️ html2canvas non disponible');
                     }

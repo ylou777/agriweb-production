@@ -70,46 +70,54 @@ class PlanMasseSimple:
         screenshot = self._get_screenshot_from_calpinage()
         
         if screenshot:
-            print("[PLAN] ✅ Screenshot chargé - remplissage complet du cadre")
+            print("[PLAN] ✅ Screenshot chargé - affichage à l'échelle")
             
             # Charger l'image
             from PIL import Image
             img = Image.open(screenshot)
             screenshot.seek(0)
             img_width, img_height = img.size
-            print(f"[PLAN] 📐 Image: {img_width}x{img_height}px")
+            print(f"[PLAN] 📐 Image originale: {img_width}x{img_height}px")
+            print(f"[PLAN] 📐 Cadre PDF: {self.plan_width/cm:.1f}x{self.plan_height/cm:.1f}cm")
             
-            # Calculer les dimensions pour remplir le cadre en gardant l'aspect ratio
+            # 🔥 STRATÉGIE: Affichage direct sans déformation
+            # Le screenshot a été capturé avec le bon ratio (1800x1300)
+            # On remplit le cadre en préservant l'aspect ratio
+            
             img_ratio = img_width / img_height
             plan_ratio = self.plan_width / self.plan_height
             
-            if img_ratio > plan_ratio:
-                # Image plus large que le plan -> remplir la largeur
+            print(f"[PLAN] 📊 Ratio image: {img_ratio:.3f}, Ratio plan: {plan_ratio:.3f}")
+            
+            # Remplir le cadre en fonction du ratio
+            if abs(img_ratio - plan_ratio) < 0.1:  # Ratios similaires
+                # Remplir tout le cadre
+                final_width = self.plan_width
+                final_height = self.plan_height
+                print("[PLAN] 🎯 Ratios compatibles - remplissage total")
+            elif img_ratio > plan_ratio:
+                # Image plus large -> adapter à la largeur
                 final_width = self.plan_width
                 final_height = self.plan_width / img_ratio
+                print("[PLAN] 🎯 Adaptation à la largeur")
             else:
-                # Image plus haute que le plan -> remplir la hauteur
+                # Image plus haute -> adapter à la hauteur
                 final_height = self.plan_height
                 final_width = self.plan_height * img_ratio
+                print("[PLAN] 🎯 Adaptation à la hauteur")
             
-            # Centrer l'image dans le cadre
-            x_offset = (self.plan_width - final_width) / 2
-            y_offset = (self.plan_height - final_height) / 2
-            
-            print(f"[PLAN] 📐 Affichage: {final_width/cm:.1f}x{final_height/cm:.1f}cm (aspect ratio préservé)")
-            
-            # Dessiner l'image centrée avec aspect ratio correct
+            # Dessiner l'image depuis l'origine (bas-gauche) SANS centrage
             c.drawImage(
                 ImageReader(screenshot),
-                self.plan_x + x_offset,
-                self.plan_y + y_offset,
+                self.plan_x,
+                self.plan_y,
                 width=final_width,
                 height=final_height,
                 preserveAspectRatio=True,
-                anchor='c'
+                mask='auto'
             )
             
-            print("[PLAN] ✅ Screenshot affiché en remplissage total")
+            print(f"[PLAN] ✅ Screenshot affiché: {final_width/cm:.1f}x{final_height/cm:.1f}cm (échelle préservée)")
         else:
             print("[PLAN] ⚠️ Pas de screenshot")
             c.setFillColor(colors.HexColor('#FFF3E0'))
