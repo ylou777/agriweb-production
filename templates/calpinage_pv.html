@@ -3546,7 +3546,9 @@
                     backgroundColor: null,
                     width: rect.width,
                     height: rect.height,
-                    scale: 2,
+                    // 🔥 CORRECTION: Réduire scale à 1 pour éviter distorsion
+                    // scale: 2 double les pixels et peut créer des décalages
+                    scale: 1,
                     logging: false
                 });
                 
@@ -3555,6 +3557,7 @@
                 
                 const screenshot = canvas.toDataURL('image/png');
                 console.log('✅ Screenshot capturé:', canvas.width + 'x' + canvas.height + 'px');
+                console.log('📐 Ratio image:', (canvas.width / canvas.height).toFixed(2));
                 return screenshot;
             } catch (err) {
                 controls.forEach(ctrl => ctrl.style.visibility = '');
@@ -3565,10 +3568,50 @@
         
         // Fonction pour préparer les données de calepinage (SANS screenshot - à ajouter séparément)
         function prepareCalepinageData() {
+            // 🔥 CORRECTION: Extraire les positions GPS des modules AVANT sauvegarde
+            zones.forEach(zone => {
+                zone.modulesPositions = [];
+                if (zone.moduleGroup) {
+                    zone.moduleGroup.eachLayer(layer => {
+                        if (layer instanceof L.Polygon) {
+                            const latlngs = layer.getLatLngs()[0];
+                            if (latlngs && latlngs.length >= 4) {
+                                // Centre du module
+                                const centerLat = (latlngs[0].lat + latlngs[2].lat) / 2;
+                                const centerLng = (latlngs[0].lng + latlngs[2].lng) / 2;
+                                zone.modulesPositions.push({
+                                    lat: centerLat,
+                                    lng: centerLng,
+                                    corners: latlngs.map(ll => ({lat: ll.lat, lng: ll.lng}))
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+            
             return {
                 zones: zones.map(z => {
                     // Convertir les bounds Leaflet en format sérialisable
                     const bounds = z.layer.getBounds();
+                    
+                    // 🔥 AJOUT: Sauvegarder les coordonnées GPS de la zone (polygone)
+                    const coordinates = z.layer.getLatLngs()[0].map(ll => ({
+                        lat: ll.lat,
+                        lng: ll.lng
+                    }));
+                    
+                    // 🔥 CALCUL DES FACTEURS DE CONVERSION GPS RÉELS (comme dans dessinerModulesDansZone)
+                    const sw = bounds.getSouthWest();
+                    const ne = bounds.getNorthEast();
+                    const realWidthMeters = map.distance(sw, [sw.lat, ne.lng]);
+                    const realHeightMeters = map.distance(sw, [ne.lat, sw.lng]);
+                    const widthDegrees = ne.lng - sw.lng;
+                    const heightDegrees = ne.lat - sw.lat;
+                    
+                    const metersPerDegreeLng = widthDegrees / realWidthMeters;
+                    const metersPerDegreeLat = heightDegrees / realHeightMeters;
+                    
                     return {
                         numero: z.numero,
                         surfaceM2: z.surfaceM2,
@@ -3584,6 +3627,8 @@
                         largeurMetres: z.largeurMetres,
                         longueurMetres: z.longueurMetres,
                         rotationAngle: z.rotationAngle || 0,
+                        // 🔥 AJOUT: Coordonnées GPS du polygone de la zone
+                        coordinates: coordinates,
                         bounds: {
                             _southWest: {
                                 lat: bounds.getSouthWest().lat,
@@ -3593,7 +3638,16 @@
                                 lat: bounds.getNorthEast().lat,
                                 lng: bounds.getNorthEast().lng
                             }
-                        }
+                        },
+                        // 🔥 AJOUT CRITIQUE: Facteurs de conversion GPS EXACTS utilisés pour dessiner les modules
+                        gpsConversion: {
+                            metersPerDegreeLng: metersPerDegreeLng,
+                            metersPerDegreeLat: metersPerDegreeLat,
+                            realWidthMeters: realWidthMeters,
+                            realHeightMeters: realHeightMeters
+                        },
+                        // 🔥 AJOUT CRITIQUE: Positions GPS de chaque module individuel
+                        modulesPositions: z.modulesPositions || []
                     };
                 }),
                 module: {
@@ -3853,11 +3907,15 @@
                         
                         console.log('📐 Métadonnées carte:', calData.map_metadata);
                         
-                        // Capturer le screenshot tel quel
+                        // 🔥 Capturer SANS scroll pour éviter décalage
                         const canvas = await html2canvas(mapContainer, {
                             useCORS: true,
                             allowTaint: true,
-                            backgroundColor: '#ffffff'
+                            backgroundColor: '#ffffff',
+                            scrollX: 0,
+                            scrollY: -window.scrollY,  // Compenser le scroll de la page
+                            windowWidth: mapContainer.offsetWidth,
+                            windowHeight: mapContainer.offsetHeight
                         });
                         calData.screenshot_map = canvas.toDataURL('image/png');
                         console.log('✅ Screenshot capturé (', canvas.width, 'x', canvas.height, 'px) - longueur:', calData.screenshot_map.length, 'caractères');
