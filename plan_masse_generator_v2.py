@@ -167,6 +167,10 @@ class PlanMasseGeneratorV2:
                 self.image_display_width = new_width
                 self.image_display_height = new_height
                 
+                # 🔥 L'image capturée contient DÉJÀ tout (satellite + modules + zones)
+                # Ne rien dessiner par-dessus pour éviter les décalages
+                print("[PLAN] ✅ Image complète affichée - aucun overlay nécessaire")
+                
             except Exception as e:
                 print(f"[PLAN] ❌ Erreur affichage image: {e}")
                 import traceback
@@ -184,9 +188,8 @@ class PlanMasseGeneratorV2:
             c.drawCentredString(plan_x + plan_width/2, plan_y + plan_height/2,
                               "⚠️ Veuillez sauvegarder le calpinage avant de générer le plan")
         
-        # Ajouter UNIQUEMENT les contours et références des parcelles cadastrales
-        # (si disponibles dans les données)
-        self._draw_parcelles_overlay(c, plan_x, plan_y, plan_width, plan_height)
+        # 🔥 DÉSACTIVÉ: Ne pas dessiner d'overlays - l'image contient déjà tout
+        # self._draw_parcelles_overlay(c, plan_x, plan_y, plan_width, plan_height)
     
     def _draw_parcelles_overlay(self, c, plan_x, plan_y, plan_width, plan_height):
         """Dessine les contours et références des parcelles en overlay sur l'image"""
