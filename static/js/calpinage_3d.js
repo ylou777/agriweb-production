@@ -1,6 +1,6 @@
 /**
  * Module de visualisation 3D WebGL pour le calpinage PV
- * Utilise Three.js pour afficher les toitures et modules en 3D
+ * Version corrigée avec support ombrières
  */
 
 class Calpinage3DViewer {
@@ -99,39 +99,41 @@ class Calpinage3DViewer {
         // Configuration des ombres
         this.sunLight.shadow.mapSize.width = 2048;
         this.sunLight.shadow.mapSize.height = 2048;
-        this.sunLight.shadow.camera.near = 0.5;
-        this.sunLight.shadow.camera.far = 500;
-        this.sunLight.shadow.camera.left = -100;
-        this.sunLight.shadow.camera.right = 100;
-        this.sunLight.shadow.camera.top = 100;
-        this.sunLight.shadow.camera.bottom = -100;
+        this.sunLight.shadow.camera.near = 10;
+        this.sunLight.shadow.camera.far = 200;
+        this.sunLight.shadow.camera.left = -50;
+        this.sunLight.shadow.camera.right = 50;
+        this.sunLight.shadow.camera.top = 50;
+        this.sunLight.shadow.camera.bottom = -50;
         
         this.scene.add(this.sunLight);
         
-        // Helper pour visualiser la direction du soleil (debug)
-        // const sunHelper = new THREE.DirectionalLightHelper(this.sunLight, 5);
-        // this.scene.add(sunHelper);
-        
-        // Lumière hémisphérique (ciel/sol)
-        const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x6b8e23, 0.3);
-        this.scene.add(hemiLight);
+        // Helper pour visualiser les ombres (debug)
+        // const shadowHelper = new THREE.CameraHelper(this.sunLight.shadow.camera);
+        // this.scene.add(shadowHelper);
     }
     
     /**
      * Ajouter un sol avec grille
      */
     addGround() {
-        // Grille au sol
-        const gridHelper = new THREE.GridHelper(200, 40, 0x888888, 0xcccccc);
-        this.scene.add(gridHelper);
-        
-        // Plan au sol (pour recevoir les ombres)
+        // Sol
         const groundGeometry = new THREE.PlaneGeometry(200, 200);
-        const groundMaterial = new THREE.ShadowMaterial({ opacity: 0.3 });
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x4a7c59,
+            roughness: 0.8,
+            metalness: 0
+        });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
+        ground.position.y = 0;
         ground.receiveShadow = true;
         this.scene.add(ground);
+        
+        // Grille
+        const gridHelper = new THREE.GridHelper(200, 40, 0x666666, 0x444444);
+        gridHelper.position.y = 0.01; // Légèrement au-dessus du sol
+        this.scene.add(gridHelper);
     }
     
     /**
@@ -159,69 +161,188 @@ class Calpinage3DViewer {
         centerX /= zones.length;
         centerZ /= zones.length;
         
-        // Créer une toiture pour chaque zone
-        zones.forEach((zone, index) => {
-            const bounds = zone.layer.getBounds();
-            const sw = bounds.getSouthWest();
-            const ne = bounds.getNorthEast();
-            
-            // Convertir lat/lng en coordonnées métriques
-            const swMeters = this.latLngToMeters(sw.lat, sw.lng);
-            const neMeters = this.latLngToMeters(ne.lat, ne.lng);
-            
-            const width = Math.abs(neMeters.x - swMeters.x);
-            const depth = Math.abs(neMeters.z - swMeters.z);
-            const centerMeters = this.latLngToMeters(
-                (sw.lat + ne.lat) / 2,
-                (sw.lng + ne.lng) / 2
-            );
-            
-            // Hauteur du bâtiment basée sur le type d'installation
-            let height = this.buildingHeight;
-            const typeInstallation = document.getElementById('typeInstallation')?.value || 'toiture';
-            if (typeInstallation === 'sol') {
-                height = 0.5; // Installation au sol (très basse)
-            } else if (typeInstallation === 'ombriere') {
-                height = 4; // Ombrière de parking
-            }
-            
-            // Créer le toit (simple pour l'instant)
-            const inclinaison = zone.inclinaison || 0;
-            const orientation = zone.orientation || 180;
-            
-            // Bâtiment (murs)
-            const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
-            const buildingMaterial = new THREE.MeshStandardMaterial({
-                color: 0x8b7355,
-                roughness: 0.8,
-                metalness: 0.2
+        // Déterminer le type d'installation
+        const typeInstallation = document.getElementById('typeInstallation')?.value || 'toiture';
+        
+        // Créer la structure selon le type
+        if (typeInstallation === 'ombriere') {
+            // Créer les structures d'ombrière pour chaque zone
+            zones.forEach((zone, index) => {
+                const structure = this.createOmbriereStructure(zone, centerX, centerZ);
+                if (structure) {
+                    this.building3D.add(structure);
+                }
             });
-            const buildingMesh = new THREE.Mesh(buildingGeometry, buildingMaterial);
-            buildingMesh.position.set(
-                centerMeters.x - centerX,
-                height / 2,
-                centerMeters.z - centerZ
-            );
-            buildingMesh.castShadow = true;
-            buildingMesh.receiveShadow = true;
-            this.building3D.add(buildingMesh);
-            
-            // Toit incliné
-            if (inclinaison > 0) {
-                const roofGroup = this.createInclinedRoof(width, depth, inclinaison, orientation);
-                roofGroup.position.set(
+        } else {
+            // Créer une toiture standard pour chaque zone
+            zones.forEach((zone, index) => {
+                const bounds = zone.layer.getBounds();
+                const sw = bounds.getSouthWest();
+                const ne = bounds.getNorthEast();
+                
+                // Convertir lat/lng en coordonnées métriques
+                const swMeters = this.latLngToMeters(sw.lat, sw.lng);
+                const neMeters = this.latLngToMeters(ne.lat, ne.lng);
+                
+                const width = Math.abs(neMeters.x - swMeters.x);
+                const depth = Math.abs(neMeters.z - swMeters.z);
+                const centerMeters = this.latLngToMeters(
+                    (sw.lat + ne.lat) / 2,
+                    (sw.lng + ne.lng) / 2
+                );
+                
+                // Hauteur du bâtiment
+                let height = this.buildingHeight;
+                if (typeInstallation === 'sol') {
+                    height = 0.5; // Installation au sol
+                }
+                
+                const inclinaison = zone.inclinaison || 0;
+                const orientation = zone.orientation || 180;
+                
+                // Bâtiment (murs)
+                const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
+                const buildingMaterial = new THREE.MeshStandardMaterial({
+                    color: 0x8b7355,
+                    roughness: 0.8,
+                    metalness: 0.2
+                });
+                const buildingMesh = new THREE.Mesh(buildingGeometry, buildingMaterial);
+                buildingMesh.position.set(
                     centerMeters.x - centerX,
-                    height,
+                    height / 2,
                     centerMeters.z - centerZ
                 );
-                this.building3D.add(roofGroup);
-            }
-        });
+                buildingMesh.castShadow = true;
+                buildingMesh.receiveShadow = true;
+                this.building3D.add(buildingMesh);
+                
+                // Toit incliné
+                if (inclinaison > 0) {
+                    const roofGroup = this.createInclinedRoof(width, depth, inclinaison, orientation);
+                    roofGroup.position.set(
+                        centerMeters.x - centerX,
+                        height,
+                        centerMeters.z - centerZ
+                    );
+                    this.building3D.add(roofGroup);
+                }
+            });
+        }
         
         this.scene.add(this.building3D);
         
         // Centrer la caméra sur le bâtiment
         this.camera.lookAt(0, this.buildingHeight / 2, 0);
+    }
+    
+    /**
+     * Créer une structure d'ombrière de parking
+     */
+    createOmbriereStructure(zone, centerX, centerZ) {
+        const group = new THREE.Group();
+        
+        // Récupérer les paramètres de l'ombrière
+        const hauteur = parseFloat(document.getElementById('ombriereHauteur')?.value || 4.5);
+        const hauteurFerme = parseFloat(document.getElementById('ombriereHauteurFerme')?.value || 0.8);
+        const diametrePilier = parseFloat(document.getElementById('ombriereDiametrePilier')?.value || 15) / 100; // cm -> m
+        const sectionPanne = parseFloat(document.getElementById('ombriereSectionPanne')?.value || 10) / 100;
+        const sectionFerme = parseFloat(document.getElementById('ombriereSectionFerme')?.value || 8) / 100;
+        
+        // Récupérer les dimensions de la zone
+        const bounds = zone.layer.getBounds();
+        const sw = bounds.getSouthWest();
+        const ne = bounds.getNorthEast();
+        const swMeters = this.latLngToMeters(sw.lat, sw.lng);
+        const neMeters = this.latLngToMeters(ne.lat, ne.lng);
+        
+        const width = Math.abs(neMeters.x - swMeters.x);
+        const depth = Math.abs(neMeters.z - swMeters.z);
+        const centerMeters = this.latLngToMeters(
+            (sw.lat + ne.lat) / 2,
+            (sw.lng + ne.lng) / 2
+        );
+        
+        const offsetX = centerMeters.x - centerX;
+        const offsetZ = centerMeters.z - centerZ;
+        
+        // Matériau métallique
+        const metalMaterial = new THREE.MeshStandardMaterial({
+            color: 0x808080,
+            roughness: 0.5,
+            metalness: 0.8
+        });
+        
+        // Créer les piliers aux 4 coins
+        const pilierGeometry = new THREE.CylinderGeometry(diametrePilier / 2, diametrePilier / 2, hauteur, 12);
+        const pilierPositions = [
+            { x: -width/2 + 0.5, z: -depth/2 + 0.5 },
+            { x: width/2 - 0.5, z: -depth/2 + 0.5 },
+            { x: -width/2 + 0.5, z: depth/2 - 0.5 },
+            { x: width/2 - 0.5, z: depth/2 - 0.5 }
+        ];
+        
+        pilierPositions.forEach(pos => {
+            const pilier = new THREE.Mesh(pilierGeometry, metalMaterial);
+            pilier.position.set(offsetX + pos.x, hauteur / 2, offsetZ + pos.z);
+            pilier.castShadow = true;
+            pilier.receiveShadow = true;
+            group.add(pilier);
+        });
+        
+        // Créer les pannes (poutres horizontales longitudinales)
+        const panneGeometry = new THREE.BoxGeometry(sectionPanne, sectionPanne, depth);
+        const pannePositions = [
+            { x: -width/2 + 0.5 },
+            { x: width/2 - 0.5 }
+        ];
+        
+        pannePositions.forEach(pos => {
+            const panne = new THREE.Mesh(panneGeometry, metalMaterial);
+            panne.position.set(offsetX + pos.x, hauteur, offsetZ);
+            panne.castShadow = true;
+            panne.receiveShadow = true;
+            group.add(panne);
+        });
+        
+        // Créer les fermes (poutres transversales avec inclinaison)
+        const inclinaison = zone.inclinaison || 10;
+        const inclinaisonRad = inclinaison * Math.PI / 180;
+        const hauteurFermeReelle = Math.tan(inclinaisonRad) * (width / 2) + sectionFerme/2;
+        
+        // Nombre de fermes selon la profondeur
+        const nbFermes = Math.max(2, Math.floor(depth / 3));
+        const espacementFermes = depth / (nbFermes + 1);
+        
+        for (let i = 1; i <= nbFermes; i++) {
+            const zPos = -depth/2 + i * espacementFermes;
+            
+            // Ferme gauche (montante)
+            const fermeGeometry1 = new THREE.BoxGeometry(sectionFerme, sectionFerme, width/2 + 0.2);
+            const ferme1 = new THREE.Mesh(fermeGeometry1, metalMaterial);
+            ferme1.position.set(offsetX - width/4, hauteur + hauteurFermeReelle/2, offsetZ + zPos);
+            ferme1.rotation.x = Math.PI / 2;
+            ferme1.rotation.z = inclinaisonRad;
+            ferme1.castShadow = true;
+            group.add(ferme1);
+            
+            // Ferme droite (descendante)
+            const ferme2 = new THREE.Mesh(fermeGeometry1, metalMaterial);
+            ferme2.position.set(offsetX + width/4, hauteur + hauteurFermeReelle/2, offsetZ + zPos);
+            ferme2.rotation.x = Math.PI / 2;
+            ferme2.rotation.z = -inclinaisonRad;
+            ferme2.castShadow = true;
+            group.add(ferme2);
+            
+            // Poutre faîtière (au sommet)
+            const faitiereGeometry = new THREE.BoxGeometry(sectionFerme, sectionFerme, sectionFerme * 3);
+            const faitiere = new THREE.Mesh(faitiereGeometry, metalMaterial);
+            faitiere.position.set(offsetX, hauteur + hauteurFerme, offsetZ + zPos);
+            faitiere.castShadow = true;
+            group.add(faitiere);
+        }
+        
+        return group;
     }
     
     /**
@@ -269,7 +390,7 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Ajouter les modules PV en 3D
+     * Ajouter les modules PV en 3D (VERSION CORRIGÉE - un seul affichage)
      */
     addModules3D(zones) {
         // Supprimer les anciens modules
@@ -292,13 +413,16 @@ class Calpinage3DViewer {
         centerX /= zones.length;
         centerZ /= zones.length;
         
+        // Récupérer le type d'installation
+        const typeInstallation = document.getElementById('typeInstallation')?.value || 'toiture';
+        
         // Créer les modules pour chaque zone
         zones.forEach(zone => {
             if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
             
             const moduleLongueurMM = parseFloat(document.getElementById('moduleLongueur')?.value || 2278);
             const moduleLargeurMM = parseFloat(document.getElementById('moduleLargeur')?.value || 1134);
-            const moduleOrientation = document.getElementById('moduleOrientation')?.value || 'paysage';
+            const moduleOrientation = zone.moduleOrientation || 'paysage';
             
             // Dimensions en mètres
             const moduleLongueur = moduleLongueurMM / 1000;
@@ -320,7 +444,17 @@ class Calpinage3DViewer {
                 emissiveIntensity: 0.1
             });
             
-            // Créer chaque module
+            // Calculer la hauteur de base selon le type d'installation
+            let baseHeight = this.buildingHeight;
+            if (typeInstallation === 'sol') {
+                baseHeight = 0.5;
+            } else if (typeInstallation === 'ombriere') {
+                const hauteur = parseFloat(document.getElementById('ombriereHauteur')?.value || 4.5);
+                const hauteurFerme = parseFloat(document.getElementById('ombriereHauteurFerme')?.value || 0.8);
+                baseHeight = hauteur + hauteurFerme;
+            }
+            
+            // Créer chaque module UNE SEULE FOIS
             zone.modulesPositions.forEach(modulePos => {
                 const meters = this.latLngToMeters(modulePos.lat, modulePos.lng);
                 
@@ -329,7 +463,7 @@ class Calpinage3DViewer {
                 // Position du module
                 module.position.set(
                     meters.x - centerX,
-                    this.buildingHeight + 0.1, // Légèrement au-dessus du toit
+                    baseHeight + this.moduleThickness/2,
                     meters.z - centerZ
                 );
                 
@@ -337,7 +471,7 @@ class Calpinage3DViewer {
                 const inclinaison = zone.inclinaison || 0;
                 module.rotation.x = -inclinaison * Math.PI / 180;
                 
-                // Rotation selon l'orientation du panneau
+                // Rotation selon l'orientation de la zone
                 const rotationAngle = zone.rotationAngle || 0;
                 module.rotation.y = -rotationAngle * Math.PI / 180;
                 
@@ -357,13 +491,12 @@ class Calpinage3DViewer {
      */
     latLngToMeters(lat, lng) {
         // Utiliser une projection simple pour la visualisation locale
-        // (pour de petites distances, on peut approximer)
-        const latRef = prospectLat || 46.5; // Centre France par défaut
+        const latRef = prospectLat || 46.5;
         const metersPerDegreeLat = 111320;
         const metersPerDegreeLng = 111320 * Math.cos(latRef * Math.PI / 180);
         
         const x = (lng - (prospectLon || 0)) * metersPerDegreeLng;
-        const z = -(lat - (prospectLat || 0)) * metersPerDegreeLat; // Inverser Z
+        const z = -(lat - (prospectLat || 0)) * metersPerDegreeLat;
         
         return { x, z };
     }
@@ -375,11 +508,8 @@ class Calpinage3DViewer {
         if (!this.sunLight) return;
         
         // Simulation simplifiée de la position du soleil
-        // Angle horaire (-180° à 180°, midi = 0°)
         const hourAngle = ((hour - 12) / 12) * 180;
-        
-        // Élévation selon le mois (été = haute, hiver = basse)
-        const elevation = 30 + (month - 6) * 5; // 30° à 60°
+        const elevation = 30 + (month - 6) * 5;
         
         const distance = 100;
         const elevationRad = elevation * Math.PI / 180;
@@ -402,12 +532,10 @@ class Calpinage3DViewer {
         
         requestAnimationFrame(() => this.animate());
         
-        // Mettre à jour les contrôles
         if (this.controls) {
             this.controls.update();
         }
         
-        // Rendu de la scène
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
         }
