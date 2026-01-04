@@ -119,17 +119,23 @@ class PlanMasseGeneratorV2:
         c.setLineWidth(2)
         c.rect(plan_x, plan_y, plan_width, plan_height)
         
-        # 🔥 STRATÉGIE CORRECTE : Préserver les proportions de l'image du calpinage
-        # L'image contient : satellite + modules positionnés + zones
-        # On doit centrer l'image sans la déformer pour garder l'échelle
+        # 🔥 STRATÉGIE NOUVELLE : Récupérer l'image satellite propre depuis l'API
+        # puis redessiner les modules avec les coordonnées GPS exactes
         
-        calpinage_image = self._get_calpinage_screenshot()
+        # Essayer d'abord avec les métadonnées de carte (plus précis)
+        satellite_image = self._get_satellite_from_map_metadata()
+        use_metadata = satellite_image is not None
         
-        if calpinage_image:
+        # Sinon, utiliser le screenshot capturé
+        if not satellite_image:
+            print("[PLAN] ℹ️ Utilisation du screenshot capturé")
+            satellite_image = self._get_calpinage_screenshot()
+        
+        if satellite_image:
             # Afficher l'image du calpinage EN PRÉSERVANT LES PROPORTIONS
             try:
                 # Obtenir les dimensions réelles de l'image
-                img = Image.open(calpinage_image)
+                img = Image.open(satellite_image)
                 img_width, img_height = img.size
                 print(f"[PLAN] 📏 Dimensions image: {img_width}x{img_height}px")
                 print(f"[PLAN] 📐 Zone PDF: {plan_width/cm:.1f}x{plan_height/cm:.1f}cm")
@@ -151,10 +157,10 @@ class PlanMasseGeneratorV2:
                 offset_y = (plan_height - new_height) / 2
                 
                 # Réinitialiser le buffer pour la relecture
-                calpinage_image.seek(0)
+                satellite_image.seek(0)
                 
                 # Dessiner l'image EN PRÉSERVANT LE RATIO (pas d'étirement)
-                c.drawImage(ImageReader(calpinage_image), 
+                c.drawImage(ImageReader(satellite_image), 
                           plan_x + offset_x, plan_y + offset_y, 
                           width=new_width, height=new_height,
                           preserveAspectRatio=True, mask='auto')
@@ -167,9 +173,30 @@ class PlanMasseGeneratorV2:
                 self.image_display_width = new_width
                 self.image_display_height = new_height
                 
-                # 🔥 L'image capturée contient DÉJÀ tout (satellite + modules + zones)
-                # Ne rien dessiner par-dessus pour éviter les décalages
-                print("[PLAN] ✅ Image complète affichée - aucun overlay nécessaire")
+                # 🔥 Si on a les métadonnées, compléter la projection pour dessiner les modules
+                if use_metadata and hasattr(self, 'projection'):
+                    self.projection['plan_x'] = plan_x + offset_x
+                    self.projection['plan_y'] = plan_y + offset_y
+                    self.projection['plan_width'] = new_width
+                    self.projection['plan_height'] = new_height
+                    
+                    # Recalculer meters_per_pixel pour la nouvelle taille PDF
+                    # L'image originale faisait img_width x img_height pixels
+                    # Elle est maintenant affichée en new_width x new_height points PDF
+                    # Donc : meters_per_pixel_pdf = meters_per_pixel_original * (pixels_original / points_pdf)
+                    scale_factor = img_width / new_width  # combien de pixels d'origine par point PDF
+                    self.projection['meters_per_pdf_point_x'] = self.projection['meters_per_pixel_x'] * scale_factor
+                    self.projection['meters_per_pdf_point_y'] = self.projection['meters_per_pixel_y'] * scale_factor
+                    
+                    print(f"[PLAN] 🎯 Projection GPS→PDF configurée")
+                    print(f"[PLAN] 📏 Échelle PDF: {self.projection['meters_per_pdf_point_x']:.4f}m/pt")
+                    
+                    # Redessiner les modules par-dessus l'image satellite propre
+                    self._draw_modules_from_calpinage_with_projection(c)
+                else:
+                    # L'image capturée contient DÉJÀ tout (satellite + modules + zones)
+                    # Ne rien dessiner par-dessus pour éviter les décalages
+                    print("[PLAN] ✅ Image complète affichée - aucun overlay nécessaire")
                 
             except Exception as e:
                 print(f"[PLAN] ❌ Erreur affichage image: {e}")
@@ -364,6 +391,84 @@ class PlanMasseGeneratorV2:
             print(f"[PLAN] Erreur décodage screenshot calpinage: {e}")
             return None
     
+    def _get_satellite_from_map_metadata(self):
+        """Récupère l'image satellite en utilisant les métadonnées de la carte sauvegardées"""
+        if not self.calpinage:
+            return None
+        
+        map_metadata = self.calpinage.get('map_metadata')
+        if not map_metadata or 'bounds' not in map_metadata:
+            print("[PLAN] ⚠️ Pas de métadonnées de carte - utilisation screenshot direct")
+            return None
+        
+        try:
+            bounds = map_metadata['bounds']
+            dimensions = map_metadata.get('dimensions', {})
+            
+            # Utiliser les dimensions de la capture originale
+            width = dimensions.get('width', 1200)
+            height = dimensions.get('height', 800)
+            
+            print(f"[PLAN] 🗺️ Récupération satellite avec bounds GPS: {bounds}")
+            print(f"[PLAN] 📐 Dimensions: {width}x{height}px")
+            
+            # ArcGIS World Imagery avec bbox exacte
+            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+            
+            bbox_str = f"{bounds['west']},{bounds['south']},{bounds['east']},{bounds['north']}"
+            
+            params = {
+                'bbox': bbox_str,
+                'bboxSR': '4326',
+                'size': f'{width},{height}',
+                'format': 'png',
+                'f': 'image'
+            }
+            
+            response = requests.get(url, params=params, timeout=15)
+            if response.status_code == 200:
+                print("[PLAN] ✅ Image satellite récupérée depuis l'API")
+                
+                # Sauvegarder les infos de projection pour redessiner les modules
+                self.projection = {
+                    'lat_center': map_metadata.get('center', {}).get('lat', bounds['south'] + (bounds['north'] - bounds['south'])/2),
+                    'lon_center': map_metadata.get('center', {}).get('lng', bounds['west'] + (bounds['east'] - bounds['west'])/2),
+                    'bounds': bounds,
+                    'width_px': width,
+                    'height_px': height
+                }
+                
+                # Calculer meters_per_pixel
+                lat_center = self.projection['lat_center']
+                lat_rad = math.radians(lat_center)
+                
+                # Largeur et hauteur en degrés
+                width_deg = bounds['east'] - bounds['west']
+                height_deg = bounds['north'] - bounds['south']
+                
+                # Conversion en mètres
+                meters_per_degree_lat = 111000
+                meters_per_degree_lon = 111000 * math.cos(lat_rad)
+                
+                width_meters = width_deg * meters_per_degree_lon
+                height_meters = height_deg * meters_per_degree_lat
+                
+                self.projection['meters_per_pixel_x'] = width_meters / width
+                self.projection['meters_per_pixel_y'] = height_meters / height
+                
+                print(f"[PLAN] 📏 Échelle: {self.projection['meters_per_pixel_x']:.3f}m/px (X), {self.projection['meters_per_pixel_y']:.3f}m/px (Y)")
+                
+                return io.BytesIO(response.content)
+            else:
+                print(f"[PLAN] ❌ Erreur API satellite: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            print(f"[PLAN] ❌ Erreur récupération satellite depuis métadonnées: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
     def _fetch_satellite_with_bbox(self, lat, lon, bbox_meters):
         """Récupère image satellite avec bbox précise"""
         try:
@@ -504,6 +609,94 @@ class PlanMasseGeneratorV2:
         c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold", 9)
         c.drawCentredString(pdf_x, pdf_y, "BÂTIMENT")
+    
+    def _draw_modules_from_calpinage_with_projection(self, c):
+        """Dessine les modules PV en utilisant la projection GPS précise depuis les métadonnées"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            return
+        
+        if not hasattr(self, 'projection') or 'bounds' not in self.projection:
+            print("[PLAN] ⚠️ Pas de projection GPS disponible")
+            return
+        
+        print(f"[PLAN] 🎨 Dessin de {len(self.calpinage['zones'])} zones avec projection GPS précise...")
+        
+        proj = self.projection
+        bounds = proj['bounds']
+        
+        for zone in self.calpinage['zones']:
+            # Utiliser modulesPositions si disponible (plus précis)
+            modules_positions = zone.get('modulesPositions', [])
+            
+            if modules_positions:
+                print(f"[PLAN] Zone {zone.get('numero', '?')}: {len(modules_positions)} modules avec positions GPS")
+                
+                for mod_idx, mod in enumerate(modules_positions):
+                    corners = mod.get('corners', [])
+                    if len(corners) >= 4:
+                        # Dessiner chaque module
+                        path = c.beginPath()
+                        first = True
+                        
+                        for corner in corners:
+                            lat, lng = corner.get('lat'), corner.get('lng')
+                            if lat and lng:
+                                # Conversion GPS → coordonnées PDF
+                                # Normaliser dans la bbox
+                                norm_x = (lng - bounds['west']) / (bounds['east'] - bounds['west'])
+                                norm_y = (bounds['north'] - lat) / (bounds['north'] - bounds['south'])  # Inverser Y
+                                
+                                # Position dans le PDF
+                                pdf_x = proj['plan_x'] + norm_x * proj['plan_width']
+                                pdf_y = proj['plan_y'] + norm_y * proj['plan_height']
+                                
+                                if first:
+                                    path.moveTo(pdf_x, pdf_y)
+                                    first = False
+                                else:
+                                    path.lineTo(pdf_x, pdf_y)
+                        
+                        if not first:  # Au moins un point dessiné
+                            path.close()
+                            
+                            # Style module
+                            c.setFillColor(colors.HexColor('#4285F4'), alpha=0.5)
+                            c.setStrokeColor(colors.HexColor('#1976D2'))
+                            c.setLineWidth(0.3)
+                            c.drawPath(path, stroke=1, fill=1)
+                
+                # Dessiner contour de zone
+                coordinates = zone.get('coordinates', [])
+                if coordinates and len(coordinates) >= 3:
+                    path = c.beginPath()
+                    first = True
+                    
+                    for coord in coordinates:
+                        lat, lng = coord.get('lat'), coord.get('lng')
+                        if lat and lng:
+                            norm_x = (lng - bounds['west']) / (bounds['east'] - bounds['west'])
+                            norm_y = (bounds['north'] - lat) / (bounds['north'] - bounds['south'])
+                            
+                            pdf_x = proj['plan_x'] + norm_x * proj['plan_width']
+                            pdf_y = proj['plan_y'] + norm_y * proj['plan_height']
+                            
+                            if first:
+                                path.moveTo(pdf_x, pdf_y)
+                                first = False
+                            else:
+                                path.lineTo(pdf_x, pdf_y)
+                    
+                    if not first:
+                        path.close()
+                        c.setStrokeColor(colors.HexColor('#FF6B00'))
+                        c.setLineWidth(2)
+                        c.setDash(4, 2)
+                        c.drawPath(path, stroke=1, fill=0)
+                        c.setDash()
+                
+                print(f"[PLAN] ✅ Zone {zone.get('numero', '?')} dessinée avec {len(modules_positions)} modules")
+            else:
+                print(f"[PLAN] ⚠️ Zone {zone.get('numero', '?')}: pas de modulesPositions - fallback ignoré")
     
     def _draw_modules_from_calpinage(self, c):
         """Dessine les modules PV depuis les coordonnées GPS EXACTES du calpinage"""

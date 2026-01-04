@@ -3412,7 +3412,22 @@
             
             // Capturer screenshot avec la fonction centralisée
             console.log('📸 Capture screenshot de la carte...');
-            data.screenshot_map = await captureMapScreenshot();
+            const captureData = await captureMapScreenshot();
+            
+            // 🔥 NOUVEAU: Sauvegarder le screenshot ET les métadonnées de la carte
+            if (typeof captureData === 'object' && captureData.screenshot) {
+                data.screenshot_map = captureData.screenshot;
+                data.map_metadata = {
+                    bounds: captureData.bounds,
+                    center: captureData.center,
+                    zoom: captureData.zoom,
+                    dimensions: captureData.dimensions
+                };
+                console.log('📍 Métadonnées carte sauvegardées:', data.map_metadata);
+            } else {
+                // Ancien format (rétrocompatibilité)
+                data.screenshot_map = captureData;
+            }
             
             console.log('Données à sauvegarder:', data);
             
@@ -3530,12 +3545,16 @@
             const mapContainer = document.getElementById('map');
             const rect = mapContainer.getBoundingClientRect();
             
-            // Masquer les contrôles
+            // Masquer les contrôles ET les attributions
             const controls = document.querySelectorAll('.leaflet-control');
             controls.forEach(ctrl => ctrl.style.visibility = 'hidden');
             
-            // Attendre stabilisation
-            await new Promise(resolve => setTimeout(resolve, 300));
+            // 🔥 NOUVEAU: Forcer le rendu des tuiles avant capture
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // 🔥 NOUVEAU: Scroll map to (0,0) pour éviter les décalages de rendu
+            const mapPane = mapContainer.querySelector('.leaflet-map-pane');
+            const originalTransform = mapPane ? mapPane.style.transform : '';
             
             console.log('📸 Capture en cours...', rect.width + 'x' + rect.height + 'px');
             
@@ -3546,10 +3565,17 @@
                     backgroundColor: null,
                     width: rect.width,
                     height: rect.height,
-                    // 🔥 CORRECTION: Réduire scale à 1 pour éviter distorsion
-                    // scale: 2 double les pixels et peut créer des décalages
                     scale: 1,
-                    logging: false
+                    logging: false,
+                    // 🔥 NOUVEAU: Options pour améliorer la capture
+                    foreignObjectRendering: false,
+                    imageTimeout: 0,
+                    removeContainer: false,
+                    // Capturer exactement ce qui est visible
+                    windowWidth: rect.width,
+                    windowHeight: rect.height,
+                    x: 0,
+                    y: 0
                 });
                 
                 // Restaurer les contrôles
@@ -3558,7 +3584,27 @@
                 const screenshot = canvas.toDataURL('image/png');
                 console.log('✅ Screenshot capturé:', canvas.width + 'x' + canvas.height + 'px');
                 console.log('📐 Ratio image:', (canvas.width / canvas.height).toFixed(2));
-                return screenshot;
+                
+                // 🔥 NOUVEAU: Retourner aussi les bounds GPS de la carte
+                const bounds = map.getBounds();
+                return {
+                    screenshot: screenshot,
+                    bounds: {
+                        north: bounds.getNorth(),
+                        south: bounds.getSouth(),
+                        east: bounds.getEast(),
+                        west: bounds.getWest()
+                    },
+                    center: {
+                        lat: map.getCenter().lat,
+                        lng: map.getCenter().lng
+                    },
+                    zoom: map.getZoom(),
+                    dimensions: {
+                        width: canvas.width,
+                        height: canvas.height
+                    }
+                };
             } catch (err) {
                 controls.forEach(ctrl => ctrl.style.visibility = '');
                 console.error('❌ Erreur capture:', err);
