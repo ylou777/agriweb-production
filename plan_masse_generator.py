@@ -84,35 +84,36 @@ class PlanMasseGenerator:
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
         
-        # 🔥 CALCUL DES BOUNDS À PARTIR DES MODULES RÉELS (plus précis que map_metadata)
-        bounds_from_modules = self._calculate_bounds_from_modules()
+        # Récupérer les métadonnées de la carte (bounds GPS exacts du screenshot)
+        map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
+        map_bounds = map_metadata.get('bounds', {}) if map_metadata else {}
         
-        if bounds_from_modules:
-            # Utiliser les bounds calculés depuis les positions réelles des modules
-            lat_north = bounds_from_modules['north']
-            lat_south = bounds_from_modules['south']
-            lon_east = bounds_from_modules['east']
-            lon_west = bounds_from_modules['west']
+        print(f"[PLAN] map_metadata trouvé: {'✅' if map_metadata else '❌'}")
+        if map_bounds:
+            print(f"[PLAN] bounds GPS: N={map_bounds.get('north')}, S={map_bounds.get('south')}, E={map_bounds.get('east')}, W={map_bounds.get('west')}")
+        
+        # Utiliser les bounds exacts si disponibles, sinon calculer
+        if map_bounds:
+            # Bounds exacts de la carte Leaflet
+            lat_north = map_bounds.get('north', lat)
+            lat_south = map_bounds.get('south', lat)
+            lon_east = map_bounds.get('east', lon)
+            lon_west = map_bounds.get('west', lon)
+            
+            # Centre des bounds
             lat_center = (lat_north + lat_south) / 2
             lon_center = (lon_east + lon_west) / 2
-            print(f"[PLAN] ✅ Bounds calculés depuis modules: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
         else:
-            # Fallback: récupérer les métadonnées de la carte
-            map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
-            map_bounds = map_metadata.get('bounds', {}) if map_metadata else {}
-            
-            print(f"[PLAN] map_metadata trouvé: {'✅' if map_metadata else '❌'}")
-            if map_bounds:
-                print(f"[PLAN] bounds GPS: N={map_bounds.get('north')}, S={map_bounds.get('south')}, E={map_bounds.get('east')}, W={map_bounds.get('west')}")
-            
-            # Utiliser les bounds exacts si disponibles, sinon calculer
-            if map_bounds:
-                lat_north = map_bounds.get('north', lat)
-                lat_south = map_bounds.get('south', lat)
-                lon_east = map_bounds.get('east', lon)
-                lon_west = map_bounds.get('west', lon)
+            # Fallback: calculer depuis les modules
+            bounds_from_modules = self._calculate_bounds_from_modules()
+            if bounds_from_modules:
+                lat_north = bounds_from_modules['north']
+                lat_south = bounds_from_modules['south']
+                lon_east = bounds_from_modules['east']
+                lon_west = bounds_from_modules['west']
                 lat_center = (lat_north + lat_south) / 2
                 lon_center = (lon_east + lon_west) / 2
+                print(f"[PLAN] Bounds calculés depuis modules")
             else:
                 # Fallback final: utiliser position du prospect
                 lat_center = lat
@@ -126,19 +127,28 @@ class PlanMasseGenerator:
                 lon_west = lon - delta_lon
         
         if lat and lon:
-            # 🔥 NE PAS utiliser le screenshot car il peut avoir des décalages
-            # Télécharger l'image satellite avec les bounds EXACTS des modules
-            satellite_img = self._fetch_satellite_image_with_bounds(
-                lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
-            )
-            if satellite_img:
-                print(f"[PLAN] ✅ Image satellite téléchargée avec bounds exacts")
-                c.drawImage(ImageReader(satellite_img), 
+            # Priorité 1: Utiliser le screenshot de la carte si disponible
+            map_image = self._get_map_screenshot()
+            if map_image:
+                print(f"[PLAN] ✅ Utilisation screenshot carte")
+                c.drawImage(ImageReader(map_image), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
                           preserveAspectRatio=False, mask='auto')
             else:
-                print(f"[PLAN] ❌ Échec téléchargement image satellite")
+                # Priorité 2: Image satellite avec bbox correcte
+                print(f"[PLAN] Téléchargement image satellite...")
+                satellite_img = self._fetch_satellite_image_with_bounds(
+                    lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
+                )
+                if satellite_img:
+                    print(f"[PLAN] ✅ Image satellite téléchargée")
+                    c.drawImage(ImageReader(satellite_img), 
+                              plan_x, plan_y, 
+                              width=plan_width, height=plan_height,
+                              preserveAspectRatio=False, mask='auto')
+                else:
+                    print(f"[PLAN] ❌ Pas d'image de fond disponible")
         
         # Système de coordonnées : conversion GPS → PDF
         # Utilise les MÊMES bounds que l'image affichée
