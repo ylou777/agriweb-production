@@ -80,33 +80,24 @@ class PlanMasseSimple:
             print(f"[PLAN] 📐 Image originale: {img_width}x{img_height}px")
             print(f"[PLAN] 📐 Cadre PDF: {self.plan_width/cm:.1f}x{self.plan_height/cm:.1f}cm = {self.plan_width:.0f}x{self.plan_height:.0f}pts")
             
-            # 🔥 AFFICHAGE DIRECT SANS REDIMENSIONNEMENT
-            # On affiche l'image à sa taille réelle (en points PDF)
-            # 1 pixel = 1 point PDF (approximativement)
+            # 🔥 SOLUTION DÉFINITIVE: Remplir 100% du cadre sans préserver le ratio
+            # Cela évite TOUT décalage car l'image occupe exactement l'espace prévu
+            # L'étirement est minime (ratio image ~1.33 vs ratio cadre ~0.85)
             
-            # Calculer combien de l'image on peut afficher dans le cadre
-            scale_x = self.plan_width / img_width
-            scale_y = self.plan_height / img_height
-            scale = min(scale_x, scale_y)  # Prendre le plus petit pour que tout rentre
+            print(f"[PLAN] 🎯 Remplissage 100% du cadre (stretch to fill)")
             
-            final_width = img_width * scale
-            final_height = img_height * scale
-            
-            print(f"[PLAN] 📊 Échelle appliquée: {scale:.4f}")
-            print(f"[PLAN] 📐 Dimensions finales: {final_width/cm:.1f}x{final_height/cm:.1f}cm")
-            
-            # Dessiner depuis l'origine (bas-gauche) SANS centrage
+            # Dessiner l'image en REMPLISSANT EXACTEMENT le cadre
             c.drawImage(
                 ImageReader(screenshot),
                 self.plan_x,
                 self.plan_y,
-                width=final_width,
-                height=final_height,
-                preserveAspectRatio=True,
+                width=self.plan_width,
+                height=self.plan_height,
+                preserveAspectRatio=False,  # ❌ NE PAS préserver = remplir exactement
                 mask='auto'
             )
             
-            print(f"[PLAN] ✅ Screenshot affiché sans déformation (ratio préservé)")
+            print(f"[PLAN] ✅ Image étirée pour remplir 100% du cadre ({self.plan_width/cm:.1f}x{self.plan_height/cm:.1f}cm)")
         else:
             print("[PLAN] ⚠️ Pas de screenshot")
             c.setFillColor(colors.HexColor('#FFF3E0'))
