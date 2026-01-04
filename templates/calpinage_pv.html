@@ -1734,6 +1734,8 @@
             document.getElementById('toolDelete').addEventListener('click', function() {
                 setActiveTool('delete');
                 if (activeDrawHandler) activeDrawHandler.disable();
+                if (editHandler) editHandler.disable();
+                
                 // Activer le mode suppression
                 if (!deleteHandler) {
                     deleteHandler = new L.EditToolbar.Delete(map, {
@@ -1750,6 +1752,15 @@
                         layer._path.style.stroke = '#dc3545';
                     }
                 });
+                
+                // Écouter l'événement de sauvegarde de la suppression
+                deleteHandler.save = function() {
+                    this._deletableLayers.eachLayer(function(layer) {
+                        supprimerZone(layer._leaflet_id);
+                    });
+                    this._deletableLayers = new L.LayerGroup();
+                    this.disable();
+                };
             });
             
             // Bouton effacer mesures
@@ -3343,6 +3354,13 @@
         // Effacer toutes les zones
         document.getElementById('clearAllZones').addEventListener('click', function() {
             if (confirm('Effacer toutes les zones ?')) {
+                // Supprimer tous les groupes de modules avant de vider drawnItems
+                zones.forEach(zone => {
+                    if (zone.moduleGroup) {
+                        map.removeLayer(zone.moduleGroup);
+                    }
+                });
+                
                 drawnItems.clearLayers();
                 
                 // Supprimer toutes les poignées de rotation
@@ -3356,6 +3374,9 @@
                     '<p class="text-muted text-center">Aucune zone définie</p>';
                 document.getElementById('zonesCount').textContent = '0';
                 calculerTotaux();
+                
+                // Mettre à jour la vue 3D si active
+                update3DFromZones();
             }
         });
 
@@ -3915,23 +3936,13 @@
                 container3D.style.display = 'none';
                 mapCard.style.display = 'block';
             } else {
-                // Capturer l'image satellite AVANT de masquer la carte
-                captureSatelliteTexture().then(() => {
-                    // Activer la vue 3D après capture
-                    container3D.style.display = 'block';
-                    mapCard.style.display = 'none';
-                    viewer3D.toggle();
-                    
-                    // Mettre à jour avec les zones actuelles
-                    update3DFromZones();
-                }).catch(err => {
-                    console.error('❌ Erreur capture satellite:', err);
-                    // Activer quand même la vue 3D
-                    container3D.style.display = 'block';
-                    mapCard.style.display = 'none';
-                    viewer3D.toggle();
-                    update3DFromZones();
-                });
+                // Activer la vue 3D
+                container3D.style.display = 'block';
+                mapCard.style.display = 'none';
+                viewer3D.toggle();
+                
+                // Mettre à jour avec les zones actuelles
+                update3DFromZones();
             }
         }
         
@@ -3980,6 +3991,11 @@
             // Ajouter les modules PV en 3D
             viewer3D.addModules3D(zones);
             
+            // Capturer et appliquer l'image satellite comme texture du sol (avec délai)
+            setTimeout(() => {
+                captureSatelliteTexture();
+            }, 500); // Attendre que les tuiles satellite se chargent
+            
             console.log(`✅ Vue 3D mise à jour: ${zones.length} zone(s) chargées`);
         }
         
@@ -4018,20 +4034,13 @@
                     height: mapContainer.offsetHeight
                 });
                 
-                if (!canvas || canvas.width === 0 || canvas.height === 0) {
-                    console.error('❌ Canvas vide ou invalide:', canvas?.width, 'x', canvas?.height);
+                if (!canvas) {
+                    console.error('❌ Échec création canvas');
                     return;
                 }
-                
-                console.log('✅ Canvas créé:', canvas.width, 'x', canvas.height);
                 
                 // Convertir en JPEG avec compression pour réduire la taille
                 const imageUrl = canvas.toDataURL('image/jpeg', 0.7);
-                
-                if (!imageUrl || imageUrl === 'data:,' || imageUrl.length < 100) {
-                    console.error('❌ DataURL vide ou invalide');
-                    return;
-                }
                 
                 console.log('✅ Image satellite capturée:', imageUrl.substring(0, 50) + '...', `(${(imageUrl.length/1024).toFixed(0)} KB)`);
                 

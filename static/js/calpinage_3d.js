@@ -342,6 +342,11 @@ class Calpinage3DViewer {
             group.add(faitiere);
         }
         
+        // Appliquer la rotation de la structure selon l'orientation de la zone
+        const orientation = zone.orientation || 180;
+        const rotationAngle = zone.rotationAngle || 0;
+        group.rotation.y = -rotationAngle * Math.PI / 180;
+        
         return group;
     }
     
@@ -393,6 +398,8 @@ class Calpinage3DViewer {
      * Ajouter les modules PV en 3D (VERSION CORRIGÉE - un seul affichage)
      */
     addModules3D(zones) {
+        console.log(`🔧 [addModules3D] Début - ${this.modules3D.length} groupes existants à supprimer`);
+        
         // Supprimer les anciens modules
         this.modules3D.forEach(module => {
             this.scene.remove(module);
@@ -416,9 +423,16 @@ class Calpinage3DViewer {
         // Récupérer le type d'installation
         const typeInstallation = document.getElementById('typeInstallation')?.value || 'toiture';
         
+        let totalModulesCount = 0;
+        
         // Créer les modules pour chaque zone
-        zones.forEach(zone => {
-            if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
+        zones.forEach((zone, zoneIndex) => {
+            if (!zone.modulesPositions || zone.modulesPositions.length === 0) {
+                console.log(`⚠️ Zone ${zone.numero}: aucun module`);
+                return;
+            }
+            
+            console.log(`📦 Zone ${zone.numero}: ${zone.modulesPositions.length} positions de modules`);
             
             const moduleLongueurMM = parseFloat(document.getElementById('moduleLongueur')?.value || 2278);
             const moduleLargeurMM = parseFloat(document.getElementById('moduleLargeur')?.value || 1134);
@@ -454,36 +468,56 @@ class Calpinage3DViewer {
                 baseHeight = hauteur + hauteurFerme;
             }
             
-            // Créer chaque module UNE SEULE FOIS
+            // Créer un groupe pour tous les modules de cette zone
+            const zoneModulesGroup = new THREE.Group();
+            
+            // Calculer le centre de la zone pour la rotation
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
+            const centerMeters = this.latLngToMeters(center.lat, center.lng);
+            
+            // Créer chaque module
             zone.modulesPositions.forEach(modulePos => {
                 const meters = this.latLngToMeters(modulePos.lat, modulePos.lng);
                 
                 const module = new THREE.Mesh(moduleGeometry, moduleMaterial);
                 
-                // Position du module
+                // Position relative au centre de la zone
                 module.position.set(
-                    meters.x - centerX,
+                    meters.x - centerMeters.x,
                     baseHeight + this.moduleThickness/2,
-                    meters.z - centerZ
+                    meters.z - centerMeters.z
                 );
                 
-                // Inclinaison du module
+                // Inclinaison du module (plan incliné global, pas individuel)
                 const inclinaison = zone.inclinaison || 0;
                 module.rotation.x = -inclinaison * Math.PI / 180;
-                
-                // Rotation selon l'orientation de la zone
-                const rotationAngle = zone.rotationAngle || 0;
-                module.rotation.y = -rotationAngle * Math.PI / 180;
                 
                 module.castShadow = true;
                 module.receiveShadow = true;
                 
-                this.scene.add(module);
-                this.modules3D.push(module);
+                zoneModulesGroup.add(module);
             });
+            
+            // Positionner le groupe au centre de la zone
+            zoneModulesGroup.position.set(
+                centerMeters.x - centerX,
+                0,
+                centerMeters.z - centerZ
+            );
+            
+            // Rotation du groupe entier selon l'orientation de la zone
+            const rotationAngle = zone.rotationAngle || 0;
+            zoneModulesGroup.rotation.y = -rotationAngle * Math.PI / 180;
+            
+            totalModulesCount += zone.modulesPositions.length;
+            console.log(`✅ Zone ${zone.numero}: ${zone.modulesPositions.length} modules créés (rotation: ${rotationAngle}°)`);
+            
+            this.scene.add(zoneModulesGroup);
+            this.modules3D.push(zoneModulesGroup);
         });
         
-        console.log(`✅ ${this.modules3D.length} modules PV ajoutés en 3D`);
+        console.log(`✅ [addModules3D] Total: ${this.modules3D.length} groupes de zones, ${totalModulesCount} modules individuels créés`);
     }
     
     /**

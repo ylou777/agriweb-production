@@ -1262,8 +1262,11 @@ class Calpinage3DViewer {
      * Créer structure ombrière de parking avec normes
      * Normes parking: 5m largeur x 2.5m profondeur par place
      * Structure: piliers tous les 5m, pannes tous les 2.5m, fermes triangulaires
+     * @param zone - Zone de calpinage
+     * @param centerX - Centre X global pour positionnement relatif
+     * @param centerZ - Centre Z global pour positionnement relatif
      */
-    createOmbriereStructure(zone) {
+    createOmbriereStructure(zone, centerX, centerZ) {
         const bounds = zone.layer.getBounds();
         const center = bounds.getCenter();
         const centerMeters = this.latLngToMeters(center.lat, center.lng);
@@ -1306,9 +1309,9 @@ class Calpinage3DViewer {
                 
                 const pilier = new THREE.Mesh(pilierGeometry, metalMaterial);
                 pilier.position.set(
-                    centerMeters.x + x,
+                    (centerMeters.x - centerX) + x,
                     hauteurPilier / 2,
-                    centerMeters.z + z
+                    (centerMeters.z - centerZ) + z
                 );
                 pilier.castShadow = true;
                 pilier.receiveShadow = true;
@@ -1325,9 +1328,9 @@ class Calpinage3DViewer {
             const z = -depth/2 + i * placeDepth;
             const panne = new THREE.Mesh(panneGeometry, metalMaterial);
             panne.position.set(
-                centerMeters.x,
+                centerMeters.x - centerX,
                 hauteurPilier,
-                centerMeters.z + z
+                (centerMeters.z - centerZ) + z
             );
             panne.castShadow = true;
             structureGroup.add(panne);
@@ -1345,9 +1348,9 @@ class Calpinage3DViewer {
             const traverseGeometry = new THREE.BoxGeometry(width, fermeWidth, fermeWidth);
             const traverse = new THREE.Mesh(traverseGeometry, metalMaterial);
             traverse.position.set(
-                centerMeters.x,
+                centerMeters.x - centerX,
                 hauteurPilier + hauteurFerme,
-                centerMeters.z + zCenter
+                (centerMeters.z - centerZ) + zCenter
             );
             structureGroup.add(traverse);
             
@@ -1363,9 +1366,9 @@ class Calpinage3DViewer {
                 const diag1 = new THREE.Mesh(diag1Geometry, metalMaterial);
                 const angle1 = Math.atan2(hauteurFerme, placeWidth/2);
                 diag1.position.set(
-                    centerMeters.x + xCenter - placeWidth/4,
+                    (centerMeters.x - centerX) + xCenter - placeWidth/4,
                     hauteurPilier + hauteurFerme/2,
-                    centerMeters.z + zCenter
+                    (centerMeters.z - centerZ) + zCenter
                 );
                 diag1.rotation.x = Math.PI / 2;
                 diag1.rotation.z = -angle1;
@@ -1373,7 +1376,7 @@ class Calpinage3DViewer {
                 
                 // Diagonale droite
                 const diag2 = diag1.clone();
-                diag2.position.x = centerMeters.x + xCenter + placeWidth/4;
+                diag2.position.x = (centerMeters.x - centerX) + xCenter + placeWidth/4;
                 diag2.rotation.z = angle1;
                 structureGroup.add(diag2);
             }
@@ -1381,34 +1384,8 @@ class Calpinage3DViewer {
         
         console.log(`🏗️ Ombrière: ${nbPiliersDepth - 1} fermes triangulaires (section ${fermeWidth*100}cm, hauteur ${hauteurFerme}m)`);
         
-        // 4. TOIT DE PANNEAUX PV (plan incliné au-dessus de la structure)
-        const toitPVGeometry = new THREE.PlaneGeometry(width, depth);
-        const toitPVMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1e3a8a,        // Bleu foncé (panneaux PV)
-            emissive: 0x1e40af,     // Légère émission bleue
-            emissiveIntensity: 0.2,
-            roughness: 0.3,
-            metalness: 0.4,
-            side: THREE.DoubleSide
-        });
-        const toitPV = new THREE.Mesh(toitPVGeometry, toitPVMaterial);
-        
-        // Positionner le toit au sommet de la structure
-        toitPV.position.set(
-            centerMeters.x,
-            hauteurPilier + hauteurFerme,
-            centerMeters.z
-        );
-        
-        // Incliner légèrement le toit (5° vers le sud pour évacuation eau)
-        toitPV.rotation.x = -Math.PI / 2; // Horizontal
-        toitPV.rotation.z = 5 * Math.PI / 180; // Légère inclinaison 5°
-        
-        toitPV.receiveShadow = true;
-        toitPV.castShadow = true;
-        structureGroup.add(toitPV);
-        
-        console.log(`☀️ Ombrière: Toit PV ${width.toFixed(1)}×${depth.toFixed(1)}m ajouté`);
+        // ❌ SUPPRIMÉ: Le toit PV était créé ici en doublon
+        // Les modules PV seront créés par addModules3D() pour un positionnement précis
         
         this.scene.add(structureGroup);
         return structureGroup;
@@ -1440,10 +1417,23 @@ class Calpinage3DViewer {
         const zonesBatiment = zones.filter(z => z.typeInstallation !== 'ombriere');
         const zonesOmbriere = zones.filter(z => z.typeInstallation === 'ombriere');
         
+        // Calculer le centre global pour les ombrières
+        let centerXOmb = 0, centerZOmb = 0;
+        if (zonesOmbriere.length > 0) {
+            zonesOmbriere.forEach(zone => {
+                const bounds = zone.layer.getBounds();
+                const center = bounds.getCenter();
+                centerXOmb += this.latLngToMeters(center.lat, center.lng).x;
+                centerZOmb += this.latLngToMeters(center.lat, center.lng).z;
+            });
+            centerXOmb /= zonesOmbriere.length;
+            centerZOmb /= zonesOmbriere.length;
+        }
+        
         // Créer les ombrières
         zonesOmbriere.forEach(zone => {
             console.log(`🅿️ Création ombrière pour zone ${zone.numero}`);
-            const ombriereStructure = this.createOmbriereStructure(zone);
+            const ombriereStructure = this.createOmbriereStructure(zone, centerXOmb, centerZOmb);
             this.ombrieres.push(ombriereStructure);
         });
         
@@ -1643,12 +1633,22 @@ class Calpinage3DViewer {
                 
                 const module = new THREE.Mesh(moduleGeometry, moduleMaterial);
                 
-                // Position du module
-                module.position.set(
-                    meters.x - centerX,
-                    this.buildingHeight + 0.1, // Légèrement au-dessus du toit
-                    meters.z - centerZ
-                );
+                // Position du module - ALIGNÉE AVEC LA STRUCTURE
+                // Pour les ombrières, utiliser les coordonnées absolutes comme la structure
+                if (typeInstallation === 'ombriere') {
+                    module.position.set(
+                        meters.x,
+                        baseHeight + this.moduleThickness/2,
+                        meters.z
+                    );
+                } else {
+                    // Pour toiture/sol, utiliser le système relatif au centre global
+                    module.position.set(
+                        meters.x - centerX,
+                        baseHeight + this.moduleThickness/2,
+                        meters.z - centerZ
+                    );
+                }
                 
                 // Inclinaison du module
                 const inclinaison = zone.inclinaison || 0;
