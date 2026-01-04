@@ -342,6 +342,11 @@ class Calpinage3DViewer {
             group.add(faitiere);
         }
         
+        // Appliquer la rotation de la structure selon l'orientation de la zone
+        const orientation = zone.orientation || 180;
+        const rotationAngle = zone.rotationAngle || 0;
+        group.rotation.y = -rotationAngle * Math.PI / 180;
+        
         return group;
     }
     
@@ -454,33 +459,50 @@ class Calpinage3DViewer {
                 baseHeight = hauteur + hauteurFerme;
             }
             
-            // Créer chaque module UNE SEULE FOIS
+            // Créer un groupe pour tous les modules de cette zone
+            const zoneModulesGroup = new THREE.Group();
+            
+            // Calculer le centre de la zone pour la rotation
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
+            const centerMeters = this.latLngToMeters(center.lat, center.lng);
+            
+            // Créer chaque module
             zone.modulesPositions.forEach(modulePos => {
                 const meters = this.latLngToMeters(modulePos.lat, modulePos.lng);
                 
                 const module = new THREE.Mesh(moduleGeometry, moduleMaterial);
                 
-                // Position du module
+                // Position relative au centre de la zone
                 module.position.set(
-                    meters.x - centerX,
+                    meters.x - centerMeters.x,
                     baseHeight + this.moduleThickness/2,
-                    meters.z - centerZ
+                    meters.z - centerMeters.z
                 );
                 
-                // Inclinaison du module
+                // Inclinaison du module (plan incliné global, pas individuel)
                 const inclinaison = zone.inclinaison || 0;
                 module.rotation.x = -inclinaison * Math.PI / 180;
-                
-                // Rotation selon l'orientation de la zone
-                const rotationAngle = zone.rotationAngle || 0;
-                module.rotation.y = -rotationAngle * Math.PI / 180;
                 
                 module.castShadow = true;
                 module.receiveShadow = true;
                 
-                this.scene.add(module);
-                this.modules3D.push(module);
+                zoneModulesGroup.add(module);
             });
+            
+            // Positionner le groupe au centre de la zone
+            zoneModulesGroup.position.set(
+                centerMeters.x - centerX,
+                0,
+                centerMeters.z - centerZ
+            );
+            
+            // Rotation du groupe entier selon l'orientation de la zone
+            const rotationAngle = zone.rotationAngle || 0;
+            zoneModulesGroup.rotation.y = -rotationAngle * Math.PI / 180;
+            
+            this.scene.add(zoneModulesGroup);
+            this.modules3D.push(zoneModulesGroup);
         });
         
         console.log(`✅ ${this.modules3D.length} modules PV ajoutés en 3D`);
