@@ -13,6 +13,8 @@ import zipfile
 from declaration_prealable_generator import generate_declaration_prealable_complete
 from plan_masse_generator_v2 import generate_plan_masse
 from plan_masse_simple import generate_plan_masse_simple
+# Import du générateur principal corrigé
+from plan_masse_generator import generate_plan_masse as generate_plan_masse_main
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -3530,10 +3532,11 @@ def register_crm_routes(app):
             
             if calpinage_data:
                 nb_modules = sum(z.get('nbModules', 0) for z in calpinage_data.get('zones', []))
-                print(f"✓ Calpinage: {nb_modules} modules")
+                has_metadata = 'map_metadata' in calpinage_data
+                print(f"✓ Calpinage: {nb_modules} modules, map_metadata={'✅' if has_metadata else '❌'}")
             
-            # 3. Générer le plan de masse SIMPLIFIÉ (sans capture d'écran)
-            pdf_buffer = generate_plan_masse_simple(prospect_data, calpinage_data)
+            # 3. Générer le plan de masse avec le générateur CORRIGÉ
+            pdf_buffer = generate_plan_masse_main(prospect_data, calpinage_data)
             
             # 4. Nom du fichier
             commune = prospect_data.get('commune', 'Inconnu').replace(' ', '_')

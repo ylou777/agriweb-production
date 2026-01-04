@@ -85,8 +85,13 @@ class PlanMasseGenerator:
         lon = self.data.get('longitude')
         
         # Récupérer les métadonnées de la carte (bounds GPS exacts du screenshot)
-        map_metadata = self.data.get('map_metadata', {})
-        map_bounds = map_metadata.get('bounds', {})
+        # map_metadata peut être dans prospect_data OU dans calpinage
+        map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
+        map_bounds = map_metadata.get('bounds', {}) if map_metadata else {}
+        
+        print(f"[PLAN] map_metadata trouvé: {'✅' if map_metadata else '❌'}")
+        if map_bounds:
+            print(f"[PLAN] bounds GPS: N={map_bounds.get('north')}, S={map_bounds.get('south')}, E={map_bounds.get('east')}, W={map_bounds.get('west')}")
         
         # Utiliser les bounds exacts si disponibles, sinon calculer
         if map_bounds:
@@ -845,10 +850,16 @@ class PlanMasseGenerator:
     
     def _get_map_screenshot(self):
         """Récupère le screenshot de la carte Leaflet si disponible"""
-        screenshot_data = self.data.get('map_screenshot')
+        # Screenshot peut être dans prospect_data OU dans calpinage
+        screenshot_data = self.data.get('map_screenshot') or self.data.get('screenshot_map')
+        if not screenshot_data and self.calpinage:
+            screenshot_data = self.calpinage.get('screenshot_map')
         
         if not screenshot_data:
+            print("[PLAN] Pas de screenshot trouvé")
             return None
+        
+        print(f"[PLAN] Screenshot trouvé: {len(screenshot_data)} chars")
         
         try:
             # Si c'est une data URL base64
