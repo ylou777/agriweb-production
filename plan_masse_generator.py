@@ -405,21 +405,63 @@ class PlanMasseGenerator:
                 break  # Une seule fois pour toutes les zones sans GPS
     
     def _draw_modules_from_positions(self, c, modules_positions, zone):
-        """Dessine chaque module à sa position GPS exacte"""
+        """Dessine chaque module avec ses 4 coins GPS EXACTS (comme dans Leaflet)"""
         if not modules_positions:
             return
         
-        # Dimensions module
+        c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu foncé
+        c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
+        c.setLineWidth(0.5)
+        
+        # Dessiner chaque module avec ses vraies coordonnées de coins
+        for module_pos in modules_positions:
+            corners = module_pos.get('corners', [])
+            
+            if not corners or len(corners) < 4:
+                # Fallback : utiliser le centre si pas de coins
+                lat = module_pos.get('lat')
+                lng = module_pos.get('lng')
+                if lat and lng:
+                    self._draw_module_as_rectangle(c, lat, lng, zone)
+                continue
+            
+            # Dessiner le polygone module avec ses 4 coins EXACTS
+            path = c.beginPath()
+            first = True
+            
+            for corner in corners:
+                corner_lat = corner.get('lat')
+                corner_lng = corner.get('lng')
+                
+                if corner_lat is None or corner_lng is None:
+                    continue
+                
+                pdf_x, pdf_y = self._lat_lon_to_pdf(corner_lat, corner_lng)
+                
+                if first:
+                    path.moveTo(pdf_x, pdf_y)
+                    first = False
+                else:
+                    path.lineTo(pdf_x, pdf_y)
+            
+            path.close()
+            c.drawPath(path, stroke=1, fill=1)
+        
+        # Dessiner le contour de la zone
+        self._draw_zone_contour(c, modules_positions, zone)
+    
+    def _draw_module_as_rectangle(self, c, lat, lng, zone):
+        """Fallback : dessiner un module comme rectangle si pas de corners"""
         try:
             module_longueur_mm = self.calpinage.get('module', {}).get('longueur', 2278)
             module_largeur_mm = self.calpinage.get('module', {}).get('largeur', 1134)
-            module_longueur = float(module_longueur_mm) / 1000  # mm → m
+            module_longueur = float(module_longueur_mm) / 1000
             module_largeur = float(module_largeur_mm) / 1000
         except (ValueError, TypeError):
             module_longueur = 2.278
             module_largeur = 1.134
         
-        # Calculer l'échelle (même méthode que bâtiment)
+        # Calculer l'échelle
         lat_range = self.plan_bbox.get('lat_north', 0) - self.plan_bbox.get('lat_south', 0)
         if lat_range > 0:
             meters_per_lat_deg = 111000
@@ -430,41 +472,26 @@ class PlanMasseGenerator:
         
         orientation = zone.get('moduleOrientation', 'paysage')
         
-        c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu foncé
-        c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
-        c.setLineWidth(0.5)
+        # Convertir position GPS → PDF
+        center_x, center_y = self._lat_lon_to_pdf(lat, lng)
         
-        # Dessiner chaque module
-        for module_pos in modules_positions:
-            lat = module_pos.get('lat')
-            lng = module_pos.get('lng')
-            
-            if not lat or not lng:
-                continue
-            
-            # Convertir position GPS → PDF
-            center_x, center_y = self._lat_lon_to_pdf(lat, lng)
-            
-            # Dimensions selon orientation
-            if orientation == 'paysage':
-                mod_h = module_longueur
-                mod_v = module_largeur
-            else:  # portrait
-                mod_h = module_largeur
-                mod_v = module_longueur
-            
-            # Conversion en dimensions PDF
-            mod_w = (mod_h / meters_per_cm) * cm
-            mod_h_draw = (mod_v / meters_per_cm) * cm
-            
-            mod_x = center_x - mod_w/2
-            mod_y = center_y - mod_h_draw/2
-            
-            # Dessiner le module
-            c.rect(mod_x, mod_y, mod_w, mod_h_draw, fill=1, stroke=1)
+        # Dimensions selon orientation
+        if orientation == 'paysage':
+            mod_h = module_longueur
+            mod_v = module_largeur
+        else:
+            mod_h = module_largeur
+            mod_v = module_longueur
         
-        # Dessiner le contour de la zone
-        self._draw_zone_contour(c, modules_positions, zone)
+        # Conversion en dimensions PDF
+        mod_w = (mod_h / meters_per_cm) * cm
+        mod_h_draw = (mod_v / meters_per_cm) * cm
+        
+        mod_x = center_x - mod_w/2
+        mod_y = center_y - mod_h_draw/2
+        
+        # Dessiner le rectangle
+        c.rect(mod_x, mod_y, mod_w, mod_h_draw, fill=1, stroke=1)
     
     def _draw_zone_contour(self, c, modules_positions, zone):
         """Dessine le contour d'une zone PV"""
