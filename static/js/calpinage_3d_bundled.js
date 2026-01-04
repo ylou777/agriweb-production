@@ -1381,34 +1381,8 @@ class Calpinage3DViewer {
         
         console.log(`🏗️ Ombrière: ${nbPiliersDepth - 1} fermes triangulaires (section ${fermeWidth*100}cm, hauteur ${hauteurFerme}m)`);
         
-        // 4. TOIT DE PANNEAUX PV (plan incliné au-dessus de la structure)
-        const toitPVGeometry = new THREE.PlaneGeometry(width, depth);
-        const toitPVMaterial = new THREE.MeshStandardMaterial({
-            color: 0x1e3a8a,        // Bleu foncé (panneaux PV)
-            emissive: 0x1e40af,     // Légère émission bleue
-            emissiveIntensity: 0.2,
-            roughness: 0.3,
-            metalness: 0.4,
-            side: THREE.DoubleSide
-        });
-        const toitPV = new THREE.Mesh(toitPVGeometry, toitPVMaterial);
-        
-        // Positionner le toit au sommet de la structure
-        toitPV.position.set(
-            centerMeters.x,
-            hauteurPilier + hauteurFerme,
-            centerMeters.z
-        );
-        
-        // Incliner légèrement le toit (5° vers le sud pour évacuation eau)
-        toitPV.rotation.x = -Math.PI / 2; // Horizontal
-        toitPV.rotation.z = 5 * Math.PI / 180; // Légère inclinaison 5°
-        
-        toitPV.receiveShadow = true;
-        toitPV.castShadow = true;
-        structureGroup.add(toitPV);
-        
-        console.log(`☀️ Ombrière: Toit PV ${width.toFixed(1)}×${depth.toFixed(1)}m ajouté`);
+        // ❌ SUPPRIMÉ: Le toit PV était créé ici en doublon
+        // Les modules PV seront créés par addModules3D() pour un positionnement précis
         
         this.scene.add(structureGroup);
         return structureGroup;
