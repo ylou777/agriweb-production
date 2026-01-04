@@ -84,8 +84,33 @@ class PlanMasseGenerator:
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
         
-        # Calculer bbox réelle basée sur les dimensions
-        bbox_meters = self._calculate_bbox_from_data()
+        # Récupérer les métadonnées de la carte (bounds GPS exacts du screenshot)
+        map_metadata = self.data.get('map_metadata', {})
+        map_bounds = map_metadata.get('bounds', {})
+        
+        # Utiliser les bounds exacts si disponibles, sinon calculer
+        if map_bounds:
+            # Bounds exacts de la carte Leaflet
+            lat_north = map_bounds.get('north', lat)
+            lat_south = map_bounds.get('south', lat)
+            lon_east = map_bounds.get('east', lon)
+            lon_west = map_bounds.get('west', lon)
+            
+            # Centre des bounds
+            lat_center = (lat_north + lat_south) / 2
+            lon_center = (lon_east + lon_west) / 2
+        else:
+            # Fallback: utiliser position du prospect
+            lat_center = lat
+            lon_center = lon
+            # Calculer bbox approximative
+            bbox_meters = self._calculate_bbox_from_data()
+            delta_lat = (bbox_meters / 2) / 111000
+            delta_lon = (bbox_meters / 2) / 78000
+            lat_north = lat + delta_lat
+            lat_south = lat - delta_lat
+            lon_east = lon + delta_lon
+            lon_west = lon - delta_lon
         
         if lat and lon:
             # Utiliser le screenshot de la carte si disponible (garantit échelle exacte)
@@ -94,26 +119,31 @@ class PlanMasseGenerator:
                 c.drawImage(ImageReader(map_image), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
-                          preserveAspectRatio=True, mask='auto')
+                          preserveAspectRatio=False, mask='auto')  # FALSE pour éviter déformation
             else:
                 # Fallback: image satellite avec bbox correcte
-                satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1200, height=1000)
+                satellite_img = self._fetch_satellite_image_with_bounds(
+                    lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
+                )
                 if satellite_img:
                     c.drawImage(ImageReader(satellite_img), 
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
-                              preserveAspectRatio=True, mask='auto')
+                              preserveAspectRatio=False, mask='auto')
         
         # Système de coordonnées : conversion GPS → PDF
-        # Centre du plan = position GPS du bâtiment
+        # Utilise les MÊMES bounds que l'image affichée
         self.plan_bbox = {
             'x': plan_x,
             'y': plan_y,
             'width': plan_width,
             'height': plan_height,
-            'lat_center': lat,
-            'lon_center': lon,
-            'meters_per_cm': bbox_meters / (plan_width / cm) if plan_width > 0 else 1
+            'lat_north': lat_north,
+            'lat_south': lat_south,
+            'lon_east': lon_east,
+            'lon_west': lon_west,
+            'lat_center': lat_center,
+            'lon_center': lon_center
         }
         
         # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
@@ -143,59 +173,32 @@ class PlanMasseGenerator:
         return 60
     
     def _lat_lon_to_pdf(self, lat, lon):
-        """Convertit coordonnées GPS en coordonnées PDF avec précision maximale"""
+        """Convertit coordonnées GPS en coordonnées PDF - MÉTHODE SIMPLE ET PRÉCISE"""
         if not hasattr(self, 'plan_bbox'):
             return (0, 0)
         
         bbox = self.plan_bbox
-        lat_center = bbox['lat_center']
-        lon_center = bbox['lon_center']
         
-        delta_lat = lat - lat_center
-        delta_lon = lon - lon_center
+        # Récupérer les bounds GPS de l'image affichée
+        lat_north = bbox.get('lat_north')
+        lat_south = bbox.get('lat_south')
+        lon_east = bbox.get('lon_east')
+        lon_west = bbox.get('lon_west')
         
-        # Utiliser les facteurs de conversion GPS EXACTS du calpinage si disponibles
-        if self.calpinage and 'zones' in self.calpinage and len(self.calpinage['zones']) > 0:
-            zone = self.calpinage['zones'][0]  # Utiliser la première zone comme référence
-            gps_conversion = zone.get('gpsConversion', {})
-            
-            if gps_conversion:
-                # Utiliser les facteurs EXACTS calculés par Leaflet
-                meters_per_deg_lng = gps_conversion.get('metersPerDegreeLng')
-                meters_per_deg_lat = gps_conversion.get('metersPerDegreeLat')
-                
-                if meters_per_deg_lng and meters_per_deg_lat:
-                    # Conversion degré → mètres avec les facteurs exacts
-                    meters_x = delta_lon / meters_per_deg_lng
-                    meters_y = delta_lat / meters_per_deg_lat
-                    
-                    # Conversion mètres → cm PDF
-                    meters_per_cm = bbox['meters_per_cm']
-                    offset_x = (meters_x / meters_per_cm) * cm
-                    offset_y = (meters_y / meters_per_cm) * cm
-                    
-                    # Position PDF
-                    pdf_x = bbox['x'] + bbox['width'] / 2 + offset_x
-                    pdf_y = bbox['y'] + bbox['height'] / 2 + offset_y
-                    
-                    return (pdf_x, pdf_y)
+        if not all([lat_north, lat_south, lon_east, lon_west]):
+            # Fallback si pas de bounds
+            return (bbox['x'] + bbox['width'] / 2, bbox['y'] + bbox['height'] / 2)
         
-        # Fallback: conversion approximative si pas de données GPS
-        # 1 degré latitude ≈ 111 km
-        lat_rad = math.radians(lat_center)
-        cos_lat = math.cos(lat_rad)
+        # Calculer la position relative dans les bounds (0 à 1)
+        # Latitude : Nord = haut (1), Sud = bas (0)
+        # Longitude : Ouest = gauche (0), Est = droite (1)
+        lat_ratio = (lat - lat_south) / (lat_north - lat_south) if lat_north != lat_south else 0.5
+        lon_ratio = (lon - lon_west) / (lon_east - lon_west) if lon_east != lon_west else 0.5
         
-        meters_y = delta_lat * 111000  # Nord positif
-        meters_x = delta_lon * 111000 * cos_lat  # Ajusté selon latitude
-        
-        # Conversion mètres → cm PDF
-        meters_per_cm = bbox['meters_per_cm']
-        offset_x = (meters_x / meters_per_cm) * cm
-        offset_y = (meters_y / meters_per_cm) * cm
-        
-        # Position PDF
-        pdf_x = bbox['x'] + bbox['width'] / 2 + offset_x
-        pdf_y = bbox['y'] + bbox['height'] / 2 + offset_y
+        # Convertir en coordonnées PDF
+        # ATTENTION: En PDF, Y augmente vers le HAUT (inverse de l'écran)
+        pdf_x = bbox['x'] + lon_ratio * bbox['width']
+        pdf_y = bbox['y'] + lat_ratio * bbox['height']  # lat_ratio déjà correct (sud=0, nord=1)
         
         return (pdf_x, pdf_y)
     
@@ -347,8 +350,16 @@ class PlanMasseGenerator:
             longueur = 15
             largeur = 10
         
-        # Conversion mètres → PDF (selon échelle du plan)
-        meters_per_cm = self.plan_bbox['meters_per_cm']
+        # Conversion mètres → PDF (échelle basée sur les bounds GPS réels)
+        # Calculer l'échelle en mètres par pixel puis par cm
+        lat_range = self.plan_bbox.get('lat_north', lat) - self.plan_bbox.get('lat_south', lat)
+        if lat_range > 0:
+            meters_per_lat_deg = 111000  # Approximation
+            total_height_meters = lat_range * meters_per_lat_deg
+            meters_per_cm = total_height_meters / (self.plan_bbox['height'] / cm)
+        else:
+            meters_per_cm = 1
+        
         bat_w = (longueur / meters_per_cm) * cm
         bat_h = (largeur / meters_per_cm) * cm
         
@@ -403,7 +414,15 @@ class PlanMasseGenerator:
             module_longueur = 2.278
             module_largeur = 1.134
         
-        meters_per_cm = self.plan_bbox['meters_per_cm']
+        # Calculer l'échelle (même méthode que bâtiment)
+        lat_range = self.plan_bbox.get('lat_north', 0) - self.plan_bbox.get('lat_south', 0)
+        if lat_range > 0:
+            meters_per_lat_deg = 111000
+            total_height_meters = lat_range * meters_per_lat_deg
+            meters_per_cm = total_height_meters / (self.plan_bbox['height'] / cm)
+        else:
+            meters_per_cm = 1
+        
         orientation = zone.get('moduleOrientation', 'paysage')
         
         c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu foncé
@@ -498,7 +517,15 @@ class PlanMasseGenerator:
             longueur = 15
             largeur = 10
         
-        meters_per_cm = self.plan_bbox['meters_per_cm']
+        # Calculer l'échelle (même méthode que pour le bâtiment)
+        lat_range = self.plan_bbox.get('lat_north', lat) - self.plan_bbox.get('lat_south', lat)
+        if lat_range > 0:
+            meters_per_lat_deg = 111000
+            total_height_meters = lat_range * meters_per_lat_deg
+            meters_per_cm = total_height_meters / (self.plan_bbox['height'] / cm)
+        else:
+            meters_per_cm = 1
+        
         bat_w = (longueur / meters_per_cm) * cm
         bat_h = (largeur / meters_per_cm) * cm
         
@@ -840,25 +867,14 @@ class PlanMasseGenerator:
         
         return None
     
-    def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
-        """Récupère une image satellite avec une bbox précise en mètres"""
+    def _fetch_satellite_image_with_bounds(self, lat_north, lat_south, lon_east, lon_west, width=1200, height=1000):
+        """Récupère une image satellite avec bounds GPS précis (comme Leaflet)"""
         try:
-            # Conversion mètres → degrés (approximatif pour la France)
-            # 1 degré latitude ≈ 111 km
-            # 1 degré longitude ≈ 111 km * cos(45°) ≈ 78 km
-            delta_lat = (bbox_meters / 2) / 111000
-            delta_lon = (bbox_meters / 2) / 78000
-            
-            # Calculer les limites
-            min_lon = lon - delta_lon
-            max_lon = lon + delta_lon
-            min_lat = lat - delta_lat
-            max_lat = lat + delta_lat
-            
             # ArcGIS World Imagery
             url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
             
-            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+            # Bbox : west, south, east, north
+            bbox_str = f"{lon_west},{lat_south},{lon_east},{lat_north}"
             
             params = {
                 'bbox': bbox_str,
@@ -868,11 +884,12 @@ class PlanMasseGenerator:
                 'f': 'image'
             }
             
+            print(f"[PLAN] Récupération image satellite avec bounds: {bbox_str}")
             response = requests.get(url, params=params, timeout=10)
             if response.status_code == 200:
                 return io.BytesIO(response.content)
         except Exception as e:
-            print(f"[PLAN] Erreur image satellite bbox: {e}")
+            print(f"[PLAN] Erreur image satellite: {e}")
         
         return None
     
