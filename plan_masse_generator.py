@@ -14,6 +14,7 @@ from PIL import Image
 import json
 import base64
 import math
+import math
 
 
 class PlanMasseGenerator:
@@ -970,38 +971,107 @@ class PlanMasseGenerator:
         print(f"[PLAN] Bounds reçus: N={lat_north}, S={lat_south}, E={lon_east}, W={lon_west}")
         print(f"[PLAN] Dimensions: {width}x{height}")
         
+        # Méthode 1: Essayer avec tiles ArcGIS (comme Leaflet)
         try:
-            # ArcGIS World Imagery
-            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+            # Calculer le centre et le zoom optimal
+            lat_center = (lat_north + lat_south) / 2
+            lon_center = (lon_east + lon_west) / 2
             
-            # Bbox : west, south, east, north
-            bbox_str = f"{lon_west},{lat_south},{lon_east},{lat_north}"
+            # Calculer le zoom basé sur la taille de la bbox
+            lat_diff = lat_north - lat_south
+            lon_diff = lon_east - lon_west
             
-            params = {
-                'bbox': bbox_str,
-                'bboxSR': '4326',
-                'size': f'{width},{height}',
-                'format': 'png',
-                'f': 'image'
+            # Zoom approximatif (plus la bbox est petite, plus le zoom est élevé)
+            # Zoom 18 = très proche, Zoom 10 = loin
+            import math
+            zoom = int(18 - math.log2(max(lat_diff, lon_diff) * 100))
+            zoom = max(15, min(19, zoom))  # Entre 15 et 19
+            
+            print(f"[PLAN] Centre: {lat_center:.6f}, {lon_center:.6f}")
+            print(f"[PLAN] Zoom calculé: {zoom}")
+            
+            # Utiliser l'API StaticMap de ArcGIS (plus fiable)
+            url = "https://utility.arcgisonline.com/arcgis/rest/services/Utilities/PrintingTools/GPServer/Export%20Web%20Map%20Task/execute"
+            
+            web_map = {
+                "mapOptions": {
+                    "extent": {
+                        "xmin": lon_west,
+                        "ymin": lat_south,
+                        "xmax": lon_east,
+                        "ymax": lat_north,
+                        "spatialReference": {"wkid": 4326}
+                    },
+                    "spatialReference": {"wkid": 4326}
+                },
+                "operationalLayers": [],
+                "baseMap": {
+                    "baseMapLayers": [{
+                        "url": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer"
+                    }],
+                    "title": "World Imagery"
+                },
+                "exportOptions": {
+                    "outputSize": [width, height]
+                }
             }
             
-            print(f"[PLAN] URL: {url}")
-            print(f"[PLAN] Params: {params}")
+            params = {
+                'f': 'json',
+                'Format': 'PNG32',
+                'Layout_Template': 'MAP_ONLY',
+                'Web_Map_as_JSON': json.dumps(web_map)
+            }
             
-            response = requests.get(url, params=params, timeout=15)
+            print(f"[PLAN] Tentative avec Export Web Map Task...")
+            response = requests.get(url, params=params, timeout=30)
             print(f"[PLAN] Status code: {response.status_code}")
             
             if response.status_code == 200:
-                print(f"[PLAN] Taille image: {len(response.content)} bytes")
-                return io.BytesIO(response.content)
-            else:
-                print(f"[PLAN] Erreur HTTP: {response.status_code}")
-                print(f"[PLAN] Response: {response.text[:500]}")
+                result = response.json()
+                if 'results' in result and len(result['results']) > 0:
+                    image_url = result['results'][0]['value']['url']
+                    print(f"[PLAN] URL image: {image_url}")
+                    
+                    # Télécharger l'image
+                    img_response = requests.get(image_url, timeout=15)
+                    if img_response.status_code == 200:
+                        print(f"[PLAN] ✅ Taille image: {len(img_response.content)} bytes")
+                        return io.BytesIO(img_response.content)
+            
         except Exception as e:
-            print(f"[PLAN] Exception image satellite: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[PLAN] Erreur méthode Export Web Map: {e}")
         
+        # Méthode 2 (fallback): Mapbox Static API (alternative fiable)
+        try:
+            lat_center = (lat_north + lat_south) / 2
+            lon_center = (lon_east + lon_west) / 2
+            
+            # Calculer zoom et dimensions
+            lat_diff = lat_north - lat_south
+            zoom = int(18 - math.log2(lat_diff * 100))
+            zoom = max(14, min(18, zoom))
+            
+            # Utiliser OpenStreetMap static map (gratuit, pas de clé API)
+            url = f"https://staticmap.openstreetmap.de/staticmap.php"
+            params = {
+                'center': f"{lat_center},{lon_center}",
+                'zoom': zoom,
+                'size': f"{width}x{height}",
+                'maptype': 'mapnik'
+            }
+            
+            print(f"[PLAN] Fallback: OSM Static Map, zoom={zoom}")
+            response = requests.get(url, params=params, timeout=15)
+            
+            if response.status_code == 200 and len(response.content) > 1000:
+                print(f"[PLAN] ✅ OSM Static Map: {len(response.content)} bytes")
+                return io.BytesIO(response.content)
+                
+        except Exception as e:
+            print(f"[PLAN] Erreur OSM Static Map: {e}")
+        
+        print(f"[PLAN] ❌ Toutes les méthodes ont échoué")
         return None
     
     def _extract_parcelles(self):
