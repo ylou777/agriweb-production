@@ -3534,58 +3534,34 @@
             }
         });
         
-        // 📸 CAPTURE SCREENSHOT avec html2canvas (leaflet-image ne fonctionne pas)
+        // 📸 CAPTURE SCREENSHOT avec html2canvas - VERSION SIMPLIFIÉE
         async function captureMapScreenshot() {
-            console.log('📸 Préparation capture html2canvas...');
-            
-            // Forcer refresh et redessiner
-            map.invalidateSize();
-            zones.forEach(zone => dessinerModulesDansZone(zone));
+            console.log('📸 Capture screenshot SIMPLE...');
             
             const mapContainer = document.getElementById('map');
-            const rect = mapContainer.getBoundingClientRect();
             
-            // Masquer les contrôles ET les attributions
+            // Masquer les contrôles Leaflet
             const controls = document.querySelectorAll('.leaflet-control');
-            controls.forEach(ctrl => ctrl.style.visibility = 'hidden');
+            controls.forEach(ctrl => ctrl.style.display = 'none');
             
-            // 🔥 NOUVEAU: Forcer le rendu des tuiles avant capture
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // 🔥 NOUVEAU: Scroll map to (0,0) pour éviter les décalages de rendu
-            const mapPane = mapContainer.querySelector('.leaflet-map-pane');
-            const originalTransform = mapPane ? mapPane.style.transform : '';
-            
-            console.log('📸 Capture en cours...', rect.width + 'x' + rect.height + 'px');
+            // Attendre le rendu
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             try {
+                // Capture SIMPLE - laisser html2canvas gérer tout seul
                 const canvas = await html2canvas(mapContainer, {
                     useCORS: true,
                     allowTaint: true,
-                    backgroundColor: null,
-                    width: rect.width,
-                    height: rect.height,
-                    scale: 1,
-                    logging: false,
-                    // 🔥 NOUVEAU: Options pour améliorer la capture
-                    foreignObjectRendering: false,
-                    imageTimeout: 0,
-                    removeContainer: false,
-                    // Capturer exactement ce qui est visible
-                    windowWidth: rect.width,
-                    windowHeight: rect.height,
-                    x: 0,
-                    y: 0
+                    logging: true,  // Activer logs pour debug
+                    scale: 1
                 });
                 
                 // Restaurer les contrôles
-                controls.forEach(ctrl => ctrl.style.visibility = '');
+                controls.forEach(ctrl => ctrl.style.display = '');
                 
                 const screenshot = canvas.toDataURL('image/png');
-                console.log('✅ Screenshot capturé:', canvas.width + 'x' + canvas.height + 'px');
-                console.log('📐 Ratio image:', (canvas.width / canvas.height).toFixed(2));
+                console.log('✅ Screenshot:', canvas.width + 'x' + canvas.height + 'px');
                 
-                // 🔥 NOUVEAU: Retourner aussi les bounds GPS de la carte
                 const bounds = map.getBounds();
                 return {
                     screenshot: screenshot,
@@ -3606,7 +3582,7 @@
                     }
                 };
             } catch (err) {
-                controls.forEach(ctrl => ctrl.style.visibility = '');
+                controls.forEach(ctrl => ctrl.style.display = '');
                 console.error('❌ Erreur capture:', err);
                 throw err;
             }
