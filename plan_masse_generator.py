@@ -127,28 +127,22 @@ class PlanMasseGenerator:
                 lon_west = lon - delta_lon
         
         if lat and lon:
-            # Priorité 1: Utiliser le screenshot de la carte si disponible
-            map_image = self._get_map_screenshot()
-            if map_image:
-                print(f"[PLAN] ✅ Utilisation screenshot carte")
-                c.drawImage(ImageReader(map_image), 
+            # Forcer l'image satellite (vue à plat, pas de perspective)
+            print(f"[PLAN] Téléchargement image satellite...")
+            satellite_img = self._fetch_satellite_image_with_bounds(
+                lat_north, lat_south, lon_east, lon_west, width=1400, height=1200
+            )
+            if satellite_img:
+                print(f"[PLAN] ✅ Image satellite téléchargée")
+                c.drawImage(ImageReader(satellite_img), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
                           preserveAspectRatio=False, mask='auto')
             else:
-                # Priorité 2: Image satellite avec bbox correcte
-                print(f"[PLAN] Téléchargement image satellite...")
-                satellite_img = self._fetch_satellite_image_with_bounds(
-                    lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
-                )
-                if satellite_img:
-                    print(f"[PLAN] ✅ Image satellite téléchargée")
-                    c.drawImage(ImageReader(satellite_img), 
-                              plan_x, plan_y, 
-                              width=plan_width, height=plan_height,
-                              preserveAspectRatio=False, mask='auto')
-                else:
-                    print(f"[PLAN] ❌ Pas d'image de fond disponible")
+                print(f"[PLAN] ❌ Échec téléchargement image satellite")
+                # Fond gris si pas d'image
+                c.setFillColor(colors.HexColor('#E0E0E0'))
+                c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
         
         # Système de coordonnées : conversion GPS → PDF
         # Utilise les MÊMES bounds que l'image affichée
@@ -453,17 +447,11 @@ class PlanMasseGenerator:
             modules_positions = zone.get('modulesPositions', [])
             
             if modules_positions:
+                print(f"[PLAN] Zone {zone.get('numero', '?')}: {len(modules_positions)} modules avec coordonnées GPS")
                 # Utiliser les coordonnées GPS sauvegardées de chaque module
                 self._draw_modules_from_positions(c, modules_positions, zone)
             else:
-                # Fallback: utiliser l'ancienne méthode (positionnement relatif)
-                print(f"[PLAN] Attention: Zone {zone.get('numero', '?')} sans coordonnées GPS des modules")
-                lat = self.data.get('latitude')
-                lon = self.data.get('longitude')
-                if lat and lon:
-                    center_x, center_y = self._lat_lon_to_pdf(lat, lon)
-                    self._draw_modules_pv_reels(c, center_x, center_y, lat, lon)
-                break  # Une seule fois pour toutes les zones sans GPS
+                print(f"[PLAN] ⚠️ Zone {zone.get('numero', '?')} SANS coordonnées GPS - IGNORÉE")
     
     def _draw_modules_from_positions(self, c, modules_positions, zone):
         """Dessine chaque module avec ses 4 coins GPS EXACTS (comme dans Leaflet)"""
