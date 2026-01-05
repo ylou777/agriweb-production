@@ -127,11 +127,14 @@ class PlanMasseGenerator:
                 lon_west = lon - delta_lon
         
         if lat and lon:
-            # Forcer l'image satellite (vue à plat, pas de perspective)
+            # Télécharger l'image satellite (vue à plat)
             print(f"[PLAN] Téléchargement image satellite...")
+            print(f"[PLAN] Bounds: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
+            
             satellite_img = self._fetch_satellite_image_with_bounds(
-                lat_north, lat_south, lon_east, lon_west, width=1400, height=1200
+                lat_north, lat_south, lon_east, lon_west, width=1600, height=1400
             )
+            
             if satellite_img:
                 print(f"[PLAN] ✅ Image satellite téléchargée")
                 c.drawImage(ImageReader(satellite_img), 
@@ -139,10 +142,10 @@ class PlanMasseGenerator:
                           width=plan_width, height=plan_height,
                           preserveAspectRatio=False, mask='auto')
             else:
-                print(f"[PLAN] ❌ Échec téléchargement image satellite")
-                # Fond gris si pas d'image
-                c.setFillColor(colors.HexColor('#E0E0E0'))
-                c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
+                print(f"[PLAN] ❌ Échec téléchargement - Utilisation fond blanc")
+                # Fond blanc si pas d'image
+                c.setFillColor(colors.white)
+                c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=1)
         
         # Système de coordonnées : conversion GPS → PDF
         # Utilise les MÊMES bounds que l'image affichée
@@ -162,8 +165,8 @@ class PlanMasseGenerator:
         # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
         self._draw_parcelles_geojson(c)
         
-        # 2. BÂTIMENT (à la position GPS)
-        self._draw_batiment_gps(c)
+        # 2. BÂTIMENT - DÉSACTIVÉ (pas d'info utile sur plan de masse)
+        # self._draw_batiment_gps(c)
         
         # 3. MODULES PV selon COORDONNÉES GPS DU CALPINAGE
         if self.calpinage:
@@ -971,12 +974,22 @@ class PlanMasseGenerator:
                 'f': 'image'
             }
             
-            print(f"[PLAN] Récupération image satellite avec bounds: {bbox_str}")
-            response = requests.get(url, params=params, timeout=10)
+            print(f"[PLAN] URL: {url}")
+            print(f"[PLAN] Params: {params}")
+            
+            response = requests.get(url, params=params, timeout=15)
+            print(f"[PLAN] Status code: {response.status_code}")
+            
             if response.status_code == 200:
+                print(f"[PLAN] Taille image: {len(response.content)} bytes")
                 return io.BytesIO(response.content)
+            else:
+                print(f"[PLAN] Erreur HTTP: {response.status_code}")
+                print(f"[PLAN] Response: {response.text[:500]}")
         except Exception as e:
-            print(f"[PLAN] Erreur image satellite: {e}")
+            print(f"[PLAN] Exception image satellite: {e}")
+            import traceback
+            traceback.print_exc()
         
         return None
     
