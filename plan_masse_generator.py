@@ -135,7 +135,7 @@ class PlanMasseGenerator:
             print(f"[PLAN] Bounds: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
             
             satellite_img = self._fetch_satellite_image_with_bounds(
-                lat_north, lat_south, lon_east, lon_west, width=1600, height=1400
+                lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
             )
             
             if satellite_img:
