@@ -65,6 +65,7 @@ class PlanMasseGenerator:
         
     def _draw_plan_cadastral(self, c):
         """Dessine le plan cadastral avec parcelles et modules PV"""
+        print(f"\n[PLAN] ===== DEBUT _draw_plan_cadastral =====")
         
         # Zone de dessin
         plan_x = 3*cm
@@ -83,6 +84,7 @@ class PlanMasseGenerator:
         
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
+        print(f"[PLAN] Position prospect: lat={lat}, lon={lon}")
         
         # Récupérer les métadonnées de la carte (bounds GPS exacts du screenshot)
         map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
@@ -126,9 +128,10 @@ class PlanMasseGenerator:
                 lon_east = lon + delta_lon
                 lon_west = lon - delta_lon
         
+        print(f"[PLAN] Condition lat and lon: lat={lat}, lon={lon}, valid={lat and lon}")
         if lat and lon:
             # Télécharger l'image satellite (vue à plat)
-            print(f"[PLAN] Téléchargement image satellite...")
+            print(f"[PLAN] ===== DEBUT TÉLÉCHARGEMENT SATELLITE =====")
             print(f"[PLAN] Bounds: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
             
             satellite_img = self._fetch_satellite_image_with_bounds(
@@ -136,16 +139,20 @@ class PlanMasseGenerator:
             )
             
             if satellite_img:
-                print(f"[PLAN] ✅ Image satellite téléchargée")
+                print(f"[PLAN] ✅ Image satellite téléchargée - Dessin sur PDF...")
                 c.drawImage(ImageReader(satellite_img), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
                           preserveAspectRatio=False, mask='auto')
+                print(f"[PLAN] ✅ Image satellite dessinée sur PDF")
             else:
                 print(f"[PLAN] ❌ Échec téléchargement - Utilisation fond blanc")
                 # Fond blanc si pas d'image
                 c.setFillColor(colors.white)
                 c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=1)
+                print(f"[PLAN] ✅ Fond blanc dessiné")
+        else:
+            print(f"[PLAN] ⚠️ AVERTISSEMENT: lat ou lon manquant, pas d'image satellite!")
         
         # Système de coordonnées : conversion GPS → PDF
         # Utilise les MÊMES bounds que l'image affichée
@@ -959,6 +966,10 @@ class PlanMasseGenerator:
     
     def _fetch_satellite_image_with_bounds(self, lat_north, lat_south, lon_east, lon_west, width=1200, height=1000):
         """Récupère une image satellite avec bounds GPS précis (comme Leaflet)"""
+        print(f"\n[PLAN] ===== APPEL _fetch_satellite_image_with_bounds =====")
+        print(f"[PLAN] Bounds reçus: N={lat_north}, S={lat_south}, E={lon_east}, W={lon_west}")
+        print(f"[PLAN] Dimensions: {width}x{height}")
+        
         try:
             # ArcGIS World Imagery
             url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
