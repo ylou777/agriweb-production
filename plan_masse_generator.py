@@ -65,8 +65,8 @@ class PlanMasseGenerator:
         c.drawRightString(self.width - 3*cm, y, "Échelle 1/200")
         
     def _draw_plan_cadastral(self, c):
-        """Dessine le plan cadastral avec parcelles et modules PV"""
-        print(f"\n[PLAN] ===== DEBUT _draw_plan_cadastral =====")
+        """Dessine le plan cadastral - SIMPLE : juste le screenshot du calpinage"""
+        print(f"\n[PLAN] ===== VERSION SIMPLIFIÉE : SCREENSHOT UNIQUEMENT =====")
         
         # Zone de dessin
         plan_x = 3*cm
@@ -79,119 +79,28 @@ class PlanMasseGenerator:
         c.setLineWidth(2)
         c.rect(plan_x, plan_y, plan_width, plan_height)
         
-        # Fond
-        c.setFillColor(colors.HexColor('#F5F5F5'))
-        c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
+        # Récupérer le screenshot Leaflet
+        screenshot_img = self._get_map_screenshot()
         
-        lat = self.data.get('latitude')
-        lon = self.data.get('longitude')
-        print(f"[PLAN] Position prospect: lat={lat}, lon={lon}")
-        
-        # Récupérer les métadonnées de la carte (bounds GPS exacts du screenshot)
-        map_metadata = self.data.get('map_metadata') or (self.calpinage.get('map_metadata') if self.calpinage else {})
-        map_bounds = map_metadata.get('bounds', {}) if map_metadata else {}
-        
-        print(f"[PLAN] map_metadata trouvé: {'✅' if map_metadata else '❌'}")
-        if map_bounds:
-            print(f"[PLAN] bounds GPS: N={map_bounds.get('north')}, S={map_bounds.get('south')}, E={map_bounds.get('east')}, W={map_bounds.get('west')}")
-        
-        # Utiliser les bounds exacts si disponibles, sinon calculer
-        if map_bounds:
-            # Bounds exacts de la carte Leaflet
-            lat_north = map_bounds.get('north', lat)
-            lat_south = map_bounds.get('south', lat)
-            lon_east = map_bounds.get('east', lon)
-            lon_west = map_bounds.get('west', lon)
-            
-            # Centre des bounds
-            lat_center = (lat_north + lat_south) / 2
-            lon_center = (lon_east + lon_west) / 2
+        if screenshot_img:
+            print(f"[PLAN] ✅ Screenshot trouvé - Affichage direct sur PDF")
+            c.drawImage(ImageReader(screenshot_img), 
+                      plan_x, plan_y, 
+                      width=plan_width, height=plan_height,
+                      preserveAspectRatio=False, mask='auto')
         else:
-            # Fallback: calculer depuis les modules
-            bounds_from_modules = self._calculate_bounds_from_modules()
-            if bounds_from_modules:
-                lat_north = bounds_from_modules['north']
-                lat_south = bounds_from_modules['south']
-                lon_east = bounds_from_modules['east']
-                lon_west = bounds_from_modules['west']
-                lat_center = (lat_north + lat_south) / 2
-                lon_center = (lon_east + lon_west) / 2
-                print(f"[PLAN] Bounds calculés depuis modules")
-            else:
-                # Fallback final: utiliser position du prospect
-                lat_center = lat
-                lon_center = lon
-                bbox_meters = self._calculate_bbox_from_data()
-                delta_lat = (bbox_meters / 2) / 111000
-                delta_lon = (bbox_meters / 2) / 78000
-                lat_north = lat + delta_lat
-                lat_south = lat - delta_lat
-                lon_east = lon + delta_lon
-                lon_west = lon - delta_lon
-        
-        print(f"[PLAN] Condition lat and lon: lat={lat}, lon={lon}, valid={lat and lon}")
-        if lat and lon:
-            # PRIORITÉ 1: Utiliser le screenshot Leaflet (déjà capturé avec la bonne vue)
-            screenshot_img = self._get_map_screenshot()
+            print(f"[PLAN] ❌ Pas de screenshot - Fond blanc")
+            c.setFillColor(colors.white)
+            c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
             
-            if screenshot_img:
-                print(f"[PLAN] ✅ Utilisation screenshot Leaflet (vue exacte du calpinage)")
-                c.drawImage(ImageReader(screenshot_img), 
-                          plan_x, plan_y, 
-                          width=plan_width, height=plan_height,
-                          preserveAspectRatio=False, mask='auto')
-            else:
-                # PRIORITÉ 2: Télécharger image satellite si pas de screenshot
-                print(f"[PLAN] ===== DEBUT TÉLÉCHARGEMENT SATELLITE =====")
-                print(f"[PLAN] Bounds: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
-                
-                satellite_img = self._fetch_satellite_image_with_bounds(
-                    lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
-                )
-                
-                if satellite_img:
-                    print(f"[PLAN] ✅ Image satellite téléchargée - Dessin sur PDF...")
-                    c.drawImage(ImageReader(satellite_img), 
-                              plan_x, plan_y, 
-                              width=plan_width, height=plan_height,
-                              preserveAspectRatio=False, mask='auto')
-                    print(f"[PLAN] ✅ Image satellite dessinée sur PDF")
-                else:
-                    print(f"[PLAN] ❌ Échec téléchargement - Utilisation fond blanc")
-                    # Fond blanc si pas d'image
-                    c.setFillColor(colors.white)
-                    c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=1)
-                    print(f"[PLAN] ✅ Fond blanc dessiné")
-        else:
-            print(f"[PLAN] ⚠️ AVERTISSEMENT: lat ou lon manquant, pas d'image satellite!")
-        
-        # Système de coordonnées : conversion GPS → PDF
-        # Utilise les MÊMES bounds que l'image affichée
-        self.plan_bbox = {
-            'x': plan_x,
-            'y': plan_y,
-            'width': plan_width,
-            'height': plan_height,
-            'lat_north': lat_north,
-            'lat_south': lat_south,
-            'lon_east': lon_east,
-            'lon_west': lon_west,
-            'lat_center': lat_center,
-            'lon_center': lon_center
-        }
-        
-        # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
-        self._draw_parcelles_geojson(c)
-        
-        # 2. BÂTIMENT - DÉSACTIVÉ (pas d'info utile sur plan de masse)
-        # self._draw_batiment_gps(c)
-        
-        # 3. MODULES PV selon COORDONNÉES GPS DU CALPINAGE
-        if self.calpinage:
-            self._draw_modules_pv_gps(c)
-        
-        # 4. COTATIONS
-        self._draw_cotations_gps(c)
+            # Message d'erreur au centre
+            c.setFillColor(colors.red)
+            c.setFont("Helvetica-Bold", 14)
+            center_x = plan_x + plan_width / 2
+            center_y = plan_y + plan_height / 2
+            c.drawCentredString(center_x, center_y, "⚠️ Screenshot du calpinage non disponible")
+            c.setFont("Helvetica", 10)
+            c.drawCentredString(center_x, center_y - 0.5*cm, "Veuillez sauvegarder le calpinage avant de générer le plan de masse")
         
     def _calculate_bounds_from_modules(self):
         """Calcule les bounds GPS en scannant tous les coins de tous les modules"""
