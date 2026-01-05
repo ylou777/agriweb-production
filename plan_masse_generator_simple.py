@@ -30,14 +30,8 @@ class PlanMasseGenerator:
         # En-tête
         self._draw_header(c)
         
-        # JUSTE LE SCREENSHOT
+        # JUSTE LE SCREENSHOT LEAFLET - RIEN D'AUTRE
         self._draw_screenshot(c)
-        
-        # Légende minimaliste
-        self._draw_legend(c)
-        
-        # Cartouche
-        self._draw_cartouche(c)
         
         c.save()
         buffer.seek(0)
