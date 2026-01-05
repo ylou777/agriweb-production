@@ -26197,3 +26197,10 @@ shapely.errors.GEOSException: TopologyException: side location conflict at 2.413
 2025-12-22 14:44:47,226 INFO 127.0.0.1 - - [22/Dec/2025 14:44:47] "GET /static/main.js HTTP/1.1" 200 -
 2025-12-22 14:44:52,565 INFO 127.0.0.1 - - [22/Dec/2025 14:44:52] "GET /crm HTTP/1.1" 200 -
 2025-12-22 14:44:53,544 INFO 127.0.0.1 - - [22/Dec/2025 14:44:53] "GET /api/crm/prospects HTTP/1.1" 200 -
+2026-01-02 12:24:26,004 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-01-02 12:24:26,006 INFO [33mPress CTRL+C to quit[0m
+2026-01-02 17:21:46,635 INFO [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-01-02 17:21:46,636 INFO [33mPress CTRL+C to quit[0m
+2026-01-02 17:21:53,689 INFO 127.0.0.1 - - [02/Jan/2026 17:21:53] "GET /?id=4497a83b-03a1-45ac-96f8-167401c73262&vscodeBrowserReqId=1767370913203 HTTP/1.1" 200 -

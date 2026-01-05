@@ -119,29 +119,22 @@ class PlanMasseGeneratorV2:
         c.setLineWidth(2)
         c.rect(plan_x, plan_y, plan_width, plan_height)
         
-        # 🔥 STRATÉGIE NOUVELLE : Récupérer l'image satellite propre depuis l'API
-        # puis redessiner les modules avec les coordonnées GPS exactes
+        # 🔥 STRATÉGIE SIMPLE : Utiliser uniquement le screenshot capturé
+        # Il contient déjà satellite + modules + zones correctement positionnés
+        # Ne RIEN redessiner pour éviter les décalages
         
-        # Essayer d'abord avec les métadonnées de carte (plus précis)
-        satellite_image = self._get_satellite_from_map_metadata()
-        use_metadata = satellite_image is not None
+        calpinage_image = self._get_calpinage_screenshot()
         
-        # Sinon, utiliser le screenshot capturé
-        if not satellite_image:
-            print("[PLAN] ℹ️ Utilisation du screenshot capturé")
-            satellite_image = self._get_calpinage_screenshot()
-        
-        if satellite_image:
+        if calpinage_image:
             # Afficher l'image du calpinage EN PRÉSERVANT LES PROPORTIONS
             try:
                 # Obtenir les dimensions réelles de l'image
-                img = Image.open(satellite_image)
+                img = Image.open(calpinage_image)
                 img_width, img_height = img.size
-                print(f"[PLAN] 📏 Dimensions image: {img_width}x{img_height}px")
-                print(f"[PLAN] 📐 Zone PDF: {plan_width/cm:.1f}x{plan_height/cm:.1f}cm")
+                print(f"[PLAN] 📏 Dimensions image capturée: {img_width}x{img_height}px")
+                print(f"[PLAN] 📐 Zone PDF disponible: {plan_width/cm:.1f}x{plan_height/cm:.1f}cm")
                 
-                # 🔥 CORRECTION: Calculer le ratio pour préserver les proportions
-                # On ajuste pour que l'image remplisse la zone tout en gardant son ratio
+                # 🔥 Calculer le ratio pour préserver les proportions EXACTES
                 ratio_w = plan_width / img_width
                 ratio_h = plan_height / img_height
                 
@@ -157,46 +150,21 @@ class PlanMasseGeneratorV2:
                 offset_y = (plan_height - new_height) / 2
                 
                 # Réinitialiser le buffer pour la relecture
-                satellite_image.seek(0)
+                calpinage_image.seek(0)
                 
-                # Dessiner l'image EN PRÉSERVANT LE RATIO (pas d'étirement)
-                c.drawImage(ImageReader(satellite_image), 
+                # 🔥 CRITIQUE: Dessiner l'image EN PRÉSERVANT STRICTEMENT LE RATIO
+                c.drawImage(ImageReader(calpinage_image), 
                           plan_x + offset_x, plan_y + offset_y, 
                           width=new_width, height=new_height,
                           preserveAspectRatio=True, mask='auto')
-                print(f"[PLAN] ✅ Image affichée avec proportions préservées: {new_width/cm:.1f}x{new_height/cm:.1f}cm")
-                print(f"[PLAN] 📍 Offset: x={offset_x/cm:.1f}cm, y={offset_y/cm:.1f}cm")
                 
-                # Stocker les infos pour le positionnement des overlays
-                self.image_offset_x = plan_x + offset_x
-                self.image_offset_y = plan_y + offset_y
-                self.image_display_width = new_width
-                self.image_display_height = new_height
+                print(f"[PLAN] ✅ Image affichée: {new_width/cm:.1f}x{new_height/cm:.1f}cm")
+                print(f"[PLAN] 📍 Centrée avec offset: x={offset_x/cm:.1f}cm, y={offset_y/cm:.1f}cm")
+                print(f"[PLAN] 🎯 Ratio préservé: {img_width/img_height:.3f} -> {new_width/new_height:.3f}")
                 
-                # 🔥 Si on a les métadonnées, compléter la projection pour dessiner les modules
-                if use_metadata and hasattr(self, 'projection'):
-                    self.projection['plan_x'] = plan_x + offset_x
-                    self.projection['plan_y'] = plan_y + offset_y
-                    self.projection['plan_width'] = new_width
-                    self.projection['plan_height'] = new_height
-                    
-                    # Recalculer meters_per_pixel pour la nouvelle taille PDF
-                    # L'image originale faisait img_width x img_height pixels
-                    # Elle est maintenant affichée en new_width x new_height points PDF
-                    # Donc : meters_per_pixel_pdf = meters_per_pixel_original * (pixels_original / points_pdf)
-                    scale_factor = img_width / new_width  # combien de pixels d'origine par point PDF
-                    self.projection['meters_per_pdf_point_x'] = self.projection['meters_per_pixel_x'] * scale_factor
-                    self.projection['meters_per_pdf_point_y'] = self.projection['meters_per_pixel_y'] * scale_factor
-                    
-                    print(f"[PLAN] 🎯 Projection GPS→PDF configurée")
-                    print(f"[PLAN] 📏 Échelle PDF: {self.projection['meters_per_pdf_point_x']:.4f}m/pt")
-                    
-                    # Redessiner les modules par-dessus l'image satellite propre
-                    self._draw_modules_from_calpinage_with_projection(c)
-                else:
-                    # L'image capturée contient DÉJÀ tout (satellite + modules + zones)
-                    # Ne rien dessiner par-dessus pour éviter les décalages
-                    print("[PLAN] ✅ Image complète affichée - aucun overlay nécessaire")
+                # L'image capturée contient DÉJÀ tout correctement positionné
+                # NE RIEN dessiner par-dessus pour éviter les décalages
+                print("[PLAN] ✅ Screenshot complet affiché - pas d'overlay pour éviter les décalages")
                 
             except Exception as e:
                 print(f"[PLAN] ❌ Erreur affichage image: {e}")
