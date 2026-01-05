@@ -131,27 +131,37 @@ class PlanMasseGenerator:
         
         print(f"[PLAN] Condition lat and lon: lat={lat}, lon={lon}, valid={lat and lon}")
         if lat and lon:
-            # Télécharger l'image satellite (vue à plat)
-            print(f"[PLAN] ===== DEBUT TÉLÉCHARGEMENT SATELLITE =====")
-            print(f"[PLAN] Bounds: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
+            # PRIORITÉ 1: Utiliser le screenshot Leaflet (déjà capturé avec la bonne vue)
+            screenshot_img = self._get_map_screenshot()
             
-            satellite_img = self._fetch_satellite_image_with_bounds(
-                lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
-            )
-            
-            if satellite_img:
-                print(f"[PLAN] ✅ Image satellite téléchargée - Dessin sur PDF...")
-                c.drawImage(ImageReader(satellite_img), 
+            if screenshot_img:
+                print(f"[PLAN] ✅ Utilisation screenshot Leaflet (vue exacte du calpinage)")
+                c.drawImage(ImageReader(screenshot_img), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
                           preserveAspectRatio=False, mask='auto')
-                print(f"[PLAN] ✅ Image satellite dessinée sur PDF")
             else:
-                print(f"[PLAN] ❌ Échec téléchargement - Utilisation fond blanc")
-                # Fond blanc si pas d'image
-                c.setFillColor(colors.white)
-                c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=1)
-                print(f"[PLAN] ✅ Fond blanc dessiné")
+                # PRIORITÉ 2: Télécharger image satellite si pas de screenshot
+                print(f"[PLAN] ===== DEBUT TÉLÉCHARGEMENT SATELLITE =====")
+                print(f"[PLAN] Bounds: N={lat_north:.6f}, S={lat_south:.6f}, E={lon_east:.6f}, W={lon_west:.6f}")
+                
+                satellite_img = self._fetch_satellite_image_with_bounds(
+                    lat_north, lat_south, lon_east, lon_west, width=1200, height=1000
+                )
+                
+                if satellite_img:
+                    print(f"[PLAN] ✅ Image satellite téléchargée - Dessin sur PDF...")
+                    c.drawImage(ImageReader(satellite_img), 
+                              plan_x, plan_y, 
+                              width=plan_width, height=plan_height,
+                              preserveAspectRatio=False, mask='auto')
+                    print(f"[PLAN] ✅ Image satellite dessinée sur PDF")
+                else:
+                    print(f"[PLAN] ❌ Échec téléchargement - Utilisation fond blanc")
+                    # Fond blanc si pas d'image
+                    c.setFillColor(colors.white)
+                    c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=1)
+                    print(f"[PLAN] ✅ Fond blanc dessiné")
         else:
             print(f"[PLAN] ⚠️ AVERTISSEMENT: lat ou lon manquant, pas d'image satellite!")
         
