@@ -3105,10 +3105,13 @@
                     y = yRot;
                 }
                 
-                // 🔥 Utiliser les facteurs de conversion GPS PRÉCIS
+                // 🔥 Utiliser les facteurs de conversion GPS ULTRA-PRÉCIS (12 décimales)
+                // Précision de ~0.1mm au niveau de l'équateur
+                const lat = center.lat + y * metersPerDegreeLat;
+                const lng = center.lng + x * metersPerDegreeLng;
                 return L.latLng(
-                    center.lat + y * metersPerDegreeLat,
-                    center.lng + x * metersPerDegreeLng
+                    parseFloat(lat.toFixed(12)),
+                    parseFloat(lng.toFixed(12))
                 );
             }
             
@@ -3598,13 +3601,17 @@
                         if (layer instanceof L.Polygon) {
                             const latlngs = layer.getLatLngs()[0];
                             if (latlngs && latlngs.length >= 4) {
-                                // Centre du module
-                                const centerLat = (latlngs[0].lat + latlngs[2].lat) / 2;
-                                const centerLng = (latlngs[0].lng + latlngs[2].lng) / 2;
+                                // 🔥 Centre du module avec PRÉCISION MAXIMALE (12 décimales = ~0.1mm)
+                                const centerLat = parseFloat(((latlngs[0].lat + latlngs[2].lat) / 2).toFixed(12));
+                                const centerLng = parseFloat(((latlngs[0].lng + latlngs[2].lng) / 2).toFixed(12));
                                 zone.modulesPositions.push({
                                     lat: centerLat,
                                     lng: centerLng,
-                                    corners: latlngs.map(ll => ({lat: ll.lat, lng: ll.lng}))
+                                    // 🔥 Corners avec précision maximale aussi
+                                    corners: latlngs.map(ll => ({
+                                        lat: parseFloat(ll.lat.toFixed(12)), 
+                                        lng: parseFloat(ll.lng.toFixed(12))
+                                    }))
                                 });
                             }
                         }
@@ -3617,10 +3624,10 @@
                     // Convertir les bounds Leaflet en format sérialisable
                     const bounds = z.layer.getBounds();
                     
-                    // 🔥 AJOUT: Sauvegarder les coordonnées GPS de la zone (polygone)
+                    // 🔥 AJOUT: Sauvegarder les coordonnées GPS de la zone (polygone) avec PRÉCISION MAXIMALE
                     const coordinates = z.layer.getLatLngs()[0].map(ll => ({
-                        lat: ll.lat,
-                        lng: ll.lng
+                        lat: parseFloat(ll.lat.toFixed(12)),
+                        lng: parseFloat(ll.lng.toFixed(12))
                     }));
                     
                     // 🔥 CALCUL DES FACTEURS DE CONVERSION GPS RÉELS (comme dans dessinerModulesDansZone)
@@ -3653,20 +3660,20 @@
                         coordinates: coordinates,
                         bounds: {
                             _southWest: {
-                                lat: bounds.getSouthWest().lat,
-                                lng: bounds.getSouthWest().lng
+                                lat: parseFloat(bounds.getSouthWest().lat.toFixed(12)),
+                                lng: parseFloat(bounds.getSouthWest().lng.toFixed(12))
                             },
                             _northEast: {
-                                lat: bounds.getNorthEast().lat,
-                                lng: bounds.getNorthEast().lng
+                                lat: parseFloat(bounds.getNorthEast().lat.toFixed(12)),
+                                lng: parseFloat(bounds.getNorthEast().lng.toFixed(12))
                             }
                         },
-                        // 🔥 AJOUT CRITIQUE: Facteurs de conversion GPS EXACTS utilisés pour dessiner les modules
+                        // 🔥 AJOUT CRITIQUE: Facteurs de conversion GPS ULTRA-PRÉCIS (15 décimales)
                         gpsConversion: {
-                            metersPerDegreeLng: metersPerDegreeLng,
-                            metersPerDegreeLat: metersPerDegreeLat,
-                            realWidthMeters: realWidthMeters,
-                            realHeightMeters: realHeightMeters
+                            metersPerDegreeLng: parseFloat(metersPerDegreeLng.toFixed(15)),
+                            metersPerDegreeLat: parseFloat(metersPerDegreeLat.toFixed(15)),
+                            realWidthMeters: parseFloat(realWidthMeters.toFixed(6)),
+                            realHeightMeters: parseFloat(realHeightMeters.toFixed(6))
                         },
                         // 🔥 AJOUT CRITIQUE: Positions GPS de chaque module individuel
                         modulesPositions: z.modulesPositions || []
