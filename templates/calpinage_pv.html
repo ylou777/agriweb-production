@@ -1012,12 +1012,36 @@
                 // Calculer l'angle de départ
                 const handlePos = rotationHandle.getLatLng();
                 startAngle = Math.atan2(handlePos.lng - center.lng, handlePos.lat - center.lat) * 180 / Math.PI;
+                
+                // Effet visuel de saisie
+                const iconEl = rotationHandle.getElement();
+                if (iconEl) {
+                    iconEl.style.cursor = 'grabbing';
+                    iconEl.style.transform = 'scale(1.4)';
+                    iconEl.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))';
+                }
+                
+                // Ligne de guidage
+                if (!rotationHandle._guideLine) {
+                    rotationHandle._guideLine = L.polyline([center, handlePos], {
+                        color: '#0d6efd',
+                        weight: 2,
+                        dashArray: '5, 5',
+                        opacity: 0.6
+                    }).addTo(map);
+                }
             });
             
             rotationHandle.on('drag', function(e) {
                 if (!isDragging) return;
                 
                 const center = rotationHandle._rotationCenter;
+                const handlePos = e.latlng;
+                
+                // Mettre à jour la ligne de guidage
+                if (rotationHandle._guideLine) {
+                    rotationHandle._guideLine.setLatLngs([center, handlePos]);
+                }
                 const handlePos = e.latlng;
                 
                 // Calculer l'angle actuel
@@ -1075,6 +1099,20 @@
             
             rotationHandle.on('dragend', function() {
                 isDragging = false;
+                
+                // Restaurer le curseur
+                const iconEl = rotationHandle.getElement();
+                if (iconEl) {
+                    iconEl.style.cursor = currentTool === 'edit' ? 'grab' : '';
+                    iconEl.style.transform = currentTool === 'edit' ? 'scale(1.2)' : '';
+                    iconEl.style.filter = currentTool === 'edit' ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' : '';
+                }
+                
+                // Supprimer la ligne de guidage
+                if (rotationHandle._guideLine) {
+                    map.removeLayer(rotationHandle._guideLine);
+                    rotationHandle._guideLine = null;
+                }
                 
                 // Redessiner les modules avec la bonne rotation
                 dessinerModulesDansZone(zone);
@@ -1708,6 +1746,7 @@
             document.getElementById('toolEdit').addEventListener('click', function() {
                 setActiveTool('edit');
                 if (activeDrawHandler) activeDrawHandler.disable();
+                
                 // Activer le mode édition pour toutes les zones
                 if (!editHandler) {
                     editHandler = new L.EditToolbar.Edit(map, {
@@ -1716,17 +1755,68 @@
                 }
                 editHandler.enable();
                 
-                // Rendre les rectangles visibles pour l'édition
+                // Rendre les rectangles visibles et draggables pour l'édition
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0.5;
-                        layer._path.style.fillOpacity = 0.1;
+                    if (layer instanceof L.Rectangle) {
+                        // Style d'édition visible
+                        layer.setStyle({
+                            opacity: 0.7,
+                            fillOpacity: 0.15,
+                            color: '#0d6efd',
+                            fillColor: '#0d6efd',
+                            weight: 3,
+                            dashArray: '5, 5'
+                        });
+                        
+                        // Activer le dragging (déplacement)
+                        if (!layer.dragging) {
+                            layer.dragging = new L.Handler.MarkerDrag(layer);
+                        }
+                        layer.dragging.enable();
+                        
+                        // Curseur move au survol
+                        layer.on('mouseover', function() {
+                            if (currentTool === 'edit' && this._path) {
+                                this._path.style.cursor = 'move';
+                            }
+                        });
+                        
+                        // Events de déplacement
+                        layer.on('drag', function(e) {
+                            const zone = zones.find(z => z.id === e.target._leaflet_id);
+                            if (zone) {
+                                dessinerModulesDansZone(zone);
+                                if (rotationHandles[zone.id]) {
+                                    updateHandlePosition(zone, rotationHandles[zone.id]);
+                                }
+                            }
+                        });
+                        
+                        layer.on('dragend', function(e) {
+                            const zone = zones.find(z => z.id === e.target._leaflet_id);
+                            if (zone) {
+                                zone.originalBounds = {
+                                    sw: layer.getBounds().getSouthWest(),
+                                    ne: layer.getBounds().getNorthEast()
+                                };
+                                dessinerModulesDansZone(zone);
+                                if (rotationHandles[zone.id]) {
+                                    updateHandlePosition(zone, rotationHandles[zone.id]);
+                                }
+                            }
+                        });
                     }
                 });
                 
-                // Afficher les poignées de rotation
-                Object.values(rotationHandles).forEach(handle => {
+                // Afficher les poignées de rotation avec style amélioré
+                Object.entries(rotationHandles).forEach(([zoneId, handle]) => {
                     handle.setOpacity(1);
+                    const iconEl = handle.getElement();
+                    if (iconEl) {
+                        iconEl.style.cursor = 'grab';
+                        iconEl.style.transform = 'scale(1.2)';
+                        iconEl.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                    }
                 });
             });
             
@@ -1847,27 +1937,59 @@
                 editHandler.disable();
                 // Recalculer et mettre à jour toutes les zones après édition
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0;
-                        layer._path.style.fillOpacity = 0;
-                    }
-                    // Recalculer la zone
-                    const zone = zones.find(z => z.id === layer._leaflet_id);
-                    if (zone) {
-                        const bounds = layer.getBounds();
-                        const ne = bounds.getNorthEast();
-                        const sw = bounds.getSouthWest();
-                        zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                        zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
-                        zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                    if (layer instanceof L.Rectangle) {
+                        // Restaurer le style invisible
+                        layer.setStyle({
+                            opacity: 0,
+                            fillOpacity: 0,
+                            color: '#0d6efd',
+                            weight: 2,
+                            dashArray: null
+                        });
                         
-                        recalculerZone(zone);
-                        dessinerModulesDansZone(zone);
+                        // Désactiver le dragging
+                        if (layer.dragging) {
+                            layer.dragging.disable();
+                        }
+                        
+                        // Retirer le curseur et les events
+                        layer.off('mouseover');
+                        layer.off('drag');
+                        layer.off('dragend');
+                        if (layer._path) {
+                            layer._path.style.cursor = '';
+                        }
+                        
+                        // Recalculer la zone
+                        const zone = zones.find(z => z.id === layer._leaflet_id);
+                        if (zone) {
+                            const bounds = layer.getBounds();
+                            const ne = bounds.getNorthEast();
+                            const sw = bounds.getSouthWest();
+                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                            zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                            
+                            zone.originalBounds = {
+                                sw: bounds.getSouthWest(),
+                                ne: bounds.getNorthEast()
+                            };
+                            
+                            recalculerZone(zone);
+                            dessinerModulesDansZone(zone);
+                        }
                     }
                 });
-                // Masquer les poignées de rotation
-                Object.values(rotationHandles).forEach(handle => {
+                
+                // Masquer et réinitialiser les poignées de rotation
+                Object.entries(rotationHandles).forEach(([zoneId, handle]) => {
                     handle.setOpacity(0);
+                    const iconEl = handle.getElement();
+                    if (iconEl) {
+                        iconEl.style.cursor = '';
+                        iconEl.style.transform = '';
+                        iconEl.style.filter = '';
+                    }
                 });
             }
             if (deleteHandler && tool !== 'delete') {
