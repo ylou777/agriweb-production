@@ -84,8 +84,16 @@ class PlanMasseGenerator:
         c.setFillColor(colors.HexColor('#F5F5F5'))
         c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
         
-        lat = self.data.get('latitude')
-        lon = self.data.get('longitude')
+        # 🔥 CENTRER SUR LES MODULES PV plutôt que sur l'adresse
+        # Calculer le centre GPS des modules si disponibles
+        center_lat, center_lon = self._get_modules_center()
+        if center_lat and center_lon:
+            lat, lon = center_lat, center_lon
+            print(f"[PLAN] 📍 Plan centré sur les modules PV: {lat:.6f}, {lon:.6f}")
+        else:
+            lat = self.data.get('latitude')
+            lon = self.data.get('longitude')
+            print(f"[PLAN] 📍 Plan centré sur l'adresse: {lat:.6f}, {lon:.6f}")
         
         # Initialiser screenshot_used
         self.screenshot_used = False
@@ -194,6 +202,7 @@ class PlanMasseGenerator:
             
             # 🔥 FALLBACK: Image satellite si pas de screenshot
             if not self.screenshot_used:
+                print(f"[PLAN] 🛰️ Tentative de téléchargement image satellite...")
                 satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1600, height=1400)
                 if satellite_img:
                     # REMPLIR TOUT LE CADRE (pas de blanc autour)
@@ -201,7 +210,9 @@ class PlanMasseGenerator:
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
                               preserveAspectRatio=False, mask='auto')  # False = remplit tout
-                    print(f"[PLAN] ✅ Image satellite: {bbox_meters*2:.0f}m de rayon à l'échelle 1/500")
+                    print(f"[PLAN] ✅ Image satellite dessinée: rayon {bbox_meters:.0f}m à l'échelle 1/500")
+                else:
+                    print(f"[PLAN] ⚠️ Aucune image satellite - fond gris utilisé")
                     
                     # 🔥 IMPORTANT: Définir gps_bounds pour l'image satellite
                     # Calculer les limites GPS du bbox carré centré sur lat/lon
@@ -1025,6 +1036,31 @@ class PlanMasseGenerator:
             print(f"[PLAN] ❌ Erreur image satellite: {e}")
         
         return None
+    
+    def _get_modules_center(self):
+        """Calcule le centre GPS de tous les modules PV"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            return None, None
+        
+        all_lats = []
+        all_lons = []
+        
+        for zone in self.calpinage['zones']:
+            modules_positions = zone.get('modulesPositions', [])
+            for module in modules_positions:
+                corners = module.get('corners', [])
+                for corner in corners:
+                    all_lats.append(corner['lat'])
+                    all_lons.append(corner['lng'])
+        
+        if not all_lats or not all_lons:
+            return None, None
+        
+        # Centre = moyenne de tous les points
+        center_lat = sum(all_lats) / len(all_lats)
+        center_lon = sum(all_lons) / len(all_lons)
+        
+        return center_lat, center_lon
     
     def _extract_parcelles(self):
         """Extrait les parcelles cadastrales"""
