@@ -566,6 +566,40 @@ class PlanMasseGenerator:
         
         return None
     
+    def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
+        """Récupère une image satellite avec bbox en mètres autour d'un point central"""
+        try:
+            # Convertir bbox_meters en degrés (approximatif)
+            # 1 degré lat ≈ 111 km, 1 degré lon ≈ 111 km * cos(lat)
+            import math
+            delta_lat = (bbox_meters / 111000)
+            delta_lon = (bbox_meters / (111000 * math.cos(math.radians(lat))))
+            
+            # API ArcGIS World Imagery
+            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+            
+            bbox_str = f"{lon - delta_lon},{lat - delta_lat},{lon + delta_lon},{lat + delta_lat}"
+            
+            params = {
+                'bbox': bbox_str,
+                'bboxSR': '4326',
+                'size': f'{width},{height}',
+                'format': 'png',
+                'f': 'image'
+            }
+            
+            print(f"[PLAN] Récupération image satellite bbox={bbox_meters}m")
+            response = requests.get(url, params=params, timeout=10)
+            if response.status_code == 200:
+                print(f"[PLAN] ✅ Image satellite OK ({len(response.content)} bytes)")
+                return io.BytesIO(response.content)
+            else:
+                print(f"[PLAN] ❌ Erreur ArcGIS: {response.status_code}")
+        except Exception as e:
+            print(f"[PLAN] ❌ Erreur image satellite bbox: {e}")
+        
+        return None
+    
     def _extract_parcelles(self):
         """Extrait les parcelles cadastrales"""
         parcelles_data = self.data.get('parcelles_cadastrales', [])
