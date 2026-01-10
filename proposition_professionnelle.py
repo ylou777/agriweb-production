@@ -2205,14 +2205,18 @@ class PropositionProfessionnelle:
         # TAXES ET FISCALITÉ
         elements.append(Paragraph("<b>🔸 TAXES ET FISCALITÉ APPLICABLES</b>", self.styles['Section']))
         
-        taxe_ifer = puissance_kwc * 7.65 if puissance_kwc > 100 else 0
-        taxe_territoriale = investissement_total * 0.005
+        # Conversion en float pour éviter erreur Decimal * float
+        puissance_kwc_float = float(puissance_kwc)
+        investissement_total_float = float(investissement_total)
+        
+        taxe_ifer = puissance_kwc_float * 7.65 if puissance_kwc_float > 100 else 0
+        taxe_territoriale = investissement_total_float * 0.005
         
         fiscal_text = f"""
         <b>IFER (Imposition Forfaitaire Entreprises de Réseaux) :</b><br/>
         • Installations ≤ 100 kWc : <b>EXONÉRÉES</b><br/>
         • Installations > 100 kWc : <b>7,65 €/kWc/an</b><br/>
-        • Votre installation ({puissance_kwc:.2f} kWc) : <b>{'EXONÉRÉE' if puissance_kwc <= 100 else f'{taxe_ifer:,.2f} €/an'}</b><br/>
+        • Votre installation ({puissance_kwc:.2f} kWc) : <b>{'EXONÉRÉE' if puissance_kwc_float <= 100 else f'{taxe_ifer:,.2f} €/an'}</b><br/>
         <br/>
         <b>Taxe Foncière :</b><br/>
         • Exonération possible 50% pendant 3 ans (selon commune)<br/>
