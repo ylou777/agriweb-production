@@ -13,8 +13,8 @@ import zipfile
 from declaration_prealable_generator import generate_declaration_prealable_complete
 from plan_masse_generator_v2 import generate_plan_masse
 from plan_masse_simple import generate_plan_masse_simple
-# Import du générateur SIMPLE (screenshot uniquement)
-from plan_masse_generator_simple import generate_plan_masse as generate_plan_masse_screenshot
+# Import du générateur COMPLET (parcelles cadastrales + screenshot)
+from plan_masse_generator import generate_plan_masse as generate_plan_masse_screenshot
 
 # ============================================================================
 # HELPER FUNCTIONS

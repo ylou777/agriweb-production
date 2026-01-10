@@ -1134,6 +1134,20 @@
                     sw: layer.getBounds().getSouthWest(),
                     ne: layer.getBounds().getNorthEast()
                 };
+                
+                // Recalculer les dimensions
+                const bounds = layer.getBounds();
+                const ne = bounds.getNorthEast();
+                const sw = bounds.getSouthWest();
+                zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                
+                // Redessiner les modules avec les nouvelles dimensions
+                recalculerZone(zone);
+                dessinerModulesDansZone(zone);
+                
+                // Mettre à jour la position de la poignée
                 updateHandlePosition(zone, rotationHandle);
             });
         }
