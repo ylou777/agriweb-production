@@ -276,9 +276,160 @@ class PlanMasseGenerator:
         c.drawString(parc_x + 0.3*cm, parc_y + parc_h - 0.2*cm, 
                     f"{surface} m²")
     
+    def _draw_parcelles_geojson(self, c):
+        """Dessine les parcelles depuis leurs géométries GeoJSON"""
+        parcelles = self._extract_parcelles()
+        if not parcelles:
+            return
+        
+        for parcelle in parcelles:
+            section = parcelle.get('section', '')
+            numero = parcelle.get('numero', '')
+            surface = parcelle.get('surface', 0)
+            geojson = parcelle.get('geojson')
+            
+            # Si géométrie GeoJSON disponible, l'utiliser
+            if geojson and isinstance(geojson, dict):
+                self._draw_parcelle_from_geojson(c, geojson, section, numero, surface)
+    
     def _draw_parcelles(self, c, center_x, center_y, lat, lon):
         """DEPRECATED - Utiliser _draw_parcelles_geojson"""
         pass
+    
+    def _draw_batiment_gps(self, c):
+        """Dessine le bâtiment à sa position GPS réelle"""
+        lat = self.data.get('latitude')
+        lon = self.data.get('longitude')
+        
+        if not lat or not lon:
+            return
+        
+        # Position GPS du bâtiment convertie en coordonnées PDF
+        center_x, center_y = self._lat_lon_to_pdf(lat, lon)
+        
+        # Dimensions du bâtiment
+        try:
+            longueur = float(self.data.get('longueur_batiment_m', 15))
+            largeur = float(self.data.get('largeur_batiment_m', 10))
+        except (ValueError, TypeError):
+            longueur = 15
+            largeur = 10
+        
+        # Conversion mètres → PDF (selon échelle du plan)
+        meters_per_cm = self.plan_bbox['meters_per_cm']
+        bat_w = (longueur / meters_per_cm) * cm
+        bat_h = (largeur / meters_per_cm) * cm
+        
+        bat_x = center_x - bat_w/2
+        bat_y = center_y - bat_h/2
+        
+        # Rectangle bâtiment
+        c.setStrokeColor(colors.black)
+        c.setFillColor(colors.HexColor('#FFE4B5'))  # Beige
+        c.setLineWidth(2)
+        c.rect(bat_x, bat_y, bat_w, bat_h, fill=1, stroke=1)
+        
+        # Étiquette
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawCentredString(center_x, center_y, "BÂTIMENT")
+    
+    def _draw_modules_pv_gps(self, c):
+        """Dessine les modules PV selon leurs COORDONNÉES GPS du calpinage"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            return
+        
+        # Dessiner chaque zone avec ses modules
+        for zone in self.calpinage['zones']:
+            modules_positions = zone.get('modulesPositions', [])
+            
+            if modules_positions:
+                # Utiliser les coordonnées GPS sauvegardées de chaque module
+                self._draw_modules_from_positions(c, modules_positions, zone)
+    
+    def _draw_modules_from_positions(self, c, modules_positions, zone):
+        """Dessine chaque module à sa position GPS exacte"""
+        if not modules_positions:
+            return
+        
+        # Trouver les limites de la zone
+        lats = [m['lat'] for m in modules_positions if 'lat' in m]
+        lngs = [m['lng'] for m in modules_positions if 'lng' in m]
+        
+        if not lats or not lngs:
+            return
+        
+        # Convertir les coins en coordonnées PDF
+        min_lat, max_lat = min(lats), max(lats)
+        min_lng, max_lng = min(lngs), max(lngs)
+        
+        top_left_x, top_left_y = self._lat_lon_to_pdf(max_lat, min_lng)
+        bottom_right_x, bottom_right_y = self._lat_lon_to_pdf(min_lat, max_lng)
+        
+        # Ajouter une marge
+        margin = 0.2 * cm
+        
+        # Dessiner le contour
+        c.setStrokeColor(colors.HexColor('#D32F2F'))  # Rouge
+        c.setLineWidth(2)
+        c.setDash(4, 2)
+        c.rect(top_left_x - margin, bottom_right_y - margin,
+              bottom_right_x - top_left_x + 2*margin,
+              top_left_y - bottom_right_y + 2*margin,
+              fill=0, stroke=1)
+        c.setDash()
+        
+        # Étiquette zone
+        nb_modules = zone.get('nbModules', len(modules_positions))
+        c.setFillColor(colors.HexColor('#D32F2F'))
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(top_left_x, top_left_y + 0.4*cm,
+                    f"Zone PV: {nb_modules} modules")
+    
+    def _draw_cotations_gps(self, c):
+        """Dessine les cotations basées sur les dimensions GPS réelles"""
+        lat = self.data.get('latitude')
+        lon = self.data.get('longitude')
+        
+        if not lat or not lon:
+            return
+        
+        center_x, center_y = self._lat_lon_to_pdf(lat, lon)
+        
+        try:
+            longueur = float(self.data.get('longueur_batiment_m', 15))
+            largeur = float(self.data.get('largeur_batiment_m', 10))
+        except (ValueError, TypeError):
+            longueur = 15
+            largeur = 10
+        
+        meters_per_cm = self.plan_bbox['meters_per_cm']
+        bat_w = (longueur / meters_per_cm) * cm
+        bat_h = (largeur / meters_per_cm) * cm
+        
+        # Cotation longueur (bas)
+        c.setStrokeColor(colors.HexColor('#D32F2F'))
+        c.setFillColor(colors.HexColor('#D32F2F'))
+        c.setFont("Helvetica-Bold", 9)
+        c.setLineWidth(1.5)
+        
+        cote_y = center_y - bat_h/2 - 1*cm
+        c.line(center_x - bat_w/2, cote_y, center_x + bat_w/2, cote_y)
+        c.line(center_x - bat_w/2, cote_y - 0.2*cm, center_x - bat_w/2, cote_y + 0.2*cm)
+        c.line(center_x + bat_w/2, cote_y - 0.2*cm, center_x + bat_w/2, cote_y + 0.2*cm)
+        c.drawCentredString(center_x, cote_y - 0.5*cm, f"{longueur:.1f} m")
+        
+        # Cotation largeur (droite)
+        cote_x = center_x + bat_w/2 + 1*cm
+        c.line(cote_x, center_y - bat_h/2, cote_x, center_y + bat_h/2)
+        c.line(cote_x - 0.2*cm, center_y - bat_h/2, cote_x + 0.2*cm, center_y - bat_h/2)
+        c.line(cote_x - 0.2*cm, center_y + bat_h/2, cote_x + 0.2*cm, center_y + bat_h/2)
+        
+        c.saveState()
+        c.translate(cote_x + 0.5*cm, center_y)
+        c.rotate(90)
+        c.drawCentredString(0, 0, f"{largeur:.1f} m")
+        c.restoreState()
     
     def _draw_batiment(self, c, center_x, center_y):
         """Dessine le bâtiment"""
