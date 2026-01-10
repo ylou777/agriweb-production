@@ -12,8 +12,6 @@ import io
 import requests
 from PIL import Image
 import json
-import base64
-import re
 
 
 class PlanMasseGenerator:
@@ -87,74 +85,14 @@ class PlanMasseGenerator:
         # Calculer bbox réelle basée sur les dimensions
         bbox_meters = self._calculate_bbox_from_data()
         
-        # 🔥 CORRECTION: Calculer la bbox GPS AVANT de récupérer l'image
-        # pour assurer cohérence entre image et conversion GPS→PDF
-        meters_to_lat = bbox_meters / 111000
-        meters_to_lon = bbox_meters / (111000 * 0.7)  # cos(45°)
-        
-        # Stocker les limites GPS réelles
-        self.gps_bounds = {
-            'min_lat': lat - meters_to_lat,
-            'max_lat': lat + meters_to_lat,
-            'min_lon': lon - meters_to_lon,
-            'max_lon': lon + meters_to_lon
-        }
-        
         if lat and lon:
-            # 🔥 PRIORITÉ 1: Utiliser le screenshot de la carte si disponible
-            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
-            
-            if screenshot_data:
-                try:
-                    # Le screenshot est en base64 data URL: "data:image/png;base64,..."
-                    import base64
-                    import re
-                    
-                    # Extraire les données base64
-                    base64_match = re.search(r'base64,(.+)', screenshot_data)
-                    if base64_match:
-                        base64_str = base64_match.group(1)
-                        img_data = base64.b64decode(base64_str)
-                        img_buffer = io.BytesIO(img_data)
-                        
-                        print(f"[PLAN] 📸 Utilisation du screenshot de la carte ({len(img_data)} bytes)")
-                        
-                        # Récupérer les métadonnées de la carte pour calibrer GPS→PDF
-                        map_metadata = self.calpinage.get('map_metadata', {})
-                        if map_metadata and 'bounds' in map_metadata:
-                            bounds = map_metadata['bounds']
-                            self.gps_bounds = {
-                                'min_lat': bounds['south'],
-                                'max_lat': bounds['north'],
-                                'min_lon': bounds['west'],
-                                'max_lon': bounds['east']
-                            }
-                            print(f"[PLAN] 🗺️ Utilisation des bounds de la carte Leaflet")
-                        
-                        # Dessiner le screenshot (EXACT de Leaflet)
-                        c.drawImage(ImageReader(img_buffer), 
-                                  plan_x, plan_y, 
-                                  width=plan_width, height=plan_height,
-                                  preserveAspectRatio=True, anchor='c', mask='auto')
-                        
-                        screenshot_used = True
-                    else:
-                        screenshot_used = False
-                except Exception as e:
-                    print(f"[PLAN] ⚠️ Erreur lecture screenshot: {e}")
-                    screenshot_used = False
-            else:
-                screenshot_used = False
-            
-            # 🔥 FALLBACK: Image satellite si pas de screenshot
-            if not screenshot_used:
-                satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1200, height=1000)
-                if satellite_img:
-                    # 🔥 CORRECTION: Conserver l'aspect ratio pour éviter déformation
-                    c.drawImage(ImageReader(satellite_img), 
-                              plan_x, plan_y, 
-                              width=plan_width, height=plan_height,
-                              preserveAspectRatio=True, anchor='c', mask='auto')
+            # Image satellite de fond avec bbox correcte
+            satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1200, height=1000)
+            if satellite_img:
+                c.drawImage(ImageReader(satellite_img), 
+                          plan_x, plan_y, 
+                          width=plan_width, height=plan_height,
+                          preserveAspectRatio=False, mask='auto')
         
         # Système de coordonnées : conversion GPS → PDF
         # Centre du plan = position GPS du bâtiment
@@ -169,17 +107,17 @@ class PlanMasseGenerator:
         }
         
         # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
-        self._draw_parcelles(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2, lat, lon)
+        self._draw_parcelles_geojson(c)
         
         # 2. BÂTIMENT (à la position GPS)
-        self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
+        self._draw_batiment_gps(c)
         
         # 3. MODULES PV selon COORDONNÉES GPS DU CALPINAGE
         if self.calpinage:
-            self._draw_modules_pv_from_gps(c)
+            self._draw_modules_pv_gps(c)
         
         # 4. COTATIONS
-        self._draw_cotations(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
+        self._draw_cotations_gps(c)
         
     def _calculate_bbox_from_data(self):
         """Calcule la taille de la bbox en mètres basée sur les données"""
@@ -195,25 +133,33 @@ class PlanMasseGenerator:
         return 60
     
     def _lat_lon_to_pdf(self, lat, lon):
-        """
-        Convertit coordonnées GPS en coordonnées PDF
-        Utilise les MÊMES limites GPS que l'image satellite pour assurer l'alignement
-        """
-        if not hasattr(self, 'plan_bbox') or not hasattr(self, 'gps_bounds'):
+        """Convertit coordonnées GPS en coordonnées PDF"""
+        if not hasattr(self, 'plan_bbox'):
             return (0, 0)
         
         bbox = self.plan_bbox
-        gps = self.gps_bounds
         
-        # 🔥 CORRECTION: Conversion GPS → PDF basée sur les limites GPS réelles de l'image
-        # Normaliser lat/lon dans l'intervalle [0, 1] par rapport aux limites
-        lat_ratio = (lat - gps['min_lat']) / (gps['max_lat'] - gps['min_lat'])
-        lon_ratio = (lon - gps['min_lon']) / (gps['max_lon'] - gps['min_lon'])
+        # Conversion approximative GPS → mètres (projection Web Mercator simplifiée)
+        # 1 degré latitude ≈ 111 km
+        # 1 degré longitude ≈ 111 km * cos(latitude)
+        lat_center = bbox['lat_center']
+        lon_center = bbox['lon_center']
         
-        # Convertir en coordonnées PDF
-        # ⚠️ Attention: PDF Y augmente vers le haut, mais latitude aussi
-        pdf_x = bbox['x'] + lon_ratio * bbox['width']
-        pdf_y = bbox['y'] + lat_ratio * bbox['height']
+        delta_lat = lat - lat_center
+        delta_lon = lon - lon_center
+        
+        # Conversion en mètres
+        meters_y = delta_lat * 111000  # Nord positif
+        meters_x = delta_lon * 111000 * 0.7  # cos(45°) approximatif pour France
+        
+        # Conversion mètres → cm PDF
+        meters_per_cm = bbox['meters_per_cm']
+        offset_x = (meters_x / meters_per_cm) * cm
+        offset_y = (meters_y / meters_per_cm) * cm
+        
+        # Position PDF
+        pdf_x = bbox['x'] + bbox['width'] / 2 + offset_x
+        pdf_y = bbox['y'] + bbox['height'] / 2 + offset_y
         
         return (pdf_x, pdf_y)
     
@@ -364,91 +310,82 @@ class PlanMasseGenerator:
         c.drawCentredString(center_x, center_y, "BÂTIMENT")
     
     def _draw_modules_pv_reels(self, c, center_x, center_y, lat, lon):
-        """DEPRECATED - Utiliser _draw_modules_pv_from_gps à la place"""
-        pass
-    
-    def _draw_modules_pv_from_gps(self, c):
-        """Dessine les modules PV selon leurs VRAIES coordonnées GPS sauvegardées"""
+        """Dessine les modules PV selon le CALPINAGE RÉEL"""
         
         if not self.calpinage or 'zones' not in self.calpinage:
             return
         
-        zones = self.calpinage['zones']
+        echelle = 0.3  # cm par mètre
         
-        for zone in zones:
-            # Récupérer les positions GPS de chaque module
-            modules_positions = zone.get('modulesPositions', [])
+        # Récupérer dimensions module avec conversion sécurisée
+        try:
+            module_longueur_mm = self.calpinage.get('module', {}).get('longueur', 2278)
+            module_largeur_mm = self.calpinage.get('module', {}).get('largeur', 1134)
             
-            if not modules_positions:
-                print(f"[PLAN] ⚠️ Aucune position GPS pour zone {zone.get('numero', '?')}")
-                continue
+            # Convertir en float (gère string et int)
+            module_longueur = float(module_longueur_mm) / 1000  # mm → m
+            module_largeur = float(module_largeur_mm) / 1000    # mm → m
+        except (ValueError, TypeError):
+            # Valeurs par défaut si conversion échoue
+            module_longueur = 2.278  # m
+            module_largeur = 1.134   # m
+        
+        # Pour chaque zone du calpinage
+        for zone in self.calpinage['zones']:
+            nb_modules = zone.get('nbModules', 0)
+            nb_cols = zone.get('nbCols', 0)
+            nb_rows = zone.get('nbRows', 0)
+            orientation_module = zone.get('moduleOrientation', 'paysage')
             
-            print(f"[PLAN] 📍 Dessin {len(modules_positions)} modules avec coordonnées GPS pour zone {zone.get('numero', '?')}")
+            # Dimensions selon orientation
+            if orientation_module == 'paysage':
+                mod_h = module_longueur  # 2.28m horizontal
+                mod_v = module_largeur   # 1.13m vertical
+            else:  # portrait
+                mod_h = module_largeur   # 1.13m horizontal
+                mod_v = module_longueur  # 2.28m vertical
             
-            # Dessiner chaque module selon ses coordonnées GPS
+            # Espacement entre modules
+            espacement = 0.02  # 2cm entre modules
+            
+            # Dimensions totales de la zone
+            zone_width = nb_cols * (mod_h + espacement)
+            zone_height = nb_rows * (mod_v + espacement)
+            
+            # Position de départ (centré sur bâtiment)
+            start_x = center_x - (zone_width * echelle * cm) / 2
+            start_y = center_y - (zone_height * echelle * cm) / 2
+            
+            # Dessiner chaque module
             c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu foncé
             c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
             c.setLineWidth(0.5)
             
-            for module in modules_positions:
-                corners = module.get('corners', [])
-                
-                if len(corners) < 4:
-                    continue
-                
-                # Convertir les 4 coins GPS → coordonnées PDF
-                path = c.beginPath()
-                first = True
-                
-                for corner in corners:
-                    pdf_x, pdf_y = self._lat_lon_to_pdf(corner['lat'], corner['lng'])
+            for row in range(nb_rows):
+                for col in range(nb_cols):
+                    mod_x = start_x + col * (mod_h + espacement) * echelle * cm
+                    mod_y = start_y + row * (mod_v + espacement) * echelle * cm
+                    mod_w = mod_h * echelle * cm
+                    mod_h_draw = mod_v * echelle * cm
                     
-                    if first:
-                        path.moveTo(pdf_x, pdf_y)
-                        first = False
-                    else:
-                        path.lineTo(pdf_x, pdf_y)
-                
-                path.close()
-                
-                # Dessiner le module
-                c.drawPath(path, stroke=1, fill=1)
+                    # Rectangle module
+                    c.rect(mod_x, mod_y, mod_w, mod_h_draw, fill=1, stroke=1)
             
-            # Dessiner le contour de la zone (optionnel)
-            zone_coords = zone.get('coordinates', [])
-            if zone_coords:
-                path = c.beginPath()
-                first = True
-                
-                for coord in zone_coords:
-                    pdf_x, pdf_y = self._lat_lon_to_pdf(coord['lat'], coord['lng'])
-                    
-                    if first:
-                        path.moveTo(pdf_x, pdf_y)
-                        first = False
-                    else:
-                        path.lineTo(pdf_x, pdf_y)
-                
-                path.close()
-                
-                # Contour zone rouge en pointillés
-                c.setStrokeColor(colors.HexColor('#D32F2F'))
-                c.setLineWidth(2)
-                c.setDash(4, 2)
-                c.drawPath(path, stroke=1, fill=0)
-                c.setDash()
-                
-                # Étiquette zone
-                if zone_coords:
-                    label_x, label_y = self._lat_lon_to_pdf(zone_coords[0]['lat'], zone_coords[0]['lng'])
-                    c.setFillColor(colors.HexColor('#D32F2F'))
-                    c.setFont("Helvetica-Bold", 8)
-                    nb_modules = zone.get('nbModules', len(modules_positions))
-                    nb_cols = zone.get('nbCols', 0)
-                    nb_rows = zone.get('nbRows', 0)
-                    c.drawString(label_x + 0.4*cm, label_y + 0.4*cm,
-                                f"Zone PV: {nb_modules} modules ({nb_cols}×{nb_rows})")
-
+            # Contour zone
+            c.setStrokeColor(colors.HexColor('#D32F2F'))  # Rouge
+            c.setLineWidth(2)
+            c.setDash(4, 2)
+            c.rect(start_x - 0.1*cm, start_y - 0.1*cm, 
+                  zone_width * echelle * cm + 0.2*cm, 
+                  zone_height * echelle * cm + 0.2*cm, 
+                  fill=0, stroke=1)
+            c.setDash()
+            
+            # Étiquette zone
+            c.setFillColor(colors.HexColor('#D32F2F'))
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(start_x, start_y + zone_height * echelle * cm + 0.4*cm,
+                        f"Zone PV: {nb_modules} modules ({nb_cols}×{nb_rows})")
     
     def _draw_cotations(self, c, center_x, center_y):
         """Dessine les cotations"""
@@ -626,57 +563,6 @@ class PlanMasseGenerator:
                 return io.BytesIO(response.content)
         except Exception as e:
             print(f"Erreur image satellite: {e}")
-        
-        return None
-    
-    def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
-        """
-        Récupère une image satellite avec une bbox en mètres autour du point central
-        
-        Args:
-            lat, lon: Coordonnées GPS du centre
-            bbox_meters: Rayon en mètres pour la bbox
-            width, height: Dimensions de l'image en pixels
-            
-        Returns:
-            BytesIO de l'image ou None
-        """
-        try:
-            # Conversion mètres → degrés (approximatif pour France métropolitaine)
-            # 1 degré latitude ≈ 111 km
-            # 1 degré longitude ≈ 111 km * cos(latitude) ≈ 78 km à 45° de latitude
-            meters_to_lat = bbox_meters / 111000
-            meters_to_lon = bbox_meters / (111000 * 0.7)  # cos(45°) ≈ 0.7
-            
-            # Calculer bbox
-            min_lon = lon - meters_to_lon
-            max_lon = lon + meters_to_lon
-            min_lat = lat - meters_to_lat
-            max_lat = lat + meters_to_lat
-            
-            # ArcGIS World Imagery
-            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-            
-            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-            
-            params = {
-                'bbox': bbox_str,
-                'bboxSR': '4326',
-                'size': f'{width},{height}',
-                'format': 'png',
-                'f': 'image'
-            }
-            
-            print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m, size={width}x{height}")
-            
-            response = requests.get(url, params=params, timeout=15)
-            if response.status_code == 200:
-                print(f"[PLAN] ✅ Image satellite téléchargée ({len(response.content)} bytes)")
-                return io.BytesIO(response.content)
-            else:
-                print(f"[PLAN] ❌ Erreur API: {response.status_code}")
-        except Exception as e:
-            print(f"[PLAN] ❌ Erreur image satellite: {e}")
         
         return None
     
