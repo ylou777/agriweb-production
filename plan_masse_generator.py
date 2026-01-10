@@ -169,17 +169,17 @@ class PlanMasseGenerator:
         }
         
         # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
-        self._draw_parcelles(c, bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2, lat, lon)
+        self._draw_parcelles(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2, lat, lon)
         
         # 2. BÂTIMENT (à la position GPS)
-        self._draw_batiment(c, bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
+        self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
         # 3. MODULES PV selon COORDONNÉES GPS DU CALPINAGE
         if self.calpinage:
             self._draw_modules_pv_from_gps(c)
         
         # 4. COTATIONS
-        self._draw_cotations(c, bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
+        self._draw_cotations(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
     def _calculate_bbox_from_data(self):
         """Calcule la taille de la bbox en mètres basée sur les données"""
