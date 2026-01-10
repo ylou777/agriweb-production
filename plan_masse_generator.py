@@ -1011,26 +1011,58 @@ class PlanMasseGenerator:
             print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m côté), size={width}x{height}")
             print(f"[PLAN] 📍 GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
             
-            # 🔥 Essayer plusieurs sources d'images satellite
-            # 1. Google Static Maps (gratuit sans clé, limité)
+            # 🔥 PRIORITÉ 1: IGN Géoportail (meilleure qualité pour France, gratuit)
             try:
-                # Zoom calculé pour couvrir la bbox
+                # Convertir WGS84 en Web Mercator pour WMTS
+                from pyproj import Transformer
+                to_webmerc = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+                
+                xmin, ymin = to_webmerc.transform(min_lon, min_lat)
+                xmax, ymax = to_webmerc.transform(max_lon, max_lat)
+                
+                ign_url = "https://wxs.ign.fr/ortho/geoportail/r/wms"
+                ign_params = {
+                    'SERVICE': 'WMS',
+                    'VERSION': '1.3.0',
+                    'REQUEST': 'GetMap',
+                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
+                    'STYLES': '',
+                    'CRS': 'EPSG:3857',
+                    'BBOX': f'{xmin},{ymin},{xmax},{ymax}',
+                    'WIDTH': width,
+                    'HEIGHT': height,
+                    'FORMAT': 'image/png'
+                }
+                
+                print(f"[PLAN] 🔍 Tentative #1: IGN Géoportail (ortho photos)...")
+                response = requests.get(ign_url, params=ign_params, timeout=20)
+                if response.status_code == 200 and len(response.content) > 5000:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image IGN téléchargée ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ⚠️ IGN: HTTP {response.status_code}, taille={len(response.content)} bytes")
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Erreur IGN: {e}")
+            
+            # 🔥 FALLBACK 2: Google Static Maps
+            try:
                 import math
-                zoom = int(15 - math.log2(bbox_meters / 100))  # Approximation
-                zoom = max(10, min(20, zoom))  # Entre 10 et 20
+                zoom = int(15 - math.log2(bbox_meters / 100))
+                zoom = max(14, min(20, zoom))
                 
                 google_url = f"https://maps.googleapis.com/maps/api/staticmap"
                 google_params = {
                     'center': f'{lat},{lon}',
                     'zoom': zoom,
-                    'size': f'{width}x{height}',
+                    'size': f'{min(width, 640)}x{min(height, 640)}',  # Limite gratuite
                     'maptype': 'satellite',
                     'format': 'png'
                 }
                 
-                print(f"[PLAN] 🔍 Tentative #1: Google Static Maps (zoom {zoom})...")
+                print(f"[PLAN] 🔍 Tentative #2: Google Static Maps (zoom {zoom})...")
                 response = requests.get(google_url, params=google_params, timeout=15)
-                if response.status_code == 200 and len(response.content) > 5000:  # Image valide
+                if response.status_code == 200 and len(response.content) > 5000:
                     img_size_kb = len(response.content) / 1024
                     print(f"[PLAN] ✅ Image Google téléchargée ({img_size_kb:.1f} KB)")
                     return io.BytesIO(response.content)
@@ -1038,50 +1070,6 @@ class PlanMasseGenerator:
                     print(f"[PLAN] ⚠️ Google Maps: {response.status_code}")
             except Exception as e:
                 print(f"[PLAN] ⚠️ Erreur Google Maps: {e}")
-            
-            # 2. OpenStreetMap Static (gratuit mais basse résolution)
-            try:
-                center_lat = (min_lat + max_lat) / 2
-                center_lon = (min_lon + max_lon) / 2
-                osm_url = f"https://staticmap.openstreetmap.de/staticmap.php"
-                osm_params = {
-                    'center': f'{center_lat},{center_lon}',
-                    'zoom': 17,
-                    'size': f'{width}x{height}',
-                    'maptype': 'mapnik'
-                }
-                
-                print(f"[PLAN] 🔍 Tentative #2: OpenStreetMap Static...")
-                response = requests.get(osm_url, params=osm_params, timeout=15)
-                if response.status_code == 200:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image OSM téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur OSM: {e}")
-            
-            # 3. ArcGIS (backup)
-            try:
-                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-                bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-                arcgis_params = {
-                    'bbox': bbox_str,
-                    'bboxSR': '4326',
-                    'size': f'{width},{height}',
-                    'format': 'png',
-                    'f': 'image'
-                }
-                
-                print(f"[PLAN] 🔍 Tentative #3: ArcGIS...")
-                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
-                if response.status_code == 200:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image ArcGIS téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ❌ ArcGIS: HTTP {response.status_code}")
-            except Exception as e:
-                print(f"[PLAN] ❌ Erreur ArcGIS: {e}")
         except Exception as e:
             print(f"[PLAN] ❌ Erreur image satellite: {e}")
         
