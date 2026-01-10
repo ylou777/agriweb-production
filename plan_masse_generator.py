@@ -137,10 +137,11 @@ class PlanMasseGenerator:
         }
         
         if lat and lon:
-            # 🔥 PRIORITÉ 1: Utiliser le screenshot de la carte si disponible
-            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
+            # 🔥 DÉSACTIVÉ: Ne PAS utiliser le screenshot car coordonnées GPS imprécises
+            # On dessine tout manuellement avec les vraies coordonnées GPS
+            screenshot_data = None  # Force désactivation du screenshot
             
-            if screenshot_data:
+            if False and screenshot_data:  # Désactivé
                 try:
                     # Le screenshot est en base64 data URL: "data:image/png;base64,..."
                     import base64
@@ -218,13 +219,11 @@ class PlanMasseGenerator:
         # 2. BÂTIMENT (à la position GPS) - DÉSACTIVÉ pour plan de masse simple
         # self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
-        # 3. MODULES PV - TOUJOURS dessiner avec coordonnées GPS précises
-        # 🔥 CORRECTION: Le screenshot contient les modules MAL PLACÉS (ancienne position)
-        # On dessine TOUJOURS avec Python qui a les coordonnées GPS CORRIGÉES
+        # 3. MODULES PV - TOUJOURS redessiner avec coordonnées GPS précises
+        # 🔥 Screenshot désactivé car GPS imprécis → on redessine tout manuellement
         if self.calpinage:
             self._draw_modules_pv_from_gps(c)
-            if self.screenshot_used:
-                print("[PLAN] ⚠️ Screenshot utilisé mais modules redessinés avec GPS corrigés (écrasent l'ancienne position)")
+            print("[PLAN] ✅ Modules PV dessinés avec coordonnées GPS précises (screenshot désactivé)")
         
         # 4. COTATIONS - Dessiner les cotations sur les zones PV
         if self.calpinage and 'zones' in self.calpinage:
@@ -302,12 +301,12 @@ class PlanMasseGenerator:
     def _lat_lon_to_pdf(self, lat, lon):
         """
         Convertit coordonnées GPS en coordonnées PDF
-        Utilise les MÊMES limites GPS que l'image satellite pour assurer l'alignement
+        Utilise projection Lambert 93 pour éviter les distorsions
         """
         if not hasattr(self, 'gps_bounds'):
             return (0, 0)
         
-        # 🔥 Utiliser plan_bbox car l'image remplit TOUT le cadre (preserveAspectRatio=False)
+        # 🔥 Utiliser plan_bbox car l'image remplit TOUT le cadre
         if hasattr(self, 'plan_bbox'):
             bbox = self.plan_bbox
         else:
@@ -315,23 +314,50 @@ class PlanMasseGenerator:
         
         gps = self.gps_bounds
         
-        # 🔥 CORRECTION: Conversion GPS → PDF basée sur les limites GPS réelles de l'image
-        # Normaliser lat/lon dans l'intervalle [0, 1] par rapport aux limites
-        lat_range = gps['max_lat'] - gps['min_lat']
-        lon_range = gps['max_lon'] - gps['min_lon']
-        
-        if lat_range == 0 or lon_range == 0:
-            return (bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
-        
-        lat_ratio = (lat - gps['min_lat']) / lat_range
-        lon_ratio = (lon - gps['min_lon']) / lon_range
-        
-        # Convertir en coordonnées PDF
-        # ⚠️ Attention: PDF Y augmente vers le haut, mais latitude aussi
-        pdf_x = bbox['x'] + lon_ratio * bbox['width']
-        pdf_y = bbox['y'] + lat_ratio * bbox['height']
-        
-        return (pdf_x, pdf_y)
+        try:
+            # 🔥 CORRECTION: Utiliser projection Lambert 93 pour éviter distorsions
+            from pyproj import Transformer
+            to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+            
+            # Convertir les limites GPS en Lambert 93
+            min_x_l93, min_y_l93 = to_l93.transform(gps['min_lon'], gps['min_lat'])
+            max_x_l93, max_y_l93 = to_l93.transform(gps['max_lon'], gps['max_lat'])
+            
+            # Convertir le point en Lambert 93
+            x_l93, y_l93 = to_l93.transform(lon, lat)
+            
+            # Normaliser dans l'intervalle [0, 1]
+            x_range = max_x_l93 - min_x_l93
+            y_range = max_y_l93 - min_y_l93
+            
+            if x_range == 0 or y_range == 0:
+                return (bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
+            
+            x_ratio = (x_l93 - min_x_l93) / x_range
+            y_ratio = (y_l93 - min_y_l93) / y_range
+            
+            # Convertir en coordonnées PDF
+            pdf_x = bbox['x'] + x_ratio * bbox['width']
+            pdf_y = bbox['y'] + y_ratio * bbox['height']
+            
+            return (pdf_x, pdf_y)
+            
+        except Exception as e:
+            print(f"[PLAN] ⚠️ Erreur projection Lambert 93: {e}, fallback linéaire")
+            # Fallback: conversion linéaire simple
+            lat_range = gps['max_lat'] - gps['min_lat']
+            lon_range = gps['max_lon'] - gps['min_lon']
+            
+            if lat_range == 0 or lon_range == 0:
+                return (bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
+            
+            lat_ratio = (lat - gps['min_lat']) / lat_range
+            lon_ratio = (lon - gps['min_lon']) / lon_range
+            
+            pdf_x = bbox['x'] + lon_ratio * bbox['width']
+            pdf_y = bbox['y'] + lat_ratio * bbox['height']
+            
+            return (pdf_x, pdf_y)
     
     def _draw_parcelles(self, c, center_x, center_y, lat, lon):
         """Dessine les parcelles avec leurs vraies géométries GeoJSON si disponibles"""
