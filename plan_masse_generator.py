@@ -203,34 +203,35 @@ class PlanMasseGenerator:
             # 🔥 FALLBACK: Image satellite si pas de screenshot
             if not self.screenshot_used:
                 print(f"[PLAN] 🛰️ Tentative de téléchargement image satellite...")
+                
+                # 🔥 IMPORTANT: Définir gps_bounds pour l'image satellite AVANT de la charger
+                # Calculer les limites GPS du bbox carré centré sur lat/lon
+                import math
+                # Rayon de la Terre en mètres
+                R = 6371000
+                # Conversion mètres → degrés latitude (environ 111km par degré)
+                delta_lat = (bbox_meters / R) * (180 / math.pi)
+                # Conversion mètres → degrés longitude (varie selon latitude)
+                delta_lon = (bbox_meters / (R * math.cos(lat * math.pi / 180))) * (180 / math.pi)
+                
+                self.gps_bounds = {
+                    'min_lat': lat - delta_lat,
+                    'max_lat': lat + delta_lat,
+                    'min_lon': lon - delta_lon,
+                    'max_lon': lon + delta_lon
+                }
+                print(f"[PLAN] 🗺️ GPS bounds satellite: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
+                
                 satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1600, height=1400)
                 if satellite_img:
-                    # REMPLIR TOUT LE CADRE (pas de blanc autour)
+                    # Dessiner l'image en PRÉSERVANT le ratio pour éviter distorsion
                     c.drawImage(ImageReader(satellite_img), 
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
-                              preserveAspectRatio=False, mask='auto')  # False = remplit tout
+                              preserveAspectRatio=True, anchor='c', mask='auto')  # True = pas de déformation
                     print(f"[PLAN] ✅ Image satellite dessinée: rayon {bbox_meters:.0f}m à l'échelle 1/500")
                 else:
                     print(f"[PLAN] ⚠️ Aucune image satellite - fond gris utilisé")
-                    
-                    # 🔥 IMPORTANT: Définir gps_bounds pour l'image satellite
-                    # Calculer les limites GPS du bbox carré centré sur lat/lon
-                    import math
-                    # Rayon de la Terre en mètres
-                    R = 6371000
-                    # Conversion mètres → degrés latitude (environ 111km par degré)
-                    delta_lat = (bbox_meters / R) * (180 / math.pi)
-                    # Conversion mètres → degrés longitude (varie selon latitude)
-                    delta_lon = (bbox_meters / (R * math.cos(lat * math.pi / 180))) * (180 / math.pi)
-                    
-                    self.gps_bounds = {
-                        'min_lat': lat - delta_lat,
-                        'max_lat': lat + delta_lat,
-                        'min_lon': lon - delta_lon,
-                        'max_lon': lon + delta_lon
-                    }
-                    print(f"[PLAN] 🗺️ GPS bounds satellite: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
                     
                 self.screenshot_used = False  # Image satellite, pas de screenshot
         
