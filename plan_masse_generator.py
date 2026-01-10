@@ -118,12 +118,14 @@ class PlanMasseGenerator:
         bbox_width_meters = plan_width_cm * 5  # 1cm = 5m à l'échelle 1/500
         bbox_height_meters = plan_height_cm * 5
         
-        # Prendre la plus grande dimension pour créer un bbox carré
-        # 🔥 CORRECTION: Ne PAS multiplier par 3.5 pour garder l'échelle exacte 1/500
-        bbox_meters = max(bbox_width_meters, bbox_height_meters) / 2  # Rayon = demi-diagonale
+        # 🔥 CORRECTION: bbox_meters = RAYON du carré englobant pour image satellite
+        # Pour remplir tout le cadre rectangulaire, on prend la demi-diagonale
+        import math
+        diagonal_meters = math.sqrt(bbox_width_meters**2 + bbox_height_meters**2)
+        bbox_meters = diagonal_meters / 2  # Rayon du cercle englobant le rectangle
         
         print(f"[PLAN] Échelle 1/500: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m réels")
-        print(f"[PLAN] Bbox satellite: {bbox_meters*2:.0f}m de côté (rayon {bbox_meters:.0f}m) - ÉCHELLE EXACTE 1/500")
+        print(f"[PLAN] Bbox satellite: rayon {bbox_meters:.0f}m pour couvrir {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
         
         # Convertir en degrés avec les BONS facteurs
         meters_to_lat = bbox_meters * meters_per_degree_lat
