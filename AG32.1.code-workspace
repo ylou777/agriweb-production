@@ -4,5 +4,51 @@
 			"path": "../.."
 		}
 	],
-	"settings": {}
+	"settings": {
+		// === Optimisation Performance VS Code ===
+		
+		// Limite l'indexation Pylance pour réduire la RAM
+		"python.analysis.indexing": false,
+		"python.analysis.autoSearchPaths": false,
+		"python.analysis.memory.keepLibraryAst": false,
+		
+		// Exclut les fichiers/dossiers de la surveillance
+		"files.watcherExclude": {
+			"**/__pycache__": true,
+			"**/.git/objects/**": true,
+			"**/.git/subtree-cache/**": true,
+			"**/node_modules/**": true,
+			"**/.pytest_cache/**": true,
+			"**/*.pyc": true,
+			"**/venv/**": true,
+			"**/env/**": true,
+			"**/.venv/**": true,
+			"**/instance/**": true,
+			"**/*.log": true
+		},
+		
+		// Exclut de la recherche
+		"search.exclude": {
+			"**/__pycache__": true,
+			"**/*.pyc": true,
+			"**/venv": true,
+			"**/env": true,
+			"**/.venv": true,
+			"**/instance": true,
+			"**/*.log": true
+		},
+		
+		// Exclut de l'explorateur
+		"files.exclude": {
+			"**/__pycache__": true,
+			"**/*.pyc": true
+		},
+		
+		// Optimisations supplémentaires
+		"files.autoSave": "onFocusChange",
+		"workbench.localHistory.maxFileEntries": 10,
+		"editor.minimap.enabled": false,
+		"git.autorefresh": false,
+		"git.autoRepositoryDetection": false
+	}
 }

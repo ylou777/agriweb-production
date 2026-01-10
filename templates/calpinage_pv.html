@@ -229,15 +229,101 @@
             -webkit-user-select: none;
             -moz-user-select: none;
             -ms-user-select: none;
+            transition: all 0.2s ease;
+        }
+        .rotation-handle:hover {
+            background: #0a58ca;
+            transform: scale(1.15);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
         }
         .rotation-handle:active {
             cursor: grabbing;
-            background: #0a58ca;
-            transform: scale(1.1);
+            background: #084298;
+            transform: scale(1.2);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+        
+        /* Styles pour les poignées de redimensionnement Leaflet.draw */
+        .leaflet-editing-icon {
+            width: 12px !important;
+            height: 12px !important;
+            margin-left: -6px !important;
+            margin-top: -6px !important;
+            background-color: #fff !important;
+            border: 2px solid #0d6efd !important;
+            border-radius: 50% !important;
+            cursor: nwse-resize !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+            transition: all 0.2s ease;
+        }
+        .leaflet-editing-icon:hover {
+            background-color: #0d6efd !important;
+            transform: scale(1.3);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4) !important;
+        }
+        
+        /* Style pour les rectangles en mode édition */
+        .leaflet-interactive.editing-mode {
+            stroke-dasharray: 5, 5 !important;
+            stroke: #0d6efd !important;
+            fill: #0d6efd !important;
+            fill-opacity: 0.15 !important;
+            stroke-width: 3 !important;
+        }
+        
+        /* Indicateur visuel lors du drag */
+        .zone-dragging {
+            opacity: 0.7 !important;
+            cursor: move !important;
+        }
+        
+        /* Ligne de guidage pour la rotation */
+        .rotation-guide-line {
+            stroke-dasharray: 5, 5;
+            stroke: #0d6efd;
+            stroke-width: 2;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        /* Badge pour indiquer le mode d'édition actif */
+        .edit-mode-badge {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 10000;
+            background: rgba(13, 110, 253, 0.95);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            font-weight: 600;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .edit-mode-badge.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
 <body>
+    <!-- Badge indicateur du mode édition actif -->
+    <div id="editModeBadge" class="edit-mode-badge">
+        <div class="d-flex align-items-center gap-2">
+            <span style="font-size: 1.2em;">✏️</span>
+            <div>
+                <div style="font-size: 1.1em; margin-bottom: 3px;">Mode Édition Actif</div>
+                <div style="font-size: 0.85em; opacity: 0.9;">
+                    🔲 Coins = Redimensionner | 🔄 Poignée = Rotation | ✋ Drag = Déplacer
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div class="container-fluid py-4">
         <div class="row mb-4">
             <div class="col-12">
@@ -1012,6 +1098,24 @@
                 // Calculer l'angle de départ
                 const handlePos = rotationHandle.getLatLng();
                 startAngle = Math.atan2(handlePos.lng - center.lng, handlePos.lat - center.lat) * 180 / Math.PI;
+                
+                // Effet visuel de saisie
+                const iconEl = rotationHandle.getElement();
+                if (iconEl) {
+                    iconEl.style.cursor = 'grabbing';
+                    iconEl.style.transform = 'scale(1.4)';
+                    iconEl.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))';
+                }
+                
+                // Afficher une ligne de guidage entre le centre et la poignée
+                if (!rotationHandle._guideLine) {
+                    rotationHandle._guideLine = L.polyline([center, handlePos], {
+                        color: '#0d6efd',
+                        weight: 2,
+                        dashArray: '5, 5',
+                        opacity: 0.6
+                    }).addTo(map);
+                }
             });
             
             rotationHandle.on('drag', function(e) {
@@ -1019,6 +1123,11 @@
                 
                 const center = rotationHandle._rotationCenter;
                 const handlePos = e.latlng;
+                
+                // Mettre à jour la ligne de guidage
+                if (rotationHandle._guideLine) {
+                    rotationHandle._guideLine.setLatLngs([center, handlePos]);
+                }
                 
                 // Calculer l'angle actuel
                 const currentAngle = Math.atan2(handlePos.lng - center.lng, handlePos.lat - center.lat) * 180 / Math.PI;
@@ -1075,6 +1184,20 @@
             
             rotationHandle.on('dragend', function() {
                 isDragging = false;
+                
+                // Restaurer le curseur
+                const iconEl = rotationHandle.getElement();
+                if (iconEl) {
+                    iconEl.style.cursor = currentTool === 'edit' ? 'grab' : '';
+                    iconEl.style.transform = currentTool === 'edit' ? 'scale(1.2)' : '';
+                    iconEl.style.filter = currentTool === 'edit' ? 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' : '';
+                }
+                
+                // Supprimer la ligne de guidage
+                if (rotationHandle._guideLine) {
+                    map.removeLayer(rotationHandle._guideLine);
+                    rotationHandle._guideLine = null;
+                }
                 
                 // Redessiner les modules avec la bonne rotation
                 dessinerModulesDansZone(zone);
@@ -1708,26 +1831,113 @@
             document.getElementById('toolEdit').addEventListener('click', function() {
                 setActiveTool('edit');
                 if (activeDrawHandler) activeDrawHandler.disable();
-                // Activer le mode édition pour toutes les zones
+                
+                // Afficher le badge indicateur du mode édition
+                const badge = document.getElementById('editModeBadge');
+                if (badge) badge.classList.add('active');
+                
+                // Activer le mode édition pour toutes les zones avec toutes les fonctionnalités
                 if (!editHandler) {
                     editHandler = new L.EditToolbar.Edit(map, {
-                        featureGroup: drawnItems
+                        featureGroup: drawnItems,
+                        // Options d'édition Leaflet.draw
+                        edit: {
+                            selectedPathOptions: {
+                                maintainColor: false,
+                                opacity: 0.5,
+                                fillOpacity: 0.2,
+                                color: '#0d6efd',
+                                fillColor: '#0d6efd',
+                                dashArray: '5, 5',
+                                weight: 2
+                            }
+                        }
                     });
                 }
                 editHandler.enable();
                 
-                // Rendre les rectangles visibles pour l'édition
+                // Rendre les rectangles visibles pour l'édition avec style amélioré
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0.5;
-                        layer._path.style.fillOpacity = 0.1;
+                    if (layer instanceof L.Rectangle) {
+                        // Style d'édition visible
+                        layer.setStyle({
+                            opacity: 0.7,
+                            fillOpacity: 0.15,
+                            color: '#0d6efd',
+                            fillColor: '#0d6efd',
+                            weight: 3,
+                            dashArray: '5, 5'
+                        });
+                        
+                        // Activer le dragging (déplacement) de la zone
+                        if (!layer.dragging) {
+                            layer.dragging = new L.Handler.MarkerDrag(layer);
+                        }
+                        layer.dragging.enable();
+                        
+                        // Afficher un curseur "move" au survol
+                        layer.on('mouseover', function() {
+                            if (currentTool === 'edit') {
+                                this._path.style.cursor = 'move';
+                            }
+                        });
+                        
+                        // Event de début de déplacement
+                        layer.on('dragstart', function(e) {
+                            console.log('🎯 Début déplacement zone', e.target._leaflet_id);
+                        });
+                        
+                        // Event pendant le déplacement
+                        layer.on('drag', function(e) {
+                            const zone = zones.find(z => z.id === e.target._leaflet_id);
+                            if (zone) {
+                                // Redessiner les modules en temps réel pendant le drag
+                                dessinerModulesDansZone(zone);
+                                
+                                // Mettre à jour la poignée de rotation
+                                if (rotationHandles[zone.id]) {
+                                    updateHandlePosition(zone, rotationHandles[zone.id]);
+                                }
+                            }
+                        });
+                        
+                        // Event de fin de déplacement
+                        layer.on('dragend', function(e) {
+                            const zone = zones.find(z => z.id === e.target._leaflet_id);
+                            if (zone) {
+                                console.log('✅ Fin déplacement zone', zone.id);
+                                
+                                // Sauvegarder les nouvelles bounds
+                                zone.originalBounds = {
+                                    sw: layer.getBounds().getSouthWest(),
+                                    ne: layer.getBounds().getNorthEast()
+                                };
+                                
+                                // Redessiner proprement
+                                dessinerModulesDansZone(zone);
+                                
+                                // Mettre à jour la position de la poignée
+                                if (rotationHandles[zone.id]) {
+                                    updateHandlePosition(zone, rotationHandles[zone.id]);
+                                }
+                            }
+                        });
                     }
                 });
                 
-                // Afficher les poignées de rotation
-                Object.values(rotationHandles).forEach(handle => {
+                // Afficher toutes les poignées de rotation avec style amélioré
+                Object.entries(rotationHandles).forEach(([zoneId, handle]) => {
                     handle.setOpacity(1);
+                    // Style visuel pour la poignée
+                    const iconEl = handle.getElement();
+                    if (iconEl) {
+                        iconEl.style.cursor = 'grab';
+                        iconEl.style.transform = 'scale(1.2)';
+                        iconEl.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+                    }
                 });
+                
+                console.log('✏️ Mode édition activé : Redimensionnement (coins), Rotation (poignée), Déplacement (drag)');
             });
             
             // Bouton Supprimer zones
@@ -1842,32 +2052,75 @@
         function setActiveTool(tool) {
             currentTool = tool;
             
+            // Gérer le badge du mode édition
+            const badge = document.getElementById('editModeBadge');
+            if (badge) {
+                if (tool === 'edit') {
+                    badge.classList.add('active');
+                } else {
+                    badge.classList.remove('active');
+                }
+            }
+            
             // Désactiver les handlers d'édition et suppression si actifs
             if (editHandler && tool !== 'edit') {
                 editHandler.disable();
+                
                 // Recalculer et mettre à jour toutes les zones après édition
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0;
-                        layer._path.style.fillOpacity = 0;
-                    }
-                    // Recalculer la zone
-                    const zone = zones.find(z => z.id === layer._leaflet_id);
-                    if (zone) {
-                        const bounds = layer.getBounds();
-                        const ne = bounds.getNorthEast();
-                        const sw = bounds.getSouthWest();
-                        zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                        zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
-                        zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                    if (layer instanceof L.Rectangle) {
+                        // Restaurer le style invisible
+                        layer.setStyle({
+                            opacity: 0,
+                            fillOpacity: 0,
+                            color: '#0d6efd',
+                            fillColor: '#0d6efd',
+                            weight: 2,
+                            dashArray: null
+                        });
                         
-                        recalculerZone(zone);
-                        dessinerModulesDansZone(zone);
+                        // Désactiver le dragging
+                        if (layer.dragging) {
+                            layer.dragging.disable();
+                        }
+                        
+                        // Retirer le curseur move
+                        layer.off('mouseover');
+                        if (layer._path) {
+                            layer._path.style.cursor = '';
+                        }
+                        
+                        // Recalculer la zone après modification
+                        const zone = zones.find(z => z.id === layer._leaflet_id);
+                        if (zone) {
+                            const bounds = layer.getBounds();
+                            const ne = bounds.getNorthEast();
+                            const sw = bounds.getSouthWest();
+                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                            zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+                            
+                            // Sauvegarder les bounds
+                            zone.originalBounds = {
+                                sw: bounds.getSouthWest(),
+                                ne: bounds.getNorthEast()
+                            };
+                            
+                            recalculerZone(zone);
+                            dessinerModulesDansZone(zone);
+                        }
                     }
                 });
-                // Masquer les poignées de rotation
-                Object.values(rotationHandles).forEach(handle => {
+                
+                // Masquer et réinitialiser les poignées de rotation
+                Object.entries(rotationHandles).forEach(([zoneId, handle]) => {
                     handle.setOpacity(0);
+                    const iconEl = handle.getElement();
+                    if (iconEl) {
+                        iconEl.style.transform = '';
+                        iconEl.style.filter = '';
+                        iconEl.style.cursor = '';
+                    }
                 });
             }
             if (deleteHandler && tool !== 'delete') {
@@ -1908,10 +2161,10 @@
                 }
             }
             
-            // Mettre à jour l'info
+            // Mettre à jour l'info avec icônes descriptifs
             const toolNames = {
                 'rectangle': '📐 Mode Zone PV - Dessinez un rectangle',
-                'edit': '✏️ Mode Édition - Glissez les coins pour redimensionner',
+                'edit': '✏️ Mode Édition - 🔲 Coins (redimensionner) | 🔄 Poignée (rotation) | ✋ Drag (déplacer)',
                 'delete': '🗑️ Mode Suppression - Cliquez sur une zone pour la supprimer',
                 'measure': '📏 Mode Mesure - Cliquez 2 points pour mesurer',
                 'polyline': '— Mode Ligne - Cliquez pour tracer',
