@@ -1008,30 +1008,80 @@ class PlanMasseGenerator:
             min_lat = lat - meters_to_lat
             max_lat = lat + meters_to_lat
             
-            # ArcGIS World Imagery
-            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-            
-            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-            
-            params = {
-                'bbox': bbox_str,
-                'bboxSR': '4326',
-                'size': f'{width},{height}',
-                'format': 'png',
-                'f': 'image'
-            }
-            
             print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m côté), size={width}x{height}")
             print(f"[PLAN] 📍 GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
             
-            response = requests.get(url, params=params, timeout=15)
-            if response.status_code == 200:
-                img_size_kb = len(response.content) / 1024
-                print(f"[PLAN] ✅ Image satellite téléchargée ({img_size_kb:.1f} KB)")
-                return io.BytesIO(response.content)
-            else:
-                print(f"[PLAN] ❌ Erreur API ArcGIS: HTTP {response.status_code}")
-                print(f"[PLAN] 🔗 URL: {response.url}")
+            # 🔥 Essayer plusieurs sources d'images satellite
+            # 1. Google Static Maps (gratuit sans clé, limité)
+            try:
+                # Zoom calculé pour couvrir la bbox
+                import math
+                zoom = int(15 - math.log2(bbox_meters / 100))  # Approximation
+                zoom = max(10, min(20, zoom))  # Entre 10 et 20
+                
+                google_url = f"https://maps.googleapis.com/maps/api/staticmap"
+                google_params = {
+                    'center': f'{lat},{lon}',
+                    'zoom': zoom,
+                    'size': f'{width}x{height}',
+                    'maptype': 'satellite',
+                    'format': 'png'
+                }
+                
+                print(f"[PLAN] 🔍 Tentative #1: Google Static Maps (zoom {zoom})...")
+                response = requests.get(google_url, params=google_params, timeout=15)
+                if response.status_code == 200 and len(response.content) > 5000:  # Image valide
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image Google téléchargée ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ⚠️ Google Maps: {response.status_code}")
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Erreur Google Maps: {e}")
+            
+            # 2. OpenStreetMap Static (gratuit mais basse résolution)
+            try:
+                center_lat = (min_lat + max_lat) / 2
+                center_lon = (min_lon + max_lon) / 2
+                osm_url = f"https://staticmap.openstreetmap.de/staticmap.php"
+                osm_params = {
+                    'center': f'{center_lat},{center_lon}',
+                    'zoom': 17,
+                    'size': f'{width}x{height}',
+                    'maptype': 'mapnik'
+                }
+                
+                print(f"[PLAN] 🔍 Tentative #2: OpenStreetMap Static...")
+                response = requests.get(osm_url, params=osm_params, timeout=15)
+                if response.status_code == 200:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image OSM téléchargée ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Erreur OSM: {e}")
+            
+            # 3. ArcGIS (backup)
+            try:
+                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+                bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+                arcgis_params = {
+                    'bbox': bbox_str,
+                    'bboxSR': '4326',
+                    'size': f'{width},{height}',
+                    'format': 'png',
+                    'f': 'image'
+                }
+                
+                print(f"[PLAN] 🔍 Tentative #3: ArcGIS...")
+                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
+                if response.status_code == 200:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image ArcGIS téléchargée ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ❌ ArcGIS: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"[PLAN] ❌ Erreur ArcGIS: {e}")
         except Exception as e:
             print(f"[PLAN] ❌ Erreur image satellite: {e}")
         
@@ -1039,14 +1089,23 @@ class PlanMasseGenerator:
     
     def _get_modules_center(self):
         """Calcule le centre GPS de tous les modules PV"""
-        if not self.calpinage or 'zones' not in self.calpinage:
+        if not self.calpinage:
+            print("[PLAN] ⚠️ Pas de calpinage pour centrer sur modules")
+            return None, None
+        
+        if 'zones' not in self.calpinage:
+            print(f"[PLAN] ⚠️ Pas de zones dans calpinage (clés: {list(self.calpinage.keys())})")
             return None, None
         
         all_lats = []
         all_lons = []
         
-        for zone in self.calpinage['zones']:
+        zones = self.calpinage['zones']
+        print(f"[PLAN] 🔍 Calcul centre: {len(zones)} zone(s) trouvée(s)")
+        
+        for i, zone in enumerate(zones):
             modules_positions = zone.get('modulesPositions', [])
+            print(f"[PLAN]   Zone {i+1}: {len(modules_positions)} modules")
             for module in modules_positions:
                 corners = module.get('corners', [])
                 for corner in corners:
@@ -1054,12 +1113,14 @@ class PlanMasseGenerator:
                     all_lons.append(corner['lng'])
         
         if not all_lats or not all_lons:
+            print(f"[PLAN] ⚠️ Aucune coordonnée GPS trouvée dans les modules")
             return None, None
         
         # Centre = moyenne de tous les points
         center_lat = sum(all_lats) / len(all_lats)
         center_lon = sum(all_lons) / len(all_lons)
         
+        print(f"[PLAN] ✅ Centre calculé: {center_lat:.6f}, {center_lon:.6f} (depuis {len(all_lats)} points)")
         return center_lat, center_lon
     
     def _extract_parcelles(self):
