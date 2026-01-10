@@ -118,11 +118,12 @@ class PlanMasseGenerator:
         bbox_width_meters = plan_width_cm * 5  # 1cm = 5m à l'échelle 1/500
         bbox_height_meters = plan_height_cm * 5
         
-        # Prendre la plus grande dimension et AUGMENTER MASSIVEMENT pour couverture TOTALE
-        bbox_meters = max(bbox_width_meters, bbox_height_meters) * 3.5  # 350% de rayon pour GARANTIR couverture
+        # Prendre la plus grande dimension pour créer un bbox carré
+        # 🔥 CORRECTION: Ne PAS multiplier par 3.5 pour garder l'échelle exacte 1/500
+        bbox_meters = max(bbox_width_meters, bbox_height_meters) / 2  # Rayon = demi-diagonale
         
         print(f"[PLAN] Échelle 1/500: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m réels")
-        print(f"[PLAN] Bbox satellite: {bbox_meters*2:.0f}m de côté (rayon {bbox_meters:.0f}m)")
+        print(f"[PLAN] Bbox satellite: {bbox_meters*2:.0f}m de côté (rayon {bbox_meters:.0f}m) - ÉCHELLE EXACTE 1/500")
         
         # Convertir en degrés avec les BONS facteurs
         meters_to_lat = bbox_meters * meters_per_degree_lat
@@ -199,6 +200,25 @@ class PlanMasseGenerator:
                               width=plan_width, height=plan_height,
                               preserveAspectRatio=False, mask='auto')  # False = remplit tout
                     print(f"[PLAN] ✅ Image satellite: {bbox_meters*2:.0f}m de rayon à l'échelle 1/500")
+                    
+                    # 🔥 IMPORTANT: Définir gps_bounds pour l'image satellite
+                    # Calculer les limites GPS du bbox carré centré sur lat/lon
+                    import math
+                    # Rayon de la Terre en mètres
+                    R = 6371000
+                    # Conversion mètres → degrés latitude (environ 111km par degré)
+                    delta_lat = (bbox_meters / R) * (180 / math.pi)
+                    # Conversion mètres → degrés longitude (varie selon latitude)
+                    delta_lon = (bbox_meters / (R * math.cos(lat * math.pi / 180))) * (180 / math.pi)
+                    
+                    self.gps_bounds = {
+                        'min_lat': lat - delta_lat,
+                        'max_lat': lat + delta_lat,
+                        'min_lon': lon - delta_lon,
+                        'max_lon': lon + delta_lon
+                    }
+                    print(f"[PLAN] 🗺️ GPS bounds satellite: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
+                    
                 self.screenshot_used = False  # Image satellite, pas de screenshot
         
         # Système de coordonnées : conversion GPS → PDF
