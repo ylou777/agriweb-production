@@ -150,11 +150,10 @@ class PlanMasseGenerator:
         }
         
         if lat and lon:
-            # 🔥 DÉSACTIVÉ: Ne PAS utiliser le screenshot car coordonnées GPS imprécises
-            # On dessine tout manuellement avec les vraies coordonnées GPS
-            screenshot_data = None  # Force désactivation du screenshot
+            # 🔥 PRIORITÉ 1: Utiliser le screenshot de la carte (contient satellite + modules GPS précis)
+            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
             
-            if False and screenshot_data:  # Désactivé
+            if screenshot_data:
                 try:
                     # Le screenshot est en base64 data URL: "data:image/png;base64,..."
                     import base64
@@ -255,11 +254,13 @@ class PlanMasseGenerator:
         # 2. BÂTIMENT (à la position GPS) - DÉSACTIVÉ pour plan de masse simple
         # self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
-        # 3. MODULES PV - TOUJOURS redessiner avec coordonnées GPS précises
-        # 🔥 Screenshot désactivé car GPS imprécis → on redessine tout manuellement
-        if self.calpinage:
+        # 3. MODULES PV - Ne redessiner QUE si pas de screenshot
+        # Si screenshot utilisé, les modules sont DÉJÀ dedans (avec GPS précis du calpinage)
+        if self.calpinage and not self.screenshot_used:
             self._draw_modules_pv_from_gps(c)
-            print("[PLAN] ✅ Modules PV dessinés avec coordonnées GPS précises (screenshot désactivé)")
+            print("[PLAN] ✅ Modules PV dessinés manuellement (pas de screenshot)")
+        elif self.screenshot_used:
+            print("[PLAN] ℹ️ Modules déjà dans le screenshot (GPS précis du calpinage)")
         
         # 4. COTATIONS - Dessiner les cotations sur les zones PV
         if self.calpinage and 'zones' in self.calpinage:
