@@ -1012,39 +1012,77 @@ class PlanMasseGenerator:
             print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m côté), size={width}x{height}")
             print(f"[PLAN] 📍 GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
             
-            # 🔥 PRIORITÉ 1: IGN Géoportail (meilleure qualité pour France, gratuit)
+            # 🔥 PRIORITÉ 1: Créer image à partir de tuiles OpenStreetMap (toujours disponible)
             try:
-                # Convertir WGS84 en Web Mercator pour WMTS
-                from pyproj import Transformer
-                to_webmerc = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+                import math
+                from PIL import Image
                 
-                xmin, ymin = to_webmerc.transform(min_lon, min_lat)
-                xmax, ymax = to_webmerc.transform(max_lon, max_lat)
+                # Calculer le zoom optimal
+                # Pour bbox_meters=88m, zoom 18 donne ~76m par tuile (256px)
+                zoom_levels = {18: 76, 17: 153, 16: 305, 15: 611, 14: 1222}
+                zoom = 18
+                for z, meters in sorted(zoom_levels.items(), reverse=True):
+                    if bbox_meters * 2 <= meters * 6:  # 6 tuiles de marge
+                        zoom = z
+                        break
                 
-                ign_url = "https://wxs.ign.fr/ortho/geoportail/r/wms"
-                ign_params = {
-                    'SERVICE': 'WMS',
-                    'VERSION': '1.3.0',
-                    'REQUEST': 'GetMap',
-                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
-                    'STYLES': '',
-                    'CRS': 'EPSG:3857',
-                    'BBOX': f'{xmin},{ymin},{xmax},{ymax}',
-                    'WIDTH': width,
-                    'HEIGHT': height,
-                    'FORMAT': 'image/png'
-                }
+                print(f"[PLAN] 🔍 Tentative #1: Tuiles OSM (zoom {zoom})...")
                 
-                print(f"[PLAN] 🔍 Tentative #1: IGN Géoportail (ortho photos)...")
-                response = requests.get(ign_url, params=ign_params, timeout=20)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image IGN téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ⚠️ IGN: HTTP {response.status_code}, taille={len(response.content)} bytes")
+                # Convertir lat/lon en coordonnées de tuile
+                def deg2num(lat_deg, lon_deg, zoom):
+                    lat_rad = math.radians(lat_deg)
+                    n = 2.0 ** zoom
+                    xtile = int((lon_deg + 180.0) / 360.0 * n)
+                    ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+                    return (xtile, ytile)
+                
+                # Tuile centrale
+                xtile, ytile = deg2num(lat, lon, zoom)
+                
+                # Télécharger 9 tuiles (3x3) pour couvrir la zone
+                tiles = []
+                for dy in [-1, 0, 1]:
+                    row = []
+                    for dx in [-1, 0, 1]:
+                        tile_url = f"https://tile.openstreetmap.org/{zoom}/{xtile+dx}/{ytile+dy}.png"
+                        try:
+                            resp = requests.get(tile_url, timeout=5, headers={'User-Agent': 'AgriWeb/1.0'})
+                            if resp.status_code == 200:
+                                tile_img = Image.open(io.BytesIO(resp.content))
+                                row.append(tile_img)
+                            else:
+                                row.append(Image.new('RGB', (256, 256), (200, 200, 200)))
+                        except:
+                            row.append(Image.new('RGB', (256, 256), (200, 200, 200)))
+                    tiles.append(row)
+                
+                # Assembler les tuiles
+                full_img = Image.new('RGB', (768, 768))
+                for y, row in enumerate(tiles):
+                    for x, tile in enumerate(row):
+                        full_img.paste(tile, (x*256, y*256))
+                
+                # Recadrer au centre
+                crop_size = min(width, height, 640)
+                center_x, center_y = 384, 384
+                left = center_x - crop_size//2
+                top = center_y - crop_size//2
+                cropped = full_img.crop((left, top, left+crop_size, top+crop_size))
+                
+                # Redimensionner si nécessaire
+                if crop_size != width or crop_size != height:
+                    cropped = cropped.resize((width, height), Image.Resampling.LANCZOS)
+                
+                img_buffer = io.BytesIO()
+                cropped.save(img_buffer, format='PNG')
+                img_buffer.seek(0)
+                
+                img_size_kb = len(img_buffer.getvalue()) / 1024
+                print(f"[PLAN] ✅ Image OSM assemblée ({img_size_kb:.1f} KB, {len(tiles)*len(tiles[0])} tuiles)")
+                return img_buffer
+                
             except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur IGN: {e}")
+                print(f"[PLAN] ⚠️ Erreur OSM tuiles: {e}")
             
             # 🔥 FALLBACK 2: Google Static Maps
             try:
