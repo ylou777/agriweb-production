@@ -84,16 +84,25 @@ class PlanMasseGenerator:
         c.setFillColor(colors.HexColor('#F5F5F5'))
         c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
         
-        # 🔥 CENTRER SUR LES MODULES PV plutôt que sur l'adresse
-        # Calculer le centre GPS des modules si disponibles
-        center_lat, center_lon = self._get_modules_center()
-        if center_lat and center_lon:
-            lat, lon = center_lat, center_lon
-            print(f"[PLAN] 📍 Plan centré sur les modules PV: {lat:.6f}, {lon:.6f}")
+        # 🔥 CALCULER LE BBOX À PARTIR DES MODULES PV (pas de l'adresse)
+        # Cela permet d'avoir les parcelles exactes autour des modules
+        modules_bbox = self._get_modules_bbox()
+        if modules_bbox:
+            lat = modules_bbox['center_lat']
+            lon = modules_bbox['center_lon']
+            bbox_width_meters = modules_bbox['width_meters']
+            bbox_height_meters = modules_bbox['height_meters']
+            print(f"[PLAN] 📍 Bbox calculé depuis modules PV: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
+            print(f"[PLAN] 📍 Centre: {lat:.6f}, {lon:.6f}")
         else:
+            # Fallback: utiliser adresse et échelle PDF
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
-            print(f"[PLAN] 📍 Plan centré sur l'adresse: {lat:.6f}, {lon:.6f}")
+            plan_width_cm = plan_width / cm
+            plan_height_cm = plan_height / cm
+            bbox_width_meters = plan_width_cm * 5  # 1cm = 5m à l'échelle 1/500
+            bbox_height_meters = plan_height_cm * 5
+            print(f"[PLAN] 📍 Bbox depuis adresse (pas de modules): {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
         
         # Initialiser screenshot_used
         self.screenshot_used = False
@@ -119,21 +128,14 @@ class PlanMasseGenerator:
         
         # 🔥 ÉCHELLE 1/500 OBLIGATOIRE pour plan cadastral
         # 1 cm sur le plan = 500 cm (5 m) dans la réalité
-        # Calculer la bbox en mètres selon la taille du cadre PDF
-        plan_width_cm = plan_width / cm
-        plan_height_cm = plan_height / cm
+        # bbox_meters déjà calculé ci-dessus depuis modules ou PDF
         
-        bbox_width_meters = plan_width_cm * 5  # 1cm = 5m à l'échelle 1/500
-        bbox_height_meters = plan_height_cm * 5
-        
-        # 🔥 CORRECTION: bbox_meters = RAYON du carré englobant pour image satellite
-        # Pour remplir tout le cadre rectangulaire, on prend la demi-diagonale
+        # Pour image satellite : rayon = demi-diagonale du rectangle
         import math
         diagonal_meters = math.sqrt(bbox_width_meters**2 + bbox_height_meters**2)
-        bbox_meters = diagonal_meters / 2  # Rayon du cercle englobant le rectangle
+        bbox_meters = diagonal_meters / 2  # Rayon du cercle englobant
         
-        print(f"[PLAN] Échelle 1/500: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m réels")
-        print(f"[PLAN] Bbox satellite: rayon {bbox_meters:.0f}m pour couvrir {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
+        print(f"[PLAN] Échelle 1/500: Bbox {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m, rayon satellite={bbox_meters:.0f}m")
         
         # Convertir en degrés avec les BONS facteurs
         meters_to_lat = bbox_meters * meters_per_degree_lat
@@ -1175,6 +1177,57 @@ class PlanMasseGenerator:
         
         print(f"[PLAN] ✅ Centre calculé: {center_lat:.6f}, {center_lon:.6f} (depuis {len(all_lats)} points)")
         return center_lat, center_lon
+    
+    def _get_modules_bbox(self):
+        """Calcule le bbox précis (min/max lat/lon) de tous les modules PV + dimensions en mètres"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            return None
+        
+        all_lats = []
+        all_lons = []
+        
+        for zone in self.calpinage['zones']:
+            modules_positions = zone.get('modulesPositions', [])
+            for module in modules_positions:
+                corners = module.get('corners', [])
+                for corner in corners:
+                    all_lats.append(corner['lat'])
+                    all_lons.append(corner['lng'])
+        
+        if not all_lats or not all_lons:
+            return None
+        
+        min_lat, max_lat = min(all_lats), max(all_lats)
+        min_lon, max_lon = min(all_lons), max(all_lons)
+        center_lat = (min_lat + max_lat) / 2
+        center_lon = (min_lon + max_lon) / 2
+        
+        # Calculer dimensions en mètres
+        import math
+        R = 6371000  # Rayon Terre
+        
+        # Largeur (lon) en mètres
+        width_degrees = max_lon - min_lon
+        width_meters = width_degrees * R * math.cos(center_lat * math.pi / 180) * math.pi / 180
+        
+        # Hauteur (lat) en mètres
+        height_degrees = max_lat - min_lat
+        height_meters = height_degrees * R * math.pi / 180
+        
+        # Ajouter marge de 20% pour contexte
+        width_meters *= 1.2
+        height_meters *= 1.2
+        
+        return {
+            'min_lat': min_lat,
+            'max_lat': max_lat,
+            'min_lon': min_lon,
+            'max_lon': max_lon,
+            'center_lat': center_lat,
+            'center_lon': center_lon,
+            'width_meters': width_meters,
+            'height_meters': height_meters
+        }
     
     def _extract_parcelles(self):
         """Extrait les parcelles cadastrales"""
