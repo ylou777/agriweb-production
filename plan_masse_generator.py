@@ -654,6 +654,15 @@ class PlanMasseGenerator:
             
             print(f"[PLAN] 📍 Dessin {len(modules_positions)} modules avec coordonnées GPS pour zone {zone.get('numero', '?')}")
             
+            # 🔍 DEBUG: Afficher premier module pour vérifier GPS
+            if modules_positions and len(modules_positions) > 0:
+                first_module = modules_positions[0]
+                if 'corners' in first_module and len(first_module['corners']) > 0:
+                    first_corner = first_module['corners'][0]
+                    print(f"[PLAN] 🔍 Premier module coin 1: GPS({first_corner['lat']:.6f}, {first_corner['lng']:.6f})")
+                    pdf_x, pdf_y = self._lat_lon_to_pdf(first_corner['lat'], first_corner['lng'])
+                    print(f"[PLAN] 🔍                        → PDF({pdf_x:.1f}, {pdf_y:.1f})")
+            
             # Dessiner chaque module selon ses coordonnées GPS
             c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu foncé
             c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
@@ -1012,21 +1021,38 @@ class PlanMasseGenerator:
             print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m côté), size={width}x{height}")
             print(f"[PLAN] 📍 GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
             
-            # 🔥 PRIORITÉ 1: Créer image à partir de tuiles OpenStreetMap (toujours disponible)
+            # 🔥 PRIORITÉ 1: Esri World Imagery (vraie photo satellite, gratuit)
+            try:
+                # Esri World Imagery - service gratuit de photos satellite
+                esri_url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+                bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+                esri_params = {
+                    'bbox': bbox_str,
+                    'bboxSR': '4326',
+                    'imageSR': '4326',
+                    'size': f'{width},{height}',
+                    'format': 'png',
+                    'f': 'image'
+                }
+                
+                print(f"[PLAN] 🔍 Tentative #1: Esri World Imagery (photo satellite)...")
+                response = requests.get(esri_url, params=esri_params, timeout=20)
+                if response.status_code == 200 and len(response.content) > 5000:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Photo satellite Esri téléchargée ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ⚠️ Esri: HTTP {response.status_code}, taille={len(response.content)} bytes")
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Erreur Esri: {e}")
+            
+            # 🔥 FALLBACK 2: Tuiles OSM en dernier recours
             try:
                 import math
                 from PIL import Image
                 
-                # Calculer le zoom optimal
-                # Pour bbox_meters=88m, zoom 18 donne ~76m par tuile (256px)
-                zoom_levels = {18: 76, 17: 153, 16: 305, 15: 611, 14: 1222}
                 zoom = 18
-                for z, meters in sorted(zoom_levels.items(), reverse=True):
-                    if bbox_meters * 2 <= meters * 6:  # 6 tuiles de marge
-                        zoom = z
-                        break
-                
-                print(f"[PLAN] 🔍 Tentative #1: Tuiles OSM (zoom {zoom})...")
+                print(f"[PLAN] 🔍 Tentative #2: Tuiles OSM (zoom {zoom})...")
                 
                 # Convertir lat/lon en coordonnées de tuile
                 def deg2num(lat_deg, lon_deg, zoom):
