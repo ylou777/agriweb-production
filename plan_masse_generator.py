@@ -223,9 +223,12 @@ class PlanMasseGenerator:
         if modules_bbox:
             lat = modules_bbox['center_lat']
             lon = modules_bbox['center_lon']
-            # Bbox = plus grande dimension × 1.3 (30% marge pour contexte)
-            bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.3
-            print(f"[PLAN] 📍 Bbox modules {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m + 30% marge → {bbox_meters:.0f}m")
+            # Bbox = diagonale × 3 pour avoir contexte et échelle correcte
+            # Les modules doivent occuper ~1/3 du plan, pas tout le plan
+            import math
+            diagonal = math.sqrt(modules_bbox['width_meters']**2 + modules_bbox['height_meters']**2)
+            bbox_meters = diagonal * 3  # 3x la diagonale = modules occupent 33% du plan
+            print(f"[PLAN] 📍 Modules {modules_bbox['width_meters']:.0f}×{modules_bbox['height_meters']:.0f}m, diagonale={diagonal:.0f}m → bbox={bbox_meters:.0f}m (échelle correcte)")
         else:
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
@@ -933,9 +936,10 @@ class PlanMasseGenerator:
         height = height or self.SATELLITE_HEIGHT_PX
         
         try:
-            # Calculer GPS bounds
-            lat_delta = bbox_meters / self.METERS_PER_DEGREE_LAT
-            lon_delta = bbox_meters / (self.METERS_PER_DEGREE_LAT * 0.7)  # Approximation
+            # bbox_meters = DIAMÈTRE complet, on divise par 2 pour le rayon
+            radius_meters = bbox_meters / 2
+            lat_delta = radius_meters / self.METERS_PER_DEGREE_LAT
+            lon_delta = radius_meters / (self.METERS_PER_DEGREE_LAT * 0.7)  # Approximation
             
             min_lon, max_lon = lon - lon_delta, lon + lon_delta
             min_lat, max_lat = lat - lat_delta, lat + lat_delta
@@ -959,7 +963,7 @@ class PlanMasseGenerator:
             params = {
                 'bbox': f"{min_lon},{min_lat},{max_lon},{max_lat}",
                 'bboxSR': '4326',
-                'imageSR': '4326',
+                'imageSR': '3857',  # Web Mercator pour vue orthogonale
                 'size': f'{width},{height}',
                 'format': 'png',
                 'f': 'image'
