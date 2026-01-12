@@ -105,13 +105,13 @@ class PlanMasseGenerator:
             # Télécharger image satellite
             satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters)
             
-            # Dessiner l'image si disponible
+            # Dessiner l'image satellite (vue orthogonale)
             if satellite_img:
                 c.drawImage(ImageReader(satellite_img), 
                           plan_x, plan_y, 
                           width=plan_width, height=plan_height,
-                          preserveAspectRatio=True, anchor='c', mask='auto')
-                print(f"[PLAN] ✅ Image satellite ({bbox_meters:.0f}m)")
+                          preserveAspectRatio=False, mask='auto')
+                print(f"[PLAN] ✅ Image satellite orthogonale ({bbox_meters:.0f}m)")
             else:
                 print(f"[PLAN] ⚠️ Pas d'image satellite")
         
@@ -223,8 +223,9 @@ class PlanMasseGenerator:
         if modules_bbox:
             lat = modules_bbox['center_lat']
             lon = modules_bbox['center_lon']
-            bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * self.MARGE_SATELLITE
-            print(f"[PLAN] 📍 Bbox depuis modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m → {bbox_meters:.0f}m")
+            # Bbox = plus grande dimension × 1.3 (30% marge pour contexte)
+            bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.3
+            print(f"[PLAN] 📍 Bbox modules {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m + 30% marge → {bbox_meters:.0f}m")
         else:
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
@@ -1182,45 +1183,17 @@ class PlanMasseGenerator:
         for p in parcelles:
             print(f"[PLAN]   - Parcelle: section={p.get('section')}, numero={p.get('numero')}, a_geometry={bool(p.get('geojson') or p.get('geometry'))}")
         
-        # Calculer la bbox englobante de toutes les zones PV
-        if not self.calpinage or 'zones' not in self.calpinage:
-            print(f"[PLAN] ⚠️ Aucune zone PV pour calculer la bbox - utilisation des coordonnées du prospect")
-            # Fallback: utiliser les coordonnées du prospect avec un buffer de 200m
-            lat = self.data.get('latitude')
-            lon = self.data.get('longitude')
-            if not lat or not lon:
-                print(f"[PLAN] ❌ Pas de coordonnées disponibles")
-                return parcelles
-            
-            buffer_deg = 200 / 111000  # 200m en degrés
-            min_lat, max_lat = lat - buffer_deg, lat + buffer_deg
-            min_lon, max_lon = lon - buffer_deg, lon + buffer_deg
-        else:
-            zones = self.calpinage['zones']
-            if not zones:
-                print(f"[PLAN] ⚠️ Liste zones vide")
-                return parcelles
-            
-            # Collecter toutes les coordonnées GPS des zones
-            all_lats = []
-            all_lons = []
-            
-            for zone in zones:
-                zone_coords = zone.get('coordinates', [])
-                for coord in zone_coords:
-                    all_lats.append(coord['lat'])
-                    all_lons.append(coord['lng'])
-            
-            if not all_lats or not all_lons:
-                print(f"[PLAN] ⚠️ Aucune coordonnée GPS dans les zones")
-                return parcelles
-            
-            # Calculer la bbox avec un petit buffer (10m)
-            buffer_deg = 10 / 111000
-            min_lat = min(all_lats) - buffer_deg
-            max_lat = max(all_lats) + buffer_deg
-            min_lon = min(all_lons) - buffer_deg
-            max_lon = max(all_lons) + buffer_deg
+        # Utiliser gps_bounds du plan pour cohérence
+        if not hasattr(self, 'gps_bounds') or not self.gps_bounds:
+            print(f"[PLAN] ⚠️ gps_bounds non défini")
+            return parcelles
+        
+        min_lat = self.gps_bounds['min_lat']
+        max_lat = self.gps_bounds['max_lat']
+        min_lon = self.gps_bounds['min_lon']
+        max_lon = self.gps_bounds['max_lon']
+        
+        print(f"[PLAN] 🎯 Bbox API Cadastre: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
         
         # Créer un polygon GeoJSON de la bbox pour l'API Cadastre
         bbox_polygon = {
