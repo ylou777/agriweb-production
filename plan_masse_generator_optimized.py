@@ -87,6 +87,23 @@ class GPSConverter:
             max_lon=lon + delta_lon
         )
     
+    def calculate_rectangular_bounds(self, lat: float, lon: float, width_meters: float, height_meters: float) -> GPSBounds:
+        """Calcule les limites GPS pour un rectangle (demi-largeur, demi-hauteur)"""
+        # Demi-dimensions
+        half_width = width_meters / 2
+        half_height = height_meters / 2
+        
+        # Convertir en degrés
+        delta_lat = (half_height / self.EARTH_RADIUS) * (180 / math.pi)
+        delta_lon = (half_width / (self.EARTH_RADIUS * math.cos(lat * math.pi / 180))) * (180 / math.pi)
+        
+        return GPSBounds(
+            min_lat=lat - delta_lat,
+            max_lat=lat + delta_lat,
+            min_lon=lon - delta_lon,
+            max_lon=lon + delta_lon
+        )
+    
     def gps_to_pdf(self, lat: float, lon: float, gps_bounds: GPSBounds, 
                    plan_x: float, plan_y: float, plan_width: float, plan_height: float) -> Tuple[float, float]:
         """Convertit GPS → PDF avec projection Lambert 93"""
@@ -355,18 +372,19 @@ class PlanMasseGenerator:
             self.actual_scale = 500
             plan_width_meters = 195
             plan_height_meters = 130
-            bbox_size = math.sqrt(plan_width_meters**2 + plan_height_meters**2)  # ~234m
             
-            print(f"[PLAN] 📍 Modules: {modules_bbox.width_meters:.0f}×{modules_bbox.height_meters:.0f}m")
+            print(f"[PLAN] 📍 Modules: {modules_bbox.width_meters:.0f}×{modules_bbox.height_meters:.0f}m, centre: ({lat:.6f}, {lon:.6f})")
             print(f"[PLAN] 📐 ÉCHELLE 1/500: Plan couvre {plan_width_meters}m × {plan_height_meters}m")
         else:
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
-            bbox_size = 100  # Défaut 100m
-            print(f"[PLAN] ⚠️ Pas de modules - bbox par défaut: {bbox_size}m")
+            plan_width_meters = 195
+            plan_height_meters = 130
+            self.actual_scale = 500
+            print(f"[PLAN] ⚠️ Pas de modules - centre depuis adresse")
         
-        # Calculer GPS bounds
-        self.gps_bounds = self.gps_converter.calculate_bounds(lat, lon, bbox_size / 2)
+        # Calculer GPS bounds RECTANGULAIRES (pas circulaires !)
+        self.gps_bounds = self.gps_converter.calculate_rectangular_bounds(lat, lon, plan_width_meters, plan_height_meters)
         
         print(f"[PLAN] 🎯 GPS bounds: lat[{self.gps_bounds.min_lat:.6f}, {self.gps_bounds.max_lat:.6f}] lon[{self.gps_bounds.min_lon:.6f}, {self.gps_bounds.max_lon:.6f}]")
         
