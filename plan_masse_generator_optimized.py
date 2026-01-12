@@ -513,33 +513,46 @@ class PlanMasseGenerator:
         print(f"[PLAN] 🎯 L93 bounds: x[{self.l93_bounds.min_x:.1f}, {self.l93_bounds.max_x:.1f}] y[{self.l93_bounds.min_y:.1f}, {self.l93_bounds.max_y:.1f}]")
         
         # Calcul dimensions image pour éviter distorsion (pixel carré)
-        target_dpi = 300
+        target_dpi = 200 # Réduit de 300 à 200 pour éviter "Data not available"
         img_width_px = int((plan_width / 72) * target_dpi)
         img_height_px = int((plan_height / 72) * target_dpi)
         
-        # Limite API (augmentée pour meilleure qualité)
-        if img_width_px > 4096: 
-            ratio = 4096 / img_width_px
-            img_width_px = 4096
+        # VERIFICATION RESOLUTION SOL (GSD)
+        # 1 pixel ne doit jamais représenter moins de 15cm (0.15m) sinon ESRI bloque
+        min_gsd = 0.15 
+        current_gsd_x = plan_width_meters / img_width_px
+        
+        if current_gsd_x < min_gsd:
+            print(f"[PLAN] ⚠️ Resolution demandée trop haute ({current_gsd_x*100:.1f} cm/px) -> Ajustement à {min_gsd*100:.0f} cm/px")
+            img_width_px = int(plan_width_meters / min_gsd)
+            img_height_px = int(plan_height_meters / min_gsd)
+        
+        # Limite API max absolue
+        if img_width_px > 3000: 
+            ratio = 3000 / img_width_px
+            img_width_px = 3000
             img_height_px = int(img_height_px * ratio)
 
-        print(f"[PLAN] 📷 Image demandée: {img_width_px}x{img_height_px}px (DPI source ~{target_dpi})")
+        print(f"[PLAN] 📷 Image demandée: {img_width_px}x{img_height_px}px (Couverture: {plan_width_meters:.1f}m, GSD: {(plan_width_meters/img_width_px)*100:.1f} cm/px)")
 
         # Télécharger image satellite avec bounds L93
         satellite_img = self.sat_service.fetch(lat, lon, self.l93_bounds, width=img_width_px, height=img_height_px)
         
         if satellite_img:
-            # Vérifier que le serveur n'a pas renvoyé une image déformée (par ex 256x256)
-            if satellite_img.size[0] < img_width_px // 2:
-                print(f"[PLAN] ⚠️ Image reçue plus petite que demandée ({satellite_img.size}), risque de flou")
+            # Vérifier que le serveur n'a pas renvoyé une image "Data Not Available" (souvent grise ou avec texte)
+            # Difficile à détecter automatiquement sans OCR, mais on vérifie la taille min
+            if satellite_img.size[0] < 100:
+                print(f"[PLAN] ⚠️ Image reçue très petite ({satellite_img.size}), probable erreur")
             
             c.drawImage(ImageReader(satellite_img),
                        plan_x, plan_y,
                        width=plan_width, height=plan_height,
-                       preserveAspectRatio=False, mask='auto')
+                       preserveAspectRatio=False, mask='auto',
+                       anchorAtCentroid=True) # Ensure centering
             print(f"[PLAN] ✅ Image satellite L93 dessinée ({satellite_img.size[0]}x{satellite_img.size[1]}px)")
         else:
             print(f"[PLAN] ⚠️ Image satellite non disponible - fond gris")
+
 
         
         # Stocker bbox du plan
