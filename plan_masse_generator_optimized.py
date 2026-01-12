@@ -197,21 +197,35 @@ class SatelliteImageService:
     
     @staticmethod
     def _fetch_osm_tiles(lat: float, lon: float, bounds: GPSBounds, width: int, height: int) -> Optional[Image.Image]:
-        """Assemble des tuiles OSM pour créer l'image"""
+        """Assemble des tuiles Esri pour créer l'image alignée sur bounds exact"""
         zoom = 18
         
         # Conversion lat/lon → tuile
-        def deg2tile(lat, lon, zoom):
-            lat_rad = math.radians(lat)
-            n = 2.0 ** zoom
-            xtile = int((lon + 180.0) / 360.0 * n)
-            ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+        def deg2tile(lat_deg, lon_deg, z):
+            lat_rad = math.radians(lat_deg)
+            n = 2.0 ** z
+            xtile = (lon_deg + 180.0) / 360.0 * n
+            ytile = (1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n
             return (xtile, ytile)
         
-        x_min, y_min = deg2tile(bounds.max_lat, bounds.min_lon, zoom)
-        x_max, y_max = deg2tile(bounds.min_lat, bounds.max_lon, zoom)
+        def tile2deg(xtile, ytile, z):
+            """Conversion tuile → coordonnées GPS du coin NW"""
+            n = 2.0 ** z
+            lon = xtile / n * 360.0 - 180.0
+            lat_rad = math.atan(math.sinh(math.pi * (1 - 2 * ytile / n)))
+            lat = math.degrees(lat_rad)
+            return (lat, lon)
         
-        # Assembler 3x3 tuiles
+        # Calculer tuiles couvrant les bounds
+        x_min_f, y_min_f = deg2tile(bounds.max_lat, bounds.min_lon, zoom)  # NW corner
+        x_max_f, y_max_f = deg2tile(bounds.min_lat, bounds.max_lon, zoom)  # SE corner
+        
+        x_min, y_min = int(x_min_f), int(y_min_f)
+        x_max, y_max = int(x_max_f) + 1, int(y_max_f) + 1
+        
+        print(f"[SATELLITE] 📦 Tuiles: x[{x_min}-{x_max}] y[{y_min}-{y_max}]")
+        
+        # Télécharger les tuiles
         tiles = []
         for y in range(y_min, y_max + 1):
             row = []
@@ -225,25 +239,51 @@ class SatelliteImageService:
                         row.append(Image.new('RGB', (256, 256), color='gray'))
                 except:
                     row.append(Image.new('RGB', (256, 256), color='gray'))
-            tiles.append(row)
+            if row:
+                tiles.append(row)
         
-        if not tiles:
+        if not tiles or not tiles[0]:
             return None
         
-        # Assembler
-        tile_width = len(tiles[0])
-        tile_height = len(tiles)
-        
-        assembled = Image.new('RGB', (tile_width * 256, tile_height * 256))
+        # Assembler l'image complète
+        tile_cols = len(tiles[0])
+        tile_rows = len(tiles)
+        assembled = Image.new('RGB', (tile_cols * 256, tile_rows * 256))
         for y, row in enumerate(tiles):
             for x, tile in enumerate(row):
                 assembled.paste(tile, (x * 256, y * 256))
         
-        # Redimensionner
-        assembled = assembled.resize((width, height), Image.Resampling.LANCZOS)
-        print(f"[SATELLITE] ✅ Image OSM assemblée ({assembled.size[0]}x{assembled.size[1]}, {len(tiles[0])}x{len(tiles)} tuiles)")
+        # CROP pour correspondre exactement aux bounds GPS demandés
+        # Calculer les coordonnées pixel des bounds dans l'image assemblée
+        tiles_nw_lat, tiles_nw_lon = tile2deg(x_min, y_min, zoom)  # Coin NW des tuiles
+        tiles_se_lat, tiles_se_lon = tile2deg(x_max + 1, y_max + 1, zoom)  # Coin SE des tuiles
         
-        return assembled
+        total_width = assembled.size[0]
+        total_height = assembled.size[1]
+        
+        # Pixel du coin NW des bounds demandés
+        px_left = int((bounds.min_lon - tiles_nw_lon) / (tiles_se_lon - tiles_nw_lon) * total_width)
+        px_top = int((tiles_nw_lat - bounds.max_lat) / (tiles_nw_lat - tiles_se_lat) * total_height)
+        
+        # Pixel du coin SE des bounds demandés
+        px_right = int((bounds.max_lon - tiles_nw_lon) / (tiles_se_lon - tiles_nw_lon) * total_width)
+        px_bottom = int((tiles_nw_lat - bounds.min_lat) / (tiles_nw_lat - tiles_se_lat) * total_height)
+        
+        # Clamp aux limites de l'image
+        px_left = max(0, px_left)
+        px_top = max(0, px_top)
+        px_right = min(total_width, px_right)
+        px_bottom = min(total_height, px_bottom)
+        
+        print(f"[SATELLITE] ✂️ Crop: ({px_left},{px_top}) → ({px_right},{px_bottom})")
+        
+        # Crop et redimensionner
+        cropped = assembled.crop((px_left, px_top, px_right, px_bottom))
+        final = cropped.resize((width, height), Image.Resampling.LANCZOS)
+        
+        print(f"[SATELLITE] ✅ Image assemblée et alignée ({final.size[0]}x{final.size[1]}, {tile_cols}x{tile_rows} tuiles)")
+        
+        return final
 
 
 class ModulesAnalyzer:
