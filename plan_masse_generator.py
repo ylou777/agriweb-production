@@ -150,6 +150,31 @@ class PlanMasseGenerator:
         }
         
         if lat and lon:
+            # 🔥 PRIORITÉ ABSOLUE: Calculer gps_bounds depuis les modules PV pour un centrage parfait
+            modules_bbox = self._get_modules_bbox()
+            if modules_bbox:
+                # Ajouter une marge de 10% autour des modules
+                import math
+                R = 6371000
+                margin = 1.1  # 10% de marge
+                
+                lat_center = modules_bbox['center_lat']
+                lon_center = modules_bbox['center_lon']
+                half_height = (modules_bbox['height_meters'] * margin) / 2
+                half_width = (modules_bbox['width_meters'] * margin) / 2
+                
+                delta_lat = (half_height / R) * (180 / math.pi)
+                delta_lon = (half_width / (R * math.cos(lat_center * math.pi / 180))) * (180 / math.pi)
+                
+                self.gps_bounds = {
+                    'min_lat': lat_center - delta_lat,
+                    'max_lat': lat_center + delta_lat,
+                    'min_lon': lon_center - delta_lon,
+                    'max_lon': lon_center + delta_lon
+                }
+                print(f"[PLAN] 🎯 GPS bounds depuis MODULES PV: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
+                print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m")
+            
             # 🔥 PRIORITÉ 1: Utiliser le screenshot de la carte (contient satellite + modules GPS précis)
             screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
             
@@ -168,23 +193,9 @@ class PlanMasseGenerator:
                         
                         print(f"[PLAN] 📸 Utilisation du screenshot de la carte ({len(img_data)} bytes)")
                         
-                        # Récupérer les métadonnées de la carte pour calibrer GPS→PDF
-                        map_metadata = self.calpinage.get('map_metadata', {})
-                        if map_metadata and 'bounds' in map_metadata:
-                            bounds = map_metadata['bounds']
-                            dimensions = map_metadata.get('dimensions', {})
-                            
-# 🔥 Comme on dessine avec preserveAspectRatio=False,
-                            # l'image remplit TOUT le cadre, donc pas besoin de calculer actual_image_bbox
-                            # Les bounds GPS correspondent au cadre PDF complet
-                            
-                            self.gps_bounds = {
-                                'min_lat': bounds['south'],
-                                'max_lat': bounds['north'],
-                                'min_lon': bounds['west'],
-                                'max_lon': bounds['east']
-                            }
-                            print(f"[PLAN] 🗺️ Bounds GPS screenshot (cadre complet): lat[{bounds['south']:.6f}, {bounds['north']:.6f}] lon[{bounds['west']:.6f}, {bounds['east']:.6f}]")
+                        # 🔥 NE PAS écraser gps_bounds avec les metadata du screenshot !
+                        # On garde gps_bounds calculé depuis les modules PV ci-dessus
+                        # Le screenshot sera étiré pour correspondre à ces bounds
                         
                         # Dessiner le screenshot - REMPLIR TOUT LE CADRE
                         c.drawImage(ImageReader(img_buffer), 
