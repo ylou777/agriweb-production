@@ -174,7 +174,11 @@ class SatelliteImageService:
             
             if response.status_code == 200 and len(response.content) > 1000:
                 print(f"[SATELLITE] ✅ Esri OK ({len(response.content)/1024:.1f} KB)")
-                return Image.open(io.BytesIO(response.content))
+                img = Image.open(io.BytesIO(response.content))
+                # FLIP VERTICAL : L'image Esri a le Nord en haut, mais les coordonnées PDF ont le Sud en bas
+                # Il faut inverser pour que l'image corresponde aux coordonnées
+                img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                return img
             else:
                 print(f"[SATELLITE] ⚠️ Esri: HTTP {response.status_code}, taille={len(response.content)} bytes")
         
