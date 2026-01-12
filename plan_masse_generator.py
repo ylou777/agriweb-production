@@ -157,6 +157,8 @@ class PlanMasseGenerator:
         if lat and lon:
             # 🔥 PRIORITÉ ABSOLUE: Calculer gps_bounds depuis les modules PV pour un centrage parfait
             modules_bbox = self._get_modules_bbox()
+            print(f"[PLAN] 🔍 DEBUG: modules_bbox = {modules_bbox}")
+            
             if modules_bbox:
                 # Ajouter une marge de 10% autour des modules
                 import math
@@ -188,6 +190,8 @@ class PlanMasseGenerator:
                 print(f"[PLAN] 🛰️ Téléchargement image satellite centrée sur modules ({bbox_meters:.0f}m)...")
                 
                 satellite_img = self._fetch_satellite_image_bbox(lat_center, lon_center, bbox_meters, width=1600, height=1400)
+                print(f"[PLAN] 🔍 DEBUG: satellite_img = {satellite_img is not None}")
+                
                 if satellite_img:
                     c.drawImage(ImageReader(satellite_img), 
                               plan_x, plan_y, 
