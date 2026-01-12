@@ -174,56 +174,31 @@ class PlanMasseGenerator:
                 }
                 print(f"[PLAN] 🎯 GPS bounds depuis MODULES PV: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
                 print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m")
-            
-            # 🔥 PRIORITÉ 1: Utiliser le screenshot de la carte (contient satellite + modules GPS précis)
-            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
-            
-            if screenshot_data:
-                try:
-                    # Le screenshot est en base64 data URL: "data:image/png;base64,..."
-                    import base64
-                    import re
-                    
-                    # Extraire les données base64
-                    base64_match = re.search(r'base64,(.+)', screenshot_data)
-                    if base64_match:
-                        base64_str = base64_match.group(1)
-                        img_data = base64.b64decode(base64_str)
-                        img_buffer = io.BytesIO(img_data)
-                        
-                        print(f"[PLAN] 📸 Utilisation du screenshot de la carte ({len(img_data)} bytes)")
-                        
-                        # 🔥 NE PAS écraser gps_bounds avec les metadata du screenshot !
-                        # On garde gps_bounds calculé depuis les modules PV ci-dessus
-                        # Le screenshot sera étiré pour correspondre à ces bounds
-                        
-                        # Dessiner le screenshot - REMPLIR TOUT LE CADRE
-                        c.drawImage(ImageReader(img_buffer), 
-                                  plan_x, plan_y, 
-                                  width=plan_width, height=plan_height,
-                                  preserveAspectRatio=False, mask='auto')  # False = remplit tout
-                        
-                        self.screenshot_used = True
-                    else:
-                        self.screenshot_used = False
-                except Exception as e:
-                    print(f"[PLAN] ⚠️ Erreur lecture screenshot: {e}")
-                    self.screenshot_used = False
-            else:
-                self.screenshot_used = False
-            
-            # 🔥 FALLBACK: Image satellite si pas de screenshot
-            if not self.screenshot_used:
-                print(f"[PLAN] 🛰️ Tentative de téléchargement image satellite...")
                 
-                # 🔥 IMPORTANT: Définir gps_bounds pour l'image satellite AVANT de la charger
-                # Calculer les limites GPS du bbox carré centré sur lat/lon
+                # 🔥 FORCER image satellite centrée sur modules (pas de screenshot)
+                # Le screenshot peut avoir un zoom/centre différent qui créerait un décalage
+                bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters'])
+                print(f"[PLAN] 🛰️ Téléchargement image satellite centrée sur modules ({bbox_meters:.0f}m)...")
+                
+                satellite_img = self._fetch_satellite_image_bbox(lat_center, lon_center, bbox_meters, width=1600, height=1400)
+                if satellite_img:
+                    c.drawImage(ImageReader(satellite_img), 
+                              plan_x, plan_y, 
+                              width=plan_width, height=plan_height,
+                              preserveAspectRatio=True, anchor='c', mask='auto')
+                    print(f"[PLAN] ✅ Image satellite dessinée: {bbox_meters:.0f}m centré sur modules")
+                else:
+                    print(f"[PLAN] ⚠️ Échec téléchargement satellite - fond gris")
+                    
+                self.screenshot_used = False
+            else:
+                # Pas de modules PV - utiliser adresse et taille par défaut
+                print(f"[PLAN] ⚠️ Aucun module PV trouvé - utilisation adresse")
+                
+                # Définir gps_bounds depuis l'adresse
                 import math
-                # Rayon de la Terre en mètres
                 R = 6371000
-                # Conversion mètres → degrés latitude (environ 111km par degré)
                 delta_lat = (bbox_meters / R) * (180 / math.pi)
-                # Conversion mètres → degrés longitude (varie selon latitude)
                 delta_lon = (bbox_meters / (R * math.cos(lat * math.pi / 180))) * (180 / math.pi)
                 
                 self.gps_bounds = {
@@ -232,20 +207,19 @@ class PlanMasseGenerator:
                     'min_lon': lon - delta_lon,
                     'max_lon': lon + delta_lon
                 }
-                print(f"[PLAN] 🗺️ GPS bounds satellite: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
                 
+                # Télécharger image satellite
                 satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1600, height=1400)
                 if satellite_img:
-                    # Dessiner l'image en PRÉSERVANT le ratio pour éviter distorsion
                     c.drawImage(ImageReader(satellite_img), 
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
-                              preserveAspectRatio=True, anchor='c', mask='auto')  # True = pas de déformation
-                    print(f"[PLAN] ✅ Image satellite dessinée: rayon {bbox_meters:.0f}m à l'échelle 1/500")
+                              preserveAspectRatio=True, anchor='c', mask='auto')
+                    print(f"[PLAN] ✅ Image satellite dessinée depuis adresse")
                 else:
-                    print(f"[PLAN] ⚠️ Aucune image satellite - fond gris utilisé")
-                    
-                self.screenshot_used = False  # Image satellite, pas de screenshot
+                    print(f"[PLAN] ⚠️ Échec téléchargement satellite - fond gris")
+                
+                self.screenshot_used = False
         
         # Système de coordonnées : conversion GPS → PDF
         # Centre du plan = position GPS du bâtiment
@@ -265,13 +239,10 @@ class PlanMasseGenerator:
         # 2. BÂTIMENT (à la position GPS) - DÉSACTIVÉ pour plan de masse simple
         # self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
-        # 3. MODULES PV - Ne redessiner QUE si pas de screenshot
-        # Si screenshot utilisé, les modules sont DÉJÀ dedans (avec GPS précis du calpinage)
-        if self.calpinage and not self.screenshot_used:
+        # 3. MODULES PV - Toujours redessiner depuis GPS pour garantir position exacte
+        if self.calpinage:
             self._draw_modules_pv_from_gps(c)
-            print("[PLAN] ✅ Modules PV dessinés manuellement (pas de screenshot)")
-        elif self.screenshot_used:
-            print("[PLAN] ℹ️ Modules déjà dans le screenshot (GPS précis du calpinage)")
+            print("[PLAN] ✅ Modules PV dessinés depuis GPS réels du calpinage")
         
         # 4. COTATIONS - Dessiner les cotations sur les zones PV
         if self.calpinage and 'zones' in self.calpinage:
