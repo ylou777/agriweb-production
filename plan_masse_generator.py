@@ -160,18 +160,19 @@ class PlanMasseGenerator:
             print(f"[PLAN] 🔍 DEBUG: modules_bbox = {modules_bbox}")
             
             if modules_bbox:
-                # Ajouter une marge de 10% autour des modules
                 import math
                 R = 6371000
-                margin = 1.1  # 10% de marge
                 
                 lat_center = modules_bbox['center_lat']
                 lon_center = modules_bbox['center_lon']
-                half_height = (modules_bbox['height_meters'] * margin) / 2
-                half_width = (modules_bbox['width_meters'] * margin) / 2
                 
-                delta_lat = (half_height / R) * (180 / math.pi)
-                delta_lon = (half_width / (R * math.cos(lat_center * math.pi / 180))) * (180 / math.pi)
+                # 🔥 Calculer la taille de l'image satellite (modules + contexte)
+                bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.5
+                
+                # 🔥 GPS bounds DOIT correspondre exactement à bbox_meters (pas aux modules seuls)
+                half_size = bbox_meters / 2
+                delta_lat = (half_size / R) * (180 / math.pi)
+                delta_lon = (half_size / (R * math.cos(lat_center * math.pi / 180))) * (180 / math.pi)
                 
                 self.gps_bounds = {
                     'min_lat': lat_center - delta_lat,
@@ -179,12 +180,8 @@ class PlanMasseGenerator:
                     'min_lon': lon_center - delta_lon,
                     'max_lon': lon_center + delta_lon
                 }
-                print(f"[PLAN] 🎯 GPS bounds depuis MODULES PV: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
-                print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m")
-                
-                # 🔥 Utiliser la taille des modules + marge de 50% pour contexte suffisant
-                bbox_meters_modules = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.5
-                bbox_meters = bbox_meters_modules  # Pas de minimum - s'adapter à la taille réelle
+                print(f"[PLAN] 🎯 GPS bounds (bbox={bbox_meters:.0f}m): lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
+                print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m → Image satellite: {bbox_meters:.0f}m")
                 
                 print(f"[PLAN] 🛰️ Téléchargement image satellite centrée sur modules ({bbox_meters:.0f}m)...")
                 
