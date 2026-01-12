@@ -1,7 +1,7 @@
 """
-Générateur de Plan de Masse Cadastral avec Calpinage PV
-Version simplifiée et professionnelle
-v2.1 - 2026-01-07: Intégration API Cadastre IGN pour contours parcelles réels
+G├®n├®rateur de Plan de Masse Cadastral avec Calpinage PV
+Version simplifi├®e et professionnelle
+v2.1 - 2026-01-07: Int├®gration API Cadastre IGN pour contours parcelles r├®els
 """
 
 from reportlab.lib.pagesizes import A3, A4
@@ -19,25 +19,25 @@ import math
 
 
 class PlanMasseGenerator:
-    """Génère un plan de masse cadastral avec implantation PV réelle"""
+    """G├®n├¿re un plan de masse cadastral avec implantation PV r├®elle"""
     
     def __init__(self, prospect_data, calpinage_data=None):
         self.data = prospect_data
         self.calpinage = calpinage_data
-        self.width, self.height = A3  # Format A3 pour plus de détails
+        self.width, self.height = A3  # Format A3 pour plus de d├®tails
         
     def generate(self):
-        """Génère le plan de masse PDF"""
+        """G├®n├¿re le plan de masse PDF"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
         
-        # En-tête
+        # En-t├¬te
         self._draw_header(c)
         
         # Zone principale : plan cadastral + calpinage
         self._draw_plan_cadastral(c)
         
-        # Légende et informations
+        # L├®gende et informations
         self._draw_legend(c)
         
         # Cartouche technique
@@ -48,12 +48,12 @@ class PlanMasseGenerator:
         return buffer
     
     def _draw_header(self, c):
-        """En-tête du document"""
+        """En-t├¬te du document"""
         y = self.height - 2*cm
         
         # Titre
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(3*cm, y, "PLAN DE MASSE - INSTALLATION PHOTOVOLTAÏQUE")
+        c.drawString(3*cm, y, "PLAN DE MASSE - INSTALLATION PHOTOVOLTA├ÅQUE")
         
         y -= 0.7*cm
         c.setFont("Helvetica", 10)
@@ -61,20 +61,20 @@ class PlanMasseGenerator:
         adresse = self.data.get('adresse', '')
         c.drawString(3*cm, y, f"{adresse}, {commune}")
         
-        # Échelle réglementaire
+        # ├ëchelle r├®glementaire
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(colors.HexColor('#D32F2F'))
-        c.drawRightString(self.width - 3*cm, y, "Échelle 1/500")
+        c.drawRightString(self.width - 3*cm, y, "├ëchelle 1/500")
         c.setFillColor(colors.black)
         
     def _draw_plan_cadastral(self, c):
         """Dessine le plan cadastral avec parcelles et modules PV"""
         
-        # Zone de dessin - Optimisée pour éviter chevauchements avec légende et cartouche
+        # Zone de dessin - Optimis├®e pour ├®viter chevauchements avec l├®gende et cartouche
         plan_x = 2*cm
-        plan_y = 15*cm  # Plus haut pour laisser place à la légende
+        plan_y = 15*cm  # Plus haut pour laisser place ├á la l├®gende
         plan_width = self.width - 4*cm
-        plan_height = self.height - 18*cm  # Hauteur ajustée
+        plan_height = self.height - 18*cm  # Hauteur ajust├®e
         
         # Cadre
         c.setStrokeColor(colors.black)
@@ -85,62 +85,51 @@ class PlanMasseGenerator:
         c.setFillColor(colors.HexColor('#F5F5F5'))
         c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
         
-        # 🔥 CENTRER SUR LES MODULES PV plutôt que sur l'adresse
-        # Calculer le centre GPS des modules si disponibles
-        center_lat, center_lon = self._get_modules_center()
-        if center_lat and center_lon:
-            lat, lon = center_lat, center_lon
-            print(f"[PLAN] 📍 Plan centré sur les modules PV: {lat:.6f}, {lon:.6f}")
-        else:
-            lat = self.data.get('latitude')
-            lon = self.data.get('longitude')
-            print(f"[PLAN] 📍 Plan centré sur l'adresse: {lat:.6f}, {lon:.6f}")
+        lat = self.data.get('latitude')
+        lon = self.data.get('longitude')
         
         # Initialiser screenshot_used
         self.screenshot_used = False
         
-        # 🔥 CORRECTION GPS: Utiliser systématiquement les facteurs de conversion précis
-        # sauvegardés dans le calpinage (issus de map.distance() de Leaflet)
+        # ­ƒöÑ CORRECTION GPS: Utiliser syst├®matiquement les facteurs de conversion pr├®cis
+        # sauvegard├®s dans le calpinage (issus de map.distance() de Leaflet)
         gps_conversion = None
         if self.calpinage:
             gps_conversion = self.calpinage.get('gpsConversion')
         
         if gps_conversion and 'metersPerDegreeLat' in gps_conversion and 'metersPerDegreeLng' in gps_conversion:
-            # Utiliser les facteurs de conversion PRÉCIS du calpinage
+            # Utiliser les facteurs de conversion PR├ëCIS du calpinage
             meters_per_degree_lat = gps_conversion['metersPerDegreeLat']
             meters_per_degree_lng = gps_conversion['metersPerDegreeLng']
-            print(f"[PLAN] ✅ Utilisation des facteurs GPS précis: lat={1/meters_per_degree_lat:.9f}°/m, lng={1/meters_per_degree_lng:.9f}°/m")
+            print(f"[PLAN] Ô£à Utilisation des facteurs GPS pr├®cis: lat={1/meters_per_degree_lat:.9f}┬░/m, lng={1/meters_per_degree_lng:.9f}┬░/m")
         else:
-            # Fallback: approximation basée sur la latitude (moins précis)
+            # Fallback: approximation bas├®e sur la latitude (moins pr├®cis)
             import math
-            lat_rad = lat * math.pi / 180 if lat else 0.785398  # 45° par défaut
-            meters_per_degree_lat = 1 / 111320  # Plus précis que 111000
+            lat_rad = lat * math.pi / 180 if lat else 0.785398  # 45┬░ par d├®faut
+            meters_per_degree_lat = 1 / 111320  # Plus pr├®cis que 111000
             meters_per_degree_lng = 1 / (111320 * math.cos(lat_rad))
-            print(f"[PLAN] ⚠️ Facteurs GPS approximatifs (gpsConversion manquant)")
+            print(f"[PLAN] ÔÜá´©Å Facteurs GPS approximatifs (gpsConversion manquant)")
         
-        # 🔥 ÉCHELLE 1/500 OBLIGATOIRE pour plan cadastral
-        # 1 cm sur le plan = 500 cm (5 m) dans la réalité
-        # Calculer la bbox en mètres selon la taille du cadre PDF
+        # ­ƒöÑ ├ëCHELLE 1/500 OBLIGATOIRE pour plan cadastral
+        # 1 cm sur le plan = 500 cm (5 m) dans la r├®alit├®
+        # Calculer la bbox en m├¿tres selon la taille du cadre PDF
         plan_width_cm = plan_width / cm
         plan_height_cm = plan_height / cm
         
-        bbox_width_meters = plan_width_cm * 5  # 1cm = 5m à l'échelle 1/500
+        bbox_width_meters = plan_width_cm * 5  # 1cm = 5m ├á l'├®chelle 1/500
         bbox_height_meters = plan_height_cm * 5
         
-        # 🔥 CORRECTION: bbox_meters = RAYON du carré englobant pour image satellite
-        # Pour remplir tout le cadre rectangulaire, on prend la demi-diagonale
-        import math
-        diagonal_meters = math.sqrt(bbox_width_meters**2 + bbox_height_meters**2)
-        bbox_meters = diagonal_meters / 2  # Rayon du cercle englobant le rectangle
+        # Prendre la plus grande dimension et AUGMENTER MASSIVEMENT pour couverture TOTALE
+        bbox_meters = max(bbox_width_meters, bbox_height_meters) * 3.5  # 350% de rayon pour GARANTIR couverture
         
-        print(f"[PLAN] Échelle 1/500: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m réels")
-        print(f"[PLAN] Bbox satellite: rayon {bbox_meters:.0f}m pour couvrir {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
+        print(f"[PLAN] ├ëchelle 1/500: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m r├®els")
+        print(f"[PLAN] Bbox satellite: {bbox_meters*2:.0f}m de c├┤t├® (rayon {bbox_meters:.0f}m)")
         
-        # Convertir en degrés avec les BONS facteurs
+        # Convertir en degr├®s avec les BONS facteurs
         meters_to_lat = bbox_meters * meters_per_degree_lat
         meters_to_lon = bbox_meters * meters_per_degree_lng
         
-        # Stocker les limites GPS réelles
+        # Stocker les limites GPS r├®elles
         self.gps_bounds = {
             'min_lat': lat - meters_to_lat,
             'max_lat': lat + meters_to_lat,
@@ -149,32 +138,31 @@ class PlanMasseGenerator:
         }
         
         if lat and lon:
-            # 🔥 DÉSACTIVÉ: Ne PAS utiliser le screenshot car coordonnées GPS imprécises
-            # On dessine tout manuellement avec les vraies coordonnées GPS
-            screenshot_data = None  # Force désactivation du screenshot
+            # ­ƒöÑ PRIORIT├ë 1: Utiliser le screenshot de la carte si disponible
+            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
             
-            if False and screenshot_data:  # Désactivé
+            if screenshot_data:
                 try:
                     # Le screenshot est en base64 data URL: "data:image/png;base64,..."
                     import base64
                     import re
                     
-                    # Extraire les données base64
+                    # Extraire les donn├®es base64
                     base64_match = re.search(r'base64,(.+)', screenshot_data)
                     if base64_match:
                         base64_str = base64_match.group(1)
                         img_data = base64.b64decode(base64_str)
                         img_buffer = io.BytesIO(img_data)
                         
-                        print(f"[PLAN] 📸 Utilisation du screenshot de la carte ({len(img_data)} bytes)")
+                        print(f"[PLAN] ­ƒô© Utilisation du screenshot de la carte ({len(img_data)} bytes)")
                         
-                        # Récupérer les métadonnées de la carte pour calibrer GPS→PDF
+                        # R├®cup├®rer les m├®tadonn├®es de la carte pour calibrer GPSÔåÆPDF
                         map_metadata = self.calpinage.get('map_metadata', {})
                         if map_metadata and 'bounds' in map_metadata:
                             bounds = map_metadata['bounds']
                             dimensions = map_metadata.get('dimensions', {})
                             
-# 🔥 Comme on dessine avec preserveAspectRatio=False,
+# ­ƒöÑ Comme on dessine avec preserveAspectRatio=False,
                             # l'image remplit TOUT le cadre, donc pas besoin de calculer actual_image_bbox
                             # Les bounds GPS correspondent au cadre PDF complet
                             
@@ -184,7 +172,7 @@ class PlanMasseGenerator:
                                 'min_lon': bounds['west'],
                                 'max_lon': bounds['east']
                             }
-                            print(f"[PLAN] 🗺️ Bounds GPS screenshot (cadre complet): lat[{bounds['south']:.6f}, {bounds['north']:.6f}] lon[{bounds['west']:.6f}, {bounds['east']:.6f}]")
+                            print(f"[PLAN] ­ƒù║´©Å Bounds GPS screenshot (cadre complet): lat[{bounds['south']:.6f}, {bounds['north']:.6f}] lon[{bounds['west']:.6f}, {bounds['east']:.6f}]")
                         
                         # Dessiner le screenshot - REMPLIR TOUT LE CADRE
                         c.drawImage(ImageReader(img_buffer), 
@@ -196,48 +184,25 @@ class PlanMasseGenerator:
                     else:
                         self.screenshot_used = False
                 except Exception as e:
-                    print(f"[PLAN] ⚠️ Erreur lecture screenshot: {e}")
+                    print(f"[PLAN] ÔÜá´©Å Erreur lecture screenshot: {e}")
                     self.screenshot_used = False
             else:
                 self.screenshot_used = False
             
-            # 🔥 FALLBACK: Image satellite si pas de screenshot
+            # ­ƒöÑ FALLBACK: Image satellite si pas de screenshot
             if not self.screenshot_used:
-                print(f"[PLAN] 🛰️ Tentative de téléchargement image satellite...")
-                
-                # 🔥 IMPORTANT: Définir gps_bounds pour l'image satellite AVANT de la charger
-                # Calculer les limites GPS du bbox carré centré sur lat/lon
-                import math
-                # Rayon de la Terre en mètres
-                R = 6371000
-                # Conversion mètres → degrés latitude (environ 111km par degré)
-                delta_lat = (bbox_meters / R) * (180 / math.pi)
-                # Conversion mètres → degrés longitude (varie selon latitude)
-                delta_lon = (bbox_meters / (R * math.cos(lat * math.pi / 180))) * (180 / math.pi)
-                
-                self.gps_bounds = {
-                    'min_lat': lat - delta_lat,
-                    'max_lat': lat + delta_lat,
-                    'min_lon': lon - delta_lon,
-                    'max_lon': lon + delta_lon
-                }
-                print(f"[PLAN] 🗺️ GPS bounds satellite: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
-                
                 satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1600, height=1400)
                 if satellite_img:
-                    # Dessiner l'image en PRÉSERVANT le ratio pour éviter distorsion
+                    # REMPLIR TOUT LE CADRE (pas de blanc autour)
                     c.drawImage(ImageReader(satellite_img), 
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
-                              preserveAspectRatio=True, anchor='c', mask='auto')  # True = pas de déformation
-                    print(f"[PLAN] ✅ Image satellite dessinée: rayon {bbox_meters:.0f}m à l'échelle 1/500")
-                else:
-                    print(f"[PLAN] ⚠️ Aucune image satellite - fond gris utilisé")
-                    
+                              preserveAspectRatio=False, mask='auto')  # False = remplit tout
+                    print(f"[PLAN] Ô£à Image satellite: {bbox_meters*2:.0f}m de rayon ├á l'├®chelle 1/500")
                 self.screenshot_used = False  # Image satellite, pas de screenshot
         
-        # Système de coordonnées : conversion GPS → PDF
-        # Centre du plan = position GPS du bâtiment
+        # Syst├¿me de coordonn├®es : conversion GPS ÔåÆ PDF
+        # Centre du plan = position GPS du b├ótiment
         self.plan_bbox = {
             'x': plan_x,
             'y': plan_y,
@@ -248,17 +213,19 @@ class PlanMasseGenerator:
             'meters_per_cm': bbox_meters / (plan_width / cm) if plan_width > 0 else 1
         }
         
-        # 1. PARCELLES CADASTRALES (avec vraies géométries si disponibles)
+        # 1. PARCELLES CADASTRALES (avec vraies g├®om├®tries si disponibles)
         self._draw_parcelles(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2, lat, lon)
         
-        # 2. BÂTIMENT (à la position GPS) - DÉSACTIVÉ pour plan de masse simple
+        # 2. B├éTIMENT (├á la position GPS) - D├ëSACTIV├ë pour plan de masse simple
         # self._draw_batiment(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2)
         
-        # 3. MODULES PV - TOUJOURS redessiner avec coordonnées GPS précises
-        # 🔥 Screenshot désactivé car GPS imprécis → on redessine tout manuellement
+        # 3. MODULES PV - TOUJOURS dessiner avec coordonn├®es GPS pr├®cises
+        # ­ƒöÑ CORRECTION: Le screenshot contient les modules MAL PLAC├ëS (ancienne position)
+        # On dessine TOUJOURS avec Python qui a les coordonn├®es GPS CORRIG├ëES
         if self.calpinage:
             self._draw_modules_pv_from_gps(c)
-            print("[PLAN] ✅ Modules PV dessinés avec coordonnées GPS précises (screenshot désactivé)")
+            if self.screenshot_used:
+                print("[PLAN] ÔÜá´©Å Screenshot utilis├® mais modules redessin├®s avec GPS corrig├®s (├®crasent l'ancienne position)")
         
         # 4. COTATIONS - Dessiner les cotations sur les zones PV
         if self.calpinage and 'zones' in self.calpinage:
@@ -269,7 +236,7 @@ class PlanMasseGenerator:
         
     def _draw_compass(self, c, plan_x, plan_y, plan_width, plan_height):
         """Dessine la rose des vents (Nord/Sud/Est/Ouest) - OBLIGATOIRE"""
-        # Position : coin supérieur gauche du plan
+        # Position : coin sup├®rieur gauche du plan
         compass_x = plan_x + 1*cm
         compass_y = plan_y + plan_height - 3*cm
         compass_size = 2*cm
@@ -280,7 +247,7 @@ class PlanMasseGenerator:
         c.setLineWidth(1.5)
         c.circle(compass_x, compass_y, compass_size/2, fill=1, stroke=1)
         
-        # Flèche Nord (rouge)
+        # Fl├¿che Nord (rouge)
         c.setFillColor(colors.HexColor('#D32F2F'))
         c.setStrokeColor(colors.HexColor('#D32F2F'))
         c.setLineWidth(2)
@@ -321,8 +288,8 @@ class PlanMasseGenerator:
         c.drawCentredString(west_x - 0.3*cm, compass_y - 0.15*cm, "O")
         
     def _calculate_bbox_from_data(self):
-        """Calcule la taille de la bbox en mètres basée sur les données"""
-        # Estimer depuis les parcelles ou défaut 60m
+        """Calcule la taille de la bbox en m├¿tres bas├®e sur les donn├®es"""
+        # Estimer depuis les parcelles ou d├®faut 60m
         parcelles = self._extract_parcelles()
         if parcelles:
             total_surface = sum(float(p.get('surface', 0)) for p in parcelles)
@@ -330,18 +297,18 @@ class PlanMasseGenerator:
                 # Approximation: bbox = racine(surface) * 1.5 pour avoir de la marge
                 return (total_surface ** 0.5) * 1.5
         
-        # Défaut: 60m de rayon (120m de côté)
+        # D├®faut: 60m de rayon (120m de c├┤t├®)
         return 60
     
     def _lat_lon_to_pdf(self, lat, lon):
         """
-        Convertit coordonnées GPS en coordonnées PDF
-        Utilise projection Lambert 93 pour éviter les distorsions
+        Convertit coordonn├®es GPS en coordonn├®es PDF
+        Utilise les M├èMES limites GPS que l'image satellite pour assurer l'alignement
         """
         if not hasattr(self, 'gps_bounds'):
             return (0, 0)
         
-        # 🔥 Utiliser plan_bbox car l'image remplit TOUT le cadre
+        # ­ƒöÑ Utiliser plan_bbox car l'image remplit TOUT le cadre (preserveAspectRatio=False)
         if hasattr(self, 'plan_bbox'):
             bbox = self.plan_bbox
         else:
@@ -349,62 +316,35 @@ class PlanMasseGenerator:
         
         gps = self.gps_bounds
         
-        try:
-            # 🔥 CORRECTION: Utiliser projection Lambert 93 pour éviter distorsions
-            from pyproj import Transformer
-            to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
-            
-            # Convertir les limites GPS en Lambert 93
-            min_x_l93, min_y_l93 = to_l93.transform(gps['min_lon'], gps['min_lat'])
-            max_x_l93, max_y_l93 = to_l93.transform(gps['max_lon'], gps['max_lat'])
-            
-            # Convertir le point en Lambert 93
-            x_l93, y_l93 = to_l93.transform(lon, lat)
-            
-            # Normaliser dans l'intervalle [0, 1]
-            x_range = max_x_l93 - min_x_l93
-            y_range = max_y_l93 - min_y_l93
-            
-            if x_range == 0 or y_range == 0:
-                return (bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
-            
-            x_ratio = (x_l93 - min_x_l93) / x_range
-            y_ratio = (y_l93 - min_y_l93) / y_range
-            
-            # Convertir en coordonnées PDF
-            pdf_x = bbox['x'] + x_ratio * bbox['width']
-            pdf_y = bbox['y'] + y_ratio * bbox['height']
-            
-            return (pdf_x, pdf_y)
-            
-        except Exception as e:
-            print(f"[PLAN] ⚠️ Erreur projection Lambert 93: {e}, fallback linéaire")
-            # Fallback: conversion linéaire simple
-            lat_range = gps['max_lat'] - gps['min_lat']
-            lon_range = gps['max_lon'] - gps['min_lon']
-            
-            if lat_range == 0 or lon_range == 0:
-                return (bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
-            
-            lat_ratio = (lat - gps['min_lat']) / lat_range
-            lon_ratio = (lon - gps['min_lon']) / lon_range
-            
-            pdf_x = bbox['x'] + lon_ratio * bbox['width']
-            pdf_y = bbox['y'] + lat_ratio * bbox['height']
-            
-            return (pdf_x, pdf_y)
+        # ­ƒöÑ CORRECTION: Conversion GPS ÔåÆ PDF bas├®e sur les limites GPS r├®elles de l'image
+        # Normaliser lat/lon dans l'intervalle [0, 1] par rapport aux limites
+        lat_range = gps['max_lat'] - gps['min_lat']
+        lon_range = gps['max_lon'] - gps['min_lon']
+        
+        if lat_range == 0 or lon_range == 0:
+            return (bbox['x'] + bbox['width']/2, bbox['y'] + bbox['height']/2)
+        
+        lat_ratio = (lat - gps['min_lat']) / lat_range
+        lon_ratio = (lon - gps['min_lon']) / lon_range
+        
+        # Convertir en coordonn├®es PDF
+        # ÔÜá´©Å Attention: PDF Y augmente vers le haut, mais latitude aussi
+        pdf_x = bbox['x'] + lon_ratio * bbox['width']
+        pdf_y = bbox['y'] + lat_ratio * bbox['height']
+        
+        return (pdf_x, pdf_y)
     
     def _draw_parcelles(self, c, center_x, center_y, lat, lon):
-        """Dessine les parcelles avec leurs vraies géométries GeoJSON si disponibles"""
+        """Dessine les parcelles avec leurs vraies g├®om├®tries GeoJSON si disponibles"""
         parcelles = self._extract_parcelles()
         
         if not parcelles:
-            print("[PLAN] ⚠️ Aucune parcelle à dessiner")
+            print("[PLAN] ÔÜá´©Å Aucune parcelle ├á dessiner")
             return
         
-        print(f"[PLAN] 🏘️ Dessin de {len(parcelles)} parcelles...")
+        print(f"[PLAN] ­ƒÅÿ´©Å Dessin de {len(parcelles)} parcelles...")
         
-        # 🔥 SAUVEGARDER l'état du canvas avant le clipping
+        # ­ƒöÑ SAUVEGARDER l'├®tat du canvas avant le clipping
         c.saveState()
         
         # Ajouter un clipPath pour limiter le dessin au cadre
@@ -422,48 +362,48 @@ class PlanMasseGenerator:
             
             print(f"[PLAN] Parcelle {section}{numero}: geojson={'OUI' if geojson else 'NON'}, surface={surface}")
             
-            # Si géométrie GeoJSON disponible, l'utiliser
+            # Si g├®om├®trie GeoJSON disponible, l'utiliser
             if geojson and isinstance(geojson, dict):
-                print(f"[PLAN] → Dessin avec GeoJSON")
+                print(f"[PLAN] ÔåÆ Dessin avec GeoJSON")
                 self._draw_parcelle_from_geojson(c, geojson, section, numero, surface)
             else:
-                # Fallback: rectangle approximatif centré TRÈS VISIBLE
-                print(f"[PLAN] → Dessin approximatif (pas de GeoJSON)")
+                # Fallback: rectangle approximatif centr├® TR├êS VISIBLE
+                print(f"[PLAN] ÔåÆ Dessin approximatif (pas de GeoJSON)")
                 self._draw_parcelle_approximative(c, section, numero, surface, i, len(parcelles))
         
-        # 🔥 RESTAURER l'état du canvas pour ne pas affecter la légende et le cartouche
+        # ­ƒöÑ RESTAURER l'├®tat du canvas pour ne pas affecter la l├®gende et le cartouche
         c.restoreState()
     
     def _draw_parcelle_from_geojson(self, c, geojson, section, numero, surface):
-        """Dessine une parcelle depuis sa géométrie GeoJSON réelle"""
+        """Dessine une parcelle depuis sa g├®om├®trie GeoJSON r├®elle"""
         try:
             geometry = geojson.get('geometry', geojson)
             coords = geometry.get('coordinates', [])
             geom_type = geometry.get('type', '')
             
-            print(f"[PLAN] 🎨 Dessin parcelle {section}{numero} avec géométrie {geom_type}")
+            print(f"[PLAN] ­ƒÄ¿ Dessin parcelle {section}{numero} avec g├®om├®trie {geom_type}")
             
-            # Calculer surface depuis géométrie si surface==0
+            # Calculer surface depuis g├®om├®trie si surface==0
             if not surface or float(surface) == 0:
                 try:
                     from shapely.geometry import shape
                     shp = shape(geometry)
-                    # Transformer en L93 pour calcul précis de surface
+                    # Transformer en L93 pour calcul pr├®cis de surface
                     from pyproj import Transformer
                     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
                     from shapely.ops import transform as shp_transform
                     shp_l93 = shp_transform(to_l93.transform, shp)
-                    surface = int(shp_l93.area)  # m²
-                    print(f"[PLAN] 📐 Surface calculée pour {section}{numero}: {surface}m²")
+                    surface = int(shp_l93.area)  # m┬▓
+                    print(f"[PLAN] ­ƒôÉ Surface calcul├®e pour {section}{numero}: {surface}m┬▓")
                 except Exception as e:
-                    print(f"[PLAN] ⚠️ Calcul surface impossible: {e}")
+                    print(f"[PLAN] ÔÜá´©Å Calcul surface impossible: {e}")
                     surface = 0
             
             # Gestion Polygon et MultiPolygon
             polygons_to_draw = []
             
             if geom_type == 'Polygon' and coords:
-                polygons_to_draw.append(coords[0])  # Premier anneau (contour extérieur)
+                polygons_to_draw.append(coords[0])  # Premier anneau (contour ext├®rieur)
             elif geom_type == 'MultiPolygon' and coords:
                 # Dessiner tous les polygones du MultiPolygon
                 for polygon in coords:
@@ -471,16 +411,16 @@ class PlanMasseGenerator:
                         polygons_to_draw.append(polygon[0])
             
             if not polygons_to_draw:
-                print(f"[PLAN] ❌ Pas de polygone à dessiner pour {section}{numero}")
+                print(f"[PLAN] ÔØî Pas de polygone ├á dessiner pour {section}{numero}")
                 return
             
-            print(f"[PLAN] 📍 {len(polygons_to_draw)} polygone(s) à dessiner")
+            print(f"[PLAN] ­ƒôì {len(polygons_to_draw)} polygone(s) ├á dessiner")
             
             # Dessiner chaque polygone
             label_x, label_y = None, None
             
             for polygon_idx, exterior_ring in enumerate(polygons_to_draw):
-                # Convertir chaque point GPS → PDF
+                # Convertir chaque point GPS ÔåÆ PDF
                 path = c.beginPath()
                 first_point = True
                 points_converted = 0
@@ -492,7 +432,7 @@ class PlanMasseGenerator:
                     if first_point:
                         path.moveTo(pdf_x, pdf_y)
                         first_point = False
-                        if label_x is None:  # Position étiquette sur le premier polygone
+                        if label_x is None:  # Position ├®tiquette sur le premier polygone
                             label_x, label_y = pdf_x, pdf_y
                         points_converted += 1
                     else:
@@ -502,21 +442,21 @@ class PlanMasseGenerator:
                 path.close()
                 print(f"[PLAN]   Polygone #{polygon_idx+1}: {points_converted} points convertis")
                 
-                # CONTOUR PARCELLE TRÈS VISIBLE
+                # CONTOUR PARCELLE TR├êS VISIBLE
                 # 1. Fond jaune semi-transparent pour voir la parcelle
                 c.setFillColorRGB(1, 1, 0, 0.15)  # Jaune transparent 15%
                 c.setStrokeColor(colors.HexColor('#FF0000'))  # Rouge vif
-                c.setLineWidth(2.5)  # Trait épais
+                c.setLineWidth(2.5)  # Trait ├®pais
                 c.drawPath(path, stroke=1, fill=1)
                 
-                # 2. Bordure en pointillés noirs pour contraste
+                # 2. Bordure en pointill├®s noirs pour contraste
                 c.setStrokeColor(colors.black)
                 c.setLineWidth(1)
                 c.setDash(6, 3)
                 c.drawPath(path, stroke=1, fill=0)
-                c.setDash()  # Réinitialiser
+                c.setDash()  # R├®initialiser
             
-            # Étiquette VISIBLE avec fond blanc
+            # ├ëtiquette VISIBLE avec fond blanc
             if label_x is not None and label_y is not None:
                 # Fond blanc opaque
                 c.setFillColor(colors.white)
@@ -539,13 +479,13 @@ class PlanMasseGenerator:
                     c.setFont("Helvetica", 7)
                     c.setFillColor(colors.black)
                     c.drawString(label_x + 0.2*cm, label_y + 0.25*cm, 
-                                f"Surface: {int(float(surface))} m²")
+                                f"Surface: {int(float(surface))} m┬▓")
             
-            print(f"[PLAN] ✅ Parcelle {section}{numero} dessinée avec succès")
+            print(f"[PLAN] Ô£à Parcelle {section}{numero} dessin├®e avec succ├¿s")
             return
             
         except Exception as e:
-            print(f"[PLAN] ❌ Erreur dessin parcelle GeoJSON {section}{numero}: {e}")
+            print(f"[PLAN] ÔØî Erreur dessin parcelle GeoJSON {section}{numero}: {e}")
             import traceback
             traceback.print_exc()
             pass
@@ -568,25 +508,25 @@ class PlanMasseGenerator:
             largeur = 30
             longueur = 45
         
-        # Échelle
+        # ├ëchelle
         meters_per_cm = bbox['meters_per_cm']
         parc_w = (longueur / meters_per_cm) * cm
         parc_h = (largeur / meters_per_cm) * cm
         
-        # Décalage si plusieurs parcelles
+        # D├®calage si plusieurs parcelles
         offset_x = (index - total/2) * 5 * cm
         
         parc_x = center_x - parc_w/2 + offset_x
         parc_y = center_y - parc_h/2
         
-        # Contour VISIBLE mais pas trop épais
+        # Contour VISIBLE mais pas trop ├®pais
         c.setStrokeColor(colors.HexColor('#FF00FF'))  # Magenta
         c.setLineWidth(3)  # Ligne normale
-        c.setDash(10, 5)  # Pointillés
+        c.setDash(10, 5)  # Pointill├®s
         c.rect(parc_x, parc_y, parc_w, parc_h, fill=0, stroke=1)
         c.setDash()
         
-        # Étiquette DISCRÈTE en bas à gauche de la parcelle
+        # ├ëtiquette DISCR├êTE en bas ├á gauche de la parcelle
         c.setFillColorRGB(1, 1, 1, 0.8)  # Blanc semi-transparent
         c.setStrokeColor(colors.HexColor('#FF00FF'))
         c.setLineWidth(1)
@@ -594,7 +534,7 @@ class PlanMasseGenerator:
         label_bg_h = 0.6*cm
         c.rect(parc_x + 0.1*cm, parc_y + 0.1*cm, label_bg_w, label_bg_h, fill=1, stroke=1)
         
-        # Étiquette texte compact
+        # ├ëtiquette texte compact
         c.setFillColor(colors.HexColor('#FF00FF'))
         c.setFont("Helvetica-Bold", 7)
         c.drawString(parc_x + 0.2*cm, parc_y + 0.35*cm, 
@@ -602,13 +542,13 @@ class PlanMasseGenerator:
         if surface and float(surface) > 0:
             c.setFont("Helvetica", 6)
             c.drawString(parc_x + 0.2*cm, parc_y + 0.15*cm, 
-                        f"{int(float(surface))}m²")
+                        f"{int(float(surface))}m┬▓")
     
     def _draw_batiment(self, c, center_x, center_y):
-        """Dessine le bâtiment"""
-        echelle = 0.3  # cm par mètre
+        """Dessine le b├ótiment"""
+        echelle = 0.3  # cm par m├¿tre
         
-        # Dimensions avec conversion sécurisée
+        # Dimensions avec conversion s├®curis├®e
         try:
             longueur = float(self.data.get('longueur_batiment_m', 15))
             largeur = float(self.data.get('largeur_batiment_m', 10))
@@ -622,23 +562,23 @@ class PlanMasseGenerator:
         bat_x = center_x - bat_w/2
         bat_y = center_y - bat_h/2
         
-        # Rectangle bâtiment
+        # Rectangle b├ótiment
         c.setStrokeColor(colors.black)
         c.setFillColor(colors.HexColor('#FFE4B5'))  # Beige
         c.setLineWidth(2)
         c.rect(bat_x, bat_y, bat_w, bat_h, fill=1, stroke=1)
         
-        # Étiquette
+        # ├ëtiquette
         c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold", 9)
-        c.drawCentredString(center_x, center_y, "BÂTIMENT")
+        c.drawCentredString(center_x, center_y, "B├éTIMENT")
     
     def _draw_modules_pv_reels(self, c, center_x, center_y, lat, lon):
-        """DEPRECATED - Utiliser _draw_modules_pv_from_gps à la place"""
+        """DEPRECATED - Utiliser _draw_modules_pv_from_gps ├á la place"""
         pass
     
     def _draw_modules_pv_from_gps(self, c):
-        """Dessine les modules PV selon leurs VRAIES coordonnées GPS sauvegardées"""
+        """Dessine les modules PV selon leurs VRAIES coordonn├®es GPS sauvegard├®es"""
         
         if not self.calpinage or 'zones' not in self.calpinage:
             return
@@ -646,17 +586,17 @@ class PlanMasseGenerator:
         zones = self.calpinage['zones']
         
         for zone in zones:
-            # Récupérer les positions GPS de chaque module
+            # R├®cup├®rer les positions GPS de chaque module
             modules_positions = zone.get('modulesPositions', [])
             
             if not modules_positions:
-                print(f"[PLAN] ⚠️ Aucune position GPS pour zone {zone.get('numero', '?')}")
+                print(f"[PLAN] ÔÜá´©Å Aucune position GPS pour zone {zone.get('numero', '?')}")
                 continue
             
-            print(f"[PLAN] 📍 Dessin {len(modules_positions)} modules avec coordonnées GPS pour zone {zone.get('numero', '?')}")
+            print(f"[PLAN] ­ƒôì Dessin {len(modules_positions)} modules avec coordonn├®es GPS pour zone {zone.get('numero', '?')}")
             
-            # Dessiner chaque module selon ses coordonnées GPS
-            c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu foncé
+            # Dessiner chaque module selon ses coordonn├®es GPS
+            c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu fonc├®
             c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
             c.setLineWidth(0.5)
             
@@ -666,7 +606,7 @@ class PlanMasseGenerator:
                 if len(corners) < 4:
                     continue
                 
-                # Convertir les 4 coins GPS → coordonnées PDF
+                # Convertir les 4 coins GPS ÔåÆ coordonn├®es PDF
                 path = c.beginPath()
                 first = True
                 
@@ -701,14 +641,14 @@ class PlanMasseGenerator:
                 
                 path.close()
                 
-                # Contour zone rouge en pointillés
+                # Contour zone rouge en pointill├®s
                 c.setStrokeColor(colors.HexColor('#D32F2F'))
                 c.setLineWidth(2)
                 c.setDash(4, 2)
                 c.drawPath(path, stroke=1, fill=0)
                 c.setDash()
                 
-                # Étiquette zone
+                # ├ëtiquette zone
                 if zone_coords:
                     label_x, label_y = self._lat_lon_to_pdf(zone_coords[0]['lat'], zone_coords[0]['lng'])
                     c.setFillColor(colors.HexColor('#D32F2F'))
@@ -717,7 +657,7 @@ class PlanMasseGenerator:
                     nb_cols = zone.get('nbCols', 0)
                     nb_rows = zone.get('nbRows', 0)
                     c.drawString(label_x + 0.4*cm, label_y + 0.4*cm,
-                                f"Zone PV: {nb_modules} modules ({nb_cols}×{nb_rows})")
+                                f"Zone PV: {nb_modules} modules ({nb_cols}├ù{nb_rows})")
     
     def _draw_cotations_zones(self, c):
         """Dessine les cotations (largeur et longueur) sur chaque zone PV"""
@@ -731,7 +671,7 @@ class PlanMasseGenerator:
             if not zone_coords or len(zone_coords) < 4:
                 continue
             
-            # Convertir les coordonnées GPS en PDF
+            # Convertir les coordonn├®es GPS en PDF
             pdf_coords = []
             for coord in zone_coords:
                 pdf_x, pdf_y = self._lat_lon_to_pdf(coord['lat'], coord['lng'])
@@ -740,7 +680,7 @@ class PlanMasseGenerator:
             if len(pdf_coords) < 4:
                 continue
             
-            # Calculer les dimensions réelles
+            # Calculer les dimensions r├®elles
             largeur_m = zone.get('largeurMetres', 0)
             longueur_m = zone.get('longueurMetres', 0)
             
@@ -817,13 +757,13 @@ class PlanMasseGenerator:
         c.restoreState()
     
     def _draw_legend(self, c):
-        """Dessine la légende"""
+        """Dessine la l├®gende"""
         x = 2*cm
-        y = 12*cm  # Plus haut pour éviter chevauchement
+        y = 12*cm  # Plus haut pour ├®viter chevauchement
         
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
-        c.drawString(x, y, "LÉGENDE :")
+        c.drawString(x, y, "L├ëGENDE :")
         
         y -= 0.6*cm
         c.setFont("Helvetica", 9)
@@ -837,14 +777,14 @@ class PlanMasseGenerator:
         c.setFillColor(colors.black)
         c.drawString(x + 2*cm, y - 0.15*cm, "Limites parcellaires cadastrales")
         
-        # Bâtiment
+        # B├ótiment
         y -= 0.5*cm
         c.setFillColor(colors.HexColor('#FFE4B5'))
         c.setStrokeColor(colors.black)
         c.setLineWidth(1)
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Bâtiment existant")
+        c.drawString(x + 2*cm, y - 0.15*cm, "B├ótiment existant")
         
         # Modules PV
         y -= 0.5*cm
@@ -852,7 +792,7 @@ class PlanMasseGenerator:
         c.setStrokeColor(colors.HexColor('#1565C0'))
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovoltaïques (position réelle)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovolta├»ques (position r├®elle)")
         
         # Zone PV
         y -= 0.5*cm
@@ -870,14 +810,14 @@ class PlanMasseGenerator:
         c.setLineWidth(1.5)
         c.line(x, y, x + 1.5*cm, y)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en mètres)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en m├¿tres)")
     
     def _draw_cartouche(self, c):
-        """Cartouche technique avec informations complètes"""
+        """Cartouche technique avec informations compl├¿tes"""
         x = self.width - 14*cm
-        y = 2*cm  # En bas pour éviter chevauchement
+        y = 2*cm  # En bas pour ├®viter chevauchement
         w = 12*cm
-        h = 10*cm  # Hauteur augmentée pour toutes les infos
+        h = 10*cm  # Hauteur augment├®e pour toutes les infos
         
         # Cadre
         c.setStrokeColor(colors.black)
@@ -889,7 +829,7 @@ class PlanMasseGenerator:
         c.rect(x, y + h - 0.8*cm, w, 0.8*cm, fill=1, stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 11)
-        c.drawCentredString(x + w/2, y + h - 0.55*cm, "CARACTÉRISTIQUES TECHNIQUES")
+        c.drawCentredString(x + w/2, y + h - 0.55*cm, "CARACT├ëRISTIQUES TECHNIQUES")
         
         # Contenu
         c.setFillColor(colors.black)
@@ -905,9 +845,9 @@ class PlanMasseGenerator:
         
         commune = self.data.get('commune', 'N/A')
         adresse = self.data.get('adresse', 'N/A')
-        c.drawString(x + 0.5*cm, info_y, f"• {adresse}")
+        c.drawString(x + 0.5*cm, info_y, f"ÔÇó {adresse}")
         info_y -= 0.3*cm
-        c.drawString(x + 0.5*cm, info_y, f"• {commune}")
+        c.drawString(x + 0.5*cm, info_y, f"ÔÇó {commune}")
         info_y -= 0.5*cm
         
         # Parcelles cadastrales
@@ -925,9 +865,9 @@ class PlanMasseGenerator:
                 surface = p.get('surface', 0)
                 # N'afficher la surface que si elle est disponible
                 if surface and float(surface) > 0:
-                    c.drawString(x + 0.5*cm, info_y, f"• {section}{numero} - {surface} m²")
+                    c.drawString(x + 0.5*cm, info_y, f"ÔÇó {section}{numero} - {surface} m┬▓")
                 else:
-                    c.drawString(x + 0.5*cm, info_y, f"• {section}{numero} - Surface N/A")
+                    c.drawString(x + 0.5*cm, info_y, f"ÔÇó {section}{numero} - Surface N/A")
                 info_y -= 0.3*cm
             
             if len(parcelles) > 6:
@@ -943,14 +883,14 @@ class PlanMasseGenerator:
             puissance_totale = total_modules * float(puissance_module) / 1000  # kWc
             
             c.setFont("Helvetica-Bold", 9)
-            c.drawString(x + 0.3*cm, info_y, "Installation photovoltaïque :")
+            c.drawString(x + 0.3*cm, info_y, "Installation photovolta├»que :")
             info_y -= 0.35*cm
             c.setFont("Helvetica", 8)
-            c.drawString(x + 0.5*cm, info_y, f"• {total_modules} modules de {puissance_module}W")
+            c.drawString(x + 0.5*cm, info_y, f"ÔÇó {total_modules} modules de {puissance_module}W")
             info_y -= 0.3*cm
-            c.drawString(x + 0.5*cm, info_y, f"• Puissance totale : {puissance_totale:.2f} kWc")
+            c.drawString(x + 0.5*cm, info_y, f"ÔÇó Puissance totale : {puissance_totale:.2f} kWc")
             info_y -= 0.3*cm
-            c.drawString(x + 0.5*cm, info_y, f"• {len(self.calpinage['zones'])} zone(s) PV")
+            c.drawString(x + 0.5*cm, info_y, f"ÔÇó {len(self.calpinage['zones'])} zone(s) PV")
         
         # Date et signature
         info_y = y + 0.5*cm
@@ -959,13 +899,13 @@ class PlanMasseGenerator:
         c.drawString(x + w/2 + 0.3*cm, info_y, "Signature :")
     
     def _fetch_satellite_image(self, lat, lon, zoom=19, width=1200, height=1000):
-        """Récupère une image satellite via API"""
+        """R├®cup├¿re une image satellite via API"""
         try:
-            # ArcGIS World Imagery (gratuit, haute résolution)
+            # ArcGIS World Imagery (gratuit, haute r├®solution)
             url = f"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
             
             # Calculer bbox autour du point
-            # À zoom 19, ~10m de rayon
+            # ├Ç zoom 19, ~10m de rayon
             delta = 0.0001 * (20 - zoom)  # Approximatif
             bbox = f"{lon - delta},{lat - delta},{lon + delta},{lat + delta}"
             
@@ -987,22 +927,22 @@ class PlanMasseGenerator:
     
     def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
         """
-        Récupère une image satellite avec une bbox en mètres autour du point central
+        R├®cup├¿re une image satellite avec une bbox en m├¿tres autour du point central
         
         Args:
-            lat, lon: Coordonnées GPS du centre
-            bbox_meters: Rayon en mètres pour la bbox
+            lat, lon: Coordonn├®es GPS du centre
+            bbox_meters: Rayon en m├¿tres pour la bbox
             width, height: Dimensions de l'image en pixels
             
         Returns:
             BytesIO de l'image ou None
         """
         try:
-            # Conversion mètres → degrés (approximatif pour France métropolitaine)
-            # 1 degré latitude ≈ 111 km
-            # 1 degré longitude ≈ 111 km * cos(latitude) ≈ 78 km à 45° de latitude
+            # Conversion m├¿tres ÔåÆ degr├®s (approximatif pour France m├®tropolitaine)
+            # 1 degr├® latitude Ôëê 111 km
+            # 1 degr├® longitude Ôëê 111 km * cos(latitude) Ôëê 78 km ├á 45┬░ de latitude
             meters_to_lat = bbox_meters / 111000
-            meters_to_lon = bbox_meters / (111000 * 0.7)  # cos(45°) ≈ 0.7
+            meters_to_lon = bbox_meters / (111000 * 0.7)  # cos(45┬░) Ôëê 0.7
             
             # Calculer bbox
             min_lon = lon - meters_to_lon
@@ -1010,115 +950,34 @@ class PlanMasseGenerator:
             min_lat = lat - meters_to_lat
             max_lat = lat + meters_to_lat
             
-            print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m côté), size={width}x{height}")
-            print(f"[PLAN] 📍 GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
+            # ArcGIS World Imagery
+            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
             
-            # 🔥 PRIORITÉ 1: IGN Géoportail (meilleure qualité pour France, gratuit)
-            try:
-                # Conversion simple sans pyproj (Web Mercator approximatif)
-                # EPSG:3857 Web Mercator
-                import math
-                
-                def latlon_to_webmerc(lon, lat):
-                    """Convertit WGS84 en Web Mercator (EPSG:3857)"""
-                    x = lon * 20037508.34 / 180
-                    y = math.log(math.tan((90 + lat) * math.pi / 360)) / (math.pi / 180)
-                    y = y * 20037508.34 / 180
-                    return x, y
-                
-                xmin, ymin = latlon_to_webmerc(min_lon, min_lat)
-                xmax, ymax = latlon_to_webmerc(max_lon, max_lat)
-                
-                ign_url = "https://wxs.ign.fr/ortho/geoportail/r/wms"
-                ign_params = {
-                    'SERVICE': 'WMS',
-                    'VERSION': '1.3.0',
-                    'REQUEST': 'GetMap',
-                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
-                    'STYLES': '',
-                    'CRS': 'EPSG:3857',
-                    'BBOX': f'{xmin},{ymin},{xmax},{ymax}',
-                    'WIDTH': width,
-                    'HEIGHT': height,
-                    'FORMAT': 'image/png'
-                }
-                
-                print(f"[PLAN] 🔍 Tentative #1: IGN Géoportail (ortho photos)...")
-                response = requests.get(ign_url, params=ign_params, timeout=20)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image IGN téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ⚠️ IGN: HTTP {response.status_code}, taille={len(response.content)} bytes")
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur IGN: {e}")
+            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
             
-            # 🔥 FALLBACK 2: Google Static Maps
-            try:
-                import math
-                zoom = int(15 - math.log2(bbox_meters / 100))
-                zoom = max(14, min(20, zoom))
-                
-                google_url = f"https://maps.googleapis.com/maps/api/staticmap"
-                google_params = {
-                    'center': f'{lat},{lon}',
-                    'zoom': zoom,
-                    'size': f'{min(width, 640)}x{min(height, 640)}',  # Limite gratuite
-                    'maptype': 'satellite',
-                    'format': 'png'
-                }
-                
-                print(f"[PLAN] 🔍 Tentative #2: Google Static Maps (zoom {zoom})...")
-                response = requests.get(google_url, params=google_params, timeout=15)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image Google téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ⚠️ Google Maps: {response.status_code}")
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur Google Maps: {e}")
+            params = {
+                'bbox': bbox_str,
+                'bboxSR': '4326',
+                'size': f'{width},{height}',
+                'format': 'png',
+                'f': 'image'
+            }
+            
+            print(f"[PLAN] ­ƒø░´©Å T├®l├®chargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m c├┤t├®), size={width}x{height}")
+            print(f"[PLAN] ­ƒôì GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
+            
+            response = requests.get(url, params=params, timeout=15)
+            if response.status_code == 200:
+                img_size_kb = len(response.content) / 1024
+                print(f"[PLAN] Ô£à Image satellite t├®l├®charg├®e ({img_size_kb:.1f} KB)")
+                return io.BytesIO(response.content)
+            else:
+                print(f"[PLAN] ÔØî Erreur API ArcGIS: HTTP {response.status_code}")
+                print(f"[PLAN] ­ƒöù URL: {response.url}")
         except Exception as e:
-            print(f"[PLAN] ❌ Erreur image satellite: {e}")
+            print(f"[PLAN] ÔØî Erreur image satellite: {e}")
         
         return None
-    
-    def _get_modules_center(self):
-        """Calcule le centre GPS de tous les modules PV"""
-        if not self.calpinage:
-            print("[PLAN] ⚠️ Pas de calpinage pour centrer sur modules")
-            return None, None
-        
-        if 'zones' not in self.calpinage:
-            print(f"[PLAN] ⚠️ Pas de zones dans calpinage (clés: {list(self.calpinage.keys())})")
-            return None, None
-        
-        all_lats = []
-        all_lons = []
-        
-        zones = self.calpinage['zones']
-        print(f"[PLAN] 🔍 Calcul centre: {len(zones)} zone(s) trouvée(s)")
-        
-        for i, zone in enumerate(zones):
-            modules_positions = zone.get('modulesPositions', [])
-            print(f"[PLAN]   Zone {i+1}: {len(modules_positions)} modules")
-            for module in modules_positions:
-                corners = module.get('corners', [])
-                for corner in corners:
-                    all_lats.append(corner['lat'])
-                    all_lons.append(corner['lng'])
-        
-        if not all_lats or not all_lons:
-            print(f"[PLAN] ⚠️ Aucune coordonnée GPS trouvée dans les modules")
-            return None, None
-        
-        # Centre = moyenne de tous les points
-        center_lat = sum(all_lats) / len(all_lats)
-        center_lon = sum(all_lons) / len(all_lons)
-        
-        print(f"[PLAN] ✅ Centre calculé: {center_lat:.6f}, {center_lon:.6f} (depuis {len(all_lats)} points)")
-        return center_lat, center_lon
     
     def _extract_parcelles(self):
         """Extrait les parcelles cadastrales"""
@@ -1127,62 +986,62 @@ class PlanMasseGenerator:
             parcelles_data = self.data.get(field)
             
             if parcelles_data:
-                # Si c'est un dict avec une clé 'parcelles'
+                # Si c'est un dict avec une cl├® 'parcelles'
                 if isinstance(parcelles_data, dict):
                     if 'parcelles_cadastrales' in parcelles_data:
                         parcelles_data = parcelles_data['parcelles_cadastrales']
                     elif 'parcelles' in parcelles_data:
                         parcelles_data = parcelles_data['parcelles']
                 
-                # Si c'est déjà une liste
+                # Si c'est d├®j├á une liste
                 if isinstance(parcelles_data, list) and len(parcelles_data) > 0:
-                    print(f"[PLAN] ✅ Trouvé {len(parcelles_data)} parcelles dans '{field}'")
-                    # Enrichir avec géométries depuis API Cadastre si manquantes
+                    print(f"[PLAN] Ô£à Trouv├® {len(parcelles_data)} parcelles dans '{field}'")
+                    # Enrichir avec g├®om├®tries depuis API Cadastre si manquantes
                     parcelles_data = self._enrich_parcelles_with_geometry(parcelles_data)
-                    # Normaliser les surfaces (essayer plusieurs clés)
+                    # Normaliser les surfaces (essayer plusieurs cl├®s)
                     for p in parcelles_data:
                         surface_val = p.get('surface', 0)
                         if not surface_val or surface_val == 0:
-                            # Essayer d'autres clés
+                            # Essayer d'autres cl├®s
                             surface_val = p.get('superficie') or p.get('contenance') or p.get('surface_m2') or 0
                             if isinstance(surface_val, str):
                                 try:
-                                    surface_val = float(surface_val.replace(' ', '').replace('m²', '').replace(',', '.'))
+                                    surface_val = float(surface_val.replace(' ', '').replace('m┬▓', '').replace(',', '.'))
                                 except:
                                     surface_val = 0
                             p['surface'] = surface_val
                         if surface_val > 0:
-                            print(f"[PLAN] 📊 Parcelle {p.get('section', '')}{p.get('numero', '')}: surface={surface_val:.0f}m²")
+                            print(f"[PLAN] ­ƒôè Parcelle {p.get('section', '')}{p.get('numero', '')}: surface={surface_val:.0f}m┬▓")
                     return parcelles_data
                 
-                # Si c'est une chaîne JSON
+                # Si c'est une cha├«ne JSON
                 if isinstance(parcelles_data, str) and parcelles_data:
                     try:
                         parsed = json.loads(parcelles_data)
                         if isinstance(parsed, list) and len(parsed) > 0:
-                            print(f"[PLAN] ✅ Trouvé {len(parsed)} parcelles (JSON) dans '{field}'")
-                            # 🔥 ENRICHIR avec l'API Cadastre IGN
+                            print(f"[PLAN] Ô£à Trouv├® {len(parsed)} parcelles (JSON) dans '{field}'")
+                            # ­ƒöÑ ENRICHIR avec l'API Cadastre IGN
                             parsed = self._enrich_parcelles_with_geometry(parsed)
                             return parsed
                         elif isinstance(parsed, dict):
                             for subkey in ['parcelles_cadastrales', 'parcelles']:
                                 if subkey in parsed and isinstance(parsed[subkey], list):
-                                    print(f"[PLAN] ✅ Trouvé {len(parsed[subkey])} parcelles dans '{field}.{subkey}'")
-                                    # 🔥 ENRICHIR avec l'API Cadastre IGN
+                                    print(f"[PLAN] Ô£à Trouv├® {len(parsed[subkey])} parcelles dans '{field}.{subkey}'")
+                                    # ­ƒöÑ ENRICHIR avec l'API Cadastre IGN
                                     enriched = self._enrich_parcelles_with_geometry(parsed[subkey])
                                     return enriched
                     except:
                         pass
         
-        print(f"[PLAN] ⚠️ Aucune parcelle cadastrale trouvée dans les données prospect")
+        print(f"[PLAN] ÔÜá´©Å Aucune parcelle cadastrale trouv├®e dans les donn├®es prospect")
         print(f"[PLAN] Champs disponibles: {list(self.data.keys())}")
         return []
     
     def _enrich_parcelles_with_geometry(self, parcelles):
-        """Enrichit les parcelles avec leurs géométries depuis l'API Cadastre Apicarto"""
+        """Enrichit les parcelles avec leurs g├®om├®tries depuis l'API Cadastre Apicarto"""
         
-        print(f"\n[PLAN] 🔍 ENRICHISSEMENT PARCELLES - Début")
-        print(f"[PLAN] Nombre de parcelles à enrichir: {len(parcelles)}")
+        print(f"\n[PLAN] ­ƒöì ENRICHISSEMENT PARCELLES - D├®but")
+        print(f"[PLAN] Nombre de parcelles ├á enrichir: {len(parcelles)}")
         
         # Afficher les parcelles disponibles
         for p in parcelles:
@@ -1190,24 +1049,24 @@ class PlanMasseGenerator:
         
         # Calculer la bbox englobante de toutes les zones PV
         if not self.calpinage or 'zones' not in self.calpinage:
-            print(f"[PLAN] ⚠️ Aucune zone PV pour calculer la bbox - utilisation des coordonnées du prospect")
-            # Fallback: utiliser les coordonnées du prospect avec un buffer de 200m
+            print(f"[PLAN] ÔÜá´©Å Aucune zone PV pour calculer la bbox - utilisation des coordonn├®es du prospect")
+            # Fallback: utiliser les coordonn├®es du prospect avec un buffer de 200m
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
             if not lat or not lon:
-                print(f"[PLAN] ❌ Pas de coordonnées disponibles")
+                print(f"[PLAN] ÔØî Pas de coordonn├®es disponibles")
                 return parcelles
             
-            buffer_deg = 200 / 111000  # 200m en degrés
+            buffer_deg = 200 / 111000  # 200m en degr├®s
             min_lat, max_lat = lat - buffer_deg, lat + buffer_deg
             min_lon, max_lon = lon - buffer_deg, lon + buffer_deg
         else:
             zones = self.calpinage['zones']
             if not zones:
-                print(f"[PLAN] ⚠️ Liste zones vide")
+                print(f"[PLAN] ÔÜá´©Å Liste zones vide")
                 return parcelles
             
-            # Collecter toutes les coordonnées GPS des zones
+            # Collecter toutes les coordonn├®es GPS des zones
             all_lats = []
             all_lons = []
             
@@ -1218,7 +1077,7 @@ class PlanMasseGenerator:
                     all_lons.append(coord['lng'])
             
             if not all_lats or not all_lons:
-                print(f"[PLAN] ⚠️ Aucune coordonnée GPS dans les zones")
+                print(f"[PLAN] ÔÜá´©Å Aucune coordonn├®e GPS dans les zones")
                 return parcelles
             
             # Calculer la bbox avec un petit buffer (10m)
@@ -1228,7 +1087,7 @@ class PlanMasseGenerator:
             min_lon = min(all_lons) - buffer_deg
             max_lon = max(all_lons) + buffer_deg
         
-        # Créer un polygon GeoJSON de la bbox pour l'API Cadastre
+        # Cr├®er un polygon GeoJSON de la bbox pour l'API Cadastre
         bbox_polygon = {
             "type": "Polygon",
             "coordinates": [[
@@ -1240,7 +1099,7 @@ class PlanMasseGenerator:
             ]]
         }
         
-        print(f"[PLAN] 📍 Bbox recherche API: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
+        print(f"[PLAN] ­ƒôì Bbox recherche API: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
         
         try:
             # Appel API Cadastre avec bbox des zones PV
@@ -1251,32 +1110,32 @@ class PlanMasseGenerator:
                 "source_ign": "PCI"
             }
             
-            print(f"[PLAN] 🌐 Appel API Cadastre IGN...")
+            print(f"[PLAN] ­ƒîÉ Appel API Cadastre IGN...")
             response = requests.get(url, params=params, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
                 api_features = data.get('features', [])
                 
-                print(f"[PLAN] ✅ API retourne {len(api_features)} parcelles dans la bbox")
+                print(f"[PLAN] Ô£à API retourne {len(api_features)} parcelles dans la bbox")
                 
-                # Afficher les premières parcelles de l'API pour debug
+                # Afficher les premi├¿res parcelles de l'API pour debug
                 for i, feat in enumerate(api_features[:3]):
                     props = feat.get('properties', {})
                     print(f"[PLAN]   API parcelle #{i+1}: section={props.get('section')}, numero={props.get('numero')}, commune={props.get('commune')}")
                 
-                # Enrichir chaque parcelle de notre liste avec les données de l'API
+                # Enrichir chaque parcelle de notre liste avec les donn├®es de l'API
                 enriched = []
                 for p in parcelles:
                     section = str(p.get('section', '')).strip()
                     numero = str(p.get('numero', '')).strip().lstrip('0')  # Supprimer les 0 initiaux
                     
-                    print(f"\n[PLAN] 🔎 Recherche parcelle {section}{numero}...")
+                    print(f"\n[PLAN] ­ƒöÄ Recherche parcelle {section}{numero}...")
                     
-                    # Si déjà une géométrie, garder telle quelle
+                    # Si d├®j├á une g├®om├®trie, garder telle quelle
                     if p.get('geojson') or p.get('geometry'):
                         enriched.append(p)
-                        print(f"[PLAN] ✅ Parcelle {section}{numero} a déjà une géométrie")
+                        print(f"[PLAN] Ô£à Parcelle {section}{numero} a d├®j├á une g├®om├®trie")
                         continue
                     
                     # Chercher la correspondance dans les features de l'API
@@ -1286,33 +1145,33 @@ class PlanMasseGenerator:
                         api_section = str(api_props.get('section', '')).strip()
                         api_numero = str(api_props.get('numero', '')).strip().lstrip('0')  # Supprimer les 0 initiaux
                         
-                        # Matching plus tolérant
+                        # Matching plus tol├®rant
                         if api_section == section and api_numero == numero:
                             p['geojson'] = api_feature
                             p['geometry'] = api_feature.get('geometry')
                             
-                            # Récupérer la surface si disponible
+                            # R├®cup├®rer la surface si disponible
                             if 'contenance' in api_props and api_props['contenance']:
                                 p['surface'] = api_props['contenance']
                             
-                            print(f"[PLAN] ✅✅ MATCH TROUVÉ pour {section}{numero} (surface: {p.get('surface', 'N/A')}m²)")
+                            print(f"[PLAN] Ô£àÔ£à MATCH TROUV├ë pour {section}{numero} (surface: {p.get('surface', 'N/A')}m┬▓)")
                             found = True
                             break
                     
                     if not found:
-                        print(f"[PLAN] ❌ Parcelle {section}{numero} NON TROUVÉE dans l'API")
+                        print(f"[PLAN] ÔØî Parcelle {section}{numero} NON TROUV├ëE dans l'API")
                     
                     enriched.append(p)
                 
-                print(f"\n[PLAN] 📊 Résumé enrichissement: {sum(1 for p in enriched if p.get('geojson') or p.get('geometry'))}/{len(enriched)} parcelles ont une géométrie")
+                print(f"\n[PLAN] ­ƒôè R├®sum├® enrichissement: {sum(1 for p in enriched if p.get('geojson') or p.get('geometry'))}/{len(enriched)} parcelles ont une g├®om├®trie")
                 return enriched
             else:
-                print(f"[PLAN] ❌ API erreur HTTP {response.status_code}")
-                print(f"[PLAN] Réponse: {response.text[:200]}")
+                print(f"[PLAN] ÔØî API erreur HTTP {response.status_code}")
+                print(f"[PLAN] R├®ponse: {response.text[:200]}")
                 return parcelles
                 
         except Exception as e:
-            print(f"[PLAN] ❌ Exception API Cadastre: {e}")
+            print(f"[PLAN] ÔØî Exception API Cadastre: {e}")
             import traceback
             traceback.print_exc()
             return parcelles
@@ -1320,10 +1179,10 @@ class PlanMasseGenerator:
 
 def generate_plan_masse(prospect_data, calpinage_data=None):
     """
-    Génère un plan de masse cadastral avec calpinage PV
+    G├®n├¿re un plan de masse cadastral avec calpinage PV
     
     Args:
-        prospect_data: dict avec données prospect (parcelles, adresse, lat/lon, dimensions bâtiment)
+        prospect_data: dict avec donn├®es prospect (parcelles, adresse, lat/lon, dimensions b├ótiment)
         calpinage_data: dict optionnel avec zones PV et modules
         
     Returns:
