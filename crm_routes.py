@@ -3539,8 +3539,8 @@ def register_crm_routes(app):
                 has_metadata = 'map_metadata' in calpinage_data
                 print(f"✓ Calpinage: {nb_modules} modules, map_metadata={'✅' if has_metadata else '❌'}")
             
-            # 3. Générer le plan de masse avec la version optimisée
-            pdf_buffer = generate_plan_masse(prospect_data, calpinage_data)
+            # 3. Générer le plan de masse avec la version ULTIME (1185 lignes)
+            pdf_buffer = generate_plan_masse_legacy(prospect_data, calpinage_data)
             
             # 4. Nom du fichier
             commune = prospect_data.get('commune', 'Inconnu').replace(' ', '_')
