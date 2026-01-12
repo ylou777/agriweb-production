@@ -149,6 +149,11 @@ class PlanMasseGenerator:
             'max_lon': lon + meters_to_lon
         }
         
+        # 🔥 Calculer la taille du bbox pour échelle 1/500 (réglementaire)
+        # Diamètre visible = largeur du plan en mètres à l'échelle 1/500
+        # Plan A3 paysage ≈ 39cm de large → 39cm × 500 = 195m de large
+        bbox_meters = 100  # Rayon de 100m par défaut (200m de diamètre) pour échelle 1/500
+        
         if lat and lon:
             # 🔥 PRIORITÉ ABSOLUE: Calculer gps_bounds depuis les modules PV pour un centrage parfait
             modules_bbox = self._get_modules_bbox()
@@ -175,9 +180,11 @@ class PlanMasseGenerator:
                 print(f"[PLAN] 🎯 GPS bounds depuis MODULES PV: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
                 print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m")
                 
-                # 🔥 FORCER image satellite centrée sur modules (pas de screenshot)
-                # Le screenshot peut avoir un zoom/centre différent qui créerait un décalage
-                bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters'])
+                # 🔥 Utiliser la taille des modules + marge pour l'image satellite
+                # Mais limiter à minimum 100m pour garder contexte suffisant (échelle 1/500)
+                bbox_meters_modules = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.2
+                bbox_meters = max(bbox_meters_modules, 100)  # Minimum 100m pour échelle réglementaire
+                
                 print(f"[PLAN] 🛰️ Téléchargement image satellite centrée sur modules ({bbox_meters:.0f}m)...")
                 
                 satellite_img = self._fetch_satellite_image_bbox(lat_center, lon_center, bbox_meters, width=1600, height=1400)
