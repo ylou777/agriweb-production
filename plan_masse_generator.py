@@ -182,10 +182,9 @@ class PlanMasseGenerator:
                 print(f"[PLAN] 🎯 GPS bounds depuis MODULES PV: lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
                 print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m")
                 
-                # 🔥 Utiliser la taille des modules + marge pour l'image satellite
-                # Mais limiter à minimum 100m pour garder contexte suffisant (échelle 1/500)
-                bbox_meters_modules = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.2
-                bbox_meters = max(bbox_meters_modules, 100)  # Minimum 100m pour échelle réglementaire
+                # 🔥 Utiliser la taille des modules + marge de 50% pour contexte suffisant
+                bbox_meters_modules = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.5
+                bbox_meters = bbox_meters_modules  # Pas de minimum - s'adapter à la taille réelle
                 
                 print(f"[PLAN] 🛰️ Téléchargement image satellite centrée sur modules ({bbox_meters:.0f}m)...")
                 
