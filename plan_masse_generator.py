@@ -931,18 +931,25 @@ class PlanMasseGenerator:
         return None
     
     def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=None, height=None):
-        """Récupère image satellite (Esri puis OSM fallback)"""
+        """Récupère image satellite (Esri puis OSM fallback) - UTILISE gps_bounds pour cohérence"""
         width = width or self.SATELLITE_WIDTH_PX
         height = height or self.SATELLITE_HEIGHT_PX
         
         try:
-            # bbox_meters = DIAMÈTRE complet, on divise par 2 pour le rayon
-            radius_meters = bbox_meters / 2
-            lat_delta = radius_meters / self.METERS_PER_DEGREE_LAT
-            lon_delta = radius_meters / (self.METERS_PER_DEGREE_LAT * 0.7)  # Approximation
-            
-            min_lon, max_lon = lon - lon_delta, lon + lon_delta
-            min_lat, max_lat = lat - lat_delta, lat + lat_delta
+            # UTILISER LES MÊMES BOUNDS QUE LE DESSIN (gps_bounds) pour cohérence parfaite
+            if hasattr(self, 'gps_bounds') and self.gps_bounds:
+                min_lat = self.gps_bounds['min_lat']
+                max_lat = self.gps_bounds['max_lat']
+                min_lon = self.gps_bounds['min_lon']
+                max_lon = self.gps_bounds['max_lon']
+                print(f"[PLAN] 🎯 Image satellite avec MÊMES bounds que dessin: {min_lat:.6f},{max_lat:.6f} / {min_lon:.6f},{max_lon:.6f}")
+            else:
+                # Fallback si gps_bounds pas encore calculé
+                radius_meters = bbox_meters / 2
+                lat_delta = radius_meters / self.METERS_PER_DEGREE_LAT
+                lon_delta = radius_meters / (self.METERS_PER_DEGREE_LAT * 0.7)
+                min_lon, max_lon = lon - lon_delta, lon + lon_delta
+                min_lat, max_lat = lat - lat_delta, lat + lat_delta
             
             # Essai 1: Esri World Imagery
             satellite_img = self._try_esri_imagery(min_lat, max_lat, min_lon, max_lon, width, height)
