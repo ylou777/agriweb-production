@@ -15,6 +15,7 @@ from PIL import Image
 import json
 import base64
 import re
+import math
 
 
 class PlanMasseGenerator:
@@ -1014,12 +1015,19 @@ class PlanMasseGenerator:
             
             # 🔥 PRIORITÉ 1: IGN Géoportail (meilleure qualité pour France, gratuit)
             try:
-                # Convertir WGS84 en Web Mercator pour WMTS
-                from pyproj import Transformer
-                to_webmerc = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+                # Conversion simple sans pyproj (Web Mercator approximatif)
+                # EPSG:3857 Web Mercator
+                import math
                 
-                xmin, ymin = to_webmerc.transform(min_lon, min_lat)
-                xmax, ymax = to_webmerc.transform(max_lon, max_lat)
+                def latlon_to_webmerc(lon, lat):
+                    """Convertit WGS84 en Web Mercator (EPSG:3857)"""
+                    x = lon * 20037508.34 / 180
+                    y = math.log(math.tan((90 + lat) * math.pi / 360)) / (math.pi / 180)
+                    y = y * 20037508.34 / 180
+                    return x, y
+                
+                xmin, ymin = latlon_to_webmerc(min_lon, min_lat)
+                xmax, ymax = latlon_to_webmerc(max_lon, max_lat)
                 
                 ign_url = "https://wxs.ign.fr/ortho/geoportail/r/wms"
                 ign_params = {
