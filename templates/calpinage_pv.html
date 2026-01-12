@@ -2004,6 +2004,12 @@
                         iconEl.style.filter = '';
                     }
                 });
+                
+                // 🔥 ARRÊTER l'interval de mise à jour en boucle
+                if (dragUpdateInterval) {
+                    clearInterval(dragUpdateInterval);
+                    dragUpdateInterval = null;
+                }
             }
             if (deleteHandler && tool !== 'delete') {
                 deleteHandler.disable();
