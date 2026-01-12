@@ -2230,14 +2230,17 @@ def register_crm_routes(app):
             
             print(f"[CALPINAGE SAVE] ✅ Prospect {prospect_id} mis à jour")
             
-            # Chercher ou créer un projet pour ce prospect
-            project = execute_query(
-                'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
-                (prospect_id,),
-                fetch_one=True
-            )
+            # TODO: Désactivé temporairement - table project_fiches n'existe pas
+            # # Chercher ou créer un projet pour ce prospect
+            # project = execute_query(
+            #     'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+            #     (prospect_id,),
+            #     fetch_one=True
+            # )
             
-            if not project:
+            project = None  # Désactiver la gestion de projet pour l'instant
+            
+            if False and not project:
                 # Créer un nouveau projet car il n'existe pas encore
                 print(f"[CALPINAGE SAVE] Pas de projet existant, création...")
                 
@@ -2283,17 +2286,18 @@ def register_crm_routes(app):
                         ''', (project_id, etape_nom, ordre, statut))
                     
                     print(f"✅ [ETAPES CREATE] 11 étapes créées pour projet {project_id}, étape 3 (Calepinage) terminée")
-            else:
+            else:  # elif False:  # Désactivé temporairement
                 # Marquer l'étape "Calepinage" (ordre 3) comme terminée
-                execute_query('''
-                    UPDATE project_etapes 
-                    SET statut = 'termine', 
-                        date_fin_reelle = CURRENT_DATE
-                    WHERE project_id = %s 
-                    AND ordre = 3
-                    AND statut != 'termine'
-                ''', (project['id'],))
-                print(f"✅ [ETAPE UPDATE] Étape 3 (Calepinage) marquée comme terminée pour projet {project['id']}")
+                # execute_query('''
+                #     UPDATE project_etapes 
+                #     SET statut = 'termine', 
+                #         date_fin_reelle = CURRENT_DATE
+                #     WHERE project_id = %s 
+                #     AND ordre = 3
+                #     AND statut != 'termine'
+                # ''', (project['id'],))
+                # print(f"✅ [ETAPE UPDATE] Étape 3 (Calepinage) marquée comme terminée pour projet {project['id']}")
+                pass
             
             return jsonify({
                 'success': True,
