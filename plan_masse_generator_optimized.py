@@ -501,27 +501,34 @@ class PlanMasseGenerator:
         print(f"[PLAN] 🎯 L93 bounds: x[{self.l93_bounds.min_x:.1f}, {self.l93_bounds.max_x:.1f}] y[{self.l93_bounds.min_y:.1f}, {self.l93_bounds.max_y:.1f}]")
         
         # Calcul dimensions image pour éviter distorsion (pixel carré)
-        target_dpi = 120
+        target_dpi = 300
         img_width_px = int((plan_width / 72) * target_dpi)
         img_height_px = int((plan_height / 72) * target_dpi)
         
-        # Limite API
-        if img_width_px > 2500: 
-            ratio = 2500 / img_width_px
-            img_width_px = 2500
+        # Limite API (augmentée pour meilleure qualité)
+        if img_width_px > 4096: 
+            ratio = 4096 / img_width_px
+            img_width_px = 4096
             img_height_px = int(img_height_px * ratio)
+
+        print(f"[PLAN] 📷 Image demandée: {img_width_px}x{img_height_px}px (DPI source ~{target_dpi})")
 
         # Télécharger image satellite avec bounds L93
         satellite_img = self.sat_service.fetch(lat, lon, self.l93_bounds, width=img_width_px, height=img_height_px)
         
         if satellite_img:
+            # Vérifier que le serveur n'a pas renvoyé une image déformée (par ex 256x256)
+            if satellite_img.size[0] < img_width_px // 2:
+                print(f"[PLAN] ⚠️ Image reçue plus petite que demandée ({satellite_img.size}), risque de flou")
+            
             c.drawImage(ImageReader(satellite_img),
                        plan_x, plan_y,
                        width=plan_width, height=plan_height,
                        preserveAspectRatio=False, mask='auto')
-            print(f"[PLAN] ✅ Image satellite L93 dessinée ({img_width_px}x{img_height_px}px)")
+            print(f"[PLAN] ✅ Image satellite L93 dessinée ({satellite_img.size[0]}x{satellite_img.size[1]}px)")
         else:
             print(f"[PLAN] ⚠️ Image satellite non disponible - fond gris")
+
         
         # Stocker bbox du plan
         self.plan_bbox = {
