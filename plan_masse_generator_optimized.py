@@ -349,10 +349,16 @@ class PlanMasseGenerator:
         
         if modules_bbox:
             lat, lon = modules_bbox.center_lat, modules_bbox.center_lon
-            bbox_size = max(modules_bbox.width_meters, modules_bbox.height_meters) * self.MARGIN_FACTOR
             
-            print(f"[PLAN] 📍 Modules: {modules_bbox.width_meters:.0f}x{modules_bbox.height_meters:.0f}m")
-            print(f"[PLAN] 📍 Image satellite: {bbox_size:.0f}m (marge {self.MARGIN_FACTOR}x)")
+            # ÉCHELLE 1/500 FIXE
+            # Plan A3 : 39cm × 26cm → à 1/500 : 195m × 130m
+            self.actual_scale = 500
+            plan_width_meters = 195
+            plan_height_meters = 130
+            bbox_size = math.sqrt(plan_width_meters**2 + plan_height_meters**2)  # ~234m
+            
+            print(f"[PLAN] 📍 Modules: {modules_bbox.width_meters:.0f}×{modules_bbox.height_meters:.0f}m")
+            print(f"[PLAN] 📐 ÉCHELLE 1/500: Plan couvre {plan_width_meters}m × {plan_height_meters}m")
         else:
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
