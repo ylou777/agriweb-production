@@ -240,16 +240,17 @@ class PlanMasseGenerator:
         
         Args:
             lat, lon: Centre GPS
-            bbox_meters: Rayon de la bbox en mètres
+            bbox_meters: Taille totale de la bbox (diamètre) en mètres
             
         Returns:
             dict: {'min_lat', 'max_lat', 'min_lon', 'max_lon'}
         """
         import math
         
-        half_size = bbox_meters / 2
-        delta_lat = (half_size / self.EARTH_RADIUS_M) * (180 / math.pi)
-        delta_lon = (half_size / (self.EARTH_RADIUS_M * math.cos(lat * math.pi / 180))) * (180 / math.pi)
+        # bbox_meters est déjà le diamètre complet, on divise par 2 pour avoir le rayon
+        radius = bbox_meters / 2
+        delta_lat = (radius / self.EARTH_RADIUS_M) * (180 / math.pi)
+        delta_lon = (radius / (self.EARTH_RADIUS_M * math.cos(lat * math.pi / 180))) * (180 / math.pi)
         
         bounds = {
             'min_lat': lat - delta_lat,
