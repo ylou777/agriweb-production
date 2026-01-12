@@ -355,34 +355,46 @@ class ModulesAnalyzer:
     """Analyse les modules PV du calpinage"""
     
     @staticmethod
-    def calculate_bbox(calpinage_data: dict) -> Optional[ModulesBBox]:
-        """Calcule le bounding box des modules PV"""
+    def calculate_bbox(calpinage_data: dict) -> Optional[GPSBounds]:
+        """Calcule le bounding box des modules PV en utilisant L93 pour les dimensions"""
         if not calpinage_data or 'zones' not in calpinage_data:
             return None
         
+        all_lps_x = []
+        all_lps_y = []
         all_lats = []
         all_lons = []
+        
+        converter = GPSConverter() # Use standardized L93 conversion
         
         for zone in calpinage_data['zones']:
             positions = zone.get('modulesPositions', [])
             for module in positions:
                 corners = module.get('corners', [])
                 for corner in corners:
-                    all_lats.append(corner['lat'])
-                    all_lons.append(corner['lng'])
+                    lat, lon = corner['lat'], corner['lng']
+                    all_lats.append(lat)
+                    all_lons.append(lon)
+                    
+                    lx, ly = converter.gps_to_l93(lat, lon)
+                    all_lps_x.append(lx)
+                    all_lps_y.append(ly)
         
         if not all_lats:
             return None
-        
+            
+        # Bounds en GPS (pour center)
         min_lat, max_lat = min(all_lats), max(all_lats)
         min_lon, max_lon = min(all_lons), max(all_lons)
         
-        # Calculer dimensions en mètres
-        R = 6371000
-        lat_center = (min_lat + max_lat) / 2
+        # Dimensions précises en L93
+        min_x, max_x = min(all_lps_x), max(all_lps_x)
+        min_y, max_y = min(all_lps_y), max(all_lps_y)
         
-        height_m = (max_lat - min_lat) * (math.pi / 180) * R
-        width_m = (max_lon - min_lon) * (math.pi / 180) * R * math.cos(lat_center * math.pi / 180)
+        width_m = max_x - min_x
+        height_m = max_y - min_y
+        
+        print(f"[ANALYZER] 📐 Modules BBox L93: {width_m:.2f}m x {height_m:.2f}m (Ratio: {width_m/height_m:.2f})")
         
         return ModulesBBox(
             min_lat=min_lat,
@@ -543,6 +555,33 @@ class PlanMasseGenerator:
             self._draw_modules_pv(c)
         
         self._draw_compass(c, plan_x, plan_y, plan_width, plan_height)
+        self._draw_scale_bar(c, plan_x, plan_y, plan_width, plan_height)
+
+    def _draw_scale_bar(self, c: canvas.Canvas, plan_x: float, plan_y: float, plan_width: float, plan_height: float):
+        """Dessine une barre d'échelle graphique pour validation 1/500"""
+        bar_x = plan_x + plan_width - 4 * cm
+        bar_y = plan_y + 1 * cm
+        
+        # 10m à l'échelle 1/500 = 2cm
+        bar_width_m = 10 
+        bar_width_cm = 2 
+        
+        c.setLineWidth(1)
+        c.setStrokeColor(colors.black)
+        c.setFillColor(colors.black)
+        
+        # Ligne principale
+        c.line(bar_x, bar_y, bar_x + bar_width_cm * cm, bar_y)
+        
+        # Ticks
+        c.line(bar_x, bar_y - 2, bar_x, bar_y + 2)
+        c.line(bar_x + bar_width_cm * cm, bar_y - 2, bar_x + bar_width_cm * cm, bar_y + 2)
+        
+        # Texte
+        c.setFont("Helvetica-Bold", 8)
+        c.drawCentredString(bar_x + (bar_width_cm * cm) / 2, bar_y + 4, "10 mètres")
+        c.setFont("Helvetica", 6)
+        c.drawCentredString(bar_x + (bar_width_cm * cm) / 2, bar_y - 8, "(Échelle 1/500)")
     
     def _draw_modules_pv(self, c: canvas.Canvas):
         """Dessine les modules PV depuis leurs coordonnées GPS"""
