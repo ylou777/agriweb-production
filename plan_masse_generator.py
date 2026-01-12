@@ -656,6 +656,9 @@ class PlanMasseGenerator:
                 if 'corners' in first_module and len(first_module['corners']) > 0:
                     first_corner = first_module['corners'][0]
                     print(f"[PLAN] 🔍 Premier module coin 1: GPS({first_corner['lat']:.6f}, {first_corner['lng']:.6f})")
+                    print(f"[PLAN] 🔍 GPS bounds: min_lat={self.gps_bounds['min_lat']:.6f}, max_lat={self.gps_bounds['max_lat']:.6f}")
+                    print(f"[PLAN] 🔍 GPS bounds: min_lon={self.gps_bounds['min_lon']:.6f}, max_lon={self.gps_bounds['max_lon']:.6f}")
+                    print(f"[PLAN] 🔍 Plan bbox: x={self.plan_bbox['x']:.1f}, y={self.plan_bbox['y']:.1f}, w={self.plan_bbox['width']:.1f}, h={self.plan_bbox['height']:.1f}")
                     pdf_x, pdf_y = self._lat_lon_to_pdf(first_corner['lat'], first_corner['lng'])
                     print(f"[PLAN] 🔍                        → PDF({pdf_x:.1f}, {pdf_y:.1f})")
             
