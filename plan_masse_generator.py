@@ -20,6 +20,15 @@ import re
 class PlanMasseGenerator:
     """Génère un plan de masse cadastral avec implantation PV réelle"""
     
+    # Constantes de configuration
+    ECHELLE = 500  # 1/500 réglementaire
+    MARGE_SATELLITE = 1.5  # 150% de la zone modules pour contexte
+    EARTH_RADIUS_M = 6371000  # Rayon terrestre en mètres
+    METERS_PER_DEGREE_LAT = 111320  # Plus précis que 111000
+    SATELLITE_WIDTH_PX = 1600
+    SATELLITE_HEIGHT_PX = 1400
+    OSM_TILE_ZOOM = 18
+    
     def __init__(self, prospect_data, calpinage_data=None):
         self.data = prospect_data
         self.calpinage = calpinage_data
@@ -84,149 +93,27 @@ class PlanMasseGenerator:
         c.setFillColor(colors.HexColor('#F5F5F5'))
         c.rect(plan_x, plan_y, plan_width, plan_height, fill=1, stroke=0)
         
-        # 🔥 CALCULER LE BBOX À PARTIR DES MODULES PV (pas de l'adresse)
-        # Cela permet d'avoir les parcelles exactes autour des modules
-        modules_bbox = self._get_modules_bbox()
-        if modules_bbox:
-            lat = modules_bbox['center_lat']
-            lon = modules_bbox['center_lon']
-            bbox_width_meters = modules_bbox['width_meters']
-            bbox_height_meters = modules_bbox['height_meters']
-            print(f"[PLAN] 📍 Bbox calculé depuis modules PV: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
-            print(f"[PLAN] 📍 Centre: {lat:.6f}, {lon:.6f}")
-        else:
-            # Fallback: utiliser adresse et échelle PDF
-            lat = self.data.get('latitude')
-            lon = self.data.get('longitude')
-            plan_width_cm = plan_width / cm
-            plan_height_cm = plan_height / cm
-            bbox_width_meters = plan_width_cm * 5  # 1cm = 5m à l'échelle 1/500
-            bbox_height_meters = plan_height_cm * 5
-            print(f"[PLAN] 📍 Bbox depuis adresse (pas de modules): {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m")
+        # Calculer centre et taille depuis modules PV ou adresse
+        lat, lon, bbox_meters = self._calculate_bbox_and_center()
         
-        # Initialiser screenshot_used
         self.screenshot_used = False
         
-        # 🔥 CORRECTION GPS: Utiliser systématiquement les facteurs de conversion précis
-        # sauvegardés dans le calpinage (issus de map.distance() de Leaflet)
-        gps_conversion = None
-        if self.calpinage:
-            gps_conversion = self.calpinage.get('gpsConversion')
-        
-        if gps_conversion and 'metersPerDegreeLat' in gps_conversion and 'metersPerDegreeLng' in gps_conversion:
-            # Utiliser les facteurs de conversion PRÉCIS du calpinage
-            meters_per_degree_lat = gps_conversion['metersPerDegreeLat']
-            meters_per_degree_lng = gps_conversion['metersPerDegreeLng']
-            print(f"[PLAN] ✅ Utilisation des facteurs GPS précis: lat={1/meters_per_degree_lat:.9f}°/m, lng={1/meters_per_degree_lng:.9f}°/m")
-        else:
-            # Fallback: approximation basée sur la latitude (moins précis)
-            import math
-            lat_rad = lat * math.pi / 180 if lat else 0.785398  # 45° par défaut
-            meters_per_degree_lat = 1 / 111320  # Plus précis que 111000
-            meters_per_degree_lng = 1 / (111320 * math.cos(lat_rad))
-            print(f"[PLAN] ⚠️ Facteurs GPS approximatifs (gpsConversion manquant)")
-        
-        # 🔥 ÉCHELLE 1/500 OBLIGATOIRE pour plan cadastral
-        # 1 cm sur le plan = 500 cm (5 m) dans la réalité
-        # bbox_meters déjà calculé ci-dessus depuis modules ou PDF
-        
-        # Pour image satellite : rayon = demi-diagonale du rectangle
-        import math
-        diagonal_meters = math.sqrt(bbox_width_meters**2 + bbox_height_meters**2)
-        bbox_meters = diagonal_meters / 2  # Rayon du cercle englobant
-        
-        print(f"[PLAN] Échelle 1/500: Bbox {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m, rayon satellite={bbox_meters:.0f}m")
-        
-        # Convertir en degrés avec les BONS facteurs
-        meters_to_lat = bbox_meters * meters_per_degree_lat
-        meters_to_lon = bbox_meters * meters_per_degree_lng
-        
-        # Stocker les limites GPS réelles
-        self.gps_bounds = {
-            'min_lat': lat - meters_to_lat,
-            'max_lat': lat + meters_to_lat,
-            'min_lon': lon - meters_to_lon,
-            'max_lon': lon + meters_to_lon
-        }
-        
-        # 🔥 Calculer la taille du bbox pour échelle 1/500 (réglementaire)
-        # Diamètre visible = largeur du plan en mètres à l'échelle 1/500
-        # Plan A3 paysage ≈ 39cm de large → 39cm × 500 = 195m de large
-        bbox_meters = 100  # Rayon de 100m par défaut (200m de diamètre) pour échelle 1/500
-        
         if lat and lon:
-            # 🔥 PRIORITÉ ABSOLUE: Calculer gps_bounds depuis les modules PV pour un centrage parfait
-            modules_bbox = self._get_modules_bbox()
-            print(f"[PLAN] 🔍 DEBUG: modules_bbox = {modules_bbox}")
+            # Calculer GPS bounds depuis bbox_meters
+            self.gps_bounds = self._calculate_gps_bounds(lat, lon, bbox_meters)
             
-            if modules_bbox:
-                import math
-                R = 6371000
-                
-                lat_center = modules_bbox['center_lat']
-                lon_center = modules_bbox['center_lon']
-                
-                # 🔥 Calculer la taille de l'image satellite (modules + contexte)
-                bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * 1.5
-                
-                # 🔥 GPS bounds DOIT correspondre exactement à bbox_meters (pas aux modules seuls)
-                half_size = bbox_meters / 2
-                delta_lat = (half_size / R) * (180 / math.pi)
-                delta_lon = (half_size / (R * math.cos(lat_center * math.pi / 180))) * (180 / math.pi)
-                
-                self.gps_bounds = {
-                    'min_lat': lat_center - delta_lat,
-                    'max_lat': lat_center + delta_lat,
-                    'min_lon': lon_center - delta_lon,
-                    'max_lon': lon_center + delta_lon
-                }
-                print(f"[PLAN] 🎯 GPS bounds (bbox={bbox_meters:.0f}m): lat[{self.gps_bounds['min_lat']:.6f}, {self.gps_bounds['max_lat']:.6f}] lon[{self.gps_bounds['min_lon']:.6f}, {self.gps_bounds['max_lon']:.6f}]")
-                print(f"[PLAN] 📏 Zone modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m → Image satellite: {bbox_meters:.0f}m")
-                
-                print(f"[PLAN] 🛰️ Téléchargement image satellite centrée sur modules ({bbox_meters:.0f}m)...")
-                
-                satellite_img = self._fetch_satellite_image_bbox(lat_center, lon_center, bbox_meters, width=1600, height=1400)
-                print(f"[PLAN] 🔍 DEBUG: satellite_img = {satellite_img is not None}")
-                
-                if satellite_img:
-                    c.drawImage(ImageReader(satellite_img), 
-                              plan_x, plan_y, 
-                              width=plan_width, height=plan_height,
-                              preserveAspectRatio=True, anchor='c', mask='auto')
-                    print(f"[PLAN] ✅ Image satellite dessinée: {bbox_meters:.0f}m centré sur modules")
-                else:
-                    print(f"[PLAN] ⚠️ Échec téléchargement satellite - fond gris")
-                    
-                self.screenshot_used = False
+            # Télécharger image satellite
+            satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters)
+            
+            # Dessiner l'image si disponible
+            if satellite_img:
+                c.drawImage(ImageReader(satellite_img), 
+                          plan_x, plan_y, 
+                          width=plan_width, height=plan_height,
+                          preserveAspectRatio=True, anchor='c', mask='auto')
+                print(f"[PLAN] ✅ Image satellite ({bbox_meters:.0f}m)")
             else:
-                # Pas de modules PV - utiliser adresse et taille par défaut
-                print(f"[PLAN] ⚠️ Aucun module PV trouvé - utilisation adresse")
-                
-                # Définir gps_bounds depuis l'adresse
-                import math
-                R = 6371000
-                delta_lat = (bbox_meters / R) * (180 / math.pi)
-                delta_lon = (bbox_meters / (R * math.cos(lat * math.pi / 180))) * (180 / math.pi)
-                
-                self.gps_bounds = {
-                    'min_lat': lat - delta_lat,
-                    'max_lat': lat + delta_lat,
-                    'min_lon': lon - delta_lon,
-                    'max_lon': lon + delta_lon
-                }
-                
-                # Télécharger image satellite
-                satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1600, height=1400)
-                if satellite_img:
-                    c.drawImage(ImageReader(satellite_img), 
-                              plan_x, plan_y, 
-                              width=plan_width, height=plan_height,
-                              preserveAspectRatio=True, anchor='c', mask='auto')
-                    print(f"[PLAN] ✅ Image satellite dessinée depuis adresse")
-                else:
-                    print(f"[PLAN] ⚠️ Échec téléchargement satellite - fond gris")
-                
-                self.screenshot_used = False
+                print(f"[PLAN] ⚠️ Pas d'image satellite")
         
         # Système de coordonnées : conversion GPS → PDF
         # Centre du plan = position GPS du bâtiment
@@ -323,6 +210,56 @@ class PlanMasseGenerator:
         
         # Défaut: 60m de rayon (120m de côté)
         return 60
+    
+    def _calculate_bbox_and_center(self):
+        """
+        Calcule le centre GPS et la taille de la bbox depuis les modules PV ou l'adresse
+        
+        Returns:
+            tuple: (lat, lon, bbox_meters)
+        """
+        modules_bbox = self._get_modules_bbox()
+        
+        if modules_bbox:
+            lat = modules_bbox['center_lat']
+            lon = modules_bbox['center_lon']
+            bbox_meters = max(modules_bbox['width_meters'], modules_bbox['height_meters']) * self.MARGE_SATELLITE
+            print(f"[PLAN] 📍 Bbox depuis modules: {modules_bbox['width_meters']:.0f}x{modules_bbox['height_meters']:.0f}m → {bbox_meters:.0f}m")
+        else:
+            lat = self.data.get('latitude')
+            lon = self.data.get('longitude')
+            # Fallback: calcul depuis échelle PDF
+            bbox_meters = 100  # Défaut 100m
+            print(f"[PLAN] 📍 Bbox depuis adresse (pas de modules): {bbox_meters:.0f}m")
+        
+        return lat, lon, bbox_meters
+    
+    def _calculate_gps_bounds(self, lat, lon, bbox_meters):
+        """
+        Calcule les limites GPS depuis un centre et une distance en mètres
+        
+        Args:
+            lat, lon: Centre GPS
+            bbox_meters: Rayon de la bbox en mètres
+            
+        Returns:
+            dict: {'min_lat', 'max_lat', 'min_lon', 'max_lon'}
+        """
+        import math
+        
+        half_size = bbox_meters / 2
+        delta_lat = (half_size / self.EARTH_RADIUS_M) * (180 / math.pi)
+        delta_lon = (half_size / (self.EARTH_RADIUS_M * math.cos(lat * math.pi / 180))) * (180 / math.pi)
+        
+        bounds = {
+            'min_lat': lat - delta_lat,
+            'max_lat': lat + delta_lat,
+            'min_lon': lon - delta_lon,
+            'max_lon': lon + delta_lon
+        }
+        
+        print(f"[PLAN] 🎯 GPS bounds: lat[{bounds['min_lat']:.6f}, {bounds['max_lat']:.6f}] lon[{bounds['min_lon']:.6f}, {bounds['max_lon']:.6f}]")
+        return bounds
     
     def _lat_lon_to_pdf(self, lat, lon):
         """
@@ -988,152 +925,106 @@ class PlanMasseGenerator:
         
         return None
     
-    def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
-        """
-        Récupère une image satellite avec une bbox en mètres autour du point central
+    def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=None, height=None):
+        """Récupère image satellite (Esri puis OSM fallback)"""
+        width = width or self.SATELLITE_WIDTH_PX
+        height = height or self.SATELLITE_HEIGHT_PX
         
-        Args:
-            lat, lon: Coordonnées GPS du centre
-            bbox_meters: Rayon en mètres pour la bbox
-            width, height: Dimensions de l'image en pixels
-            
-        Returns:
-            BytesIO de l'image ou None
-        """
         try:
-            # Conversion mètres → degrés (approximatif pour France métropolitaine)
-            # 1 degré latitude ≈ 111 km
-            # 1 degré longitude ≈ 111 km * cos(latitude) ≈ 78 km à 45° de latitude
-            meters_to_lat = bbox_meters / 111000
-            meters_to_lon = bbox_meters / (111000 * 0.7)  # cos(45°) ≈ 0.7
+            # Calculer GPS bounds
+            lat_delta = bbox_meters / self.METERS_PER_DEGREE_LAT
+            lon_delta = bbox_meters / (self.METERS_PER_DEGREE_LAT * 0.7)  # Approximation
             
-            # Calculer bbox
-            min_lon = lon - meters_to_lon
-            max_lon = lon + meters_to_lon
-            min_lat = lat - meters_to_lat
-            max_lat = lat + meters_to_lat
+            min_lon, max_lon = lon - lon_delta, lon + lon_delta
+            min_lat, max_lat = lat - lat_delta, lat + lat_delta
             
-            print(f"[PLAN] 🛰️ Téléchargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m côté), size={width}x{height}")
-            print(f"[PLAN] 📍 GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
+            # Essai 1: Esri World Imagery
+            satellite_img = self._try_esri_imagery(min_lat, max_lat, min_lon, max_lon, width, height)
+            if satellite_img:
+                return satellite_img
             
-            # 🔥 PRIORITÉ 1: Esri World Imagery (vraie photo satellite, gratuit)
-            try:
-                # Esri World Imagery - service gratuit de photos satellite
-                esri_url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-                bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
-                esri_params = {
-                    'bbox': bbox_str,
-                    'bboxSR': '4326',
-                    'imageSR': '4326',
-                    'size': f'{width},{height}',
-                    'format': 'png',
-                    'f': 'image'
-                }
-                
-                print(f"[PLAN] 🔍 Tentative #1: Esri World Imagery (photo satellite)...")
-                response = requests.get(esri_url, params=esri_params, timeout=20)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Photo satellite Esri téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ⚠️ Esri: HTTP {response.status_code}, taille={len(response.content)} bytes")
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur Esri: {e}")
+            # Essai 2: OSM tiles
+            return self._try_osm_tiles(lat, lon, width, height)
             
-            # 🔥 FALLBACK 2: Tuiles OSM en dernier recours
-            try:
-                import math
-                from PIL import Image
-                
-                zoom = 18
-                print(f"[PLAN] 🔍 Tentative #2: Tuiles OSM (zoom {zoom})...")
-                
-                # Convertir lat/lon en coordonnées de tuile
-                def deg2num(lat_deg, lon_deg, zoom):
-                    lat_rad = math.radians(lat_deg)
-                    n = 2.0 ** zoom
-                    xtile = int((lon_deg + 180.0) / 360.0 * n)
-                    ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
-                    return (xtile, ytile)
-                
-                # Tuile centrale
-                xtile, ytile = deg2num(lat, lon, zoom)
-                
-                # Télécharger 9 tuiles (3x3) pour couvrir la zone
-                tiles = []
-                for dy in [-1, 0, 1]:
-                    row = []
-                    for dx in [-1, 0, 1]:
-                        tile_url = f"https://tile.openstreetmap.org/{zoom}/{xtile+dx}/{ytile+dy}.png"
-                        try:
-                            resp = requests.get(tile_url, timeout=5, headers={'User-Agent': 'AgriWeb/1.0'})
-                            if resp.status_code == 200:
-                                tile_img = Image.open(io.BytesIO(resp.content))
-                                row.append(tile_img)
-                            else:
-                                row.append(Image.new('RGB', (256, 256), (200, 200, 200)))
-                        except:
-                            row.append(Image.new('RGB', (256, 256), (200, 200, 200)))
-                    tiles.append(row)
-                
-                # Assembler les tuiles
-                full_img = Image.new('RGB', (768, 768))
-                for y, row in enumerate(tiles):
-                    for x, tile in enumerate(row):
-                        full_img.paste(tile, (x*256, y*256))
-                
-                # Recadrer au centre
-                crop_size = min(width, height, 640)
-                center_x, center_y = 384, 384
-                left = center_x - crop_size//2
-                top = center_y - crop_size//2
-                cropped = full_img.crop((left, top, left+crop_size, top+crop_size))
-                
-                # Redimensionner si nécessaire
-                if crop_size != width or crop_size != height:
-                    cropped = cropped.resize((width, height), Image.Resampling.LANCZOS)
-                
-                img_buffer = io.BytesIO()
-                cropped.save(img_buffer, format='PNG')
-                img_buffer.seek(0)
-                
-                img_size_kb = len(img_buffer.getvalue()) / 1024
-                print(f"[PLAN] ✅ Image OSM assemblée ({img_size_kb:.1f} KB, {len(tiles)*len(tiles[0])} tuiles)")
-                return img_buffer
-                
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur OSM tuiles: {e}")
-            
-            # 🔥 FALLBACK 2: Google Static Maps
-            try:
-                import math
-                zoom = int(15 - math.log2(bbox_meters / 100))
-                zoom = max(14, min(20, zoom))
-                
-                google_url = f"https://maps.googleapis.com/maps/api/staticmap"
-                google_params = {
-                    'center': f'{lat},{lon}',
-                    'zoom': zoom,
-                    'size': f'{min(width, 640)}x{min(height, 640)}',  # Limite gratuite
-                    'maptype': 'satellite',
-                    'format': 'png'
-                }
-                
-                print(f"[PLAN] 🔍 Tentative #2: Google Static Maps (zoom {zoom})...")
-                response = requests.get(google_url, params=google_params, timeout=15)
-                if response.status_code == 200 and len(response.content) > 5000:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image Google téléchargée ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ⚠️ Google Maps: {response.status_code}")
-            except Exception as e:
-                print(f"[PLAN] ⚠️ Erreur Google Maps: {e}")
         except Exception as e:
-            print(f"[PLAN] ❌ Erreur image satellite: {e}")
-        
+            print(f"[PLAN] ❌ Erreur satellite: {e}")
+            return None
+    
+    def _try_esri_imagery(self, min_lat, max_lat, min_lon, max_lon, width, height):
+        """Tente de télécharger depuis Esri"""
+        try:
+            url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+            params = {
+                'bbox': f"{min_lon},{min_lat},{max_lon},{max_lat}",
+                'bboxSR': '4326',
+                'imageSR': '4326',
+                'size': f'{width},{height}',
+                'format': 'png',
+                'f': 'image'
+            }
+            
+            response = requests.get(url, params=params, timeout=20)
+            if response.status_code == 200 and len(response.content) > 5000:
+                print(f"[PLAN] ✅ Esri ({len(response.content)/1024:.1f} KB)")
+                return io.BytesIO(response.content)
+        except Exception as e:
+            print(f"[PLAN] ⚠️ Esri: {e}")
         return None
+    
+    def _try_osm_tiles(self, lat, lon, width, height):
+        """Assemble 9 tuiles OSM"""
+        try:
+            import math
+            from PIL import Image
+            
+            zoom = self.OSM_TILE_ZOOM
+            
+            def deg2num(lat_deg, lon_deg, z):
+                lat_rad = math.radians(lat_deg)
+                n = 2.0 ** z
+                xtile = int((lon_deg + 180.0) / 360.0 * n)
+                ytile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+                return (xtile, ytile)
+            
+            xtile, ytile = deg2num(lat, lon, zoom)
+            
+            # Télécharger 9 tuiles
+            tiles = []
+            for dy in [-1, 0, 1]:
+                row = []
+                for dx in [-1, 0, 1]:
+                    tile_url = f"https://tile.openstreetmap.org/{zoom}/{xtile+dx}/{ytile+dy}.png"
+                    try:
+                        resp = requests.get(tile_url, timeout=5, headers={'User-Agent': 'AgriWeb/1.0'})
+                        row.append(Image.open(io.BytesIO(resp.content)) if resp.status_code == 200 else Image.new('RGB', (256, 256), (200, 200, 200)))
+                    except:
+                        row.append(Image.new('RGB', (256, 256), (200, 200, 200)))
+                tiles.append(row)
+            
+            # Assembler
+            full_img = Image.new('RGB', (768, 768))
+            for y, row in enumerate(tiles):
+                for x, tile in enumerate(row):
+                    full_img.paste(tile, (x*256, y*256))
+            
+            # Recadrer et redimensionner
+            crop_size = min(width, height, 640)
+            left, top = 384 - crop_size//2, 384 - crop_size//2
+            cropped = full_img.crop((left, top, left+crop_size, top+crop_size))
+            
+            if crop_size != width or crop_size != height:
+                cropped = cropped.resize((width, height), Image.Resampling.LANCZOS)
+            
+            img_buffer = io.BytesIO()
+            cropped.save(img_buffer, format='PNG')
+            img_buffer.seek(0)
+            
+            print(f"[PLAN] ✅ OSM ({len(img_buffer.getvalue())/1024:.1f} KB)")
+            return img_buffer
+            
+        except Exception as e:
+            print(f"[PLAN] ⚠️ OSM: {e}")
+            return None
     
     def _get_modules_center(self):
         """Calcule le centre GPS de tous les modules PV"""
