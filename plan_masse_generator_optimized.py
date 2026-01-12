@@ -175,9 +175,7 @@ class SatelliteImageService:
             if response.status_code == 200 and len(response.content) > 1000:
                 print(f"[SATELLITE] ✅ Esri OK ({len(response.content)/1024:.1f} KB)")
                 img = Image.open(io.BytesIO(response.content))
-                # FLIP VERTICAL : L'image Esri a le Nord en haut, mais les coordonnées PDF ont le Sud en bas
-                # Il faut inverser pour que l'image corresponde aux coordonnées
-                img = img.transpose(Image.FLIP_TOP_BOTTOM)
+                # PAS DE FLIP - ReportLab gère l'orientation automatiquement
                 return img
             else:
                 print(f"[SATELLITE] ⚠️ Esri: HTTP {response.status_code}, taille={len(response.content)} bytes")
@@ -430,6 +428,21 @@ class PlanMasseGenerator:
                 continue
             
             print(f"[PLAN] 📍 Dessin {len(positions)} modules zone {zone.get('numero', '?')}")
+            
+            # DEBUG: Afficher premier module pour vérifier
+            if positions:
+                first_mod = positions[0]
+                if 'corners' in first_mod and len(first_mod['corners']) >= 1:
+                    c0 = first_mod['corners'][0]
+                    print(f"[PLAN] 🔍 DEBUG Premier module GPS: ({c0['lat']:.6f}, {c0['lng']:.6f})")
+                    print(f"[PLAN] 🔍 DEBUG GPS bounds: lat[{self.gps_bounds.min_lat:.6f}, {self.gps_bounds.max_lat:.6f}]")
+                    print(f"[PLAN] 🔍 DEBUG GPS bounds: lon[{self.gps_bounds.min_lon:.6f}, {self.gps_bounds.max_lon:.6f}]")
+                    px, py = self.gps_converter.gps_to_pdf(
+                        c0['lat'], c0['lng'], self.gps_bounds,
+                        self.plan_bbox['x'], self.plan_bbox['y'],
+                        self.plan_bbox['width'], self.plan_bbox['height']
+                    )
+                    print(f"[PLAN] 🔍 DEBUG → PDF: ({px:.1f}, {py:.1f}) dans bbox [{self.plan_bbox['x']:.1f}, {self.plan_bbox['y']:.1f}, {self.plan_bbox['width']:.1f}, {self.plan_bbox['height']:.1f}]")
             
             c.setStrokeColor(colors.HexColor('#1565C0'))
             c.setFillColor(colors.HexColor('#2196F3'))
