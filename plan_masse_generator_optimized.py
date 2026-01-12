@@ -41,6 +41,23 @@ class GPSBounds:
 
 
 @dataclass
+class L93Bounds:
+    """Limites géographiques Lambert 93"""
+    min_x: float
+    max_x: float
+    min_y: float
+    max_y: float
+    
+    @property
+    def width(self) -> float:
+        return self.max_x - self.min_x
+        
+    @property
+    def height(self) -> float:
+        return self.max_y - self.min_y
+
+
+@dataclass
 class ModulesBBox:
     """Bounding box des modules PV"""
     min_lat: float
@@ -70,7 +87,36 @@ class GPSConverter:
     
     def __init__(self):
         self.to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+        self.from_l93 = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
     
+    def calculate_l93_bounds(self, center_lat: float, center_lon: float, width_meters: float, height_meters: float) -> L93Bounds:
+        """Calcule les limites Lambert 93 exactes pour un centre et des dimensions"""
+        cx, cy = self.to_l93.transform(center_lon, center_lat)
+        return L93Bounds(
+            min_x=cx - width_meters/2,
+            max_x=cx + width_meters/2,
+            min_y=cy - height_meters/2,
+            max_y=cy + height_meters/2
+        )
+
+    def l93_to_pdf(self, l93_x: float, l93_y: float, bounds: L93Bounds, 
+                  plan_x: float, plan_y: float, plan_width: float, plan_height: float) -> Tuple[float, float]:
+        """Convertit coordonnées L93 → PDF"""
+        if bounds.width == 0 or bounds.height == 0:
+             return (plan_x + plan_width / 2, plan_y + plan_height / 2)
+
+        x_ratio = (l93_x - bounds.min_x) / bounds.width
+        y_ratio = (l93_y - bounds.min_y) / bounds.height
+        
+        return (
+            plan_x + x_ratio * plan_width,
+            plan_y + y_ratio * plan_height
+        )
+
+    def gps_to_l93(self, lat: float, lon: float) -> Tuple[float, float]:
+        """Convertit GPS (WGS84) vers Lambert 93"""
+        return self.to_l93.transform(lon, lat)
+
     def meters_to_degrees(self, lat: float, lon: float, meters: float) -> Tuple[float, float]:
         """Convertit des mètres en degrés GPS autour d'un point"""
         delta_lat = (meters / self.EARTH_RADIUS) * (180 / math.pi)
@@ -150,26 +196,36 @@ class SatelliteImageService:
     """Service de téléchargement d'images satellite"""
     
     @staticmethod
-    def fetch(lat: float, lon: float, bounds: GPSBounds, width: int = 1600, height: int = 1400) -> Optional[Image.Image]:
-        """Télécharge image satellite pour une zone GPS"""
+    def fetch(lat: float, lon: float, bounds, width: int = 1600, height: int = 1400) -> Optional[Image.Image]:
+        """Télécharge image satellite pour une zone GPS (GPSBounds) ou Lambert 93 (L93Bounds)"""
         
-        # Construire bbox
-        bbox_str = f"{bounds.min_lon},{bounds.min_lat},{bounds.max_lon},{bounds.max_lat}"
+        bbox_str = ""
+        bbox_sr = '4326'
+        image_sr = None  # None = default (usually 3857 for Esri World Imagery)
         
-        print(f"[SATELLITE] 📍 Bbox: [{bounds.min_lat:.6f}, {bounds.max_lat:.6f}] x [{bounds.min_lon:.6f}, {bounds.max_lon:.6f}]")
+        if hasattr(bounds, 'min_x'): # L93Bounds checker
+            bbox_str = f"{bounds.min_x},{bounds.min_y},{bounds.max_x},{bounds.max_y}"
+            bbox_sr = '2154'
+            image_sr = '2154' # Force output in Lambert 93 to match overlay
+            print(f"[SATELLITE] 📍 Bbox L93: [{bounds.min_x:.1f}, {bounds.max_x:.1f}] x [{bounds.min_y:.1f}, {bounds.max_y:.1f}]")
+        else:
+            bbox_str = f"{bounds.min_lon},{bounds.min_lat},{bounds.max_lon},{bounds.max_lat}"
+            print(f"[SATELLITE] 📍 Bbox GPS: [{bounds.min_lat:.6f}, {bounds.max_lat:.6f}] x [{bounds.min_lon:.6f}, {bounds.max_lon:.6f}]")
         
         # Tentative 1: Esri World Imagery
         try:
             url = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
             params = {
                 'bbox': bbox_str,
-                'bboxSR': '4326',
+                'bboxSR': bbox_sr,
                 'size': f'{width},{height}',
                 'format': 'png',
                 'f': 'image'
             }
+            if image_sr:
+                params['imageSR'] = image_sr
             
-            print(f"[SATELLITE] 🔍 Tentative Esri World Imagery...")
+            print(f"[SATELLITE] 🔍 Tentative Esri World Imagery (SR={image_sr or 'default'})...")
             response = requests.get(url, params=params, timeout=15)
             
             if response.status_code == 200 and len(response.content) > 1000:
@@ -186,7 +242,16 @@ class SatelliteImageService:
         # Tentative 2: Tuiles OSM
         try:
             print(f"[SATELLITE] 🔍 Tentative tuiles OSM...")
-            img = SatelliteImageService._fetch_osm_tiles(lat, lon, bounds, width, height)
+            # Conversion en GPSBounds si nécessaire pour OSM tiles (qui attendent lat/lon)
+            gps_bounds = bounds
+            if hasattr(bounds, 'min_x'):
+                converter = GPSConverter()
+                # Attention: L93(min_x, min_y) -> approx SW GPS
+                lat_min, lon_min = converter.from_l93.transform(bounds.min_x, bounds.min_y)
+                lat_max, lon_max = converter.from_l93.transform(bounds.max_x, bounds.max_y)
+                gps_bounds = GPSBounds(min_lat=lat_min, max_lat=lat_max, min_lon=lon_min, max_lon=lon_max)
+                
+            img = SatelliteImageService._fetch_osm_tiles(lat, lon, gps_bounds, width, height)
             if img:
                 print(f"[SATELLITE] ✅ OSM OK")
                 return img
@@ -394,6 +459,10 @@ class PlanMasseGenerator:
         plan_width = self.width - 2 * self.PLAN_MARGIN
         plan_height = self.height - self.PLAN_Y_OFFSET - 3 * cm
         
+        # RATIO du plan PDF (important pour éviter déformation)
+        plan_ratio = plan_width / plan_height
+        print(f"[PLAN] 📐 Plan PDF: {plan_width/cm:.1f}×{plan_height/cm:.1f}cm, ratio={plan_ratio:.2f}")
+        
         # Cadre
         c.setStrokeColor(colors.black)
         c.setLineWidth(2)
@@ -409,36 +478,48 @@ class PlanMasseGenerator:
         if modules_bbox:
             lat, lon = modules_bbox.center_lat, modules_bbox.center_lon
             
-            # ÉCHELLE 1/500 FIXE
-            # Plan A3 : 39cm × 26cm → à 1/500 : 195m × 130m
+            # ÉCHELLE 1/500 FIXE basée sur dimensions RÉELLES du plan
             self.actual_scale = 500
-            plan_width_meters = 195
-            plan_height_meters = 130
+            # Convertir dimensions plan PDF en mètres réels à l'échelle 1/500
+            # 1cm sur plan = 5m réels (échelle 1/500)
+            plan_width_meters = (plan_width / cm) * 5  # cm × 5m/cm
+            plan_height_meters = (plan_height / cm) * 5
             
             print(f"[PLAN] 📍 Modules: {modules_bbox.width_meters:.0f}×{modules_bbox.height_meters:.0f}m, centre: ({lat:.6f}, {lon:.6f})")
-            print(f"[PLAN] 📐 ÉCHELLE 1/500: Plan couvre {plan_width_meters}m × {plan_height_meters}m")
+            print(f"[PLAN] 📐 ÉCHELLE 1/500: Plan couvre {plan_width_meters:.0f}m × {plan_height_meters:.0f}m")
         else:
             lat = self.data.get('latitude')
             lon = self.data.get('longitude')
-            plan_width_meters = 195
-            plan_height_meters = 130
+            plan_width_meters = (plan_width / cm) * 5
+            plan_height_meters = (plan_height / cm) * 5
             self.actual_scale = 500
             print(f"[PLAN] ⚠️ Pas de modules - centre depuis adresse")
         
-        # Calculer GPS bounds RECTANGULAIRES (pas circulaires !)
-        self.gps_bounds = self.gps_converter.calculate_rectangular_bounds(lat, lon, plan_width_meters, plan_height_meters)
+        # Calculer bounds L93 exactes pour l'échelle
+        self.l93_bounds = self.gps_converter.calculate_l93_bounds(lat, lon, plan_width_meters, plan_height_meters)
         
-        print(f"[PLAN] 🎯 GPS bounds: lat[{self.gps_bounds.min_lat:.6f}, {self.gps_bounds.max_lat:.6f}] lon[{self.gps_bounds.min_lon:.6f}, {self.gps_bounds.max_lon:.6f}]")
+        print(f"[PLAN] 🎯 L93 bounds: x[{self.l93_bounds.min_x:.1f}, {self.l93_bounds.max_x:.1f}] y[{self.l93_bounds.min_y:.1f}, {self.l93_bounds.max_y:.1f}]")
         
-        # Télécharger image satellite
-        satellite_img = self.sat_service.fetch(lat, lon, self.gps_bounds)
+        # Calcul dimensions image pour éviter distorsion (pixel carré)
+        target_dpi = 120
+        img_width_px = int((plan_width / 72) * target_dpi)
+        img_height_px = int((plan_height / 72) * target_dpi)
+        
+        # Limite API
+        if img_width_px > 2500: 
+            ratio = 2500 / img_width_px
+            img_width_px = 2500
+            img_height_px = int(img_height_px * ratio)
+
+        # Télécharger image satellite avec bounds L93
+        satellite_img = self.sat_service.fetch(lat, lon, self.l93_bounds, width=img_width_px, height=img_height_px)
         
         if satellite_img:
             c.drawImage(ImageReader(satellite_img),
                        plan_x, plan_y,
                        width=plan_width, height=plan_height,
                        preserveAspectRatio=False, mask='auto')
-            print(f"[PLAN] ✅ Image satellite orthogonale dessinée")
+            print(f"[PLAN] ✅ Image satellite L93 dessinée ({img_width_px}x{img_height_px}px)")
         else:
             print(f"[PLAN] ⚠️ Image satellite non disponible - fond gris")
         
@@ -458,7 +539,7 @@ class PlanMasseGenerator:
     
     def _draw_modules_pv(self, c: canvas.Canvas):
         """Dessine les modules PV depuis leurs coordonnées GPS"""
-        if not self.calpinage or 'zones' not in self.calpinage:
+        if not self.calpinage or 'zones' not in self.calpinage or not hasattr(self, 'l93_bounds'):
             return
         
         for zone in self.calpinage['zones']:
@@ -468,21 +549,6 @@ class PlanMasseGenerator:
                 continue
             
             print(f"[PLAN] 📍 Dessin {len(positions)} modules zone {zone.get('numero', '?')}")
-            
-            # DEBUG: Afficher premier module pour vérifier
-            if positions:
-                first_mod = positions[0]
-                if 'corners' in first_mod and len(first_mod['corners']) >= 1:
-                    c0 = first_mod['corners'][0]
-                    print(f"[PLAN] 🔍 DEBUG Premier module GPS: ({c0['lat']:.6f}, {c0['lng']:.6f})")
-                    print(f"[PLAN] 🔍 DEBUG GPS bounds: lat[{self.gps_bounds.min_lat:.6f}, {self.gps_bounds.max_lat:.6f}]")
-                    print(f"[PLAN] 🔍 DEBUG GPS bounds: lon[{self.gps_bounds.min_lon:.6f}, {self.gps_bounds.max_lon:.6f}]")
-                    px, py = self.gps_converter.gps_to_pdf(
-                        c0['lat'], c0['lng'], self.gps_bounds,
-                        self.plan_bbox['x'], self.plan_bbox['y'],
-                        self.plan_bbox['width'], self.plan_bbox['height']
-                    )
-                    print(f"[PLAN] 🔍 DEBUG → PDF: ({px:.1f}, {py:.1f}) dans bbox [{self.plan_bbox['x']:.1f}, {self.plan_bbox['y']:.1f}, {self.plan_bbox['width']:.1f}, {self.plan_bbox['height']:.1f}]")
             
             c.setStrokeColor(colors.HexColor('#1565C0'))
             c.setFillColor(colors.HexColor('#2196F3'))
@@ -494,14 +560,16 @@ class PlanMasseGenerator:
                 if len(corners) < 4:
                     continue
                 
-                # Convertir GPS → PDF
+                # Convertir GPS → L93 → PDF
                 path = c.beginPath()
                 first = True
                 
                 for corner in corners:
-                    pdf_x, pdf_y = self.gps_converter.gps_to_pdf(
-                        corner['lat'], corner['lng'],
-                        self.gps_bounds,
+                    mx, my = self.gps_converter.gps_to_l93(corner['lat'], corner['lng'])
+                    
+                    pdf_x, pdf_y = self.gps_converter.l93_to_pdf(
+                        mx, my,
+                        self.l93_bounds,
                         self.plan_bbox['x'], self.plan_bbox['y'],
                         self.plan_bbox['width'], self.plan_bbox['height']
                     )
