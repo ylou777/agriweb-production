@@ -547,8 +547,7 @@ class PlanMasseGenerator:
             c.drawImage(ImageReader(satellite_img),
                        plan_x, plan_y,
                        width=plan_width, height=plan_height,
-                       preserveAspectRatio=False, mask='auto',
-                       anchorAtCentroid=True) # Ensure centering
+                       preserveAspectRatio=False, mask='auto')
             print(f"[PLAN] ✅ Image satellite L93 dessinée ({satellite_img.size[0]}x{satellite_img.size[1]}px)")
         else:
             print(f"[PLAN] ⚠️ Image satellite non disponible - fond gris")
