@@ -282,7 +282,7 @@ class PlanMasseGenerator:
     PLAN_MARGIN = 2 * cm
     PLAN_Y_OFFSET = 15 * cm
     SCALE_RATIO = 500  # Échelle 1/500
-    MARGIN_FACTOR = 1.5  # 50% de marge autour des modules
+    MARGIN_FACTOR = 3.0  # 3x taille modules = modules occupent 33% du plan
     
     def __init__(self, prospect_data: dict, calpinage_data: Optional[dict] = None):
         self.data = prospect_data
@@ -371,8 +371,8 @@ class PlanMasseGenerator:
             c.drawImage(ImageReader(satellite_img),
                        plan_x, plan_y,
                        width=plan_width, height=plan_height,
-                       preserveAspectRatio=True, anchor='c', mask='auto')
-            print(f"[PLAN] ✅ Image satellite dessinée")
+                       preserveAspectRatio=False, mask='auto')
+            print(f"[PLAN] ✅ Image satellite orthogonale dessinée")
         else:
             print(f"[PLAN] ⚠️ Image satellite non disponible - fond gris")
         
