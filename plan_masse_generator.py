@@ -53,7 +53,7 @@ class PlanMasseGenerator:
         
         # Titre
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(3*cm, y, "PLAN DE MASSE - INSTALLATION PHOTOVOLTA├ÅQUE")
+        c.drawString(3*cm, y, "PLAN DE MASSE - INSTALLATION PHOTOVOLTAIQUE")
         
         y -= 0.7*cm
         c.setFont("Helvetica", 10)
@@ -61,10 +61,10 @@ class PlanMasseGenerator:
         adresse = self.data.get('adresse', '')
         c.drawString(3*cm, y, f"{adresse}, {commune}")
         
-        # ├ëchelle r├®glementaire
+        # Echelle reglementaire
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(colors.HexColor('#D32F2F'))
-        c.drawRightString(self.width - 3*cm, y, "├ëchelle 1/500")
+        c.drawRightString(self.width - 3*cm, y, "Echelle 1/500")
         c.setFillColor(colors.black)
         
     def _draw_plan_cadastral(self, c):
@@ -139,9 +139,9 @@ class PlanMasseGenerator:
         
         if lat and lon:
             # ­ƒöÑ PRIORIT├ë 1: Utiliser le screenshot de la carte si disponible
-            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
+            screenshot_data = None  # Force désactivation screenshot (éviter doublon modules)
             
-            if screenshot_data:
+            if False:  # Screenshot désactivé
                 try:
                     # Le screenshot est en base64 data URL: "data:image/png;base64,..."
                     import base64
@@ -757,13 +757,13 @@ class PlanMasseGenerator:
         c.restoreState()
     
     def _draw_legend(self, c):
-        """Dessine la l├®gende"""
+        """Dessine la legende"""
         x = 2*cm
-        y = 12*cm  # Plus haut pour ├®viter chevauchement
+        y = 12*cm  # Plus haut pour eviter chevauchement
         
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
-        c.drawString(x, y, "L├ëGENDE :")
+        c.drawString(x, y, "LEGENDE :")
         
         y -= 0.6*cm
         c.setFont("Helvetica", 9)
@@ -777,14 +777,14 @@ class PlanMasseGenerator:
         c.setFillColor(colors.black)
         c.drawString(x + 2*cm, y - 0.15*cm, "Limites parcellaires cadastrales")
         
-        # B├ótiment
+        # Batiment
         y -= 0.5*cm
         c.setFillColor(colors.HexColor('#FFE4B5'))
         c.setStrokeColor(colors.black)
         c.setLineWidth(1)
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "B├ótiment existant")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Batiment existant")
         
         # Modules PV
         y -= 0.5*cm
@@ -829,7 +829,7 @@ class PlanMasseGenerator:
         c.rect(x, y + h - 0.8*cm, w, 0.8*cm, fill=1, stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 11)
-        c.drawCentredString(x + w/2, y + h - 0.55*cm, "CARACT├ëRISTIQUES TECHNIQUES")
+        c.drawCentredString(x + w/2, y + h - 0.55*cm, "CARACTERISTIQUES TECHNIQUES")
         
         # Contenu
         c.setFillColor(colors.black)
@@ -883,7 +883,7 @@ class PlanMasseGenerator:
             puissance_totale = total_modules * float(puissance_module) / 1000  # kWc
             
             c.setFont("Helvetica-Bold", 9)
-            c.drawString(x + 0.3*cm, info_y, "Installation photovolta├»que :")
+            c.drawString(x + 0.3*cm, info_y, "Installation photovoltaique :")
             info_y -= 0.35*cm
             c.setFont("Helvetica", 8)
             c.drawString(x + 0.5*cm, info_y, f"ÔÇó {total_modules} modules de {puissance_module}W")
