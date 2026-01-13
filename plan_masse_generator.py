@@ -9,6 +9,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 import io
 import requests
 from PIL import Image
@@ -24,19 +26,26 @@ class LabelManager:
     def __init__(self):
         self.used_positions = []  # Liste des rectangles d├®j├á utilis├®s
     
-    def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=8):
+    def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=16):
         """Trouve une position non superpos├®e pour une ├®tiquette"""
         # Positions alternatives ├á essayer (offsets relatifs)
         offsets = [
-            (0, 0),           # Position originale
-            (0.5*cm, 0.5*cm),   # D├®cal├® haut-droite
-            (-0.5*cm, 0.5*cm),  # D├®cal├® haut-gauche
-            (0.5*cm, -0.5*cm),  # D├®cal├® bas-droite
-            (-0.5*cm, -0.5*cm), # D├®cal├® bas-gauche
-            (1*cm, 0),          # D├®cal├® droite
-            (-1*cm, 0),         # D├®cal├® gauche
-            (0, 1*cm),          # D├®cal├® haut
-            (0, -1*cm),         # D├®cal├® bas
+            (0, 0),             # Position originale
+            (2*cm, 0),          # Décalé droite
+            (-2*cm, 0),         # Décalé gauche
+            (0, 2*cm),          # Décalé haut
+            (0, -2*cm),         # Décalé bas
+            (2*cm, 2*cm),       # Décalé haut-droite
+            (-2*cm, 2*cm),      # Décalé haut-gauche
+            (2*cm, -2*cm),      # Décalé bas-droite
+            (-2*cm, -2*cm),     # Décalé bas-gauche
+            (4*cm, 0),          # Décalé droite (large)
+            (-4*cm, 0),         # Décalé gauche (large)
+            (0, 4*cm),          # Décalé haut (large)
+            (0, -4*cm),         # Décalé bas (large)
+            (3*cm, 3*cm),       # Diagonale haut-droite
+            (-3*cm, 3*cm),      # Diagonale haut-gauche
+            (3*cm, -3*cm),      # Diagonale bas-droite
         ]
         
         for offset_x, offset_y in offsets[:max_attempts]:
@@ -90,6 +99,9 @@ class PlanMasseGenerator:
         """G├®n├¿re le plan de masse PDF"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
+        
+        # Réinitialiser le gestionnaire d'étiquettes
+        self.label_manager = LabelManager()
         
         # En-t├¬te
         self._draw_header(c)
@@ -545,8 +557,9 @@ class PlanMasseGenerator:
                 if surface and float(surface) > 0:
                     c.setFont("Helvetica", 7)
                     c.setFillColor(colors.black)
-                    c.drawString(final_x + 0.2*cm, final_y + 0.25*cm, 
-                                f"Surface: {int(float(surface))} m┬▓")
+                    # Utiliser decode pour assurer l'encodage UTF-8
+                    surface_text = f"Surface: {int(float(surface))} m2"
+                    c.drawString(final_x + 0.2*cm, final_y + 0.25*cm, surface_text)
             
             print(f"[PLAN] Ô£à Parcelle {section}{numero} dessin├®e avec succ├¿s")
             return
