@@ -18,6 +18,65 @@ import re
 import math
 
 
+class LabelManager:
+    """Gestion intelligente du positionnement des ├®tiquettes pour ├®viter les superpositions"""
+    
+    def __init__(self):
+        self.used_positions = []  # Liste des rectangles d├®j├á utilis├®s
+    
+    def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=8):
+        """Trouve une position non superpos├®e pour une ├®tiquette"""
+        # Positions alternatives ├á essayer (offsets relatifs)
+        offsets = [
+            (0, 0),           # Position originale
+            (0.5*cm, 0.5*cm),   # D├®cal├® haut-droite
+            (-0.5*cm, 0.5*cm),  # D├®cal├® haut-gauche
+            (0.5*cm, -0.5*cm),  # D├®cal├® bas-droite
+            (-0.5*cm, -0.5*cm), # D├®cal├® bas-gauche
+            (1*cm, 0),          # D├®cal├® droite
+            (-1*cm, 0),         # D├®cal├® gauche
+            (0, 1*cm),          # D├®cal├® haut
+            (0, -1*cm),         # D├®cal├® bas
+        ]
+        
+        for offset_x, offset_y in offsets[:max_attempts]:
+            test_x = initial_x + offset_x
+            test_y = initial_y + offset_y
+            
+            if not self._overlaps_existing(test_x, test_y, width, height):
+                # Position trouv├®e sans superposition
+                self.used_positions.append({
+                    'x': test_x,
+                    'y': test_y,
+                    'width': width,
+                    'height': height
+                })
+                return test_x, test_y
+        
+        # Si toutes les positions se superposent, utiliser la position originale avec un d├®calage progressif
+        final_x = initial_x + len(self.used_positions) * 0.3*cm
+        final_y = initial_y + len(self.used_positions) * 0.3*cm
+        
+        self.used_positions.append({
+            'x': final_x,
+            'y': final_y,
+            'width': width,
+            'height': height
+        })
+        return final_x, final_y
+    
+    def _overlaps_existing(self, x, y, width, height):
+        """V├®rifie si un rectangle chevauche les positions existantes"""
+        for pos in self.used_positions:
+            # V├®rification de chevauchement entre deux rectangles
+            if not (x + width < pos['x'] or 
+                    x > pos['x'] + pos['width'] or
+                    y + height < pos['y'] or 
+                    y > pos['y'] + pos['height']):
+                return True
+        return False
+
+
 class PlanMasseGenerator:
     """G├®n├¿re un plan de masse cadastral avec implantation PV r├®elle"""
     
@@ -25,6 +84,7 @@ class PlanMasseGenerator:
         self.data = prospect_data
         self.calpinage = calpinage_data
         self.width, self.height = A3  # Format A3 pour plus de d├®tails
+        self.label_manager = LabelManager()  # Gestionnaire d'├®tiquettes
         
     def generate(self):
         """G├®n├¿re le plan de masse PDF"""
@@ -456,29 +516,36 @@ class PlanMasseGenerator:
                 c.drawPath(path, stroke=1, fill=0)
                 c.setDash()  # R├®initialiser
             
-            # ├ëtiquette VISIBLE avec fond blanc
+            # ├ëtiquette VISIBLE avec fond blanc - POSITIONNEMENT ANTI-SUPERPOSITION
             if label_x is not None and label_y is not None:
+                # Dimensions de l'├®tiquette
+                text_w = 2.8*cm
+                text_h = 0.8*cm
+                
+                # Trouver une position non superpos├®e
+                final_x, final_y = self.label_manager.find_non_overlapping_position(
+                    label_x, label_y, text_w, text_h
+                )
+                
                 # Fond blanc opaque
                 c.setFillColor(colors.white)
                 c.setStrokeColor(colors.HexColor('#FF0000'))
                 c.setLineWidth(1.5)
                 
                 # Rectangle de fond
-                text_w = 2.8*cm
-                text_h = 0.8*cm
-                c.rect(label_x + 0.1*cm, label_y + 0.1*cm, text_w, text_h, fill=1, stroke=1)
+                c.rect(final_x + 0.1*cm, final_y + 0.1*cm, text_w, text_h, fill=1, stroke=1)
                 
                 # Texte en gras et visible
                 c.setFillColor(colors.HexColor('#FF0000'))
                 c.setFont("Helvetica-Bold", 9)
-                c.drawString(label_x + 0.2*cm, label_y + 0.5*cm, 
+                c.drawString(final_x + 0.2*cm, final_y + 0.5*cm, 
                             f"Parcelle {section} {numero}")
                 
                 # Surface en dessous
                 if surface and float(surface) > 0:
                     c.setFont("Helvetica", 7)
                     c.setFillColor(colors.black)
-                    c.drawString(label_x + 0.2*cm, label_y + 0.25*cm, 
+                    c.drawString(final_x + 0.2*cm, final_y + 0.25*cm, 
                                 f"Surface: {int(float(surface))} m┬▓")
             
             print(f"[PLAN] Ô£à Parcelle {section}{numero} dessin├®e avec succ├¿s")
@@ -526,22 +593,28 @@ class PlanMasseGenerator:
         c.rect(parc_x, parc_y, parc_w, parc_h, fill=0, stroke=1)
         c.setDash()
         
-        # ├ëtiquette DISCR├êTE en bas ├á gauche de la parcelle
+        # ├ëtiquette DISCR├êTE en bas ├á gauche de la parcelle - POSITIONNEMENT ANTI-SUPERPOSITION
+        label_bg_w = 2.5*cm
+        label_bg_h = 0.6*cm
+        
+        # Trouver une position non superpos├®e
+        final_parc_x, final_parc_y = self.label_manager.find_non_overlapping_position(
+            parc_x, parc_y, label_bg_w, label_bg_h
+        )
+        
         c.setFillColorRGB(1, 1, 1, 0.8)  # Blanc semi-transparent
         c.setStrokeColor(colors.HexColor('#FF00FF'))
         c.setLineWidth(1)
-        label_bg_w = 2.5*cm
-        label_bg_h = 0.6*cm
-        c.rect(parc_x + 0.1*cm, parc_y + 0.1*cm, label_bg_w, label_bg_h, fill=1, stroke=1)
+        c.rect(final_parc_x + 0.1*cm, final_parc_y + 0.1*cm, label_bg_w, label_bg_h, fill=1, stroke=1)
         
         # ├ëtiquette texte compact
         c.setFillColor(colors.HexColor('#FF00FF'))
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(parc_x + 0.2*cm, parc_y + 0.35*cm, 
+        c.drawString(final_parc_x + 0.2*cm, final_parc_y + 0.35*cm, 
                     f"{section}{numero}")
         if surface and float(surface) > 0:
             c.setFont("Helvetica", 6)
-            c.drawString(parc_x + 0.2*cm, parc_y + 0.15*cm, 
+            c.drawString(final_parc_x + 0.2*cm, final_parc_y + 0.15*cm, 
                         f"{int(float(surface))}m2")
     
     def _draw_batiment(self, c, center_x, center_y):
@@ -648,15 +721,25 @@ class PlanMasseGenerator:
                 c.drawPath(path, stroke=1, fill=0)
                 c.setDash()
                 
-                # ├ëtiquette zone
+                # ├ëtiquette zone - POSITIONNEMENT ANTI-SUPERPOSITION
                 if zone_coords:
                     label_x, label_y = self._lat_lon_to_pdf(zone_coords[0]['lat'], zone_coords[0]['lng'])
+                    
+                    # Dimensions de l'├®tiquette de zone
+                    zone_label_w = 5*cm
+                    zone_label_h = 0.6*cm
+                    
+                    # Trouver une position non superpos├®e
+                    final_label_x, final_label_y = self.label_manager.find_non_overlapping_position(
+                        label_x, label_y, zone_label_w, zone_label_h
+                    )
+                    
                     c.setFillColor(colors.HexColor('#D32F2F'))
                     c.setFont("Helvetica-Bold", 8)
                     nb_modules = zone.get('nbModules', len(modules_positions))
                     nb_cols = zone.get('nbCols', 0)
                     nb_rows = zone.get('nbRows', 0)
-                    c.drawString(label_x + 0.4*cm, label_y + 0.4*cm,
+                    c.drawString(final_label_x + 0.4*cm, final_label_y + 0.4*cm,
                                 f"Zone PV: {nb_modules} modules ({nb_cols}├ù{nb_rows})")
     
     def _draw_cotations_zones(self, c):
