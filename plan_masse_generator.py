@@ -23,8 +23,10 @@ import math
 class LabelManager:
     """Gestion intelligente du positionnement des ├®tiquettes pour ├®viter les superpositions"""
     
-    def __init__(self):
+    def __init__(self, center_x=None, center_y=None):
         self.used_positions = []  # Liste des rectangles d├®j├á utilis├®s
+        self.center_x = center_x  # Centre de l'image pour calculer la distance
+        self.center_y = center_y
     
     def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=16):
         """Trouve une position non superpos├®e pour une ├®tiquette"""
