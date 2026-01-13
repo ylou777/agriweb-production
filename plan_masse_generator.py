@@ -542,7 +542,7 @@ class PlanMasseGenerator:
         if surface and float(surface) > 0:
             c.setFont("Helvetica", 6)
             c.drawString(parc_x + 0.2*cm, parc_y + 0.15*cm, 
-                        f"{int(float(surface))}m┬▓")
+                        f"{int(float(surface))}m2")
     
     def _draw_batiment(self, c, center_x, center_y):
         """Dessine le b├ótiment"""
@@ -568,10 +568,10 @@ class PlanMasseGenerator:
         c.setLineWidth(2)
         c.rect(bat_x, bat_y, bat_w, bat_h, fill=1, stroke=1)
         
-        # ├ëtiquette
+        # Etiquette
         c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold", 9)
-        c.drawCentredString(center_x, center_y, "B├éTIMENT")
+        c.drawCentredString(center_x, center_y, "BATIMENT")
     
     def _draw_modules_pv_reels(self, c, center_x, center_y, lat, lon):
         """DEPRECATED - Utiliser _draw_modules_pv_from_gps ├á la place"""
@@ -792,7 +792,7 @@ class PlanMasseGenerator:
         c.setStrokeColor(colors.HexColor('#1565C0'))
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovolta├»ques (position r├®elle)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovoltaiques (position reelle)")
         
         # Zone PV
         y -= 0.5*cm
@@ -810,12 +810,12 @@ class PlanMasseGenerator:
         c.setLineWidth(1.5)
         c.line(x, y, x + 1.5*cm, y)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en m├¿tres)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en metres)")
     
     def _draw_cartouche(self, c):
-        """Cartouche technique avec informations compl├¿tes"""
+        """Cartouche technique avec informations completes"""
         x = self.width - 14*cm
-        y = 2*cm  # En bas pour ├®viter chevauchement
+        y = 2*cm  # En bas pour eviter chevauchement
         w = 12*cm
         h = 10*cm  # Hauteur augment├®e pour toutes les infos
         
@@ -845,9 +845,9 @@ class PlanMasseGenerator:
         
         commune = self.data.get('commune', 'N/A')
         adresse = self.data.get('adresse', 'N/A')
-        c.drawString(x + 0.5*cm, info_y, f"ÔÇó {adresse}")
+        c.drawString(x + 0.5*cm, info_y, f"- {adresse}")
         info_y -= 0.3*cm
-        c.drawString(x + 0.5*cm, info_y, f"ÔÇó {commune}")
+        c.drawString(x + 0.5*cm, info_y, f"- {commune}")
         info_y -= 0.5*cm
         
         # Parcelles cadastrales
@@ -865,9 +865,9 @@ class PlanMasseGenerator:
                 surface = p.get('surface', 0)
                 # N'afficher la surface que si elle est disponible
                 if surface and float(surface) > 0:
-                    c.drawString(x + 0.5*cm, info_y, f"ÔÇó {section}{numero} - {surface} m┬▓")
+                    c.drawString(x + 0.5*cm, info_y, f"- {section}{numero} - {surface} m2")
                 else:
-                    c.drawString(x + 0.5*cm, info_y, f"ÔÇó {section}{numero} - Surface N/A")
+                    c.drawString(x + 0.5*cm, info_y, f"- {section}{numero} - Surface N/A")
                 info_y -= 0.3*cm
             
             if len(parcelles) > 6:
@@ -886,11 +886,11 @@ class PlanMasseGenerator:
             c.drawString(x + 0.3*cm, info_y, "Installation photovoltaique :")
             info_y -= 0.35*cm
             c.setFont("Helvetica", 8)
-            c.drawString(x + 0.5*cm, info_y, f"ÔÇó {total_modules} modules de {puissance_module}W")
+            c.drawString(x + 0.5*cm, info_y, f"- {total_modules} modules de {puissance_module}W")
             info_y -= 0.3*cm
-            c.drawString(x + 0.5*cm, info_y, f"ÔÇó Puissance totale : {puissance_totale:.2f} kWc")
+            c.drawString(x + 0.5*cm, info_y, f"- Puissance totale : {puissance_totale:.2f} kWc")
             info_y -= 0.3*cm
-            c.drawString(x + 0.5*cm, info_y, f"ÔÇó {len(self.calpinage['zones'])} zone(s) PV")
+            c.drawString(x + 0.5*cm, info_y, f"- {len(self.calpinage['zones'])} zone(s) PV")
         
         # Date et signature
         info_y = y + 0.5*cm
