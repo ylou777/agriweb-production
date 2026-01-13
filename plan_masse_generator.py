@@ -100,8 +100,9 @@ class PlanMasseGenerator:
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
         
-        # Réinitialiser le gestionnaire d'étiquettes
-        self.label_manager = LabelManager()
+        # Réinitialiser le gestionnaire d'étiquettes avec centre de l'image
+        # Le centre sera défini après calcul de la bbox du plan
+        self.label_manager = None
         
         # En-t├¬te
         self._draw_header(c)
@@ -284,6 +285,11 @@ class PlanMasseGenerator:
             'lon_center': lon,
             'meters_per_cm': bbox_meters / (plan_width / cm) if plan_width > 0 else 1
         }
+        
+        # Initialiser le LabelManager avec le centre du plan
+        center_x = plan_x + plan_width / 2
+        center_y = plan_y + plan_height / 2
+        self.label_manager = LabelManager(center_x, center_y)
         
         # 1. PARCELLES CADASTRALES (avec vraies g├®om├®tries si disponibles)
         self._draw_parcelles(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2, lat, lon)
@@ -539,6 +545,17 @@ class PlanMasseGenerator:
                     label_x, label_y, text_w, text_h
                 )
                 
+                # Ligne de repère (tiret) entre la parcelle et l'étiquette
+                if (final_x != label_x or final_y != label_y):  # Seulement si déplacée
+                    c.setStrokeColor(colors.HexColor('#FF0000'))
+                    c.setLineWidth(1)
+                    c.setDash(3, 2)  # Tirets courts
+                    # Ligne du point d'origine au centre de l'étiquette
+                    label_center_x = final_x + text_w / 2
+                    label_center_y = final_y + text_h / 2
+                    c.line(label_x, label_y, label_center_x, label_center_y)
+                    c.setDash()  # Réinitialiser
+                
                 # Fond blanc opaque
                 c.setFillColor(colors.white)
                 c.setStrokeColor(colors.HexColor('#FF0000'))
@@ -614,6 +631,17 @@ class PlanMasseGenerator:
         final_parc_x, final_parc_y = self.label_manager.find_non_overlapping_position(
             parc_x, parc_y, label_bg_w, label_bg_h
         )
+        
+        # Ligne de repère (tiret) entre la parcelle et l'étiquette
+        if (final_parc_x != parc_x or final_parc_y != parc_y):  # Seulement si déplacée
+            c.setStrokeColor(colors.HexColor('#FF00FF'))
+            c.setLineWidth(1)
+            c.setDash(3, 2)  # Tirets courts
+            # Ligne du coin de la parcelle au centre de l'étiquette
+            label_center_x = final_parc_x + label_bg_w / 2
+            label_center_y = final_parc_y + label_bg_h / 2
+            c.line(parc_x, parc_y, label_center_x, label_center_y)
+            c.setDash()  # Réinitialiser
         
         c.setFillColorRGB(1, 1, 1, 0.8)  # Blanc semi-transparent
         c.setStrokeColor(colors.HexColor('#FF00FF'))
