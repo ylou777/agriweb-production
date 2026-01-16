@@ -16941,6 +16941,7 @@ def admin_migrate_user_isolation():
         
         # 1. Vérifier si la colonne user_id existe
         results.append("1️⃣ Vérification colonne user_id...")
+        column_exists = False
         try:
             check = execute_query("""
                 SELECT column_name 
@@ -16951,22 +16952,33 @@ def admin_migrate_user_isolation():
             
             if check:
                 results.append("   ✅ Colonne user_id existe déjà")
+                column_exists = True
             else:
                 results.append("   ➕ Ajout de la colonne user_id...")
                 execute_query("ALTER TABLE agriweb_prospects ADD COLUMN user_id VARCHAR(36)")
                 results.append("   ✅ Colonne user_id ajoutée")
+                column_exists = True
         except Exception as e:
             results.append(f"   ❌ Erreur: {e}")
             return "<br>".join(results), 500
         
-        # 2. Compter les prospects sans user_id
+        # 2. Compter les prospects sans user_id (seulement si la colonne existe maintenant)
         results.append("")
         results.append("2️⃣ Analyse des prospects...")
-        count = execute_query("""
-            SELECT COUNT(*) as total,
-                   COUNT(CASE WHEN user_id IS NULL THEN 1 END) as sans_user
-            FROM agriweb_prospects
-        """, fetch_one=True)
+        
+        if not column_exists:
+            results.append("   ❌ Impossible d'analyser - colonne user_id absente")
+            return "<br>".join(results), 500
+        
+        try:
+            count = execute_query("""
+                SELECT COUNT(*) as total,
+                       COUNT(CASE WHEN user_id IS NULL THEN 1 END) as sans_user
+                FROM agriweb_prospects
+            """, fetch_one=True)
+        except Exception as e:
+            results.append(f"   ❌ Erreur lors du comptage: {e}")
+            return "<br>".join(results), 500
         
         results.append(f"   📊 Total prospects: {count['total']}")
         results.append(f"   🔴 Sans user_id: {count['sans_user']}")
