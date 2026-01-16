@@ -213,16 +213,16 @@
                 </div>
             </div>
 
-            <form method="POST" action="{{ url_for('login') }}">
+            <form method="POST" action="/auth/login">
                 <div class="mb-3">
-                    <label for="username" class="form-label">
-                        <i class="bi bi-person"></i> Nom d'utilisateur
+                    <label for="email" class="form-label">
+                        <i class="bi bi-envelope"></i> Email
                     </label>
-                    <input type="text" 
+                    <input type="email" 
                            class="form-control" 
-                           id="username" 
-                           name="username" 
-                           placeholder="Entrez votre nom d'utilisateur"
+                           id="email" 
+                           name="email" 
+                           placeholder="votre@email.com"
                            required>
                 </div>
                 
@@ -245,7 +245,7 @@
             
             <div class="register-link">
                 <small class="text-muted">Pas encore de compte ?</small><br>
-                <a href="/register">Créer un compte gratuitement</a>
+                <a href="/auth/register">Créer un compte gratuitement</a>
             </div>
         </div>
     </div>
