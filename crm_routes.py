@@ -11,10 +11,13 @@ import os
 import io
 import zipfile
 from declaration_prealable_generator import generate_declaration_prealable_complete
-from plan_masse_generator_optimized import generate_plan_masse
+# Version ULTIME restaurée (plan_masse_generator.py)
+from plan_masse_generator import generate_plan_masse
+# Version optimisée en backup
+from plan_masse_generator_optimized import generate_plan_masse as generate_plan_masse_optimized
 from plan_masse_simple import generate_plan_masse_simple
 # Import de la version legacy 1400 lignes (backup)
-from plan_masse_generator import generate_plan_masse as generate_plan_masse_legacy
+# from plan_masse_generator import generate_plan_masse as generate_plan_masse_legacy
 
 # ============================================================================
 # HELPER FUNCTIONS
