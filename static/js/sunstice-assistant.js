@@ -458,18 +458,18 @@ class SunsticeAssistant {
 
     getResponse(question) {
         const responses = {
-            "🏠 Comment ça marche ?": "C'est simple ! 1️⃣ Entrez une adresse ou des coordonnées GPS. 2️⃣ Notre système analyse le terrain (surface, ensoleillement, contraintes). 3️⃣ Recevez votre pré-étude gratuite en quelques secondes !",
-            "📍 Lancer une analyse": "Parfait ! Rendez-vous sur la page d'accueil, puis entrez l'adresse ou les coordonnées du terrain que vous souhaitez analyser. Vous pouvez aussi tester avec nos exemples !",
-            "💡 Voir les avantages": "Sun Dev by Sunstice vous offre : ✅ Analyses gratuites et illimitées, ✅ Données cadastrales précises, ✅ Calcul automatique du potentiel photovoltaïque, ✅ Export des résultats, ✅ Support expert.",
+            "🏠 Comment ça marche ?": "Processus complet en 5 étapes :<br><br>1️⃣ <strong>Recherchez</strong> une adresse, commune ou département via le menu 'Adresse • Coordonnées • GeoJSON'<br>2️⃣ <strong>Visualisez</strong> le terrain sur la carte interactive<br>3️⃣ <strong>Générez</strong> un rapport point courant en cliquant sur 'Rapport point courant'<br>4️⃣ <strong>Exportez</strong> vers Prospects pour créer une fiche projet<br>5️⃣ <strong>Finalisez</strong> votre étude dans le CRM et suivez votre projet !",
+            "📍 Lancer une analyse": "Parfait ! Voici comment faire :<br><br>• Cliquez sur 'Adresse • Coordonnées • GeoJSON' dans le menu<br>• Saisissez une adresse complète ou des coordonnées GPS<br>• La carte se positionnera automatiquement<br>• Générez ensuite votre rapport point<br>• Exportez vers Prospects pour suivre le projet !",
+            "💡 Voir les avantages": "Sun Dev by Sunstice vous offre : ✅ Analyses gratuites et illimitées, ✅ Données cadastrales précises, ✅ Calcul automatique du potentiel photovoltaïque, ✅ Export CRM intégré, ✅ Suivi de projets, ✅ Support expert.",
             "📞 Contacter l'équipe": "Notre équipe est à votre écoute ! Utilisez le formulaire de contact sur la page d'accueil ou envoyez un email à contact@sunstice.com",
             "🔐 Mot de passe oublié ?": "Pas de problème ! Cliquez sur 'Mot de passe oublié' sous le formulaire de connexion. Vous recevrez un email pour réinitialiser votre mot de passe.",
             "✨ Créer un compte": "Super ! Cliquez sur 'Créer un compte' pour vous inscrire. C'est gratuit et vous pourrez sauvegarder tous vos projets !",
-            "➕ Ajouter un prospect": "Pour ajouter un prospect, cliquez sur le bouton '+ Nouveau Prospect' en haut de la page. Remplissez les informations et lancez l'analyse !",
-            "📊 Voir les statistiques": "Vos statistiques sont disponibles dans le tableau de bord. Vous y trouverez le nombre de prospects, projets en cours, taux de conversion, etc.",
-            "🏘️ Analyser une commune": "Sélectionnez 'Commune' dans le type d'analyse, puis entrez le nom de la commune. Vous obtiendrez une vue d'ensemble du potentiel photovoltaïque !",
-            "📍 Analyser une adresse": "Choisissez 'Adresse' et entrez l'adresse complète du terrain. Notre système géolocalisera automatiquement et analysera le site.",
-            "ℹ️ En savoir plus": "Sun Dev by Sunstice est la plateforme de pré-études photovoltaïques la plus complète. Nous analysons cadastre, PLU, risques, et calculons le potentiel solaire de vos terrains.",
-            "📚 Guide d'utilisation": "Consultez notre documentation complète ou suivez nos tutoriels vidéo pour maîtriser toutes les fonctionnalités de la plateforme !",
+            "➕ Ajouter un prospect": "Pour ajouter un prospect :<br><br>1. Effectuez une recherche par adresse/commune<br>2. Générez un rapport point courant<br>3. Cliquez sur 'Exporter vers CRM/Prospects'<br>4. Complétez les informations du prospect<br>5. Validez pour créer la fiche projet !",
+            "📊 Voir les statistiques": "Vos statistiques sont disponibles dans le tableau de bord CRM. Vous y trouverez le nombre de prospects, projets en cours, taux de conversion, etc.",
+            "🏘️ Analyser une commune": "Pour analyser une commune :<br><br>1. Cliquez sur 'Commune' dans le menu latéral<br>2. Tapez le nom de la commune<br>3. Sélectionnez dans la liste<br>4. Générez le rapport commune<br>5. Exportez les parcelles intéressantes vers Prospects !",
+            "📍 Analyser une adresse": "Pour analyser une adresse :<br><br>1. Menu 'Adresse • Coordonnées • GeoJSON'<br>2. Entrez l'adresse complète<br>3. Cliquez sur 'Rapport point courant'<br>4. Consultez l'analyse complète<br>5. Exportez vers Prospects si le terrain est intéressant !",
+            "ℹ️ En savoir plus": "Sun Dev by Sunstice est la plateforme de pré-études photovoltaïques la plus complète. Nous analysons cadastre, PLU, risques, et calculons le potentiel solaire de vos terrains avec export CRM intégré.",
+            "📚 Guide d'utilisation": "Workflow complet :<br><br>📍 <strong>Recherche</strong> → Menu Adresse/Commune/Département<br>🗺️ <strong>Visualisation</strong> → Carte interactive<br>📄 <strong>Rapport</strong> → Bouton 'Rapport point courant'<br>💼 <strong>Export CRM</strong> → Créer un prospect<br>📊 <strong>Suivi</strong> → Dashboard CRM",
             "💬 Contacter le support": "Notre support est disponible du lundi au vendredi, 9h-18h. Email : support@sunstice.com | Téléphone : +33 1 23 45 67 89"
         };
 
@@ -494,10 +494,16 @@ class SunsticeAssistant {
     findBestResponse(message) {
         const lowerMessage = message.toLowerCase();
         
-        if (lowerMessage.includes('comment') || lowerMessage.includes('fonctionne')) {
+        if (lowerMessage.includes('comment') || lowerMessage.includes('fonctionne') || lowerMessage.includes('étude') || lowerMessage.includes('etude')) {
             return this.getResponse("🏠 Comment ça marche ?");
         }
-        if (lowerMessage.includes('analyse') || lowerMessage.includes('terrain')) {
+        if (lowerMessage.includes('rapport') && lowerMessage.includes('point')) {
+            return "Après avoir localisé votre terrain sur la carte :<br><br>1. Cliquez sur le bouton '📄 Rapport point courant' dans le menu Rapports<br>2. Consultez l'analyse complète (cadastre, PLU, risques, potentiel)<br>3. Utilisez 'Exporter vers CRM' pour créer un prospect<br>4. Finalisez dans le CRM !";
+        }
+        if (lowerMessage.includes('export') || lowerMessage.includes('prospect') || lowerMessage.includes('crm')) {
+            return "Pour exporter vers Prospects :<br><br>1. Générez d'abord un rapport point<br>2. En bas du rapport, cliquez sur 'Exporter vers CRM/Prospects'<br>3. Remplissez les informations du prospect (nom, contact, etc.)<br>4. Validez : votre projet est créé !<br>5. Retrouvez-le dans le menu CRM pour le suivi.";
+        }
+        if (lowerMessage.includes('analyse') || lowerMessage.includes('terrain') || lowerMessage.includes('recherche')) {
             return this.getResponse("📍 Lancer une analyse");
         }
         if (lowerMessage.includes('contact') || lowerMessage.includes('aide')) {
@@ -508,6 +514,12 @@ class SunsticeAssistant {
         }
         if (lowerMessage.includes('compte') || lowerMessage.includes('inscrire')) {
             return this.getResponse("✨ Créer un compte");
+        }
+        if (lowerMessage.includes('commune')) {
+            return this.getResponse("🏘️ Analyser une commune");
+        }
+        if (lowerMessage.includes('adresse')) {
+            return this.getResponse("📍 Analyser une adresse");
         }
         
         return "Merci pour votre question ! Pour une réponse précise, je vous invite à utiliser les actions rapides ci-dessous ou à contacter notre support : support@sunstice.com 😊";
