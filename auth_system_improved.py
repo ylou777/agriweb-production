@@ -17,11 +17,11 @@ import re
 
 # Configuration email
 EMAIL_CONFIG = {
-    'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 587,
+    'smtp_server': os.getenv('SMTP_HOST', 'smtp.gmail.com'),
+    'smtp_port': int(os.getenv('SMTP_PORT', '587')),
     'email': os.getenv('SMTP_EMAIL', 'ylaurent.perso@gmail.com'),
     'password': os.getenv('SMTP_PASSWORD', 'votre_mot_de_passe_app'),
-    'from_name': 'AgriWeb Pro'
+    'from_name': 'Sun Dev by Sunstice'
 }
 
 DATABASE_PATH = "agriweb_users.db"
