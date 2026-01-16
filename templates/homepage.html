@@ -187,6 +187,78 @@
             font-weight: 700;
         }
         
+        .lead-form {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 183, 0, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            margin-top: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .lead-form h3 {
+            color: white;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .lead-form .subtitle-form {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 1rem;
+            margin-bottom: 30px;
+        }
+        
+        .lead-form input, .lead-form select {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 183, 0, 0.3);
+            color: white;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .lead-form input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .lead-form input:focus, .lead-form select:focus {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: #FFB700;
+            outline: none;
+            box-shadow: 0 0 20px rgba(255, 183, 0, 0.2);
+        }
+        
+        .lead-form select option {
+            background: #0a0e27;
+            color: white;
+        }
+        
+        .sunstice-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 183, 0, 0.1);
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 183, 0, 0.3);
+            margin-top: 20px;
+        }
+        
+        .sunstice-badge img {
+            height: 24px;
+        }
+        
+        .sunstice-badge span {
+            color: #FFB700;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        
         .cta-button {
             padding: 18px 45px;
             font-size: 1.1rem;
@@ -460,36 +532,61 @@
     <div class="hero-section">
         <div class="container">
             <div class="badge-pro">
-                <i class="bi bi-lightning-charge-fill"></i> Plateforme Professionnelle
+                <i class="bi bi-lightning-charge-fill"></i> Accès Gratuit · Powered by Sunstice
             </div>
             <h1>
-                La solution <span class="gradient-text">tout-en-un</span><br>
-                pour développeurs photovoltaïques
+                Créez vos <span class="gradient-text">pré-études solaires</span><br>
+                gratuitement en quelques clics
             </h1>
             <p class="subtitle">
-                De la <span class="highlight">prospection géolocalisée</span> au <span class="highlight">suivi de chantier</span> :<br>
-                pilotez vos projets solaires avec une efficacité maximale
+                Porteurs de projets, développeurs, collectivités :<br>
+                Obtenez une <span class="highlight">pré-étude complète</span> avec analyse urbanisme, faisabilité technique et simulation de production
             </p>
-            <div class="mt-5">
-                <a href="/register" class="cta-button cta-primary me-3">
-                    <i class="bi bi-lightning-fill"></i> Essai gratuit 7 jours
-                </a>
-                <a href="/login" class="cta-button cta-secondary">
-                    <i class="bi bi-box-arrow-in-right"></i> Se connecter
-                </a>
+            
+            <!-- Formulaire de capture de leads -->
+            <div class="lead-form">
+                <h3>🎯 Démarrez votre pré-étude gratuite</h3>
+                <p class="subtitle-form">Accédez instantanément à l'outil professionnel AgriWeb</p>
+                <form action="/register" method="POST">
+                    <div class="mb-3">
+                        <input type="email" class="form-control" name="email" placeholder="Votre email professionnel" required>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" class="form-control" name="name" placeholder="Nom de votre entreprise ou projet" required>
+                    </div>
+                    <div class="mb-3">
+                        <select class="form-select" name="project_type" required>
+                            <option value="">Type de projet</option>
+                            <option value="developer">Développeur photovoltaïque</option>
+                            <option value="collectivity">Collectivité / Commune</option>
+                            <option value="epc">Bureau d'études / EPC</option>
+                            <option value="porteur">Porteur de projet individuel</option>
+                            <option value="other">Autre</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <input type="text" class="form-control" name="location" placeholder="Localisation du projet (ville, département)">
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" name="contact_sunstice" id="contactSunstice">
+                        <label class="form-check-label" for="contactSunstice" style="color: rgba(255,255,255,0.8); font-size: 0.9rem;">
+                            ✅ Je souhaite être contacté par un expert Sunstice pour une étude détaillée
+                        </label>
+                    </div>
+                    <button type="submit" class="cta-button cta-primary w-100">
+                        <i class="bi bi-lightning-fill"></i> Accéder à la plateforme gratuitement
+                    </button>
+                </form>
+                <p style="color: rgba(255, 255, 255, 0.5); margin-top: 20px; font-size: 0.85rem; text-align: center;">
+                    <i class="bi bi-check-circle"></i> Gratuit sans limite · <i class="bi bi-shield-check"></i> Données sécurisées · <i class="bi bi-clock"></i> Résultats immédiats
+                </p>
             </div>
-            <div class="mt-5 pt-4">
-                <div class="trust-indicator">
-                    <i class="bi bi-shield-check"></i>
-                    <span>Données cadastrales officielles</span>
-                </div>
-                <div class="trust-indicator">
-                    <i class="bi bi-speedometer2"></i>
-                    <span>Rapports en 30 secondes</span>
-                </div>
-                <div class="trust-indicator">
-                    <i class="bi bi-database-check"></i>
-                    <span>36 000 communes référencées</span>
+
+            <!-- Badge Sunstice -->
+            <div class="text-center">
+                <div class="sunstice-badge">
+                    <i class="bi bi-sun-fill"></i>
+                    <span>En partenariat avec Sunstice EPC</span>
                 </div>
             </div>
         </div>
@@ -497,19 +594,19 @@
 
     <div class="features-section">
         <div class="container">
-            <h2 class="section-title">Votre arsenal complet de développement PV</h2>
-            <p class="section-subtitle">Chaque fonctionnalité pensée pour gagner du temps et signer plus de contrats</p>
+            <h2 class="section-title">Ce que vous obtenez gratuitement</h2>
+            <p class="section-subtitle">Un outil professionnel complet pour vos pré-études photovoltaïques</p>
 
             <div class="row g-4 mb-5">
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">🗺️</div>
-                        <h3>Prospection géographique intelligente</h3>
-                        <p>Identifiez instantanément les toitures commerciales, parkings ombrières, friches industrielles et terrains agricoles valorisables. Données cadastrales + OSM + RPG intégrées.</p>
+                        <h3>Cartographie interactive complète</h3>
+                        <p>Visualisez instantanément les toitures, parcelles cadastrales et données géographiques. Identifiez le potentiel solaire de n'importe quel site en France.</p>
                         <div>
-                            <span class="tech-badge">Leaflet.js</span>
-                            <span class="tech-badge">GeoServer</span>
-                            <span class="tech-badge">PostGIS</span>
+                            <span class="tech-badge">Données IGN</span>
+                            <span class="tech-badge">Cadastre</span>
+                            <span class="tech-badge">OSM</span>
                         </div>
                     </div>
                 </div>
@@ -517,25 +614,12 @@
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">📊</div>
-                        <h3>Études de faisabilité automatisées</h3>
-                        <p>Générez en 30 secondes un rapport complet : contraintes PLU, zones protégées, risques naturels, capacité d'accueil Enedis. Présentez-vous chez vos prospects avec toutes les réponses.</p>
+                        <h3>Analyse urbanisme automatique</h3>
+                        <p>Rapport instantané sur les contraintes PLU, zones protégées, risques naturels et règles d'urbanisme applicables. Toutes les données officielles en un clic.</p>
                         <div>
-                            <span class="tech-badge">API Géorisques</span>
                             <span class="tech-badge">API GPU</span>
-                            <span class="tech-badge">Enedis ODR</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">👥</div>
-                        <h3>Pipeline commercial structuré</h3>
-                        <p>Workflow en 11 étapes de la prospection à la mise en service Consuel. Suivez chaque projet, partagez avec votre équipe, ne laissez plus aucune opportunité s'échapper.</p>
-                        <div>
-                            <span class="tech-badge">Flask</span>
-                            <span class="tech-badge">PostgreSQL</span>
-                            <span class="tech-badge">Dashboard KPI</span>
+                            <span class="tech-badge">Géorisques</span>
+                            <span class="tech-badge">36k communes</span>
                         </div>
                     </div>
                 </div>
@@ -543,14 +627,54 @@
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">☀️</div>
-                        <h3>Calepinage sur mesure en direct</h3>
-                        <p>Dessinez vos zones d'implantation directement sur la carte. Le système calcule automatiquement puissance crête, nombre de modules, orientation optimale. Impressionnez vos clients en RDV.</p>
+                        <h3>Simulation de production solaire</h3>
+                        <p>Calepinage automatique, calcul de puissance crête et estimation de production annuelle avec PVGIS. Résultats professionnels en 30 secondes.</p>
                         <div>
-                            <span class="tech-badge">Leaflet.draw</span>
-                            <span class="tech-badge">PVGIS API</span>
-                            <span class="tech-badge">Calculs auto</span>
+                            <span class="tech-badge">PVGIS</span>
+                            <span class="tech-badge">Calcul auto</span>
+                            <span class="tech-badge">Données météo</span>
                         </div>
                     </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">📄</div>
+                        <h3>Rapport PDF professionnel</h3>
+                        <p>Export automatique d'un rapport de pré-étude complet avec cartographie, analyses techniques et recommandations. Prêt à présenter.</p>
+                        <div>
+                            <span class="tech-badge">Export PDF</span>
+                            <span class="tech-badge">Personnalisable</span>
+                            <span class="tech-badge">Brand ready</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Capacité réseau Enedis</h3>
+                        <p>Vérification instantanée de la capacité d'accueil du réseau électrique. Évitez les mauvaises surprises et anticipez les besoins de raccordement.</p>
+                        <div>
+                            <span class="tech-badge">Enedis ODR</span>
+                            <span class="tech-badge">Temps réel</span>
+                            <span class="tech-badge">S3REnR</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">🏢</div>
+                        <h3>Accompagnement Sunstice</h3>
+                        <p>Besoin d'aller plus loin ? Les experts EPC de Sunstice vous accompagnent de l'étude détaillée jusqu'à la construction de votre centrale solaire.</p>
+                        <div>
+                            <span class="tech-badge">EPC Expert</span>
+                            <span class="tech-badge">Conception</span>
+                            <span class="tech-badge">Construction</span>
+                        </div>
+                    </div>
+                </div>
                 </div>
 
                 <div class="col-md-4">
@@ -605,64 +729,36 @@
 
     <div class="workflow-section">
         <div class="container">
-            <h2 class="section-title">Votre méthode structurée, de A à Z</h2>
-            <p class="section-subtitle">Un processus éprouvé qui transforme les prospects en centrales installées</p>
+            <h2 class="section-title">Comment ça marche ?</h2>
+            <p class="section-subtitle">De la pré-étude gratuite à la réalisation de votre projet solaire</p>
 
             <div class="row g-4">
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">1</div>
-                        <h5>Prospection terrain</h5>
-                        <p>Rapport automatique urbanisme + faisabilité</p>
+                        <h5>Inscription gratuite</h5>
+                        <p>Créez votre compte en 30 secondes</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">2</div>
-                        <h5>Visite technique</h5>
-                        <p>Check-list métier + photos géolocalisées</p>
+                        <h5>Pré-étude automatique</h5>
+                        <p>Rapport complet urbanisme + faisabilité</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">3</div>
-                        <h5>Calepinage précis</h5>
-                        <p>Modules, puissance, orientation auto</p>
+                        <h5>Contact Sunstice (optionnel)</h5>
+                        <p>Étude détaillée par nos experts EPC</p>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="workflow-step">
                         <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">4</div>
-                        <h5>Simulation PVGIS</h5>
-                        <p>Production réelle + autoconso</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">5</div>
-                        <h5>Proposition pro</h5>
-                        <p>PDF 12 pages conforme NF</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">6-8</div>
-                        <h5>Démarches admin</h5>
-                        <p>DP, PC, DDR Enedis trackés</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">9-10</div>
-                        <h5>Installation</h5>
-                        <p>Commande matériel + chantier</p>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="workflow-step">
-                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">11</div>
-                        <h5>Mise en service</h5>
-                        <p>Consuel + Activation Enedis</p>
+                        <h5>Réalisation projet</h5>
+                        <p>Construction clé en main de votre centrale</p>
                     </div>
                 </div>
             </div>
@@ -670,43 +766,66 @@
     </div>
 
     <div class="container py-5" style="position: relative; z-index: 1;">
+        <div class="text-center mb-5">
+            <h2 class="section-title" style="font-size: 2.5rem;">Pourquoi Sunstice ?</h2>
+            <p class="section-subtitle">Un partenaire EPC de confiance pour vos projets solaires</p>
+        </div>
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">🏗️</div>
+                    <h3>Expert EPC complet</h3>
+                    <p>Sunstice maîtrise toute la chaîne : études, développement, financement, construction et exploitation de centrales photovoltaïques.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Track record solide</h3>
+                    <p>Des dizaines de MW installés, des projets réalisés partout en France, une expertise reconnue dans le solaire au sol et en toiture.</p>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="feature-card">
+                    <div class="feature-icon">🤝</div>
+                    <h3>Accompagnement complet</h3>
+                    <p>De votre pré-étude gratuite jusqu'à la mise en service de votre centrale. Un interlocuteur unique, un suivi personnalisé.</p>
+                </div>
+            </div>
+        </div>
         <div class="text-center mb-4">
-            <h2 class="section-title" style="font-size: 2.5rem;">Stack technique professionnel</h2>
-            <p class="section-subtitle">Des API fiables, des données officielles, zéro approximation</p>
+            <h2 class="section-title" style="font-size: 2rem;">Technologies professionnelles</h2>
+            <p class="section-subtitle">Des données officielles et des API fiables pour des résultats précis</p>
         </div>
         <div class="text-center">
-            <span class="tech-badge"><i class="bi bi-server"></i> Flask + PostgreSQL</span>
-            <span class="tech-badge"><i class="bi bi-map"></i> Leaflet + GeoServer</span>
-            <span class="tech-badge"><i class="bi bi-database"></i> PostGIS</span>
-            <span class="tech-badge"><i class="bi bi-file-pdf"></i> ReportLab</span>
-            <span class="tech-badge"><i class="bi bi-cloud"></i> Railway</span>
             <span class="tech-badge"><i class="bi bi-sun"></i> PVGIS</span>
-            <span class="tech-badge"><i class="bi bi-building"></i> GPU</span>
+            <span class="tech-badge"><i class="bi bi-building"></i> API GPU</span>
             <span class="tech-badge"><i class="bi bi-exclamation-triangle"></i> Géorisques</span>
-            <span class="tech-badge"><i class="bi bi-lightning"></i> Enedis</span>
+            <span class="tech-badge"><i class="bi bi-lightning"></i> Enedis ODR</span>
             <span class="tech-badge"><i class="bi bi-geo-alt"></i> API Adresse</span>
-            <span class="tech-badge"><i class="bi bi-map-fill"></i> OSM</span>
-            <span class="tech-badge"><i class="bi bi-diagram-3"></i> Cadastre</span>
+            <span class="tech-badge"><i class="bi bi-map-fill"></i> OpenStreetMap</span>
+            <span class="tech-badge"><i class="bi bi-diagram-3"></i> Cadastre IGN</span>
+            <span class="tech-badge"><i class="bi bi-map"></i> GeoServer</span>
         </div>
     </div>
 
     <div class="container text-center py-5 mb-5" style="position: relative; z-index: 1;">
         <h2 class="section-title" style="font-size: 3.5rem; margin-bottom: 1.5rem;">
-            Arrêtez de perdre du temps.<br>Développez plus vite.
+            Prêt à démarrer votre projet solaire ?
         </h2>
         <p class="section-subtitle" style="font-size: 1.3rem; margin-bottom: 3rem;">
-            Rejoignez les développeurs PV qui transforment leur prospection en pipeline structuré
+            Créez votre pré-étude gratuite en moins de 2 minutes · Aucune carte bancaire requise
         </p>
         <div class="mt-4">
             <a href="/register" class="cta-button cta-primary me-3" style="font-size: 1.3rem; padding: 22px 50px;">
-                <i class="bi bi-lightning-charge-fill"></i> Essai gratuit 7 jours
+                <i class="bi bi-lightning-charge-fill"></i> Commencer gratuitement
             </a>
             <a href="/login" class="cta-button cta-secondary" style="font-size: 1.3rem; padding: 22px 50px;">
                 <i class="bi bi-box-arrow-in-right"></i> Se connecter
             </a>
         </div>
         <p style="color: rgba(255, 255, 255, 0.5); margin-top: 30px; font-size: 0.9rem;">
-            <i class="bi bi-check-circle"></i> Sans engagement · <i class="bi bi-credit-card"></i> Aucune CB requise · <i class="bi bi-calendar-check"></i> 7 jours d'essai offerts
+            <i class="bi bi-check-circle"></i> Accès immédiat · <i class="bi bi-shield-check"></i> Données sécurisées · <i class="bi bi-sun-fill"></i> Powered by Sunstice EPC
         </p>
     </div>
 
