@@ -23,6 +23,27 @@ from plan_masse_simple import generate_plan_masse_simple
 # HELPER FUNCTIONS
 # ============================================================================
 
+def get_current_user_id():
+    """Récupère l'ID de l'utilisateur connecté depuis la requête Flask"""
+    from flask import request
+    current_user = getattr(request, 'current_user', None)
+    if current_user:
+        return current_user.get('id')
+    return None
+
+def is_current_user_admin():
+    """Vérifie si l'utilisateur connecté est un administrateur"""
+    from flask import request
+    current_user = getattr(request, 'current_user', None)
+    if current_user:
+        # Vérifier les différents indicateurs d'admin
+        return (
+            current_user.get('is_admin') == True or 
+            current_user.get('is_admin') == 1 or
+            current_user.get('role') == 'admin'
+        )
+    return False
+
 def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None):
     """
     Crée automatiquement une fiche projet et ses étapes pour un nouveau prospect
@@ -156,21 +177,47 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/stats')
     def crm_stats():
-        """Statistiques CRM pour la page d'accueil"""
+        """Statistiques CRM pour la page d'accueil - Filtrées par utilisateur (sauf admin)"""
         try:
-            stats = execute_query('''
-                SELECT 
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveau,
-                    COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contacte,
-                    COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifie,
-                    COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdu,
-                    COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
-                    COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
-                    COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
-                    COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
-                FROM agriweb_prospects
-            ''', fetch_one=True)
+            # Récupérer l'utilisateur connecté
+            from flask import request
+            current_user = getattr(request, 'current_user', None)
+            is_admin = is_current_user_admin()
+            
+            if is_admin:
+                # Admin voit les stats globales
+                stats = execute_query('''
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveau,
+                        COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contacte,
+                        COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifie,
+                        COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdu,
+                        COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                        COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                        COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                        COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+                    FROM agriweb_prospects
+                ''', fetch_one=True)
+            elif current_user:
+                # Utilisateur normal voit uniquement ses stats
+                user_id = current_user.get('id')
+                stats = execute_query('''
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveau,
+                        COUNT(CASE WHEN statut = 'contacte' THEN 1 END) as contacte,
+                        COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifie,
+                        COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdu,
+                        COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                        COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                        COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                        COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+                    FROM agriweb_prospects
+                    WHERE user_id = %s
+                ''', (user_id,), fetch_one=True)
+            else:
+                stats = None
             
             if not stats:
                 return jsonify({
@@ -687,13 +734,42 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/prospects')
     def get_prospects():
-        """Récupère tous les prospects pour l'interface web CRM"""
+        """Récupère tous les prospects pour l'interface web CRM - FILTRÉS PAR UTILISATEUR (sauf admin)"""
         try:
-            # Récupérer tous les prospects
-            prospects = execute_query('''
-                SELECT * FROM agriweb_prospects 
-                ORDER BY date_creation DESC
-            ''', fetch_all=True)
+            # Récupérer l'utilisateur connecté
+            from flask import request
+            current_user = getattr(request, 'current_user', None)
+            
+            # Si pas d'utilisateur connecté, retourner vide (sécurité)
+            if not current_user:
+                print("⚠️  [CRM GET] Aucun utilisateur connecté - accès refusé")
+                return jsonify({
+                    'success': False,
+                    'error': 'Authentification requise',
+                    'prospects': [],
+                    'stats': {'total': 0, 'parkings': 0, 'toitures': 0, 'friches': 0, 'rpg': 0}
+                }), 401
+            
+            user_id = current_user.get('id')
+            is_admin = is_current_user_admin()
+            
+            if is_admin:
+                # ADMIN voit TOUS les prospects de tous les utilisateurs
+                print(f"👑 [CRM GET] Admin {current_user.get('email')} - accès à TOUS les prospects")
+                prospects = execute_query('''
+                    SELECT p.*, u.email as user_email, u.name as user_name
+                    FROM agriweb_prospects p
+                    LEFT JOIN users u ON p.user_id = u.id
+                    ORDER BY p.date_creation DESC
+                ''', fetch_all=True)
+            else:
+                # Utilisateur normal voit UNIQUEMENT ses propres prospects
+                print(f"🔐 [CRM GET] Utilisateur {current_user.get('email')} (ID: {user_id}) - prospects personnels")
+                prospects = execute_query('''
+                    SELECT * FROM agriweb_prospects 
+                    WHERE user_id = %s
+                    ORDER BY date_creation DESC
+                ''', (user_id,), fetch_all=True)
             
             # Mapper contact_telephone -> contact_tel pour compatibilité frontend
             if prospects:
@@ -701,16 +777,30 @@ def register_crm_routes(app):
                     if 'contact_telephone' in prospect:
                         prospect['contact_tel'] = prospect['contact_telephone']
             
-            # Calculer les stats
-            stats = execute_query('''
-                SELECT 
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
-                    COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
-                    COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
-                    COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
-                FROM agriweb_prospects
-            ''', fetch_one=True)
+            # Calculer les stats (TOUS les prospects pour admin, sinon filtré par user)
+            if is_admin:
+                stats = execute_query('''
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                        COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                        COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                        COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+                    FROM agriweb_prospects
+                ''', fetch_one=True)
+                print(f"👑 [CRM GET] Stats globales admin: {stats['total'] if stats else 0} prospects")
+            else:
+                stats = execute_query('''
+                    SELECT 
+                        COUNT(*) as total,
+                        COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
+                        COUNT(CASE WHEN type = 'toiture' THEN 1 END) as toitures,
+                        COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
+                        COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
+                    FROM agriweb_prospects
+                    WHERE user_id = %s
+                ''', (user_id,), fetch_one=True)
+                print(f"📊 [CRM GET] {stats['total'] if stats else 0} prospects pour utilisateur {user_id}")
             
             return jsonify({
                 'success': True,
@@ -726,16 +816,27 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/prospects/<int:prospect_id>', methods=['GET'])
     def get_prospect(prospect_id):
-        """Récupère les détails d'un prospect spécifique"""
+        """Récupère les détails d'un prospect spécifique - VÉRIFIE PROPRIÉTÉ"""
         try:
+            # Récupérer l'utilisateur connecté
+            from flask import request
+            current_user = getattr(request, 'current_user', None)
+            
+            if not current_user:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            
+            user_id = current_user.get('id')
+            
+            # Récupérer le prospect SEULEMENT s'il appartient à l'utilisateur
             prospect = execute_query(
-                'SELECT * FROM agriweb_prospects WHERE id = %s',
-                (prospect_id,),
+                'SELECT * FROM agriweb_prospects WHERE id = %s AND user_id = %s',
+                (prospect_id, user_id),
                 fetch_one=True
             )
             
             if not prospect:
-                return jsonify({'success': False, 'error': 'Prospect non trouvé'}), 404
+                print(f"🔒 [GET PROSPECT] Accès refusé: prospect {prospect_id} n'appartient pas à user {user_id}")
+                return jsonify({'success': False, 'error': 'Prospect non trouvé ou accès refusé'}), 404
             
             # Parser data_json si nécessaire
             if prospect.get('data_json') and isinstance(prospect['data_json'], str):
