@@ -85,11 +85,14 @@
             padding-top: 150px;
             padding-bottom: 80px;
             background: #FFFFFF;
+            position: relative;
         }
         
         .sunstice-logo {
-            max-height: 80px;
-            margin-bottom: 40px;
+            max-height: 200px;
+            position: absolute;
+            right: 50px;
+            top: 50px;
         }
         
         .badge-sunstice {
@@ -289,6 +292,12 @@
             .hero-section {
                 padding-top: 120px;
             }
+            
+            .sunstice-logo {
+                position: static;
+                max-height: 120px;
+                margin-bottom: 30px;
+            }
         }
     </style>
 </head>
@@ -311,9 +320,9 @@
     </nav>
 
     <div class="hero-section">
+        <img src="/static/images/logo_sunstice.png" alt="Sunstice" class="sunstice-logo">
         <div class="container">
             <div class="text-center">
-                <img src="/static/images/logo_sunstice.png" alt="Sunstice" class="sunstice-logo">
                 <div class="badge-sunstice">
                     Le solaire éthique & responsable
                 </div>
