@@ -1,6 +1,7 @@
 /**
  * Assistant Interactif Sunstice
  * Guide l'utilisateur dans l'utilisation de la plateforme
+ * Version améliorée avec base de connaissances complète
  */
 
 class SunsticeAssistant {
@@ -8,7 +9,24 @@ class SunsticeAssistant {
         this.isOpen = false;
         this.currentPage = this.detectPage();
         this.conversationHistory = [];
+        this.knowledgeBase = null;
+        this.loadKnowledgeBase();
         this.init();
+    }
+
+    async loadKnowledgeBase() {
+        try {
+            // Charger la base de connaissances
+            const response = await fetch('/static/js/assistant-knowledge-base.js');
+            const script = await response.text();
+            eval(script);
+            if (typeof SunsticeKnowledgeBase !== 'undefined') {
+                this.knowledgeBase = SunsticeKnowledgeBase;
+                console.log('✅ Base de connaissances chargée');
+            }
+        } catch (error) {
+            console.warn('⚠️ Base de connaissances non disponible, mode simplifié');
+        }
     }
 
     detectPage() {
@@ -17,6 +35,8 @@ class SunsticeAssistant {
         if (path.includes('login')) return 'login';
         if (path.includes('register')) return 'register';
         if (path.includes('crm')) return 'crm';
+        if (path.includes('app') || path.includes('index')) return 'recherche';
+        if (path.includes('rapport')) return 'rapport';
         if (path.includes('demo')) return 'demo';
         return 'general';
     }
@@ -400,6 +420,25 @@ class SunsticeAssistant {
                     "📞 Contacter l'équipe"
                 ]
             },
+            recherche: {
+                welcome: "🗺️ Vous êtes sur l'interface de recherche. Choisissez votre type d'analyse : adresse, commune ou département. Je peux vous guider !",
+                actions: [
+                    "📍 Comment analyser une adresse ?",
+                    "🏘️ Comment analyser une commune ?",
+                    "🗺️ Comment analyser un département ?",
+                    "📄 Comment générer un rapport ?",
+                    "💼 Comment exporter vers CRM ?"
+                ]
+            },
+            rapport: {
+                welcome: "📊 Votre rapport est généré ! Vous pouvez maintenant l'analyser et l'exporter vers le CRM pour créer un prospect.",
+                actions: [
+                    "📖 Comment lire ce rapport ?",
+                    "💼 Exporter vers CRM",
+                    "📥 Télécharger en PDF",
+                    "🔄 Faire une nouvelle recherche"
+                ]
+            },
             login: {
                 welcome: "Bienvenue ! Connectez-vous pour accéder à votre espace personnel et gérer vos projets.",
                 actions: [
@@ -409,12 +448,13 @@ class SunsticeAssistant {
                 ]
             },
             crm: {
-                welcome: "Bienvenue dans votre espace CRM ! Gérez vos prospects et projets facilement.",
+                welcome: "💼 Bienvenue dans votre espace CRM ! Gérez vos prospects et suivez vos projets facilement.",
                 actions: [
-                    "➕ Ajouter un prospect",
-                    "📊 Voir les statistiques",
-                    "🔍 Rechercher un projet",
-                    "⚙️ Paramètres"
+                    "➕ Comment ajouter un prospect ?",
+                    "🔍 Comment rechercher un projet ?",
+                    "📊 Voir mes statistiques",
+                    "📅 Gérer le calendrier",
+                    "📈 Changer un statut prospect"
                 ]
             },
             demo: {
@@ -494,21 +534,147 @@ class SunsticeAssistant {
     findBestResponse(message) {
         const lowerMessage = message.toLowerCase();
         
+        // Recherche dans la FAQ de la base de connaissances
+        if (this.knowledgeBase && this.knowledgeBase.faq) {
+            const faqMatch = this.searchInFAQ(lowerMessage);
+            if (faqMatch) return faqMatch;
+        }
+        
+        // Recherche dans le troubleshooting
+        if (this.knowledgeBase && this.knowledgeBase.troubleshooting) {
+            const troubleMatch = this.searchInTroubleshooting(lowerMessage);
+            if (troubleMatch) return troubleMatch;
+        }
+        
+        // Détection de workflows spécifiques
+        if (lowerMessage.includes('workflow') || lowerMessage.includes('processus complet')) {
+            return this.getWorkflowSummary();
+        }
+        
+        // Questions contextuelles détaillées
         if (lowerMessage.includes('comment') || lowerMessage.includes('fonctionne') || lowerMessage.includes('étude') || lowerMessage.includes('etude')) {
             return this.getResponse("🏠 Comment ça marche ?");
         }
+        
         if (lowerMessage.includes('rapport') && lowerMessage.includes('point')) {
-            return "Après avoir localisé votre terrain sur la carte :<br><br>1. Cliquez sur le bouton '📄 Rapport point courant' dans le menu Rapports<br>2. Consultez l'analyse complète (cadastre, PLU, risques, potentiel)<br>3. Utilisez 'Exporter vers CRM' pour créer un prospect<br>4. Finalisez dans le CRM !";
+            return this.getDetailedWorkflow('analyse_adresse', 4);
         }
-        if (lowerMessage.includes('export') || lowerMessage.includes('prospect') || lowerMessage.includes('crm')) {
-            return "Pour exporter vers Prospects :<br><br>1. Générez d'abord un rapport point<br>2. En bas du rapport, cliquez sur 'Exporter vers CRM/Prospects'<br>3. Remplissez les informations du prospect (nom, contact, etc.)<br>4. Validez : votre projet est créé !<br>5. Retrouvez-le dans le menu CRM pour le suivi.";
+        
+        if (lowerMessage.includes('export') || (lowerMessage.includes('prospect') && !lowerMessage.includes('voir'))) {
+            return this.getDetailedWorkflow('gestion_prospect', 1);
         }
-        if (lowerMessage.includes('analyse') || lowerMessage.includes('terrain') || lowerMessage.includes('recherche')) {
-            return this.getResponse("📍 Lancer une analyse");
+        
+        if (lowerMessage.includes('commune')) {
+            if (lowerMessage.includes('comment') || lowerMessage.includes('analyser')) {
+                return this.getDetailedWorkflow('analyse_commune');
+            }
+            return this.getResponse("🏘️ Analyser une commune");
         }
-        if (lowerMessage.includes('contact') || lowerMessage.includes('aide')) {
+        
+        if (lowerMessage.includes('département') || lowerMessage.includes('departement')) {
+            return this.getDetailedWorkflow('analyse_departement');
+        }
+        
+        if (lowerMessage.includes('adresse')) {
+            if (lowerMessage.includes('comment') || lowerMessage.includes('analyser')) {
+                return this.getDetailedWorkflow('analyse_adresse');
+            }
+            return this.getResponse("📍 Analyser une adresse");
+        }
+        
+        if (lowerMessage.includes('statut')) {
+            return "Les statuts de prospects :<br><br>🆕 <strong>Nouveau</strong> - Prospect jamais contacté<br>📞 <strong>Contact établi</strong> - Premier échange réalisé<br>✅ <strong>Qualifié</strong> - Projet confirmé et sérieux<br>📄 <strong>Proposition envoyée</strong> - Devis transmis<br>🎉 <strong>Gagné</strong> - Projet signé !<br>❌ <strong>Perdu</strong> - Abandon<br>⏳ <strong>En attente</strong> - Projet en pause<br><br>Changez le statut dans la fiche prospect.";
+        }
+        
+        if (lowerMessage.includes('calendrier') || lowerMessage.includes('rendez-vous') || lowerMessage.includes('rdv')) {
+            return "Gestion du calendrier :<br><br>1. Ouvrez une fiche prospect dans le CRM<br>2. Section 'Calendrier'<br>3. Bouton 'Ajouter un rendez-vous'<br>4. Renseignez date, heure, type (visite, réunion, appel)<br>5. Sauvegardez<br><br>💡 Les RDV apparaissent dans le dashboard CRM pour ne rien oublier !";
+        }
+        
+        if (lowerMessage.includes('filtre') || lowerMessage.includes('recherche')) {
+            return "Filtres disponibles dans le CRM :<br><br>📊 <strong>Par statut</strong> - Nouveau, Qualifié, Gagné...<br>📅 <strong>Par date</strong> - Création, modification<br>🏘️ <strong>Par commune</strong> - Localisation géographique<br>⚡ <strong>Par type</strong> - Sol, toiture, ombrière...<br>👤 <strong>Par utilisateur</strong> - Vos prospects ou équipe (admin)<br><br>Combinez les filtres pour affiner vos recherches !";
+        }
+        
+        if (lowerMessage.includes('pdf') || lowerMessage.includes('télécharger') || lowerMessage.includes('telecharger')) {
+            return "Pour télécharger un rapport en PDF :<br><br>1. Générez le rapport (point, commune, département)<br>2. En haut du rapport, bouton '📥 Télécharger PDF'<br>3. Le fichier est généré et téléchargé automatiquement<br>4. Il est aussi sauvegardé dans la fiche prospect si exporté vers CRM<br><br>💡 Tous vos rapports sont archivés dans les fiches prospects !";
+        }
+        
+        if (lowerMessage.includes('contact') || lowerMessage.includes('aide') || lowerMessage.includes('support')) {
             return this.getResponse("💬 Contacter le support");
         }
+        
+        if (lowerMessage.includes('mot de passe') || lowerMessage.includes('connexion')) {
+            return this.getResponse("🔐 Mot de passe oublié ?");
+        }
+        
+        if (lowerMessage.includes('compte') || lowerMessage.includes('inscrire')) {
+            return this.getResponse("✨ Créer un compte");
+        }
+        
+        // Si aucune correspondance, proposer astuces
+        if (this.knowledgeBase && this.knowledgeBase.astuces) {
+            const randomTip = this.knowledgeBase.astuces[Math.floor(Math.random() * this.knowledgeBase.astuces.length)];
+            return `Je n'ai pas de réponse spécifique. Voici une astuce :<br><br>${randomTip}<br><br>Utilisez les actions rapides ou contactez le support : support@sunstice.com 😊`;
+        }
+        
+        return "Merci pour votre question ! Pour une réponse précise, je vous invite à utiliser les actions rapides ci-dessous ou à contacter notre support : support@sunstice.com 😊";
+    }
+    
+    searchInFAQ(query) {
+        if (!this.knowledgeBase || !this.knowledgeBase.faq) return null;
+        
+        for (const [question, answer] of Object.entries(this.knowledgeBase.faq)) {
+            if (query.includes(question.toLowerCase()) || 
+                question.toLowerCase().includes(query.split(' ').slice(0, 3).join(' '))) {
+                return `<strong>${question}</strong><br><br>${answer}`;
+            }
+        }
+        return null;
+    }
+    
+    searchInTroubleshooting(query) {
+        if (!this.knowledgeBase || !this.knowledgeBase.troubleshooting) return null;
+        
+        for (const [problem, solution] of Object.entries(this.knowledgeBase.troubleshooting)) {
+            if (query.includes(problem.toLowerCase().slice(0, 15))) {
+                return `🔧 <strong>${problem}</strong><br><br>${solution}`;
+            }
+        }
+        return null;
+    }
+    
+    getWorkflowSummary() {
+        if (!this.knowledgeBase || !this.knowledgeBase.workflows) {
+            return "Workflow de base : Recherche → Rapport → Export CRM → Suivi";
+        }
+        
+        let summary = "<strong>📋 Workflows disponibles :</strong><br><br>";
+        for (const [key, workflow] of Object.entries(this.knowledgeBase.workflows)) {
+            summary += `<strong>${workflow.titre}</strong> (${workflow.etapes.length} étapes)<br>`;
+        }
+        summary += "<br>Demandez-moi un workflow spécifique pour plus de détails !";
+        return summary;
+    }
+    
+    getDetailedWorkflow(workflowName, startStep = 1) {
+        if (!this.knowledgeBase || !this.knowledgeBase.workflows || !this.knowledgeBase.workflows[workflowName]) {
+            return this.getResponse("🏠 Comment ça marche ?");
+        }
+        
+        const workflow = this.knowledgeBase.workflows[workflowName];
+        let response = `<strong>📋 ${workflow.titre}</strong><br><br>`;
+        
+        workflow.etapes.slice(startStep - 1).forEach(etape => {
+            response += `<strong>${etape.numero}.</strong> ${etape.action}<br>`;
+            response += `<small style="color: #666;">${etape.detail}</small><br><br>`;
+        });
+        
+        return response;
+    }
+
+    // Ancienne fonction findBestResponse remplacée par la nouvelle ci-dessus
+    // Ne pas dupliquer, cette fonction est maintenant beaucoup plus intelligente
+
+    addBotMessage(text) {
         if (lowerMessage.includes('mot de passe') || lowerMessage.includes('connexion')) {
             return this.getResponse("🔐 Mot de passe oublié ?");
         }
