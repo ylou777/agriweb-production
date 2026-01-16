@@ -17025,8 +17025,100 @@ def admin_create_users_table():
         results.append("✅ Tables créées avec succès !")
         results.append("")
         results.append("📝 Prochaines étapes:")
-        results.append("   1. Créez un compte via /register")
+        results.append("   1. Créez un utilisateur admin via /admin/create-admin-user")
         results.append("   2. Lancez la migration user isolation via /admin/migrate-user-isolation")
+        
+        return "<br>".join(results), 200
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        return f"❌ Erreur: {str(e)}<br><br><pre>{error_trace}</pre>", 500
+
+# ============================================================================
+# ROUTE ADMIN - CRÉATION UTILISATEUR ADMIN
+# ============================================================================
+@app.route('/admin/create-admin-user', methods=['GET'])
+def admin_create_admin_user():
+    """Crée un utilisateur admin par défaut si aucun admin n'existe"""
+    try:
+        from database_adapter import get_db_connection
+        import uuid
+        import hashlib
+        from datetime import datetime, timedelta
+        results = []
+        
+        results.append("👑 Création d'un utilisateur administrateur")
+        results.append("")
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Vérifier si un admin existe déjà
+            cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")
+            admin_count = cursor.fetchone()[0]
+            
+            if admin_count > 0:
+                results.append("ℹ️ Un administrateur existe déjà")
+                cursor.execute("SELECT email, name, created_at FROM users WHERE is_admin = TRUE ORDER BY created_at LIMIT 1")
+                admin = cursor.fetchone()
+                results.append(f"   Email: {admin[0]}")
+                results.append(f"   Nom: {admin[1] or 'Non défini'}")
+                results.append(f"   Créé le: {admin[2]}")
+            else:
+                results.append("➕ Création d'un nouvel administrateur...")
+                results.append("")
+                
+                # Paramètres par défaut
+                admin_email = "admin@sunstice.com"
+                admin_password = "SunDev2026!"
+                admin_name = "Administrateur Sunstice"
+                
+                # Générer le hash du mot de passe
+                salt = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()[:32]
+                password_hash = hashlib.sha256((admin_password + salt).encode()).hexdigest()
+                
+                # Créer l'utilisateur admin
+                user_id = str(uuid.uuid4())
+                trial_end = datetime.now() + timedelta(days=365)  # 1 an pour l'admin
+                
+                cursor.execute("""
+                    INSERT INTO users (
+                        id, email, password_hash, name, company, salt,
+                        role, is_admin, subscription_status, trial_end,
+                        searches_limit, active, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    user_id,
+                    admin_email,
+                    password_hash,
+                    admin_name,
+                    "Sunstice",
+                    salt,
+                    "admin",
+                    True,
+                    "active",
+                    trial_end,
+                    999999,  # Pas de limite pour l'admin
+                    True,
+                    datetime.now()
+                ))
+                
+                conn.commit()
+                
+                results.append("✅ Administrateur créé avec succès !")
+                results.append("")
+                results.append("🔐 <strong>IDENTIFIANTS DE CONNEXION :</strong>")
+                results.append(f"   📧 Email: <strong>{admin_email}</strong>")
+                results.append(f"   🔑 Mot de passe: <strong>{admin_password}</strong>")
+                results.append("")
+                results.append("⚠️ <strong>IMPORTANT :</strong> Notez ces identifiants et changez le mot de passe après la première connexion !")
+            
+            cursor.close()
+        
+        results.append("")
+        results.append("📝 Prochaine étape:")
+        results.append("   👉 Lancez la migration user isolation via /admin/migrate-user-isolation")
         
         return "<br>".join(results), 200
         
