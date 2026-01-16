@@ -16926,6 +16926,119 @@ def admin_migrate_parametrage():
     except Exception as e:
         return f"❌ Erreur migration: {str(e)}", 500
 
+# ============================================================================
+# ROUTE ADMIN - MIGRATION ISOLATION UTILISATEUR
+# ============================================================================
+@app.route('/admin/migrate-user-isolation', methods=['GET'])
+def admin_migrate_user_isolation():
+    """Endpoint pour ajouter l'isolation des données par utilisateur"""
+    try:
+        from database_adapter import execute_query
+        results = []
+        
+        results.append("🔐 Migration: Isolation des données par utilisateur")
+        results.append("")
+        
+        # 1. Vérifier si la colonne user_id existe
+        results.append("1️⃣ Vérification colonne user_id...")
+        try:
+            check = execute_query("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'agriweb_prospects' 
+                AND column_name = 'user_id'
+            """, fetch_one=True)
+            
+            if check:
+                results.append("   ✅ Colonne user_id existe déjà")
+            else:
+                results.append("   ➕ Ajout de la colonne user_id...")
+                execute_query("ALTER TABLE agriweb_prospects ADD COLUMN user_id VARCHAR(36)")
+                results.append("   ✅ Colonne user_id ajoutée")
+        except Exception as e:
+            results.append(f"   ❌ Erreur: {e}")
+            return "<br>".join(results), 500
+        
+        # 2. Compter les prospects sans user_id
+        results.append("")
+        results.append("2️⃣ Analyse des prospects...")
+        count = execute_query("""
+            SELECT COUNT(*) as total,
+                   COUNT(CASE WHEN user_id IS NULL THEN 1 END) as sans_user
+            FROM agriweb_prospects
+        """, fetch_one=True)
+        
+        results.append(f"   📊 Total prospects: {count['total']}")
+        results.append(f"   🔴 Sans user_id: {count['sans_user']}")
+        
+        if count['sans_user'] > 0:
+            # 3. Trouver un utilisateur admin
+            results.append("")
+            results.append("3️⃣ Recherche utilisateur par défaut...")
+            
+            admin_user = execute_query("""
+                SELECT id, email, name 
+                FROM users 
+                WHERE role = 'admin' OR is_admin = true
+                ORDER BY created_at 
+                LIMIT 1
+            """, fetch_one=True)
+            
+            if not admin_user:
+                admin_user = execute_query("""
+                    SELECT id, email, name 
+                    FROM users 
+                    ORDER BY created_at 
+                    LIMIT 1
+                """, fetch_one=True)
+            
+            if not admin_user:
+                results.append("   ❌ Aucun utilisateur trouvé")
+                results.append("   💡 Créez un compte via /register d'abord")
+                return "<br>".join(results), 400
+            
+            results.append(f"   👤 Utilisateur: {admin_user['email']} ({admin_user['name']})")
+            
+            # 4. Assigner les prospects
+            results.append("")
+            results.append(f"4️⃣ Attribution de {count['sans_user']} prospects...")
+            execute_query("""
+                UPDATE agriweb_prospects 
+                SET user_id = %s 
+                WHERE user_id IS NULL
+            """, (admin_user['id'],))
+            results.append(f"   ✅ {count['sans_user']} prospects attribués à {admin_user['email']}")
+        else:
+            results.append("   ✅ Tous les prospects ont déjà un user_id")
+        
+        # 5. Vérification finale
+        results.append("")
+        results.append("5️⃣ Vérification finale...")
+        final = execute_query("""
+            SELECT 
+                COUNT(*) as total,
+                COUNT(CASE WHEN user_id IS NOT NULL THEN 1 END) as avec_user,
+                COUNT(CASE WHEN user_id IS NULL THEN 1 END) as sans_user
+            FROM agriweb_prospects
+        """, fetch_one=True)
+        
+        results.append(f"   📊 Total: {final['total']} prospects")
+        results.append(f"   ✅ Avec user_id: {final['avec_user']}")
+        results.append(f"   🔴 Sans user_id: {final['sans_user']}")
+        
+        results.append("")
+        results.append("✅ Migration terminée avec succès !")
+        results.append("")
+        results.append("💡 Les utilisateurs voient maintenant uniquement leurs prospects")
+        results.append("👑 Les admins voient tous les prospects de tous les utilisateurs")
+        
+        return "<br>".join(results), 200
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        return f"❌ Erreur migration: {str(e)}<br><br><pre>{error_trace}</pre>", 500
+
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 if __name__ == "__main__":
