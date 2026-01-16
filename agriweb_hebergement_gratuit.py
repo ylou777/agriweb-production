@@ -2482,17 +2482,17 @@ def create_checkout_session():
         prices = {
             'basic': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Basic',
+                'name': 'Sun Dev by Sunstice - Plan Basic',
                 'amount': 3500,  # 35€ en centimes
             },
             'professional': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Professionnel',
+                'name': 'Sun Dev by Sunstice - Plan Professionnel',
                 'amount': 19900,  # 199€ en centimes
             },
             'team': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'AgriWeb Pro - Plan Team',
+                'name': 'Sun Dev by Sunstice - Plan Team',
                 'amount': 29900,  # 299€ en centimes
             }
         }
@@ -2515,7 +2515,7 @@ def create_checkout_session():
                         'currency': 'eur',
                         'product_data': {
                             'name': plan_config['name'],
-                            'description': 'Accès mensuel à la plateforme AgriWeb Pro'
+                            'description': 'Accès mensuel à la plateforme Sun Dev by Sunstice'
                         },
                         'unit_amount': plan_config['amount'],
                     },
@@ -15806,7 +15806,7 @@ SUBSCRIPTION_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plans d'abonnement - AgriWeb Pro</title>
+    <title>Plans d'abonnement - Sun Dev by Sunstice</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -15835,7 +15835,7 @@ SUBSCRIPTION_TEMPLATE = """
 <body>
     <div class="container py-5">
         <div class="text-center mb-5 text-white">
-            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan AgriWeb Pro</h1>
+            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan Sun Dev by Sunstice</h1>
             <p class="lead mb-4">Accédez à l'analyse territoriale la plus avancée pour vos projets agricoles et énergétiques</p>
             <div class="trial-badge d-inline-block">
                 <i class="fas fa-gift me-2"></i>7 jours d'essai gratuit sur tous les plans
@@ -15964,7 +15964,7 @@ ADMIN_STRIPE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Stripe - AgriWeb Pro Admin</title>
+    <title>Dashboard Stripe - Sun Dev by Sunstice Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -16550,7 +16550,7 @@ def send_to_kpi():
                 "risques_detail": risques
             },
             "date_collecte": datetime.now().isoformat(),
-            "source": "AgriWeb Prospection"
+            "source": "Sun Dev by Sunstice Prospection"
         }
         
         # ÉTAPE 4: Créer un résumé texte
