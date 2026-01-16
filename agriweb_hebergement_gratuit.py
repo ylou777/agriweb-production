@@ -16927,6 +16927,115 @@ def admin_migrate_parametrage():
         return f"❌ Erreur migration: {str(e)}", 500
 
 # ============================================================================
+# ROUTE ADMIN - CRÉATION TABLE USERS
+# ============================================================================
+@app.route('/admin/create-users-table', methods=['GET'])
+def admin_create_users_table():
+    """Crée la table users dans PostgreSQL si elle n'existe pas"""
+    try:
+        from database_adapter import get_db_connection
+        results = []
+        
+        results.append("👥 Création de la table users")
+        results.append("")
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Vérifier si la table existe déjà
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'users'
+                )
+            """)
+            exists = cursor.fetchone()[0]
+            
+            if exists:
+                results.append("✅ La table users existe déjà")
+            else:
+                results.append("➕ Création de la table users...")
+                
+                # Créer la table users
+                cursor.execute("""
+                    CREATE TABLE users (
+                        id VARCHAR(36) PRIMARY KEY,
+                        email VARCHAR(120) UNIQUE NOT NULL,
+                        password_hash VARCHAR(255) NOT NULL,
+                        name VARCHAR(100),
+                        company VARCHAR(100),
+                        salt VARCHAR(32),
+                        role VARCHAR(20) DEFAULT 'user',
+                        is_admin BOOLEAN DEFAULT FALSE,
+                        subscription_status VARCHAR(20) DEFAULT 'trial',
+                        trial_end DATE,
+                        searches_used INTEGER DEFAULT 0,
+                        searches_limit INTEGER DEFAULT 50,
+                        active BOOLEAN DEFAULT TRUE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_login TIMESTAMP
+                    )
+                """)
+                conn.commit()
+                results.append("✅ Table users créée avec succès")
+            
+            # Créer la table user_sessions si elle n'existe pas
+            cursor.execute("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'user_sessions'
+                )
+            """)
+            sessions_exists = cursor.fetchone()[0]
+            
+            if sessions_exists:
+                results.append("✅ La table user_sessions existe déjà")
+            else:
+                results.append("➕ Création de la table user_sessions...")
+                cursor.execute("""
+                    CREATE TABLE user_sessions (
+                        id SERIAL PRIMARY KEY,
+                        user_id VARCHAR(36) NOT NULL,
+                        session_token VARCHAR(64) UNIQUE NOT NULL,
+                        expires_at TIMESTAMP NOT NULL,
+                        ip_address VARCHAR(45),
+                        user_agent TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    )
+                """)
+                conn.commit()
+                results.append("✅ Table user_sessions créée")
+            
+            # Compter les utilisateurs
+            cursor.execute("SELECT COUNT(*) FROM users")
+            user_count = cursor.fetchone()[0]
+            
+            results.append("")
+            results.append(f"📊 Nombre d'utilisateurs: {user_count}")
+            
+            if user_count == 0:
+                results.append("")
+                results.append("💡 Aucun utilisateur trouvé")
+                results.append("👉 Créez un compte via /register pour commencer")
+            
+            cursor.close()
+        
+        results.append("")
+        results.append("✅ Tables créées avec succès !")
+        results.append("")
+        results.append("📝 Prochaines étapes:")
+        results.append("   1. Créez un compte via /register")
+        results.append("   2. Lancez la migration user isolation via /admin/migrate-user-isolation")
+        
+        return "<br>".join(results), 200
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        return f"❌ Erreur: {str(e)}<br><br><pre>{error_trace}</pre>", 500
+
+# ============================================================================
 # ROUTE ADMIN - MIGRATION ISOLATION UTILISATEUR
 # ============================================================================
 @app.route('/admin/migrate-user-isolation', methods=['GET'])
