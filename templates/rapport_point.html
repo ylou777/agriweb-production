@@ -1713,11 +1713,11 @@
                         location.reload();
                     }
                 } else {
-                    alert(`❌ Erreur lors de l'export :\n${result.error}`);
+                    alert('❌ Erreur lors de l\'export :\n' + result.error);
                 }
             } catch (error) {
                 console.error('Erreur export CRM:', error);
-                alert(`❌ Erreur de connexion :\n${error.message}`);
+                alert('❌ Erreur de connexion :\n' + error.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -1792,11 +1792,11 @@
                         window.open(`/crm?highlight=${prospectId}`, '_blank');
                     }
                 } else {
-                    alert(`❌ Erreur lors de la mise à jour :\n${result.error}`);
+                    alert('❌ Erreur lors de la mise à jour :\n' + result.error);
                 }
             } catch (error) {
                 console.error('Erreur mise à jour prospect:', error);
-                alert(`❌ Erreur de connexion :\n${error.message}`);
+                alert('❌ Erreur de connexion :\n' + error.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
