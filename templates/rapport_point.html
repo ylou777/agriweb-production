@@ -1745,24 +1745,24 @@
             try {
                 const updateData = {
                     prospect_id: prospectId,
-                    lat: {{ report.lat }},
-                    lon: {{ report.lon }},
-                    commune: '{{ report.commune_name or "" }}',
+                    lat: {{ report.lat|default(0) }},
+                    lon: {{ report.lon|default(0) }},
+                    commune: {{ (report.commune_name|default(""))|tojson }},
                     {% if report.api_details and report.api_details.cadastre.success %}
-                    parcelle_cadastrale: '{{ report.api_details.cadastre.details.section }}{{ report.api_details.cadastre.details.parcelle_numero }}',
-                    surface_parcelle: '{{ report.api_details.cadastre.details.contenance or "" }}',
+                    parcelle_cadastrale: {{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }},
+                    surface_parcelle: {{ (report.api_details.cadastre.details.contenance|default(""))|tojson }},
                     {% endif %}
                     {% if report.poste_bt %}
-                    poste_bt_nom: '{{ report.poste_bt.nom or "" }}',
-                    poste_bt_distance: {{ report.poste_bt.distance_m or 0 }},
-                    poste_bt_lat: {{ report.poste_bt.lat or 0 }},
-                    poste_bt_lon: {{ report.poste_bt.lon or 0 }},
+                    poste_bt_nom: {{ (report.poste_bt.nom|default(""))|tojson }},
+                    poste_bt_distance: {{ report.poste_bt.distance_m|default(0) }},
+                    poste_bt_lat: {{ report.poste_bt.lat|default(0) }},
+                    poste_bt_lon: {{ report.poste_bt.lon|default(0) }},
                     {% endif %}
                     {% if report.poste_hta %}
-                    poste_hta_nom: '{{ report.poste_hta.nom or "" }}',
-                    poste_hta_distance: {{ report.poste_hta.distance_m or 0 }},
-                    poste_hta_lat: {{ report.poste_hta.lat or 0 }},
-                    poste_hta_lon: {{ report.poste_hta.lon or 0 }},
+                    poste_hta_nom: {{ (report.poste_hta.nom|default(""))|tojson }},
+                    poste_hta_distance: {{ report.poste_hta.distance_m|default(0) }},
+                    poste_hta_lat: {{ report.poste_hta.lat|default(0) }},
+                    poste_hta_lon: {{ report.poste_hta.lon|default(0) }},
                     {% endif %}
                     data_json: {{ report | tojson }}
                 };
