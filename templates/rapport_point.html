@@ -1636,55 +1636,55 @@
                 
                 // Créer un objet prospect à partir des données du rapport
                 const prospectData = {
-                    lat: {{ report.lat }},
-                    lon: {{ report.lon }},
-                    commune: '{{ report.commune_name or "" }}',
-                    adresse: '{{ report.adresse or "" }}',
+                    lat: {{ report.lat|default(0) }},
+                    lon: {{ report.lon|default(0) }},
+                    commune: {{ (report.commune_name|default(""))|tojson }},
+                    adresse: {{ (report.adresse|default(""))|tojson }},
                     {% if report.api_details and report.api_details.cadastre.success %}
-                    parcelles: ['{{ report.api_details.cadastre.details.section }}{{ report.api_details.cadastre.details.parcelle_numero }}'],
-                    surface_m2: {{ report.api_details.cadastre.details.contenance_m2 or 0 }},
+                    parcelles: [{{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }}],
+                    surface_m2: {{ report.api_details.cadastre.details.contenance_m2|default(0) }},
                     {% endif %}
                     {% if report.poste_bt %}
                     poste_bt_proche: {
-                        nom: '{{ report.poste_bt.nom or "" }}',
-                        id: '{{ report.poste_bt.nom or "" }}',
-                        distance_m: {{ report.poste_bt.distance_m or 0 }},
-                        lat: {{ report.poste_bt.lat or 0 }},
-                        lon: {{ report.poste_bt.lon or 0 }},
-                        puissance: {{ report.poste_bt.puissance or 0 }},
-                        etat: '{{ report.poste_bt.etat or "Actif" }}',
-                        commune: '{{ report.poste_bt.commune or "" }}',
-                        code_commune: '{{ report.poste_bt.code_commune or "" }}',
-                        epci: '{{ report.poste_bt.epci or "" }}',
-                        code_epci: '{{ report.poste_bt.code_epci or "" }}',
-                        departement: '{{ report.poste_bt.departement or "" }}',
-                        code_departement: '{{ report.poste_bt.code_departement or "" }}',
-                        region: '{{ report.poste_bt.region or "" }}',
-                        code_region: '{{ report.poste_bt.code_region or "" }}'
+                        nom: {{ (report.poste_bt.nom|default(""))|tojson }},
+                        id: {{ (report.poste_bt.nom|default(""))|tojson }},
+                        distance_m: {{ report.poste_bt.distance_m|default(0) }},
+                        lat: {{ report.poste_bt.lat|default(0) }},
+                        lon: {{ report.poste_bt.lon|default(0) }},
+                        puissance: {{ report.poste_bt.puissance|default(0) }},
+                        etat: {{ (report.poste_bt.etat|default("Actif"))|tojson }},
+                        commune: {{ (report.poste_bt.commune|default(""))|tojson }},
+                        code_commune: {{ (report.poste_bt.code_commune|default(""))|tojson }},
+                        epci: {{ (report.poste_bt.epci|default(""))|tojson }},
+                        code_epci: {{ (report.poste_bt.code_epci|default(""))|tojson }},
+                        departement: {{ (report.poste_bt.departement|default(""))|tojson }},
+                        code_departement: {{ (report.poste_bt.code_departement|default(""))|tojson }},
+                        region: {{ (report.poste_bt.region|default(""))|tojson }},
+                        code_region: {{ (report.poste_bt.code_region|default(""))|tojson }}
                     },
                     {% endif %}
                     {% if report.poste_hta %}
                     poste_hta_proche: {
-                        nom: '{{ report.poste_hta.nom or "" }}',
-                        id: '{{ report.poste_hta.nom or "" }}',
-                        distance_m: {{ report.poste_hta.distance_m or 0 }},
-                        lat: {{ report.poste_hta.lat or 0 }},
-                        lon: {{ report.poste_hta.lon or 0 }},
-                        puissance: {{ report.poste_hta.puissance or 0 }},
-                        etat: '{{ report.poste_hta.etat or "Actif" }}',
-                        commune: '{{ report.poste_hta.commune or "" }}',
-                        code_commune: '{{ report.poste_hta.code_commune or "" }}',
-                        epci: '{{ report.poste_hta.epci or "" }}',
-                        code_epci: '{{ report.poste_hta.code_epci or "" }}',
-                        departement: '{{ report.poste_hta.departement or "" }}',
-                        code_departement: '{{ report.poste_hta.code_departement or "" }}',
-                        region: '{{ report.poste_hta.region or "" }}',
-                        code_region: '{{ report.poste_hta.code_region or "" }}'
+                        nom: {{ (report.poste_hta.nom|default(""))|tojson }},
+                        id: {{ (report.poste_hta.nom|default(""))|tojson }},
+                        distance_m: {{ report.poste_hta.distance_m|default(0) }},
+                        lat: {{ report.poste_hta.lat|default(0) }},
+                        lon: {{ report.poste_hta.lon|default(0) }},
+                        puissance: {{ report.poste_hta.puissance|default(0) }},
+                        etat: {{ (report.poste_hta.etat|default("Actif"))|tojson }},
+                        commune: {{ (report.poste_hta.commune|default(""))|tojson }},
+                        code_commune: {{ (report.poste_hta.code_commune|default(""))|tojson }},
+                        epci: {{ (report.poste_hta.epci|default(""))|tojson }},
+                        code_epci: {{ (report.poste_hta.code_epci|default(""))|tojson }},
+                        departement: {{ (report.poste_hta.departement|default(""))|tojson }},
+                        code_departement: {{ (report.poste_hta.code_departement|default(""))|tojson }},
+                        region: {{ (report.poste_hta.region|default(""))|tojson }},
+                        code_region: {{ (report.poste_hta.code_region|default(""))|tojson }}
                     },
                     {% endif %}
                     lien_streetview: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={{ report.lat }},{{ report.lon }}`,
                     {% if report.api_details and report.api_details.cadastre.success and report.api_details.cadastre.details.proprietaires %}
-                    amenity: '{{ report.api_details.cadastre.details.proprietaires[0].denomination[:50] if report.api_details.cadastre.details.proprietaires else "" }}',
+                    amenity: {{ (report.api_details.cadastre.details.proprietaires[0].denomination[:50] if report.api_details.cadastre.details.proprietaires else "")|tojson }},
                     {% endif %}
                 };
                 
