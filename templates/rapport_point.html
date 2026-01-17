@@ -1701,10 +1701,10 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    const message = `✅ Export réussi !\n\n` +
-                        `📊 ${result.total_exported} prospect(s) créé(s)\n` +
-                        `📁 Détails: ${result.details.toitures} toiture(s)\n\n` +
-                        `Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
+                    const message = '✅ Export réussi !\n\n' +
+                        '📊 ' + result.total_exported + ' prospect(s) créé(s)\n' +
+                        '📁 Détails: ' + result.details.toitures + ' toiture(s)\n\n' +
+                        'Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?';
                     
                     if (confirm(message)) {
                         window.open('/crm', '_blank');
@@ -1780,7 +1780,7 @@
                     let message = '✅ Prospect mis à jour avec succès !\n\nLes données du rapport ont été enregistrées dans le CRM.';
                     
                     if (result.project_id) {
-                        message += `\n\n📁 Le rapport a aussi été enregistré dans la fiche projet #${result.project_id}`;
+                        message += '\n\n📁 Le rapport a aussi été enregistré dans la fiche projet #' + result.project_id;
                     }
                     
                     message += '\n\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
