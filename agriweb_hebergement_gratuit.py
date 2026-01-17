@@ -2482,17 +2482,17 @@ def create_checkout_session():
         prices = {
             'basic': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'Sun Dev by Sunstice - Plan Basic',
+                'name': 'AgriWeb Pro - Plan Basic',
                 'amount': 3500,  # 35€ en centimes
             },
             'professional': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'Sun Dev by Sunstice - Plan Professionnel',
+                'name': 'AgriWeb Pro - Plan Professionnel',
                 'amount': 19900,  # 199€ en centimes
             },
             'team': {
                 'price_id': os.environ.get('STRIPE_PRICE_ID', 'price_1Q8trfBqUIVxhYa82QzGpK3L'),
-                'name': 'Sun Dev by Sunstice - Plan Team',
+                'name': 'AgriWeb Pro - Plan Team',
                 'amount': 29900,  # 299€ en centimes
             }
         }
@@ -2515,7 +2515,7 @@ def create_checkout_session():
                         'currency': 'eur',
                         'product_data': {
                             'name': plan_config['name'],
-                            'description': 'Accès mensuel à la plateforme Sun Dev by Sunstice'
+                            'description': 'Accès mensuel à la plateforme AgriWeb Pro'
                         },
                         'unit_amount': plan_config['amount'],
                     },
@@ -15806,7 +15806,7 @@ SUBSCRIPTION_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plans d'abonnement - Sun Dev by Sunstice</title>
+    <title>Plans d'abonnement - AgriWeb Pro</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -15835,7 +15835,7 @@ SUBSCRIPTION_TEMPLATE = """
 <body>
     <div class="container py-5">
         <div class="text-center mb-5 text-white">
-            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan Sun Dev by Sunstice</h1>
+            <h1 class="display-4 fw-bold mb-3">Choisissez votre plan AgriWeb Pro</h1>
             <p class="lead mb-4">Accédez à l'analyse territoriale la plus avancée pour vos projets agricoles et énergétiques</p>
             <div class="trial-badge d-inline-block">
                 <i class="fas fa-gift me-2"></i>7 jours d'essai gratuit sur tous les plans
@@ -15964,7 +15964,7 @@ ADMIN_STRIPE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Stripe - Sun Dev by Sunstice Admin</title>
+    <title>Dashboard Stripe - AgriWeb Pro Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
@@ -16550,7 +16550,7 @@ def send_to_kpi():
                 "risques_detail": risques
             },
             "date_collecte": datetime.now().isoformat(),
-            "source": "Sun Dev by Sunstice Prospection"
+            "source": "AgriWeb Prospection"
         }
         
         # ÉTAPE 4: Créer un résumé texte
@@ -16925,480 +16925,6 @@ def admin_migrate_parametrage():
         return "<br>".join(results), 200
     except Exception as e:
         return f"❌ Erreur migration: {str(e)}", 500
-
-# ============================================================================
-# ROUTE ADMIN - CRÉATION TABLE USERS
-# ============================================================================
-@app.route('/admin/create-users-table', methods=['GET'])
-def admin_create_users_table():
-    """Crée la table users dans PostgreSQL si elle n'existe pas"""
-    try:
-        from database_adapter import get_db_connection
-        results = []
-        
-        results.append("👥 Création de la table users")
-        results.append("")
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Vérifier si la table existe déjà
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'users'
-                )
-            """)
-            exists = cursor.fetchone()[0]
-            
-            if exists:
-                results.append("✅ La table users existe déjà")
-            else:
-                results.append("➕ Création de la table users...")
-                
-                # Créer la table users
-                cursor.execute("""
-                    CREATE TABLE users (
-                        id VARCHAR(36) PRIMARY KEY,
-                        email VARCHAR(120) UNIQUE NOT NULL,
-                        password_hash VARCHAR(255) NOT NULL,
-                        name VARCHAR(100),
-                        company VARCHAR(100),
-                        salt VARCHAR(32),
-                        role VARCHAR(20) DEFAULT 'user',
-                        is_admin BOOLEAN DEFAULT FALSE,
-                        subscription_status VARCHAR(20) DEFAULT 'trial',
-                        trial_end DATE,
-                        searches_used INTEGER DEFAULT 0,
-                        searches_limit INTEGER DEFAULT 50,
-                        active BOOLEAN DEFAULT TRUE,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        last_login TIMESTAMP
-                    )
-                """)
-                conn.commit()
-                results.append("✅ Table users créée avec succès")
-            
-            # Créer la table user_sessions si elle n'existe pas
-            cursor.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_name = 'user_sessions'
-                )
-            """)
-            sessions_exists = cursor.fetchone()[0]
-            
-            if sessions_exists:
-                results.append("✅ La table user_sessions existe déjà")
-            else:
-                results.append("➕ Création de la table user_sessions...")
-                cursor.execute("""
-                    CREATE TABLE user_sessions (
-                        id SERIAL PRIMARY KEY,
-                        user_id VARCHAR(36) NOT NULL,
-                        session_token VARCHAR(64) UNIQUE NOT NULL,
-                        expires_at TIMESTAMP NOT NULL,
-                        ip_address VARCHAR(45),
-                        user_agent TEXT,
-                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-                    )
-                """)
-                conn.commit()
-                results.append("✅ Table user_sessions créée")
-            
-            # Compter les utilisateurs
-            cursor.execute("SELECT COUNT(*) FROM users")
-            user_count = cursor.fetchone()[0]
-            
-            results.append("")
-            results.append(f"📊 Nombre d'utilisateurs: {user_count}")
-            
-            if user_count == 0:
-                results.append("")
-                results.append("💡 Aucun utilisateur trouvé")
-                results.append("👉 Créez un compte via /register pour commencer")
-            
-            cursor.close()
-        
-        results.append("")
-        results.append("✅ Tables créées avec succès !")
-        results.append("")
-        results.append("📝 Prochaines étapes:")
-        results.append("   1. Créez un utilisateur admin via /admin/create-admin-user")
-        results.append("   2. Lancez la migration user isolation via /admin/migrate-user-isolation")
-        
-        return "<br>".join(results), 200
-        
-    except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        return f"❌ Erreur: {str(e)}<br><br><pre>{error_trace}</pre>", 500
-
-# ============================================================================
-# ROUTE ADMIN - CRÉATION UTILISATEUR ADMIN
-# ============================================================================
-@app.route('/admin/create-admin-user', methods=['GET'])
-def admin_create_admin_user():
-    """Crée un utilisateur admin par défaut si aucun admin n'existe"""
-    try:
-        from database_adapter import get_db_connection
-        import uuid
-        import hashlib
-        from datetime import datetime, timedelta
-        results = []
-        
-        results.append("👑 Création d'un utilisateur administrateur")
-        results.append("")
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Vérifier si un admin existe déjà
-            cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = TRUE")
-            admin_count = cursor.fetchone()[0]
-            
-            if admin_count > 0:
-                results.append("ℹ️ Un administrateur existe déjà")
-                cursor.execute("SELECT email, name, created_at FROM users WHERE is_admin = TRUE ORDER BY created_at LIMIT 1")
-                admin = cursor.fetchone()
-                results.append(f"   Email: {admin[0]}")
-                results.append(f"   Nom: {admin[1] or 'Non défini'}")
-                results.append(f"   Créé le: {admin[2]}")
-            else:
-                results.append("➕ Création d'un nouvel administrateur...")
-                results.append("")
-                
-                # Paramètres par défaut
-                admin_email = "admin@sunstice.com"
-                admin_password = "SunDev2026!"
-                admin_name = "Administrateur Sunstice"
-                
-                # Générer le hash du mot de passe
-                salt = hashlib.sha256(str(uuid.uuid4()).encode()).hexdigest()[:32]
-                password_hash = hashlib.sha256((admin_password + salt).encode()).hexdigest()
-                
-                # Créer l'utilisateur admin
-                user_id = str(uuid.uuid4())
-                trial_end = datetime.now() + timedelta(days=365)  # 1 an pour l'admin
-                
-                cursor.execute("""
-                    INSERT INTO users (
-                        id, email, password_hash, name, company, salt,
-                        role, is_admin, subscription_status, trial_end,
-                        searches_limit, active, created_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """, (
-                    user_id,
-                    admin_email,
-                    password_hash,
-                    admin_name,
-                    "Sunstice",
-                    salt,
-                    "admin",
-                    True,
-                    "active",
-                    trial_end,
-                    999999,  # Pas de limite pour l'admin
-                    True,
-                    datetime.now()
-                ))
-                
-                conn.commit()
-                
-                results.append("✅ Administrateur créé avec succès !")
-                results.append("")
-                results.append("🔐 <strong>IDENTIFIANTS DE CONNEXION :</strong>")
-                results.append(f"   📧 Email: <strong>{admin_email}</strong>")
-                results.append(f"   🔑 Mot de passe: <strong>{admin_password}</strong>")
-                results.append("")
-                results.append("⚠️ <strong>IMPORTANT :</strong> Notez ces identifiants et changez le mot de passe après la première connexion !")
-            
-            cursor.close()
-        
-        results.append("")
-        results.append("📝 Prochaine étape:")
-        results.append("   👉 Lancez la migration user isolation via /admin/migrate-user-isolation")
-        
-        return "<br>".join(results), 200
-        
-    except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        return f"❌ Erreur: {str(e)}<br><br><pre>{error_trace}</pre>", 500
-
-# ============================================================================
-# ROUTE ADMIN - MIGRATION ISOLATION UTILISATEUR
-# ============================================================================
-@app.route('/admin/migrate-user-isolation', methods=['GET'])
-def admin_migrate_user_isolation():
-    """Endpoint pour ajouter l'isolation des données par utilisateur"""
-    try:
-        from database_adapter import get_db_connection
-        results = []
-        
-        results.append("🔐 Migration: Isolation des données par utilisateur")
-        results.append("")
-        
-        # Utiliser UNE SEULE connexion pour toute la migration
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # 1. Vérifier si la colonne user_id existe
-            results.append("1️⃣ Vérification colonne user_id...")
-            try:
-                cursor.execute("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_name = 'agriweb_prospects' 
-                    AND column_name = 'user_id'
-                """)
-                check = cursor.fetchone()
-                
-                if check:
-                    results.append("   ✅ Colonne user_id existe déjà")
-                else:
-                    results.append("   ➕ Ajout de la colonne user_id...")
-                    cursor.execute("ALTER TABLE agriweb_prospects ADD COLUMN user_id VARCHAR(36)")
-                    conn.commit()  # Commit immédiat
-                    results.append("   ✅ Colonne user_id ajoutée")
-            except Exception as e:
-                results.append(f"   ❌ Erreur: {e}")
-                conn.rollback()
-                return "<br>".join(results), 500
-            
-            # 2. Compter les prospects sans user_id
-            results.append("")
-            results.append("2️⃣ Analyse des prospects...")
-            
-            try:
-                cursor.execute("""
-                    SELECT COUNT(*) as total,
-                           COUNT(CASE WHEN user_id IS NULL THEN 1 END) as sans_user
-                    FROM agriweb_prospects
-                """)
-                row = cursor.fetchone()
-                count = {'total': row[0], 'sans_user': row[1]}
-            except Exception as e:
-                results.append(f"   ❌ Erreur lors du comptage: {e}")
-                conn.rollback()
-                return "<br>".join(results), 500
-            
-            results.append(f"   📊 Total prospects: {count['total']}")
-            results.append(f"   🔴 Sans user_id: {count['sans_user']}")
-            
-            if count['sans_user'] > 0:
-                # 3. Trouver un utilisateur admin
-                results.append("")
-                results.append("3️⃣ Recherche utilisateur par défaut...")
-                
-                cursor.execute("""
-                    SELECT id, email, name 
-                    FROM users 
-                    WHERE role = 'admin' OR is_admin = true
-                    ORDER BY created_at 
-                    LIMIT 1
-                """)
-                admin_user = cursor.fetchone()
-                
-                if not admin_user:
-                    cursor.execute("""
-                        SELECT id, email, name 
-                        FROM users 
-                        ORDER BY created_at 
-                        LIMIT 1
-                    """)
-                    admin_user = cursor.fetchone()
-                
-                if not admin_user:
-                    results.append("   ❌ Aucun utilisateur trouvé")
-                    results.append("   💡 Créez un compte via /register d'abord")
-                    conn.rollback()
-                    return "<br>".join(results), 400
-                
-                admin_id, admin_email, admin_name = admin_user[0], admin_user[1], admin_user[2]
-                results.append(f"   👤 Utilisateur: {admin_email} ({admin_name})")
-                
-                # 4. Assigner les prospects
-                results.append("")
-                results.append(f"4️⃣ Attribution de {count['sans_user']} prospects...")
-                cursor.execute("""
-                    UPDATE agriweb_prospects 
-                    SET user_id = %s 
-                    WHERE user_id IS NULL
-                """, (admin_id,))
-                conn.commit()
-                results.append(f"   ✅ {count['sans_user']} prospects attribués à {admin_email}")
-            else:
-                results.append("   ✅ Tous les prospects ont déjà un user_id")
-            
-            # 5. Vérification finale
-            results.append("")
-            results.append("5️⃣ Vérification finale...")
-            cursor.execute("""
-                SELECT 
-                    COUNT(*) as total,
-                    COUNT(CASE WHEN user_id IS NOT NULL THEN 1 END) as avec_user,
-                    COUNT(CASE WHEN user_id IS NULL THEN 1 END) as sans_user
-                FROM agriweb_prospects
-            """)
-            row = cursor.fetchone()
-            final = {'total': row[0], 'avec_user': row[1], 'sans_user': row[2]}
-            
-            results.append(f"   📊 Total: {final['total']} prospects")
-            results.append(f"   ✅ Avec user_id: {final['avec_user']}")
-            results.append(f"   🔴 Sans user_id: {final['sans_user']}")
-            
-            cursor.close()
-        
-        results.append("")
-        results.append("✅ Migration terminée avec succès !")
-        results.append("")
-        results.append("💡 Les utilisateurs voient maintenant uniquement leurs prospects")
-        results.append("👑 Les admins voient tous les prospects de tous les utilisateurs")
-        
-        return "<br>".join(results), 200
-        
-    except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        return f"❌ Erreur migration: {str(e)}<br><br><pre>{error_trace}</pre>", 500
-
-# ============================================================================
-# ROUTE ADMIN - DIAGNOSTIC CRM
-# ============================================================================
-@app.route('/admin/check-crm', methods=['GET'])
-def admin_check_crm():
-    """Diagnostic complet du CRM PostgreSQL"""
-    try:
-        from database_adapter import execute_query
-        results = []
-        
-        results.append("🔍 DIAGNOSTIC CRM POSTGRESQL")
-        results.append("=" * 80)
-        results.append("")
-        
-        # 1. Compter les prospects
-        results.append("1️⃣ TABLE agriweb_prospects")
-        results.append("-" * 80)
-        try:
-            count_result = execute_query("SELECT COUNT(*) as total FROM agriweb_prospects")
-            total = count_result[0]['total'] if count_result else 0
-            results.append(f"   📊 Total prospects: {total}")
-            
-            if total > 0:
-                # Répartition par statut
-                statut_query = """
-                    SELECT statut, COUNT(*) as count 
-                    FROM agriweb_prospects 
-                    GROUP BY statut
-                    ORDER BY count DESC
-                """
-                statuts = execute_query(statut_query)
-                if statuts:
-                    results.append("")
-                    results.append("   📈 Par statut:")
-                    for row in statuts:
-                        results.append(f"      • {row['statut']}: {row['count']}")
-                
-                # Répartition par type
-                type_query = """
-                    SELECT type, COUNT(*) as count 
-                    FROM agriweb_prospects 
-                    GROUP BY type
-                    ORDER BY count DESC
-                """
-                types = execute_query(type_query)
-                if types:
-                    results.append("")
-                    results.append("   🏷️  Par type:")
-                    for row in types:
-                        results.append(f"      • {row['type']}: {row['count']}")
-                
-                # 5 derniers prospects
-                last_query = """
-                    SELECT id, type, commune, adresse, statut, 
-                           TO_CHAR(date_creation, 'YYYY-MM-DD HH24:MI') as date_creation
-                    FROM agriweb_prospects
-                    ORDER BY date_creation DESC
-                    LIMIT 5
-                """
-                derniers = execute_query(last_query)
-                if derniers:
-                    results.append("")
-                    results.append("   📋 5 derniers prospects:")
-                    for p in derniers:
-                        adresse_short = (p['adresse'][:50] + '...') if p.get('adresse') and len(p['adresse']) > 50 else (p.get('adresse') or 'N/A')
-                        results.append(f"      • ID {p['id']}: {p['type']} - {p['commune']} ({p['statut']})")
-                        results.append(f"        └─ {adresse_short}")
-                        results.append(f"        └─ Créé: {p['date_creation']}")
-            else:
-                results.append("")
-                results.append("   ⚠️  AUCUN PROSPECT TROUVÉ !")
-                results.append("")
-                results.append("   💡 La table existe mais est vide.")
-                results.append("   ➡️  Pour ajouter des prospects:")
-                results.append("      1. Allez sur la carte principale")
-                results.append("      2. Cliquez sur un point/adresse")
-                results.append("      3. Générez un rapport")
-                results.append("      4. Cliquez sur 'Exporter vers CRM'")
-                
-        except Exception as e:
-            results.append(f"   ❌ Erreur lecture prospects: {str(e)}")
-        
-        # 2. Autres tables CRM
-        results.append("")
-        results.append("")
-        results.append("2️⃣ AUTRES TABLES CRM")
-        results.append("-" * 80)
-        
-        tables_crm = [
-            ('crm_appointments', 'Rendez-vous'),
-            ('prospect_proposals', 'Devis'),
-            ('project_fiches', 'Fiches projets'),
-            ('project_etapes', 'Étapes projets'),
-            ('project_documents', 'Documents')
-        ]
-        
-        for table_name, label in tables_crm:
-            try:
-                count_result = execute_query(f"SELECT COUNT(*) as total FROM {table_name}")
-                total = count_result[0]['total'] if count_result else 0
-                results.append(f"   • {label} ({table_name}): {total} entrées")
-            except Exception as e:
-                results.append(f"   • {label} ({table_name}): ❌ {str(e)}")
-        
-        # 3. Structure de la table
-        results.append("")
-        results.append("")
-        results.append("3️⃣ STRUCTURE TABLE agriweb_prospects")
-        results.append("-" * 80)
-        try:
-            columns_query = """
-                SELECT column_name, data_type, is_nullable
-                FROM information_schema.columns
-                WHERE table_name = 'agriweb_prospects'
-                ORDER BY ordinal_position
-            """
-            columns = execute_query(columns_query)
-            if columns:
-                results.append(f"   📋 {len(columns)} colonnes:")
-                for col in columns:
-                    nullable = "NULL" if col['is_nullable'] == 'YES' else "NOT NULL"
-                    results.append(f"      • {col['column_name']} ({col['data_type']}) {nullable}")
-        except Exception as e:
-            results.append(f"   ❌ Erreur lecture structure: {str(e)}")
-        
-        results.append("")
-        results.append("=" * 80)
-        results.append("✅ Diagnostic CRM terminé")
-        
-        return "<br>".join(results), 200
-        
-    except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        return f"❌ Erreur diagnostic CRM: {str(e)}<br><br><pre>{error_trace}</pre>", 500
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 

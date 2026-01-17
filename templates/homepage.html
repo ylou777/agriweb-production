@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sun Dev by Sunstice - Pré-études photovoltaïques gratuites</title>
+    <title>AgriWeb Pro - Solution Intelligente pour Développeurs Photovoltaïques</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -16,303 +16,441 @@
         }
         
         body {
-            background: #FFFFFF;
-            color: #1a1a1a;
+            background: #0a0e27;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
         
-        /* Couleurs Sunstice */
-        :root {
-            --sunstice-green: #C8FF00;
-            --sunstice-dark: #1a1a1a;
-            --sunstice-gray: #666666;
-            --sunstice-light: #f5f5f5;
+        .animated-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 25%, #2d1b4e 50%, #1a1f3a 75%, #0a0e27 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+            z-index: 0;
         }
         
-        /* Navigation */
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: rgba(255, 183, 0, 0.6);
+            border-radius: 50%;
+            animation: float 20s infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-100vh) translateX(100px); opacity: 0; }
+        }
+        
         .top-nav {
-            background: #FFFFFF;
-            border-bottom: 3px solid var(--sunstice-green);
+            background: rgba(10, 14, 39, 0.8);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 183, 0, 0.1);
             padding: 20px 0;
             position: fixed;
             top: 0;
-            width: 100%;
+            left: 0;
+            right: 0;
             z-index: 1000;
         }
         
-        .navbar-brand {
-            font-size: 1.5rem;
+        .top-nav .navbar-brand {
+            font-size: 1.6rem;
             font-weight: 800;
-            color: var(--sunstice-dark);
+            background: linear-gradient(135deg, #FFB700 0%, #FFA000 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
         }
         
-        .navbar-brand span {
-            color: var(--sunstice-green);
+        .top-nav .user-info {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 500;
         }
         
-        .btn-sunstice {
-            background: var(--sunstice-green);
-            color: var(--sunstice-dark);
-            border: none;
-            padding: 12px 30px;
-            font-weight: 700;
-            border-radius: 6px;
-            transition: all 0.3s;
-        }
-        
-        .btn-sunstice:hover {
-            background: #b3e600;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(200, 255, 0, 0.3);
-        }
-        
-        .btn-outline-sunstice {
-            background: transparent;
-            color: var(--sunstice-dark);
-            border: 2px solid var(--sunstice-green);
-            padding: 10px 28px;
-            font-weight: 700;
-            border-radius: 6px;
-            transition: all 0.3s;
-        }
-        
-        .btn-outline-sunstice:hover {
-            background: var(--sunstice-green);
-            color: var(--sunstice-dark);
-        }
-        
-        /* Hero Section */
-        .hero-section {
-            padding-top: 150px;
-            padding-bottom: 80px;
-            background: #FFFFFF;
-            position: relative;
-        }
-        
-        .sunstice-logo {
-            max-height: 200px;
-            position: absolute;
-            right: 50px;
-            top: 50px;
-        }
-        
-        .badge-sunstice {
-            display: inline-block;
-            background: var(--sunstice-green);
-            color: var(--sunstice-dark);
+        .top-nav .btn {
+            margin-left: 12px;
+            font-weight: 600;
+            border-radius: 8px;
             padding: 10px 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .top-nav .btn-warning {
+            background: linear-gradient(135deg, #FFB700 0%, #FFA000 100%);
+            border: none;
+            color: #0a0e27;
+        }
+        
+        .top-nav .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 183, 0, 0.4);
+        }
+        
+        .top-nav .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        
+        .top-nav .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .top-nav .btn-outline-secondary {
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .top-nav .btn-outline-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .top-nav .btn-outline-primary {
+            border: 1px solid rgba(255, 183, 0, 0.4);
+            color: #FFB700;
+        }
+        
+        .top-nav .btn-outline-primary:hover {
+            background: rgba(255, 183, 0, 0.1);
+            border-color: #FFB700;
+            color: #FFB700;
+        }
+        
+        .hero-section {
+            position: relative;
+            padding: 180px 0 120px 0;
+            color: white;
+            text-align: center;
+            z-index: 1;
+        }
+        
+        .badge-pro {
+            display: inline-block;
+            background: rgba(255, 183, 0, 0.15);
+            border: 1px solid rgba(255, 183, 0, 0.3);
+            color: #FFB700;
+            padding: 8px 20px;
             border-radius: 50px;
             font-size: 0.85rem;
-            font-weight: 800;
+            font-weight: 600;
             letter-spacing: 1px;
             text-transform: uppercase;
             margin-bottom: 30px;
         }
         
-        h1 {
-            font-size: 3.5rem;
+        .hero-section h1 {
+            font-size: 4.5rem;
             font-weight: 900;
-            color: var(--sunstice-dark);
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
             line-height: 1.1;
+            letter-spacing: -2px;
         }
         
-        .text-sunstice {
-            color: var(--sunstice-green);
+        .gradient-text {
+            background: linear-gradient(135deg, #FFB700 0%, #FF8C00 50%, #FFB700 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-size: 200% auto;
+            animation: shimmer 3s linear infinite;
+        }
+        
+        @keyframes shimmer {
+            to { background-position: 200% center; }
         }
         
         .subtitle {
-            font-size: 1.3rem;
-            color: var(--sunstice-gray);
-            margin-bottom: 2rem;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            opacity: 0.9;
+            font-weight: 500;
             line-height: 1.6;
         }
         
-        /* Formulaire */
-        .lead-form {
-            background: var(--sunstice-light);
-            border: 3px solid var(--sunstice-green);
-            border-radius: 16px;
-            padding: 40px;
-            margin-top: 40px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
+        .highlight {
+            color: #FFB700;
+            font-weight: 700;
         }
         
-        .lead-form h3 {
-            color: var(--sunstice-dark);
-            font-size: 1.8rem;
-            font-weight: 800;
-            margin-bottom: 10px;
+        .cta-button {
+            padding: 18px 45px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            position: relative;
+            overflow: hidden;
         }
         
-        .lead-form input,
-        .lead-form select {
-            background: #FFFFFF;
-            border: 2px solid var(--sunstice-green);
-            color: var(--sunstice-dark);
-            padding: 14px 20px;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: all 0.3s;
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s ease;
         }
         
-        .lead-form input:focus,
-        .lead-form select:focus {
-            border-color: #b3e600;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(200, 255, 0, 0.2);
+        .cta-button:hover::before {
+            left: 100%;
         }
         
-        .lead-form select option {
-            background: #FFFFFF;
-            color: var(--sunstice-dark);
+        .cta-primary {
+            background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);
+            color: #0a0e27;
+            border: none;
+            box-shadow: 0 8px 25px rgba(255, 183, 0, 0.3);
         }
         
-        /* Sections */
-        .section-bg-green {
-            background: var(--sunstice-green);
-            color: var(--sunstice-dark);
+        .cta-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(255, 183, 0, 0.5);
+            color: #0a0e27;
+        }
+        
+        .cta-secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 183, 0, 0.5);
+        }
+        
+        .cta-secondary:hover {
+            background: rgba(255, 183, 0, 0.1);
+            border-color: #FFB700;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(255, 183, 0, 0.3);
+            color: white;
+        }
+        
+        .trust-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 24px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 183, 0, 0.2);
+            margin: 0 10px;
+        }
+        
+        .trust-indicator i {
+            color: #FFB700;
+            font-size: 1.2rem;
+        }
+        
+        .trust-indicator span {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .features-section {
+            position: relative;
+            background: linear-gradient(180deg, rgba(10, 14, 39, 0.95) 0%, rgba(20, 25, 50, 0.98) 100%);
             padding: 80px 0;
-        }
-        
-        .section-bg-light {
-            background: var(--sunstice-light);
-            padding: 80px 0;
+            margin-top: 60px;
+            z-index: 1;
         }
         
         .section-title {
-            font-size: 2.5rem;
-            font-weight: 900;
+            font-size: 3rem;
+            font-weight: 800;
+            text-align: center;
             margin-bottom: 1rem;
-            color: var(--sunstice-dark);
+            color: white;
+            letter-spacing: -1px;
         }
         
         .section-subtitle {
+            text-align: center;
             font-size: 1.2rem;
-            color: var(--sunstice-gray);
+            color: rgba(255, 255, 255, 0.6);
             margin-bottom: 60px;
+            font-weight: 400;
         }
         
-        /* Cards */
         .feature-card {
-            background: #FFFFFF;
-            border: 2px solid var(--sunstice-green);
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 183, 0, 0.1);
+            border-radius: 20px;
             padding: 40px;
             height: 100%;
-            transition: all 0.3s;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255, 183, 0, 0.05) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.4s ease;
         }
         
         .feature-card:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 15px 30px rgba(0,0,0,0.1);
-            border-color: #b3e600;
+            transform: translateY(-12px) scale(1.02);
+            border-color: rgba(255, 183, 0, 0.4);
+            box-shadow: 0 25px 50px rgba(255, 183, 0, 0.2);
+        }
+        
+        .feature-card:hover::before {
+            opacity: 1;
         }
         
         .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 20px;
+            font-size: 3.5rem;
+            margin-bottom: 25px;
+            display: inline-block;
+            filter: drop-shadow(0 0 20px rgba(255, 183, 0, 0.3));
         }
         
         .feature-card h3 {
-            font-size: 1.4rem;
-            font-weight: 800;
-            margin-bottom: 15px;
-            color: var(--sunstice-dark);
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+            color: white;
+            letter-spacing: -0.5px;
         }
         
         .feature-card p {
-            color: var(--sunstice-gray);
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 25px;
             line-height: 1.7;
+            font-size: 0.95rem;
         }
         
-        /* Stats */
-        .stat-number {
-            font-size: 3rem;
-            font-weight: 900;
-            color: var(--sunstice-dark);
-            display: block;
-        }
-        
-        .stat-label {
-            font-size: 1rem;
-            color: var(--sunstice-gray);
-            font-weight: 600;
-        }
-        
-        /* Tech badges */
         .tech-badge {
             display: inline-block;
-            background: var(--sunstice-green);
-            color: var(--sunstice-dark);
             padding: 8px 16px;
+            background: rgba(255, 183, 0, 0.1);
+            border: 1px solid rgba(255, 183, 0, 0.2);
             border-radius: 20px;
             margin: 5px;
-            font-size: 0.9rem;
-            font-weight: 700;
-            transition: all 0.3s;
+            font-size: 0.85rem;
+            color: #FFB700;
+            font-weight: 600;
+            transition: all 0.3s ease;
         }
         
         .tech-badge:hover {
-            background: #b3e600;
+            background: rgba(255, 183, 0, 0.2);
+            border-color: rgba(255, 183, 0, 0.4);
             transform: translateY(-2px);
         }
         
-        /* Workflow */
+        .stats-row {
+            background: linear-gradient(135deg, rgba(255, 183, 0, 0.1) 0%, rgba(255, 140, 0, 0.1) 100%);
+            border: 1px solid rgba(255, 183, 0, 0.2);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            margin: 40px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 700;
+            display: block;
+            color: #FFB700;
+        }
+        
+        .stat-label {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .workflow-section {
+            background: rgba(10, 14, 39, 0.95);
+            position: relative;
+            z-index: 1;
+            padding: 60px 0;
+        }
+        
+        .workflow-step {
+            text-align: center;
+            padding: 20px;
+        }
+        
         .workflow-number {
             width: 60px;
             height: 60px;
             border-radius: 50%;
-            background: var(--sunstice-green);
-            color: var(--sunstice-dark);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.5rem;
-            font-weight: 900;
+            font-weight: 700;
             margin: 0 auto 20px;
+            color: white;
         }
         
         .workflow-step h5 {
-            color: var(--sunstice-dark);
-            font-weight: 800;
+            color: white;
+            font-weight: 700;
             margin-bottom: 10px;
         }
         
         .workflow-step p {
-            color: var(--sunstice-gray);
-        }
-        
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2.5rem;
-            }
-            
-            .hero-section {
-                padding-top: 120px;
-            }
-            
-            .sunstice-logo {
-                position: static;
-                max-height: 120px;
-                margin-bottom: 30px;
-            }
+            color: rgba(255, 255, 255, 0.6);
         }
     </style>
 </head>
 <body>
+    <div class="animated-bg"></div>
+    
+    <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 20%; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 30%; animation-delay: 4s;"></div>
+    <div class="particle" style="left: 40%; animation-delay: 1s;"></div>
+    <div class="particle" style="left: 50%; animation-delay: 3s;"></div>
+    <div class="particle" style="left: 60%; animation-delay: 5s;"></div>
+    <div class="particle" style="left: 70%; animation-delay: 2.5s;"></div>
+    <div class="particle" style="left: 80%; animation-delay: 4.5s;"></div>
+    <div class="particle" style="left: 90%; animation-delay: 1.5s;"></div>
+    
     <nav class="top-nav">
         <div class="container">
             <div class="d-flex justify-content-between align-items-center">
                 <div class="navbar-brand">
-                    Sun<span>Dev</span>
+                    <i class="bi bi-sun"></i> AgriWeb Pro
                 </div>
-                <div>
+                <div class="d-flex align-items-center">
                     {% if current_user.is_authenticated %}
-                        <a href="/logout" class="btn btn-outline-sunstice">Déconnexion</a>
+                        <span class="user-info">Bienvenue, {{ current_user.email }}</span>
+                        <a href="/admin" class="btn btn-warning">Administration</a>
+                        <a href="/app" class="btn btn-primary">Application</a>
+                        <a href="/logout" class="btn btn-outline-secondary">Déconnexion</a>
                     {% else %}
-                        <a href="/login" class="btn btn-outline-sunstice">Se connecter</a>
+                        <a href="/login" class="btn btn-outline-primary">Se connecter</a>
                     {% endif %}
                 </div>
             </div>
@@ -320,276 +458,258 @@
     </nav>
 
     <div class="hero-section">
-        <img src="/static/images/logo_sunstice.png" alt="Sunstice" class="sunstice-logo">
         <div class="container">
-            <div class="text-center">
-                <div class="badge-sunstice">
-                    Le solaire éthique & responsable
+            <div class="badge-pro">
+                <i class="bi bi-lightning-charge-fill"></i> Plateforme Professionnelle
+            </div>
+            <h1>
+                La solution <span class="gradient-text">tout-en-un</span><br>
+                pour développeurs photovoltaïques
+            </h1>
+            <p class="subtitle">
+                De la <span class="highlight">prospection géolocalisée</span> au <span class="highlight">suivi de chantier</span> :<br>
+                pilotez vos projets solaires avec une efficacité maximale
+            </p>
+            <div class="mt-5">
+                <a href="/register" class="cta-button cta-primary me-3">
+                    <i class="bi bi-lightning-fill"></i> Essai gratuit 7 jours
+                </a>
+                <a href="/login" class="cta-button cta-secondary">
+                    <i class="bi bi-box-arrow-in-right"></i> Se connecter
+                </a>
+            </div>
+            <div class="mt-5 pt-4">
+                <div class="trust-indicator">
+                    <i class="bi bi-shield-check"></i>
+                    <span>Données cadastrales officielles</span>
                 </div>
-                <h1>
-                    Vos <span class="text-sunstice">pré-études solaires</span><br>
-                    gratuites avec Sun Dev
-                </h1>
-                <p class="subtitle">
-                    Porteurs de projets, développeurs, collectivités :<br>
-                    Obtenez une <strong>pré-étude complète</strong> avec analyse urbanisme, faisabilité technique et simulation de production
-                </p>
-                
-                <!-- Formulaire de capture de leads -->
-                <div class="lead-form">
-                    <h3>🎯 Démarrez votre pré-étude gratuite</h3>
-                    <p style="color: var(--sunstice-gray); margin-bottom: 30px;">Accédez instantanément à l'outil professionnel Sun Dev</p>
-                    <form action="/register" method="POST">
-                        <div class="mb-3">
-                            <input type="email" class="form-control" name="email" placeholder="Votre email professionnel" required>
-                        </div>
-                        <div class="mb-3">
-                            <input type="text" class="form-control" name="name" placeholder="Nom de votre entreprise ou projet" required>
-                        </div>
-                        <div class="mb-3">
-                            <select class="form-select" name="project_type" required>
-                                <option value="">Type de projet</option>
-                                <option value="developer">Développeur photovoltaïque</option>
-                                <option value="collectivity">Collectivité / Commune</option>
-                                <option value="epc">Bureau d'études / EPC</option>
-                                <option value="porteur">Porteur de projet individuel</option>
-                                <option value="other">Autre</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <input type="text" class="form-control" name="location" placeholder="Localisation du projet (ville, département)">
-                        </div>
-                        <div class="form-check mb-3">
-                            <input class="form-check-input" type="checkbox" name="contact_sunstice" id="contactSunstice">
-                            <label class="form-check-label" for="contactSunstice" style="color: var(--sunstice-gray); font-size: 0.9rem;">
-                                ✅ Je souhaite être contacté par un expert Sunstice pour une étude détaillée
-                            </label>
-                        </div>
-                        <button type="submit" class="btn btn-sunstice w-100">
-                            <i class="bi bi-lightning-fill"></i> Accéder à la plateforme gratuitement
-                        </button>
-                    </form>
-                    <p style="color: var(--sunstice-gray); margin-top: 20px; font-size: 0.85rem; text-align: center;">
-                        <i class="bi bi-check-circle"></i> Gratuit sans limite · <i class="bi bi-shield-check"></i> Données sécurisées · <i class="bi bi-clock"></i> Résultats immédiats
-                    </p>
+                <div class="trust-indicator">
+                    <i class="bi bi-speedometer2"></i>
+                    <span>Rapports en 30 secondes</span>
+                </div>
+                <div class="trust-indicator">
+                    <i class="bi bi-database-check"></i>
+                    <span>36 000 communes référencées</span>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Section fonctionnalités -->
-    <div class="section-bg-light">
+    <div class="features-section">
         <div class="container">
-            <div class="text-center mb-5">
-                <h2 class="section-title">Ce que vous obtenez gratuitement</h2>
-                <p class="section-subtitle">Un outil professionnel complet pour vos pré-études photovoltaïques</p>
-            </div>
+            <h2 class="section-title">Votre arsenal complet de développement PV</h2>
+            <p class="section-subtitle">Chaque fonctionnalité pensée pour gagner du temps et signer plus de contrats</p>
 
-            <div class="row g-4">
+            <div class="row g-4 mb-5">
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">🗺️</div>
-                        <h3>Cartographie interactive complète</h3>
-                        <p>Visualisez instantanément les toitures, parcelles cadastrales et données géographiques. Identifiez le potentiel solaire de n'importe quel site en France.</p>
+                        <h3>Prospection géographique intelligente</h3>
+                        <p>Identifiez instantanément les toitures commerciales, parkings ombrières, friches industrielles et terrains agricoles valorisables. Données cadastrales + OSM + RPG intégrées.</p>
+                        <div>
+                            <span class="tech-badge">Leaflet.js</span>
+                            <span class="tech-badge">GeoServer</span>
+                            <span class="tech-badge">PostGIS</span>
+                        </div>
                     </div>
                 </div>
+
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">📊</div>
-                        <h3>Analyse urbanisme automatique</h3>
-                        <p>Rapport instantané sur les contraintes PLU, zones protégées, risques naturels. Toutes les données officielles en un clic.</p>
+                        <h3>Études de faisabilité automatisées</h3>
+                        <p>Générez en 30 secondes un rapport complet : contraintes PLU, zones protégées, risques naturels, capacité d'accueil Enedis. Présentez-vous chez vos prospects avec toutes les réponses.</p>
+                        <div>
+                            <span class="tech-badge">API Géorisques</span>
+                            <span class="tech-badge">API GPU</span>
+                            <span class="tech-badge">Enedis ODR</span>
+                        </div>
                     </div>
                 </div>
+
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">👥</div>
+                        <h3>Pipeline commercial structuré</h3>
+                        <p>Workflow en 11 étapes de la prospection à la mise en service Consuel. Suivez chaque projet, partagez avec votre équipe, ne laissez plus aucune opportunité s'échapper.</p>
+                        <div>
+                            <span class="tech-badge">Flask</span>
+                            <span class="tech-badge">PostgreSQL</span>
+                            <span class="tech-badge">Dashboard KPI</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">☀️</div>
-                        <h3>Simulation de production solaire</h3>
-                        <p>Calepinage automatique, calcul de puissance crête et estimation de production annuelle avec PVGIS. Résultats professionnels en 30 secondes.</p>
+                        <h3>Calepinage sur mesure en direct</h3>
+                        <p>Dessinez vos zones d'implantation directement sur la carte. Le système calcule automatiquement puissance crête, nombre de modules, orientation optimale. Impressionnez vos clients en RDV.</p>
+                        <div>
+                            <span class="tech-badge">Leaflet.draw</span>
+                            <span class="tech-badge">PVGIS API</span>
+                            <span class="tech-badge">Calculs auto</span>
+                        </div>
                     </div>
                 </div>
+
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">📄</div>
-                        <h3>Rapport PDF professionnel</h3>
-                        <p>Export automatique d'un rapport de pré-étude complet avec cartographie, analyses techniques et recommandations.</p>
+                        <h3>Propositions commerciales clés en main</h3>
+                        <p>Générez un PDF pro de 12 pages : devis conforme NF C 15-752-1, étude autoconso personnalisée, ROI sur 25 ans, planning, garanties. Signez plus vite avec des documents qui rassurent.</p>
+                        <div>
+                            <span class="tech-badge">ReportLab</span>
+                            <span class="tech-badge">Matplotlib</span>
+                            <span class="tech-badge">NF C 15-752-1</span>
+                        </div>
                     </div>
                 </div>
+
                 <div class="col-md-4">
                     <div class="feature-card">
                         <div class="feature-icon">⚡</div>
-                        <h3>Capacité réseau Enedis</h3>
-                        <p>Vérification instantanée de la capacité d'accueil du réseau électrique. Anticipez les besoins de raccordement.</p>
+                        <h3>Simulations énergétiques précises</h3>
+                        <p>Powered by PVGIS : production mensuelle réelle, courbes autoconsommation, calcul économique sur 25 ans. Argumentez avec des données scientifiques, pas des promesses.</p>
+                        <div>
+                            <span class="tech-badge">PVGIS</span>
+                            <span class="tech-badge">Graphiques</span>
+                            <span class="tech-badge">ROI 25 ans</span>
+                        </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card">
-                        <div class="feature-icon">🏢</div>
-                        <h3>Accompagnement Sunstice</h3>
-                        <p>Les experts EPC de Sunstice vous accompagnent de l'étude détaillée jusqu'à la construction de votre centrale solaire.</p>
+            </div>
+
+            <div class="stats-row">
+                <div class="row">
+                    <div class="col-md-3 stat-item">
+                        <span class="stat-number">11</span>
+                        <span class="stat-label">Étapes de pipeline</span>
+                    </div>
+                    <div class="col-md-3 stat-item">
+                        <span class="stat-number">30s</span>
+                        <span class="stat-label">Génération rapport</span>
+                    </div>
+                    <div class="col-md-3 stat-item">
+                        <span class="stat-number">15+</span>
+                        <span class="stat-label">Couches SIG</span>
+                    </div>
+                    <div class="col-md-3 stat-item">
+                        <span class="stat-number">24/7</span>
+                        <span class="stat-label">Accessible cloud</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Section Sunstice -->
-    <div class="section-bg-green">
+    <div class="workflow-section">
         <div class="container">
-            <div class="text-center mb-5">
-                <h2 class="section-title">Sunstice - Le solaire éthique & responsable</h2>
-                <p class="section-subtitle" style="color: var(--sunstice-dark);">PME française indépendante, acteur industriel complet du photovoltaïque</p>
-            </div>
+            <h2 class="section-title">Votre méthode structurée, de A à Z</h2>
+            <p class="section-subtitle">Un processus éprouvé qui transforme les prospects en centrales installées</p>
 
-            <!-- Chiffres clés -->
-            <div class="row g-4 mb-5 text-center">
-                <div class="col-md-3">
-                    <span class="stat-number">+76 MWc</span>
-                    <span class="stat-label">Installés en 3 ans</span>
-                </div>
-                <div class="col-md-3">
-                    <span class="stat-number">40 MWc</span>
-                    <span class="stat-label">En cours d'ici 2026</span>
-                </div>
-                <div class="col-md-3">
-                    <span class="stat-number">100</span>
-                    <span class="stat-label">Collaborateurs</span>
-                </div>
-                <div class="col-md-3">
-                    <span class="stat-number">98%</span>
-                    <span class="stat-label">Disponibilité centrales</span>
-                </div>
-            </div>
-
-            <!-- Les 5 pôles d'activité -->
-            <div class="text-center mb-4">
-                <h3 class="section-title" style="font-size: 2rem;">5 pôles d'activité pour une approche 360°</h3>
-            </div>
-            <div class="row g-4 mb-5">
-                <div class="col-md-4">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">🏗️</div>
-                        <h3>Sunstice Projets</h3>
-                        <p>Bureau d'études & Ingénierie : conception technique, dimensionnement, études de faisabilité complètes</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">🌱</div>
-                        <h3>SunDev</h3>
-                        <p>Développement de projets : sourcing foncier, montage administratif, autorisations et permis de construire</p>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">👷</div>
-                        <h3>Sunstice Chantier</h3>
-                        <p>Construction & Installation : réalisation clé en main, VRD, génie civil, pose des structures et modules</p>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">⚙️</div>
-                        <h3>Suntool</h3>
-                        <p>Logistique & R&D : gestion des stocks, optimisation des process, innovation technique continue</p>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">📡</div>
-                        <h3>SunPilot</h3>
-                        <p>Exploitation & Maintenance : supervision 24/7, maintenance préventive et curative, optimisation de production</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Domaines d'intervention -->
-            <div class="text-center mb-4">
-                <h3 class="section-title" style="font-size: 2rem;">Tous types de projets photovoltaïques</h3>
-            </div>
-            <div class="row g-3 mb-5 justify-content-center">
-                <div class="col-auto">
-                    <div class="tech-badge">☀️ Centrales au sol</div>
-                </div>
-                <div class="col-auto">
-                    <div class="tech-badge">🏢 Toitures industrielles & agricoles</div>
-                </div>
-                <div class="col-auto">
-                    <div class="tech-badge">🚗 Ombrières de parking</div>
-                </div>
-                <div class="col-auto">
-                    <div class="tech-badge">🌾 Agrivoltaïsme</div>
-                </div>
-                <div class="col-auto">
-                    <div class="tech-badge">🔄 Systèmes avec trackers</div>
-                </div>
-            </div>
-
-            <!-- Points forts -->
-            <div class="text-center mb-4">
-                <h3 class="section-title" style="font-size: 2rem;">Les atouts Sunstice</h3>
-            </div>
             <div class="row g-4">
-                <div class="col-md-4">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">🔧</div>
-                        <h3>Fiabilité technique</h3>
-                        <p>98% de disponibilité de nos centrales, maintenance réactive 24/7, équipements premium sélectionnés</p>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">1</div>
+                        <h5>Prospection terrain</h5>
+                        <p>Rapport automatique urbanisme + faisabilité</p>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">💰</div>
-                        <h3>Optimisation économique</h3>
-                        <p>Maximisation du TRI, approvisionnement direct fabricants, process industrialisés pour réduire les coûts</p>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">2</div>
+                        <h5>Visite technique</h5>
+                        <p>Check-list métier + photos géolocalisées</p>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">🤝</div>
-                        <h3>Transparence totale</h3>
-                        <p>Suivi en temps réel, reporting complet, relation directe sans intermédiaire</p>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">3</div>
+                        <h5>Calepinage précis</h5>
+                        <p>Modules, puissance, orientation auto</p>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">🏔️</div>
-                        <h3>Ancrage local & éthique</h3>
-                        <p>PME française basée en Creuse, circuit court, engagement environnemental fort</p>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">4</div>
+                        <h5>Simulation PVGIS</h5>
+                        <p>Production réelle + autoconso</p>
                     </div>
                 </div>
-                <div class="col-md-6">
-                    <div class="feature-card" style="background: #FFFFFF;">
-                        <div class="feature-icon">🌟</div>
-                        <h3>Partenariat durable</h3>
-                        <p>Accompagnement sur 30 ans, maintenance long terme, garanties constructeur étendues</p>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">5</div>
+                        <h5>Proposition pro</h5>
+                        <p>PDF 12 pages conforme NF</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">6-8</div>
+                        <h5>Démarches admin</h5>
+                        <p>DP, PC, DDR Enedis trackés</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #FFB700 0%, #FF8C00 100%);">9-10</div>
+                        <h5>Installation</h5>
+                        <p>Commande matériel + chantier</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="workflow-step">
+                        <div class="workflow-number" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">11</div>
+                        <h5>Mise en service</h5>
+                        <p>Consuel + Activation Enedis</p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Section CTA final -->
-    <div class="container text-center py-5 my-5">
-        <h2 class="section-title mb-4">
-            Prêt à démarrer votre projet solaire ?
+    <div class="container py-5" style="position: relative; z-index: 1;">
+        <div class="text-center mb-4">
+            <h2 class="section-title" style="font-size: 2.5rem;">Stack technique professionnel</h2>
+            <p class="section-subtitle">Des API fiables, des données officielles, zéro approximation</p>
+        </div>
+        <div class="text-center">
+            <span class="tech-badge"><i class="bi bi-server"></i> Flask + PostgreSQL</span>
+            <span class="tech-badge"><i class="bi bi-map"></i> Leaflet + GeoServer</span>
+            <span class="tech-badge"><i class="bi bi-database"></i> PostGIS</span>
+            <span class="tech-badge"><i class="bi bi-file-pdf"></i> ReportLab</span>
+            <span class="tech-badge"><i class="bi bi-cloud"></i> Railway</span>
+            <span class="tech-badge"><i class="bi bi-sun"></i> PVGIS</span>
+            <span class="tech-badge"><i class="bi bi-building"></i> GPU</span>
+            <span class="tech-badge"><i class="bi bi-exclamation-triangle"></i> Géorisques</span>
+            <span class="tech-badge"><i class="bi bi-lightning"></i> Enedis</span>
+            <span class="tech-badge"><i class="bi bi-geo-alt"></i> API Adresse</span>
+            <span class="tech-badge"><i class="bi bi-map-fill"></i> OSM</span>
+            <span class="tech-badge"><i class="bi bi-diagram-3"></i> Cadastre</span>
+        </div>
+    </div>
+
+    <div class="container text-center py-5 mb-5" style="position: relative; z-index: 1;">
+        <h2 class="section-title" style="font-size: 3.5rem; margin-bottom: 1.5rem;">
+            Arrêtez de perdre du temps.<br>Développez plus vite.
         </h2>
-        <p class="section-subtitle mb-4">
-            Créez votre pré-étude gratuite en moins de 2 minutes · Aucune carte bancaire requise
+        <p class="section-subtitle" style="font-size: 1.3rem; margin-bottom: 3rem;">
+            Rejoignez les développeurs PV qui transforment leur prospection en pipeline structuré
         </p>
-        <div>
-            <a href="/register" class="btn btn-sunstice me-3" style="font-size: 1.2rem; padding: 18px 45px;">
-                <i class="bi bi-lightning-charge-fill"></i> Commencer gratuitement
+        <div class="mt-4">
+            <a href="/register" class="cta-button cta-primary me-3" style="font-size: 1.3rem; padding: 22px 50px;">
+                <i class="bi bi-lightning-charge-fill"></i> Essai gratuit 7 jours
             </a>
-            <a href="/login" class="btn btn-outline-sunstice" style="font-size: 1.2rem; padding: 16px 43px;">
+            <a href="/login" class="cta-button cta-secondary" style="font-size: 1.3rem; padding: 22px 50px;">
                 <i class="bi bi-box-arrow-in-right"></i> Se connecter
             </a>
         </div>
-        <p style="color: var(--sunstice-gray); margin-top: 30px; font-size: 0.9rem;">
-            <i class="bi bi-check-circle"></i> Accès immédiat · <i class="bi bi-shield-check"></i> Données sécurisées · <i class="bi bi-sun-fill"></i> Sunstice - Expert EPC
+        <p style="color: rgba(255, 255, 255, 0.5); margin-top: 30px; font-size: 0.9rem;">
+            <i class="bi bi-check-circle"></i> Sans engagement · <i class="bi bi-credit-card"></i> Aucune CB requise · <i class="bi bi-calendar-check"></i> 7 jours d'essai offerts
         </p>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/sunstice-assistant.js') }}"></script>
 </body>
 </html>
