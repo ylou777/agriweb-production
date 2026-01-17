@@ -1616,6 +1616,8 @@
         }
         
         async function exportToCRM() {
+            console.log('🚀 [DEBUG] exportToCRM - Début de la fonction');
+            
             if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\\n\\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
                 return;
             }
@@ -1634,7 +1636,14 @@
                     rpg: []
                 };
                 
+                console.log('🔍 [DEBUG] Données brutes du rapport:');
+                console.log('  - lat:', {{ report.lat|default(0)|tojson }});
+                console.log('  - lon:', {{ report.lon|default(0)|tojson }});
+                console.log('  - commune_name:', {{ (report.commune_name|default(""))|tojson }});
+                console.log('  - adresse:', {{ (report.adresse|default(""))|tojson }});
+                
                 // Créer un objet prospect à partir des données du rapport
+                console.log('📝 [DEBUG] Construction de prospectData...');
                 const prospectData = {
                     lat: parseFloat({{ report.lat|default(0) }}),
                     lon: parseFloat({{ report.lon|default(0) }}),
@@ -1690,10 +1699,14 @@
                     {% endif %}
                 };
                 
+                console.log('✅ [DEBUG] prospectData créé:', prospectData);
+                
                 // Déterminer le type de prospect (toiture par défaut pour rapport point)
                 exportData.toitures.push(prospectData);
+                console.log('📦 [DEBUG] exportData complet:', exportData);
                 
                 // Envoyer vers l'API d'export CRM
+                console.log('🌐 [DEBUG] Envoi vers /api/crm/export...');
                 const response = await fetch('/api/crm/export', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1701,6 +1714,7 @@
                 });
                 
                 const result = await response.json();
+                console.log('📩 [DEBUG] Réponse serveur:', result);
                 
                 if (result.success) {
                     const message = `✅ Export réussi !\\n\\n` +
