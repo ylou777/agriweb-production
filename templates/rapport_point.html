@@ -1616,9 +1616,7 @@
         }
         
         async function exportToCRM() {
-            console.log('🚀 [DEBUG] exportToCRM - Début de la fonction');
-            
-            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\\n\\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
+            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
                 return;
             }
             
@@ -1636,21 +1634,14 @@
                     rpg: []
                 };
                 
-                console.log('🔍 [DEBUG] Données brutes du rapport:');
-                console.log('  - lat:', {{ report.lat|default(0)|tojson }});
-                console.log('  - lon:', {{ report.lon|default(0)|tojson }});
-                console.log('  - commune_name:', {{ (report.commune_name|default(""))|tojson }});
-                console.log('  - adresse:', {{ (report.adresse|default(""))|tojson }});
-                
                 // Créer un objet prospect à partir des données du rapport
-                console.log('📝 [DEBUG] Construction de prospectData...');
                 const prospectData = {
-                    lat: parseFloat({{ report.lat|default(0) }}),
-                    lon: parseFloat({{ report.lon|default(0) }}),
+                    lat: {{ report.lat|default(0) }},
+                    lon: {{ report.lon|default(0) }},
                     commune: {{ (report.commune_name|default(""))|tojson }},
                     adresse: {{ (report.adresse|default(""))|tojson }},
-                    {% if report.api_details and report.api_details.cadastre and report.api_details.cadastre.success %}
-                    parcelles: [{{ ((report.api_details.cadastre.details.section|default("")) ~ (report.api_details.cadastre.details.parcelle_numero|default("")))|tojson }}],
+                    {% if report.api_details and report.api_details.cadastre.success %}
+                    parcelles: [{{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }}],
                     surface_m2: {{ report.api_details.cadastre.details.contenance_m2|default(0) }},
                     {% endif %}
                     {% if report.poste_bt %}
@@ -1691,22 +1682,16 @@
                         code_region: {{ (report.poste_hta.code_region|default(""))|tojson }}
                     },
                     {% endif %}
-                    lien_streetview: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={{ report.lat|default(0) }},{{ report.lon|default(0) }}`,
-                    {% if report.api_details and report.api_details.cadastre and report.api_details.cadastre.success and report.api_details.cadastre.details and report.api_details.cadastre.details.proprietaires %}
-                    amenity: {{ (report.api_details.cadastre.details.proprietaires[0].denomination[:50]|default(""))|tojson }}
-                    {% else %}
-                    amenity: ""
+                    lien_streetview: `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={{ report.lat }},{{ report.lon }}`,
+                    {% if report.api_details and report.api_details.cadastre.success and report.api_details.cadastre.details.proprietaires %}
+                    amenity: {{ (report.api_details.cadastre.details.proprietaires[0].denomination[:50] if report.api_details.cadastre.details.proprietaires else "")|tojson }},
                     {% endif %}
                 };
                 
-                console.log('✅ [DEBUG] prospectData créé:', prospectData);
-                
                 // Déterminer le type de prospect (toiture par défaut pour rapport point)
                 exportData.toitures.push(prospectData);
-                console.log('📦 [DEBUG] exportData complet:', exportData);
                 
                 // Envoyer vers l'API d'export CRM
-                console.log('🌐 [DEBUG] Envoi vers /api/crm/export...');
                 const response = await fetch('/api/crm/export', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1714,13 +1699,12 @@
                 });
                 
                 const result = await response.json();
-                console.log('📩 [DEBUG] Réponse serveur:', result);
                 
                 if (result.success) {
-                    const message = `✅ Export réussi !\\n\\n` +
-                        `📊 ${result.total_exported} prospect(s) créé(s)\\n` +
-                        `📁 Détails: ${result.details.toitures} toiture(s)\\n\\n` +
-                        `Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
+                    const message = '✅ Export réussi !\n\n' +
+                        '📊 ' + result.total_exported + ' prospect(s) créé(s)\n' +
+                        '📁 Détails: ' + result.details.toitures + ' toiture(s)\n\n' +
+                        'Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?';
                     
                     if (confirm(message)) {
                         window.open('/crm', '_blank');
@@ -1729,11 +1713,11 @@
                         location.reload();
                     }
                 } else {
-                    alert(`❌ Erreur lors de l'export :\\n${result.error}`);
+                    alert('❌ Erreur lors de l\'export :\n' + result.error);
                 }
             } catch (error) {
                 console.error('Erreur export CRM:', error);
-                alert(`❌ Erreur de connexion :\\n${error.message}`);
+                alert('❌ Erreur de connexion :\n' + error.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -1761,24 +1745,24 @@
             try {
                 const updateData = {
                     prospect_id: prospectId,
-                    lat: {{ report.lat }},
-                    lon: {{ report.lon }},
-                    commune: '{{ report.commune_name or "" }}',
+                    lat: {{ report.lat|default(0) }},
+                    lon: {{ report.lon|default(0) }},
+                    commune: {{ (report.commune_name|default(""))|tojson }},
                     {% if report.api_details and report.api_details.cadastre.success %}
-                    parcelle_cadastrale: '{{ report.api_details.cadastre.details.section }}{{ report.api_details.cadastre.details.parcelle_numero }}',
-                    surface_parcelle: '{{ report.api_details.cadastre.details.contenance or "" }}',
+                    parcelle_cadastrale: {{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }},
+                    surface_parcelle: {{ (report.api_details.cadastre.details.contenance|default(""))|tojson }},
                     {% endif %}
                     {% if report.poste_bt %}
-                    poste_bt_nom: '{{ report.poste_bt.nom or "" }}',
-                    poste_bt_distance: {{ report.poste_bt.distance_m or 0 }},
-                    poste_bt_lat: {{ report.poste_bt.lat or 0 }},
-                    poste_bt_lon: {{ report.poste_bt.lon or 0 }},
+                    poste_bt_nom: {{ (report.poste_bt.nom|default(""))|tojson }},
+                    poste_bt_distance: {{ report.poste_bt.distance_m|default(0) }},
+                    poste_bt_lat: {{ report.poste_bt.lat|default(0) }},
+                    poste_bt_lon: {{ report.poste_bt.lon|default(0) }},
                     {% endif %}
                     {% if report.poste_hta %}
-                    poste_hta_nom: '{{ report.poste_hta.nom or "" }}',
-                    poste_hta_distance: {{ report.poste_hta.distance_m or 0 }},
-                    poste_hta_lat: {{ report.poste_hta.lat or 0 }},
-                    poste_hta_lon: {{ report.poste_hta.lon or 0 }},
+                    poste_hta_nom: {{ (report.poste_hta.nom|default(""))|tojson }},
+                    poste_hta_distance: {{ report.poste_hta.distance_m|default(0) }},
+                    poste_hta_lat: {{ report.poste_hta.lat|default(0) }},
+                    poste_hta_lon: {{ report.poste_hta.lon|default(0) }},
                     {% endif %}
                     data_json: {{ report | tojson }}
                 };
@@ -1793,13 +1777,13 @@
                 
                 if (result.success) {
                     // Message de confirmation avec options
-                    let message = '✅ Prospect mis à jour avec succès !\\n\\nLes données du rapport ont été enregistrées dans le CRM.';
+                    let message = '✅ Prospect mis à jour avec succès !\n\nLes données du rapport ont été enregistrées dans le CRM.';
                     
                     if (result.project_id) {
-                        message += `\\n\\n📁 Le rapport a aussi été enregistré dans la fiche projet #${result.project_id}`;
+                        message += '\n\n📁 Le rapport a aussi été enregistré dans la fiche projet #' + result.project_id;
                     }
                     
-                    message += '\\n\\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
+                    message += '\n\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
                     
                     const goToCRM = confirm(message);
                     
@@ -1808,11 +1792,11 @@
                         window.open(`/crm?highlight=${prospectId}`, '_blank');
                     }
                 } else {
-                    alert(`❌ Erreur lors de la mise à jour :\\n${result.error}`);
+                    alert('❌ Erreur lors de la mise à jour :\n' + result.error);
                 }
             } catch (error) {
                 console.error('Erreur mise à jour prospect:', error);
-                alert(`❌ Erreur de connexion :\\n${error.message}`);
+                alert('❌ Erreur de connexion :\n' + error.message);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -1822,6 +1806,5 @@
         window.exportToCRM = exportToCRM;
         window.updateProspectData = updateProspectData;
     </script>
-    <script src="{{ url_for('static', filename='js/sunstice-assistant.js') }}"></script>
 </body>
 </html>
