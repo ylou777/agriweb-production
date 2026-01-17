@@ -9,83 +9,12 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm, mm
 from reportlab.lib import colors
 from reportlab.lib.utils import ImageReader
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
 import io
 import requests
 from PIL import Image
 import json
 import base64
 import re
-import math
-
-
-class LabelManager:
-    """Gestion intelligente du positionnement des ├®tiquettes pour ├®viter les superpositions"""
-    
-    def __init__(self, center_x=None, center_y=None):
-        self.used_positions = []  # Liste des rectangles d├®j├á utilis├®s
-        self.center_x = center_x  # Centre de l'image pour calculer la distance
-        self.center_y = center_y
-    
-    def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=16):
-        """Trouve une position non superpos├®e pour une ├®tiquette"""
-        # Positions alternatives ├á essayer (offsets relatifs)
-        offsets = [
-            (0, 0),             # Position originale
-            (2*cm, 0),          # Décalé droite
-            (-2*cm, 0),         # Décalé gauche
-            (0, 2*cm),          # Décalé haut
-            (0, -2*cm),         # Décalé bas
-            (2*cm, 2*cm),       # Décalé haut-droite
-            (-2*cm, 2*cm),      # Décalé haut-gauche
-            (2*cm, -2*cm),      # Décalé bas-droite
-            (-2*cm, -2*cm),     # Décalé bas-gauche
-            (4*cm, 0),          # Décalé droite (large)
-            (-4*cm, 0),         # Décalé gauche (large)
-            (0, 4*cm),          # Décalé haut (large)
-            (0, -4*cm),         # Décalé bas (large)
-            (3*cm, 3*cm),       # Diagonale haut-droite
-            (-3*cm, 3*cm),      # Diagonale haut-gauche
-            (3*cm, -3*cm),      # Diagonale bas-droite
-        ]
-        
-        for offset_x, offset_y in offsets[:max_attempts]:
-            test_x = initial_x + offset_x
-            test_y = initial_y + offset_y
-            
-            if not self._overlaps_existing(test_x, test_y, width, height):
-                # Position trouv├®e sans superposition
-                self.used_positions.append({
-                    'x': test_x,
-                    'y': test_y,
-                    'width': width,
-                    'height': height
-                })
-                return test_x, test_y
-        
-        # Si toutes les positions se superposent, utiliser la position originale avec un d├®calage progressif
-        final_x = initial_x + len(self.used_positions) * 0.3*cm
-        final_y = initial_y + len(self.used_positions) * 0.3*cm
-        
-        self.used_positions.append({
-            'x': final_x,
-            'y': final_y,
-            'width': width,
-            'height': height
-        })
-        return final_x, final_y
-    
-    def _overlaps_existing(self, x, y, width, height):
-        """V├®rifie si un rectangle chevauche les positions existantes"""
-        for pos in self.used_positions:
-            # V├®rification de chevauchement entre deux rectangles
-            if not (x + width < pos['x'] or 
-                    x > pos['x'] + pos['width'] or
-                    y + height < pos['y'] or 
-                    y > pos['y'] + pos['height']):
-                return True
-        return False
 
 
 class PlanMasseGenerator:
@@ -95,16 +24,11 @@ class PlanMasseGenerator:
         self.data = prospect_data
         self.calpinage = calpinage_data
         self.width, self.height = A3  # Format A3 pour plus de d├®tails
-        self.label_manager = LabelManager()  # Gestionnaire d'├®tiquettes
         
     def generate(self):
         """G├®n├¿re le plan de masse PDF"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A3)
-        
-        # Réinitialiser le gestionnaire d'étiquettes avec centre de l'image
-        # Le centre sera défini après calcul de la bbox du plan
-        self.label_manager = None
         
         # En-t├¬te
         self._draw_header(c)
@@ -128,7 +52,7 @@ class PlanMasseGenerator:
         
         # Titre
         c.setFont("Helvetica-Bold", 16)
-        c.drawString(3*cm, y, "PLAN DE MASSE - INSTALLATION PHOTOVOLTAIQUE")
+        c.drawString(3*cm, y, "PLAN DE MASSE - INSTALLATION PHOTOVOLTA├ÅQUE")
         
         y -= 0.7*cm
         c.setFont("Helvetica", 10)
@@ -136,10 +60,10 @@ class PlanMasseGenerator:
         adresse = self.data.get('adresse', '')
         c.drawString(3*cm, y, f"{adresse}, {commune}")
         
-        # Echelle reglementaire
+        # ├ëchelle r├®glementaire
         c.setFont("Helvetica-Bold", 14)
         c.setFillColor(colors.HexColor('#D32F2F'))
-        c.drawRightString(self.width - 3*cm, y, "Echelle 1/500")
+        c.drawRightString(self.width - 3*cm, y, "├ëchelle 1/500")
         c.setFillColor(colors.black)
         
     def _draw_plan_cadastral(self, c):
@@ -214,9 +138,9 @@ class PlanMasseGenerator:
         
         if lat and lon:
             # ­ƒöÑ PRIORIT├ë 1: Utiliser le screenshot de la carte si disponible
-            screenshot_data = None  # Force désactivation screenshot (éviter doublon modules)
+            screenshot_data = self.calpinage.get('screenshot_map') if self.calpinage else None
             
-            if False:  # Screenshot désactivé
+            if screenshot_data:
                 try:
                     # Le screenshot est en base64 data URL: "data:image/png;base64,..."
                     import base64
@@ -287,11 +211,6 @@ class PlanMasseGenerator:
             'lon_center': lon,
             'meters_per_cm': bbox_meters / (plan_width / cm) if plan_width > 0 else 1
         }
-        
-        # Initialiser le LabelManager avec le centre du plan
-        center_x = plan_x + plan_width / 2
-        center_y = plan_y + plan_height / 2
-        self.label_manager = LabelManager(center_x, center_y)
         
         # 1. PARCELLES CADASTRALES (avec vraies g├®om├®tries si disponibles)
         self._draw_parcelles(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2, lat, lon)
@@ -536,49 +455,30 @@ class PlanMasseGenerator:
                 c.drawPath(path, stroke=1, fill=0)
                 c.setDash()  # R├®initialiser
             
-            # ├ëtiquette VISIBLE avec fond blanc - POSITIONNEMENT ANTI-SUPERPOSITION
+            # ├ëtiquette VISIBLE avec fond blanc
             if label_x is not None and label_y is not None:
-                # Dimensions de l'├®tiquette
-                text_w = 2.8*cm
-                text_h = 0.8*cm
-                
-                # Trouver une position non superpos├®e
-                final_x, final_y = self.label_manager.find_non_overlapping_position(
-                    label_x, label_y, text_w, text_h
-                )
-                
-                # Ligne de repère (tiret) entre la parcelle et l'étiquette
-                if (final_x != label_x or final_y != label_y):  # Seulement si déplacée
-                    c.setStrokeColor(colors.HexColor('#FF0000'))
-                    c.setLineWidth(1)
-                    c.setDash(3, 2)  # Tirets courts
-                    # Ligne du point d'origine au centre de l'étiquette
-                    label_center_x = final_x + text_w / 2
-                    label_center_y = final_y + text_h / 2
-                    c.line(label_x, label_y, label_center_x, label_center_y)
-                    c.setDash()  # Réinitialiser
-                
                 # Fond blanc opaque
                 c.setFillColor(colors.white)
                 c.setStrokeColor(colors.HexColor('#FF0000'))
                 c.setLineWidth(1.5)
                 
                 # Rectangle de fond
-                c.rect(final_x + 0.1*cm, final_y + 0.1*cm, text_w, text_h, fill=1, stroke=1)
+                text_w = 2.8*cm
+                text_h = 0.8*cm
+                c.rect(label_x + 0.1*cm, label_y + 0.1*cm, text_w, text_h, fill=1, stroke=1)
                 
                 # Texte en gras et visible
                 c.setFillColor(colors.HexColor('#FF0000'))
                 c.setFont("Helvetica-Bold", 9)
-                c.drawString(final_x + 0.2*cm, final_y + 0.5*cm, 
+                c.drawString(label_x + 0.2*cm, label_y + 0.5*cm, 
                             f"Parcelle {section} {numero}")
                 
                 # Surface en dessous
                 if surface and float(surface) > 0:
                     c.setFont("Helvetica", 7)
                     c.setFillColor(colors.black)
-                    # Utiliser decode pour assurer l'encodage UTF-8
-                    surface_text = f"Surface: {int(float(surface))} m2"
-                    c.drawString(final_x + 0.2*cm, final_y + 0.25*cm, surface_text)
+                    c.drawString(label_x + 0.2*cm, label_y + 0.25*cm, 
+                                f"Surface: {int(float(surface))} m┬▓")
             
             print(f"[PLAN] Ô£à Parcelle {section}{numero} dessin├®e avec succ├¿s")
             return
@@ -625,40 +525,23 @@ class PlanMasseGenerator:
         c.rect(parc_x, parc_y, parc_w, parc_h, fill=0, stroke=1)
         c.setDash()
         
-        # ├ëtiquette DISCR├êTE en bas ├á gauche de la parcelle - POSITIONNEMENT ANTI-SUPERPOSITION
-        label_bg_w = 2.5*cm
-        label_bg_h = 0.6*cm
-        
-        # Trouver une position non superpos├®e
-        final_parc_x, final_parc_y = self.label_manager.find_non_overlapping_position(
-            parc_x, parc_y, label_bg_w, label_bg_h
-        )
-        
-        # Ligne de repère (tiret) entre la parcelle et l'étiquette
-        if (final_parc_x != parc_x or final_parc_y != parc_y):  # Seulement si déplacée
-            c.setStrokeColor(colors.HexColor('#FF00FF'))
-            c.setLineWidth(1)
-            c.setDash(3, 2)  # Tirets courts
-            # Ligne du coin de la parcelle au centre de l'étiquette
-            label_center_x = final_parc_x + label_bg_w / 2
-            label_center_y = final_parc_y + label_bg_h / 2
-            c.line(parc_x, parc_y, label_center_x, label_center_y)
-            c.setDash()  # Réinitialiser
-        
+        # ├ëtiquette DISCR├êTE en bas ├á gauche de la parcelle
         c.setFillColorRGB(1, 1, 1, 0.8)  # Blanc semi-transparent
         c.setStrokeColor(colors.HexColor('#FF00FF'))
         c.setLineWidth(1)
-        c.rect(final_parc_x + 0.1*cm, final_parc_y + 0.1*cm, label_bg_w, label_bg_h, fill=1, stroke=1)
+        label_bg_w = 2.5*cm
+        label_bg_h = 0.6*cm
+        c.rect(parc_x + 0.1*cm, parc_y + 0.1*cm, label_bg_w, label_bg_h, fill=1, stroke=1)
         
         # ├ëtiquette texte compact
         c.setFillColor(colors.HexColor('#FF00FF'))
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(final_parc_x + 0.2*cm, final_parc_y + 0.35*cm, 
+        c.drawString(parc_x + 0.2*cm, parc_y + 0.35*cm, 
                     f"{section}{numero}")
         if surface and float(surface) > 0:
             c.setFont("Helvetica", 6)
-            c.drawString(final_parc_x + 0.2*cm, final_parc_y + 0.15*cm, 
-                        f"{int(float(surface))}m2")
+            c.drawString(parc_x + 0.2*cm, parc_y + 0.15*cm, 
+                        f"{int(float(surface))}m┬▓")
     
     def _draw_batiment(self, c, center_x, center_y):
         """Dessine le b├ótiment"""
@@ -684,10 +567,10 @@ class PlanMasseGenerator:
         c.setLineWidth(2)
         c.rect(bat_x, bat_y, bat_w, bat_h, fill=1, stroke=1)
         
-        # Etiquette
+        # ├ëtiquette
         c.setFillColor(colors.black)
         c.setFont("Helvetica-Bold", 9)
-        c.drawCentredString(center_x, center_y, "BATIMENT")
+        c.drawCentredString(center_x, center_y, "B├éTIMENT")
     
     def _draw_modules_pv_reels(self, c, center_x, center_y, lat, lon):
         """DEPRECATED - Utiliser _draw_modules_pv_from_gps ├á la place"""
@@ -764,25 +647,15 @@ class PlanMasseGenerator:
                 c.drawPath(path, stroke=1, fill=0)
                 c.setDash()
                 
-                # ├ëtiquette zone - POSITIONNEMENT ANTI-SUPERPOSITION
+                # ├ëtiquette zone
                 if zone_coords:
                     label_x, label_y = self._lat_lon_to_pdf(zone_coords[0]['lat'], zone_coords[0]['lng'])
-                    
-                    # Dimensions de l'├®tiquette de zone
-                    zone_label_w = 5*cm
-                    zone_label_h = 0.6*cm
-                    
-                    # Trouver une position non superpos├®e
-                    final_label_x, final_label_y = self.label_manager.find_non_overlapping_position(
-                        label_x, label_y, zone_label_w, zone_label_h
-                    )
-                    
                     c.setFillColor(colors.HexColor('#D32F2F'))
                     c.setFont("Helvetica-Bold", 8)
                     nb_modules = zone.get('nbModules', len(modules_positions))
                     nb_cols = zone.get('nbCols', 0)
                     nb_rows = zone.get('nbRows', 0)
-                    c.drawString(final_label_x + 0.4*cm, final_label_y + 0.4*cm,
+                    c.drawString(label_x + 0.4*cm, label_y + 0.4*cm,
                                 f"Zone PV: {nb_modules} modules ({nb_cols}├ù{nb_rows})")
     
     def _draw_cotations_zones(self, c):
@@ -883,13 +756,13 @@ class PlanMasseGenerator:
         c.restoreState()
     
     def _draw_legend(self, c):
-        """Dessine la legende"""
+        """Dessine la l├®gende"""
         x = 2*cm
-        y = 12*cm  # Plus haut pour eviter chevauchement
+        y = 12*cm  # Plus haut pour ├®viter chevauchement
         
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
-        c.drawString(x, y, "LEGENDE :")
+        c.drawString(x, y, "L├ëGENDE :")
         
         y -= 0.6*cm
         c.setFont("Helvetica", 9)
@@ -903,14 +776,14 @@ class PlanMasseGenerator:
         c.setFillColor(colors.black)
         c.drawString(x + 2*cm, y - 0.15*cm, "Limites parcellaires cadastrales")
         
-        # Batiment
+        # B├ótiment
         y -= 0.5*cm
         c.setFillColor(colors.HexColor('#FFE4B5'))
         c.setStrokeColor(colors.black)
         c.setLineWidth(1)
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Batiment existant")
+        c.drawString(x + 2*cm, y - 0.15*cm, "B├ótiment existant")
         
         # Modules PV
         y -= 0.5*cm
@@ -918,7 +791,7 @@ class PlanMasseGenerator:
         c.setStrokeColor(colors.HexColor('#1565C0'))
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovoltaiques (position reelle)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovolta├»ques (position r├®elle)")
         
         # Zone PV
         y -= 0.5*cm
@@ -936,12 +809,12 @@ class PlanMasseGenerator:
         c.setLineWidth(1.5)
         c.line(x, y, x + 1.5*cm, y)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en metres)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en m├¿tres)")
     
     def _draw_cartouche(self, c):
-        """Cartouche technique avec informations completes"""
+        """Cartouche technique avec informations compl├¿tes"""
         x = self.width - 14*cm
-        y = 2*cm  # En bas pour eviter chevauchement
+        y = 2*cm  # En bas pour ├®viter chevauchement
         w = 12*cm
         h = 10*cm  # Hauteur augment├®e pour toutes les infos
         
@@ -955,7 +828,7 @@ class PlanMasseGenerator:
         c.rect(x, y + h - 0.8*cm, w, 0.8*cm, fill=1, stroke=0)
         c.setFillColor(colors.white)
         c.setFont("Helvetica-Bold", 11)
-        c.drawCentredString(x + w/2, y + h - 0.55*cm, "CARACTERISTIQUES TECHNIQUES")
+        c.drawCentredString(x + w/2, y + h - 0.55*cm, "CARACT├ëRISTIQUES TECHNIQUES")
         
         # Contenu
         c.setFillColor(colors.black)
@@ -971,9 +844,9 @@ class PlanMasseGenerator:
         
         commune = self.data.get('commune', 'N/A')
         adresse = self.data.get('adresse', 'N/A')
-        c.drawString(x + 0.5*cm, info_y, f"- {adresse}")
+        c.drawString(x + 0.5*cm, info_y, f"ÔÇó {adresse}")
         info_y -= 0.3*cm
-        c.drawString(x + 0.5*cm, info_y, f"- {commune}")
+        c.drawString(x + 0.5*cm, info_y, f"ÔÇó {commune}")
         info_y -= 0.5*cm
         
         # Parcelles cadastrales
@@ -991,9 +864,9 @@ class PlanMasseGenerator:
                 surface = p.get('surface', 0)
                 # N'afficher la surface que si elle est disponible
                 if surface and float(surface) > 0:
-                    c.drawString(x + 0.5*cm, info_y, f"- {section}{numero} - {surface} m2")
+                    c.drawString(x + 0.5*cm, info_y, f"ÔÇó {section}{numero} - {surface} m┬▓")
                 else:
-                    c.drawString(x + 0.5*cm, info_y, f"- {section}{numero} - Surface N/A")
+                    c.drawString(x + 0.5*cm, info_y, f"ÔÇó {section}{numero} - Surface N/A")
                 info_y -= 0.3*cm
             
             if len(parcelles) > 6:
@@ -1009,14 +882,14 @@ class PlanMasseGenerator:
             puissance_totale = total_modules * float(puissance_module) / 1000  # kWc
             
             c.setFont("Helvetica-Bold", 9)
-            c.drawString(x + 0.3*cm, info_y, "Installation photovoltaique :")
+            c.drawString(x + 0.3*cm, info_y, "Installation photovolta├»que :")
             info_y -= 0.35*cm
             c.setFont("Helvetica", 8)
-            c.drawString(x + 0.5*cm, info_y, f"- {total_modules} modules de {puissance_module}W")
+            c.drawString(x + 0.5*cm, info_y, f"ÔÇó {total_modules} modules de {puissance_module}W")
             info_y -= 0.3*cm
-            c.drawString(x + 0.5*cm, info_y, f"- Puissance totale : {puissance_totale:.2f} kWc")
+            c.drawString(x + 0.5*cm, info_y, f"ÔÇó Puissance totale : {puissance_totale:.2f} kWc")
             info_y -= 0.3*cm
-            c.drawString(x + 0.5*cm, info_y, f"- {len(self.calpinage['zones'])} zone(s) PV")
+            c.drawString(x + 0.5*cm, info_y, f"ÔÇó {len(self.calpinage['zones'])} zone(s) PV")
         
         # Date et signature
         info_y = y + 0.5*cm
