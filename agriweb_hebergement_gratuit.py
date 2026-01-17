@@ -17264,6 +17264,142 @@ def admin_migrate_user_isolation():
         error_trace = traceback.format_exc()
         return f"❌ Erreur migration: {str(e)}<br><br><pre>{error_trace}</pre>", 500
 
+# ============================================================================
+# ROUTE ADMIN - DIAGNOSTIC CRM
+# ============================================================================
+@app.route('/admin/check-crm', methods=['GET'])
+def admin_check_crm():
+    """Diagnostic complet du CRM PostgreSQL"""
+    try:
+        from database_adapter import execute_query
+        results = []
+        
+        results.append("🔍 DIAGNOSTIC CRM POSTGRESQL")
+        results.append("=" * 80)
+        results.append("")
+        
+        # 1. Compter les prospects
+        results.append("1️⃣ TABLE agriweb_prospects")
+        results.append("-" * 80)
+        try:
+            count_result = execute_query("SELECT COUNT(*) as total FROM agriweb_prospects")
+            total = count_result[0]['total'] if count_result else 0
+            results.append(f"   📊 Total prospects: {total}")
+            
+            if total > 0:
+                # Répartition par statut
+                statut_query = """
+                    SELECT statut, COUNT(*) as count 
+                    FROM agriweb_prospects 
+                    GROUP BY statut
+                    ORDER BY count DESC
+                """
+                statuts = execute_query(statut_query)
+                if statuts:
+                    results.append("")
+                    results.append("   📈 Par statut:")
+                    for row in statuts:
+                        results.append(f"      • {row['statut']}: {row['count']}")
+                
+                # Répartition par type
+                type_query = """
+                    SELECT type, COUNT(*) as count 
+                    FROM agriweb_prospects 
+                    GROUP BY type
+                    ORDER BY count DESC
+                """
+                types = execute_query(type_query)
+                if types:
+                    results.append("")
+                    results.append("   🏷️  Par type:")
+                    for row in types:
+                        results.append(f"      • {row['type']}: {row['count']}")
+                
+                # 5 derniers prospects
+                last_query = """
+                    SELECT id, type, commune, adresse, statut, 
+                           TO_CHAR(date_creation, 'YYYY-MM-DD HH24:MI') as date_creation
+                    FROM agriweb_prospects
+                    ORDER BY date_creation DESC
+                    LIMIT 5
+                """
+                derniers = execute_query(last_query)
+                if derniers:
+                    results.append("")
+                    results.append("   📋 5 derniers prospects:")
+                    for p in derniers:
+                        adresse_short = (p['adresse'][:50] + '...') if p.get('adresse') and len(p['adresse']) > 50 else (p.get('adresse') or 'N/A')
+                        results.append(f"      • ID {p['id']}: {p['type']} - {p['commune']} ({p['statut']})")
+                        results.append(f"        └─ {adresse_short}")
+                        results.append(f"        └─ Créé: {p['date_creation']}")
+            else:
+                results.append("")
+                results.append("   ⚠️  AUCUN PROSPECT TROUVÉ !")
+                results.append("")
+                results.append("   💡 La table existe mais est vide.")
+                results.append("   ➡️  Pour ajouter des prospects:")
+                results.append("      1. Allez sur la carte principale")
+                results.append("      2. Cliquez sur un point/adresse")
+                results.append("      3. Générez un rapport")
+                results.append("      4. Cliquez sur 'Exporter vers CRM'")
+                
+        except Exception as e:
+            results.append(f"   ❌ Erreur lecture prospects: {str(e)}")
+        
+        # 2. Autres tables CRM
+        results.append("")
+        results.append("")
+        results.append("2️⃣ AUTRES TABLES CRM")
+        results.append("-" * 80)
+        
+        tables_crm = [
+            ('crm_appointments', 'Rendez-vous'),
+            ('prospect_proposals', 'Devis'),
+            ('project_fiches', 'Fiches projets'),
+            ('project_etapes', 'Étapes projets'),
+            ('project_documents', 'Documents')
+        ]
+        
+        for table_name, label in tables_crm:
+            try:
+                count_result = execute_query(f"SELECT COUNT(*) as total FROM {table_name}")
+                total = count_result[0]['total'] if count_result else 0
+                results.append(f"   • {label} ({table_name}): {total} entrées")
+            except Exception as e:
+                results.append(f"   • {label} ({table_name}): ❌ {str(e)}")
+        
+        # 3. Structure de la table
+        results.append("")
+        results.append("")
+        results.append("3️⃣ STRUCTURE TABLE agriweb_prospects")
+        results.append("-" * 80)
+        try:
+            columns_query = """
+                SELECT column_name, data_type, is_nullable
+                FROM information_schema.columns
+                WHERE table_name = 'agriweb_prospects'
+                ORDER BY ordinal_position
+            """
+            columns = execute_query(columns_query)
+            if columns:
+                results.append(f"   📋 {len(columns)} colonnes:")
+                for col in columns:
+                    nullable = "NULL" if col['is_nullable'] == 'YES' else "NOT NULL"
+                    results.append(f"      • {col['column_name']} ({col['data_type']}) {nullable}")
+        except Exception as e:
+            results.append(f"   ❌ Erreur lecture structure: {str(e)}")
+        
+        results.append("")
+        results.append("=" * 80)
+        results.append("✅ Diagnostic CRM terminé")
+        
+        return "<br>".join(results), 200
+        
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        return f"❌ Erreur diagnostic CRM: {str(e)}<br><br><pre>{error_trace}</pre>", 500
+
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 if __name__ == "__main__":
