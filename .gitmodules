@@ -1,0 +1,4 @@
+[submodule "AgW3b"]
+	path = AgW3b
+	url = https://github.com/ylou777/agriweb2.0.git
+	branch = main

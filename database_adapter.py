@@ -85,12 +85,30 @@ def migrate_existing_table():
     columns_to_add = [
         ('poste_bt_nom', 'TEXT'),
         ('poste_bt_puissance', 'REAL'),
+        ('poste_bt_etat', 'TEXT'),
         ('poste_bt_lat', 'REAL'),
         ('poste_bt_lon', 'REAL'),
+        ('poste_bt_commune', 'TEXT'),
+        ('poste_bt_code_commune', 'TEXT'),
+        ('poste_bt_epci', 'TEXT'),
+        ('poste_bt_code_epci', 'TEXT'),
+        ('poste_bt_departement', 'TEXT'),
+        ('poste_bt_code_departement', 'TEXT'),
+        ('poste_bt_region', 'TEXT'),
+        ('poste_bt_code_region', 'TEXT'),
         ('poste_hta_nom', 'TEXT'),
         ('poste_hta_puissance', 'REAL'),
+        ('poste_hta_etat', 'TEXT'),
         ('poste_hta_lat', 'REAL'),
         ('poste_hta_lon', 'REAL'),
+        ('poste_hta_commune', 'TEXT'),
+        ('poste_hta_code_commune', 'TEXT'),
+        ('poste_hta_epci', 'TEXT'),
+        ('poste_hta_code_epci', 'TEXT'),
+        ('poste_hta_departement', 'TEXT'),
+        ('poste_hta_code_departement', 'TEXT'),
+        ('poste_hta_region', 'TEXT'),
+        ('poste_hta_code_region', 'TEXT'),
         ('nom_prospect', 'TEXT'),
         ('representant_nom', 'TEXT'),
         ('representant_tel', 'TEXT'),
@@ -119,6 +137,23 @@ def migrate_existing_table():
                     print(f"⚠️ Migration {col_name}: {e}")
             finally:
                 cursor.close()
+    
+    # Migration pour project_etapes - ajouter date_debut_prevue
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("ALTER TABLE project_etapes ADD COLUMN date_debut_prevue TIMESTAMP")
+            conn.commit()
+            print(f"✅ Colonne date_debut_prevue ajoutée à project_etapes")
+        except Exception as e:
+            conn.rollback()
+            error_msg = str(e).lower()
+            if 'already exists' in error_msg or 'duplicate' in error_msg:
+                pass  # Colonne existe déjà
+            else:
+                print(f"⚠️ Migration date_debut_prevue: {e}")
+        finally:
+            cursor.close()
     
     print("✅ [MIGRATION] Vérification terminée")
 
@@ -156,13 +191,31 @@ def init_database():
             poste_bt_distance_m REAL,
             poste_bt_nom TEXT,
             poste_bt_puissance REAL,
+            poste_bt_etat TEXT,
             poste_bt_lat REAL,
             poste_bt_lon REAL,
+            poste_bt_commune TEXT,
+            poste_bt_code_commune TEXT,
+            poste_bt_epci TEXT,
+            poste_bt_code_epci TEXT,
+            poste_bt_departement TEXT,
+            poste_bt_code_departement TEXT,
+            poste_bt_region TEXT,
+            poste_bt_code_region TEXT,
             poste_hta_distance_m REAL,
             poste_hta_nom TEXT,
             poste_hta_puissance REAL,
+            poste_hta_etat TEXT,
             poste_hta_lat REAL,
             poste_hta_lon REAL,
+            poste_hta_commune TEXT,
+            poste_hta_code_commune TEXT,
+            poste_hta_epci TEXT,
+            poste_hta_code_epci TEXT,
+            poste_hta_departement TEXT,
+            poste_hta_code_departement TEXT,
+            poste_hta_region TEXT,
+            poste_hta_code_region TEXT,
             lien_streetview TEXT,
             lien_annuaire TEXT,
             statut TEXT DEFAULT 'nouveau',
@@ -239,6 +292,7 @@ def init_database():
             nom_etape TEXT NOT NULL,
             statut TEXT DEFAULT 'en_attente',
             date_debut TIMESTAMP,
+            date_debut_prevue TIMESTAMP,
             date_fin_prevue TIMESTAMP,
             date_fin_reelle TIMESTAMP,
             responsable TEXT,
@@ -355,10 +409,11 @@ def init_database():
 
         CREATE TABLE IF NOT EXISTS project_etapes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER REFERENCES project_fiches(id),
+            project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
             nom_etape TEXT NOT NULL,
             statut TEXT DEFAULT 'en_attente',
             date_debut TIMESTAMP,
+            date_debut_prevue TIMESTAMP,
             date_fin_prevue TIMESTAMP,
             date_fin_reelle TIMESTAMP,
             responsable TEXT,

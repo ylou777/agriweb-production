@@ -1323,24 +1323,10 @@ async function handleCommuneSearch(e) {
     searchBtn.style.opacity = '0.6';
   }
   
-  // PROTECTION 5: Timeout de sécurité - réinitialiser après 30 secondes maximum
-  const safetyTimeout = setTimeout(() => {
-    if (isCommuneSearchRunning) {
-      console.warn('⚠️ [TIMEOUT] Réinitialisation forcée du flag après 30s');
-      isCommuneSearchRunning = false;
-      if (searchBtn) {
-        searchBtn.disabled = false;
-        searchBtn.innerHTML = originalBtnText;
-        searchBtn.style.opacity = '1';
-      }
-    }
-  }, 30000);
-  
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
   
-  // Fonction de nettoyage
+  // Fonction de nettoyage (sans timeout - recherche illimitée)
   const cleanup = () => {
-    clearTimeout(safetyTimeout);
     isCommuneSearchRunning = false;
     // Réactiver le bouton
     if (searchBtn) {
@@ -1419,11 +1405,25 @@ async function handleCommuneSearch(e) {
         setCommuneSearchLog('🗺️ Chargement de la carte interactive...', '#198754');
         const iframe = document.getElementById('mapFrame');
         if (iframe) {
-          iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+          try {
+            // Éviter le cache du navigateur pour forcer le rechargement
+            iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+            console.log('✅ [IFRAME] Carte chargée:', iframe.src);
+          } catch (storageError) {
+            console.warn('⚠️ [STORAGE] Erreur accès storage (Tracking Prevention):', storageError);
+            // Charger quand même l'iframe même si le storage est bloqué
+            iframe.src = data.carte_url;
+          }
         }
       }
       setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
-      window.lastCommuneSearch = { commune: commune };
+      // Sauvegarder dans window au lieu de storage pour éviter Tracking Prevention
+      try {
+        window.lastCommuneSearch = { commune: commune, timestamp: Date.now() };
+      } catch (storageError) {
+        console.warn('⚠️ [STORAGE] Impossible de sauvegarder lastCommuneSearch:', storageError);
+        // Continuer quand même sans sauvegarder
+      }
       displayAllLayers(data);
       updateInfoPanel([data]);
       

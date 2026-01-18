@@ -288,8 +288,8 @@
                                     <th>Référence cadastrale</th>
                                     <th>Culture</th>
                                     <th>Surface (ha)</th>
-                                    <th>Distance BT</th>
-                                    <th>Distance HTA</th>
+                                    <th>BT le plus proche</th>
+                                    <th>HTA le plus proche</th>
                                     <th>Position</th>
                                     <th>Zoom</th>
                                 </tr>
@@ -321,15 +321,38 @@
                                     </td>
                                     <td>{{ "%.2f"|format(props.surface or 0) }}</td>
                                     <td>
-                                        {% if props.distance_bt %}
-                                            <span class="badge bg-success">{{ "%.0f"|format(props.distance_bt) }} m</span>
+                                        {% set bt = props.poste_bt_proche or {} %}
+                                        {% if bt.distance_m %}
+                                            <strong>{{ bt.id or bt.nom or 'BT' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(bt.distance_m) }} m<br>
+                                                {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
+                                                {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
+                                                {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
+                                                {% if bt.commune %}🏘️ {{ bt.commune }}<br>{% endif %}
+                                                {% if bt.epci %}🏛️ {{ bt.epci }}<br>{% endif %}
+                                                {% if bt.departement %}📍 {{ bt.departement }}<br>{% endif %}
+                                                {% if bt.lat and bt.lon %}📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}{% endif %}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if props.distance_hta %}
-                                            <span class="badge bg-info">{{ "%.0f"|format(props.distance_hta) }} m</span>
+                                        {% set hta = props.poste_hta_proche or {} %}
+                                        {% if hta.distance_m %}
+                                            <strong>{{ hta.id or hta.nom or 'HTA' }}</strong><br>
+                                            <small>
+                                                📍 {{ '%.0f'|format(hta.distance_m) }} m<br>
+                                                {% if hta.puissance %}⚡ {{ hta.puissance }}<br>{% endif %}
+                                                {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
+                                                {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
+                                                {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                {% if hta.commune %}🏘️ {{ hta.commune }}<br>{% endif %}
+                                                {% if hta.epci %}🏛️ {{ hta.epci }}<br>{% endif %}
+                                                {% if hta.departement %}📍 {{ hta.departement }}<br>{% endif %}
+                                                {% if hta.lat and hta.lon %}📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}{% endif %}
+                                            </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
                                         {% endif %}
@@ -559,7 +582,10 @@
                                                 {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
                                                 {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
                                                 {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
-                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                                {% if bt.commune %}🏘️ {{ bt.commune }}<br>{% endif %}
+                                                {% if bt.epci %}🏛️ {{ bt.epci }}<br>{% endif %}
+                                                {% if bt.departement %}📍 {{ bt.departement }}<br>{% endif %}
+                                                {% if bt.lat and bt.lon %}📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}{% endif %}
                                             </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
@@ -575,6 +601,9 @@
                                                 {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
                                                 {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
                                                 {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                {% if hta.commune %}🏘️ {{ hta.commune }}<br>{% endif %}
+                                                {% if hta.epci %}🏛️ {{ hta.epci }}<br>{% endif %}
+                                                {% if hta.departement %}📍 {{ hta.departement }}<br>{% endif %}
                                                 📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
                                             </small>
                                         {% else %}
@@ -674,7 +703,10 @@
                                                 {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
                                                 {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
                                                 {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
-                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                                {% if bt.commune %}🏘️ {{ bt.commune }}<br>{% endif %}
+                                                {% if bt.epci %}🏛️ {{ bt.epci }}<br>{% endif %}
+                                                {% if bt.departement %}📍 {{ bt.departement }}<br>{% endif %}
+                                                {% if bt.lat and bt.lon %}📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}{% endif %}
                                             </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
@@ -690,6 +722,9 @@
                                                 {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
                                                 {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
                                                 {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                {% if hta.commune %}🏘️ {{ hta.commune }}<br>{% endif %}
+                                                {% if hta.epci %}🏛️ {{ hta.epci }}<br>{% endif %}
+                                                {% if hta.departement %}📍 {{ hta.departement }}<br>{% endif %}
                                                 📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
                                             </small>
                                         {% else %}
@@ -843,7 +878,10 @@
                                                 {% if bt.puissance %}⚡ {{ bt.puissance }}<br>{% endif %}
                                                 {% if bt.tension %}🔌 {{ bt.tension }}<br>{% endif %}
                                                 {% if bt.etat %}📊 {{ bt.etat }}<br>{% endif %}
-                                                📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}
+                                                {% if bt.commune %}🏘️ {{ bt.commune }}<br>{% endif %}
+                                                {% if bt.epci %}🏛️ {{ bt.epci }}<br>{% endif %}
+                                                {% if bt.departement %}📍 {{ bt.departement }}<br>{% endif %}
+                                                {% if bt.lat and bt.lon %}📌 {{ '%.5f'|format(bt.lat) }}, {{ '%.5f'|format(bt.lon) }}{% endif %}
                                             </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
@@ -859,6 +897,9 @@
                                                 {% if hta.tension %}🔌 {{ hta.tension }}<br>{% endif %}
                                                 {% if hta.fonction %}🔧 {{ hta.fonction }}<br>{% endif %}
                                                 {% if hta.etat %}📊 {{ hta.etat }}<br>{% endif %}
+                                                {% if hta.commune %}🏘️ {{ hta.commune }}<br>{% endif %}
+                                                {% if hta.epci %}🏛️ {{ hta.epci }}<br>{% endif %}
+                                                {% if hta.departement %}📍 {{ hta.departement }}<br>{% endif %}
                                                 📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
                                             </small>
                                         {% else %}
@@ -1190,8 +1231,8 @@
                 };
                 
                 // Parkings
-                {% if rapport.get('parkings_analysis', {}).get('details') %}
-                const parkingsData = {{ rapport.get('parkings_analysis', {}).get('details', []) | tojson }};
+                {% if rapport.parkings_details %}
+                const parkingsData = {{ rapport.parkings_details | tojson }};
                 selectedItems.parkings.forEach(index => {
                     if (parkingsData[index - 1]) {
                         const parking = parkingsData[index - 1];
@@ -1208,8 +1249,8 @@
                 {% endif %}
                 
                 // Toitures
-                {% if rapport.toitures_analysis.details %}
-                const toituresData = {{ rapport.toitures_analysis.details | tojson }};
+                {% if rapport.toitures_details %}
+                const toituresData = {{ rapport.toitures_details | tojson }};
                 selectedItems.toitures.forEach(index => {
                     if (toituresData[index - 1]) {
                         const toiture = toituresData[index - 1];
@@ -1226,8 +1267,8 @@
                 {% endif %}
                 
                 // Friches
-                {% if rapport.get('friches_analysis', {}).get('details') %}
-                const frichesData = {{ rapport.get('friches_analysis', {}).get('details', []) | tojson }};
+                {% if rapport.friches_details %}
+                const frichesData = {{ rapport.friches_details | tojson }};
                 selectedItems.friches.forEach(index => {
                     if (frichesData[index - 1]) {
                         const friche = frichesData[index - 1];
@@ -1261,34 +1302,63 @@
                             surface: props.surface || 0,
                             latitude: props.coords ? props.coords[1] : null,
                             longitude: props.coords ? props.coords[0] : null,
-                            distance_bt: props.distance_bt || null,
-                            distance_hta: props.distance_hta || null,
+                            // Inclure les objets complets des postes BT et HTA
+                            poste_bt_proche: props.poste_bt_proche || null,
+                            poste_hta_proche: props.poste_hta_proche || null,
                             data_json: JSON.stringify(props)
                         });
                     }
                 });
                 {% endif %}
                 
-                // Envoyer vers le backend
+                // Envoyer vers le backend avec timeout personnalisé (10 minutes)
+                console.log('🚀 [CRM EXPORT] Envoi de', totalSelected, 'éléments vers le CRM...');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
+                
                 const response = await fetch('/api/crm/export', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(exportData)
+                    body: JSON.stringify(exportData),
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Export réussi !\n\n` +
+                    let message = `✅ Export réussi !\n\n` +
                         `${result.total_exported} élément(s) ajouté(s) au CRM\n\n` +
                         `📊 Détails :\n` +
                         `- Parkings : ${result.details.parkings}\n` +
                         `- Toitures : ${result.details.toitures}\n` +
                         `- Friches : ${result.details.friches}\n` +
-                        `- Parcelles RPG : ${result.details.rpg || 0}\n\n` +
-                        `🔗 Ouvrir le CRM pour voir les prospects`);
+                        `- Parcelles RPG : ${result.details.rpg || 0}`;
+                    
+                    // Si un projet a été créé/mis à jour, l'indiquer
+                    if (result.project_id) {
+                        message += `\n\n📁 Les fiches projets ont été mises à jour automatiquement.\n✅ L'étape "Rapport de recherche AgriWeb" a été marquée comme terminée.`;
+                    }
+                    
+                    alert(message + '\n\n🔗 Ouvrir le CRM pour voir les prospects');
+                    
+                    // Si on est dans une fenêtre enfant, informer la fenêtre parent
+                    if (window.opener && !window.opener.closed) {
+                        try {
+                            window.opener.postMessage({
+                                type: 'etape_terminee',
+                                etape: 'Rapport de recherche AgriWeb',
+                                ordre: 1,
+                                total_exported: result.total_exported
+                            }, '*');
+                        } catch (e) {
+                            console.log('Impossible de notifier la fenêtre parent:', e);
+                        }
+                    }
                     
                     // Réinitialiser les sélections
                     selectedItems = { parkings: new Set(), toitures: new Set(), friches: new Set(), rpg: new Set() };
@@ -1303,8 +1373,18 @@
                     alert(`❌ Erreur lors de l'export :\n${result.error}`);
                 }
             } catch (error) {
-                console.error('Erreur export CRM:', error);
-                alert(`❌ Erreur de connexion :\n${error.message}`);
+                console.error('❌ [CRM EXPORT] Erreur:', error);
+                
+                let errorMessage = 'Erreur inconnue';
+                if (error.name === 'AbortError') {
+                    errorMessage = 'L\'export a pris plus de 10 minutes et a été interrompu.\nVeuillez réessayer avec moins d\'éléments.';
+                } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMessage = 'Erreur de connexion au serveur.\nLe serveur a peut-être coupé la connexion (timeout).\n\nVeuillez vérifier :\n- Que le serveur est accessible\n- Que vous avez une connexion internet\n- Réessayer dans quelques instants';
+                } else {
+                    errorMessage = error.message;
+                }
+                
+                alert(`❌ Erreur lors de l'export CRM :\n\n${errorMessage}`);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;

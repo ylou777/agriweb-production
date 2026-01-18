@@ -17,11 +17,11 @@ import re
 
 # Configuration email
 EMAIL_CONFIG = {
-    'smtp_server': 'smtp.gmail.com',
-    'smtp_port': 587,
+    'smtp_server': os.getenv('SMTP_HOST', 'smtp.gmail.com'),
+    'smtp_port': int(os.getenv('SMTP_PORT', '587')),
     'email': os.getenv('SMTP_EMAIL', 'ylaurent.perso@gmail.com'),
     'password': os.getenv('SMTP_PASSWORD', 'votre_mot_de_passe_app'),
-    'from_name': 'AgriWeb Pro'
+    'from_name': 'Sun Dev by Sunstice'
 }
 
 DATABASE_PATH = "agriweb_users.db"
@@ -238,6 +238,116 @@ class AuthSystem:
             print(f"❌ Erreur envoi email: {e}")
             return False
     
+    def send_admin_notification(self, user_email, user_name, user_company, trial_end_date):
+        """Envoie une notification à l'admin lors d'une nouvelle inscription"""
+        try:
+            # Email admin (votre email)
+            admin_email = os.getenv('ADMIN_EMAIL', 'ylaurent.perso@gmail.com')
+            
+            # Vérifier si la configuration email est complète
+            if not EMAIL_CONFIG['password'] or EMAIL_CONFIG['password'] in ['votre_mot_de_passe_app', '']:
+                print(f"⚠️ Configuration email manquante - Notification admin ignorée")
+                return False
+            
+            # Configuration du message
+            msg = MIMEMultipart('alternative')
+            msg['Subject'] = f"🎉 Nouvelle inscription - {user_name}"
+            msg['From'] = f"{EMAIL_CONFIG['from_name']} <{EMAIL_CONFIG['email']}>"
+            msg['To'] = admin_email
+            
+            # Version HTML de l'email
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ background: linear-gradient(135deg, #007bff, #0056b3); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                    .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
+                    .info-box {{ background: white; padding: 15px; margin: 15px 0; border-left: 4px solid #007bff; border-radius: 5px; }}
+                    .footer {{ text-align: center; margin-top: 20px; color: #6c757d; font-size: 0.9em; }}
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <h1>🎉 Nouvelle Inscription</h1>
+                        <p>AgriWeb Pro - Administration</p>
+                    </div>
+                    <div class="content">
+                        <h2>Un nouveau compte a été créé</h2>
+                        
+                        <div class="info-box">
+                            <strong>👤 Nom :</strong> {user_name}
+                        </div>
+                        
+                        <div class="info-box">
+                            <strong>📧 Email :</strong> {user_email}
+                        </div>
+                        
+                        <div class="info-box">
+                            <strong>🏢 Entreprise :</strong> {user_company if user_company else 'Non renseignée'}
+                        </div>
+                        
+                        <div class="info-box">
+                            <strong>⏰ Date d'inscription :</strong> {datetime.now().strftime('%d/%m/%Y à %H:%M')}
+                        </div>
+                        
+                        <div class="info-box">
+                            <strong>🎁 Période d'essai :</strong> Jusqu'au {trial_end_date.strftime('%d/%m/%Y à %H:%M')}
+                        </div>
+                        
+                        <p style="background: #d1ecf1; padding: 15px; border-radius: 5px; border-left: 4px solid #17a2b8; margin-top: 20px;">
+                            <strong>ℹ️ Info :</strong> L'utilisateur dispose de 7 jours d'essai gratuit pour tester toutes les fonctionnalités de la plateforme.
+                        </p>
+                    </div>
+                    <div class="footer">
+                        <p>AgriWeb Pro - Notification automatique</p>
+                        <p>Cet email a été généré automatiquement suite à une nouvelle inscription</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Version texte de l'email
+            text_content = f"""
+            Nouvelle inscription sur AgriWeb Pro
+            
+            Un nouveau compte a été créé :
+            
+            Nom : {user_name}
+            Email : {user_email}
+            Entreprise : {user_company if user_company else 'Non renseignée'}
+            Date d'inscription : {datetime.now().strftime('%d/%m/%Y à %H:%M')}
+            Période d'essai : Jusqu'au {trial_end_date.strftime('%d/%m/%Y à %H:%M')}
+            
+            L'utilisateur dispose de 7 jours d'essai gratuit.
+            
+            ---
+            AgriWeb Pro - Notification automatique
+            """
+            
+            # Attacher les deux versions
+            msg.attach(MIMEText(text_content, 'plain', 'utf-8'))
+            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+            
+            # Envoi via SMTP
+            server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
+            server.starttls()
+            server.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
+            server.send_message(msg)
+            server.quit()
+            
+            print(f"✅ Notification admin envoyée pour inscription de {user_name}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Erreur envoi notification admin: {e}")
+            return False
+    
     def register_user(self, email, name, company, password):
         """Inscription d'un nouvel utilisateur avec vérification email"""
         try:
@@ -293,8 +403,13 @@ class AuthSystem:
             conn.commit()
             conn.close()
             
-            # Envoyer l'email de vérification
-            if self.send_verification_email(email, verification_token, name):
+            # Envoyer l'email de vérification à l'utilisateur
+            email_sent = self.send_verification_email(email, verification_token, name)
+            
+            # Envoyer la notification à l'admin (en arrière-plan, ne bloque pas l'inscription)
+            self.send_admin_notification(email, name, company or '', trial_end)
+            
+            if email_sent:
                 return True, f"Compte créé ! Vérifiez votre email {email} pour l'activer."
             else:
                 return False, "Compte créé mais erreur lors de l'envoi de l'email de vérification"

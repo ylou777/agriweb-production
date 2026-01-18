@@ -1113,6 +1113,37 @@
                 alert('❌ Erreur lors de la suppression: ' + err.message);
             });
         }
+        
+        // Écouter les messages des fenêtres enfants (calepinage, visite, etc.)
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'etape_terminee') {
+                console.log('✅ Notification reçue:', event.data.etape, 'terminée');
+                
+                // Afficher une notification
+                const notification = document.createElement('div');
+                notification.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+                notification.style.zIndex = '9999';
+                notification.innerHTML = `
+                    <strong>✅ ${event.data.etape} terminée!</strong>
+                    <p class="mb-0">La fiche projet a été mise à jour automatiquement.</p>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                document.body.appendChild(notification);
+                
+                // Rafraîchir la liste des projets
+                loadProjets();
+                
+                // Si le modal du projet est ouvert, le rafraîchir aussi
+                if (currentProjectId) {
+                    showProjectDetails(currentProjectId);
+                }
+                
+                // Auto-fermer après 5 secondes
+                setTimeout(() => {
+                    notification.remove();
+                }, 5000);
+            }
+        });
     </script>
 </body>
 </html>

@@ -1092,8 +1092,29 @@ def get_all_postes(lat, lon, radius_deg=0.1):
     for feature in features:
         geom_shp = shape(feature["geometry"])
         dist = geom_shp.distance(point) * 111000  # Conversion en mètres
+        
+        # Extraire coordonnées du poste
+        try:
+            coords = feature["geometry"]["coordinates"]
+            poste_lon, poste_lat = coords[0], coords[1]
+        except:
+            poste_lon, poste_lat = None, None
+        
+        # Normaliser les propriétés pour le template
+        props = feature["properties"]
+        normalized_props = {
+            "nom": props.get("lib_poste") or props.get("libelle") or props.get("nom") or "Poste BT",
+            "etat": props.get("etat") or props.get("statut") or "Actif",
+            "puissance": props.get("puissance") or props.get("capacite") or props.get("p_inst") or "N/A",
+            "tension": props.get("tension") or props.get("u_nom") or "400V",
+            "latitude": poste_lat,
+            "longitude": poste_lon,
+            # Conserver aussi les propriétés originales
+            **props
+        }
+        
         postes.append({
-            "properties": feature["properties"],
+            "properties": normalized_props,
             "distance": round(dist, 2),
             "geometry": mapping(geom_shp)
         })
@@ -9498,8 +9519,8 @@ def recherche_toitures():
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    # Toujours retourner le template index.html avec l'interface complète
-    return render_template("index.html")
+    # Afficher la landing page homepage.html
+    return render_template("homepage.html")
     
     # Mode normal avec GeoServer
     # Valeurs par défaut pour la carte d'accueil (France centre)
@@ -11036,7 +11057,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'lon': coords[0],
                     'lat': coords[1],
                     'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('libelle') or ''
+                    'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or '',
+                    'puissance': pr.get('puissance') or pr.get('capacite') or pr.get('p_inst'),
+                    'etat': pr.get('etat') or pr.get('statut') or 'Actif'
                 }
             except Exception:
                 return {}
@@ -11514,8 +11537,11 @@ def generate_integrated_commune_report(commune_name, filters=None):
             "features": zones_data
         }
         rapport["parkings_analysis"] = parkings_analysis
+        rapport["parkings_details"] = parkings_details
         rapport["friches_analysis"] = friches_analysis
+        rapport["friches_details"] = friches_details
         rapport["toitures_analysis"] = toitures_analysis
+        rapport["toitures_details"] = toitures_details
             
         rapport["infrastructures_analysis"] = {
             "energie": {

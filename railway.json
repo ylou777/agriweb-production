@@ -1,9 +1,10 @@
 {
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "buildCommand": "git submodule update --init --recursive"
   },
   "deploy": {
-    "startCommand": "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120",
+    "startCommand": "gunicorn agriweb_hebergement_gratuit:app --bind 0.0.0.0:$PORT --workers 1 --timeout 600 --graceful-timeout 600",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",

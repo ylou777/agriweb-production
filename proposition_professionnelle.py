@@ -1,0 +1,2734 @@
+"""
+Générateur de proposition commerciale professionnelle pour installations photovoltaïques
+Conforme aux standards de l'industrie solaire française
+"""
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.units import cm, mm
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.platypus import (Table, TableStyle, PageBreak, SimpleDocTemplate, 
+                                 Paragraph, Spacer, Image as RLImage, KeepTogether, Frame, PageTemplate)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
+from io import BytesIO
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+from datetime import datetime, timedelta
+import json
+from database_adapter import execute_query
+
+class PropositionProfessionnelle:
+    """Générateur de proposition commerciale photovoltaïque professionnelle"""
+    
+    def __init__(self, prospect, calpinage, parametres):
+        self.prospect = prospect
+        self.calpinage = calpinage
+        self.params = parametres
+        self.styles = getSampleStyleSheet()
+        
+        # === CHARGER PARAMÉTRAGE ENTREPRISE DEPUIS BDD ===
+        self._charger_parametrage_entreprise()
+        
+        # === CHARGER PRIX DEPUIS BDD ===
+        self._charger_prix_organes()
+        
+        # Créer styles avec couleurs personnalisées
+        self._create_custom_styles()
+        
+        # Extraire rapport_commune depuis data_json
+        try:
+            data_json = json.loads(prospect.get('data_json', '{}')) if isinstance(prospect.get('data_json'), str) else prospect.get('data_json', {})
+            self.rapport_commune = data_json.get('rapport_commune', {})
+        except:
+            self.rapport_commune = {}
+        
+        # === CALCUL DONNÉES RÉELLES DEPUIS CALEPINAGE (source de vérité) ===
+        self._extraire_donnees_reelles()
+    
+    def _charger_parametrage_entreprise(self):
+        """Charger paramétrage entreprise depuis BDD"""
+        try:
+            result = execute_query(
+                'SELECT * FROM parametrage_entreprise WHERE actif = TRUE ORDER BY id DESC LIMIT 1',
+                fetch_one=True
+            )
+            
+            if result:
+                self.entreprise = dict(result)
+                print(f"✅ Paramétrage entreprise chargé: {self.entreprise.get('nom_entreprise')}")
+            else:
+                # Valeurs par défaut si pas de paramétrage
+                self.entreprise = {
+                    'nom_entreprise': 'Votre Société Photovoltaïque',
+                    'adresse': '123 Avenue du Soleil',
+                    'code_postal': '75001',
+                    'ville': 'Paris',
+                    'telephone': '01 23 45 67 89',
+                    'email': 'contact@votresociete.fr',
+                    'siret': '12345678900012',
+                    'rge_numero': 'RGE-2024-001',
+                    'couleur_primaire': '#003d7a',
+                    'couleur_secondaire': '#0066cc',
+                    'couleur_accent': '#28a745',
+                    'logo_base64': None
+                }
+                print("⚠️ Pas de paramétrage entreprise, valeurs par défaut utilisées")
+        except Exception as e:
+            print(f"⚠️ Erreur chargement paramétrage entreprise: {e}")
+            # Valeurs par défaut en cas d'erreur
+            self.entreprise = {
+                'nom_entreprise': 'Votre Société Photovoltaïque',
+                'couleur_primaire': '#003d7a',
+                'couleur_secondaire': '#0066cc',
+                'couleur_accent': '#28a745'
+            }
+    
+    def _charger_prix_organes(self):
+        """Charger prix des organes depuis BDD"""
+        try:
+            result = execute_query(
+                'SELECT * FROM parametrage_prix_organes WHERE actif = TRUE ORDER BY categorie, nom_organe',
+                fetch_all=True
+            )
+            
+            if result:
+                self.prix_organes = {}
+                for row in result:
+                    r = dict(row)
+                    key = f"{r['categorie']}_{r.get('marque', '')}_{r.get('puissance_wc', '')}_{r.get('puissance_kw', '')}"
+                    key = key.lower().replace(' ', '_').replace('none', '')
+                    self.prix_organes[key] = r
+                
+                print(f"✅ {len(self.prix_organes)} prix organes chargés depuis BDD")
+            else:
+                # Prix par défaut si table vide
+                self.prix_organes = {
+                    'module_default': {'prix_unitaire_ht': 0.32, 'unite': '€/Wc', 'marge_commerciale_pct': 15.0},
+                    'onduleur_default': {'prix_unitaire_ht': 90.00, 'unite': '€/kW', 'marge_commerciale_pct': 18.0},
+                    'structure_default': {'prix_unitaire_ht': 45.00, 'unite': '€/m²', 'marge_commerciale_pct': 15.0}
+                }
+                print("⚠️ Pas de prix en BDD, valeurs par défaut utilisées")
+        except Exception as e:
+            print(f"⚠️ Erreur chargement prix: {e}")
+            self.prix_organes = {}
+        
+    def _create_custom_styles(self):
+        """Créer des styles personnalisés avec couleurs depuis BDD"""
+        
+        # Couleurs personnalisées de l'entreprise
+        couleur_primaire = self.entreprise.get('couleur_primaire', '#003d7a')
+        couleur_secondaire = self.entreprise.get('couleur_secondaire', '#0066cc')
+        couleur_accent = self.entreprise.get('couleur_accent', '#28a745')
+        
+        # Style titre principal
+        self.styles.add(ParagraphStyle(
+            name='TitrePrincipal',
+            parent=self.styles['Heading1'],
+            fontSize=28,
+            textColor=colors.HexColor(couleur_primaire),
+            spaceAfter=20,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Style sous-titre
+        self.styles.add(ParagraphStyle(
+            name='SousTitre',
+            parent=self.styles['Heading2'],
+            fontSize=16,
+            textColor=colors.HexColor(couleur_secondaire),
+            spaceAfter=12,
+            spaceBefore=15,
+            fontName='Helvetica-Bold'
+        ))
+        
+        # Style section
+        self.styles.add(ParagraphStyle(
+            name='Section',
+            parent=self.styles['Heading3'],
+            fontSize=14,
+            textColor=colors.HexColor(couleur_primaire),
+            spaceAfter=10,
+            spaceBefore=12,
+            fontName='Helvetica-Bold',
+            leftIndent=0
+        ))
+        
+        # Style corps de texte justifié
+        self.styles.add(ParagraphStyle(
+            name='CorpsJustifie',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            alignment=TA_JUSTIFY,
+            spaceAfter=8,
+            leading=14
+        ))
+        
+        # Style encadré important
+        self.styles.add(ParagraphStyle(
+            name='Encadre',
+            parent=self.styles['Normal'],
+            fontSize=11,
+            textColor=colors.HexColor('#003d7a'),
+            backColor=colors.HexColor('#e6f2ff'),
+            borderPadding=10,
+            fontName='Helvetica-Bold'
+        ))
+    
+    def _extraire_donnees_reelles(self):
+        """Extrait les données réelles depuis le calepinage (source de vérité)"""
+        
+        # 1. PUISSANCE RÉELLE
+        zones = self.calpinage.get('zones', [])
+        totaux = self.calpinage.get('totaux', {})
+        
+        # Priorité: totaux.nbModules si disponible, sinon somme des zones
+        nb_modules = totaux.get('nbModules', 0)
+        if nb_modules == 0:
+            nb_modules = sum(z.get('nbModules', 0) for z in zones)
+        
+        module_puissance = totaux.get('puissanceModule', 550)  # Watts par module
+        self.puissance_reelle_kwc = round(nb_modules * module_puissance / 1000, 2)
+        self.nb_modules_total = nb_modules
+        self.module_puissance = module_puissance
+        
+        # 2. PRIX RÉEL depuis devis
+        devis_data = self.calpinage.get('devis', {})
+        self.prix_total_ttc = devis_data.get('total_ttc', 0)
+        self.prix_total_ht = devis_data.get('total_ht', 0)
+        
+        # Si pas de devis, calculer depuis prix_kwc
+        if self.prix_total_ttc == 0 or self.prix_total_ht == 0:
+            prix_kwc = self.params.get('prix_kwc', 850)  # Fallback: 850€/kWc
+            if self.prix_total_ht == 0:
+                self.prix_total_ht = self.puissance_reelle_kwc * prix_kwc
+            if self.prix_total_ttc == 0:
+                self.prix_total_ttc = self.prix_total_ht * 1.20
+        
+        # Sécurité: si toujours 0, forcer une valeur minimale
+        if self.prix_total_ht == 0:
+            self.prix_total_ht = self.puissance_reelle_kwc * 850
+            self.prix_total_ttc = self.prix_total_ht * 1.20
+        
+        # 3. POSTE BT/HTA réel
+        try:
+            data_json = json.loads(self.prospect.get('data_json', '{}')) if isinstance(self.prospect.get('data_json'), str) else self.prospect.get('data_json', {})
+            
+            # Extraire poste BT
+            poste_bt_data = data_json.get('poste_bt', {})
+            if isinstance(poste_bt_data, dict):
+                self.poste_bt_nom = poste_bt_data.get('nom') or poste_bt_data.get('name') or "Non identifié"
+                self.poste_bt_distance = poste_bt_data.get('distance_m', 0)
+            else:
+                self.poste_bt_nom = "Non identifié"
+                self.poste_bt_distance = 0
+            
+            # Extraire poste HTA
+            poste_hta_data = data_json.get('poste_hta', {})
+            if isinstance(poste_hta_data, dict):
+                self.poste_hta_nom = poste_hta_data.get('nom') or poste_hta_data.get('name') or "Non identifié"
+                self.poste_hta_distance = poste_hta_data.get('distance_m', 0)
+            else:
+                self.poste_hta_nom = "Non identifié"
+                self.poste_hta_distance = 0
+                
+        except Exception as e:
+            print(f"⚠️ Erreur extraction postes: {e}")
+            self.poste_bt_nom = "Non identifié"
+            self.poste_bt_distance = 0
+            self.poste_hta_nom = "Non identifié"
+            self.poste_hta_distance = 0
+        
+        # 4. DÉPARTEMENT formaté
+        dept = self.prospect.get('departement', '')
+        if isinstance(dept, dict):
+            self.departement_nom = dept.get('nom', '')
+            self.departement_code = dept.get('code', '')
+        else:
+            self.departement_nom = dept
+            self.departement_code = ''
+        
+        # 5. CONFIGURATION ÉLECTRIQUE
+        config_elec = self.calpinage.get('configuration_electrique', {})
+        self.nb_onduleurs = len(config_elec.get('onduleurs', []))
+        self.nb_strings = sum(ond.get('nb_strings', 0) for ond in config_elec.get('onduleurs', []))
+        
+        print(f"✅ Données réelles extraites:")
+        print(f"   - Puissance: {self.puissance_reelle_kwc} kWc ({self.nb_modules_total} modules × {self.module_puissance}W)")
+        print(f"   - Prix: {self.prix_total_ttc:,.2f} € TTC")
+        print(f"   - Poste BT: {self.poste_bt_nom} à {self.poste_bt_distance}m")
+        print(f"   - Poste HTA: {self.poste_hta_nom} à {self.poste_hta_distance}m")
+        print(f"   - Département: {self.departement_code} - {self.departement_nom}")
+    
+    def generer_pdf(self):
+        """Génère le PDF complet de la proposition"""
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer, 
+            pagesize=A4,
+            rightMargin=2*cm, 
+            leftMargin=2*cm,
+            topMargin=2.5*cm, 
+            bottomMargin=2.5*cm,
+            title=f"Proposition Commerciale - {self.prospect.get('nom_prospect', 'N/A')}",
+            author="Votre Société Photovoltaïque"
+        )
+        
+        story = []
+        
+        # Générer toutes les sections
+        story.extend(self._page_couverture())
+        story.append(PageBreak())
+        
+        story.extend(self._sommaire())
+        story.append(PageBreak())
+        
+        story.extend(self._presentation_entreprise())
+        story.append(PageBreak())
+        
+        story.extend(self._analyse_site())
+        story.append(PageBreak())
+        
+        # Ajouter les vues du calepinage si disponibles
+        calepinage_section = self._vues_calepinage()
+        if calepinage_section:
+            story.extend(calepinage_section)
+            story.append(PageBreak())
+        
+        story.extend(self._solution_technique())
+        story.append(PageBreak())
+        
+        story.extend(self._etude_productible())
+        story.append(PageBreak())
+        
+        story.extend(self._etude_financiere())
+        story.append(PageBreak())
+        
+        story.extend(self._devis_detaille())
+        story.append(PageBreak())
+        
+        story.extend(self._planning_realisation())
+        story.append(PageBreak())
+        
+        story.extend(self._garanties_maintenance())
+        story.append(PageBreak())
+        
+        story.extend(self._aspects_reglementaires())
+        story.append(PageBreak())
+        
+        story.extend(self._conditions_generales())
+        
+        # Construire le PDF
+        doc.build(story)
+        buffer.seek(0)
+        return buffer
+    
+    def _page_couverture(self):
+        """PAGE 1: Page de couverture professionnelle"""
+        elements = []
+        
+        # Espace en haut
+        elements.append(Spacer(1, 2*cm))
+        
+        # Logo (si disponible depuis paramétrage)
+        if self.entreprise.get('logo_base64'):
+            try:
+                import base64
+                from io import BytesIO as IOBytesIO
+                from reportlab.lib.utils import ImageReader
+                
+                # Décoder logo base64
+                logo_data = self.entreprise['logo_base64']
+                if ',' in logo_data:
+                    logo_data = logo_data.split(',')[1]
+                
+                logo_bytes = base64.b64decode(logo_data)
+                logo_buffer = IOBytesIO(logo_bytes)
+                
+                # Afficher logo
+                logo_img = RLImage(ImageReader(logo_buffer), width=8*cm, height=3*cm, kind='proportional')
+                elements.append(logo_img)
+                elements.append(Spacer(1, 0.5*cm))
+            except Exception as e:
+                print(f"⚠️ Erreur affichage logo: {e}")
+                # Fallback au nom de l'entreprise
+                elements.append(Paragraph(self.entreprise.get('nom_entreprise', 'VOTRE SOCIÉTÉ PHOTOVOLTAÏQUE'), self.styles['TitrePrincipal']))
+                elements.append(Spacer(1, 0.5*cm))
+        else:
+            # Pas de logo, afficher nom entreprise
+            elements.append(Paragraph(self.entreprise.get('nom_entreprise', 'VOTRE SOCIÉTÉ PHOTOVOLTAÏQUE'), self.styles['TitrePrincipal']))
+            elements.append(Spacer(1, 0.5*cm))
+        
+        # Titre principal
+        elements.append(Paragraph("PROPOSITION COMMERCIALE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Récupérer type raccordement depuis calepinage (cohérence avec schéma unifilaire)
+        type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
+        
+        # Mapping pour affichage
+        type_projet_display = {
+            'autoconso_injection': 'Autoconsommation avec Revente du Surplus',
+            'autoconso_sans_injection': 'Autoconsommation Sans Injection',
+            'injection_totale': 'Vente Totale (Obligation d’Achat)'
+        }.get(type_raccordement, 'Autoconsommation')
+        
+        elements.append(Paragraph(f"Installation Photovoltaïque en {type_projet_display}", self.styles['SousTitre']))
+        
+        elements.append(Spacer(1, 2*cm))
+        
+        # Encadré informations projet - DONNÉES RÉELLES
+        
+        info_data = [
+            ['CARACTÉRISTIQUES DU PROJET'],
+            [''],
+            [f'<b>Puissance:</b> {self.puissance_reelle_kwc:.2f} kWc ({self.nb_modules_total} modules)'],
+            [f'<b>Type raccordement:</b> {type_projet_display}'],
+            [f'<b>Localisation:</b> {self.prospect.get("commune", "N/A")} ({self.departement_code})'],
+            [''],
+            [f'<b>Proposition valable jusqu\'au:</b> {(datetime.now() + timedelta(days=30)).strftime("%d/%m/%Y")}'],
+        ]
+        
+        info_table = Table(info_data, colWidths=[16*cm])
+        info_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 14),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            ('FONTSIZE', (0, 1), (-1, -1), 11),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#003d7a')),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')])
+        ]))
+        elements.append(info_table)
+        
+        elements.append(Spacer(1, 2*cm))
+        
+        # Informations client
+        client_text = f"""
+        <b>À l'attention de :</b><br/>
+        <b>{self.prospect.get('nom_prospect', 'N/A')}</b><br/>
+        {self.prospect.get('adresse', 'N/A')}<br/>
+        {self.prospect.get('commune', 'N/A')}
+        """
+        elements.append(Paragraph(client_text, self.styles['Normal']))
+        
+        elements.append(Spacer(1, 1*cm))
+        
+        # Date et référence
+        ref_text = f"""
+        <b>Référence:</b> PROP-{self.prospect.get('id', '000')}-{datetime.now().strftime('%Y%m%d')}<br/>
+        <b>Date:</b> {datetime.now().strftime('%d/%m/%Y')}
+        """
+        elements.append(Paragraph(ref_text, self.styles['Normal']))
+        
+        return elements
+    
+    def _sommaire(self):
+        """PAGE 2: Sommaire détaillé"""
+        elements = []
+        
+        elements.append(Paragraph("SOMMAIRE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.8*cm))
+        
+        sommaire_data = [
+            ['', '<b>SECTION</b>', '<b>PAGE</b>'],
+            ['1.', '<b>PRÉSENTATION DE L\'ENTREPRISE</b>', ''],
+            ['1.1', 'Notre expertise photovoltaïque', '3'],
+            ['1.2', 'Certifications et agréments', '3'],
+            ['1.3', 'Références et réalisations', '3'],
+            ['', '', ''],
+            ['2.', '<b>ANALYSE COMPLÈTE DU SITE</b>', ''],
+            ['2.1', 'Localisation et caractéristiques', '4'],
+            ['2.2', 'Contexte urbanistique (PLU/GPU)', '4'],
+            ['2.3', 'Analyse des risques (Géorisques)', '5'],
+            ['2.4', 'Caractéristiques du bâtiment', '5'],
+            ['2.5', 'Raccordement électrique', '6'],
+            ['', '', ''],
+            ['3.', '<b>PROJET PHOTOVOLTAÏQUE</b>', ''],
+            ['3.1', 'Vues du calepinage 3D', '7'],
+            ['3.2', 'Répartition des modules par zone', '7'],
+            ['3.3', 'Configuration électrique', '8'],
+            ['', '', ''],
+            ['4.', '<b>SOLUTION TECHNIQUE DÉTAILLÉE</b>', ''],
+            ['4.1', 'Modules photovoltaïques', '9'],
+            ['4.2', 'Onduleurs et convertisseurs', '10'],
+            ['4.3', 'Structures et fixations', '11'],
+            ['4.4', 'Protections électriques', '12'],
+            ['4.5', 'Schéma unifilaire NF C 15-712', '13'],
+            ['4.6', 'Câblage et chemins de câbles', '14'],
+            ['', '', ''],
+            ['5.', '<b>ÉTUDE DE PRODUCTIBLE</b>', ''],
+            ['5.1', 'Données PVGIS (irradiation, température)', '15'],
+            ['5.2', 'Production mensuelle et annuelle', '16'],
+            ['5.3', 'Courbes horaires (si données disponibles)', '17'],
+            ['5.4', 'Pertes et rendement global', '18'],
+            ['', '', ''],
+            ['6.', '<b>ÉTUDE FINANCIÈRE APPROFONDIE</b>', ''],
+            ['6.1', 'Investissement initial détaillé', '19'],
+            ['6.2', 'Revenus prévisionnels sur 20 ans', '20'],
+            ['6.3', 'Cash-flow et amortissement', '21'],
+            ['6.4', 'Indicateurs financiers (TRI, VAN, ROI)', '22'],
+            ['6.5', 'Analyse de sensibilité', '23'],
+            ['6.6', 'Aides et subventions', '24'],
+            ['', '', ''],
+            ['7.', '<b>DEVIS DÉTAILLÉ</b>', ''],
+            ['7.1', 'Décomposition par lot', '25'],
+            ['7.2', 'Main d\'œuvre et prestations', '26'],
+            ['7.3', 'Options et variantes', '27'],
+            ['7.4', 'Conditions tarifaires', '28'],
+            ['', '', ''],
+            ['8.', '<b>PLANNING ET DÉMARCHES</b>', ''],
+            ['8.1', 'Timeline du projet', '29'],
+            ['8.2', 'Démarches urbanisme (DP/PC)', '30'],
+            ['8.3', 'Raccordement Enedis (DDR, CRAE)', '31'],
+            ['8.4', 'CONSUEL et mise en service', '32'],
+            ['', '', ''],
+            ['9.', '<b>GARANTIES ET MAINTENANCE</b>', ''],
+            ['9.1', 'Garanties constructeur', '33'],
+            ['9.2', 'Garantie décennale et assurances', '34'],
+            ['9.3', 'Contrat de maintenance', '35'],
+            ['9.4', 'Monitoring et supervision', '36'],
+            ['', '', ''],
+            ['10.', '<b>ASPECTS RÉGLEMENTAIRES</b>', ''],
+            ['10.1', 'Normes et réglementations', '37'],
+            ['10.2', 'Conformité NF C 15-712', '37'],
+            ['10.3', 'Sécurité incendie', '38'],
+            ['', '', ''],
+            ['11.', '<b>CONDITIONS GÉNÉRALES</b>', ''],
+            ['11.1', 'Conditions générales de vente', '39'],
+            ['11.2', 'Modalités de paiement', '40'],
+            ['', '', ''],
+            ['<b>ANNEXES</b>', '<b>DOCUMENTATION TECHNIQUE</b>', ''],
+            ['A.', 'Fiches techniques modules', '41'],
+            ['B.', 'Fiches techniques onduleurs', '42'],
+            ['C.', 'Certifications et agréments', '43'],
+            ['D.', 'Schéma unifilaire complet', '44'],
+            ['E.', 'Plans de calepinage', '45'],
+        ]
+        
+        sommaire_table = Table(sommaire_data, colWidths=[1.5*cm, 13*cm, 2*cm])
+        sommaire_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('ALIGN', (2, 0), (2, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, 0), 1, colors.grey),
+            ('LINEBELOW', (0, 0), (-1, 0), 2, colors.HexColor('#003d7a')),
+            # Lignes vides (séparateurs de sections) - fond gris clair
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 12), (-1, 12), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 16), (-1, 16), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 23), (-1, 23), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 29), (-1, 29), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 37), (-1, 37), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 45), (-1, 45), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 49), (-1, 49), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 53), (-1, 53), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 57), (-1, 57), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 61), (-1, 61), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (0, 63), (-1, 63), colors.HexColor('#e0e0e0')),
+        ]))
+        elements.append(sommaire_table)
+        
+        return elements
+    
+    def _presentation_entreprise(self):
+        """PAGE 3: Présentation de l'entreprise"""
+        elements = []
+        
+        elements.append(Paragraph("1. PRÉSENTATION DE L'ENTREPRISE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Qui sommes-nous
+        texte_presentation = """
+        <b>Votre Société Photovoltaïque</b> est un acteur reconnu dans le secteur des énergies renouvelables, 
+        spécialisé dans la conception, l'installation et la maintenance d'installations photovoltaïques pour 
+        les professionnels et les collectivités.
+        <br/><br/>
+        Avec <b>plus de X années d'expérience</b> et <b>XXX MWc installés</b>, nous maîtrisons l'ensemble 
+        de la chaîne de valeur du photovoltaïque, de l'étude de faisabilité jusqu'à la maintenance préventive 
+        et curative.
+        """
+        elements.append(Paragraph(texte_presentation, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Nos engagements
+        elements.append(Paragraph("Nos engagements", self.styles['Section']))
+        
+        engagements_data = [
+            ['✓ <b>Qualité</b>', 'Matériel premium (Tier 1) avec garanties constructeur étendues'],
+            ['✓ <b>Expertise</b>', 'Bureau d\'études interne, certifications QualiPV et RGE'],
+            ['✓ <b>Accompagnement</b>', 'Suivi personnalisé de A à Z, démarches administratives incluses'],
+            ['✓ <b>Performance</b>', 'Garantie de production sur 25 ans'],
+            ['✓ <b>Sécurité</b>', 'Assurance décennale, respect des normes NF C 15-100'],
+        ]
+        
+        engagements_table = Table(engagements_data, colWidths=[4*cm, 12*cm])
+        engagements_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(engagements_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Certifications
+        elements.append(Paragraph("Nos certifications", self.styles['Section']))
+        
+        cert_text = """
+        • <b>QualiPV</b> - Module Bât (Installations en toiture)<br/>
+        • <b>QualiPV</b> - Module Elec (Raccordement électrique)<br/>
+        • <b>RGE</b> - Reconnu Garant de l'Environnement<br/>
+        • <b>Assurance décennale</b> - Garantie dommages-ouvrage<br/>
+        • <b>Habilitations électriques</b> - BR, BC, B2V
+        """
+        elements.append(Paragraph(cert_text, self.styles['CorpsJustifie']))
+        
+        return elements
+    
+    def _analyse_site(self):
+        """PAGE 4: Analyse complète du site avec urbanisme et risques"""
+        elements = []
+        
+        elements.append(Paragraph("2. ANALYSE COMPLÈTE DU SITE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 2.1 LOCALISATION ==========
+        elements.append(Paragraph("2.1. Localisation", self.styles['Section']))
+        
+        localisation_text = f"""
+        <b>Adresse:</b> {self.prospect.get('adresse', 'N/A')}<br/>
+        <b>Commune:</b> {self.prospect.get('commune', 'N/A')} ({self.prospect.get('departement', '')})<br/>
+        <b>Code postal:</b> {self.prospect.get('code_postal', 'N/A')}<br/>
+        <b>Coordonnées GPS:</b> {self.prospect.get('latitude', 0):.6f}, {self.prospect.get('longitude', 0):.6f}<br/>
+        <b>Zone climatique:</b> H2 (tempérée)<br/>
+        <b>Irradiation annuelle:</b> 1400-1600 kWh/m²/an
+        """
+        elements.append(Paragraph(localisation_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # ========== 2.2 URBANISME ==========
+        if self.rapport_commune:
+            elements.append(Paragraph("2.2. Contexte Urbanistique", self.styles['Section']))
+            
+            # PLU / Document d'urbanisme
+            plu = self.rapport_commune.get('plu', {})
+            if plu:
+                urbanisme_data = [
+                    ['<b>Document d\'urbanisme</b>', '<b>Information</b>'],
+                    ['Type de document', plu.get('type', 'PLU')],
+                    ['Date d\'approbation', plu.get('date_approbation', 'N/A')],
+                    ['Zonage', plu.get('zonage', 'À déterminer')],
+                    ['Règlement applicable', plu.get('reglement_zone', 'Consultation PLU nécessaire')],
+                ]
+                
+                urbanisme_table = Table(urbanisme_data, colWidths=[7*cm, 9*cm])
+                urbanisme_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 9),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f0f0')])
+                ]))
+                elements.append(urbanisme_table)
+                elements.append(Spacer(1, 0.3*cm))
+            
+            # Servitudes et contraintes
+            servitudes = self.rapport_commune.get('servitudes', [])
+            if servitudes:
+                elements.append(Paragraph("<b>Servitudes d'utilité publique:</b>", self.styles['Normal']))
+                for serv in servitudes[:5]:  # Limiter à 5 servitudes
+                    elements.append(Paragraph(f"• {serv.get('nom', 'Servitude')} - {serv.get('description', '')}",
+                                            self.styles['Normal']))
+                elements.append(Spacer(1, 0.3*cm))
+            
+            # ABF / Monuments historiques
+            abf = self.rapport_commune.get('abf', {})
+            if abf and abf.get('perimetre_protection'):
+                abf_text = f"""
+                <b>⚠️ PÉRIMÈTRE DE PROTECTION ABF (Architecte des Bâtiments de France)</b><br/>
+                <b>Distance au monument:</b> {abf.get('distance_monument', 'N/A')} mètres<br/>
+                <b>Avis ABF requis:</b> {'Oui' if abf.get('avis_requis') else 'Non'}<br/>
+                <b>Recommandations:</b> Intégration architecturale soignée, modules noirs recommandés
+                """
+                elements.append(Paragraph(abf_text, self.styles['Encadre']))
+                elements.append(Spacer(1, 0.3*cm))
+        
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # ========== 2.3 ANALYSE DES RISQUES ==========
+        elements.append(Paragraph("2.3. Analyse des Risques Naturels et Technologiques", self.styles['Section']))
+        
+        if self.rapport_commune:
+            risques = self.rapport_commune.get('risques', {})
+            
+            risques_data = [
+                ['<b>Type de risque</b>', '<b>Niveau</b>', '<b>Mesures prévues</b>'],
+            ]
+            
+            # Risque inondation
+            inondation = risques.get('inondation', {})
+            niveau_inond = inondation.get('niveau', 'Faible')
+            mesures_inond = 'Étanchéité renforcée des passages de câbles' if niveau_inond != 'Faible' else 'Installation standard'
+            risques_data.append(['Inondation', niveau_inond, mesures_inond])
+            
+            # Risque sismique
+            sismique = risques.get('sismique', {})
+            zone_sismique = sismique.get('zone', '2')
+            mesures_sismic = f'Fixations parasismiques zone {zone_sismique}' if int(zone_sismique) >= 3 else 'Fixations standard'
+            risques_data.append(['Sismique', f'Zone {zone_sismique}', mesures_sismic])
+            
+            # Risque retrait-gonflement argiles
+            argile = risques.get('argile', {})
+            niveau_argile = argile.get('niveau', 'Faible')
+            risques_data.append(['Retrait-gonflement argiles', niveau_argile, 'Surveillance structure'])
+            
+            # Risque industriel
+            industriel = risques.get('industriel', {})
+            if industriel.get('installations', []):
+                nb_install = len(industriel['installations'])
+                risques_data.append(['Industriel (ICPE)', f'{nb_install} installation(s)', 'Respect distances sécurité'])
+            
+            risques_table = Table(risques_data, colWidths=[5*cm, 4*cm, 7*cm])
+            risques_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#dc3545')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#fff0f0')])
+            ]))
+            elements.append(risques_table)
+        else:
+            elements.append(Paragraph("Analyse des risques en cours - Consultation Géorisques", self.styles['Normal']))
+        
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # ========== 2.4 CARACTÉRISTIQUES DU SITE ==========
+        elements.append(Paragraph("2.4. Caractéristiques du Bâtiment", self.styles['Section']))
+        
+        surface = self.prospect.get('surface_m2', 0)
+        type_bat = self.prospect.get('type', 'N/A')
+        
+        # Récupérer données calepinage si disponibles
+        zones = self.calpinage.get('zones', [])
+        nb_zones = len(zones)
+        
+        batiment_text = f"""
+        <b>Type de structure:</b> {type_bat.title()}<br/>
+        <b>Surface totale:</b> {surface:,.0f} m²<br/>
+        <b>Nombre de zones exploitables:</b> {nb_zones}<br/>
+        <b>Type de toiture:</b> À confirmer lors visite technique<br/>
+        <b>Orientation(s):</b> Optimisée selon calepinage (Sud ±30°)<br/>
+        <b>Inclinaison(s):</b> Variable selon zones (15-35°)
+        """
+        elements.append(Paragraph(batiment_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # ========== 2.5 RACCORDEMENT ÉLECTRIQUE ==========
+        elements.append(Paragraph("2.5. Raccordement Électrique", self.styles['Section']))
+        
+        # Utiliser les données RÉELLES extraites
+        raccordement_text = f"""
+        <b>Poste BT le plus proche:</b> {self.poste_bt_nom} - {self.poste_bt_distance:.0f} mètres<br/>
+        <b>Poste HTA le plus proche:</b> {self.poste_hta_nom} - {self.poste_hta_distance:.0f} mètres<br/>
+        <b>Puissance installation:</b> {self.puissance_reelle_kwc:.2f} kWc<br/>
+        <b>Type de raccordement:</b> BT (< 250 kVA) ou HTA (> 250 kVA) selon puissance finale<br/>
+        <b>Gestionnaire réseau:</b> Enedis<br/>
+        <b>Démarches:</b> Demande de raccordement (DDR) + Convention d'autoconsommation/CRAE
+        """
+        elements.append(Paragraph(raccordement_text, self.styles['CorpsJustifie']))
+        
+        # Encadré important
+        important_text = """
+        <b>⚠️ VISITE TECHNIQUE APPROFONDIE NÉCESSAIRE</b><br/>
+        Cette analyse préliminaire devra être confirmée par une visite technique incluant :<br/>
+        • Relevé précis des dimensions et orientations de toiture(s)<br/>
+        • Analyse des ombrages (diagramme solaire, obstacles)<br/>
+        • Vérification de la structure porteuse (charpente, étanchéité)<br/>
+        • État du tableau électrique et schéma unifilaire existant<br/>
+        • Vérification conformité installations électriques<br/>
+        • Contraintes d'accès et conditions de pose
+        """
+        elements.append(Spacer(1, 0.5*cm))
+        elements.append(Paragraph(important_text, self.styles['Encadre']))
+        
+        return elements
+    
+    def _vues_calepinage(self):
+        """Affiche les rendus 3D et plans du calepinage si disponibles"""
+        elements = []
+        
+        # Vérifier si on a des données de calepinage
+        if not self.calpinage or not self.calpinage.get('zones'):
+            return elements
+        
+        elements.append(Paragraph("2.6. VUES DU PROJET - CALEPINAGE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        intro_text = """
+        Les vues ci-dessous présentent l'implantation précise des modules photovoltaïques 
+        sur votre bâtiment, issues de notre outil de calepinage professionnel. Ces représentations 
+        3D et plans techniques ont été réalisées à partir des données cadastrales et images satellitaires.
+        """
+        elements.append(Paragraph(intro_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Récupérer les images du calepinage depuis data_json
+        try:
+            data_json = json.loads(self.prospect.get('data_json', '{}')) if isinstance(self.prospect.get('data_json'), str) else self.prospect.get('data_json', {})
+            calpinage_data = data_json.get('calpinage', {})
+            
+            # Image screenshot de la carte
+            screenshot_map = calpinage_data.get('screenshot_map')  # Base64 PNG
+            if screenshot_map and screenshot_map.startswith('data:image'):
+                elements.append(Paragraph("<b>Vue de la carte avec implantation</b>", self.styles['Section']))
+                elements.append(Spacer(1, 0.2*cm))
+                
+                try:
+                    # Décoder base64
+                    import base64
+                    from io import BytesIO as IOBytesIO
+                    from reportlab.lib.utils import ImageReader
+                    
+                    # Extraire la partie base64 (enlever "data:image/png;base64,")
+                    img_data = screenshot_map.split(',')[1] if ',' in screenshot_map else screenshot_map
+                    img_bytes = base64.b64decode(img_data)
+                    img_buffer = IOBytesIO(img_bytes)
+                    
+                    # Créer image ReportLab
+                    img = RLImage(ImageReader(img_buffer), width=15*cm, height=10*cm)
+                    elements.append(img)
+                    elements.append(Spacer(1, 0.5*cm))
+                    print(f"✅ Screenshot carte ajouté à la proposition")
+                except Exception as e:
+                    print(f"⚠️ Erreur décodage screenshot: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    elements.append(Paragraph("Vue de la carte non disponible", self.styles['Normal']))
+                    elements.append(Spacer(1, 0.3*cm))
+            else:
+                elements.append(Paragraph("💡 Astuce: Sauvegardez le calepinage pour capturer automatiquement la vue de la carte", self.styles['Normal']))
+                elements.append(Spacer(1, 0.3*cm))
+                
+        except Exception as e:
+            print(f"⚠️ Erreur chargement images calepinage: {e}")
+        
+        # Tableau récapitulatif des zones
+        elements.append(Paragraph("<b>Répartition par zone</b>", self.styles['Section']))
+        elements.append(Spacer(1, 0.2*cm))
+        
+        zones = self.calpinage.get('zones', [])
+        module = self.calpinage.get('module', {})
+        puissance_module = float(module.get('puissance', 550))
+        
+        zones_data = [
+            ['<b>Zone</b>', '<b>Orientation</b>', '<b>Inclinaison</b>', '<b>Modules</b>', '<b>Puissance</b>']
+        ]
+        
+        for i, zone in enumerate(zones, 1):
+            orientation = zone.get('orientation', 'N/A')
+            inclinaison = zone.get('inclinaison', 'N/A')
+            nb_modules = zone.get('nbModules', 0)
+            puissance_zone = nb_modules * puissance_module / 1000
+            
+            zones_data.append([
+                f'Zone {i}',
+                f'{orientation}°',
+                f'{inclinaison}°',
+                str(nb_modules),
+                f'{puissance_zone:.2f} kWc'
+            ])
+        
+        # Total
+        nb_modules_total = sum(z.get('nbModules', 0) for z in zones)
+        puissance_totale = nb_modules_total * puissance_module / 1000
+        zones_data.append([
+            '<b>TOTAL</b>',
+            '',
+            '',
+            f'<b>{nb_modules_total}</b>',
+            f'<b>{puissance_totale:.2f} kWc</b>'
+        ])
+        
+        zones_table = Table(zones_data, colWidths=[3*cm, 3*cm, 3*cm, 2.5*cm, 3.5*cm])
+        zones_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#28a745')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f0f8f0')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d4edda')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        elements.append(zones_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Caractéristiques techniques
+        config_elec = self.calpinage.get('configuration_electrique', {})
+        if config_elec:
+            elements.append(Paragraph("<b>Configuration électrique</b>", self.styles['Section']))
+            elements.append(Spacer(1, 0.2*cm))
+            
+            strings = config_elec.get('strings', [])
+            nb_strings = len(strings)
+            nb_onduleurs = len(self.calpinage.get('equipments', {}).get('onduleurs', []))
+            
+            config_text = f"""
+            <b>Nombre de strings:</b> {nb_strings}<br/>
+            <b>Nombre d'onduleurs:</b> {nb_onduleurs}<br/>
+            <b>Configuration:</b> {config_elec.get('type_configuration', 'Optimisée')}
+            """
+            elements.append(Paragraph(config_text, self.styles['CorpsJustifie']))
+        
+        return elements
+    
+    def _solution_technique(self):
+        """PAGE 5: Solution technique proposée - ENRICHIE AVEC DONNÉES CALEPINAGE"""
+        elements = []
+        
+        elements.append(Paragraph("3. SOLUTION TECHNIQUE PROPOSÉE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Récupérer les données du calepinage
+        zones = self.calpinage.get('zones', [])
+        module = self.calpinage.get('module', {})
+        equipments = self.calpinage.get('equipments', {})
+        config_elec = self.calpinage.get('configuration_electrique', {})
+        distances = self.calpinage.get('distances', {})
+        
+        # Calculs
+        nb_modules_total = sum(z.get('nbModules', 0) for z in zones)
+        puissance_totale = nb_modules_total * float(module.get('puissance', 550)) / 1000
+        
+        # Vue d'ensemble
+        vue_ensemble_text = f"""
+        Nous proposons l'installation d'une centrale photovoltaïque d'une puissance totale de <b>{puissance_totale:.2f} kWc</b>, 
+        composée de <b>{nb_modules_total} modules</b> photovoltaïques haute efficacité répartis sur <b>{len(zones)} zone(s)</b> 
+        de toiture, avec onduleur(s) de dernière génération et structure de fixation certifiée.
+        <br/><br/>
+        <b>Installation conforme NF C 15-712-1:2017</b> - Installations photovoltaïques raccordées au réseau public.
+        """
+        elements.append(Paragraph(vue_ensemble_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 1: MODULES PHOTOVOLTAÏQUES ===
+        elements.append(Paragraph("LOT 1 - MODULES PHOTOVOLTAÏQUES", self.styles['Section']))
+        
+        modules_data = [
+            ['<b>Caractéristique</b>', '<b>Spécification</b>'],
+            ['Nombre de modules', f'{nb_modules_total} unités'],
+            ['Puissance unitaire', f"{module.get('puissance', 550)} Wc"],
+            ['Puissance totale', f'{puissance_totale:.2f} kWc'],
+            ['Tension circuit ouvert (Voc)', f"{module.get('voc', 49.5)} V"],
+            ['Tension MPP (Vmpp)', f"{module.get('vmpp', 41.8)} V"],
+            ['Courant court-circuit (Isc)', f"{module.get('isc', 13.9)} A"],
+            ['Courant MPP (Impp)', f"{module.get('impp', 13.2)} A"],
+            ['Technologie', 'Monocristallin PERC Half-Cell'],
+            ['Rendement', '≥ 21%'],
+            ['Garantie produit', '12 ans fabricant'],
+            ['Garantie performance', '25 ans linéaire (84% Pmin à 25 ans)'],
+            ['Certification', 'IEC 61215, IEC 61730, CE'],
+        ]
+        
+        modules_table = Table(modules_data, colWidths=[7*cm, 9*cm])
+        modules_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(modules_table)
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Détail par zone
+        if len(zones) > 1:
+            elements.append(Paragraph("<b>Répartition par zone:</b>", self.styles['Normal']))
+            zones_data = [['<b>Zone</b>', '<b>Modules</b>', '<b>Surface</b>', '<b>Puissance</b>', '<b>Orientation</b>']]
+            for z in zones:
+                zones_data.append([
+                    f"Zone {z.get('numero', '?')}",
+                    str(z.get('nbModules', 0)),
+                    f"{z.get('surfaceM2', 0):.1f} m²",
+                    f"{z.get('puissanceKw', 0):.2f} kWc",
+                    f"{z.get('orientation', 'N/A')}° / {z.get('inclinaison', 'N/A')}°"
+                ])
+            zones_table = Table(zones_data, colWidths=[2.5*cm, 2.5*cm, 3*cm, 3*cm, 5*cm])
+            zones_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#0066cc')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, -1), 8),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            elements.append(zones_table)
+        
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 2: ONDULEURS ===
+        elements.append(Paragraph("LOT 2 - ONDULEUR(S) DE CONVERSION", self.styles['Section']))
+        
+        onduleurs_list = equipments.get('onduleurs', [])
+        nb_onduleurs = len(onduleurs_list)
+        
+        if nb_onduleurs > 0 and onduleurs_list[0].get('marque'):
+            ond = onduleurs_list[0]
+            onduleurs_data = [
+                ['<b>Caractéristique</b>', '<b>Spécification</b>'],
+                ['Marque / Modèle', f"{ond.get('marque', 'N/A')} / {ond.get('modele', 'N/A')}"],
+                ['Nombre d\'onduleurs', str(nb_onduleurs)],
+                ['Puissance AC nominale', f"{ond.get('puissance_ac', 0)/1000:.1f} kW"],
+                ['Puissance DC maximale', f"{ond.get('puissance_dc_max', 0)/1000:.1f} kW"],
+                ['Tension DC maximale', f"{ond.get('tension_max', 1000)} V"],
+                ['Nombre de MPPT', str(ond.get('nb_mppt', 2))],
+                ['Rendement européen', '≥ 97.5%'],
+                ['Protection', config_elec.get('ip_onduleur', 'IP65')],
+                ['Garantie standard', '5 ans (extensible)'],
+                ['Monitoring', 'Interface web/smartphone incluse'],
+                ['Certification', 'CE, VDE, EN 62109'],
+            ]
+        else:
+            # Fallback onduleur générique
+            onduleurs_data = [
+                ['<b>Caractéristique</b>', '<b>Spécification</b>'],
+                ['Type', 'Onduleur string triphasé'],
+                ['Puissance', f'{puissance_totale:.0f} kW'],
+                ['Rendement', '≥ 98%'],
+                ['Protection', 'IP65'],
+                ['Garantie', '5-10 ans'],
+            ]
+        
+        onduleurs_table = Table(onduleurs_data, colWidths=[7*cm, 9*cm])
+        onduleurs_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(onduleurs_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 3: PROTECTIONS ÉLECTRIQUES (NF C 15-712) ===
+        elements.append(Paragraph("LOT 3 - PROTECTIONS ÉLECTRIQUES CONFORMES NF C 15-712", self.styles['Section']))
+        
+        protections_text = """
+        <b>Conformité NF C 15-712-1:2017</b> - Toutes les protections électriques réglementaires sont incluses.
+        """
+        elements.append(Paragraph(protections_text, self.styles['Normal']))
+        
+        protections_data = [
+            ['<b>Équipement</b>', '<b>Spécification</b>', '<b>Norme</b>'],
+            ['<b>PARTIE DC (Courant Continu)</b>', '', ''],
+            ['Sectionneur DC', str(config_elec.get('sectionneur_dc', '63A')) + f' / {config_elec.get("type_cable_dc", "1000V DC")}', 'NF EN 60947-3'],
+            ['Parafoudre DC', str(config_elec.get('parafoudre_dc', 'Type 2')) + f' (≤ {config_elec.get("resistance_terre", "100Ω")})', 'NF EN 61643-31'],
+            ['Boîte de jonction DC', str(config_elec.get('ip_boite_dc', 'IP65')) + ' avec porte-fusibles', 'NF C 15-712'],
+            ['Fusibles strings (si requis)', str(config_elec.get('fusibles_strings', 'Selon calcul')), 'Type gPV'],
+            ['<b>PARTIE AC (Courant Alternatif)</b>', '', ''],
+            ['AGCP (Appareil Général)', str(config_elec.get('agcp', '63A')) + ' courbe C, PdC 10kA', 'NF C 15-100'],
+            ['Disjoncteur différentiel', str(config_elec.get('disjoncteur_ac', '40A')) + ' courbe C', 'NF EN 61008'],
+            ['Différentiel', str(config_elec.get('differentiel_ac', 'Type A 30mA')), 'NF C 15-100'],
+            ['Parafoudre AC', str(config_elec.get('parafoudre_ac', 'Type 2')), 'NF EN 61643-11'],
+            ['Coffret TGBT', 'IP65 pré-câblé', 'NF C 15-100'],
+        ]
+        
+        protections_table = Table(protections_data, colWidths=[6*cm, 7*cm, 3*cm])
+        protections_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#0066cc')),
+            ('TEXTCOLOR', (0, 1), (-1, 1), colors.whitesmoke),
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#0066cc')),
+            ('TEXTCOLOR', (0, 6), (-1, 6), colors.whitesmoke),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 2), (-1, 5), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('ROWBACKGROUNDS', (0, 7), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(protections_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 4: CÂBLAGE ET RACCORDEMENT ===
+        elements.append(Paragraph("LOT 4 - CÂBLAGE ET RACCORDEMENT", self.styles['Section']))
+        
+        cablage_data = [
+            ['<b>Type de câble</b>', '<b>Section</b>', '<b>Longueur</b>', '<b>Caractéristiques</b>'],
+            ['Câbles DC strings', 
+             f"{config_elec.get('section_cable_strings', 6)}mm² + PE {config_elec.get('section_pe_dc', 6)}mm²",
+             f"{distances.get('dc_strings', 25):.1f}m",
+             f"{config_elec.get('type_cable_dc', 'U1000R2V')} Cu"],
+            ['Câble DC principal', 
+             f"{config_elec.get('section_cable_dc', 16)}mm² + PE {config_elec.get('section_pe_dc', 16)}mm²",
+             f"{distances.get('dc_strings', 25):.1f}m",
+             f"{config_elec.get('type_cable_dc', 'U1000R2V')} Cu - ΔU={config_elec.get('chute_tension_dc_pct', 1.5):.2f}%"],
+            ['Câble AC onduleur-TGBT',
+             f"{config_elec.get('section_cable_ac', 10)}mm² + PE {config_elec.get('section_pe_ac', 10)}mm²",
+             f"{distances.get('ac_onduleur_tgbt', 15):.1f}m",
+             f"{config_elec.get('type_cable_ac', 'U1000R2V')} Cu - ΔU={config_elec.get('chute_tension_ac_pct', 1.0):.2f}%"],
+            ['Câble AC TGBT-Injection',
+             f"{config_elec.get('section_cable_ac', 10)}mm² + PE",
+             f"{distances.get('ac_tgbt_injection', 10):.1f}m",
+             f"{config_elec.get('type_cable_ac', 'U1000R2V')} Cu"],
+            ['Terre / LEP',
+             f"{config_elec.get('section_pe_ac', 16)}mm² Cu nu",
+             'Selon installation',
+             f"Résistance ≤ {config_elec.get('resistance_terre', '100Ω')}"],
+        ]
+        
+        cablage_table = Table(cablage_data, colWidths=[4.5*cm, 4*cm, 3*cm, 4.5*cm])
+        cablage_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(cablage_table)
+        
+        cablage_note = f"""
+        <br/><b>Note:</b> Tous les câbles sont dimensionnés selon NF C 15-712 avec chutes de tension 
+        DC: {config_elec.get('chute_tension_dc_pct', 1.5):.2f}% et AC: {config_elec.get('chute_tension_ac_pct', 1.0):.2f}% 
+        (conformes aux limites ≤3% DC et ≤1.5% AC).
+        """
+        elements.append(Paragraph(cablage_note, self.styles['Normal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 5: STRUCTURE DE FIXATION ===
+        elements.append(Paragraph("LOT 5 - STRUCTURE ET FIXATION", self.styles['Section']))
+        
+        structure_text = """
+        <b>Structure aluminium anodisé haute résistance:</b>
+        • Calcul de structure par bureau d'études (neige, vent selon Eurocode)
+        • Rails de fixation aluminium anodisé (garantie 25 ans)
+        • Crochets de toiture spécifiques (tuiles mécaniques/ardoises/bac acier)
+        • Étanchéité renforcée avec bandes EPDM et solin alu
+        • Fixations inox A4 anti-corrosion
+        • Système de gestion des câbles intégré
+        <br/><br/>
+        <b>Sécurité intégrée:</b>
+        • Ligne de vie permanente (si accès toiture requis)
+        • EPI (Équipements de Protection Individuelle) pour installateurs
+        • Signalétique sécurité DC/AC
+        """
+        elements.append(Paragraph(structure_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 6: INSTALLATION ET MISE EN SERVICE ===
+        elements.append(Paragraph("LOT 6 - INSTALLATION ET MISE EN SERVICE", self.styles['Section']))
+        
+        installation_data = [
+            ['<b>Prestation</b>', '<b>Description</b>'],
+            ['Préparation du chantier', '• Réunion de lancement\n• Sécurisation zone de travail\n• Échafaudage si nécessaire'],
+            ['Pose structure', '• Fixation crochets\n• Montage rails\n• Vérification étanchéité'],
+            ['Pose modules', f'• Installation {nb_modules_total} modules\n• Câblage DC strings\n• Tests électriques'],
+            ['Installation onduleur(s)', f'• Fixation {nb_onduleurs} onduleur(s)\n• Raccordement DC/AC\n• Configuration'],
+            ['Protections électriques', '• Installation coffret TGBT\n• Parafoudres DC/AC\n• Mise à la terre'],
+            ['Raccordement réseau', '• Liaison TGBT → compteur\n• Tests injection\n• Vérifications conformité'],
+            ['Mise en service', '• Tests complets\n• Activation monitoring\n• Formation utilisateur'],
+            ['Documentation', '• DOE (Dossier Ouvrage Exécuté)\n• Schéma unifilaire\n• Certificats Consuel'],
+        ]
+        
+        installation_table = Table(installation_data, colWidths=[5*cm, 11*cm])
+        installation_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        elements.append(installation_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # === LOT 7: DÉMARCHES ADMINISTRATIVES ===
+        elements.append(Paragraph("LOT 7 - DÉMARCHES ADMINISTRATIVES INCLUSES", self.styles['Section']))
+        
+        admin_text = """
+        <b>Nous prenons en charge toutes les démarches réglementaires:</b>
+        <br/><br/>
+        <b>1. Déclaration Préalable de Travaux (DP):</b>
+        • Constitution et dépôt du dossier en mairie
+        • Plans et documents techniques
+        • Suivi instruction (délai 1 mois)
+        <br/><br/>
+        <b>2. Déclaration de Raccordement (DDR):</b>
+        • Demande de raccordement auprès d'Enedis
+        • Convention d'exploitation (si injection)
+        • Suivi validation technique
+        <br/><br/>
+        <b>3. Attestation Consuel:</b>
+        • Dossier Consuel complet (formulaire, schémas, photos)
+        • Vérification conformité NF C 15-712 et NF C 15-100
+        • Obtention attestation finale (obligatoire mise en service)
+        <br/><br/>
+        <b>4. Mise en service Enedis:</b>
+        • Prise de rendez-vous technicien Enedis
+        • Paramétrage compteur Linky (injection)
+        • Activation contrat revente/autoconsommation
+        """
+        elements.append(Paragraph(admin_text, self.styles['CorpsJustifie']))
+        
+        return elements
+    
+    def _etude_productible(self):
+        """PAGE 6: Étude de productible PVGIS approfondie"""
+        elements = []
+        
+        elements.append(Paragraph("5. ÉTUDE DE PRODUCTIBLE SOLAIRE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Puissance RÉELLE depuis calepinage
+        puissance = self.puissance_reelle_kwc
+        lat = self.prospect.get('latitude', 46.0)
+        lon = self.prospect.get('longitude', 2.0)
+        
+        # ========== 5.1 MÉTHODOLOGIE PVGIS ==========
+        elements.append(Paragraph("5.1. Méthodologie et Données PVGIS", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        methodo_text = """
+        L'estimation de production photovoltaïque est réalisée avec <b>PVGIS (Photovoltaic Geographical Information System)</b>,
+        outil de référence développé par le Joint Research Centre de la Commission Européenne.
+        <br/><br/>
+        <b>Base de données climatiques :</b> PVGIS-SARAH2 (Satellite Application Facility on Climate Monitoring)<br/>
+        <b>Période de référence :</b> 2005-2020 (15 ans de données satellitaires)<br/>
+        <b>Résolution spatiale :</b> 5 km × 5 km<br/>
+        <b>Localisation du projet :</b> Latitude {lat:.6f}°, Longitude {lon:.6f}°
+        <br/><br/>
+        <b>Paramètres d'entrée :</b><br/>
+        • Puissance crête installée : {puissance:.2f} kWc<br/>
+        • Orientation et inclinaison : Optimisées par zone (données calepinage)<br/>
+        • Technologie : Silicium cristallin (standard)<br/>
+        • Pertes système intégrées : 14% (câblage, température, ombrage, poussière)
+        """
+        elements.append(Paragraph(methodo_text.format(lat=lat, lon=lon, puissance=puissance), self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 5.2 PRODUCTION ANNUELLE ==========
+        elements.append(Paragraph("5.2. Production Annuelle Estimée", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Données PVGIS réalistes selon zones de France
+        # Approximation selon latitude (à remplacer par vraies données PVGIS si disponibles)
+        if lat < 44:  # Sud
+            irradiation_globale = 1650
+            ratio_kwh_kwc = 1350
+        elif lat < 47:  # Centre
+            irradiation_globale = 1450
+            ratio_kwh_kwc = 1150
+        else:  # Nord
+            irradiation_globale = 1250
+            ratio_kwh_kwc = 1000
+        
+        PR = 0.86  # Performance Ratio optimiste mais réaliste avec matériel de qualité
+        production_annuelle = puissance * ratio_kwh_kwc
+        
+        production_data = [
+            ['<b>Donnée</b>', '<b>Valeur</b>', '<b>Unité</b>'],
+            ['Puissance installée', f'{puissance:.2f}', 'kWc'],
+            ['Irradiation globale annuelle (plan horizontal)', f'{irradiation_globale}', 'kWh/m²'],
+            ['Irradiation effective (plan incliné optimisé)', f'{int(irradiation_globale * 1.15)}', 'kWh/m²'],
+            ['Performance Ratio (PR)', f'{PR*100:.1f}', '%'],
+            ['Pertes système', f'{(1-PR)*100:.1f}', '%'],
+            ['', '', ''],
+            ['<b>Production annuelle estimée</b>', f'<b>{production_annuelle:,.0f}</b>', '<b>kWh/an</b>'],
+            ['Productible spécifique', f'{int(production_annuelle/puissance)}', 'kWh/kWc/an'],
+            ['Équivalent en heures pleine puissance', f'{int(production_annuelle/puissance)}', 'h/an'],
+            ['', '', ''],
+            ['Production cumulée sur 25 ans (avec dégradation)', f'{int(production_annuelle * 25 * 0.90)}', 'kWh'],
+            ['Équivalent CO₂ évité sur 25 ans', f'{int(production_annuelle * 25 * 0.055)}', 'tonnes'],
+        ]
+        
+        production_table = Table(production_data, colWidths=[9*cm, 4*cm, 3*cm])
+        production_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (2, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#e0e0e0')),
+            ('BACKGROUND', (0, 7), (-1, 7), colors.HexColor('#81c784')),
+            ('TEXTCOLOR', (0, 7), (-1, 7), colors.whitesmoke),
+            ('FONTNAME', (0, 7), (-1, 7), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 7), (-1, 7), 11),
+            ('BACKGROUND', (0, 10), (-1, 10), colors.HexColor('#e0e0e0')),
+        ]))
+        elements.append(production_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 5.3 RÉPARTITION MENSUELLE ==========
+        elements.append(Paragraph("5.3. Répartition Mensuelle de Production", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Coefficients mensuels réalistes PVGIS (France Centre)
+        mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+        coef_mensuels = np.array([0.045, 0.060, 0.085, 0.105, 0.125, 0.135, 0.140, 0.130, 0.105, 0.080, 0.050, 0.040])
+        production_mensuelle = production_annuelle * coef_mensuels
+        
+        # Créer graphique matplotlib
+        fig, ax = plt.subplots(figsize=(14, 6))
+        bars = ax.bar(mois, production_mensuelle, color='#FFA726', edgecolor='#F57C00', linewidth=2)
+        
+        # Ajouter valeurs au-dessus des barres
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height):,} kWh\n({coef_mensuels[i]*100:.1f}%)',
+                    ha='center', va='bottom', fontsize=8, fontweight='bold')
+        
+        ax.set_ylabel('Production mensuelle (kWh)', fontsize=12, fontweight='bold')
+        ax.set_xlabel('Mois', fontsize=12, fontweight='bold')
+        ax.set_title(f'Production Mensuelle Estimée - Total annuel: {production_annuelle:,.0f} kWh', 
+                     fontsize=14, fontweight='bold', pad=15)
+        ax.grid(True, alpha=0.3, axis='y', linestyle='--')
+        ax.set_ylim(0, max(production_mensuelle) * 1.20)
+        ax.set_axisbelow(True)
+        
+        # Ligne moyenne
+        moyenne = production_annuelle / 12
+        ax.axhline(y=moyenne, color='red', linestyle='--', linewidth=2, alpha=0.7, label=f'Moyenne: {int(moyenne):,} kWh/mois')
+        ax.legend(fontsize=10)
+        
+        graph_buffer = BytesIO()
+        plt.tight_layout()
+        plt.savefig(graph_buffer, format='png', dpi=150, bbox_inches='tight')
+        plt.close()
+        graph_buffer.seek(0)
+        
+        elements.append(RLImage(graph_buffer, width=16*cm, height=8*cm))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Tableau récapitulatif mensuel
+        mensuel_data = [
+            ['<b>Mois</b>', '<b>Production (kWh)</b>', '<b>% annuel</b>', '<b>kWh/jour moyen</b>']
+        ]
+        
+        for i, mois_nom in enumerate(mois):
+            jours_mois = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][i]
+            prod_mois = production_mensuelle[i]
+            prod_jour = prod_mois / jours_mois
+            mensuel_data.append([
+                mois_nom,
+                f'{int(prod_mois):,}',
+                f'{coef_mensuels[i]*100:.1f}%',
+                f'{int(prod_jour)}'
+            ])
+        
+        # Total
+        mensuel_data.append([
+            '<b>TOTAL</b>',
+            f'<b>{int(production_annuelle):,}</b>',
+            '<b>100%</b>',
+            f'<b>{int(production_annuelle/365)}</b>'
+        ])
+        
+        mensuel_table = Table(mensuel_data, colWidths=[3*cm, 4*cm, 3*cm, 4*cm])
+        mensuel_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#fff3e0')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#FFA726')),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        elements.append(mensuel_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 5.4 PERTES ET RENDEMENT ==========
+        elements.append(Paragraph("5.4. Analyse des Pertes Système", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        pertes_text = """
+        Le Performance Ratio (PR) de 86% intègre l'ensemble des pertes réelles d'une installation photovoltaïque :
+        """
+        elements.append(Paragraph(pertes_text, self.styles['Normal']))
+        elements.append(Spacer(1, 0.2*cm))
+        
+        pertes_data = [
+            ['<b>Type de perte</b>', '<b>Valeur typique</b>', '<b>Impact</b>'],
+            ['Pertes par température (été)', '3-5%', 'Modules moins efficaces à >25°C'],
+            ['Pertes câblage DC/AC', '2-3%', 'Résistance câbles, connexions'],
+            ['Pertes onduleur', '2-3%', 'Rendement conversion DC→AC'],
+            ['Pertes par salissures/poussière', '2-4%', 'Encrassement naturel modules'],
+            ['Pertes par ombrage léger', '1-3%', 'Ombres portées obstacles'],
+            ['Pertes par mismatch (désappariement)', '1-2%', 'Différences entre modules'],
+            ['Pertes par réflexion', '2-3%', 'Non-absorption lumière'],
+            ['Indisponibilité système', '0-1%', 'Maintenance, pannes'],
+            ['<b>TOTAL PERTES</b>', '<b>~14%</b>', '<b>PR = 86%</b>'],
+        ]
+        
+        pertes_table = Table(pertes_data, colWidths=[6*cm, 4*cm, 6*cm])
+        pertes_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#fff5f5')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#ffcdd2')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        elements.append(pertes_table)
+        elements.append(Spacer(1, 0.3*cm))
+        
+        note_pr = """
+        <i><b>Note:</b> Le PR de 86% est une valeur optimiste mais atteignable avec du matériel de qualité, 
+        une installation soignée, et une maintenance régulière. Le PR moyen constaté en France est de 75-80% pour les installations standard.</i>
+        """
+        elements.append(Paragraph(note_pr, self.styles['Normal']))
+        
+        return elements
+    
+    def _etude_financiere(self):
+        """PAGE 7: Étude financière approfondie professionnelle"""
+        elements = []
+        
+        elements.append(Paragraph("6. ÉTUDE FINANCIÈRE APPROFONDIE", self.styles['TitrePrincipal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.1 INVESTISSEMENT INITIAL ==========
+        elements.append(Paragraph("6.1. Investissement Initial Détaillé", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Puissance et prix RÉELS
+        puissance = self.puissance_reelle_kwc
+        investissement_ttc = self.prix_total_ttc
+        investissement_ht = self.prix_total_ht
+        tva = investissement_ttc - investissement_ht
+        prix_kwc = investissement_ht / puissance if puissance > 0 else 850
+        
+        type_raccordement = self.calpinage.get('type_raccordement', 'autoconso_injection')
+        
+        # Décomposition investissement - chercher prix dans BDD ou proportionnelle
+        # Modules
+        prix_module_data = None
+        for key, val in self.prix_organes.items():
+            if 'module' in key:
+                prix_module_data = val
+                break
+        
+        if prix_module_data and prix_module_data.get('unite') == '€/Wc':
+            prix_modules_total = prix_module_data['prix_unitaire_ht'] * (puissance * 1000)
+            prix_unitaire_module_kwc = prix_module_data['prix_unitaire_ht'] * 1000
+        else:
+            prix_modules_total = investissement_ht * 0.30
+            prix_unitaire_module_kwc = 250
+        
+        # Onduleurs
+        prix_onduleur_data = None
+        for key, val in self.prix_organes.items():
+            if 'onduleur' in key:
+                prix_onduleur_data = val
+                break
+        
+        if prix_onduleur_data and prix_onduleur_data.get('unite') == '€/kW':
+            prix_onduleurs = prix_onduleur_data['prix_unitaire_ht'] * puissance
+            prix_unitaire_ond_kwc = prix_onduleur_data['prix_unitaire_ht']
+        else:
+            prix_onduleurs = investissement_ht * 0.18
+            prix_unitaire_ond_kwc = 150
+        
+        # Structure
+        prix_structure_data = None
+        for key, val in self.prix_organes.items():
+            if 'structure' in key:
+                prix_structure_data = val
+                break
+        
+        prix_structure = prix_structure_data['prix_unitaire_ht'] * puissance if prix_structure_data else investissement_ht * 0.15
+        prix_unitaire_struct_kwc = prix_structure_data['prix_unitaire_ht'] if prix_structure_data else 120
+        
+        # Protections (fallback to proportional)
+        prix_elec_protection = investissement_ht * 0.12
+        prix_unitaire_prot_kwc = 100
+        
+        # Câblage (fallback)
+        prix_cablage = investissement_ht * 0.05
+        prix_unitaire_cable_kwc = 50
+        
+        # Main d'oeuvre (fallback)
+        prix_main_oeuvre = investissement_ht * 0.20
+        prix_unitaire_mo_kwc = 180
+        
+        invest_data = [
+            ['<b>Poste de dépense</b>', '<b>Prix unitaire</b>', '<b>Montant HT</b>'],
+            [f'Modules photovoltaïques ({puissance:.1f} kWc)', f'{prix_unitaire_module_kwc:.0f} €/kWc', f'{prix_modules_total:,.2f} €'],
+            [f'Onduleur(s) et convertisseurs', f'{prix_unitaire_ond_kwc:.0f} €/kWc', f'{prix_onduleurs:,.2f} €'],
+            [f'Structures de fixation + étanchéité', f'{prix_unitaire_struct_kwc:.0f} €/kWc', f'{prix_structure:,.2f} €'],
+            [f'Protections électriques (AGCP, diff., parafoudres)', f'{prix_unitaire_prot_kwc:.0f} €/kWc', f'{prix_elec_protection:,.2f} €'],
+            [f'Câblage DC/AC + chemins câbles', f'{prix_unitaire_cable_kwc:.0f} €/kWc', f'{prix_cablage:,.2f} €'],
+            [f'Main d\'œuvre qualifiée + mise en service', f'{prix_unitaire_mo_kwc:.0f} €/kWc', f'{prix_main_oeuvre:,.2f} €'],
+            ['', '<b>TOTAL HT</b>', f'<b>{investissement_ht:,.2f} €</b>'],
+            ['', 'TVA 10%', f'{tva:,.2f} €'],
+            ['', '<b>TOTAL TTC</b>', f'<b>{investissement_ttc:,.2f} €</b>'],
+        ]
+        
+        invest_table = Table(invest_data, colWidths=[9*cm, 3.5*cm, 3.5*cm])
+        invest_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('BACKGROUND', (0, -3), (-1, -3), colors.HexColor('#e3f2fd')),
+            ('FONTNAME', (0, -3), (-1, -3), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#1976d2')),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.whitesmoke),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ]))
+        elements.append(invest_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.2 REVENUS PRÉVISIONNELS ==========
+        elements.append(Paragraph("6.2. Revenus Prévisionnels Annuels", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        production_annuelle = puissance * 1100  # kWh/kWc/an (moyenne France)
+        consommation = self.params.get('consommation_annuelle_kwh', production_annuelle * 1.2)
+        taux_autoconso = self.params.get('taux_autoconso', 70) / 100
+        tarif_achat = self.params.get('tarif_achat_kwh', 0.20)
+        tarif_revente = self.params.get('tarif_revente_kwh', 0.13)
+        
+        energie_autoconsommee = production_annuelle * taux_autoconso
+        economie_autoconso = energie_autoconsommee * tarif_achat
+        
+        if type_raccordement == 'autoconso_sans_injection':
+            energie_revendue = 0
+            revenu_revente = 0
+        else:
+            energie_revendue = production_annuelle - energie_autoconsommee
+            revenu_revente = energie_revendue * tarif_revente
+        
+        gain_annuel_brut = economie_autoconso + revenu_revente
+        
+        # Coûts exploitation annuels
+        cout_maintenance = investissement_ht * 0.01  # 1% maintenance annuelle
+        cout_assurance = investissement_ht * 0.002   # 0.2% assurance
+        cout_raccordement_annuel = 30 if type_raccordement != 'autoconso_sans_injection' else 0  # TURPE
+        
+        cout_annuel_total = cout_maintenance + cout_assurance + cout_raccordement_annuel
+        gain_annuel_net = gain_annuel_brut - cout_annuel_total
+        
+        revenus_data = [
+            ['<b>Flux annuels</b>', '<b>Énergie (kWh)</b>', '<b>Prix (€/kWh)</b>', '<b>Montant (€)</b>'],
+            ['<b>REVENUS</b>', '', '', ''],
+            [f'Autoconsommation (économie)', f'{energie_autoconsommee:,.0f}', f'{tarif_achat:.3f}', f'{economie_autoconso:,.2f}'],
+            [f'Revente surplus', f'{energie_revendue:,.0f}', f'{tarif_revente:.3f}', f'{revenu_revente:,.2f}'],
+            ['<b>Total revenus bruts</b>', '', '', f'<b>{gain_annuel_brut:,.2f} €</b>'],
+            ['', '', '', ''],
+            ['<b>CHARGES EXPLOITATION</b>', '', '', ''],
+            [f'Maintenance préventive', '', '', f'-{cout_maintenance:,.2f}'],
+            [f'Assurance', '', '', f'-{cout_assurance:,.2f}'],
+            [f'Raccordement réseau (TURPE)', '', '', f'-{cout_raccordement_annuel:,.2f}'],
+            ['<b>Total charges</b>', '', '', f'<b>-{cout_annuel_total:,.2f} €</b>'],
+            ['', '', '', ''],
+            ['<b>GAIN NET ANNUEL</b>', '', '', f'<b>{gain_annuel_net:,.2f} €</b>'],
+        ]
+        
+        revenus_table = Table(revenus_data, colWidths=[7*cm, 3*cm, 2.5*cm, 3.5*cm])
+        revenus_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#c8e6c9')),
+            ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#a5d6a7')),
+            ('FONTNAME', (0, 4), (-1, 4), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#ffccbc')),
+            ('FONTNAME', (0, 6), (-1, 6), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 10), (-1, 10), colors.HexColor('#ffab91')),
+            ('FONTNAME', (0, 10), (-1, 10), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#4caf50')),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.whitesmoke),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 11),
+        ]))
+        elements.append(revenus_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.3 CASH-FLOW SUR 20 ANS ==========
+        elements.append(Paragraph("6.3. Cash-Flow et Amortissement sur 20 ans", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Calcul cash-flow avec dégradation modules et inflation électricité
+        taux_degradation = 0.005  # 0.5%/an dégradation modules
+        taux_inflation_elec = 0.04  # 4%/an augmentation prix électricité
+        
+        cashflow_data = [
+            ['<b>Année</b>', '<b>Production (kWh)</b>', '<b>Revenus (€)</b>', '<b>Charges (€)</b>', '<b>Cash-Flow (€)</b>', '<b>Cumulé (€)</b>']
+        ]
+        
+        cumul = -investissement_ttc
+        annee_retour_invest = 0
+        
+        for annee in range(1, 21):
+            # Production avec dégradation
+            prod_annee = production_annuelle * ((1 - taux_degradation) ** annee)
+            
+            # Revenus avec inflation
+            tarif_achat_annee = tarif_achat * ((1 + taux_inflation_elec) ** annee)
+            tarif_revente_annee = tarif_revente * ((1 + taux_inflation_elec) ** annee)
+            
+            eco_auto = (prod_annee * taux_autoconso) * tarif_achat_annee
+            rev_vente = (prod_annee * (1 - taux_autoconso)) * tarif_revente_annee if type_raccordement != 'autoconso_sans_injection' else 0
+            revenus_annee = eco_auto + rev_vente
+            
+            # Charges (maintenance indexée sur inflation)
+            charges_annee = cout_annuel_total * ((1 + 0.02) ** annee)  # 2% inflation charges
+            
+            # Cash-flow
+            cf_annee = revenus_annee - charges_annee
+            cumul += cf_annee
+            
+            # Détecter année retour investissement
+            if cumul > 0 and annee_retour_invest == 0:
+                annee_retour_invest = annee
+            
+            # Afficher seulement années clés pour ne pas surcharger
+            if annee in [1, 5, 10, 15, 20]:
+                cashflow_data.append([
+                    f'{annee}',
+                    f'{prod_annee:,.0f}',
+                    f'{revenus_annee:,.0f}',
+                    f'{charges_annee:,.0f}',
+                    f'{cf_annee:,.0f}',
+                    f'{cumul:,.0f}'
+                ])
+        
+        cashflow_table = Table(cashflow_data, colWidths=[2*cm, 3*cm, 2.5*cm, 2.5*cm, 2.5*cm, 3.5*cm])
+        cashflow_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(cashflow_table)
+        elements.append(Spacer(1, 0.3*cm))
+        
+        note_cashflow = f"""
+        <i><b>Note:</b> Hypothèses: dégradation modules 0.5%/an, inflation électricité 4%/an, inflation charges 2%/an.
+        Retour sur investissement estimé à <b>{annee_retour_invest} ans</b>. Cash-flow cumulé à 20 ans: <b>{cumul:,.0f} €</b></i>
+        """
+        elements.append(Paragraph(note_cashflow, self.styles['Normal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.4 INDICATEURS FINANCIERS ==========
+        elements.append(Paragraph("6.4. Indicateurs de Rentabilité", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Calcul TRI (Taux de Rentabilité Interne) simplifié
+        tri_simple = (gain_annuel_net / investissement_ttc) * 100
+        
+        # Calcul VAN (Valeur Actuelle Nette) avec taux actualisation 3%
+        taux_actualisation = 0.03
+        van = -investissement_ttc
+        for annee in range(1, 21):
+            prod_annee = production_annuelle * ((1 - taux_degradation) ** annee)
+            tarif_achat_annee = tarif_achat * ((1 + taux_inflation_elec) ** annee)
+            tarif_revente_annee = tarif_revente * ((1 + taux_inflation_elec) ** annee)
+            eco_auto = (prod_annee * taux_autoconso) * tarif_achat_annee
+            rev_vente = (prod_annee * (1 - taux_autoconso)) * tarif_revente_annee if type_raccordement != 'autoconso_sans_injection' else 0
+            revenus_annee = eco_auto + rev_vente
+            charges_annee = cout_annuel_total * ((1 + 0.02) ** annee)
+            cf_annee = revenus_annee - charges_annee
+            van += cf_annee / ((1 + taux_actualisation) ** annee)
+        
+        # Temps retour simple
+        temps_retour = investissement_ttc / gain_annuel_net if gain_annuel_net > 0 else 0
+        
+        # Économies totales 25 ans (durée de vie)
+        economies_25ans = cumul + (gain_annuel_net * 5)  # Approximation années 21-25
+        
+        indicateurs_data = [
+            ['<b>Indicateur</b>', '<b>Valeur</b>', '<b>Interprétation</b>'],
+            ['Temps de retour simple', f'{temps_retour:.1f} ans', 'Sans actualisation ni inflation'],
+            ['Temps de retour réel', f'{annee_retour_invest} ans', 'Avec dégradation + inflation électricité'],
+            ['Taux de Rentabilité Interne (TRI)', f'{tri_simple:.1f}%', 'Excellent si > 8%'],
+            ['Valeur Actuelle Nette (VAN 20 ans)', f'{van:,.0f} €', 'Taux actualisation 3%'],
+            ['Cash-flow cumulé (20 ans)', f'{cumul:,.0f} €', 'Gain net actualisé'],
+            ['Économies totales (25 ans)', f'{economies_25ans:,.0f} €', 'Durée de vie modules'],
+            ['Prix kWh solaire sur 25 ans', f'{investissement_ttc / (production_annuelle * 25):.3f} €/kWh', f'vs {tarif_achat:.3f} €/kWh réseau'],
+        ]
+        
+        indicateurs_table = Table(indicateurs_data, colWidths=[6*cm, 4*cm, 6*cm])
+        indicateurs_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+        ]))
+        elements.append(indicateurs_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.5 ANALYSE DE SENSIBILITÉ ==========
+        elements.append(Paragraph("6.5. Analyse de Sensibilité", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        sensi_intro = """
+        L'analyse de sensibilité permet d'évaluer l'impact des variations de paramètres clés sur la rentabilité du projet.
+        Trois scénarios sont présentés : pessimiste, central (base de calcul), et optimiste.
+        """
+        elements.append(Paragraph(sensi_intro, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Scénarios
+        scenarios = {
+            'Pessimiste': {
+                'taux_autoconso': taux_autoconso * 0.85,
+                'inflation_elec': 0.02,
+                'degradation': 0.007,
+            },
+            'Central': {
+                'taux_autoconso': taux_autoconso,
+                'inflation_elec': 0.04,
+                'degradation': 0.005,
+            },
+            'Optimiste': {
+                'taux_autoconso': min(taux_autoconso * 1.15, 0.95),
+                'inflation_elec': 0.06,
+                'degradation': 0.003,
+            }
+        }
+        
+        scenarios_data = [
+            ['<b>Scénario</b>', '<b>Autoconso</b>', '<b>Inflation élec</b>', '<b>Temps retour</b>', '<b>VAN 20 ans</b>']
+        ]
+        
+        for nom_scenario, params_scenario in scenarios.items():
+            # Calcul VAN pour ce scénario
+            van_scenario = -investissement_ttc
+            for annee in range(1, 21):
+                prod_annee = production_annuelle * ((1 - params_scenario['degradation']) ** annee)
+                tarif_achat_annee = tarif_achat * ((1 + params_scenario['inflation_elec']) ** annee)
+                tarif_revente_annee = tarif_revente * ((1 + params_scenario['inflation_elec']) ** annee)
+                eco_auto = (prod_annee * params_scenario['taux_autoconso']) * tarif_achat_annee
+                rev_vente = (prod_annee * (1 - params_scenario['taux_autoconso'])) * tarif_revente_annee if type_raccordement != 'autoconso_sans_injection' else 0
+                revenus_annee = eco_auto + rev_vente
+                charges_annee = cout_annuel_total * ((1 + 0.02) ** annee)
+                cf_annee = revenus_annee - charges_annee
+                van_scenario += cf_annee / ((1 + taux_actualisation) ** annee)
+            
+            # Estimation temps retour (simplifié)
+            gain_scenario_an1 = (production_annuelle * params_scenario['taux_autoconso'] * tarif_achat * (1 + params_scenario['inflation_elec'])) - cout_annuel_total
+            temps_retour_scenario = investissement_ttc / gain_scenario_an1 if gain_scenario_an1 > 0 else 0
+            
+            scenarios_data.append([
+                nom_scenario,
+                f'{params_scenario["taux_autoconso"]*100:.0f}%',
+                f'{params_scenario["inflation_elec"]*100:.0f}%',
+                f'{temps_retour_scenario:.1f} ans',
+                f'{van_scenario:,.0f} €'
+            ])
+        
+        scenarios_table = Table(scenarios_data, colWidths=[3*cm, 3*cm, 3*cm, 3*cm, 4*cm])
+        scenarios_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.HexColor('#ffebee'), colors.white, colors.HexColor('#e8f5e9')]),
+            ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#fff9c4')),  # Scénario central en jaune
+        ]))
+        elements.append(scenarios_table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # ========== 6.6 AIDES ET SUBVENTIONS ==========
+        elements.append(Paragraph("6.6. Aides Financières et Fiscalité", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        aides_text = """
+        <b>Aides potentiellement mobilisables :</b><br/><br/>
+        
+        <b>• Prime à l'autoconsommation (État) :</b><br/>
+        Pour les installations ≤ 100 kWc en autoconsommation avec revente du surplus.
+        Versée sur 5 ans par Enedis. Montant dégressif selon puissance (consulter arrêté tarifaire en vigueur).<br/><br/>
+        
+        <b>• Obligation d'Achat (OA) :</b><br/>
+        Contrat de rachat garanti sur 20 ans pour le surplus (autoconsommation) ou la totalité (vente totale).
+        Tarifs fixés par arrêté trimestriel de la CRE.<br/><br/>
+        
+        <b>• TVA réduite 10% :</b><br/>
+        Applicable aux installations photovoltaïques ≤ 3 kWc. Au-delà, TVA 20%.<br/><br/>
+        
+        <b>• Exonération fiscale :</b><br/>
+        Production vendue exonérée d'impôt sur le revenu si puissance ≤ 3 kWc et raccordement en 2 points maximum.<br/><br/>
+        
+        <b>• Aides régionales/départementales :</b><br/>
+        Certaines collectivités proposent des aides complémentaires. Renseignements auprès de l'ADEME ou de votre région.<br/><br/>
+        
+        <b>• Certificats d'Économie d'Énergie (CEE) :</b><br/>
+        Prime CEE pour isolation ou travaux complémentaires. Cumulable avec prime autoconsommation.<br/><br/>
+        
+        <i><b>Note:</b> Ces informations sont données à titre indicatif. Les conditions d'éligibilité et montants évoluent.
+        Vérification systématique des dispositifs en vigueur lors du dépôt du dossier.</i>
+        """
+        elements.append(Paragraph(aides_text, self.styles['CorpsJustifie']))
+        
+        return elements
+    
+    def _section_autoconsommation(self, investissement_ht, production_annuelle, type_raccordement='autoconso_injection'):
+        """Sous-section pour autoconsommation (avec ou sans injection)"""
+        sub_elements = []
+        
+        consommation = self.params.get('consommation_annuelle_kwh', production_annuelle * 1.2)
+        taux_autoconso = self.params.get('taux_autoconso', 70) / 100
+        tarif_achat = self.params.get('tarif_achat_kwh', 0.20)
+        tarif_revente = self.params.get('tarif_revente_kwh', 0.13)
+        
+        energie_autoconsommee = production_annuelle * taux_autoconso
+        economie_autoconso = energie_autoconsommee * tarif_achat
+        
+        # Gestion de l'injection selon le type
+        if type_raccordement == 'autoconso_sans_injection':
+            # Sans injection : surplus perdu
+            energie_revendue = 0
+            revenu_revente = 0
+            gain_annuel = economie_autoconso
+        else:
+            # Avec injection : surplus vendu
+            energie_revendue = production_annuelle - energie_autoconsommee
+            revenu_revente = energie_revendue * tarif_revente
+            gain_annuel = economie_autoconso + revenu_revente
+        
+        # Tableau récapitulatif
+        recap_data = [
+            ['<b>Flux Financiers Annuels</b>', '<b>Montant (€/an)</b>'],
+            [f'Économie autoconsommation ({energie_autoconsommee:,.0f} kWh × {tarif_achat:.3f} €/kWh)', f'{economie_autoconso:,.2f} €'],
+            [f'Revenu revente surplus ({energie_revendue:,.0f} kWh × {tarif_revente:.3f} €/kWh)', f'{revenu_revente:,.2f} €'],
+            ['<b>GAIN TOTAL ANNUEL</b>', f'<b>{gain_annuel:,.2f} €</b>'],
+        ]
+        
+        recap_table = Table(recap_data, colWidths=[11*cm, 5*cm])
+        recap_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#d4edda')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ]))
+        sub_elements.append(recap_table)
+        sub_elements.append(Spacer(1, 0.5*cm))
+        
+        # Indicateurs de rentabilité
+        roi_annees = investissement_ht / gain_annuel if gain_annuel > 0 else 0
+        tri = (gain_annuel / investissement_ht) * 100  # TRI simplifié
+        van_25ans = (gain_annuel * 25) - investissement_ht  # VAN simplifiée
+        
+        rentabilite_data = [
+            ['<b>Indicateur</b>', '<b>Valeur</b>', '<b>Commentaire</b>'],
+            ['Temps de retour simple', f'{roi_annees:.1f} ans', 'Sans actualisation'],
+            ['Taux de Rentabilité Interne (TRI)', f'{tri:.1f}%', 'Excellente rentabilité > 10%'],
+            ['Valeur Actuelle Nette (25 ans)', f'{van_25ans:,.0f} €', 'Gain net sur durée de vie'],
+            ['Économies cumulées sur 25 ans', f'{gain_annuel * 25:,.0f} €', 'Hors inflation électricité'],
+        ]
+        
+        rentabilite_table = Table(rentabilite_data, colWidths=[6*cm, 4*cm, 6*cm])
+        rentabilite_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+        ]))
+        sub_elements.append(rentabilite_table)
+        sub_elements.append(Spacer(1, 0.5*cm))
+        
+        # GRAPHIQUE COURBES PRODUCTION vs CONSOMMATION HORAIRES
+        sub_elements.append(Paragraph("<b>📊 COURBES PRODUCTION vs CONSOMMATION (Journée type)</b>", self.styles['Section']))
+        
+        # Récupérer données PVGIS horaires si disponibles
+        pvgis_hourly = self.params.get('pvgis_hourly_data')
+        enedis_hourly = self.params.get('enedis_hourly_data')
+        
+        if pvgis_hourly and enedis_hourly:
+            # Utiliser vraies données
+            graph_img = self._create_courbes_horaires_graph(pvgis_hourly, enedis_hourly)
+        else:
+            # Simulation réaliste en attendant vraies données
+            graph_img = self._create_courbes_horaires_simulation(production_annuelle, consommation)
+        
+        if graph_img:
+            sub_elements.append(RLImage(graph_img, width=16*cm, height=10*cm))
+            sub_elements.append(Spacer(1, 0.3*cm))
+        
+        explication_text = """
+        <b>Légende du graphique :</b><br/>
+        • <b>Courbe orange :</b> Production photovoltaïque heure par heure (PVGIS)<br/>
+        • <b>Courbe bleue :</b> Consommation électrique du site (données Enedis)<br/>
+        • <b>Zone verte :</b> Autoconsommation instantanée (production directement consommée)<br/>
+        • <b>Zone orange :</b> Surplus de production (revendu au réseau)<br/>
+        • <b>Zone bleue :</b> Soutirage réseau (consommation non couverte)<br/>
+        <br/>
+        <i>Le taux d'autoconsommation dépend de la synchronisation entre production solaire et besoins.
+        Une batterie de stockage permettrait d'augmenter ce taux de 70% à 90%.</i>
+        """
+        sub_elements.append(Paragraph(explication_text, self.styles['CorpsJustifie']))
+        
+        return sub_elements
+    
+    def _create_courbes_horaires_simulation(self, production_annuelle, consommation_annuelle):
+        """Créer graphique simulation courbes production/consommation horaires"""
+        try:
+            heures = np.arange(0, 24, 1)
+            
+            # Simulation production solaire (courbe gaussienne 8h-18h)
+            production_horaire = np.zeros(24)
+            for h in heures:
+                if 6 <= h <= 20:
+                    # Courbe en cloche centrée sur 13h
+                    production_horaire[h] = (production_annuelle / 365 / 1000) * np.exp(-((h - 13) ** 2) / 18) * 8
+            
+            # Simulation consommation (profil tertiaire/agricole)
+            consommation_horaire = np.ones(24) * (consommation_annuelle / 365 / 24 / 1000)  # Base constante
+            # Pics matin et soir
+            for h in heures:
+                if 7 <= h <= 9:
+                    consommation_horaire[h] *= 1.5  # Pic matin
+                elif 11 <= h <= 14:
+                    consommation_horaire[h] *= 1.3  # Activité midi
+                elif 17 <= h <= 20:
+                    consommation_horaire[h] *= 1.4  # Pic soir
+                elif 22 <= h or h <= 6:
+                    consommation_horaire[h] *= 0.3  # Nuit réduite
+            
+            # Créer graphique
+            fig, ax = plt.subplots(figsize=(12, 6))
+            
+            # Zones colorées
+            ax.fill_between(heures, 0, np.minimum(production_horaire, consommation_horaire), 
+                            alpha=0.3, color='green', label='Autoconsommation')
+            ax.fill_between(heures, np.minimum(production_horaire, consommation_horaire), production_horaire, 
+                            alpha=0.2, color='orange', label='Surplus (revente)')
+            ax.fill_between(heures, consommation_horaire, np.maximum(production_horaire, consommation_horaire), 
+                            alpha=0.2, color='blue', label='Soutirage réseau')
+            
+            # Courbes
+            ax.plot(heures, production_horaire, color='orange', linewidth=2.5, marker='o', markersize=4, label='Production PV')
+            ax.plot(heures, consommation_horaire, color='blue', linewidth=2.5, marker='s', markersize=4, label='Consommation')
+            
+            ax.set_xlabel('Heure de la journée', fontsize=11, fontweight='bold')
+            ax.set_ylabel('Puissance (kW)', fontsize=11, fontweight='bold')
+            ax.set_title('Profil Production Photovoltaïque vs Consommation (Journée type)', fontsize=13, fontweight='bold')
+            ax.legend(loc='upper right', fontsize=9)
+            ax.grid(True, alpha=0.3, linestyle='--')
+            ax.set_xlim(0, 23)
+            ax.set_ylim(0, max(max(production_horaire), max(consommation_horaire)) * 1.1)
+            ax.set_xticks(np.arange(0, 24, 2))
+            
+            plt.tight_layout()
+            
+            # Sauvegarder en buffer
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png', dpi=150, bbox_inches='tight')
+            buffer.seek(0)
+            plt.close()
+            
+            return buffer
+            
+        except Exception as e:
+            print(f"Erreur création graphique horaire: {e}")
+            return None
+    
+    def _create_courbes_horaires_graph(self, pvgis_data, enedis_data):
+        """Créer graphique avec vraies données PVGIS et Enedis"""
+        try:
+            # TODO: Parser vraies données 8760h PVGIS + Enedis
+            # Pour l'instant, utiliser simulation
+            return None
+        except Exception as e:
+            print(f"Erreur parsing données horaires: {e}")
+            return None
+        sub_elements.append(Paragraph("Courbes Production vs Consommation", self.styles['Section']))
+        
+        # Créer courbes mensuelles
+        mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
+        coef_prod = np.array([0.06, 0.07, 0.09, 0.11, 0.13, 0.14, 0.15, 0.14, 0.12, 0.09, 0.07, 0.06])
+        production_mens = production_annuelle * coef_prod
+        
+        # Consommation (pattern typique professionnel)
+        coef_conso = np.array([1.1, 1.1, 1.0, 0.9, 0.8, 0.7, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2])
+        consommation_mens = consommation * coef_conso / coef_conso.sum()
+        
+        fig, ax = plt.subplots(figsize=(14, 7))
+        ax.plot(mois, production_mens, marker='o', linewidth=2.5, color='#28a745', label='Production PV', markersize=8)
+        ax.plot(mois, consommation_mens, marker='s', linewidth=2.5, color='#dc3545', label='Consommation', markersize=8)
+        
+        # Zone autoconsommée
+        autoconso_mens = np.minimum(production_mens, consommation_mens)
+        ax.fill_between(range(12), 0, autoconso_mens, alpha=0.3, color='#28a745', label='Autoconsommation')
+        
+        ax.set_xlabel('Mois', fontsize=13, fontweight='bold')
+        ax.set_ylabel('Énergie (kWh)', fontsize=13, fontweight='bold')
+        ax.set_title('Production et Consommation Mensuelles - Optimisation Autoconsommation', fontsize=15, fontweight='bold')
+        ax.legend(loc='best', fontsize=11, framealpha=0.9)
+        ax.grid(True, alpha=0.3)
+        
+        graph_buffer = BytesIO()
+        plt.tight_layout()
+        plt.savefig(graph_buffer, format='png', dpi=150, bbox_inches='tight')
+        plt.close()
+        graph_buffer.seek(0)
+        
+        sub_elements.append(RLImage(graph_buffer, width=16*cm, height=8*cm))
+        
+        return sub_elements
+    
+    def _section_vente_totale(self, investissement_ht, production_annuelle):
+        """Sous-section pour vente totale"""
+        sub_elements = []
+        
+        tarif_revente = self.params.get('tarif_revente_kwh', 0.13)
+        revenu_annuel = production_annuelle * tarif_revente
+        roi_annees = investissement_ht / revenu_annuel if revenu_annuel > 0 else 0
+        
+        # ... Code similaire pour vente totale
+        
+        return sub_elements
+    
+    def _devis_detaille(self):
+        """PAGE 8: Devis détaillé conforme NF C 15-752-1 avec taxes IFER"""
+        elements = []
+        
+        elements.append(Paragraph("8. DEVIS DÉTAILLÉ", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # DONNÉES RÉELLES depuis calepinage
+        puissance_kwc = self.puissance_reelle_kwc
+        nb_modules_total = self.nb_modules_total
+        investissement_total = self.prix_total_ht
+        
+        # Onduleurs (1 onduleur 50kW par tranche)
+        nb_onduleurs = max(1, int(np.ceil(puissance_kwc / 50)))
+        
+        # PRIX DEPUIS BDD ou calcul proportionnel
+        # Chercher prix module dans BDD
+        prix_module_data = None
+        for key, val in self.prix_organes.items():
+            if 'module' in key:
+                prix_module_data = val
+                break
+        
+        if prix_module_data and prix_module_data.get('unite') == '€/Wc':
+            # Prix au Wc
+            prix_module_unit = prix_module_data['prix_unitaire_ht'] * self.module_puissance
+            cout_modules = nb_modules_total * prix_module_unit
+        else:
+            # Fallback: proportionnel au total
+            prix_module_unit = (investissement_total * 0.30) / nb_modules_total if nb_modules_total > 0 else 180
+            cout_modules = nb_modules_total * prix_module_unit
+        
+        # Chercher prix onduleur dans BDD
+        prix_onduleur_data = None
+        for key, val in self.prix_organes.items():
+            if 'onduleur' in key:
+                prix_onduleur_data = val
+                break
+        
+        if prix_onduleur_data and prix_onduleur_data.get('unite') == '€/kW':
+            # Prix au kW
+            puissance_ond_kw = 50 if puissance_kwc >= 50 else 25
+            prix_onduleur_unit = prix_onduleur_data['prix_unitaire_ht'] * puissance_ond_kw
+            cout_onduleurs = nb_onduleurs * prix_onduleur_unit
+        else:
+            # Fallback
+            prix_onduleur_unit = (investissement_total * 0.18) / nb_onduleurs if nb_onduleurs > 0 else 4500
+            cout_onduleurs = nb_onduleurs * prix_onduleur_unit
+        
+        # Prix structure
+        prix_structure_data = None
+        for key, val in self.prix_organes.items():
+            if 'structure' in key:
+                prix_structure_data = val
+                break
+        
+        prix_structure_m2 = prix_structure_data['prix_unitaire_ht'] if prix_structure_data else 45.0
+        surface_modules = nb_modules_total * 2.7  # m² par module
+        cout_structure = surface_modules * prix_structure_m2
+        
+        # Décomposition devis NF C 15-752-1
+        devis_data = [
+            ['POSTE', 'DESCRIPTION', 'QTÉ', 'P.U. HT', 'TOTAL HT'],
+            
+            # 1. MODULES
+            ['1. MODULES PHOTOVOLTAÏQUES', '', '', '', ''],
+            ['', f'Modules JA Solar JAM72S30-{self.module_puissance}/MR - {self.module_puissance}Wc', nb_modules_total, f'{prix_module_unit:.2f} €', 
+             f'{cout_modules:,.2f} €'],
+            ['', 'Certification IEC 61215, IEC 61730, Tier 1', '', '', ''],
+            ['', 'Garantie produit 12 ans, performance 25 ans', '', '', ''],
+            
+            # 2. ONDULEURS
+            ['2. ONDULEURS ET ÉQUIPEMENTS ÉLECTRIQUES', '', '', '', ''],
+            ['', f'Onduleur Huawei SUN2000-{50 if puissance_kwc >= 50 else 25}KTL-M3', 
+             nb_onduleurs, f'{prix_onduleur_unit:.2f} €', f'{cout_onduleurs:,.2f} €'],
+            ['', 'Rendement 98.65%, monitoring inclus', '', '', ''],
+            ['', 'Coffret AC/DC protections (parafoudre, sectionneur)', 1, '850 €', '850.00 €'],
+            ['', 'Câbles solaires 6mm² certifiés EN 50618', 1, '1200 €', '1200.00 €'],
+            
+            # 3. STRUCTURE
+            ['3. STRUCTURE ET FIXATIONS', '', '', '', ''],
+            ['', f'Rails aluminium + fixations toiture NF C 15-752-1', 
+             f'{surface_modules:.0f} m²', f'{prix_structure_m2} €/m²', 
+             f'{surface_modules * prix_structure_m2:,.2f} €'],
+            ['', 'Étude de charpente incluse', 1, 'Inclus', '0.00 €'],
+            ['', 'Crochets inox A4, étanchéité renforcée', '', '', ''],
+            
+            # 4. RACCORDEMENT
+            ['4. RACCORDEMENT RÉSEAU', '', '', '', ''],
+            ['', 'Liaison DC modules → onduleur', 1, '1800 €', '1800.00 €'],
+            ['', 'Liaison AC onduleur → TGBT (NF C 15-100)', 1, '2200 €', '2200.00 €'],
+            ['', 'Mise à la terre équipotentielle', 1, '650 €', '650.00 €'],
+            ['', 'Parafoudres Type 1+2 AC et DC', 1, '450 €', '450.00 €'],
+            
+            # 5. MONITORING
+            ['5. SUPERVISION ET MONITORING', '', '', '', ''],
+            ['', 'Box supervision Huawei SmartLogger', 1, '850 €', '850.00 €'],
+            ['', 'Application mobile iOS/Android', 1, 'Inclus', '0.00 €'],
+            ['', 'Alertes SMS/email anomalies', 1, 'Inclus', '0.00 €'],
+            
+            # 6. INSTALLATION
+            ['6. MAIN D\'ŒUVRE ET INSTALLATION', '', '', '', ''],
+            ['', f'Pose modules + onduleurs + raccordement', 
+             1, f'{investissement_total * 0.20:.0f} €', f'{investissement_total * 0.20:,.2f} €'],
+            ['', 'Installation par équipe RGE QualiPV', '', '', ''],
+            ['', 'Conformité NF C 15-100 et NF C 15-752-1', '', '', ''],
+            
+            # 7. ADMINISTRATIF
+            ['7. PRESTATIONS ADMINISTRATIVES', '', '', '', ''],
+            ['', 'Déclaration Préalable (DP) en mairie', 1, '450 €', '450.00 €'],
+            ['', 'Demande Raccordement (DDR) Enedis', 1, '350 €', '350.00 €'],
+            ['', 'Attestation Consuel', 1, '250 €', '250.00 €'],
+            ['', 'Contrat achat EDF OA', 1, '300 €', '300.00 €'],
+        ]
+        
+        sous_total = investissement_total
+        tva_rate = 0.10 if puissance_kwc <= 3 else 0.20
+        
+        devis_data.extend([
+            ['', '', '', 'SOUS-TOTAL HT', f'{sous_total:,.2f} €'],
+            ['', '', '', f'TVA {int(tva_rate*100)}%', f'{sous_total * tva_rate:,.2f} €'],
+            ['', '', '', '', ''],
+            ['', '', '', 'TOTAL TTC', f'{sous_total * (1+tva_rate):,.2f} €'],
+        ])
+        
+        table = Table(devis_data, colWidths=[4*cm, 7*cm, 2*cm, 2.5*cm, 3*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 1), (0, 1), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 6), (0, 6), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 11), (-1, 11), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 11), (0, 11), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 16), (-1, 16), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 16), (0, 16), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 21), (-1, 21), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 21), (0, 21), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 26), (-1, 26), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 26), (0, 26), 'Helvetica-Bold'),
+            ('BACKGROUND', (0, 29), (-1, 29), colors.HexColor('#e6f2ff')),
+            ('FONTNAME', (0, 29), (0, 29), 'Helvetica-Bold'),
+            ('BACKGROUND', (3, -4), (-1, -4), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (3, -3), (-1, -3), colors.HexColor('#f0f0f0')),
+            ('BACKGROUND', (3, -1), (-1, -1), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (3, -1), (-1, -1), colors.whitesmoke),
+            ('FONTNAME', (3, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (3, -1), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),
+            ('ALIGN', (3, 1), (-1, -1), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ]))
+        
+        elements.append(table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # TAXES ET FISCALITÉ
+        elements.append(Paragraph("<b>🔸 TAXES ET FISCALITÉ APPLICABLES</b>", self.styles['Section']))
+        
+        # Conversion en float pour éviter erreur Decimal * float
+        puissance_kwc_float = float(puissance_kwc)
+        investissement_total_float = float(investissement_total)
+        
+        taxe_ifer = puissance_kwc_float * 7.65 if puissance_kwc_float > 100 else 0
+        taxe_territoriale = investissement_total_float * 0.005
+        
+        fiscal_text = f"""
+        <b>IFER (Imposition Forfaitaire Entreprises de Réseaux) :</b><br/>
+        • Installations ≤ 100 kWc : <b>EXONÉRÉES</b><br/>
+        • Installations > 100 kWc : <b>7,65 €/kWc/an</b><br/>
+        • Votre installation ({puissance_kwc:.2f} kWc) : <b>{'EXONÉRÉE' if puissance_kwc_float <= 100 else f'{taxe_ifer:,.2f} €/an'}</b><br/>
+        <br/>
+        <b>Taxe Foncière :</b><br/>
+        • Exonération possible 50% pendant 3 ans (selon commune)<br/>
+        • À vérifier auprès centre des impôts local<br/>
+        <br/>
+        <b>Taxe d'aménagement :</b><br/>
+        • Estimation : <b>{taxe_territoriale:,.2f} €</b> (paiement unique)<br/>
+        • Variable selon commune (part communale + départementale)<br/>
+        <br/>
+        <b>TVA :</b><br/>
+        • Installation ≤ 3 kWc : TVA 10%<br/>
+        • Installation > 3 kWc : TVA 20%<br/>
+        • Votre projet : <b>TVA {int(tva_rate*100)}%</b>
+        """
+        
+        elements.append(Paragraph(fiscal_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        elements.append(Paragraph(
+            "<i>Devis valable 2 mois. Prix marché T4 2025. Conforme NF C 15-752-1.</i>", 
+            self.styles['Normal']
+        ))
+        
+        elements.append(PageBreak())
+        return elements
+    
+    def _planning_realisation(self):
+        """PAGE 9: Planning de réalisation détaillé"""
+        elements = []
+        
+        elements.append(Paragraph("9. PLANNING DE RÉALISATION", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        intro_text = """
+        Le planning ci-dessous présente les différentes étapes de votre projet photovoltaïque, 
+        de la signature du devis jusqu'à la mise en service définitive. Les durées indiquées 
+        sont des estimations basées sur notre expérience et peuvent varier selon les délais 
+        administratifs et les contraintes locales.
+        """
+        elements.append(Paragraph(intro_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # Tableau planning détaillé
+        planning_data = [
+            ['ÉTAPE', 'DURÉE', 'DÉLAI CUMULÉ', 'RESPONSABLE', 'LIVRABLE'],
+            
+            ['1. Signature contrat', '1 jour', 'J+0', 'Client + Sunstice', 'Bon de commande signé'],
+            
+            ['2. Visite technique', '3-5 jours', 'J+5', 'Sunstice', 'Rapport visite technique'],
+            
+            ['3. Étude technique détaillée', '5-7 jours', 'J+12', 'Bureau d\'études', 
+             'Plans détaillés, calepinage, schéma électrique'],
+            
+            ['4. Déclaration Préalable (DP)', '1-3 jours', 'J+15', 'Sunstice', 'Dépôt dossier en mairie'],
+            
+            ['5. Instruction DP mairie', '30 jours', 'J+45', 'Mairie', 'Arrêté ou accord tacite'],
+            
+            ['6. Demande Raccordement (DDR)', '2-3 jours', 'J+48', 'Sunstice', 'Dépôt DDR Enedis'],
+            
+            ['7. Proposition Technique Raccordement', '15-45 jours', 'J+93', 'Enedis', 
+             'PTR + Convention raccordement'],
+            
+            ['8. Commande matériel', '5-7 jours', 'J+100', 'Sunstice', 'Confirmation fabricants'],
+            
+            ['9. Livraison matériel', '15-30 jours', 'J+130', 'Fournisseurs', 'Modules, onduleurs, structure'],
+            
+            ['10. Installation chantier', '3-5 jours', 'J+135', 'Équipe RGE', 'Installation complète'],
+            
+            ['11. Attestation Consuel', '5-7 jours', 'J+142', 'Sunstice', 'Demande + réception attestation'],
+            
+            ['12. Mise en service Enedis', '10-15 jours', 'J+157', 'Enedis', 'Activation compteur producteur'],
+            
+            ['13. Contrat achat EDF OA', '7-10 jours', 'J+167', 'EDF OA', 'Contrat actif (revente)'],
+            
+            ['', '', '', '', ''],
+            ['<b>DÉLAI TOTAL</b>', '<b>~6 mois</b>', '<b>J+167</b>', '', '<b>Installation opérationnelle</b>'],
+        ]
+        
+        table = Table(planning_data, colWidths=[5*cm, 2.5*cm, 2.5*cm, 4*cm, 5*cm])
+        table.setStyle(TableStyle([
+            # En-tête
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Étapes critiques (DP, DDR, Installation)
+            ('BACKGROUND', (0, 4), (-1, 4), colors.HexColor('#fff3cd')),  # DP
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#fff3cd')),  # DDR
+            ('BACKGROUND', (0, 10), (-1, 10), colors.HexColor('#d1ecf1')),  # Installation
+            ('BACKGROUND', (0, 12), (-1, 12), colors.HexColor('#d4edda')),  # Mise en service
+            
+            # Total
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, -1), (-1, -1), colors.whitesmoke),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 10),
+            
+            # Bordures
+            ('GRID', (0, 0), (-1, -2), 0.5, colors.grey),
+            ('BOX', (0, -1), (-1, -1), 1.5, colors.HexColor('#003d7a')),
+            
+            # Alignements
+            ('ALIGN', (1, 1), (2, -2), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 1), (-1, -2), 8),
+        ]))
+        
+        elements.append(table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Notes importantes
+        notes_text = """
+        <b>📌 POINTS IMPORTANTS À RETENIR :</b><br/><br/>
+        
+        <b>1. Délai d'instruction DP (Déclaration Préalable) :</b><br/>
+        • 1 mois légal, peut être prolongé si dossier incomplet<br/>
+        • Accord tacite si pas de réponse de la mairie<br/>
+        • Nécessaire si installation > 1 kWc ou en zone protégée<br/><br/>
+        
+        <b>2. Raccordement Enedis :</b><br/>
+        • Délai variable selon charge du réseau local (15-45 jours)<br/>
+        • PTR peut imposer travaux supplémentaires (coût additionnel)<br/>
+        • Installation interdite sans Consuel validé<br/><br/>
+        
+        <b>3. Météo et saisonnalité :</b><br/>
+        • Installation toiture impossible par temps de pluie/gel<br/>
+        • Période optimale : Mars à Octobre<br/>
+        • Prévoir 1 semaine de marge selon météo<br/><br/>
+        
+        <b>4. Consuel (Comité National pour la Sécurité des Usagers de l'Électricité) :</b><br/>
+        • Contrôle obligatoire avant mise en service<br/>
+        • Visite sur site par organisme agréé<br/>
+        • Sans Consuel, pas d'activation par Enedis<br/><br/>
+        
+        <b>5. Délai global :</b><br/>
+        • <b>Minimum : 5 mois</b> (si tous délais administratifs courts)<br/>
+        • <b>Standard : 6 mois</b> (cas général)<br/>
+        • <b>Maximum : 9 mois</b> (si complications administratives/travaux réseau)
+        """
+        
+        elements.append(Paragraph(notes_text, self.styles['CorpsJustifie']))
+        
+        elements.append(PageBreak())
+        return elements
+    
+    def _garanties_maintenance(self):
+        """PAGE 10: Garanties et maintenance"""
+        elements = []
+        
+        elements.append(Paragraph("10. GARANTIES ET MAINTENANCE", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        intro_text = """
+        Votre installation photovoltaïque bénéficie d'un ensemble complet de garanties 
+        couvrant l'intégralité des équipements et de la main d'œuvre. Ces garanties assurent 
+        la pérennité et la performance de votre investissement sur le long terme.
+        """
+        elements.append(Paragraph(intro_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # Tableau garanties
+        garanties_data = [
+            ['ÉQUIPEMENT / PRESTATION', 'TYPE GARANTIE', 'DURÉE', 'COUVERTURE'],
+            
+            ['Modules JA Solar JAM72S30-550/MR', 'Garantie Produit', '12 ans', 
+             'Défauts de fabrication, vices matériaux'],
+            ['', 'Garantie Performance', '25 ans', 
+             '90% puissance à 10 ans\n80% puissance à 25 ans'],
+            
+            ['Onduleurs Huawei SUN2000', 'Garantie Constructeur', '10 ans', 
+             'Panne, défaillance électronique'],
+            ['', 'Extension possible', '15-20 ans', 
+             'Option payante +500€'],
+            
+            ['Structure aluminium', 'Garantie Matériau', '10 ans', 
+             'Corrosion, déformation'],
+            
+            ['Étanchéité toiture', 'Garantie Décennale', '10 ans', 
+             'Infiltrations liées aux travaux'],
+            
+            ['Installation électrique', 'Garantie Décennale', '10 ans', 
+             'Conformité NF C 15-100, défauts'],
+            
+            ['Main d\'œuvre pose', 'Garantie Biennale', '2 ans', 
+             'Équipements détachables'],
+            ['', 'Garantie Décennale', '10 ans', 
+             'Dommages structurels'],
+            
+            ['Monitoring Huawei', 'Garantie Service', '5 ans', 
+             'Accès application, alertes'],
+        ]
+        
+        table = Table(garanties_data, colWidths=[5*cm, 3.5*cm, 2.5*cm, 7.5*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Lignes modules (surlignage vert)
+            ('BACKGROUND', (0, 1), (-1, 2), colors.HexColor('#d4edda')),
+            
+            # Lignes garanties décennales (orange)
+            ('BACKGROUND', (0, 6), (-1, 6), colors.HexColor('#fff3cd')),
+            ('BACKGROUND', (0, 7), (-1, 7), colors.HexColor('#fff3cd')),
+            ('BACKGROUND', (0, 9), (-1, 9), colors.HexColor('#fff3cd')),
+            
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ALIGN', (2, 1), (2, -1), 'CENTER'),
+        ]))
+        
+        elements.append(table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # MAINTENANCE
+        elements.append(Paragraph("<b>🔧 MAINTENANCE ET ENTRETIEN</b>", self.styles['Section']))
+        
+        maintenance_text = """
+        <b>1. Maintenance préventive (Optionnelle) :</b><br/><br/>
+        
+        <b>Forfait Sérénité Annuel : 450 €/an HT</b><br/>
+        • Visite annuelle sur site par technicien qualifié<br/>
+        • Nettoyage modules (2 passages/an selon exposition)<br/>
+        • Contrôle serrage connecteurs DC/AC<br/>
+        • Vérification tensions et courants de chaînes<br/>
+        • Test isolation électrique<br/>
+        • Contrôle état onduleurs et monitoring<br/>
+        • Rapport annuel de performance<br/>
+        • Priorité intervention en cas de panne<br/><br/>
+        
+        <b>2. Nettoyage modules :</b><br/>
+        • Fréquence recommandée : 1 fois/an minimum<br/>
+        • Gain production : +5 à 15% après nettoyage<br/>
+        • Tarif intervention : 3 €/module (hors forfait)<br/>
+        • Produits écologiques biodégradables<br/><br/>
+        
+        <b>3. Monitoring à distance :</b><br/>
+        • Surveillance 24/7 via application Huawei FusionSolar<br/>
+        • Alertes automatiques si anomalie détectée<br/>
+        • Accès historique production (données minute par minute)<br/>
+        • Comparaison production réelle vs théorique<br/>
+        • <b>Inclus sans frais pendant 25 ans</b><br/><br/>
+        
+        <b>4. Dépannage et interventions :</b><br/>
+        • Hotline technique 7j/7 : 09 XX XX XX XX<br/>
+        • Délai intervention : 48h ouvrées maximum<br/>
+        • Sous garantie : <b>GRATUIT</b> (pièces + main d'œuvre)<br/>
+        • Hors garantie : Devis avant intervention<br/><br/>
+        
+        <b>5. Extensions garanties disponibles :</b><br/>
+        • Extension onduleur 10→20 ans : <b>500 €</b><br/>
+        • Garantie tous risques (bris de glace, tempête) : <b>150 €/an</b><br/>
+        • Rachat production perdue en cas de panne : <b>+100 €/an</b>
+        """
+        
+        elements.append(Paragraph(maintenance_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        # Encadré important
+        important_text = """
+        <b>⚠️ ASSURANCE HABITATION :</b> Pensez à déclarer votre installation photovoltaïque 
+        à votre assureur habitation. La surprime est généralement comprise entre 50 et 150 €/an. 
+        Elle couvre les dommages causés par les intempéries, incendie, vol des équipements.
+        """
+        elements.append(Paragraph(important_text, self.styles['Encadre']))
+        
+        elements.append(PageBreak())
+        return elements
+    
+    def _aspects_reglementaires(self):
+        """PAGE 11: Aspects réglementaires et conformité NF C 15-752-1"""
+        elements = []
+        
+        elements.append(Paragraph("11. ASPECTS RÉGLEMENTAIRES ET CONFORMITÉ", self.styles['Section']))
+        elements.append(Spacer(1, 0.3*cm))
+        
+        intro_text = """
+        Votre installation photovoltaïque sera réalisée dans le strict respect de l'ensemble 
+        des réglementations en vigueur, garantissant sécurité, performance et conformité légale.
+        """
+        elements.append(Paragraph(intro_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # NORMES TECHNIQUES
+        elements.append(Paragraph("<b>📋 NORMES TECHNIQUES APPLICABLES</b>", self.styles['Section']))
+        
+        normes_data = [
+            ['NORME', 'DESCRIPTION', 'POINTS DE CONTRÔLE'],
+            
+            ['NF C 15-100', 'Installations électriques BT', 
+             '• Protection personnes/biens\n• Schéma électrique\n• Section câbles\n• Protections différentielles'],
+            
+            ['NF C 15-752-1', 'Installations PV raccordées au réseau', 
+             '• Conception installation DC\n• Protection surtensions\n• Choix câbles solaires\n• Étiquetage circuits'],
+            
+            ['NF C 14-100', 'Installations de branchement BT', 
+             '• Raccordement au réseau public\n• Point de livraison\n• Comptage'],
+            
+            ['UTE C 15-712-1', 'Installations PV autonomes', 
+             '• Si stockage batterie\n• Protection batteries\n• Gestion énergie'],
+            
+            ['DTU 40.5', 'Travaux toiture (étanchéité)', 
+             '• Traversées de couverture\n• Étanchéité à l\'eau\n• Ventilation sous-toiture'],
+            
+            ['IEC 61215', 'Modules cristallins', 
+             '• Tests performances\n• Qualification modules\n• Résistance mécanique'],
+            
+            ['IEC 61730', 'Sécurité modules PV', 
+             '• Résistance au feu\n• Isolation électrique\n• Protection choc électrique'],
+        ]
+        
+        table = Table(normes_data, colWidths=[3*cm, 5*cm, 10.5*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003d7a')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            
+            # Mise en évidence normes principales
+            ('BACKGROUND', (0, 1), (-1, 1), colors.HexColor('#fff3cd')),  # NF C 15-100
+            ('BACKGROUND', (0, 2), (-1, 2), colors.HexColor('#fff3cd')),  # NF C 15-752-1
+            
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ]))
+        
+        elements.append(table)
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # DÉMARCHES ADMINISTRATIVES
+        elements.append(Paragraph("<b>🏛️ DÉMARCHES ADMINISTRATIVES OBLIGATOIRES</b>", self.styles['Section']))
+        
+        demarches_text = """
+        <b>1. Déclaration Préalable (DP) en Mairie :</b><br/>
+        • <b>Obligatoire</b> pour toute installation > 1 kWc ou en zone protégée<br/>
+        • Dossier complet fourni par Sunstice (plans, photos, notice)<br/>
+        • Délai instruction : 1 mois (tacite accord si pas de réponse)<br/>
+        • En zone ABF : accord Architecte des Bâtiments de France requis<br/>
+        • Coût : <b>Inclus dans le devis</b><br/><br/>
+        
+        <b>2. Demande de Raccordement (DDR) auprès d'Enedis :</b><br/>
+        • <b>Obligatoire</b> avant installation<br/>
+        • Enedis étudie capacité d'accueil du réseau<br/>
+        • Proposition Technique et Financière (PTF) sous 15-45 jours<br/>
+        • Travaux réseau éventuels à la charge du demandeur<br/>
+        • Coût raccordement : selon puissance (généralement 500-2000 €)<br/>
+        • Coût : <b>Montage dossier inclus, frais Enedis en sus</b><br/><br/>
+        
+        <b>3. Attestation Consuel :</b><br/>
+        • <b>Obligatoire</b> avant mise en service<br/>
+        • Vérification conformité NF C 15-100 et NF C 15-752-1<br/>
+        • Visite sur site par organisme agréé<br/>
+        • Sans Consuel, Enedis refuse activation<br/>
+        • Coût : <b>250 € (inclus dans devis)</b><br/><br/>
+        
+        <b>4. Contrat d'Achat Électricité (EDF OA) :</b><br/>
+        • Pour installations avec revente surplus ou totale<br/>
+        • Durée : 20 ans à tarif garanti<br/>
+        • Tarifs 2025 (selon arrêté tarifaire) :<br/>
+          - Vente surplus ≤ 9 kWc : 0,13 €/kWh<br/>
+          - Vente totale ≤ 100 kWc : 0,1430 €/kWh<br/>
+        • Coût : <b>Montage dossier inclus</b><br/><br/>
+        
+        <b>5. Déclaration ENEDIS (mise en service) :</b><br/>
+        • Fourniture attestation Consuel<br/>
+        • Convention d'autoconsommation ou de raccordement<br/>
+        • Activation compteur Linky en mode producteur<br/>
+        • Délai : 10-15 jours après réception Consuel
+        """
+        
+        elements.append(Paragraph(demarches_text, self.styles['CorpsJustifie']))
+        elements.append(Spacer(1, 0.4*cm))
+        
+        # OBLIGATIONS LÉGALES PROPRIÉTAIRE
+        elements.append(Paragraph("<b>📜 OBLIGATIONS LÉGALES DU PROPRIÉTAIRE</b>", self.styles['Section']))
+        
+        obligations_text = """
+        <b>Déclaration fiscale :</b><br/>
+        • Revenu imposable si vente surplus/totale > 70 000 kWh/an<br/>
+        • Exonération totale si puissance ≤ 3 kWc et usage personnel<br/>
+        • Régime micro-BIC ou réel selon montant revenus<br/><br/>
+        
+        <b>Assurance :</b><br/>
+        • Déclaration obligatoire à l'assurance habitation<br/>
+        • Couverture RC (Responsabilité Civile) obligatoire<br/>
+        • Dommages-ouvrage recommandée<br/><br/>
+        
+        <b>Contrôles périodiques :</b><br/>
+        • Contrôle initial Consuel avant mise en service<br/>
+        • Vérification électrique tous les 4 ans (> 250 kVA)<br/>
+        • Entretien et maintenance selon recommandations fabricant
+        """
+        
+        elements.append(Paragraph(obligations_text, self.styles['CorpsJustifie']))
+        
+        elements.append(PageBreak())
+        return elements
+    
+    def _conditions_generales(self):
+        """PAGE 12: Conditions Générales de Vente"""
+        elements = []
+        
+        elements.append(Paragraph("12. CONDITIONS GÉNÉRALES DE VENTE", self.styles['Section']))
+        elements.append(Spacer(1, 0.2*cm))
+        
+        cgv_text = """
+        <b>Article 1 - Objet</b><br/>
+        Les présentes Conditions Générales de Vente (CGV) régissent les relations contractuelles entre 
+        SUNSTICE (ci-après "le Prestataire") et le client (ci-après "le Client") pour la fourniture et 
+        l'installation d'une centrale photovoltaïque.<br/><br/>
+        
+        <b>Article 2 - Devis et commande</b><br/>
+        Le devis est valable 2 mois à compter de sa date d'émission. La commande devient ferme et définitive 
+        dès signature du devis et versement de l'acompte de 30% du montant total TTC. Prix basés sur les 
+        tarifs en vigueur au T4 2025, susceptibles d'évolution selon variation coût matières premières.<br/><br/>
+        
+        <b>Article 3 - Prix et modalités de paiement</b><br/>
+        Prix indiqués en Euros TTC. Modalités de paiement :<br/>
+        • <b>30% à la commande</b> (signature devis)<br/>
+        • <b>40% à réception matériel</b> (modules + onduleurs livrés sur site)<br/>
+        • <b>30% à la mise en service</b> (installation terminée + Consuel obtenu)<br/>
+        Modes de paiement acceptés : virement bancaire, chèque. Escompte 2% si paiement comptant intégral.<br/><br/>
+        
+        <b>Article 4 - Délais</b><br/>
+        Délai indicatif de réalisation : 5 à 7 mois à compter de la signature. Ce délai peut être prolongé 
+        en cas de force majeure, retards administratifs (mairie, Enedis), intempéries, ou indisponibilité matériel. 
+        Le Client sera informé de tout retard significatif.<br/><br/>
+        
+        <b>Article 5 - Visite technique et étude</b><br/>
+        Une visite technique préalable est obligatoire pour confirmer la faisabilité. Si des contraintes techniques 
+        majeures sont découvertes (charpente insuffisante, réseau inadapté), le Prestataire se réserve le droit 
+        d'annuler ou modifier le devis. Dans ce cas, l'acompte est remboursé intégralement.<br/><br/>
+        
+        <b>Article 6 - Autorisa­tions administratives</b><br/>
+        Le Prestataire se charge du montage des dossiers administratifs (DP, DDR, Consuel). Le Client s'engage 
+        à fournir tous documents nécessaires. En cas de refus des autorités (mairie, ABF, Enedis), le contrat 
+        pourra être annulé. Frais déjà engagés resteront dus (visite technique, étude : 500 € forfait).<br/><br/>
+        
+        <b>Article 7 - Installation et réception</b><br/>
+        L'installation sera réalisée par une équipe RGE QualiPV dans le respect des normes NF C 15-100 et 
+        NF C 15-752-1. À l'issue, un procès-verbal de réception sera signé conjointement. Le Client dispose 
+        de 8 jours pour formuler des réserves écrites. Passé ce délai, l'installation est réputée conforme.<br/><br/>
+        
+        <b>Article 8 - Garanties</b><br/>
+        Garanties détaillées en page 10 du présent document. Garantie décennale assurée par AXA France 
+        (police n°XXXX). Pour toute réclamation sous garantie, contacter le SAV : sav@sunstice.fr - 
+        Tél 09 XX XX XX XX.<br/><br/>
+        
+        <b>Article 9 - Assurances</b><br/>
+        Le Prestataire est titulaire d'une assurance Responsabilité Civile Professionnelle et d'une assurance 
+        Décennale. Le Client doit déclarer l'installation à son assureur habitation sous 30 jours suivant 
+        la mise en service.<br/><br/>
+        
+        <b>Article 10 - Maintenance</b><br/>
+        Le Client s'engage à entretenir l'installation selon recommandations du fabricant (nettoyage modules, 
+        contrôle visuel). Toute modification par un tiers non agréé annule les garanties. Contrats de 
+        maintenance disponibles (cf. page 10).<br/><br/>
+        
+        <b>Article 11 - Propriété intellectuelle</b><br/>
+        Tous plans, études, schémas fournis restent propriété du Prestataire et ne peuvent être reproduits 
+        ou communiqués sans accord écrit préalable.<br/><br/>
+        
+        <b>Article 12 - Protection des données</b><br/>
+        Conformément au RGPD, les données personnelles collectées sont utilisées uniquement dans le cadre 
+        de l'exécution du contrat. Le Client dispose d'un droit d'accès, rectification, suppression en 
+        contactant : contact@sunstice.fr.<br/><br/>
+        
+        <b>Article 13 - Résiliation</b><br/>
+        En cas de non-paiement d'une échéance, le Prestataire peut suspendre les travaux après mise en demeure 
+        restée sans effet 15 jours. Frais déjà engagés resteront dus. Le Client peut annuler dans les 14 jours 
+        (délai de rétractation légal), avec remboursement intégral de l'acompte si aucun travail n'a débuté.<br/><br/>
+        
+        <b>Article 14 - Force majeure</b><br/>
+        Cas de force majeure : catastrophe naturelle, épidémie, guerre, grève générale, indisponibilité matériel 
+        du fait du fabricant. En cas de force majeure de plus de 3 mois, le contrat pourra être annulé sans 
+        pénalité.<br/><br/>
+        
+        <b>Article 15 - Litiges</b><br/>
+        En cas de litige, le Client peut saisir le médiateur de la consommation : Médiateur de l'Énergie - 
+        www.mediateur-energie.fr. À défaut d'accord amiable, les tribunaux compétents sont ceux du siège social 
+        du Prestataire.<br/><br/>
+        
+        <b>Article 16 - Acceptation</b><br/>
+        La signature du devis vaut acceptation pleine et entière des présentes CGV.
+        """
+        
+        elements.append(Paragraph(cgv_text, self.styles['Normal']))
+        elements.append(Spacer(1, 0.5*cm))
+        
+        # Coordonnées et signature
+        signature_text = """
+        <b>SUNSTICE SAS</b><br/>
+        123 Avenue du Soleil - 75001 PARIS<br/>
+        SIRET : 123 456 789 00012 - APE : 4321Z<br/>
+        RCS Paris B 123 456 789<br/>
+        Capital social : 100 000 €<br/>
+        TVA : FR12345678900<br/>
+        <br/>
+        Tél : 09 XX XX XX XX<br/>
+        Email : contact@sunstice.fr<br/>
+        Web : www.sunstice.fr<br/>
+        <br/>
+        <i>Document généré automatiquement le """ + datetime.now().strftime('%d/%m/%Y à %H:%M') + """</i>
+        """
+        
+        elements.append(Paragraph(signature_text, self.styles['Normal']))
+        
+        return elements

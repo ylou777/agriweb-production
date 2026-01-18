@@ -28,6 +28,22 @@
             background: #f8f9fa;
             padding: 20px;
             border-bottom: 2px solid #e9ecef;
+            position: relative;
+        }
+        .filter-loading {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: none;
+            z-index: 10;
+        }
+        .filter-loading.active {
+            display: block;
         }
         .prospect-card {
             border: 1px solid #e9ecef;
@@ -147,6 +163,7 @@
                                 <p class="mb-0 mt-2 opacity-75">Gestion des prospects photovoltaïques</p>
                             </div>
                             <div>
+                                <a href="/api/crm/parametrage" class="btn btn-warning me-2" target="_blank"><i class="bi bi-gear-fill me-2"></i>Paramétrage</a>
                                 <a href="/crm/calendrier" class="btn btn-primary me-2"><i class="bi bi-calendar-event me-2"></i>Calendrier</a>
                                 <a href="/crm/projets" class="btn btn-success me-2"><i class="bi bi-folder-fill me-2"></i>Fiches Projets</a>
                                 <a href="/crm/stats" class="btn btn-warning me-2"><i class="bi bi-graph-up me-2"></i>Dashboard & KPI</a>
@@ -199,13 +216,16 @@
 
                     <!-- Filters -->
                     <div class="filters-bar">
+                        <div class="filter-loading" id="filterLoading">
+                            <i class="bi bi-funnel"></i> Filtrage...
+                        </div>
                         <div class="row g-3">
                             <div class="col-md-3">
                                 <input type="text" id="searchBox" class="form-control search-box" 
                                        placeholder="🔍 Rechercher par commune, adresse...">
                             </div>
                             <div class="col-md-2">
-                                <select id="filterType" class="form-select">
+                                <select id="filterType" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous types</option>
                                     <option value="parking">🅿️ Parkings</option>
                                     <option value="toiture">🏠 Toitures</option>
@@ -214,7 +234,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterStatus" class="form-select">
+                                <select id="filterStatus" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous statuts</option>
                                     <option value="nouveau">Nouveau</option>
                                     <option value="contacte">Contacté</option>
@@ -223,7 +243,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterPriorite" class="form-select">
+                                <select id="filterPriorite" class="form-select" onchange="filterProspects()">
                                     <option value="">Toutes priorités</option>
                                     <option value="haute">Haute</option>
                                     <option value="moyenne">Moyenne</option>
@@ -231,7 +251,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterTaille" class="form-select">
+                                <select id="filterTaille" class="form-select" onchange="filterProspects()">
                                     <option value="">Toutes tailles</option>
                                     <option value="0-1000">< 1 000 m²</option>
                                     <option value="1000-5000">1 000 - 5 000 m²</option>
@@ -242,7 +262,7 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterBatiment" class="form-select">
+                                <select id="filterBatiment" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous bâtiments</option>
                                     <option value="commercial">🏢 Commercial</option>
                                     <option value="industrial">🏭 Industriel</option>
@@ -261,10 +281,16 @@
                                 </select>
                             </div>
                             <div class="col-md-2">
-                                <select id="filterProprietaire" class="form-select">
+                                <select id="filterProprietaire" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous prospects</option>
                                     <option value="enrichi">Avec propriétaire</option>
                                     <option value="non-enrichi">Sans propriétaire</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select id="filterFormeJuridique" class="form-select" onchange="filterProspects()">
+                                    <option value="">Toutes formes</option>
+                                    <!-- Peuplé dynamiquement -->
                                 </select>
                             </div>
                             <div class="col-md-1">
@@ -380,6 +406,15 @@
                             </a>
                         </div>
                         
+                        <!-- Section Informations Techniques -->
+                        <div class="col-md-12">
+                            <hr>
+                            <h6 class="text-success"><i class="bi bi-info-circle"></i> Informations Techniques</h6>
+                        </div>
+                        <div class="col-md-12" id="edit-infos-techniques">
+                            <!-- Sera rempli dynamiquement par JavaScript -->
+                        </div>
+                        
                         <div class="col-md-12">
                             <label class="form-label">Notes</label>
                             <textarea id="edit-notes" class="form-control" rows="4"></textarea>
@@ -387,6 +422,9 @@
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-info" onclick="generateCerfa()">
+                        <i class="bi bi-file-earmark-pdf"></i> Générer CERFA
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
                     <button type="button" class="btn btn-primary" onclick="saveProspect()">
                         <i class="bi bi-save"></i> Enregistrer
@@ -495,30 +533,64 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="proposal-prospect-id">
+                    
+                    <!-- Type de projet -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <label class="form-label"><strong>Type de projet</strong></label>
+                            <select id="proposal-type-projet" class="form-select" onchange="toggleAutoconso()">
+                                <option value="autoconsommation">Autoconsommation avec revente du surplus</option>
+                                <option value="vente_totale">Vente totale</option>
+                            </select>
+                        </div>
+                    </div>
+                    
                     <div class="row g-3">
                         <div class="col-md-6">
                             <label class="form-label">Puissance Installation (kWc)</label>
-                            <input type="number" id="proposal-puissance" class="form-control" value="100" step="10">
+                            <input type="number" id="proposal-puissance" class="form-control" value="100" step="10" onchange="updateProposalCalculation()">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Prix par kWc (€)</label>
-                            <input type="number" id="proposal-prix-kwc" class="form-control" value="850" step="10">
+                            <input type="number" id="proposal-prix-kwc" class="form-control" value="850" step="10" onchange="updateProposalCalculation()">
+                        </div>
+                        
+                        <!-- Champs spécifiques autoconsommation -->
+                        <div class="col-md-6" id="field-consommation" style="display: block;">
+                            <label class="form-label">Consommation Annuelle (kWh/an)</label>
+                            <input type="number" id="proposal-consommation" class="form-control" value="150000" step="1000" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Nécessaire pour calculer l'autoconsommation</small>
+                        </div>
+                        <div class="col-md-6" id="field-taux-autoconso" style="display: block;">
+                            <label class="form-label">Taux d'autoconsommation (%)</label>
+                            <input type="number" id="proposal-taux-autoconso" class="form-control" value="70" min="0" max="100" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Généralement entre 50% et 80%</small>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label class="form-label">Tarif Achat Électricité (€/kWh)</label>
+                            <input type="number" id="proposal-tarif-achat" class="form-control" value="0.20" step="0.01" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Prix d'achat actuel d'électricité</small>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Production Annuelle (kWh/kWc)</label>
-                            <input type="number" id="proposal-production" class="form-control" value="1100" step="50">
+                            <label class="form-label">Tarif Revente (€/kWh)</label>
+                            <input type="number" id="proposal-tarif-revente" class="form-control" value="0.13" step="0.01" onchange="updateProposalCalculation()">
+                            <small class="text-muted">Prix de revente du surplus ou vente totale</small>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Tarif Rachat (€/kWh)</label>
-                            <input type="number" id="proposal-tarif" class="form-control" value="0.13" step="0.01">
-                        </div>
+                        
                         <div class="col-md-12">
                             <div class="alert alert-info" id="proposal-calculation">
-                                <strong>Calcul automatique:</strong>
+                                <strong>📊 Calcul automatique:</strong>
                                 <div class="mt-2">
                                     <div>💰 Investissement total: <span id="calc-investissement">-</span> €</div>
                                     <div>⚡ Production annuelle: <span id="calc-production">-</span> kWh/an</div>
-                                    <div>💶 Revenus annuels: <span id="calc-revenus">-</span> €/an</div>
+                                    <div id="calc-autoconso-details" style="display: block;">
+                                        <div>🔋 Énergie autoconsommée: <span id="calc-autoconso">-</span> kWh/an</div>
+                                        <div>🔌 Énergie revendue: <span id="calc-revente">-</span> kWh/an</div>
+                                        <div>💵 Économie autoconso: <span id="calc-economie">-</span> €/an</div>
+                                        <div>💶 Revenu revente: <span id="calc-revenu-revente">-</span> €/an</div>
+                                    </div>
+                                    <div><strong>💰 GAIN TOTAL ANNUEL: <span id="calc-gain-total">-</span> €/an</strong></div>
                                     <div>📊 Rentabilité: <span id="calc-rentabilite">-</span>%</div>
                                     <div>⏱️ Retour sur investissement: <span id="calc-roi">-</span> ans</div>
                                 </div>
@@ -532,11 +604,8 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="button" class="btn btn-success" onclick="downloadProposal()">
-                        <i class="bi bi-download"></i> Télécharger PDF
-                    </button>
-                    <button type="button" class="btn btn-primary" onclick="saveProposal()">
-                        <i class="bi bi-save"></i> Enregistrer
+                    <button type="button" class="btn btn-success" onclick="downloadProposalComplete()">
+                        <i class="bi bi-file-earmark-pdf"></i> Télécharger Proposition Complète PDF
                     </button>
                 </div>
             </div>
@@ -711,14 +780,33 @@
             appointmentModal = new bootstrap.Modal(document.getElementById('appointmentModal'));
             proposalModal = new bootstrap.Modal(document.getElementById('proposalModal'));
             
-            // Event listeners pour les filtres
-            document.getElementById('searchBox').addEventListener('input', filterProspects);
-            document.getElementById('filterType').addEventListener('change', filterProspects);
-            document.getElementById('filterStatus').addEventListener('change', filterProspects);
-            document.getElementById('filterPriorite').addEventListener('change', filterProspects);
-            document.getElementById('filterTaille').addEventListener('change', filterProspects);
-            document.getElementById('filterBatiment').addEventListener('change', filterProspects);
-            document.getElementById('filterProprietaire').addEventListener('change', filterProspects);
+            // Event listeners pour les filtres - avec support mobile
+            const filterElements = [
+                { id: 'searchBox', events: ['input'] },
+                { id: 'filterType', events: ['change', 'input', 'touchend'] },
+                { id: 'filterStatus', events: ['change', 'input', 'touchend'] },
+                { id: 'filterPriorite', events: ['change', 'input', 'touchend'] },
+                { id: 'filterTaille', events: ['change', 'input', 'touchend'] },
+                { id: 'filterBatiment', events: ['change', 'input', 'touchend'] },
+                { id: 'filterProprietaire', events: ['change', 'input', 'touchend'] },
+                { id: 'filterFormeJuridique', events: ['change', 'input', 'touchend'] }
+            ];
+            
+            filterElements.forEach(({ id, events }) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    events.forEach(event => {
+                        element.addEventListener(event, function(e) {
+                            // Éviter les appels multiples pour touchend
+                            if (event === 'touchend') {
+                                setTimeout(() => filterProspects(), 100);
+                            } else {
+                                filterProspects();
+                            }
+                        }, { passive: true });
+                    });
+                }
+            });
             
             loadProspects();
         });
@@ -730,6 +818,7 @@
                 
                 allProspects = data.prospects || [];
                 updateStats(data.stats);
+                populateFormeJuridiqueFilter();
                 displayProspects(allProspects);
                 
                 // Si on a un paramètre highlight dans l'URL, scroll vers le prospect et le mettre en évidence
@@ -742,6 +831,250 @@
             } catch (error) {
                 console.error('Erreur chargement prospects:', error);
                 showError('Erreur lors du chargement des prospects');
+            }
+        }
+        
+        function populateFormeJuridiqueFilter() {
+            // Mapping des codes INSEE vers libellés lisibles
+            const formeJuridiqueLabels = {
+                '1000': 'Entrepreneur individuel',
+                '2110': 'Indivision',
+                '2120': 'Société créée de fait',
+                '2210': 'Société en participation',
+                '2220': 'Société créée de fait',
+                '2310': 'Société civile',
+                '2385': 'Société civile coopérative',
+                '2400': 'Indivision',
+                '3110': 'Association non déclarée',
+                '3120': 'Association déclarée',
+                '3205': 'Association déclarée inscrite au registre du commerce',
+                '3210': 'Association loi 1901',
+                '3220': 'Association reconnue d\'utilité publique',
+                '3290': 'Autre groupement de droit privé',
+                '4110': 'Établissement public national',
+                '4120': 'Établissement public départemental',
+                '4130': 'Établissement public communal',
+                '4140': 'Établissement public local',
+                '5410': 'Syndicat de copropriété',
+                '5510': 'Institution de prévoyance',
+                '5599': 'Groupement de coopération',
+                '5710': 'Groupement d\'intérêt économique',
+                '5720': 'Groupement européen d\'intérêt économique',
+                '5785': 'Autre groupement de droit privé',
+                '5800': 'Société européenne',
+                '6100': 'Caisse d\'épargne et de prévoyance',
+                '6210': 'Groupement européen de coopération territoriale',
+                '6220': 'Société coopérative européenne',
+                '6316': 'Coopérative d\'utilisation de matériel agricole',
+                '6317': 'Société coopérative agricole',
+                '6318': 'Union de sociétés coopératives agricoles',
+                '6411': 'Société d\'assurance mutuelle',
+                '6521': 'Société civile de placement immobilier',
+                '6532': 'Société civile immobilière',
+                '6533': 'Société civile immobilière de construction vente',
+                '6534': 'Société civile d\'attribution',
+                '6535': 'Société civile coopérative de construction',
+                '6536': 'Société civile immobilière d\'accession progressive à la propriété',
+                '6537': 'Société civile immobilière transparente',
+                '6538': 'Société civile de moyens',
+                '6539': 'Autre société civile',
+                '6540': 'Société d\'attribution d\'immeubles en jouissance à temps partagé',
+                '6595': 'Caisse locale de crédit mutuel',
+                '6596': 'Caisse de crédit agricole mutuel',
+                '6597': 'Société civile de production agricole',
+                '7111': 'Autorité constitutionnelle',
+                '7112': 'Autorité administrative indépendante',
+                '7113': 'Ministère',
+                '7120': 'Service déconcentré de l\'État',
+                '7150': 'Service déconcentré interministériel',
+                '7160': 'Autre autorité de l\'État',
+                '7171': 'Collectivité territoriale',
+                '7172': 'Établissement public de coopération intercommunale',
+                '7209': 'Commune et commune nouvelle',
+                '7210': 'Commune',
+                '7220': 'Département',
+                '7225': 'Collectivité et territoire d\'outre-mer',
+                '7229': 'Autre collectivité territoriale',
+                '7230': 'Région',
+                '7312': 'Commune associée et commune déléguée',
+                '7313': 'Section de commune',
+                '7314': 'Ensemble urbain',
+                '7321': 'Association syndicale autorisée',
+                '7322': 'Association foncière urbaine',
+                '7323': 'Association foncière de remembrement',
+                '7331': 'Établissement public local d\'enseignement',
+                '7340': 'Secteur de commune',
+                '7341': 'District urbain',
+                '7342': 'District rural',
+                '7343': 'Ville nouvelle',
+                '7344': 'Communauté urbaine',
+                '7345': 'Syndicat intercommunal à vocation multiple',
+                '7346': 'Syndicat intercommunal à vocation unique',
+                '7347': 'Communauté de communes',
+                '7348': 'Communauté de ville',
+                '7349': 'Communauté d\'agglomération',
+                '7351': 'Institution interdépartementale ou entente',
+                '7352': 'Institution interrégionale ou entente',
+                '7353': 'Syndicat intercommunal',
+                '7354': 'Syndicat mixte',
+                '7355': 'Autre syndicat mixte',
+                '7356': 'Commission syndicale pour la gestion des biens indivis',
+                '7357': 'Pôle métropolitain',
+                '7361': 'Centre communal d\'action sociale',
+                '7362': 'Caisse des écoles',
+                '7363': 'Caisse de crédit municipal',
+                '7364': 'Établissement d\'hospitalisation',
+                '7365': 'Syndicat inter hospitalier',
+                '7366': 'Établissement public local social et médico-social',
+                '7371': 'Office public d\'habitation à loyer modéré',
+                '7372': 'Service départemental d\'incendie',
+                '7373': 'Établissement public local culturel',
+                '7378': 'Régie d\'une collectivité locale à caractère administratif',
+                '7381': 'Organisme consulaire',
+                '7382': 'Établissement public national ayant fonction d\'administration centrale',
+                '7383': 'Établissement public national à caractère scientifique culturel et professionnel',
+                '7384': 'Autre établissement public national d\'enseignement',
+                '7385': 'Autre établissement public national administratif',
+                '7389': 'Établissement public national à caractère industriel ou commercial',
+                '7410': 'Groupement d\'intérêt public',
+                '7430': 'Établissement public des cultes d\'Alsace-Lorraine',
+                '7450': 'Établissement public administratif',
+                '7470': 'Établissement public industriel et commercial',
+                '7490': 'Autre personne morale de droit public',
+                '8110': 'Régime général de la sécurité sociale',
+                '8120': 'Régime spécial de sécurité sociale',
+                '8130': 'Institution de retraite complémentaire',
+                '8140': 'Mutualité sociale agricole',
+                '8150': 'Régime maladie des non-salariés non agricoles',
+                '8160': 'Régime vieillesse ne dépendant pas du régime général',
+                '8170': 'Régime d\'assurance chômage',
+                '8190': 'Autre régime de prévoyance sociale',
+                '8210': 'Mutuelle',
+                '8250': 'Assurance mutuelle agricole',
+                '8290': 'Autre organisme mutualiste',
+                '8310': 'Comité central d\'entreprise',
+                '8311': 'Comité d\'établissement',
+                '8410': 'Syndicat de salariés',
+                '8420': 'Syndicat patronal',
+                '8450': 'Ordre professionnel ou assimilé',
+                '8470': 'Centre technique industriel',
+                '8490': 'Autre organisme professionnel',
+                '8510': 'Institution de prévoyance',
+                '8520': 'Institution de retraite supplémentaire',
+                '9110': 'Syndicat de copropriété',
+                '9150': 'Association syndicale libre',
+                '9210': 'Association non déclarée',
+                '9220': 'Association déclarée',
+                '9230': 'Association déclarée reconnue d\'utilité publique',
+                '9240': 'Congrégation',
+                '9260': 'Association de droit local',
+                '9300': 'Fondation',
+                '9900': 'Autre personne morale de droit privé',
+                '5202': 'Société à responsabilité limitée',
+                '5203': 'SARL unipersonnelle',
+                '5306': 'Société par actions simplifiée',
+                '5307': 'Société par actions simplifiée à associé unique',
+                '5308': 'Société européenne',
+                '5385': 'Société d\'exercice libéral à responsabilité limitée',
+                '5410': 'SARL nationale',
+                '5415': 'SARL d\'économie mixte',
+                '5422': 'SARL immobilière pour le commerce et l\'industrie',
+                '5426': 'Société immobilière de gestion',
+                '5430': 'Safer',
+                '5431': 'SARL mixte d\'intérêt agricole',
+                '5432': 'SARL d\'intérêt collectif agricole',
+                '5442': 'SARL d\'attribution',
+                '5443': 'SARL coopérative de construction',
+                '5451': 'SARL coopérative de consommation',
+                '5453': 'SARL coopérative artisanale',
+                '5454': 'SARL coopérative d\'intérêt maritime',
+                '5455': 'SARL coopérative de transport',
+                '5458': 'SARL coopérative ouvrière de production',
+                '5459': 'SARL union de sociétés coopératives',
+                '5460': 'Autre SARL coopérative',
+                '5485': 'Société d\'exercice libéral à forme anonyme',
+                '5498': 'SARL unipersonnelle',
+                '5499': 'Société à responsabilité limitée',
+                '5505': 'SA à participation ouvrière',
+                '5510': 'SA nationale',
+                '5515': 'SA d\'économie mixte',
+                '5520': 'Société d\'investissement à capital variable',
+                '5522': 'SA immobilière pour le commerce et l\'industrie',
+                '5525': 'SA immobilière d\'investissement',
+                '5530': 'Safer anonyme',
+                '5531': 'SA mixte d\'intérêt agricole',
+                '5532': 'SA d\'intérêt collectif agricole',
+                '5542': 'SA d\'attribution',
+                '5543': 'SA coopérative de construction',
+                '5546': 'SA de HLM',
+                '5547': 'SA coopérative de production HLM',
+                '5548': 'SA de crédit immobilier',
+                '5551': 'SA coopérative de consommation',
+                '5552': 'SA coopérative de commerçants détaillants',
+                '5553': 'SA coopérative artisanale',
+                '5554': 'SA coopérative d\'intérêt maritime',
+                '5555': 'SA coopérative de transport',
+                '5558': 'SA coopérative ouvrière de production',
+                '5559': 'SA union de sociétés coopératives',
+                '5560': 'Autre SA coopérative',
+                '5585': 'Société d\'exercice libéral à forme anonyme',
+                '5599': 'SA',
+                '5605': 'Société par actions simplifiée',
+                '5610': 'Société par actions simplifiée à associé unique',
+                '5615': 'Société par actions simplifiée d\'économie mixte',
+                '5620': 'Société par actions simplifiée coopérative',
+                '5630': 'SAS mixte d\'intérêt agricole',
+                '5631': 'SAS d\'intérêt collectif agricole',
+                '5650': 'Société d\'exercice libéral par action simplifiée',
+                '5699': 'Société par actions simplifiée',
+                '5710': 'SCA',
+                '5770': 'Société de Participations Financières de Profession Libérale',
+                '5785': 'Autre société par actions',
+                '5800': 'Société européenne'
+            };
+            
+            // Récupérer toutes les formes juridiques uniques des prospects avec propriétaire
+            const formesJuridiques = new Map(); // code => {code, label, count}
+            
+            allProspects.forEach(p => {
+                if (p.proprietaire_siren && p.proprietaire_forme_juridique) {
+                    const code = p.proprietaire_forme_juridique.trim();
+                    if (code) {
+                        if (!formesJuridiques.has(code)) {
+                            const label = formeJuridiqueLabels[code] || code;
+                            formesJuridiques.set(code, {
+                                code: code,
+                                label: label,
+                                count: 0
+                            });
+                        }
+                        formesJuridiques.get(code).count++;
+                    }
+                }
+            });
+            
+            // Convertir en tableau et trier par libellé
+            const formesSorted = Array.from(formesJuridiques.values())
+                .sort((a, b) => a.label.localeCompare(b.label));
+            
+            // Peupler le select
+            const select = document.getElementById('filterFormeJuridique');
+            const currentValue = select.value;
+            
+            // Garder l'option "Toutes formes"
+            select.innerHTML = '<option value="">Toutes formes</option>';
+            
+            // Ajouter chaque forme juridique unique avec son libellé et compteur
+            formesSorted.forEach(forme => {
+                const option = document.createElement('option');
+                option.value = forme.code;
+                option.textContent = `${forme.label} (${forme.count})`;
+                select.appendChild(option);
+            });
+            
+            // Restaurer la valeur sélectionnée si elle existe toujours
+            if (currentValue && formesJuridiques.has(currentValue)) {
+                select.value = currentValue;
             }
         }
 
@@ -1024,7 +1357,15 @@
                 puissance: prospect.poste_bt_puissance,
                 lat: prospect.poste_bt_lat,
                 lon: prospect.poste_bt_lon,
-                proprietaire: prospect.poste_bt_proprietaire
+                proprietaire: prospect.poste_bt_proprietaire,
+                commune: prospect.poste_bt_commune,
+                code_commune: prospect.poste_bt_code_commune,
+                epci: prospect.poste_bt_epci,
+                code_epci: prospect.poste_bt_code_epci,
+                departement: prospect.poste_bt_departement,
+                code_departement: prospect.poste_bt_code_departement,
+                region: prospect.poste_bt_region,
+                code_region: prospect.poste_bt_code_region
             };
             
             let poste_hta_info = {
@@ -1032,7 +1373,15 @@
                 puissance: prospect.poste_hta_puissance,
                 lat: prospect.poste_hta_lat,
                 lon: prospect.poste_hta_lon,
-                proprietaire: prospect.poste_hta_proprietaire
+                proprietaire: prospect.poste_hta_proprietaire,
+                commune: prospect.poste_hta_commune,
+                code_commune: prospect.poste_hta_code_commune,
+                epci: prospect.poste_hta_epci,
+                code_epci: prospect.poste_hta_code_epci,
+                departement: prospect.poste_hta_departement,
+                code_departement: prospect.poste_hta_code_departement,
+                region: prospect.poste_hta_region,
+                code_region: prospect.poste_hta_code_region
             };
             
             // Si les colonnes ne sont pas remplies, essayer data_json
@@ -1052,7 +1401,15 @@
                             puissance: poste_bt_info.puissance || data.poste_bt_info.puissance,
                             lat: poste_bt_info.lat || data.poste_bt_info.lat,
                             lon: poste_bt_info.lon || data.poste_bt_info.lon,
-                            proprietaire: poste_bt_info.proprietaire || data.poste_bt_info.proprietaire
+                            proprietaire: poste_bt_info.proprietaire || data.poste_bt_info.proprietaire,
+                            commune: poste_bt_info.commune || data.poste_bt_info.commune,
+                            code_commune: poste_bt_info.code_commune || data.poste_bt_info.code_commune,
+                            epci: poste_bt_info.epci || data.poste_bt_info.epci,
+                            code_epci: poste_bt_info.code_epci || data.poste_bt_info.code_epci,
+                            departement: poste_bt_info.departement || data.poste_bt_info.departement,
+                            code_departement: poste_bt_info.code_departement || data.poste_bt_info.code_departement,
+                            region: poste_bt_info.region || data.poste_bt_info.region,
+                            code_region: poste_bt_info.code_region || data.poste_bt_info.code_region
                         };
                     }
                     
@@ -1062,7 +1419,15 @@
                             puissance: poste_hta_info.puissance || data.poste_hta_info.puissance,
                             lat: poste_hta_info.lat || data.poste_hta_info.lat,
                             lon: poste_hta_info.lon || data.poste_hta_info.lon,
-                            proprietaire: poste_hta_info.proprietaire || data.poste_hta_info.proprietaire
+                            proprietaire: poste_hta_info.proprietaire || data.poste_hta_info.proprietaire,
+                            commune: poste_hta_info.commune || data.poste_hta_info.commune,
+                            code_commune: poste_hta_info.code_commune || data.poste_hta_info.code_commune,
+                            epci: poste_hta_info.epci || data.poste_hta_info.epci,
+                            code_epci: poste_hta_info.code_epci || data.poste_hta_info.code_epci,
+                            departement: poste_hta_info.departement || data.poste_hta_info.departement,
+                            code_departement: poste_hta_info.code_departement || data.poste_hta_info.code_departement,
+                            region: poste_hta_info.region || data.poste_hta_info.region,
+                            code_region: poste_hta_info.code_region || data.poste_hta_info.code_region
                         };
                     }
                 } catch (e) {
@@ -1168,6 +1533,8 @@
                                         <i class="bi bi-eye-fill text-info"></i>
                                     </a>
                                 ` : ''}
+                                <br>
+                                ${poste_bt_info.commune ? `<small class="text-muted ms-4">📍 ${poste_bt_info.commune} (${poste_bt_info.code_commune || ''})${poste_bt_info.epci ? ` - ${poste_bt_info.epci}` : ''}${poste_bt_info.departement ? ` - ${poste_bt_info.departement}` : ''}${poste_bt_info.region ? ` - ${poste_bt_info.region}` : ''}</small>` : ''}
                             </div>
                             ` : ''}
                             
@@ -1184,6 +1551,8 @@
                                         <i class="bi bi-eye-fill text-info"></i>
                                     </a>
                                 ` : ''}
+                                <br>
+                                ${poste_hta_info.commune ? `<small class="text-muted ms-4">📍 ${poste_hta_info.commune} (${poste_hta_info.code_commune || ''})${poste_hta_info.epci ? ` - ${poste_hta_info.epci}` : ''}${poste_hta_info.departement ? ` - ${poste_hta_info.departement}` : ''}${poste_hta_info.region ? ` - ${poste_hta_info.region}` : ''}</small>` : ''}
                             </div>
                             ` : ''}
                             
@@ -1253,7 +1622,31 @@
             `;
         }
 
+        // Debounce pour éviter les appels multiples (notamment sur mobile)
+        let filterTimeout = null;
         function filterProspects() {
+            // Afficher l'indicateur de filtrage
+            const loadingIndicator = document.getElementById('filterLoading');
+            if (loadingIndicator) {
+                loadingIndicator.classList.add('active');
+            }
+            
+            // Annuler le timeout précédent
+            if (filterTimeout) {
+                clearTimeout(filterTimeout);
+            }
+            
+            // Lancer le filtrage après un court délai
+            filterTimeout = setTimeout(function() {
+                doFilterProspects();
+                // Masquer l'indicateur
+                if (loadingIndicator) {
+                    setTimeout(() => loadingIndicator.classList.remove('active'), 200);
+                }
+            }, 150);
+        }
+        
+        function doFilterProspects() {
             const searchText = document.getElementById('searchBox').value.toLowerCase();
             const typeFilter = document.getElementById('filterType').value;
             const statusFilter = document.getElementById('filterStatus').value;
@@ -1263,6 +1656,9 @@
             
             const filterProprioElem = document.getElementById('filterProprietaire');
             const proprietaireFilter = filterProprioElem ? filterProprioElem.value : '';
+            
+            const filterFormeElem = document.getElementById('filterFormeJuridique');
+            const formeJuridiqueFilter = filterFormeElem ? filterFormeElem.value : '';
             
             // Réinitialiser la page à 1 lors d'un filtrage
             currentPage = 1;
@@ -1315,7 +1711,13 @@
                     matchProprietaire = !p.proprietaire_siren || p.proprietaire_siren === null;
                 }
                 
-                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment && matchProprietaire;
+                // Filtrage par forme juridique (correspondance exacte avec les valeurs du select)
+                let matchFormeJuridique = true;
+                if (formeJuridiqueFilter) {
+                    matchFormeJuridique = p.proprietaire_forme_juridique === formeJuridiqueFilter;
+                }
+                
+                return matchSearch && matchType && matchStatus && matchPriorite && matchTaille && matchBatiment && matchProprietaire && matchFormeJuridique;
             });
             
             displayProspects(filtered);
@@ -1396,6 +1798,131 @@
                 lienSocieteCom.style.display = 'none';
             }
             
+            // Afficher les informations techniques
+            const infosDiv = document.getElementById('edit-infos-techniques');
+            let infosHtml = '<div class="row g-2">';
+            
+            // Adresse et surface
+            infosHtml += `
+                <div class="col-md-12">
+                    <small class="text-muted"><i class="bi bi-geo-alt"></i> Adresse:</small><br>
+                    <strong>${prospect.adresse || 'N/A'}</strong>
+                </div>
+            `;
+            
+            if (prospect.surface_m2 || prospect.surface_ha) {
+                const surface = prospect.surface_ha 
+                    ? `${parseFloat(prospect.surface_ha).toFixed(2)} ha` 
+                    : `${parseInt(prospect.surface_m2)} m²`;
+                infosHtml += `
+                    <div class="col-md-6">
+                        <small class="text-muted"><i class="bi bi-rulers"></i> Surface:</small><br>
+                        <strong>${surface}</strong>
+                    </div>
+                `;
+            }
+            
+            // Parcelles cadastrales
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    const parcelles = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    if (Array.isArray(parcelles) && parcelles.length > 0) {
+                        // Extraire les références cadastrales (peuvent être des strings ou des objets)
+                        const parcellesStr = parcelles.map(p => {
+                            if (typeof p === 'string') return p;
+                            if (typeof p === 'object' && p !== null) {
+                                return p.id || p.reference || p.numero || JSON.stringify(p).substring(0, 20);
+                            }
+                            return String(p);
+                        }).filter(Boolean);
+                        
+                        if (parcellesStr.length > 0) {
+                            infosHtml += `
+                                <div class="col-md-12 mt-2">
+                                    <small class="text-muted"><i class="bi bi-map"></i> Parcelles cadastrales:</small><br>
+                                    <strong>${parcellesStr.join(', ')}</strong>
+                                </div>
+                            `;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Erreur parsing parcelles:', e);
+                }
+            }
+            
+            // Poste BT
+            if (prospect.poste_bt_distance_m) {
+                infosHtml += `
+                    <div class="col-md-12 mt-3">
+                        <div class="alert alert-warning mb-0 py-2">
+                            <strong><i class="bi bi-lightning"></i> Poste BT:</strong> ${prospect.poste_bt_nom || 'N/A'} 
+                            (${parseInt(prospect.poste_bt_distance_m)}m)
+                `;
+                
+                // Informations détaillées BT
+                const btInfos = [];
+                if (prospect.poste_bt_puissance) btInfos.push(`Puissance: ${prospect.poste_bt_puissance}`);
+                if (prospect.poste_bt_etat) btInfos.push(`État: ${prospect.poste_bt_etat}`);
+                if (prospect.poste_bt_commune) btInfos.push(`Commune: ${prospect.poste_bt_commune}`);
+                if (prospect.poste_bt_epci) btInfos.push(`EPCI: ${prospect.poste_bt_epci}`);
+                if (prospect.poste_bt_departement) btInfos.push(`Département: ${prospect.poste_bt_departement}`);
+                if (prospect.poste_bt_region) btInfos.push(`Région: ${prospect.poste_bt_region}`);
+                
+                if (btInfos.length > 0) {
+                    infosHtml += `<br><small>${btInfos.join(' • ')}</small>`;
+                }
+                
+                if (prospect.poste_bt_lat && prospect.poste_bt_lon) {
+                    infosHtml += `
+                        <br><a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_bt_lat},${prospect.poste_bt_lon}" 
+                           target="_blank" class="btn btn-sm btn-outline-info mt-1">
+                            <i class="bi bi-eye-fill"></i> Street View
+                        </a>
+                    `;
+                }
+                
+                infosHtml += `</div></div>`;
+            }
+            
+            // Poste HTA
+            if (prospect.poste_hta_distance_m) {
+                infosHtml += `
+                    <div class="col-md-12 mt-2">
+                        <div class="alert alert-danger mb-0 py-2">
+                            <strong><i class="bi bi-lightning-charge"></i> Poste HTA:</strong> ${prospect.poste_hta_nom || 'N/A'} 
+                            (${parseInt(prospect.poste_hta_distance_m)}m)
+                `;
+                
+                // Informations détaillées HTA
+                const htaInfos = [];
+                if (prospect.poste_hta_puissance) htaInfos.push(`Puissance: ${prospect.poste_hta_puissance}`);
+                if (prospect.poste_hta_etat) htaInfos.push(`État: ${prospect.poste_hta_etat}`);
+                if (prospect.poste_hta_commune) htaInfos.push(`Commune: ${prospect.poste_hta_commune}`);
+                if (prospect.poste_hta_epci) htaInfos.push(`EPCI: ${prospect.poste_hta_epci}`);
+                if (prospect.poste_hta_departement) htaInfos.push(`Département: ${prospect.poste_hta_departement}`);
+                if (prospect.poste_hta_region) htaInfos.push(`Région: ${prospect.poste_hta_region}`);
+                
+                if (htaInfos.length > 0) {
+                    infosHtml += `<br><small>${htaInfos.join(' • ')}</small>`;
+                }
+                
+                if (prospect.poste_hta_lat && prospect.poste_hta_lon) {
+                    infosHtml += `
+                        <br><a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${prospect.poste_hta_lat},${prospect.poste_hta_lon}" 
+                           target="_blank" class="btn btn-sm btn-outline-info mt-1">
+                            <i class="bi bi-eye-fill"></i> Street View
+                        </a>
+                    `;
+                }
+                
+                infosHtml += `</div></div>`;
+            }
+            
+            infosHtml += '</div>';
+            infosDiv.innerHTML = infosHtml;
+            
             editModal.show();
         }
 
@@ -1465,6 +1992,38 @@
             } catch (error) {
                 console.error('Erreur:', error);
                 showError('Erreur lors de la suppression');
+            }
+        }
+
+        async function generateCerfa() {
+            const id = document.getElementById('edit-id').value;
+            if (!id) return;
+            
+            try {
+                showSuccess('⏳ Génération du CERFA en cours...');
+                
+                const response = await fetch(`/api/crm/prospects/${id}/generate-cerfa`);
+                
+                if (response.ok) {
+                    // Télécharger le PDF
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `CERFA_Raccordement_${id}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showSuccess('✅ CERFA généré avec succès !');
+                } else {
+                    const error = await response.json();
+                    showError('Erreur lors de la génération du CERFA: ' + (error.error || 'Erreur inconnue'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la génération du CERFA');
             }
         }
 
@@ -2567,7 +3126,8 @@ Cordialement,`
             const puissanceEstimee = Math.round(surface * 0.15); // 150 Wc/m²
             document.getElementById('proposal-puissance').value = puissanceEstimee;
             
-            calculateProposal();
+            // Mettre à jour les calculs
+            updateProposalCalculation();
             proposalModal.show();
         }
 
@@ -2680,6 +3240,120 @@ Cordialement,`
             const url = `/rapport_point?lat=${lat}&lon=${lon}&prospect_id=${prospectId}`;
             window.open(url, '_blank');
             showSuccess('Génération du rapport en cours...');
+        }
+        
+        // === FONCTIONS PROPOSITION COMPLÈTE ===
+        function toggleAutoconso() {
+            const typeProjet = document.getElementById('proposal-type-projet').value;
+            const isAutoconso = typeProjet === 'autoconsommation';
+            
+            document.getElementById('field-consommation').style.display = isAutoconso ? 'block' : 'none';
+            document.getElementById('field-taux-autoconso').style.display = isAutoconso ? 'block' : 'none';
+            document.getElementById('calc-autoconso-details').style.display = isAutoconso ? 'block' : 'none';
+            
+            updateProposalCalculation();
+        }
+        
+        function updateProposalCalculation() {
+            const typeProjet = document.getElementById('proposal-type-projet').value;
+            const puissance = parseFloat(document.getElementById('proposal-puissance').value) || 0;
+            const prixKwc = parseFloat(document.getElementById('proposal-prix-kwc').value) || 0;
+            const tarifAchat = parseFloat(document.getElementById('proposal-tarif-achat').value) || 0;
+            const tarifRevente = parseFloat(document.getElementById('proposal-tarif-revente').value) || 0;
+            const consommation = parseFloat(document.getElementById('proposal-consommation').value) || 0;
+            const tauxAutoconso = parseFloat(document.getElementById('proposal-taux-autoconso').value) || 0;
+            
+            // Calculs
+            const investissement = puissance * prixKwc;
+            const productionAnnuelle = puissance * 1100; // 1100 kWh/kWc/an par défaut
+            
+            let gainAnnuel = 0;
+            let energieAutoconsommee = 0;
+            let energieRevendue = 0;
+            let economieAutoconso = 0;
+            let revenuRevente = 0;
+            
+            if (typeProjet === 'autoconsommation' && consommation > 0) {
+                energieAutoconsommee = productionAnnuelle * (tauxAutoconso / 100);
+                energieRevendue = productionAnnuelle - energieAutoconsommee;
+                economieAutoconso = energieAutoconsommee * tarifAchat;
+                revenuRevente = energieRevendue * tarifRevente;
+                gainAnnuel = economieAutoconso + revenuRevente;
+                
+                // Afficher détails autoconso
+                document.getElementById('calc-autoconso').textContent = energieAutoconsommee.toLocaleString('fr-FR', {maximumFractionDigits: 0});
+                document.getElementById('calc-revente').textContent = energieRevendue.toLocaleString('fr-FR', {maximumFractionDigits: 0});
+                document.getElementById('calc-economie').textContent = economieAutoconso.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('calc-revenu-revente').textContent = revenuRevente.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            } else {
+                // Vente totale
+                gainAnnuel = productionAnnuelle * tarifRevente;
+            }
+            
+            const rentabilite = investissement > 0 ? (gainAnnuel / investissement * 100) : 0;
+            const roi = gainAnnuel > 0 ? investissement / gainAnnuel : 0;
+            
+            // Mise à jour affichage
+            document.getElementById('calc-investissement').textContent = investissement.toLocaleString('fr-FR', {minimumFractionDigits: 2});
+            document.getElementById('calc-production').textContent = productionAnnuelle.toLocaleString('fr-FR', {maximumFractionDigits: 0});
+            document.getElementById('calc-gain-total').textContent = gainAnnuel.toLocaleString('fr-FR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('calc-rentabilite').textContent = rentabilite.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+            document.getElementById('calc-roi').textContent = roi.toLocaleString('fr-FR', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+        }
+        
+        async function downloadProposalComplete() {
+            const prospectId = document.getElementById('proposal-prospect-id').value;
+            
+            if (!prospectId) {
+                showError('Erreur: Prospect non identifié');
+                return;
+            }
+            
+            const typeProjet = document.getElementById('proposal-type-projet').value;
+            const data = {
+                type_projet: typeProjet,
+                puissance_kwc: parseFloat(document.getElementById('proposal-puissance').value),
+                prix_kwc: parseFloat(document.getElementById('proposal-prix-kwc').value),
+                tarif_achat_kwh: parseFloat(document.getElementById('proposal-tarif-achat').value),
+                tarif_revente_kwh: parseFloat(document.getElementById('proposal-tarif-revente').value)
+            };
+            
+            // Ajouter champs autoconso si nécessaire
+            if (typeProjet === 'autoconsommation') {
+                data.consommation_annuelle_kwh = parseFloat(document.getElementById('proposal-consommation').value);
+                data.taux_autoconso = parseFloat(document.getElementById('proposal-taux-autoconso').value);
+            }
+            
+            try {
+                showSuccess('⏳ Génération de la proposition complète en cours...');
+                
+                const response = await fetch(`/api/crm/prospects/${prospectId}/proposition-complete`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Proposition_Complete_${currentProspect.commune}_${new Date().toISOString().split('T')[0]}.pdf`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    a.remove();
+                    
+                    showSuccess('✅ Proposition complète téléchargée avec succès !');
+                    proposalModal.hide();
+                } else {
+                    const error = await response.json();
+                    showError('❌ Erreur: ' + (error.error || 'Erreur lors de la génération'));
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('❌ Erreur réseau lors de la génération du PDF');
+            }
         }
     </script>
 </body>

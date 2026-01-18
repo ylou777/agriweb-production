@@ -4160,11 +4160,24 @@ def get_all_postes(lat, lon, radius_deg=0.1):
         geom_shp = shape(feature["geometry"])
         dist = geom_shp.distance(point) * 111000  # Conversion en mètres
         props = feature["properties"].copy() if feature.get("properties") else {}
+        
+        # Extraction des coordonnées de la géométrie
+        coords = feature["geometry"].get("coordinates", [])
+        poste_lon, poste_lat = coords[0], coords[1] if len(coords) >= 2 else (None, None)
+        
+        # Normalisation des propriétés pour le rapport
+        props["nom"] = props.get("nom") or props.get("nom_commun") or props.get("lib_poste") or props.get("libelle") or "Poste BT"
+        props["etat"] = props.get("etat") or props.get("statut") or "Actif"
+        props["puissance"] = props.get("puissance") or props.get("capacite") or props.get("p_inst") or "N/A"
+        props["latitude"] = poste_lat
+        props["longitude"] = poste_lon
         props["distance"] = round(dist, 2)
+        
         postes.append({
             "type": "Feature",
             "properties": props,
-            "geometry": mapping(geom_shp)
+            "geometry": mapping(geom_shp),
+            "distance": round(dist, 2)  # Aussi en racine pour compatibilité template
         })
     # print(f"[DEBUG] {len(postes)} postes trouvés, distances: {[p['distance'] for p in postes[:3]]}")  # Optimisé pour performance
     return postes  # Pas de slicing ici
@@ -4456,14 +4469,46 @@ def get_batiments_info_by_polygon(commune_geom):
         
         # print(f"🌐 [BATIMENTS] Envoi requête Overpass...")  # Optimisé pour performance
         
-        response = requests.post(
-            "https://overpass-api.de/api/interpreter",
-            data=overpass_query,
-            timeout=120  # Timeout plus long pour les grandes communes
-        )
+        # Retry avec délai exponentiel pour gérer les erreurs 429 et 502
+        max_retries = 3
+        retry_delay = 2  # secondes
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    "https://overpass-api.de/api/interpreter",
+                    data=overpass_query,
+                    timeout=120  # Timeout plus long pour les grandes communes
+                )
+                
+                if response.status_code == 200:
+                    break  # Succès, sortir de la boucle
+                elif response.status_code in [429, 502, 503]:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)  # Délai exponentiel
+                        print(f"⚠️ [BATIMENTS] Erreur {response.status_code}, retry dans {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"❌ [BATIMENTS] Erreur Overpass après {max_retries} tentatives: {response.status_code}")
+                        return {"type": "FeatureCollection", "features": []}
+                else:
+                    print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")
+                    return {"type": "FeatureCollection", "features": []}
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"⚠️ [BATIMENTS] Timeout, retry dans {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"❌ [BATIMENTS] Timeout après {max_retries} tentatives")
+                    return {"type": "FeatureCollection", "features": []}
+            except Exception as e:
+                print(f"❌ [BATIMENTS] Erreur requête: {e}")
+                return {"type": "FeatureCollection", "features": []}
         
         if response.status_code != 200:
-            # print(f"❌ [BATIMENTS] Erreur Overpass: {response.status_code}")  # Optimisé pour performance
             return {"type": "FeatureCollection", "features": []}
         
         data = response.json()
@@ -4716,39 +4761,69 @@ def get_batiments_data(geom):
                     return None
         
         overpass_url = "https://overpass-api.de/api/interpreter"
-        response = requests.post(overpass_url, data=overpass_query, timeout=30)
         
-        if response.status_code == 200:
-            osm_data = response.json()
-            # Convertir les données OSM en GeoJSON
-            features = []
-            for element in osm_data.get("elements", []):
-                if element.get("type") == "way" and element.get("geometry"):
-                    coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
-                    if len(coords) > 2:
-                        # Fermer le polygone si nécessaire
-                        if coords[0] != coords[-1]:
-                            coords.append(coords[0])
-                        
-                        feature = {
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "Polygon",
-                                "coordinates": [coords]
-                            },
-                            "properties": {
-                                "source": "OpenStreetMap",
-                                "building": element.get("tags", {}).get("building", "yes"),
-                                "osm_id": element.get("id")
-                            }
-                        }
-                        features.append(feature)
-            
-            if features:
-                print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
-                return {"type": "FeatureCollection", "features": features}
-        else:
-            print(f"⚠️ [BATIMENTS] Overpass API: {response.status_code}")
+        # Retry avec délai exponentiel pour gérer les erreurs 429 et 502
+        max_retries = 3
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(overpass_url, data=overpass_query, timeout=30)
+                
+                if response.status_code == 200:
+                    osm_data = response.json()
+                    # Convertir les données OSM en GeoJSON
+                    features = []
+                    for element in osm_data.get("elements", []):
+                        if element.get("type") == "way" and element.get("geometry"):
+                            coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
+                            if len(coords) > 2:
+                                # Fermer le polygone si nécessaire
+                                if coords[0] != coords[-1]:
+                                    coords.append(coords[0])
+                                
+                                feature = {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [coords]
+                                    },
+                                    "properties": {
+                                        "source": "OpenStreetMap",
+                                        "building": element.get("tags", {}).get("building", "yes"),
+                                        "osm_id": element.get("id")
+                                    }
+                                }
+                                features.append(feature)
+                    
+                    if features:
+                        print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
+                        return {"type": "FeatureCollection", "features": features}
+                    break
+                elif response.status_code in [429, 502, 503]:
+                    if attempt < max_retries - 1:
+                        wait_time = retry_delay * (2 ** attempt)
+                        print(f"⚠️ [BATIMENTS] Erreur {response.status_code}, retry dans {wait_time}s...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"⚠️ [BATIMENTS] Overpass API après {max_retries} tentatives: {response.status_code}")
+                        break
+                else:
+                    print(f"⚠️ [BATIMENTS] Overpass API: {response.status_code}")
+                    break
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (2 ** attempt)
+                    print(f"⚠️ [BATIMENTS] Timeout, retry dans {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"⚠️ [BATIMENTS] Timeout après {max_retries} tentatives")
+                    break
+            except Exception as e:
+                print(f"⚠️ [BATIMENTS] Erreur requête: {e}")
+                break
     except Exception as e:
         print(f"⚠️ [BATIMENTS] Erreur OpenStreetMap: {e}")
     
@@ -4982,6 +5057,51 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
     from shapely.ops import transform as shp_transform
     from pyproj import Transformer
     to_l93 = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True).transform
+    
+    # Fonction helper pour trouver le poste le plus proche avec détails complets
+    def find_nearest_poste_details(pt_lon, pt_lat, postes_list):
+        try:
+            from shapely.geometry import Point
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            for poste in (postes_list or []):
+                try:
+                    g = poste.get('geometry')
+                    if not g:
+                        continue
+                    d = shape(g).distance(p) * 111000
+                    if best_d is None or (d < best_d):
+                        best = poste
+                        best_d = d
+                except Exception:
+                    continue
+            if best is None:
+                return {}
+            coords = best.get('geometry', {}).get('coordinates', [None, None])
+            pr = best.get('properties', {})
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': coords[0],
+                'lat': coords[1],
+                'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
+                'nom': pr.get('nom') or pr.get('libelle') or '',
+                'tension': pr.get('tension') or pr.get('Tension') or '',
+                'fonction': pr.get('fonction') or pr.get('Fonction') or '',
+                'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
+                'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
+                'type': pr.get('type') or pr.get('Type') or '',
+                'commune': pr.get('nom_commun') or pr.get('commune') or '',
+                'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
+                'epci': pr.get('nom_epci') or '',
+                'code_epci': pr.get('code_epci') or '',
+                'departement': pr.get('nom_depart') or pr.get('departement') or '',
+                'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
+                'region': pr.get('nom_region') or pr.get('region') or '',
+                'code_region': pr.get('code_regio') or pr.get('code_region') or ''
+            }
+        except Exception:
+            return {}
 
     rpg_parcelles = []
     for feat in (rpg_raw or []):
@@ -4998,16 +5118,22 @@ def get_commune_report(commune_name, culture="", min_area_ha=0, max_area_ha=1e9,
         if ha < min_area_ha or ha > max_area_ha:
             continue
 
-        # c) distances réseaux (m)
+        # c) distances réseaux (m) et enrichissement avec détails complets des postes
         cent   = poly.centroid.coords[0]
         d_bt   = calculate_min_distance(cent, postes_bt_data)
         d_hta  = calculate_min_distance(cent, postes_hta_data)
+        
+        # Enrichissement avec les détails complets du poste le plus proche
+        poste_bt_proche = find_nearest_poste_details(cent[0], cent[1], postes_bt_data) if postes_bt_data else {}
+        poste_hta_proche = find_nearest_poste_details(cent[0], cent[1], postes_hta_data) if postes_hta_data else {}
 
         props.update({
             "surface": round(ha, 3),
             "coords": [cent[1], cent[0]],
             "distance_bt": round(d_bt, 2) if d_bt is not None else None,
             "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+            "poste_bt_proche": poste_bt_proche,
+            "poste_hta_proche": poste_hta_proche,
             "lien_geoportail": f"https://www.geoportail.gouv.fr/carte?c={cent[0]},{cent[1]}&z=18"
         })
         rpg_parcelles.append(props)
@@ -7528,8 +7654,8 @@ def search_by_commune():
     request_count = len(search_by_commune.request_counter[client_ip])
     # print(f"[IP_TRACKING] IP: {client_ip}, Requêtes/minute: {request_count}")  # Optimisé pour performance
     
-    # Bloquer si trop de requêtes (plus de 5 par minute = suspect - RENFORCÉ)
-    if request_count > 5:
+    # Bloquer si trop de requêtes (plus de 50 par minute = suspect - AUGMENTÉ pour rapport complexe)
+    if request_count > 50:
         search_by_commune.blocked_ips[client_ip] = (current_time, f"Trop de requêtes: {request_count}/min")
         # print(f"[AUTO_BLOCK] IP {client_ip} bloquée automatiquement")  # Optimisé pour performance
         return jsonify({
@@ -7554,7 +7680,7 @@ def search_by_commune():
         json.dumps(request_params, sort_keys=True).encode('utf-8')
     ).hexdigest()
     
-    cache_window = 120  # 120 secondes (2 minutes) pour éviter les boucles infinies
+    cache_window = 30  # 30 secondes pour éviter les loops tout en permettant rafraîchissements rapides
     
     # print(f"[ANTI-LOOP] === PROTECTION DOUBLE ACTIVE ===")  # Optimisé pour performance
     # print(f"[SIGNATURE] Signature requête: {request_signature}")  # Optimisé pour performance
@@ -10149,12 +10275,63 @@ def rapport_map_point():
             if postes_bt:
                 report_data["postes"] = postes_bt
                 report_data["postes_bt"] = postes_bt
+                # Ajouter le poste BT le plus proche pour l'export CRM
+                if len(postes_bt) > 0:
+                    premier_poste = postes_bt[0]
+                    props = premier_poste.get('properties', {})
+                    report_data["poste_bt"] = {
+                        'nom': props.get('nom', ''),
+                        'distance_m': premier_poste.get('distance', 0),
+                        'lat': props.get('latitude'),
+                        'lon': props.get('longitude'),
+                        'puissance': props.get('puissance'),
+                        'etat': props.get('etat', 'Actif'),
+                        'commune': props.get('nom_commun', ''),
+                        'code_commune': props.get('code_commu', ''),
+                        'epci': props.get('nom_epci', ''),
+                        'code_epci': props.get('code_epci', ''),
+                        'departement': props.get('nom_depart', ''),
+                        'code_departement': props.get('code_depar', ''),
+                        'region': props.get('nom_region', ''),
+                        'code_region': props.get('code_regio', '')
+                    }
                 log_step("CONTEXT", f"Postes BT trouvés: {len(postes_bt)}", "SUCCESS")
+                # DEBUG: Afficher la structure du premier poste
+                if len(postes_bt) > 0:
+                    print(f"🔍 [DEBUG POSTE BT] Structure premier poste:")
+                    print(f"  - Type: {postes_bt[0].get('type')}")
+                    print(f"  - Distance racine: {postes_bt[0].get('distance')}")
+                    print(f"  - Properties keys: {list(postes_bt[0].get('properties', {}).keys())}")
+                    print(f"  - Nom: {postes_bt[0].get('properties', {}).get('nom')}")
+                    print(f"  - Latitude: {postes_bt[0].get('properties', {}).get('latitude')}")
+                    print(f"  - Longitude: {postes_bt[0].get('properties', {}).get('longitude')}")
+                    print(f"  - Etat: {postes_bt[0].get('properties', {}).get('etat')}")
+                    print(f"  - Puissance: {postes_bt[0].get('properties', {}).get('puissance')}")
             
             postes_hta = get_nearest_ht_postes(lat_float, lon_float) or []
             if postes_hta:
                 report_data["ht_postes"] = postes_hta
                 report_data["postes_hta"] = postes_hta
+                # Ajouter le poste HTA le plus proche pour l'export CRM
+                if len(postes_hta) > 0:
+                    premier_poste_hta = postes_hta[0]
+                    props_hta = premier_poste_hta.get('properties', {})
+                    report_data["poste_hta"] = {
+                        'nom': props_hta.get('nom', ''),
+                        'distance_m': premier_poste_hta.get('distance', 0),
+                        'lat': props_hta.get('latitude'),
+                        'lon': props_hta.get('longitude'),
+                        'puissance': props_hta.get('puissance'),
+                        'etat': props_hta.get('etat', 'Actif'),
+                        'commune': props_hta.get('nom_commun', ''),
+                        'code_commune': props_hta.get('code_commu', ''),
+                        'epci': props_hta.get('nom_epci', ''),
+                        'code_epci': props_hta.get('code_epci', ''),
+                        'departement': props_hta.get('nom_depart', ''),
+                        'code_departement': props_hta.get('code_depar', ''),
+                        'region': props_hta.get('nom_region', ''),
+                        'code_region': props_hta.get('code_regio', '')
+                    }
                 log_step("CONTEXT", f"Postes HTA trouvés: {len(postes_hta)}", "SUCCESS")
                 
         except Exception as e:
@@ -13645,10 +13822,17 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         # Sinon, pas de filtre distance
 
                         props_src = (b.get("properties") or {}).copy()
+                        
+                        # Enrichissement avec les détails complets du poste le plus proche
+                        poste_bt_proche = _find_nearest_poste(centroid[0], centroid[1], postes_bt_data) if postes_bt_data else {}
+                        poste_hta_proche = _find_nearest_poste(centroid[0], centroid[1], postes_hta_data) if postes_hta_data else {}
+                        
                         props = {
                             "surface_toiture_m2": round(surface_m2, 2),
                             "min_distance_bt_m": round(d_bt, 2) if d_bt is not None else None,
                             "min_distance_hta_m": round(d_hta, 2) if d_hta is not None else None,
+                            "poste_bt_proche": poste_bt_proche,
+                            "poste_hta_proche": poste_hta_proche,
                             "source": props_src.get("source", "OpenStreetMap"),
                             "building": props_src.get("building", "yes"),
                             "osm_id": props_src.get("osm_id"),
@@ -13739,12 +13923,19 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                     if not _distance_ok(d_bt, d_hta):
                         continue
+                    
+                    # Enrichissement avec les détails complets des postes (utilise _find_nearest_poste)
+                    poste_bt_proche = _find_nearest_poste(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
+                    poste_hta_proche = _find_nearest_poste(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
+                    
                     # Annoter pour réutiliser ensuite
                     props = (feat.get('properties') or {}).copy()
                     props.update({
                         'surface_m2': round(area_m2, 2),
                         'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
                         'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                        'poste_bt_proche': poste_bt_proche,
+                        'poste_hta_proche': poste_hta_proche,
                     })
                     feat = {**feat, 'properties': props}
                     filtered_pk.append(feat)
@@ -13804,11 +13995,18 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                     if not _distance_ok(d_bt, d_hta):
                         continue
+                    
+                    # Enrichissement avec les détails complets des postes
+                    poste_bt_proche = _find_nearest_poste(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
+                    poste_hta_proche = _find_nearest_poste(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
+                    
                     props = (feat.get('properties') or {}).copy()
                     props.update({
                         'surface_m2': round(area_m2, 2),
                         'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
                         'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                        'poste_bt_proche': poste_bt_proche,
+                        'poste_hta_proche': poste_hta_proche,
                     })
                     feat = {**feat, 'properties': props}
                     filtered_fr.append(feat)
@@ -14040,12 +14238,20 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'lon': coords[0],
                     'lat': coords[1],
                     'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('libelle') or '',
+                    'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or pr.get('nom_commun') or '',
                     'tension': pr.get('tension') or pr.get('Tension') or '',
                     'fonction': pr.get('fonction') or pr.get('Fonction') or '',
-                    'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or '',
+                    'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or pr.get('p_inst') or '',
                     'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
-                    'type': pr.get('type') or pr.get('Type') or ''
+                    'type': pr.get('type') or pr.get('Type') or '',
+                    'commune': pr.get('nom_commun') or pr.get('commune') or '',
+                    'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
+                    'epci': pr.get('nom_epci') or '',
+                    'code_epci': pr.get('code_epci') or '',
+                    'departement': pr.get('nom_depart') or pr.get('departement') or '',
+                    'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
+                    'region': pr.get('nom_region') or pr.get('region') or '',
+                    'code_region': pr.get('code_regio') or pr.get('code_region') or ''
                 }
             except Exception:
                 return {}
@@ -14292,6 +14498,10 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                     
+                    # Enrichissement avec les détails complets des postes
+                    poste_bt_proche = _find_nearest_poste(lon_c, lat_c, postes_bt_data) if postes_bt_data else {}
+                    poste_hta_proche = _find_nearest_poste(lon_c, lat_c, postes_hta_data) if postes_hta_data else {}
+                    
                     # Références cadastrales (méthode simplifiée - comme zones urbaines)
                     parcelles_refs = get_parcelles_for_feature(parcelle["geometry"])
                     
@@ -14307,6 +14517,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         "coords": [lat_c, lon_c],
                         "distance_bt": round(d_bt, 2) if d_bt is not None else None,
                         "distance_hta": round(d_hta, 2) if d_hta is not None else None,
+                        "poste_bt_proche": poste_bt_proche,
+                        "poste_hta_proche": poste_hta_proche,
                         "code_culture": code_culture,
                         "section": parcelles_refs[0].get("section", "") if parcelles_refs else "",
                         "numero": parcelles_refs[0].get("numero", "") if parcelles_refs else "",
@@ -14505,8 +14717,23 @@ def generate_integrated_commune_report(commune_name, filters=None):
             "features": zones_data
         }
         rapport["parkings_analysis"] = parkings_analysis
+        rapport["parkings_details"] = parkings_details
         rapport["friches_analysis"] = friches_analysis
+        rapport["friches_details"] = friches_details
         rapport["toitures_analysis"] = toitures_analysis
+        rapport["toitures_details"] = toitures_details
+        
+        # Debug: vérifier le contenu des details
+        print(f"\n🔍 [DEBUG RAPPORT DETAILS]")
+        print(f"    📦 parkings_details: {len(parkings_details)} éléments")
+        if parkings_details:
+            print(f"       Premier parking - poste_bt_proche: {parkings_details[0].get('poste_bt_proche', 'MANQUANT')}")
+        print(f"    🏠 toitures_details: {len(toitures_details)} éléments")
+        if toitures_details:
+            print(f"       Première toiture - poste_bt_proche: {toitures_details[0].get('poste_bt_proche', 'MANQUANT')}")
+        print(f"    🏚️ friches_details: {len(friches_details)} éléments")
+        if friches_details:
+            print(f"       Première friche - poste_bt_proche: {friches_details[0].get('poste_bt_proche', 'MANQUANT')}")
             
         rapport["infrastructures_analysis"] = {
             "energie": {
@@ -14560,12 +14787,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
             if (last_map_params or {}).get("html"):
                 # Utilise l'endpoint /generated_map qui renvoie le HTML en mémoire
                 rapport["carte_url"] = "/generated_map"
-                try:
-                    rapport["carte_static_url"] = (
-                        f"https://staticmap.openstreetmap.de/staticmap.php?center={lat},{lon}&zoom=13&size=800x500&maptype=mapnik"
-                    )
-                except Exception:
-                    pass
+                # Note: carte_static_url désactivée car staticmap.openstreetmap.de n'est plus disponible
                 # On saute la (re)génération d'une autre carte
                 raise StopIteration()
 
@@ -14708,13 +14930,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 rapport["carte_url"] = f"/static/{carte_rel}"
             except Exception as _:
                 rapport.setdefault("carte_url", "/static/map.html")
-            # Provide a simple static map URL for printing fallback
-            try:
-                rapport["carte_static_url"] = (
-                    f"https://staticmap.openstreetmap.de/staticmap.php?center={lat},{lon}&zoom=13&size=800x500&maptype=mapnik"
-                )
-            except Exception:
-                pass
+            # Note: carte_static_url désactivée car staticmap.openstreetmap.de n'est plus disponible
         except StopIteration:
             # Carte de recherche utilisée, rien d'autre à faire
             pass
@@ -14909,7 +15125,7 @@ def rapport_commune_complet():
         except Exception:
             pass
 
-        if export_format == "html" or is_browser_rmaisequest:
+        if export_format == "html" or is_browser_request:
             # Retourner une page HTML avec le rapport
             from flask import render_template
             return render_template('rapport_commune_complet.html', rapport=rapport, filters=filters)
@@ -14921,7 +15137,56 @@ def rapport_commune_complet():
             })
         else:
             # Format JSON par défaut (pour les appels API)
-            return jsonify(rapport)
+            
+            # Fonction de nettoyage récursif pour éviter les erreurs JSON
+            def clean_for_json(obj):
+                """Nettoie récursivement un objet pour le rendre JSON-safe"""
+                if obj is None:
+                    return None
+                elif isinstance(obj, (str, int, float, bool)):
+                    if isinstance(obj, str):
+                        # Nettoyer les caractères problématiques mais garder les données lisibles
+                        # Remplacer backslash simple par double backslash, mais éviter double échappement
+                        cleaned = obj.replace('\\', '\\\\') if '\\' in obj and '\\\\' not in obj else obj
+                        # Nettoyer les guillemets non échappés
+                        cleaned = cleaned.replace('"', '\\"') if '"' in cleaned and '\\"' not in cleaned else cleaned
+                        return cleaned
+                    return obj
+                elif isinstance(obj, dict):
+                    return {str(k): clean_for_json(v) for k, v in obj.items()}
+                elif isinstance(obj, (list, tuple)):
+                    return [clean_for_json(item) for item in obj]
+                else:
+                    # Pour les objets non sérialisables, convertir en string
+                    try:
+                        return str(obj)
+                    except:
+                        return None
+            
+            try:
+                import json
+                # Nettoyer le rapport avant sérialisation
+                clean_rapport = clean_for_json(rapport)
+                # Utiliser json.dumps avec options robustes
+                json_str = json.dumps(clean_rapport, ensure_ascii=False, default=str, separators=(',', ':'))
+                return Response(json_str, mimetype='application/json; charset=utf-8')
+            except Exception as json_error:
+                print(f"❌ [JSON] Erreur sérialisation JSON: {json_error}")
+                import traceback
+                traceback.print_exc()
+                # Dernière tentative: supprimer les données problématiques
+                try:
+                    # Version minimale du rapport
+                    minimal_rapport = {
+                        'commune_info': rapport.get('commune_info', {}),
+                        'error': 'Données trop volumineuses ou contenant des caractères spéciaux',
+                        'message': 'Veuillez utiliser le format HTML pour consulter le rapport complet'
+                    }
+                    json_str = json.dumps(minimal_rapport, ensure_ascii=False, default=str)
+                    return Response(json_str, mimetype='application/json; charset=utf-8'), 500
+                except Exception as e3:
+                    print(f"❌ [JSON] Échec total: {e3}")
+                    return jsonify({"error": "Impossible de sérialiser le rapport", "details": str(json_error)}), 500
         
     except Exception as e:
         print(f"❌ [RAPPORT_COMPLET] Erreur inattendue: {e}")
@@ -16603,6 +16868,59 @@ def admin_migrate_osm():
                 results.append(f"  • {col['column_name']} ({col['data_type']})")
         except Exception as e:
             results.append(f"⚠️ Impossible de vérifier les colonnes: {e}")
+        
+        return "<br>".join(results), 200
+    except Exception as e:
+        return f"❌ Erreur migration: {str(e)}", 500
+
+# ============================================================================
+# ROUTE ADMIN - MIGRATION PARAMETRAGE PRIX
+# ============================================================================
+@app.route('/admin/migrate-parametrage', methods=['GET'])
+def admin_migrate_parametrage():
+    """Endpoint pour ajouter les colonnes manquantes à parametrage_prix_organes"""
+    try:
+        from database_adapter import execute_query
+        results = []
+        
+        # Liste des colonnes à ajouter
+        columns_to_add = [
+            ('description', 'TEXT'),
+            ('marque', 'VARCHAR(100)'),
+            ('modele', 'VARCHAR(100)'),
+            ('reference', 'VARCHAR(100)'),
+            ('fournisseur', 'VARCHAR(100)')
+        ]
+        
+        results.append("🔧 Migration de la table parametrage_prix_organes")
+        results.append("")
+        
+        for col_name, col_type in columns_to_add:
+            try:
+                execute_query(f"ALTER TABLE parametrage_prix_organes ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+                results.append(f"✅ Colonne {col_name} ({col_type}) ajoutée/vérifiée")
+            except Exception as col_err:
+                error_msg = str(col_err).lower()
+                if "already exists" in error_msg or "duplicate column" in error_msg:
+                    results.append(f"ℹ️  Colonne {col_name} existe déjà")
+                else:
+                    results.append(f"❌ Erreur {col_name}: {str(col_err)}")
+        
+        # Vérifier les colonnes créées
+        try:
+            check_query = """
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'parametrage_prix_organes'
+                ORDER BY column_name
+            """
+            columns = execute_query(check_query)
+            results.append("")
+            results.append("📊 Colonnes dans parametrage_prix_organes:")
+            for col in columns:
+                results.append(f"  • {col['column_name']} ({col['data_type']})")
+        except Exception as e:
+            results.append(f"⚠️  Impossible de vérifier les colonnes: {e}")
         
         return "<br>".join(results), 200
     except Exception as e:

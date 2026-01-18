@@ -8,6 +8,11 @@ from datetime import datetime
 from database_adapter import execute_query, get_db_connection
 import json
 import os
+import io
+import zipfile
+from declaration_prealable_generator import generate_declaration_prealable_complete
+from plan_masse_generator import generate_plan_masse
+from plan_masse_simple import generate_plan_masse_simple
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -379,20 +384,92 @@ def register_crm_routes(app):
         }), 400
 
     # ============================================================================
+    # ROUTES API - EQUIPEMENTS PV
+    # ============================================================================
+
+    @app.route('/api/equipements/modules')
+    def get_modules_database():
+        """API - Base de données modules photovoltaïques"""
+        try:
+            from equipements_database import MODULES_PV_DATABASE
+            return jsonify({
+                'success': True,
+                'count': len(MODULES_PV_DATABASE),
+                'modules': MODULES_PV_DATABASE
+            })
+        except Exception as e:
+            print(f"❌ Erreur chargement base modules: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/equipements/onduleurs')
+    def get_onduleurs_database():
+        """API - Base de données onduleurs"""
+        try:
+            from equipements_database import ONDULEURS_DATABASE
+            return jsonify({
+                'success': True,
+                'count': len(ONDULEURS_DATABASE),
+                'onduleurs': ONDULEURS_DATABASE
+            })
+        except Exception as e:
+            print(f"❌ Erreur chargement base onduleurs: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/equipements/module/<reference>')
+    def get_module_details(reference):
+        """API - Détails d'un module spécifique"""
+        try:
+            from equipements_database import MODULES_PV_DATABASE
+            if reference in MODULES_PV_DATABASE:
+                return jsonify({
+                    'success': True,
+                    'module': MODULES_PV_DATABASE[reference]
+                })
+            return jsonify({'success': False, 'error': 'Module non trouvé'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/equipements/onduleur/<reference>')
+    def get_onduleur_details(reference):
+        """API - Détails d'un onduleur spécifique"""
+        try:
+            from equipements_database import ONDULEURS_DATABASE
+            if reference in ONDULEURS_DATABASE:
+                return jsonify({
+                    'success': True,
+                    'onduleur': ONDULEURS_DATABASE[reference]
+                })
+            return jsonify({'success': False, 'error': 'Onduleur non trouvé'}), 404
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
     # ROUTES API - EXPORT PROSPECTS
     # ============================================================================
 
     @app.route('/api/crm/export', methods=['POST'])
     def crm_export():
         """Exporte les éléments sélectionnés vers le CRM"""
+        import time
+        start_time = time.time()
+        
         try:
+            print(f"\n{'='*80}")
+            print(f"🚀 [CRM EXPORT] === DÉBUT EXPORT CRM ===")
+            print(f"⏰ Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
             if not request.is_json:
                 return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
             
             data = request.get_json()
-            print(f"🔍 [CRM EXPORT] Données reçues:")
+            print(f"📦 [CRM EXPORT] Données reçues:")
             print(f"    - Parkings: {len(data.get('parkings', []))}")
             print(f"    - Toitures: {len(data.get('toitures', []))}")
+            print(f"    - Friches: {len(data.get('friches', []))}")
+            print(f"    - RPG: {len(data.get('rpg', []))}")
+            
+            total_items = len(data.get('parkings', [])) + len(data.get('toitures', [])) + len(data.get('friches', [])) + len(data.get('rpg', []))
+            print(f"📊 [CRM EXPORT] Total à exporter: {total_items} éléments")
             
             # Debug: afficher la première toiture pour vérifier lat/lon
             if data.get('toitures') and len(data.get('toitures')) > 0:
@@ -424,21 +501,29 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
                     clean_value(parking.get('lat')), clean_value(parking.get('lon')), clean_value(parking.get('surface_m2')),
                     clean_value(parking.get('surface_m2', 0)) / 10000 if clean_value(parking.get('surface_m2')) else None,
                     json.dumps(parking.get('parcelles', [])),
-                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')),
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
-                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking),
                     parking.get('amenity'), parking.get('shop'), parking.get('building'),
                     parking.get('landuse'), parking.get('office'), parking.get('industrial')
@@ -459,21 +544,29 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
                     clean_value(toiture.get('lat')), clean_value(toiture.get('lon')), clean_value(toiture.get('surface_m2')),
                     clean_value(toiture.get('surface_m2', 0)) / 10000 if clean_value(toiture.get('surface_m2')) else None,
                     json.dumps(toiture.get('parcelles', [])),
-                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')),
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
-                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture),
                     toiture.get('amenity'), toiture.get('shop'), toiture.get('building'),
                     toiture.get('landuse'), toiture.get('office'), toiture.get('industrial')
@@ -494,21 +587,29 @@ def register_crm_routes(app):
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_lat, poste_bt_lon,
-                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_lat, poste_hta_lon,
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
                         osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
                     clean_value(friche.get('lat')), clean_value(friche.get('lon')), clean_value(friche.get('surface_m2')),
                     clean_value(friche.get('surface_m2', 0)) / 10000 if clean_value(friche.get('surface_m2')) else None,
                     json.dumps(friche.get('parcelles', [])),
-                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')),
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
                     clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
-                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche),
                     friche.get('amenity'), friche.get('shop'), friche.get('building'),
                     friche.get('landuse'), friche.get('office'), friche.get('industrial')
@@ -522,19 +623,36 @@ def register_crm_routes(app):
             
             # Exporter les parcelles RPG
             for rpg in data.get('rpg', []):
+                poste_bt = rpg.get('poste_bt_proche', {})
+                poste_hta = rpg.get('poste_hta_proche', {})
+                
                 result = execute_query('''
                     INSERT INTO agriweb_prospects (
                         type, commune, departement, adresse, latitude, longitude,
                         surface_m2, surface_ha, parcelles_cadastrales,
-                        poste_bt_distance_m, poste_hta_distance_m, data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        poste_bt_distance_m, poste_bt_nom, poste_bt_puissance, poste_bt_etat, poste_bt_lat, poste_bt_lon,
+                        poste_bt_commune, poste_bt_code_commune, poste_bt_epci, poste_bt_code_epci,
+                        poste_bt_departement, poste_bt_code_departement, poste_bt_region, poste_bt_code_region,
+                        poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
+                        poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
+                        poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
+                        data_json
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parcelle_rpg', rpg.get('commune'), rpg.get('departement'), rpg.get('adresse'),
                     rpg.get('latitude'), rpg.get('longitude'),
                     rpg.get('surface', 0) * 10000 if rpg.get('surface') else None,
                     rpg.get('surface'), rpg.get('parcelle_cadastrale'),
-                    rpg.get('distance_bt'), rpg.get('distance_hta'), json.dumps(rpg)
+                    clean_value(poste_bt.get('distance_m')), poste_bt.get('nom') or poste_bt.get('id'), clean_value(poste_bt.get('puissance')), poste_bt.get('etat'),
+                    clean_value(poste_bt.get('lat')), clean_value(poste_bt.get('lon')),
+                    poste_bt.get('commune'), poste_bt.get('code_commune'), poste_bt.get('epci'), poste_bt.get('code_epci'),
+                    poste_bt.get('departement'), poste_bt.get('code_departement'), poste_bt.get('region'), poste_bt.get('code_region'),
+                    clean_value(poste_hta.get('distance_m')), poste_hta.get('nom') or poste_hta.get('id'), clean_value(poste_hta.get('puissance')), poste_hta.get('etat'),
+                    clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
+                    poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
+                    poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
+                    json.dumps(rpg)
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
@@ -992,6 +1110,44 @@ def register_crm_routes(app):
             
         except Exception as e:
             print(f"❌ [CRM DELETE] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
+    # ROUTES API - GÉNÉRATION CERFA
+    # ============================================================================
+
+    @app.route('/api/crm/prospects/<int:prospect_id>/generate-cerfa', methods=['GET'])
+    def generate_prospect_cerfa(prospect_id):
+        """Génère un formulaire CERFA pré-rempli pour le prospect"""
+        try:
+            from cerfa_generator import generate_cerfa_pdf
+            
+            # Récupérer les données du prospect
+            prospect = execute_query('''
+                SELECT * FROM agriweb_prospects WHERE id = %s
+            ''', (prospect_id,), fetch_one=True)
+            
+            if not prospect:
+                return jsonify({'success': False, 'error': 'Prospect introuvable'}), 404
+            
+            # Générer le PDF
+            pdf_buffer = generate_cerfa_pdf(prospect)
+            
+            # Nom du fichier
+            nom_fichier = f"CERFA_Raccordement_{prospect.get('nom_prospect', prospect.get('commune', prospect_id))}.pdf"
+            nom_fichier = nom_fichier.replace(' ', '_').replace('/', '_')
+            
+            return send_file(
+                pdf_buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=nom_fichier
+            )
+            
+        except Exception as e:
+            print(f"❌ [CERFA GENERATION] Erreur: {e}")
             import traceback
             traceback.print_exc()
             return jsonify({'success': False, 'error': str(e)}), 500
@@ -2035,7 +2191,9 @@ def register_crm_routes(app):
         """Sauvegarder les données de calpinage dans data_json du prospect"""
         try:
             data = request.json
-            print(f"[CALPINAGE SAVE] prospect_id={prospect_id}, zones={len(data.get('zones', []))}")
+            screenshot_present = 'screenshot_map' in data and data.get('screenshot_map')
+            screenshot_len = len(data.get('screenshot_map', '')) if screenshot_present else 0
+            print(f"[CALPINAGE SAVE] prospect_id={prospect_id}, zones={len(data.get('zones', []))}, screenshot={'✅ OUI' if screenshot_present else '❌ NON'} ({screenshot_len} chars)")
             
             # Récupérer le prospect
             row = execute_query(
@@ -2070,14 +2228,17 @@ def register_crm_routes(app):
             
             print(f"[CALPINAGE SAVE] ✅ Prospect {prospect_id} mis à jour")
             
-            # Chercher ou créer un projet pour ce prospect
-            project = execute_query(
-                'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
-                (prospect_id,),
-                fetch_one=True
-            )
+            # TODO: Désactivé temporairement - table project_fiches n'existe pas
+            # # Chercher ou créer un projet pour ce prospect
+            # project = execute_query(
+            #     'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+            #     (prospect_id,),
+            #     fetch_one=True
+            # )
             
-            if not project:
+            project = None  # Désactiver la gestion de projet pour l'instant
+            
+            if False and not project:
                 # Créer un nouveau projet car il n'existe pas encore
                 print(f"[CALPINAGE SAVE] Pas de projet existant, création...")
                 
@@ -2123,17 +2284,18 @@ def register_crm_routes(app):
                         ''', (project_id, etape_nom, ordre, statut))
                     
                     print(f"✅ [ETAPES CREATE] 11 étapes créées pour projet {project_id}, étape 3 (Calepinage) terminée")
-            else:
+            else:  # elif False:  # Désactivé temporairement
                 # Marquer l'étape "Calepinage" (ordre 3) comme terminée
-                execute_query('''
-                    UPDATE project_etapes 
-                    SET statut = 'termine', 
-                        date_fin_reelle = CURRENT_DATE
-                    WHERE project_id = %s 
-                    AND ordre = 3
-                    AND statut != 'termine'
-                ''', (project['id'],))
-                print(f"✅ [ETAPE UPDATE] Étape 3 (Calepinage) marquée comme terminée pour projet {project['id']}")
+                # execute_query('''
+                #     UPDATE project_etapes 
+                #     SET statut = 'termine', 
+                #         date_fin_reelle = CURRENT_DATE
+                #     WHERE project_id = %s 
+                #     AND ordre = 3
+                #     AND statut != 'termine'
+                # ''', (project['id'],))
+                # print(f"✅ [ETAPE UPDATE] Étape 3 (Calepinage) marquée comme terminée pour projet {project['id']}")
+                pass
             
             return jsonify({
                 'success': True,
@@ -2378,3 +2540,1028 @@ def register_crm_routes(app):
             import traceback
             traceback.print_exc()
             return f"Erreur lors de la génération du PDF: {str(e)}", 500
+    
+    # ============================================================================
+    # SCHÉMA UNIFILAIRE NF C 15-712
+    # ============================================================================
+    @app.route('/api/crm/prospects/<int:prospect_id>/schema-unifilaire')
+    def generer_schema_unifilaire(prospect_id):
+        """Générer un schéma unifilaire conforme NF C 15-712 à partir du calepinage"""
+        try:
+            from schema_unifilaire import SchemaUnifilaire
+            from io import BytesIO
+            
+            # Récupérer le prospect et son calpinage
+            result = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not result:
+                return "Prospect non trouvé", 404
+            
+            prospect = dict(result)
+            
+            # Parser data_json pour récupérer le calpinage
+            try:
+                data_json = json.loads(prospect['data_json']) if prospect['data_json'] else {}
+                calpinage = data_json.get('calpinage', {})
+            except:
+                calpinage = {}
+            
+            if not calpinage or not calpinage.get('zones'):
+                return "Aucun calepinage trouvé. Veuillez d'abord créer un calepinage.", 400
+            
+            # Données prospect pour le schéma
+            # Priorité: contact_nom > representant_nom > dirigeant_nom > nom_prospect
+            nom_client = (prospect.get('contact_nom') or 
+                         prospect.get('representant_nom') or 
+                         prospect.get('dirigeant_nom') or 
+                         prospect.get('nom_prospect') or '')
+            
+            prospect_data = {
+                'nom': nom_client,  # Nom complet du client
+                'prenom': '',  # Pas de séparation nom/prénom dans la DB
+                'adresse': prospect.get('adresse', ''),
+                'code_postal': '',  # Pas dans la DB, sera extrait de commune si besoin
+                'commune': prospect.get('commune', ''),
+                'references_cadastrales': prospect.get('parcelles_cadastrales', ''),
+                # Poste de raccordement BT (pour injection < 1MWc)
+                'poste_bt_nom': prospect.get('poste_bt_nom', ''),
+                'poste_bt_distance_m': prospect.get('poste_bt_distance_m', None),
+                'poste_bt_puissance': prospect.get('poste_bt_puissance', None),
+                'poste_bt_etat': prospect.get('poste_bt_etat', ''),
+                'poste_bt_lat': prospect.get('poste_bt_lat', None),
+                'poste_bt_lon': prospect.get('poste_bt_lon', None),
+                # Poste de raccordement HTA (pour injection >= 1MWc)
+                'poste_hta_nom': prospect.get('poste_hta_nom', ''),
+                'poste_hta_distance_m': prospect.get('poste_hta_distance_m', None),
+                'poste_hta_puissance': prospect.get('poste_hta_puissance', None),
+                'poste_hta_etat': prospect.get('poste_hta_etat', ''),
+                'poste_hta_lat': prospect.get('poste_hta_lat', None),
+                'poste_hta_lon': prospect.get('poste_hta_lon', None)
+            }
+            
+            # Générer le schéma unifilaire
+            print(f"📐 [SCHEMA UNIFILAIRE] Génération pour prospect {prospect_id}")
+            schema = SchemaUnifilaire(calpinage, prospect_data)
+            
+            # Générer le PDF en mémoire
+            buffer = BytesIO()
+            temp_path = f"/tmp/schema_unifilaire_{prospect_id}.pdf"
+            schema.generer_schema_pdf(temp_path)
+            
+            # Sauvegarder la configuration électrique calculée dans le calepinage
+            try:
+                electric_config = schema.get_configuration_electrique_json()
+                
+                # Mettre à jour le calepinage avec la config électrique
+                calpinage['configuration_electrique'] = electric_config
+                
+                # Sauvegarder aussi les infos onduleur dans equipments
+                if 'equipments' not in calpinage:
+                    calpinage['equipments'] = {'onduleurs': [], 'tgbt': None, 'injection': None}
+                
+                if len(calpinage['equipments'].get('onduleurs', [])) > 0:
+                    # Enrichir l'onduleur existant avec les infos calculées
+                    calpinage['equipments']['onduleurs'][0].update({
+                        'modele': schema.onduleur['modele'],
+                        'marque': schema.onduleur['marque'],
+                        'puissance_ac': schema.onduleur['p_ac'],
+                        'puissance_dc_max': schema.onduleur['p_dc_max'],
+                        'tension_max': schema.onduleur['v_max'],
+                        'nb_mppt': schema.onduleur['mppt']
+                    })
+                
+                # Mettre à jour data_json
+                data_json['calpinage'] = calpinage
+                execute_query("""
+                    UPDATE agriweb_prospects 
+                    SET data_json = %s,
+                        date_modification = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (json.dumps(data_json), prospect_id))
+                
+                print(f"✅ [SCHEMA] Configuration électrique sauvegardée pour prospect {prospect_id}")
+            except Exception as save_error:
+                print(f"⚠️ [SCHEMA] Erreur sauvegarde config électrique: {save_error}")
+                # Continuer même si sauvegarde échoue
+            
+            # Lire le fichier généré
+            with open(temp_path, 'rb') as f:
+                buffer.write(f.read())
+            
+            buffer.seek(0)
+            
+            # Supprimer le fichier temporaire
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            
+            # Nom du fichier
+            nom_prospect = f"{prospect.get('nom', '')}_{prospect.get('prenom', '')}".strip().replace(' ', '_') or 'Prospect'
+            filename = f"Schema_Unifilaire_NF_C15-712_{nom_prospect}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            
+            print(f"✅ [SCHEMA UNIFILAIRE] PDF généré: {filename}")
+            
+            # Marquer l'étape "Calepinage" (ordre 3) comme terminée si un projet existe
+            project = execute_query(
+                'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if project:
+                project_id = project['id']
+                # Mettre à jour l'étape Calepinage
+                execute_query('''
+                    UPDATE project_etapes 
+                    SET statut = 'termine',
+                        date_fin_reelle = CURRENT_TIMESTAMP
+                    WHERE project_id = %s 
+                    AND nom_etape = 'Calepinage'
+                    AND statut != 'termine'
+                ''', (project_id,))
+                
+                print(f"✅ [SCHEMA UNIFILAIRE] Étape 'Calepinage' marquée terminée pour projet {project_id}")
+            
+            return send_file(
+                buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return f"Erreur lors de la génération du schéma unifilaire: {str(e)}", 500
+
+    # ============================================================================
+    # ROUTE - GÉNÉRATION PLANS DE STRINGS
+    # ============================================================================
+    @app.route('/api/crm/prospects/<int:prospect_id>/plans-strings')
+    def generer_plans_strings(prospect_id):
+        """Génère les plans détaillés de câblage des strings par zone"""
+        print(f"\n{'='*80}")
+        print(f"🎨 [PLANS STRINGS] Génération pour prospect {prospect_id}")
+        print(f"{'='*80}\n")
+        
+        try:
+            # Récupérer le prospect
+            prospect = execute_query(
+                'SELECT * FROM agriweb_prospects WHERE id = %s',
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not prospect:
+                print(f"❌ [PLANS STRINGS] Prospect {prospect_id} non trouvé")
+                return "Prospect non trouvé", 404
+            
+            # Récupérer les données de calepinage
+            data_json = prospect.get('data_json', {})
+            if isinstance(data_json, str):
+                import json
+                data_json = json.loads(data_json) if data_json else {}
+            
+            calpinage = data_json.get('calpinage', {})
+            
+            if not calpinage or not calpinage.get('zones'):
+                print(f"❌ [PLANS STRINGS] Pas de calepinage disponible pour prospect {prospect_id}")
+                return "Aucun calepinage disponible. Veuillez d'abord réaliser le calepinage.", 400
+            
+            zones = calpinage.get('zones', [])
+            if not zones:
+                print(f"❌ [PLANS STRINGS] Aucune zone définie dans le calepinage")
+                return "Aucune zone définie dans le calepinage", 400
+            
+            # Récupérer les informations du module
+            module_info = calpinage.get('module', {})
+            if not module_info:
+                print(f"⚠️ [PLANS STRINGS] Informations module manquantes")
+                return "Informations du module manquantes dans le calepinage", 400
+            
+            # Récupérer les onduleurs
+            equipments = calpinage.get('equipments', {})
+            onduleurs = equipments.get('onduleurs', [])
+            
+            # Créer un buffer pour le PDF
+            from io import BytesIO
+            buffer = BytesIO()
+            
+            # Générer les plans avec PlansStrings
+            import os
+            import tempfile
+            from plans_strings import PlansStrings
+            
+            # Créer un fichier temporaire
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.pdf')
+            os.close(temp_fd)
+            
+            print(f"📄 [PLANS STRINGS] Génération du PDF...")
+            print(f"   - Nombre de zones: {len(zones)}")
+            print(f"   - Module: {module_info.get('marque', '')} {module_info.get('modele', '')}")
+            print(f"   - Onduleurs: {len(onduleurs)}")
+            
+            # Préparer les données au format attendu par PlansStrings
+            prospect_data = {
+                'nom': prospect.get('nom', ''),
+                'prenom': prospect.get('prenom', ''),
+                'adresse': prospect.get('adresse', ''),
+                'commune': prospect.get('commune', '')
+            }
+            
+            # Générer le PDF
+            plans = PlansStrings(
+                calpinage_data=calpinage,
+                prospect_data=prospect_data
+            )
+            
+            plans.generer_plans_pdf(output_path=temp_path)
+            
+            # Lire le fichier généré
+            with open(temp_path, 'rb') as f:
+                buffer.write(f.read())
+            
+            buffer.seek(0)
+            
+            # Supprimer le fichier temporaire
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+            
+            # Nom du fichier
+            nom_prospect = f"{prospect.get('nom', '')}_{prospect.get('prenom', '')}".strip().replace(' ', '_') or 'Prospect'
+            filename = f"Plans_Strings_{nom_prospect}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            
+            print(f"✅ [PLANS STRINGS] PDF généré: {filename}")
+            
+            return send_file(
+                buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return f"Erreur lors de la génération des plans de strings: {str(e)}", 500
+
+    # ============================================================================
+    # ROUTE DEBUG - FORMES JURIDIQUES
+    # ============================================================================
+    @app.route('/api/crm/debug/formes-juridiques')
+    def debug_formes_juridiques():
+        """Liste toutes les formes juridiques uniques dans la base"""
+        try:
+            formes = execute_query('''
+                SELECT DISTINCT proprietaire_forme_juridique, COUNT(*) as count
+                FROM agriweb_prospects
+                WHERE proprietaire_forme_juridique IS NOT NULL
+                AND proprietaire_forme_juridique != ''
+                GROUP BY proprietaire_forme_juridique
+                ORDER BY count DESC
+                LIMIT 50
+            ''', fetch_all=True)
+            
+            return jsonify({
+                'success': True,
+                'formes_juridiques': formes
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
+    # PROPOSITION COMMERCIALE PROFESSIONNELLE
+    @app.route('/api/crm/prospects/<int:prospect_id>/proposition-complete', methods=['POST'])
+    def generer_proposition_complete(prospect_id):
+        """
+        Génère une proposition commerciale professionnelle complète avec:
+        - Couverture + Sommaire
+        - Présentation entreprise (certifications QualiPV, RGE)
+        - Analyse site + contraintes urbanisme (PLU)
+        - Solution technique (modules JA Solar, onduleurs Huawei)
+        - Étude productible PVGIS
+        - Étude financière (TRI, VAN, ROI)
+        - Devis détaillé NF C 15-752-1 avec taxes IFER
+        - Planning réalisation (DP, DDR, Consuel)
+        - Garanties et maintenance
+        - Aspects réglementaires
+        - CGV
+        """
+        try:
+            from proposition_professionnelle import PropositionProfessionnelle
+            from io import BytesIO
+            
+            # Récupérer les données de la requête
+            data = request.json or {}
+            
+            # Récupérer le prospect
+            prospect_result = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not prospect_result:
+                return jsonify({'error': 'Prospect non trouvé'}), 404
+            
+            prospect = dict(prospect_result)
+            
+            # Parser data_json pour récupérer toutes les données
+            try:
+                data_json = json.loads(prospect['data_json']) if prospect.get('data_json') else {}
+                calpinage = data_json.get('calpinage', {})
+                visite_technique = data_json.get('visite_technique', {})
+                rapport_commune = data_json.get('rapport_commune', {})
+            except Exception as e:
+                print(f"⚠️ Erreur parsing data_json: {e}")
+                calpinage = {}
+                visite_technique = {}
+                rapport_commune = {}
+            
+            # Fonction helper pour conversion sécurisée
+            def safe_float(value, default=0.0):
+                try:
+                    if value is None or value == '':
+                        return default
+                    return float(value)
+                except (ValueError, TypeError):
+                    return default
+            
+            # Préparer les paramètres pour la proposition
+            parametres = {
+                'type_projet': data.get('type_projet', 'autoconsommation'),
+                'puissance_kwc': safe_float(data.get('puissance_kwc'), 100.0),
+                'prix_kwc': safe_float(data.get('prix_kwc'), 850.0),
+                'consommation_annuelle_kwh': safe_float(data.get('consommation_annuelle_kwh'), 0.0),
+                'tarif_achat_kwh': safe_float(data.get('tarif_achat_kwh'), 0.20),
+                'tarif_revente_kwh': safe_float(data.get('tarif_revente_kwh'), 0.13),
+                'taux_autoconso': safe_float(data.get('taux_autoconso'), 70.0),
+                'pvgis_hourly_data': data.get('pvgis_hourly_data'),  # Optionnel
+                'enedis_hourly_data': data.get('enedis_hourly_data'),  # Optionnel
+            }
+            
+            print(f"📊 Génération proposition - Paramètres: {parametres}")
+            
+            # Enrichir prospect avec rapport_commune pour contraintes urbanisme
+            if rapport_commune:
+                prospect['data_json'] = data_json
+            
+            # Générer la proposition professionnelle
+            try:
+                print(f"🔧 Création instance PropositionProfessionnelle...")
+                proposition = PropositionProfessionnelle(prospect, calpinage, parametres)
+                print(f"📄 Génération PDF...")
+                buffer = proposition.generer_pdf()
+                print(f"✅ PDF généré avec succès!")
+            except Exception as e:
+                import traceback
+                print(f"❌ Erreur dans PropositionProfessionnelle: {e}")
+                print(f"📊 Prospect: {prospect.get('id')} - {prospect.get('commune')}")
+                print(f"📊 Calpinage keys: {list(calpinage.keys()) if calpinage else 'None'}")
+                print(f"📊 Parametres: {parametres}")
+                traceback.print_exc()
+                raise
+            
+            buffer.seek(0)
+            
+            # Marquer l'étape "Devis commercial" (ordre 5) comme terminée
+            project = execute_query(
+                'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                (prospect_id,),
+                fetch_one=True
+            )
+            if project:
+                execute_query('''
+                    UPDATE project_etapes 
+                    SET statut = 'termine', 
+                        date_fin_reelle = CURRENT_DATE
+                    WHERE project_id = %s 
+                    AND ordre = 5
+                    AND statut != 'termine'
+                ''', (project['id'],))
+                print(f"✅ [ETAPE UPDATE] Étape 5 (Devis commercial) marquée comme terminée pour projet {project['id']}")
+            
+            # Retourner le PDF
+            return send_file(
+                buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=f'Proposition_Professionnelle_{prospect.get("commune", "NA")}_{datetime.now().strftime("%Y%m%d")}.pdf'
+            )
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+
+    # ============================================================================
+    # ROUTE ADMIN - NETTOYAGE COMPLET PROSPECTS
+    # ============================================================================
+    @app.route('/api/crm/admin/cleanup-all', methods=['POST'])
+    def cleanup_all_prospects():
+        """Supprime TOUS les prospects et projets associés - ATTENTION DANGEREUX"""
+        try:
+            # Supprimer tous les projets et étapes (CASCADE)
+            execute_query('DELETE FROM project_fiches')
+            
+            # Supprimer tous les prospects
+            result = execute_query('DELETE FROM agriweb_prospects RETURNING id', fetch_all=True)
+            count = len(result) if result else 0
+            
+            return jsonify({
+                'success': True,
+                'message': f'✅ {count} prospects supprimés avec succès',
+                'deleted_count': count
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    # ============================================================================
+    # ROUTES PARAMÉTRAGE SYSTÈME
+    # ============================================================================
+    
+    @app.route('/api/crm/parametrage')
+    def page_parametrage():
+        """Page de paramétrage système"""
+        return render_template('parametrage.html')
+    
+    @app.route('/api/crm/parametrage/check-init')
+    def check_init_parametrage():
+        """Vérifier si les tables de paramétrage existent"""
+        try:
+            # Vérifier existence table parametrage_entreprise
+            result = execute_query("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables 
+                    WHERE table_name = 'parametrage_entreprise'
+                )
+            """, fetch_one=True)
+            
+            initialized = result['exists'] if result else False
+            
+            return jsonify({
+                'success': True,
+                'initialized': initialized
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/init-database', methods=['GET', 'POST'])
+    def init_database_parametrage():
+        """Initialiser les tables de paramétrage avec données par défaut"""
+        try:
+            # Lire le script SQL
+            sql_file = os.path.join(os.path.dirname(__file__), 'create_tables_parametrage.sql')
+            
+            with open(sql_file, 'r', encoding='utf-8') as f:
+                sql_script = f.read()
+            
+            # Séparer les commandes SQL pour PostgreSQL
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Séparer par point-virgule et exécuter commande par commande
+                commands = []
+                current_command = []
+                
+                for line in sql_script.split('\n'):
+                    # Ignorer les commentaires
+                    if line.strip().startswith('--'):
+                        continue
+                    
+                    current_command.append(line)
+                    
+                    # Si ligne contient un point-virgule, c'est une fin de commande
+                    if ';' in line:
+                        command = '\n'.join(current_command).strip()
+                        if command and not command.startswith('--'):
+                            commands.append(command)
+                        current_command = []
+                
+                # Exécuter chaque commande
+                executed = 0
+                errors = []
+                for command in commands:
+                    if command.strip():
+                        try:
+                            cursor.execute(command)
+                            executed += 1
+                        except Exception as e:
+                            # Enregistrer les erreurs mais continuer
+                            error_msg = f"{str(e)[:100]}"
+                            print(f"⚠️ SQL warning: {error_msg}")
+                            errors.append(error_msg)
+                            continue
+                
+                conn.commit()
+                cursor.close()
+            
+            print(f"✅ {executed} commandes SQL exécutées, {len(errors)} erreurs")
+            
+            return jsonify({
+                'success': True,
+                'message': f'{executed} commandes exécutées avec succès',
+                'errors': errors[:10] if errors else [],  # Max 10 premières erreurs
+                'total_errors': len(errors)
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/migrate-database', methods=['POST'])
+    def migrate_database_parametrage():
+        """Migration: Ajouter les colonnes manquantes à parametrage_prix_organes"""
+        try:
+            migration_queries = [
+                # 1. Ajouter description
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'description'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN description TEXT;
+                    END IF;
+                END $$;
+                """,
+                # 2. Ajouter delai_livraison_jours
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'delai_livraison_jours'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN delai_livraison_jours INTEGER;
+                    END IF;
+                END $$;
+                """,
+                # 3. Ajouter stock_disponible
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'stock_disponible'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN stock_disponible BOOLEAN DEFAULT TRUE;
+                    END IF;
+                END $$;
+                """,
+                # 4. Ajouter date_dernier_prix
+                """
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'parametrage_prix_organes' 
+                        AND column_name = 'date_dernier_prix'
+                    ) THEN
+                        ALTER TABLE parametrage_prix_organes 
+                        ADD COLUMN date_dernier_prix DATE DEFAULT CURRENT_DATE;
+                    END IF;
+                END $$;
+                """
+            ]
+            
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                executed = 0
+                errors = []
+                
+                for query in migration_queries:
+                    try:
+                        cursor.execute(query)
+                        executed += 1
+                    except Exception as e:
+                        errors.append(str(e)[:100])
+                
+                conn.commit()
+                cursor.close()
+            
+            return jsonify({
+                'success': True,
+                'message': f'{executed} migrations exécutées',
+                'errors': errors
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/entreprise', methods=['GET', 'POST'])
+    def parametrage_entreprise():
+        """GET: Charger les infos entreprise, POST: Sauvegarder"""
+        try:
+            if request.method == 'GET':
+                # Charger les données
+                result = execute_query(
+                    'SELECT * FROM parametrage_entreprise WHERE actif = TRUE ORDER BY id DESC LIMIT 1',
+                    fetch_one=True
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'entreprise': dict(result) if result else None
+                })
+            
+            else:  # POST
+                data = request.json
+                
+                # Vérifier si une entreprise existe déjà
+                existing = execute_query(
+                    'SELECT id FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',
+                    fetch_one=True
+                )
+                
+                if existing:
+                    # UPDATE
+                    execute_query("""
+                        UPDATE parametrage_entreprise SET
+                            nom_entreprise = %s,
+                            adresse = %s,
+                            code_postal = %s,
+                            ville = %s,
+                            telephone = %s,
+                            email = %s,
+                            site_web = %s,
+                            siret = %s,
+                            tva_intracommunautaire = %s,
+                            rge_numero = %s,
+                            rge_date_validite = %s,
+                            qualibat_numero = %s,
+                            qualibat_date_validite = %s,
+                            qualifelec_numero = %s,
+                            logo_base64 = %s,
+                            date_modification = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    """, (
+                        data.get('nom_entreprise'),
+                        data.get('adresse'),
+                        data.get('code_postal'),
+                        data.get('ville'),
+                        data.get('telephone'),
+                        data.get('email'),
+                        data.get('site_web'),
+                        data.get('siret'),
+                        data.get('tva_intracommunautaire'),
+                        data.get('rge_numero'),
+                        data.get('rge_date_validite'),
+                        data.get('qualibat_numero'),
+                        data.get('qualibat_date_validite'),
+                        data.get('qualifelec_numero'),
+                        data.get('logo_base64'),
+                        existing['id']
+                    ))
+                else:
+                    # INSERT
+                    execute_query("""
+                        INSERT INTO parametrage_entreprise (
+                            nom_entreprise, adresse, code_postal, ville, telephone, email, site_web,
+                            siret, tva_intracommunautaire, rge_numero, rge_date_validite,
+                            qualibat_numero, qualibat_date_validite, qualifelec_numero, logo_base64
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        data.get('nom_entreprise'),
+                        data.get('adresse'),
+                        data.get('code_postal'),
+                        data.get('ville'),
+                        data.get('telephone'),
+                        data.get('email'),
+                        data.get('site_web'),
+                        data.get('siret'),
+                        data.get('tva_intracommunautaire'),
+                        data.get('rge_numero'),
+                        data.get('rge_date_validite'),
+                        data.get('qualibat_numero'),
+                        data.get('qualibat_date_validite'),
+                        data.get('qualifelec_numero'),
+                        data.get('logo_base64')
+                    ))
+                
+                print("✅ Paramétrage entreprise sauvegardé")
+                return jsonify({'success': True})
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/prix', methods=['GET', 'POST'])
+    def parametrage_prix():
+        """GET: Lister les prix, POST: Ajouter un prix"""
+        try:
+            if request.method == 'GET':
+                # Filtres optionnels
+                categorie = request.args.get('categorie')
+                search = request.args.get('search')
+                
+                query = 'SELECT * FROM parametrage_prix_organes WHERE actif = TRUE'
+                params = []
+                
+                if categorie:
+                    query += ' AND categorie = %s'
+                    params.append(categorie)
+                
+                if search:
+                    query += ' AND (nom_organe ILIKE %s OR marque ILIKE %s OR modele ILIKE %s)'
+                    params.extend([f'%{search}%', f'%{search}%', f'%{search}%'])
+                
+                query += ' ORDER BY categorie, nom_organe'
+                
+                result = execute_query(query, tuple(params), fetch_all=True)
+                
+                return jsonify({
+                    'success': True,
+                    'prix': [dict(row) for row in result] if result else []
+                })
+            
+            else:  # POST
+                data = request.json
+                
+                execute_query("""
+                    INSERT INTO parametrage_prix_organes (
+                        nom_organe, categorie, marque, modele, prix_unitaire_ht, unite, marge_commerciale_pct
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    data.get('nom_organe'),
+                    data.get('categorie'),
+                    data.get('marque'),
+                    data.get('modele'),
+                    data.get('prix_unitaire_ht'),
+                    data.get('unite'),
+                    data.get('marge_commerciale_pct', 15.0)
+                ))
+                
+                print(f"✅ Prix ajouté: {data.get('nom_organe')}")
+                return jsonify({'success': True})
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/prix/<int:prix_id>', methods=['DELETE'])
+    def delete_prix(prix_id):
+        """Supprimer un prix (soft delete)"""
+        try:
+            execute_query(
+                'UPDATE parametrage_prix_organes SET actif = FALSE WHERE id = %s',
+                (prix_id,)
+            )
+            
+            print(f"✅ Prix {prix_id} supprimé")
+            return jsonify({'success': True})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    @app.route('/api/crm/parametrage/graphique', methods=['GET', 'POST'])
+    def parametrage_graphique():
+        """GET: Charger les couleurs, POST: Sauvegarder"""
+        try:
+            if request.method == 'GET':
+                result = execute_query(
+                    'SELECT couleur_primaire, couleur_secondaire, couleur_accent FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',
+                    fetch_one=True
+                )
+                
+                return jsonify({
+                    'success': True,
+                    'graphique': dict(result) if result else None
+                })
+            
+            else:  # POST
+                data = request.json
+                
+                execute_query("""
+                    UPDATE parametrage_entreprise SET
+                        couleur_primaire = %s,
+                        couleur_secondaire = %s,
+                        couleur_accent = %s,
+                        date_modification = CURRENT_TIMESTAMP
+                    WHERE actif = TRUE
+                """, (
+                    data.get('couleur_primaire'),
+                    data.get('couleur_secondaire'),
+                    data.get('couleur_accent')
+                ))
+                
+                print("✅ Couleurs sauvegardées")
+                return jsonify({'success': True})
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    # ============================================================================
+    # ROUTES GÉNÉRATION DOCUMENTS - DÉCLARATION PRÉALABLE
+    # ============================================================================
+    
+    @app.route('/api/crm/prospect/<int:prospect_id>/generer-dp', methods=['POST'])
+    def generer_declaration_prealable(prospect_id):
+        """
+        Génère le dossier complet de Déclaration Préalable de Travaux (DP)
+        pour un prospect avec son calpinage intégré.
+        
+        Retourne un fichier ZIP contenant les 9 documents PDF:
+        - Formulaire CERFA 13703*09 (4 pages)
+        - Plan DP1 - Plan de situation
+        - Plan DP2 - Plan de masse coté
+        - Plan DP3 - Plan en coupe
+        - Plan DP4 - Façades état actuel
+        - Plan DP5 - Façades état projeté
+        - Plan DP6 - Insertion paysagère
+        - Plan DP7 - Environnement proche
+        - Plan DP8 - Environnement lointain
+        """
+        try:
+            print(f"\n{'='*70}")
+            print(f"📄 [GÉNÉRATION DP] Début pour prospect {prospect_id}")
+            print(f"{'='*70}")
+            
+            # 1. Récupérer le prospect depuis la base de données
+            row = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not row:
+                print(f"❌ [GÉNÉRATION DP] Prospect {prospect_id} non trouvé")
+                return jsonify({
+                    'success': False,
+                    'error': f'Prospect {prospect_id} non trouvé'
+                }), 404
+            
+            # Convertir en dictionnaire
+            prospect_data = dict(row)
+            print(f"✓ Prospect récupéré: {prospect_data.get('nom_entreprise', prospect_data.get('nom', 'N/A'))}")
+            
+            # 2. Extraire le calpinage depuis data_json
+            calpinage_data = None
+            if prospect_data.get('data_json'):
+                # Parser si c'est une chaîne JSON
+                if isinstance(prospect_data['data_json'], str):
+                    try:
+                        data_json = json.loads(prospect_data['data_json'])
+                        calpinage_data = data_json.get('calpinage')
+                    except Exception as e:
+                        print(f"⚠️ [GÉNÉRATION DP] Erreur parsing data_json: {e}")
+                # Sinon c'est déjà un dict (PostgreSQL JSONB)
+                elif isinstance(prospect_data['data_json'], dict):
+                    calpinage_data = prospect_data['data_json'].get('calpinage')
+            
+            if calpinage_data:
+                nb_modules = sum(zone.get('nbModules', 0) for zone in calpinage_data.get('zones', []))
+                orientation = calpinage_data.get('zones', [{}])[0].get('moduleOrientation', 'N/A') if calpinage_data.get('zones') else 'N/A'
+                print(f"✓ Calpinage trouvé: {nb_modules} modules, orientation: {orientation}")
+            else:
+                print(f"⚠️ [GÉNÉRATION DP] Aucun calpinage trouvé pour ce prospect")
+            
+            # 3. Générer le dossier complet DP
+            print(f"\n📊 Génération des 9 documents PDF...")
+            pdfs = generate_declaration_prealable_complete(prospect_data, calpinage_data)
+            
+            if not pdfs:
+                print(f"❌ [GÉNÉRATION DP] Échec de génération des PDFs")
+                return jsonify({
+                    'success': False,
+                    'error': 'Erreur lors de la génération des documents PDF'
+                }), 500
+            
+            print(f"✅ {len(pdfs)} documents PDF générés")
+            
+            # 4. Créer un fichier ZIP en mémoire
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for filename, pdf_bytes in pdfs.items():
+                    zip_file.writestr(filename, pdf_bytes.getvalue())
+                    print(f"  ✓ Ajouté au ZIP: {filename}")
+            
+            zip_buffer.seek(0)
+            
+            # 5. Nom du fichier ZIP
+            commune = prospect_data.get('commune', 'Inconnu').replace(' ', '_')
+            nom = prospect_data.get('nom_entreprise', prospect_data.get('nom', 'Prospect')).replace(' ', '_')
+            zip_filename = f"DP_Complet_{commune}_{nom}_{datetime.now().strftime('%Y%m%d')}.zip"
+            
+            print(f"\n{'='*70}")
+            print(f"✅ [GÉNÉRATION DP] Dossier complet créé: {zip_filename}")
+            print(f"{'='*70}\n")
+            
+            # 6. Retourner le fichier ZIP pour téléchargement
+            return send_file(
+                zip_buffer,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name=zip_filename
+            )
+            
+        except Exception as e:
+            print(f"\n{'='*70}")
+            print(f"❌ [GÉNÉRATION DP] ERREUR")
+            print(f"{'='*70}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                'success': False,
+                'error': f'Erreur lors de la génération: {str(e)}'
+            }), 500
+    
+    @app.route('/api/crm/prospect/<int:prospect_id>/generer-plan-masse', methods=['POST'])
+    def generer_plan_masse_cadastral(prospect_id):
+        """
+        Génère un plan de masse cadastral avec implantation PV selon calpinage
+        
+        Retourne un PDF A3 professionnel avec:
+        - Fond satellite haute résolution
+        - Parcelles cadastrales délimitées
+        - Bâtiment coté
+        - Modules PV positionnés selon le calpinage réel
+        - Légende et cartouche technique
+        """
+        try:
+            print(f"\n{'='*70}")
+            print(f"📐 [PLAN DE MASSE] Génération pour prospect {prospect_id}")
+            print(f"{'='*70}")
+            
+            # 1. Récupérer le prospect
+            row = execute_query(
+                "SELECT * FROM agriweb_prospects WHERE id = %s",
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not row:
+                return jsonify({
+                    'success': False,
+                    'error': f'Prospect {prospect_id} non trouvé'
+                }), 404
+            
+            prospect_data = dict(row)
+            
+            # 2. Extraire calpinage depuis la base de données
+            calpinage_data = None
+            if prospect_data.get('data_json'):
+                if isinstance(prospect_data['data_json'], str):
+                    try:
+                        data_json = json.loads(prospect_data['data_json'])
+                        calpinage_data = data_json.get('calpinage')
+                    except:
+                        pass
+                elif isinstance(prospect_data['data_json'], dict):
+                    calpinage_data = prospect_data['data_json'].get('calpinage')
+            
+            if calpinage_data:
+                nb_modules = sum(z.get('nbModules', 0) for z in calpinage_data.get('zones', []))
+                has_metadata = 'map_metadata' in calpinage_data
+                print(f"✓ Calpinage: {nb_modules} modules, map_metadata={'✅' if has_metadata else '❌'}")
+            
+            # 3. Générer le plan de masse avec le générateur ULTIME_CLEAN
+            pdf_buffer = generate_plan_masse(prospect_data, calpinage_data)
+            
+            # 4. Nom du fichier
+            commune = prospect_data.get('commune', 'Inconnu').replace(' ', '_')
+            filename = f"Plan_Masse_Cadastral_{commune}_{datetime.now().strftime('%Y%m%d')}.pdf"
+            
+            print(f"✅ [PLAN DE MASSE] Fichier créé: {filename}")
+            print(f"{'='*70}\n")
+            
+            # 5. Retourner le PDF
+            return send_file(
+                pdf_buffer,
+                mimetype='application/pdf',
+                as_attachment=True,
+                download_name=filename
+            )
+            
+        except Exception as e:
+            print(f"❌ [PLAN DE MASSE] ERREUR: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            return jsonify({
+                'success': False,
+                'error': f'Erreur: {str(e)}'
+            }), 500
+
