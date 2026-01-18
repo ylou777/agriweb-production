@@ -1616,9 +1616,7 @@
         }
         
         async function exportToCRM() {
-            const confirmMsg = `📤 Exporter ce rapport comme nouveau prospect dans le CRM ?
-
-Un nouveau prospect sera créé avec toutes les données de ce rapport.`;
+            const confirmMsg = `📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.`;
             if (!confirm(confirmMsg)) {
                 return;
             }
@@ -1704,12 +1702,10 @@ Un nouveau prospect sera créé avec toutes les données de ce rapport.`;
                 const result = await response.json();
                 
                 if (result.success) {
-                    const message = `✅ Export réussi !
-
-📊 ${result.total_exported} prospect(s) créé(s)
-📁 Détails: ${result.details.toitures} toiture(s)
-
-Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
+                    const message = `✅ Export réussi !\n\n` +
+                        `📊 ${result.total_exported} prospect(s) créé(s)\n` +
+                        `📁 Détails: ${result.details.toitures} toiture(s)\n\n` +
+                        `Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
                     
                     if (confirm(message)) {
                         window.open('/crm', '_blank');
@@ -1718,8 +1714,7 @@ Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
                         location.reload();
                     }
                 } else {
-                    const errorMsg = `❌ Erreur lors de l'export :
-${result.error}`;
+                    const errorMsg = `❌ Erreur lors de l'export :\n${result.error}`;
                     alert(errorMsg);
                 }
             } catch (error) {
