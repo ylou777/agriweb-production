@@ -1616,7 +1616,8 @@
         }
         
         async function exportToCRM() {
-            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
+            const confirmMsg = "📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.";
+            if (!confirm(confirmMsg)) {
                 return;
             }
             
