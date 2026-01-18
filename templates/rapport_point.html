@@ -1616,12 +1616,8 @@
         }
         
         async function exportToCRM() {
-<<<<<<< HEAD
-            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
-=======
             const confirmMsg = `📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.`;
             if (!confirm(confirmMsg)) {
->>>>>>> af648d49717996236d694add03bb0a0d94cbcdb9
                 return;
             }
             
@@ -1641,22 +1637,22 @@
                 
                 // Créer un objet prospect à partir des données du rapport
                 const prospectData = {
-                    lat: {{ report.lat|default(0) }},
-                    lon: {{ report.lon|default(0) }},
+                    lat: {{ ((report.lat|string|replace('N/A', '0'))|float)|default(0) }},
+                    lon: {{ ((report.lon|string|replace('N/A', '0'))|float)|default(0) }},
                     commune: {{ (report.commune_name|default(""))|tojson }},
                     adresse: {{ (report.adresse|default(""))|tojson }},
                     {% if report.api_details and report.api_details.cadastre.success %}
                     parcelles: [{{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }}],
-                    surface_m2: {{ report.api_details.cadastre.details.contenance_m2|default(0) }},
+                    surface_m2: {{ ((report.api_details.cadastre.details.contenance_m2|string|replace('N/A', '0'))|float)|default(0) }},
                     {% endif %}
                     {% if report.poste_bt %}
                     poste_bt_proche: {
                         nom: {{ (report.poste_bt.nom|default(""))|tojson }},
                         id: {{ (report.poste_bt.nom|default(""))|tojson }},
-                        distance_m: {{ report.poste_bt.distance_m|default(0) }},
-                        lat: {{ report.poste_bt.lat|default(0) }},
-                        lon: {{ report.poste_bt.lon|default(0) }},
-                        puissance: {{ report.poste_bt.puissance|default(0) }},
+                        distance_m: {{ ((report.poste_bt.distance_m|string|replace('N/A', '0'))|float)|default(0) }},
+                        lat: {{ ((report.poste_bt.lat|string|replace('N/A', '0'))|float)|default(0) }},
+                        lon: {{ ((report.poste_bt.lon|string|replace('N/A', '0'))|float)|default(0) }},
+                        puissance: {{ ((report.poste_bt.puissance|string|replace('N/A', '0'))|float)|default(0) }},
                         etat: {{ (report.poste_bt.etat|default("Actif"))|tojson }},
                         commune: {{ (report.poste_bt.commune|default(""))|tojson }},
                         code_commune: {{ (report.poste_bt.code_commune|default(""))|tojson }},
@@ -1672,10 +1668,10 @@
                     poste_hta_proche: {
                         nom: {{ (report.poste_hta.nom|default(""))|tojson }},
                         id: {{ (report.poste_hta.nom|default(""))|tojson }},
-                        distance_m: {{ report.poste_hta.distance_m|default(0) }},
-                        lat: {{ report.poste_hta.lat|default(0) }},
-                        lon: {{ report.poste_hta.lon|default(0) }},
-                        puissance: {{ report.poste_hta.puissance|default(0) }},
+                        distance_m: {{ ((report.poste_hta.distance_m|string|replace('N/A', '0'))|float)|default(0) }},
+                        lat: {{ ((report.poste_hta.lat|string|replace('N/A', '0'))|float)|default(0) }},
+                        lon: {{ ((report.poste_hta.lon|string|replace('N/A', '0'))|float)|default(0) }},
+                        puissance: {{ ((report.poste_hta.puissance|string|replace('N/A', '0'))|float)|default(0) }},
                         etat: {{ (report.poste_hta.etat|default("Actif"))|tojson }},
                         commune: {{ (report.poste_hta.commune|default(""))|tojson }},
                         code_commune: {{ (report.poste_hta.code_commune|default(""))|tojson }},
@@ -1718,20 +1714,12 @@
                         location.reload();
                     }
                 } else {
-<<<<<<< HEAD
-                    alert(`❌ Erreur lors de l'export :\n${result.error}`);
-                }
-            } catch (error) {
-                console.error('Erreur export CRM:', error);
-                alert(`❌ Erreur de connexion :\n${error.message}`);
-=======
                     const errorMsg = `❌ Erreur lors de l'export :\n${result.error}`;
                     alert(errorMsg);
                 }
             } catch (error) {
                 console.error('Erreur export CRM:', error);
                 alert('❌ Erreur de connexion :\n' + error.message);
->>>>>>> af648d49717996236d694add03bb0a0d94cbcdb9
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -1759,8 +1747,8 @@
             try {
                 const updateData = {
                     prospect_id: prospectId,
-                    lat: {{ report.lat|default(0) }},
-                    lon: {{ report.lon|default(0) }},
+                    lat: {{ ((report.lat|string|replace('N/A', '0'))|float)|default(0) }},
+                    lon: {{ ((report.lon|string|replace('N/A', '0'))|float)|default(0) }},
                     commune: {{ (report.commune_name|default(""))|tojson }},
                     {% if report.api_details and report.api_details.cadastre.success %}
                     parcelle_cadastrale: {{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }},
@@ -1768,15 +1756,15 @@
                     {% endif %}
                     {% if report.poste_bt %}
                     poste_bt_nom: {{ (report.poste_bt.nom|default(""))|tojson }},
-                    poste_bt_distance: {{ report.poste_bt.distance_m|default(0) }},
-                    poste_bt_lat: {{ report.poste_bt.lat|default(0) }},
-                    poste_bt_lon: {{ report.poste_bt.lon|default(0) }},
+                    poste_bt_distance: {{ ((report.poste_bt.distance_m|string|replace('N/A', '0'))|float)|default(0) }},
+                    poste_bt_lat: {{ ((report.poste_bt.lat|string|replace('N/A', '0'))|float)|default(0) }},
+                    poste_bt_lon: {{ ((report.poste_bt.lon|string|replace('N/A', '0'))|float)|default(0) }},
                     {% endif %}
                     {% if report.poste_hta %}
                     poste_hta_nom: {{ (report.poste_hta.nom|default(""))|tojson }},
-                    poste_hta_distance: {{ report.poste_hta.distance_m|default(0) }},
-                    poste_hta_lat: {{ report.poste_hta.lat|default(0) }},
-                    poste_hta_lon: {{ report.poste_hta.lon|default(0) }},
+                    poste_hta_distance: {{ ((report.poste_hta.distance_m|string|replace('N/A', '0'))|float)|default(0) }},
+                    poste_hta_lat: {{ ((report.poste_hta.lat|string|replace('N/A', '0'))|float)|default(0) }},
+                    poste_hta_lon: {{ ((report.poste_hta.lon|string|replace('N/A', '0'))|float)|default(0) }},
                     {% endif %}
                     data_json: {{ report | tojson }}
                 };
@@ -1794,11 +1782,7 @@
                     let message = '✅ Prospect mis à jour avec succès !\n\nLes données du rapport ont été enregistrées dans le CRM.';
                     
                     if (result.project_id) {
-<<<<<<< HEAD
-                        message += `\n\n📁 Le rapport a aussi été enregistré dans la fiche projet #${result.project_id}`;
-=======
                         message += '\n\n📁 Le rapport a aussi été enregistré dans la fiche projet #' + result.project_id;
->>>>>>> af648d49717996236d694add03bb0a0d94cbcdb9
                     }
                     
                     message += '\n\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
@@ -1810,19 +1794,11 @@
                         window.open(`/crm?highlight=${prospectId}`, '_blank');
                     }
                 } else {
-<<<<<<< HEAD
-                    alert(`❌ Erreur lors de la mise à jour :\n${result.error}`);
-                }
-            } catch (error) {
-                console.error('Erreur mise à jour prospect:', error);
-                alert(`❌ Erreur de connexion :\n${error.message}`);
-=======
                     alert('❌ Erreur lors de la mise à jour :\n' + result.error);
                 }
             } catch (error) {
                 console.error('Erreur mise à jour prospect:', error);
                 alert('❌ Erreur de connexion :\n' + error.message);
->>>>>>> af648d49717996236d694add03bb0a0d94cbcdb9
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;

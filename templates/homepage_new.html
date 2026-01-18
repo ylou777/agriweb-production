@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SolarDev Pro - Plateforme gratuite de développement de centrales solaires</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        'solar': {
+                            50: '#fffbeb',
+                            100: '#fef3c7',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                            700: '#b45309',
+                        },
+                        'brand': {
+                            50: '#f0f9ff',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .gradient-solar {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
+        }
+
+        .glass-effect {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="font-sans bg-gray-50">
+    <!-- Navigation -->
+    <nav class="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-solar-panel text-2xl text-solar-600"></i>
+                    <span class="text-xl font-bold text-gray-900">SolarDev Pro</span>
+                </div>
+                <div class="hidden md:flex items-center space-x-6">
+                    <a href="#plateforme" class="text-gray-600 hover:text-gray-900">Plateforme</a>
+                    <a href="#fonctionnalites" class="text-gray-600 hover:text-gray-900">Fonctionnalités</a>
+                    <a href="#co-developpement" class="text-gray-600 hover:text-gray-900">Co-développement</a>
+                    {% if is_admin %}
+                        <span class="text-sm text-gray-600">Bienvenue, {{ current_user.email }}</span>
+                        <a href="/admin" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors">Administration</a>
+                        <a href="/app" class="bg-solar-600 text-white px-4 py-2 rounded-lg hover:bg-solar-700 transition-colors">Application</a>
+                        <a href="/logout" class="text-gray-600 hover:text-gray-900 transition-colors">Déconnexion</a>
+                    {% elif current_user %}
+                        <span class="text-sm text-gray-600">Bienvenue, {{ current_user.email }}</span>
+                        <a href="/app" class="bg-solar-600 text-white px-4 py-2 rounded-lg hover:bg-solar-700 transition-colors">Application</a>
+                        <a href="/logout" class="text-gray-600 hover:text-gray-900 transition-colors">Déconnexion</a>
+                    {% else %}
+                        <a href="/login" class="text-gray-600 hover:text-gray-900 transition-colors">Connexion</a>
+                        <a href="/register" class="bg-solar-600 text-white px-4 py-2 rounded-lg hover:bg-solar-700 transition-colors">Inscription</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="relative min-h-screen flex items-center justify-center gradient-solar overflow-hidden pt-16">
+        <div class="absolute inset-0 bg-black/10"></div>
+        
+        <div class="relative z-10 text-center px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto">
+            <div class="animate-fade-in">
+                <div class="inline-block bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full mb-6">
+                    <span class="text-white font-semibold">✨ Plateforme 100% gratuite pour porteurs de projets</span>
+                </div>
+                
+                <h1 class="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight">
+                    Développez votre<br>centrale solaire<br><span class="text-yellow-300">avec notre expertise</span>
+                </h1>
+                
+                <p class="text-xl md:text-2xl text-white/95 mb-8 max-w-4xl mx-auto leading-relaxed">
+                    Plateforme professionnelle gratuite pour dimensionner, étudier et développer<br>
+                    vos projets photovoltaïques en <strong>co-développement avec notre bureau d'études EPC</strong>
+                </p>
+
+                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+                    {% if is_admin %}
+                        <a href="/admin" class="bg-yellow-500 hover:bg-yellow-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 shadow-xl flex items-center gap-2">
+                            <i class="fas fa-shield-alt"></i>
+                            Administration
+                        </a>
+                        <a href="/app" class="bg-white text-solar-600 px-8 py-4 rounded-xl font-bold hover:bg-gray-50 transition-all duration-300 shadow-2xl flex items-center gap-2">
+                            <i class="fas fa-map"></i>
+                            Application
+                        </a>
+                    {% elif current_user %}
+                        <a href="/app" class="bg-white text-solar-600 px-10 py-5 rounded-xl font-bold text-lg hover:bg-gray-50 transition-all duration-300 shadow-2xl flex items-center gap-2">
+                            <i class="fas fa-rocket"></i>
+                            Accéder à mon espace
+                        </a>
+                        <a href="/logout" class="glass-effect text-white px-8 py-4 rounded-xl font-semibold hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Déconnexion
+                        </a>
+                    {% else %}
+                        <a href="/app" class="bg-white text-solar-600 px-10 py-5 rounded-xl font-bold text-lg hover:bg-gray-50 transition-all duration-300 shadow-2xl flex items-center gap-2">
+                            <i class="fas fa-rocket"></i>
+                            Démarrer mon projet
+                        </a>
+                        <a href="#fonctionnalites" class="glass-effect text-white px-10 py-5 rounded-xl font-semibold hover:bg-white/20 transition-all duration-300 flex items-center gap-2">
+                            <i class="fas fa-info-circle"></i>
+                            Découvrir la plateforme
+                        </a>
+                    {% endif %}
+                </div>
+
+                <!-- Trust Indicators -->
+                <div class="flex flex-wrap justify-center items-center gap-6 text-white/90 text-sm">
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-gift text-green-300"></i>
+                        <span>100% Gratuit</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-clock"></i>
+                        <span>Études en 24h</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-handshake text-yellow-300"></i>
+                        <span>Co-développement EPC</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i class="fas fa-percent text-green-300"></i>
+                        <span>Économisez jusqu'à 20%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+            <i class="fas fa-chevron-down text-white/60 text-2xl"></i>
+        </div>
+    </section>
+
+    <!-- Platform Overview -->
+    <section id="plateforme" class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Une plateforme complète de A à Z
+                </h2>
+                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
+                    De l'analyse de faisabilité au raccordement ENEDIS : tous les outils pour développer votre projet
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <!-- Analyse de Terrain -->
+                <div class="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-8 shadow-lg border-2 border-blue-200 feature-card">
+                    <div class="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fas fa-map-marked-alt text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Analyse de Terrain</h3>
+                    <ul class="space-y-3 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-blue-600 mt-1"></i>
+                            <span><strong>Cadastre & Parcelles</strong> - Données IGN officielles</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-blue-600 mt-1"></i>
+                            <span><strong>Coordonnées GPS</strong> - Géolocalisation précise</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-blue-600 mt-1"></i>
+                            <span><strong>Surface & Orientation</strong> - Calcul automatique</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-blue-600 mt-1"></i>
+                            <span><strong>Friches & Parkings</strong> - Détection automatique</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Études Réglementaires -->
+                <div class="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-8 shadow-lg border-2 border-purple-200 feature-card">
+                    <div class="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fas fa-balance-scale text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Études Réglementaires</h3>
+                    <ul class="space-y-3 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-purple-600 mt-1"></i>
+                            <span><strong>PLU / POS</strong> - Zonage d'urbanisme</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-purple-600 mt-1"></i>
+                            <span><strong>PPRI</strong> - Risques d'inondation</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-purple-600 mt-1"></i>
+                            <span><strong>Zones naturelles</strong> - NATURA 2000, ZNIEFF</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-purple-600 mt-1"></i>
+                            <span><strong>GeoRisques</strong> - 14 types de risques analysés</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Dimensionnement PV -->
+                <div class="bg-gradient-to-br from-solar-50 to-orange-50 rounded-2xl p-8 shadow-lg border-2 border-solar-300 feature-card">
+                    <div class="w-16 h-16 bg-solar-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fas fa-solar-panel text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Dimensionnement PV</h3>
+                    <ul class="space-y-3 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-solar-600 mt-1"></i>
+                            <span><strong>Calpinage automatique</strong> - Positionnement optimal</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-solar-600 mt-1"></i>
+                            <span><strong>Calcul production</strong> - Estimation annuelle kWh</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-solar-600 mt-1"></i>
+                            <span><strong>Puissance crête</strong> - Optimisation kWc</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-solar-600 mt-1"></i>
+                            <span><strong>Analyse toitures</strong> - Orientation & inclinaison</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Réseau Électrique -->
+                <div class="bg-gradient-to-br from-red-50 to-orange-50 rounded-2xl p-8 shadow-lg border-2 border-red-200 feature-card">
+                    <div class="w-16 h-16 bg-red-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fas fa-plug text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Réseau & Raccordement</h3>
+                    <ul class="space-y-3 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-red-600 mt-1"></i>
+                            <span><strong>Postes BT</strong> - Localisation basse tension</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-red-600 mt-1"></i>
+                            <span><strong>Postes HTA</strong> - Moyenne tension</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-red-600 mt-1"></i>
+                            <span><strong>Lignes aériennes/souterraines</strong> - Données ENEDIS</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-red-600 mt-1"></i>
+                            <span><strong>Distance raccordement</strong> - Calcul coûts</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Documents Techniques -->
+                <div class="bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl p-8 shadow-lg border-2 border-green-200 feature-card">
+                    <div class="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fas fa-file-pdf text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Documents Techniques</h3>
+                    <ul class="space-y-3 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-green-600 mt-1"></i>
+                            <span><strong>Plan de masse</strong> - Cadastral géoréférencé</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-green-600 mt-1"></i>
+                            <span><strong>Schéma unifilaire</strong> - Norme NF C 15-712</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-green-600 mt-1"></i>
+                            <span><strong>Déclaration préalable</strong> - CERFA 13703*09</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-green-600 mt-1"></i>
+                            <span><strong>Export PDF professionnel</strong> - Prêt banque</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Données Économiques -->
+                <div class="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-8 shadow-lg border-2 border-indigo-200 feature-card">
+                    <div class="w-16 h-16 bg-indigo-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg">
+                        <i class="fas fa-chart-line text-3xl text-white"></i>
+                    </div>
+                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Analyse Financière</h3>
+                    <ul class="space-y-3 text-gray-700">
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-indigo-600 mt-1"></i>
+                            <span><strong>Estimation budget</strong> - CAPEX détaillé</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-indigo-600 mt-1"></i>
+                            <span><strong>Rentabilité</strong> - TRI, VAN, payback</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-indigo-600 mt-1"></i>
+                            <span><strong>Tarifs rachat</strong> - Obligation d'achat EDF</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <i class="fas fa-check text-indigo-600 mt-1"></i>
+                            <span><strong>Aides & subventions</strong> - État & région</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Co-Development Section -->
+    <section id="co-developpement" class="py-24 bg-gradient-to-br from-solar-600 via-orange-600 to-red-600 relative overflow-hidden">
+        <div class="absolute inset-0 bg-black/10"></div>
+        
+        <div class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <div class="inline-block bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full mb-6">
+                    <span class="text-white font-bold text-lg">💡 Notre Proposition Unique</span>
+                </div>
+                <h2 class="text-4xl md:text-6xl font-bold text-white mb-6">
+                    Co-Développement EPC :<br>Économisez jusqu'à <span class="text-yellow-300">20% des coûts</span>
+                </h2>
+                <p class="text-xl text-white/95 max-w-3xl mx-auto leading-relaxed">
+                    Développez votre projet avec notre bureau d'études et notre expertise EPC.<br>
+                    Réduisez drastiquement les coûts tout en accélérant la réalisation.
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 mb-12">
+                <!-- Traditional Development -->
+                <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border-2 border-white/30">
+                    <div class="flex items-center mb-6">
+                        <div class="w-16 h-16 bg-red-500 rounded-2xl flex items-center justify-center mr-4">
+                            <i class="fas fa-times text-3xl text-white"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold text-white">Développement Classique</h3>
+                    </div>
+                    
+                    <ul class="space-y-4 text-white/90">
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-euro-sign text-red-300 mt-1"></i>
+                            <div>
+                                <strong>Frais de développement élevés</strong><br>
+                                <span class="text-sm">15-20% du budget projet</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-clock text-red-300 mt-1"></i>
+                            <div>
+                                <strong>Délais longs</strong><br>
+                                <span class="text-sm">18-24 mois jusqu'au raccordement</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-user-slash text-red-300 mt-1"></i>
+                            <div>
+                                <strong>Peu d'implication</strong><br>
+                                <span class="text-sm">Porteur de projet spectateur</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-exclamation-triangle text-red-300 mt-1"></i>
+                            <div>
+                                <strong>Risques financiers</strong><br>
+                                <span class="text-sm">Dépassements budgétaires fréquents</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Co-Development -->
+                <div class="bg-white rounded-2xl p-8 border-4 border-yellow-400 shadow-2xl">
+                    <div class="flex items-center mb-6">
+                        <div class="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center mr-4 shadow-lg">
+                            <i class="fas fa-handshake text-3xl text-white"></i>
+                        </div>
+                        <h3 class="text-2xl font-bold text-gray-900">Notre Co-Développement</h3>
+                    </div>
+                    
+                    <ul class="space-y-4 text-gray-700">
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-piggy-bank text-green-600 mt-1 text-xl"></i>
+                            <div>
+                                <strong class="text-green-700">Économies massives</strong><br>
+                                <span class="text-sm">Seulement 5-10% grâce à la plateforme</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-rocket text-blue-600 mt-1 text-xl"></i>
+                            <div>
+                                <strong class="text-blue-700">Délais raccourcis</strong><br>
+                                <span class="text-sm">12-15 mois grâce à l'automatisation</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-users text-purple-600 mt-1 text-xl"></i>
+                            <div>
+                                <strong class="text-purple-700">Vous êtes acteur</strong><br>
+                                <span class="text-sm">Accès plateforme + expertise à chaque étape</span>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-3">
+                            <i class="fas fa-shield-alt text-indigo-600 mt-1 text-xl"></i>
+                            <div>
+                                <strong class="text-indigo-700">Sécurité & transparence</strong><br>
+                                <span class="text-sm">Suivi en temps réel sur la plateforme</span>
+                            </div>
+                        </li>
+                    </ul>
+
+                    <div class="mt-6 bg-green-50 p-4 rounded-xl border-2 border-green-200">
+                        <p class="text-green-800 font-semibold text-center">
+                            💰 Sur un projet de 1M€, économisez jusqu'à <span class="text-2xl font-bold">150 000€</span> !
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- What We Provide -->
+            <div class="bg-white rounded-2xl p-10 shadow-2xl">
+                <h3 class="text-3xl font-bold text-gray-900 mb-8 text-center">
+                    Ce que nous apportons au co-développement
+                </h3>
+                
+                <div class="grid md:grid-cols-4 gap-6">
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-laptop-code text-3xl text-blue-600"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-900 mb-2">Plateforme Pro</h4>
+                        <p class="text-sm text-gray-600">Tous les outils : dimensionnement, études, documents en un clic</p>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-hard-hat text-3xl text-green-600"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-900 mb-2">Bureau d'Études EPC</h4>
+                        <p class="text-sm text-gray-600">Ingénierie, développement, construction clés en main</p>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-purple-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-network-wired text-3xl text-purple-600"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-900 mb-2">Réseau Partenaires</h4>
+                        <p class="text-sm text-gray-600">Financeurs, assureurs, exploitants qualifiés</p>
+                    </div>
+
+                    <div class="text-center">
+                        <div class="w-20 h-20 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-headset text-3xl text-orange-600"></i>
+                        </div>
+                        <h4 class="font-bold text-gray-900 mb-2">Accompagnement 360°</h4>
+                        <p class="text-sm text-gray-600">De l'étude de faisabilité à la mise en service</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="fonctionnalites" class="py-24 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+                    Comment ça fonctionne ?
+                </h2>
+                <p class="text-xl text-gray-600">
+                    4 étapes simples du projet à la réalisation
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Step 1 -->
+                <div class="relative">
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 h-20 bg-solar-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                            1
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-2xl font-bold text-gray-900">Utilisez la plateforme</h3>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 mb-4">
+                        Analysez votre terrain, dimensionnez votre installation et générez tous les documents techniques
+                    </p>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200">
+                        <ul class="space-y-2 text-sm text-gray-600">
+                            <li>✓ Analyse du terrain (cadastre, PLU, risques)</li>
+                            <li>✓ Dimensionnement automatique</li>
+                            <li>✓ Documents PDF professionnels</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="relative">
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 h-20 bg-solar-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                            2
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-2xl font-bold text-gray-900">Contactez-nous</h3>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 mb-4">
+                        Partagez votre projet avec notre bureau d'études pour affiner l'étude de faisabilité
+                    </p>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200">
+                        <ul class="space-y-2 text-sm text-gray-600">
+                            <li>✓ Rendez-vous technique gratuit</li>
+                            <li>✓ Validation faisabilité</li>
+                            <li>✓ Proposition co-développement</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="relative">
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 h-20 bg-solar-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                            3
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-2xl font-bold text-gray-900">Co-développez</h3>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 mb-4">
+                        Participez activement aux démarches avec notre assistance (permis, raccordement, financement)
+                    </p>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200">
+                        <ul class="space-y-2 text-sm text-gray-600">
+                            <li>✓ Dépôt permis de construire</li>
+                            <li>✓ Demande raccordement ENEDIS</li>
+                            <li>✓ Montage financier</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="relative">
+                    <div class="flex items-center mb-6">
+                        <div class="w-20 h-20 bg-solar-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                            4
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-2xl font-bold text-gray-900">Construction & Exploitation</h3>
+                        </div>
+                    </div>
+                    <p class="text-gray-700 mb-4">
+                        Notre équipe EPC construit votre centrale. Vous exploitez ou confiez l'exploitation à un partenaire
+                    </p>
+                    <div class="bg-white p-4 rounded-xl border border-gray-200">
+                        <ul class="space-y-2 text-sm text-gray-600">
+                            <li>✓ Construction clés en main</li>
+                            <li>✓ Mise en service & raccordement</li>
+                            <li>✓ Maintenance & supervision</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-24 bg-white">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h2 class="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
+                Prêt à lancer votre projet solaire ?
+            </h2>
+            <p class="text-xl text-gray-600 mb-10">
+                Accédez gratuitement à la plateforme et démarrez votre étude de faisabilité
+            </p>
+            
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+                <a href="/app" class="bg-solar-600 hover:bg-solar-700 text-white px-10 py-5 rounded-xl font-bold text-lg transition-all duration-300 shadow-lg flex items-center justify-center gap-3">
+                    <i class="fas fa-rocket text-2xl"></i>
+                    <span>Accéder à la plateforme gratuitement</span>
+                </a>
+            </div>
+
+            <p class="text-gray-500 text-sm">
+                ✓ 100% gratuit · ✓ Tous les outils professionnels · ✓ Co-développement optionnel
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="grid md:grid-cols-3 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <i class="fas fa-solar-panel text-2xl text-solar-500"></i>
+                        <span class="text-xl font-bold">SolarDev Pro</span>
+                    </div>
+                    <p class="text-gray-400 mb-4">
+                        Plateforme gratuite de développement de centrales photovoltaïques avec co-développement EPC.
+                    </p>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Liens rapides</h3>
+                    <ul class="space-y-2">
+                        <li><a href="/app" class="text-gray-400 hover:text-white">Accéder à la plateforme</a></li>
+                        <li><a href="#co-developpement" class="text-gray-400 hover:text-white">Co-développement EPC</a></li>
+                        <li><a href="mailto:contact@solardevpro.fr" class="text-gray-400 hover:text-white">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Contact</h3>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><i class="fas fa-envelope mr-2"></i> contact@solardevpro.fr</li>
+                        <li><i class="fas fa-phone mr-2"></i> +33 X XX XX XX XX</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>© 2025 SolarDev Pro. Plateforme gratuite de développement de projets photovoltaïques.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

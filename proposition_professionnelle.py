@@ -1522,10 +1522,10 @@ class PropositionProfessionnelle:
         elements.append(Spacer(1, 0.3*cm))
         
         production_annuelle = puissance * 1100  # kWh/kWc/an (moyenne France)
-        consommation = self.params.get('consommation_annuelle_kwh', production_annuelle * 1.2)
-        taux_autoconso = self.params.get('taux_autoconso', 70) / 100
-        tarif_achat = self.params.get('tarif_achat_kwh', 0.20)
-        tarif_revente = self.params.get('tarif_revente_kwh', 0.13)
+        consommation = float(self.params.get('consommation_annuelle_kwh') or production_annuelle * 1.2)
+        taux_autoconso = float(self.params.get('taux_autoconso') or 70) / 100
+        tarif_achat = float(self.params.get('tarif_achat_kwh') or 0.20)
+        tarif_revente = float(self.params.get('tarif_revente_kwh') or 0.13)
         
         energie_autoconsommee = production_annuelle * taux_autoconso
         economie_autoconso = energie_autoconsommee * tarif_achat

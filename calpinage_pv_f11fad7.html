@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calpinage Photovoltaïque - {{ prospect.nom_prospect }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        #map { 
+            height: 600px; 
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        .module-selector {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .zone-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .zone-card.selected {
+            border-color: #0d6efd;
+            box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25);
+        }
+        .zone-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .zone-title {
+            font-weight: bold;
+            color: #0d6efd;
+            font-size: 1.1em;
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .stats-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        .stats-label {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        .orientation-compass {
+            width: 100px;
+            height: 100px;
+            border: 2px solid #ddd;
+            border-radius: 50%;
+            position: relative;
+            margin: 10px auto;
+        }
+        .compass-arrow {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 40px solid #dc3545;
+            transform-origin: 50% 95%;
+        }
+        .module-preview {
+            border: 2px dashed #0d6efd;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            background: #e7f1ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1>🔆 Calpinage Photovoltaïque</h1>
+                <p class="text-muted">{{ prospect.nom_prospect }} - {{ prospect.adresse }}</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Colonne gauche : Carte -->
+            <div class="col-lg-8">
+                <!-- Sélection du module -->
+                <div class="module-selector">
+                    <h5>📐 Module Photovoltaïque</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <label class="form-label">Type de module</label>
+                            <select class="form-select" id="moduleType">
+                                <option value="custom">Personnalisé</option>
+                                <option value="standard450" selected>Standard 450W (2108×1048mm)</option>
+                                <option value="standard500">Standard 500W (2172×1096mm)</option>
+                                <option value="standard550">Standard 550W (2278×1134mm)</option>
+                                <option value="bifacial600">Bifacial 600W (2384×1303mm)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Longueur (mm)</label>
+                            <input type="number" class="form-control" id="moduleLongueur" value="2108">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Largeur (mm)</label>
+                            <input type="number" class="form-control" id="moduleLargeur" value="1048">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Puissance (Wc)</label>
+                            <input type="number" class="form-control" id="modulePuissance" value="450">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Espacement (cm)</label>
+                            <input type="number" class="form-control" id="moduleEspacement" value="5" min="0" max="50">
+                        </div>
+                    </div>
+                    <div class="module-preview mt-3">
+                        <small id="modulePreview">Module: 2108×1048mm - 450Wc - Surface: 2.21 m²</small>
+                    </div>
+                </div>
+
+                <!-- Carte interactive -->
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <strong>🗺️ Carte de calpinage</strong>
+                        <button class="btn btn-sm btn-light float-end" id="clearAllZones">Effacer tout</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="map"></div>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text-muted">
+                            📍 Dessinez des rectangles sur la carte pour définir vos zones PV
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colonne droite : Zones et calculs -->
+            <div class="col-lg-4">
+                <!-- Statistiques globales -->
+                <div class="stats-card">
+                    <div class="stats-label">Puissance totale installée</div>
+                    <div class="stats-value" id="puissanceTotale">0 kWc</div>
+                    <hr style="border-color: rgba(255,255,255,0.3)">
+                    <div class="stats-label">Productible annuel estimé</div>
+                    <div class="stats-value" id="productibleTotal">0 MWh/an</div>
+                    <small id="productibleDetails"></small>
+                </div>
+
+                <!-- Localisation -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>📍 Localisation</h6>
+                        <div class="row">
+                            <div class="col-6">
+                                <small class="text-muted">Département</small>
+                                <div><strong id="departement">{{ prospect.departement or '?' }}</strong></div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Ensoleillement</small>
+                                <div><strong id="ensoleillement">1100 kWh/kWc/an</strong></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Liste des zones -->
+                <div class="card">
+                    <div class="card-header">
+                        <strong>📋 Zones PV (<span id="zonesCount">0</span>)</strong>
+                    </div>
+                    <div class="card-body" id="zonesList" style="max-height: 600px; overflow-y: auto;">
+                        <p class="text-muted text-center">Aucune zone définie</p>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-grid gap-2 mt-3">
+                    <button class="btn btn-success btn-lg" id="genererEtude">
+                        📄 Générer l'étude de productible
+                    </button>
+                    <button class="btn btn-primary" id="sauvegarderCalpinage">
+                        💾 Sauvegarder le calpinage
+                    </button>
+                    <a href="/crm" class="btn btn-secondary">
+                        ← Retour au CRM
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script>
+        // Données du prospect
+        const prospectId = {{ prospect.id }};
+        const prospectLat = {{ prospect.latitude }};
+        const prospectLon = {{ prospect.longitude }};
+        const prospectDept = "{{ prospect.departement or '23' }}";
+        
+        // Variables globales
+        let map;
+        let drawnItems;
+        let zones = [];
+        let zoneCounter = 0;
+
+        // Ensoleillement par département (kWh/kWc/an)
+        const ensoleillementParDept = {
+            '01': 1150, '02': 1050, '03': 1100, '04': 1400, '05': 1350,
+            '06': 1500, '07': 1300, '08': 1050, '09': 1250, '10': 1100,
+            '11': 1350, '12': 1250, '13': 1450, '14': 1000, '15': 1150,
+            '16': 1150, '17': 1250, '18': 1100, '19': 1100, '21': 1150,
+            '22': 1100, '23': 1100, '24': 1200, '25': 1150, '26': 1300,
+            '27': 1000, '28': 1050, '29': 1150, '30': 1400, '31': 1250,
+            '32': 1250, '33': 1250, '34': 1400, '35': 1100, '36': 1100,
+            '37': 1100, '38': 1200, '39': 1150, '40': 1250, '41': 1100,
+            '42': 1200, '43': 1200, '44': 1150, '45': 1100, '46': 1200,
+            '47': 1250, '48': 1200, '49': 1100, '50': 1050, '51': 1100,
+            '52': 1100, '53': 1050, '54': 1100, '55': 1100, '56': 1150,
+            '57': 1050, '58': 1100, '59': 1000, '60': 1050, '61': 1050,
+            '62': 1000, '63': 1150, '64': 1200, '65': 1200, '66': 1450,
+            '67': 1100, '68': 1100, '69': 1200, '70': 1100, '71': 1150,
+            '72': 1050, '73': 1200, '74': 1200, '75': 1050, '76': 1000,
+            '77': 1050, '78': 1050, '79': 1150, '80': 1000, '81': 1250,
+            '82': 1250, '83': 1500, '84': 1450, '85': 1200, '86': 1150,
+            '87': 1100, '88': 1100, '89': 1100, '90': 1100, '91': 1050,
+            '92': 1050, '93': 1050, '94': 1050, '95': 1050, '2A': 1600,
+            '2B': 1600
+        };
+
+        // Initialisation de la carte
+        function initMap() {
+            map = L.map('map').setView([prospectLat, prospectLon], 19);
+            
+            // Satellite Google
+            L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 22,
+                subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
+            }).addTo(map);
+
+            // Layer pour les dessins
+            drawnItems = new L.FeatureGroup();
+            map.addLayer(drawnItems);
+
+            // Contrôles de dessin
+            const drawControl = new L.Control.Draw({
+                position: 'topright',
+                draw: {
+                    polygon: false,
+                    polyline: false,
+                    circle: false,
+                    marker: false,
+                    circlemarker: false,
+                    rectangle: {
+                        shapeOptions: {
+                            color: '#ff7800',
+                            weight: 2,
+                            fillOpacity: 0.3
+                        }
+                    }
+                },
+                edit: {
+                    featureGroup: drawnItems,
+                    remove: true
+                }
+            });
+            map.addControl(drawControl);
+
+            // Événement de création
+            map.on(L.Draw.Event.CREATED, function(event) {
+                const layer = event.layer;
+                drawnItems.addLayer(layer);
+                ajouterZone(layer);
+            });
+
+            // Événement de suppression
+            map.on(L.Draw.Event.DELETED, function(event) {
+                event.layers.eachLayer(function(layer) {
+                    supprimerZone(layer._leaflet_id);
+                });
+            });
+
+            // Marqueur du prospect
+            L.marker([prospectLat, prospectLon], {
+                icon: L.divIcon({
+                    html: '<div style="background:red;width:10px;height:10px;border-radius:50%;border:2px solid white;"></div>',
+                    className: '',
+                    iconSize: [10, 10]
+                })
+            }).addTo(map);
+
+            // Ensoleillement
+            const ensoleillement = ensoleillementParDept[prospectDept] || 1100;
+            document.getElementById('ensoleillement').textContent = `${ensoleillement} kWh/kWc/an`;
+            document.getElementById('departement').textContent = prospectDept;
+        }
+
+        // Modules prédéfinis
+        const modulesPredefinis = {
+            'standard450': { longueur: 2108, largeur: 1048, puissance: 450 },
+            'standard500': { longueur: 2172, largeur: 1096, puissance: 500 },
+            'standard550': { longueur: 2278, largeur: 1134, puissance: 550 },
+            'bifacial600': { longueur: 2384, largeur: 1303, puissance: 600 }
+        };
+
+        // Changement de type de module
+        document.getElementById('moduleType').addEventListener('change', function() {
+            const type = this.value;
+            if (type !== 'custom' && modulesPredefinis[type]) {
+                const module = modulesPredefinis[type];
+                document.getElementById('moduleLongueur').value = module.longueur;
+                document.getElementById('moduleLargeur').value = module.largeur;
+                document.getElementById('modulePuissance').value = module.puissance;
+                updateModulePreview();
+            }
+        });
+
+        // Mise à jour preview module
+        function updateModulePreview() {
+            const longueur = parseFloat(document.getElementById('moduleLongueur').value) || 0;
+            const largeur = parseFloat(document.getElementById('moduleLargeur').value) || 0;
+            const puissance = parseFloat(document.getElementById('modulePuissance').value) || 0;
+            const surface = (longueur * largeur / 1000000).toFixed(2);
+            
+            document.getElementById('modulePreview').textContent = 
+                `Module: ${longueur}×${largeur}mm - ${puissance}Wc - Surface: ${surface} m²`;
+        }
+
+        ['moduleLongueur', 'moduleLargeur', 'modulePuissance'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateModulePreview);
+        });
+
+        // Ajouter une zone PV
+        function ajouterZone(layer) {
+            zoneCounter++;
+            const bounds = layer.getBounds();
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            
+            // Calculer dimensions réelles en mètres
+            const largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+            const longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+            const surfaceM2 = largeurMetres * longueurMetres;
+            
+            // Calculer nombre de modules
+            const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
+            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+            
+            const surfaceModule = (moduleLongueur + espacement) * (moduleLargeur + espacement);
+            const nbModules = Math.floor(surfaceM2 / surfaceModule);
+            const puissanceKw = (nbModules * modulePuissance) / 1000;
+            
+            const zone = {
+                id: layer._leaflet_id,
+                numero: zoneCounter,
+                layer: layer,
+                surfaceM2: surfaceM2,
+                nbModules: nbModules,
+                puissanceKw: puissanceKw,
+                orientation: 180, // Sud par défaut
+                inclinaison: 30,  // 30° par défaut
+                productible: 0
+            };
+            
+            zones.push(zone);
+            afficherZone(zone);
+            calculerTotaux();
+        }
+
+        // Afficher une zone dans la liste
+        function afficherZone(zone) {
+            const zonesListDiv = document.getElementById('zonesList');
+            
+            // Retirer le message vide
+            if (zonesListDiv.querySelector('.text-muted')) {
+                zonesListDiv.innerHTML = '';
+            }
+            
+            const zoneCard = document.createElement('div');
+            zoneCard.className = 'zone-card';
+            zoneCard.id = `zone-${zone.id}`;
+            zoneCard.innerHTML = `
+                <div class="zone-header">
+                    <span class="zone-title">Zone ${zone.numero}</span>
+                    <button class="btn btn-sm btn-danger" onclick="supprimerZoneById(${zone.id})">
+                        <small>🗑️</small>
+                    </button>
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <small class="text-muted">Surface</small>
+                        <div><strong>${zone.surfaceM2.toFixed(1)} m²</strong></div>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Modules</small>
+                        <div><strong>${zone.nbModules}</strong></div>
+                    </div>
+                </div>
+                
+                <div class="mb-2">
+                    <small class="text-muted">Puissance installée</small>
+                    <div><strong class="text-primary">${zone.puissanceKw.toFixed(2)} kWc</strong></div>
+                </div>
+                
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="form-label"><small>Orientation (°)</small></label>
+                        <select class="form-select form-select-sm" onchange="updateZoneOrientation(${zone.id}, this.value)">
+                            <option value="0">Nord (0°)</option>
+                            <option value="90">Est (90°)</option>
+                            <option value="180" selected>Sud (180°)</option>
+                            <option value="270">Ouest (270°)</option>
+                            <option value="135">Sud-Est (135°)</option>
+                            <option value="225">Sud-Ouest (225°)</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label"><small>Inclinaison (°)</small></label>
+                        <input type="number" class="form-control form-control-sm" 
+                               value="30" min="0" max="90" step="5"
+                               onchange="updateZoneInclinaison(${zone.id}, this.value)">
+                    </div>
+                </div>
+                
+                <div class="mt-2">
+                    <small class="text-muted">Productible estimé</small>
+                    <div><strong class="text-success" id="productible-${zone.id}">-</strong></div>
+                </div>
+            `;
+            
+            zonesListDiv.appendChild(zoneCard);
+            document.getElementById('zonesCount').textContent = zones.length;
+            
+            // Calculer le productible initial
+            calculerProductibleZone(zone.id);
+        }
+
+        // Supprimer une zone
+        function supprimerZone(layerId) {
+            zones = zones.filter(z => z.id !== layerId);
+            const zoneCard = document.getElementById(`zone-${layerId}`);
+            if (zoneCard) zoneCard.remove();
+            
+            if (zones.length === 0) {
+                document.getElementById('zonesList').innerHTML = 
+                    '<p class="text-muted text-center">Aucune zone définie</p>';
+            }
+            
+            document.getElementById('zonesCount').textContent = zones.length;
+            calculerTotaux();
+        }
+
+        function supprimerZoneById(id) {
+            const zone = zones.find(z => z.id === id);
+            if (zone && zone.layer) {
+                drawnItems.removeLayer(zone.layer);
+                supprimerZone(id);
+            }
+        }
+
+        // Mettre à jour orientation
+        function updateZoneOrientation(zoneId, orientation) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (zone) {
+                zone.orientation = parseFloat(orientation);
+                calculerProductibleZone(zoneId);
+                calculerTotaux();
+            }
+        }
+
+        // Mettre à jour inclinaison
+        function updateZoneInclinaison(zoneId, inclinaison) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (zone) {
+                zone.inclinaison = parseFloat(inclinaison);
+                calculerProductibleZone(zoneId);
+                calculerTotaux();
+            }
+        }
+
+        // Calculer productible d'une zone
+        function calculerProductibleZone(zoneId) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (!zone) return;
+            
+            const ensoleillement = ensoleillementParDept[prospectDept] || 1100;
+            
+            // Coefficient d'orientation (max à 180° = sud)
+            const diffOrientation = Math.abs(zone.orientation - 180);
+            let coefOrientation = 1 - (diffOrientation / 180) * 0.25; // -25% max si plein nord
+            
+            // Coefficient d'inclinaison (optimal entre 25-35°)
+            let coefInclinaison = 1;
+            if (zone.inclinaison < 25) {
+                coefInclinaison = 0.90 + (zone.inclinaison / 25) * 0.10;
+            } else if (zone.inclinaison > 35) {
+                coefInclinaison = 1 - ((zone.inclinaison - 35) / 55) * 0.15;
+            }
+            
+            // Productible = Puissance × Ensoleillement × Coefficients
+            const productibleMWh = zone.puissanceKw * ensoleillement * coefOrientation * coefInclinaison / 1000;
+            zone.productible = productibleMWh;
+            
+            // Afficher
+            const elem = document.getElementById(`productible-${zoneId}`);
+            if (elem) {
+                elem.textContent = `${productibleMWh.toFixed(2)} MWh/an`;
+                elem.title = `Ensoleillement: ${ensoleillement} kWh/kWc/an\nCoef. orientation: ${(coefOrientation*100).toFixed(0)}%\nCoef. inclinaison: ${(coefInclinaison*100).toFixed(0)}%`;
+            }
+        }
+
+        // Calculer totaux
+        function calculerTotaux() {
+            const puissanceTotale = zones.reduce((sum, z) => sum + z.puissanceKw, 0);
+            const productibleTotal = zones.reduce((sum, z) => sum + z.productible, 0);
+            
+            document.getElementById('puissanceTotale').textContent = `${puissanceTotale.toFixed(2)} kWc`;
+            document.getElementById('productibleTotal').textContent = `${productibleTotal.toFixed(2)} MWh/an`;
+            
+            if (puissanceTotale > 0) {
+                const ratio = (productibleTotal / puissanceTotale * 1000).toFixed(0);
+                document.getElementById('productibleDetails').textContent = 
+                    `Ratio moyen: ${ratio} kWh/kWc/an (${zones.length} zone${zones.length > 1 ? 's' : ''})`;
+            } else {
+                document.getElementById('productibleDetails').textContent = '';
+            }
+        }
+
+        // Effacer toutes les zones
+        document.getElementById('clearAllZones').addEventListener('click', function() {
+            if (confirm('Effacer toutes les zones ?')) {
+                drawnItems.clearLayers();
+                zones = [];
+                document.getElementById('zonesList').innerHTML = 
+                    '<p class="text-muted text-center">Aucune zone définie</p>';
+                document.getElementById('zonesCount').textContent = '0';
+                calculerTotaux();
+            }
+        });
+
+        // Sauvegarder le calpinage
+        document.getElementById('sauvegarderCalpinage').addEventListener('click', async function() {
+            const data = {
+                zones: zones.map(z => ({
+                    numero: z.numero,
+                    surfaceM2: z.surfaceM2,
+                    nbModules: z.nbModules,
+                    puissanceKw: z.puissanceKw,
+                    orientation: z.orientation,
+                    inclinaison: z.inclinaison,
+                    productible: z.productible,
+                    bounds: z.layer.getBounds()
+                })),
+                module: {
+                    longueur: document.getElementById('moduleLongueur').value,
+                    largeur: document.getElementById('moduleLargeur').value,
+                    puissance: document.getElementById('modulePuissance').value
+                },
+                totaux: {
+                    puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
+                    productibleTotal: zones.reduce((sum, z) => sum + z.productible, 0)
+                }
+            };
+            
+            try {
+                const response = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    alert('✅ Calpinage sauvegardé avec succès !');
+                } else {
+                    alert('❌ Erreur lors de la sauvegarde');
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('❌ Erreur réseau');
+            }
+        });
+
+        // Générer l'étude
+        document.getElementById('genererEtude').addEventListener('click', async function() {
+            if (zones.length === 0) {
+                alert('⚠️ Veuillez définir au moins une zone PV');
+                return;
+            }
+            
+            window.open(`/api/crm/prospects/${prospectId}/etude-productible`, '_blank');
+        });
+
+        initMap();
+        updateModulePreview();
+    </script>
+</body>
+</html>
