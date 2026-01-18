@@ -1128,9 +1128,29 @@ class PlanMasseGenerator:
                 
                 # Si c'est déjà une liste
                 if isinstance(parcelles_data, list) and len(parcelles_data) > 0:
-                    print(f"[PLAN] ✅ Trouvé {len(parcelles_data)} parcelles dans '{field}'")
+                    # Normaliser: convertir strings simples en objets
+                    normalized = []
+                    for p in parcelles_data:
+                        if isinstance(p, str):
+                            # Format string: "ZH0042" -> {"section": "ZH", "numero": "0042"}
+                            match = re.match(r'^([A-Z]{1,3})(\d+)$', p.strip())
+                            if match:
+                                normalized.append({
+                                    'section': match.group(1),
+                                    'numero': match.group(2)
+                                })
+                                print(f"[PLAN] 📝 Parcelle string '{p}' convertie en section={match.group(1)}, numero={match.group(2)}")
+                            else:
+                                print(f"[PLAN] ⚠️ Format parcelle invalide: {p}")
+                        elif isinstance(p, dict):
+                            normalized.append(p)
+                    
+                    if not normalized:
+                        continue
+                    
+                    print(f"[PLAN] ✅ Trouvé {len(normalized)} parcelles dans '{field}'")
                     # Enrichir avec géométries depuis API Cadastre si manquantes
-                    parcelles_data = self._enrich_parcelles_with_geometry(parcelles_data)
+                    parcelles_data = self._enrich_parcelles_with_geometry(normalized)
                     # Normaliser les surfaces (essayer plusieurs clés)
                     for p in parcelles_data:
                         surface_val = p.get('surface', 0)
