@@ -1573,7 +1573,7 @@
         }
         
         async function exportToCRM() {
-            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\\n\\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
+            if (!confirm('📤 Exporter ce rapport comme nouveau prospect dans le CRM ?\n\nUn nouveau prospect sera créé avec toutes les données de ce rapport.')) {
                 return;
             }
             
@@ -1640,9 +1640,9 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    const message = `✅ Export réussi !\\n\\n` +
-                        `📊 ${result.total_exported} prospect(s) créé(s)\\n` +
-                        `📁 Détails: ${result.details.toitures} toiture(s)\\n\\n` +
+                    const message = `✅ Export réussi !\n\n` +
+                        `📊 ${result.total_exported} prospect(s) créé(s)\n` +
+                        `📁 Détails: ${result.details.toitures} toiture(s)\n\n` +
                         `Voulez-vous ouvrir le CRM pour voir le nouveau prospect ?`;
                     
                     if (confirm(message)) {
@@ -1652,11 +1652,11 @@
                         location.reload();
                     }
                 } else {
-                    alert(`❌ Erreur lors de l'export :\\n${result.error}`);
+                    alert(`❌ Erreur lors de l'export :\n${result.error}`);
                 }
             } catch (error) {
                 console.error('Erreur export CRM:', error);
-                alert(`❌ Erreur de connexion :\\n${error.message}`);
+                alert(`❌ Erreur de connexion :\n${error.message}`);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -1716,13 +1716,13 @@
                 
                 if (result.success) {
                     // Message de confirmation avec options
-                    let message = '✅ Prospect mis à jour avec succès !\\n\\nLes données du rapport ont été enregistrées dans le CRM.';
+                    let message = '✅ Prospect mis à jour avec succès !\n\nLes données du rapport ont été enregistrées dans le CRM.';
                     
                     if (result.project_id) {
-                        message += `\\n\\n📁 Le rapport a aussi été enregistré dans la fiche projet #${result.project_id}`;
+                        message += `\n\n📁 Le rapport a aussi été enregistré dans la fiche projet #${result.project_id}`;
                     }
                     
-                    message += '\\n\\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
+                    message += '\n\n📋 Voulez-vous ouvrir le CRM et voir ce prospect ?';
                     
                     const goToCRM = confirm(message);
                     
@@ -1731,11 +1731,11 @@
                         window.open(`/crm?highlight=${prospectId}`, '_blank');
                     }
                 } else {
-                    alert(`❌ Erreur lors de la mise à jour :\\n${result.error}`);
+                    alert(`❌ Erreur lors de la mise à jour :\n${result.error}`);
                 }
             } catch (error) {
                 console.error('Erreur mise à jour prospect:', error);
-                alert(`❌ Erreur de connexion :\\n${error.message}`);
+                alert(`❌ Erreur de connexion :\n${error.message}`);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
