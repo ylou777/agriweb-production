@@ -756,7 +756,10 @@ def function_search_commune(args):
         summary += f"- 🏚️ {nb_friches} friche(s)\n"
         summary += f"- 🏗️ {nb_zones_plu} zone(s) PLU\n"
         summary += f"- 🌾 {nb_rpg} parcelle(s) agricole(s) RPG\n\n"
-        summary += f"✅ Carte centrée sur la commune !\n\n"
+        
+        import urllib.parse
+        carte_url = f"/search_by_commune?commune={urllib.parse.quote(nom_commune)}"
+        summary += f"🗺️ **[Ouvrir la carte avec les résultats]({carte_url})**\n\n"
         summary += f"💡 Pour un rapport complet, utilise `analyze_commune_report('{nom_commune}')`"
         
         return {
@@ -774,6 +777,7 @@ def function_search_commune(args):
                 "friches_count": nb_friches,
                 "plu_zones_count": nb_zones_plu,
                 "rpg_parcelles_count": nb_rpg,
+                "carte_url": carte_url,
                 "lien_rapport_complet": f"/rapport_commune_complet?commune={nom_commune}"
             }
         }
@@ -1039,6 +1043,11 @@ def function_search_location(args):
             session.modified = True
             
             location_str = address or f"{lat:.5f}, {lon:.5f}"
+            carte_url = f"/search_by_address?lat={lat}&lon={lon}"
+            if address:
+                import urllib.parse
+                carte_url = f"/search_by_address?address={urllib.parse.quote(address)}"
+            
             summary = f"🔍 Recherche complète effectuée pour **{location_str}**\\n\\n"
             summary += f"📊 Résultats :\\n"
             summary += f"- 🗺️ {nb_parcelles} parcelle(s) cadastrale(s)\\n"
@@ -1046,7 +1055,7 @@ def function_search_location(args):
             summary += f"- 🔌 {nb_postes_hta} poste(s) HTA à proximité\\n"
             summary += f"- 🏗️ {nb_zones_plu} zone(s) PLU\\n"
             summary += f"- 🌾 {nb_rpg} parcelle(s) agricole(s) RPG\\n"
-            summary += f"\\n✅ Carte centrée et données affichées !"
+            summary += f"\\n🗺️ **[Ouvrir la carte avec les résultats]({carte_url})**"
             
             return {
                 "success": True,
@@ -1059,7 +1068,8 @@ def function_search_location(args):
                     "postes_bt_count": nb_postes_bt,
                     "postes_hta_count": nb_postes_hta,
                     "plu_zones_count": nb_zones_plu,
-                    "rpg_parcelles_count": nb_rpg
+                    "rpg_parcelles_count": nb_rpg,
+                    "carte_url": carte_url
                 }
             }
             
