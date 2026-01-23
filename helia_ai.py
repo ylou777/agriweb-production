@@ -7,7 +7,6 @@ import os
 import json
 from flask import Blueprint, request, jsonify, session
 from datetime import datetime
-from database_adapter import execute_query, get_db_connection
 
 # Tentative d'import Groq
 try:
@@ -425,6 +424,8 @@ HELIA_TOOLS = [
 def function_create_prospect(args):
     """Crée un nouveau prospect dans la base de données"""
     try:
+        from database_adapter import execute_query
+        
         user_id = session.get('user_id', 1)  # Par défaut user 1 si pas de session
         
         query = """
@@ -464,6 +465,8 @@ def function_create_prospect(args):
 def function_list_prospects(args):
     """Liste les prospects avec filtres"""
     try:
+        from database_adapter import execute_query
+        
         user_id = session.get('user_id', 1)
         limit = args.get('limit', 10)
         statut = args.get('statut')
@@ -510,6 +513,8 @@ def function_list_prospects(args):
 def function_get_prospect_details(args):
     """Récupère les détails complets d'un prospect"""
     try:
+        from database_adapter import execute_query
+        
         prospect_id = args['prospect_id']
         
         query = """
@@ -538,6 +543,8 @@ def function_get_prospect_details(args):
 def function_update_prospect_status(args):
     """Met à jour le statut d'un prospect"""
     try:
+        from database_adapter import execute_query
+        
         prospect_id = args['prospect_id']
         nouveau_statut = args['nouveau_statut']
         
