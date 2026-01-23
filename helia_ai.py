@@ -463,22 +463,21 @@ def function_create_prospect(args):
         print(f"🔍 [HELIA] Création prospect: {args}")
         
         query = """
-            INSERT INTO prospects (
-                user_id, nom, adresse, commune, lat, lon, 
-                puissance_kwc, type_projet, statut, date_creation
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'nouveau', NOW())
+            INSERT INTO agriweb_prospects (
+                user_id, nom_prospect, adresse, commune, latitude, longitude, 
+                type, statut, date_creation, date_modification
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'nouveau', NOW(), NOW())
             RETURNING id
         """
         
         params = (
             user_id,
-            args.get('nom', 'Prospect'),
+            args.get('nom', 'Prospect Helia'),
             args['adresse'],
             args['commune'],
             args.get('lat'),
             args.get('lon'),
-            args.get('puissance_kwc', 0),
-            args.get('type_projet', 'toiture')
+            args.get('type_projet', 'parking')
         )
         
         print(f"🔍 [HELIA] Params SQL: {params}")
@@ -516,8 +515,8 @@ def function_list_prospects(args):
         
         if statut:
             query = """
-                SELECT id, nom, adresse, commune, puissance_kwc, statut, date_creation
-                FROM prospects
+                SELECT id, nom_prospect, adresse, commune, type, surface_m2, statut, date_creation
+                FROM agriweb_prospects
                 WHERE user_id = %s AND statut = %s
                 ORDER BY date_creation DESC
                 LIMIT %s
@@ -525,8 +524,8 @@ def function_list_prospects(args):
             params = (user_id, statut, limit)
         else:
             query = """
-                SELECT id, nom, adresse, commune, puissance_kwc, statut, date_creation
-                FROM prospects
+                SELECT id, nom_prospect, adresse, commune, type, surface_m2, statut, date_creation
+                FROM agriweb_prospects
                 WHERE user_id = %s
                 ORDER BY date_creation DESC
                 LIMIT %s
@@ -562,7 +561,7 @@ def function_get_prospect_details(args):
         
         query = """
             SELECT *
-            FROM prospects
+            FROM agriweb_prospects
             WHERE id = %s
         """
         
@@ -592,10 +591,10 @@ def function_update_prospect_status(args):
         nouveau_statut = args['nouveau_statut']
         
         query = """
-            UPDATE prospects
+            UPDATE agriweb_prospects
             SET statut = %s, date_modification = NOW()
             WHERE id = %s
-            RETURNING id, nom, statut
+            RETURNING id, nom_prospect, statut
         """
         
         result = execute_query(query, (nouveau_statut, prospect_id))
