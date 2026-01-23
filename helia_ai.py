@@ -617,18 +617,17 @@ class HeliaAI:
         print(f"🔍 Debug init: GROQ_AVAILABLE={GROQ_AVAILABLE}, GROQ_API_KEY={'présent' if GROQ_API_KEY else 'absent'}")
         if GROQ_AVAILABLE and GROQ_API_KEY:
             try:
-                # Supprimer les variables proxy qui peuvent causer des conflits
-                import os as os_temp
-                env_backup = {}
-                for key in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
-                    if key in os_temp.environ:
-                        env_backup[key] = os_temp.environ.pop(key)
+                # Créer un client httpx sans proxy pour éviter les conflits
+                import httpx
+                http_client = httpx.Client(
+                    timeout=30.0,
+                    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+                )
                 
-                self.client = Groq(api_key=GROQ_API_KEY)
-                
-                # Restaurer les variables proxy
-                for key, value in env_backup.items():
-                    os_temp.environ[key] = value
+                self.client = Groq(
+                    api_key=GROQ_API_KEY,
+                    http_client=http_client
+                )
                 
                 print("✅ Helia AI initialisée avec Groq + Function Calling!")
             except Exception as e:
