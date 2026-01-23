@@ -8,20 +8,20 @@ from flask import Blueprint, request, jsonify, session
 from datetime import datetime
 import json
 
-# Tentative d'import OpenAI
+# Tentative d'import Groq
 try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
+    from groq import Groq
+    GROQ_AVAILABLE = True
 except ImportError:
-    OPENAI_AVAILABLE = False
-    print("⚠️ OpenAI non installé - Mode fallback activé")
+    GROQ_AVAILABLE = False
+    print("⚠️ Groq non installé - Mode fallback activé")
 
 # Blueprint pour les routes Helia AI
 helia_bp = Blueprint('helia_ai', __name__)
 
 # Configuration
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')  # ou gpt-3.5-turbo pour économiser
+GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
+GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-70b-versatile')  # Modèle rapide et performant
 
 # Système prompt définissant Helia
 HELIA_SYSTEM_PROMPT = """Tu es Helia, l'assistante solaire intelligente de Sun Dev by Sunstice.
@@ -143,12 +143,12 @@ class HeliaAI:
     
     def __init__(self):
         self.client = None
-        if OPENAI_AVAILABLE and OPENAI_API_KEY:
+        if GROQ_AVAILABLE and GROQ_API_KEY:
             try:
-                self.client = OpenAI(api_key=OPENAI_API_KEY)
-                print("✅ Helia AI initialisée avec OpenAI")
+                self.client = Groq(api_key=GROQ_API_KEY)
+                print("✅ Helia AI initialisée avec Groq (ultra-rapide!)")
             except Exception as e:
-                print(f"⚠️ Erreur initialisation OpenAI: {e}")
+                print(f"⚠️ Erreur initialisation Groq: {e}")
         else:
             print("⚠️ Helia AI en mode fallback (pas d'API)")
     
@@ -209,14 +209,12 @@ class HeliaAI:
                 # Ajouter message utilisateur
                 messages.append({'role': 'user', 'content': user_message})
                 
-                # Appel API OpenAI
+                # Appel API Groq (ultra-rapide!)
                 response = self.client.chat.completions.create(
-                    model=OPENAI_MODEL,
+                    model=GROQ_MODEL,
                     messages=messages,
                     temperature=0.7,  # Créativité modérée
                     max_tokens=500,   # Réponses concises
-                    presence_penalty=0.6,  # Évite répétitions
-                    frequency_penalty=0.3
                 )
                 
                 ai_response = response.choices[0].message.content
@@ -229,11 +227,11 @@ class HeliaAI:
                     'success': True,
                     'response': ai_response,
                     'mode': 'ai',
-                    'model': OPENAI_MODEL
+                    'model': GROQ_MODEL
                 }
             
             except Exception as e:
-                print(f"❌ Erreur OpenAI: {e}")
+                print(f"❌ Erreur Groq: {e}")
                 return self._fallback_response(user_message)
         
         # Mode fallback
@@ -266,7 +264,7 @@ class HeliaAI:
         # Réponse générique
         return {
             'success': True,
-            'response': "Je suis Helia, votre assistante solaire ! ☀️ Actuellement en mode simplifié. Pour bénéficier de toute mon intelligence, configurez l'API OpenAI. En attendant, n'hésitez pas à me poser vos questions sur le photovoltaïque !",
+            'response': "Je suis Helia, votre assistante solaire ! ☀️ Actuellement en mode simplifié. Pour bénéficier de toute mon intelligence, configurez l'API Groq (gratuite!). En attendant, n'hésitez pas à me poser vos questions sur le photovoltaïque !",
             'mode': 'fallback'
         }
     
@@ -359,5 +357,6 @@ def helia_status():
         'success': True,
         'ai_enabled': helia_ai.client is not None,
         'mode': 'ai' if helia_ai.client else 'fallback',
-        'model': OPENAI_MODEL if helia_ai.client else 'basic'
+        'model': GROQ_MODEL if helia_ai.client else 'basic',
+        'provider': 'Groq (gratuit, ultra-rapide!)' if helia_ai.client else 'Fallback'
     })
