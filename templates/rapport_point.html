@@ -1641,7 +1641,12 @@
                     lon: {{ ((report.lon|string|replace('N/A', '0'))|float)|default(0) }},
                     commune: {{ (report.commune_name|default(""))|tojson }},
                     adresse: {{ (report.adresse|default(""))|tojson }},
-                    {% if report.api_details and report.api_details.cadastre.success %}
+                    {% if report.parcelles_cadastrales %}
+                    // 🔥 CRUCIAL: Envoyer les parcelles cadastrales complètes avec géométries
+                    parcelles_cadastrales: {{ report.parcelles_cadastrales|tojson }},
+                    parcelles: {{ report.parcelles_cadastrales|tojson }},
+                    surface_m2: {{ ((report.parcelles_cadastrales[0].contenance|string|replace('N/A', '0'))|float)|default(0) }},
+                    {% elif report.api_details and report.api_details.cadastre.success %}
                     parcelles: [{{ ((report.api_details.cadastre.details.section|default("") ~ report.api_details.cadastre.details.parcelle_numero|default(""))|default(""))|tojson }}],
                     surface_m2: {{ ((report.api_details.cadastre.details.contenance_m2|string|replace('N/A', '0'))|float)|default(0) }},
                     {% endif %}

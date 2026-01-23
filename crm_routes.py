@@ -2879,9 +2879,33 @@ def register_crm_routes(app):
                 calpinage = data_json.get('calpinage', {})
                 visite_technique = data_json.get('visite_technique', {})
                 rapport_commune = data_json.get('rapport_commune', {})
+                
+                # Vérifier que calpinage contient au moins les données minimales
+                if not calpinage:
+                    print(f"⚠️ Aucune donnée de calpinage trouvée, utilisation des paramètres fournis")
+                    # Créer un calpinage minimal à partir des paramètres
+                    calpinage = {
+                        'totaux': {
+                            'nbModules': int(safe_float(data.get('puissance_kwc', 100)) / 0.55),  # Approximation avec modules de 550W
+                            'puissanceModule': 550,
+                            'puissanceTotale': safe_float(data.get('puissance_kwc', 100))
+                        },
+                        'zones': [],
+                        'type_raccordement': data.get('type_projet', 'autoconsommation')
+                    }
             except Exception as e:
                 print(f"⚠️ Erreur parsing data_json: {e}")
-                calpinage = {}
+                import traceback
+                traceback.print_exc()
+                calpinage = {
+                    'totaux': {
+                        'nbModules': int(safe_float(data.get('puissance_kwc', 100)) / 0.55),
+                        'puissanceModule': 550,
+                        'puissanceTotale': safe_float(data.get('puissance_kwc', 100))
+                    },
+                    'zones': [],
+                    'type_raccordement': data.get('type_projet', 'autoconsommation')
+                }
                 visite_technique = {}
                 rapport_commune = {}
             

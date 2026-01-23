@@ -1,7 +1,8 @@
 /**
- * Assistant Interactif Sunstice
- * Guide l'utilisateur dans l'utilisation de la plateforme
- * Version améliorée avec base de connaissances complète
+ * HELIA - Assistante Solaire Interactive ☀️
+ * Votre experte photovoltaïque personnelle
+ * Chaleureuse, pédagogue et passionnée d'énergie solaire
+ * Version enrichie avec culture photovoltaïque approfondie
  */
 
 class SunsticeAssistant {
@@ -10,8 +11,27 @@ class SunsticeAssistant {
         this.currentPage = this.detectPage();
         this.conversationHistory = [];
         this.knowledgeBase = null;
+        this.sessionId = this.generateSessionId();
+        this.aiEnabled = false;
         this.loadKnowledgeBase();
+        this.checkAIStatus();
         this.init();
+    }
+
+    generateSessionId() {
+        return 'helia_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    async checkAIStatus() {
+        try {
+            const response = await fetch('/api/helia/status');
+            const data = await response.json();
+            this.aiEnabled = data.ai_enabled;
+            console.log(`🤖 Helia AI: ${this.aiEnabled ? 'Activée (' + data.model + ')' : 'Mode fallback'}`);
+        } catch (error) {
+            console.warn('⚠️ Helia AI status check failed, using fallback mode');
+            this.aiEnabled = false;
+        }
     }
 
     async loadKnowledgeBase() {
@@ -52,9 +72,9 @@ class SunsticeAssistant {
     createAssistant() {
         const assistantHTML = `
             <!-- Bouton flottant de l'assistant -->
-            <div id="sunstice-assistant-btn" class="sunstice-assistant-btn" title="Besoin d'aide ?">
+            <div id="sunstice-assistant-btn" class="sunstice-assistant-btn" title="Helia, votre experte solaire ☀️">
                 <div class="assistant-avatar">
-                    <i class="bi bi-chat-dots-fill"></i>
+                    <i class="bi bi-sun-fill"></i>
                 </div>
                 <div class="assistant-pulse"></div>
             </div>
@@ -64,11 +84,11 @@ class SunsticeAssistant {
                 <div class="assistant-header">
                     <div class="d-flex align-items-center">
                         <div class="assistant-avatar-small me-2">
-                            <i class="bi bi-stars"></i>
+                            <i class="bi bi-sun-fill"></i>
                         </div>
                         <div>
-                            <h6 class="mb-0">Assistant Sunstice</h6>
-                            <small class="text-muted">Toujours là pour vous aider</small>
+                            <h6 class="mb-0">☀️ Helia</h6>
+                            <small class="text-muted">Votre experte en énergie solaire</small>
                         </div>
                     </div>
                     <button class="btn-close-assistant" id="close-assistant">
@@ -106,26 +126,42 @@ class SunsticeAssistant {
                     right: 30px;
                     width: 60px;
                     height: 60px;
-                    background: linear-gradient(135deg, #C8FF00, #a8df00);
+                    background: linear-gradient(135deg, #FFD700, #FFA500, #FF8C00);
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     cursor: pointer;
-                    box-shadow: 0 4px 20px rgba(200, 255, 0, 0.4);
+                    box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
                     z-index: 9998;
                     transition: all 0.3s ease;
+                    border: 3px solid #FFED4E;
                 }
 
                 .sunstice-assistant-btn:hover {
-                    transform: scale(1.1);
-                    box-shadow: 0 6px 30px rgba(200, 255, 0, 0.6);
+                    transform: scale(1.1) rotate(15deg);
+                    box-shadow: 0 6px 30px rgba(255, 215, 0, 0.8);
                 }
 
                 .assistant-avatar {
-                    font-size: 28px;
-                    color: #1a1a1a;
-                    animation: bounce 2s infinite;
+                    font-size: 32px;
+                    color: #FF6B00;
+                    animation: rotate 4s linear infinite, pulse-glow 2s ease-in-out infinite;
+                    text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+                }
+
+                @keyframes rotate {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+
+                @keyframes pulse-glow {
+                    0%, 100% { 
+                        filter: drop-shadow(0 0 5px #FFD700);
+                    }
+                    50% { 
+                        filter: drop-shadow(0 0 20px #FFA500);
+                    }
                 }
 
                 .assistant-pulse {
@@ -133,7 +169,7 @@ class SunsticeAssistant {
                     width: 100%;
                     height: 100%;
                     border-radius: 50%;
-                    background: rgba(200, 255, 0, 0.4);
+                    background: rgba(255, 215, 0, 0.5);
                     animation: pulse 2s infinite;
                 }
 
@@ -143,7 +179,7 @@ class SunsticeAssistant {
                         opacity: 1;
                     }
                     50% {
-                        transform: scale(1.3);
+                        transform: scale(1.4);
                         opacity: 0;
                     }
                 }
@@ -161,11 +197,11 @@ class SunsticeAssistant {
                     height: 600px;
                     background: white;
                     border-radius: 16px;
-                    box-shadow: 0 10px 50px rgba(0,0,0,0.15);
+                    box-shadow: 0 10px 50px rgba(255, 140, 0, 0.3);
                     z-index: 9999;
                     display: none;
                     flex-direction: column;
-                    border: 2px solid #C8FF00;
+                    border: 3px solid #FFD700;
                     overflow: hidden;
                     animation: slideUp 0.3s ease;
                 }
@@ -186,30 +222,38 @@ class SunsticeAssistant {
                 }
 
                 .assistant-header {
-                    background: linear-gradient(135deg, #C8FF00, #a8df00);
+                    background: linear-gradient(135deg, #FFD700, #FFA500);
                     padding: 20px;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    border-bottom: 2px solid #a8df00;
+                    border-bottom: 3px solid #FF8C00;
+                    box-shadow: 0 2px 10px rgba(255, 140, 0, 0.3);
                 }
 
                 .assistant-avatar-small {
                     width: 40px;
                     height: 40px;
-                    background: #1a1a1a;
+                    background: linear-gradient(135deg, #FF6B00, #FF8C00);
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #C8FF00;
+                    color: #FFF;
                     font-size: 20px;
+                    box-shadow: 0 2px 8px rgba(255, 107, 0, 0.4);
+                    animation: gentle-pulse 3s ease-in-out infinite;
+                }
+
+                @keyframes gentle-pulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(1.05); }
                 }
 
                 .btn-close-assistant {
-                    background: #1a1a1a;
-                    border: none;
-                    color: #C8FF00;
+                    background: rgba(255, 107, 0, 0.2);
+                    border: 2px solid #FF8C00;
+                    color: #FF6B00;
                     width: 30px;
                     height: 30px;
                     border-radius: 50%;
@@ -221,7 +265,9 @@ class SunsticeAssistant {
                 }
 
                 .btn-close-assistant:hover {
-                    background: #333;
+                    background: #FF6B00;
+                    color: white;
+                    transform: rotate(90deg);
                 }
 
                 .assistant-messages {
@@ -241,6 +287,34 @@ class SunsticeAssistant {
                     to { opacity: 1; transform: translateY(0); }
                 }
 
+                /* Indicateur de frappe (typing) */
+                .typing-indicator {
+                    display: flex;
+                    gap: 5px;
+                    padding: 10px;
+                }
+
+                .typing-indicator span {
+                    width: 8px;
+                    height: 8px;
+                    background: #FFD700;
+                    border-radius: 50%;
+                    animation: typing-bounce 1.4s infinite;
+                }
+
+                .typing-indicator span:nth-child(2) {
+                    animation-delay: 0.2s;
+                }
+
+                .typing-indicator span:nth-child(3) {
+                    animation-delay: 0.4s;
+                }
+
+                @keyframes typing-bounce {
+                    0%, 60%, 100% { transform: translateY(0); }
+                    30% { transform: translateY(-10px); }
+                }
+
                 .message.bot {
                     display: flex;
                     gap: 10px;
@@ -249,22 +323,24 @@ class SunsticeAssistant {
                 .message.bot .avatar {
                     width: 32px;
                     height: 32px;
-                    background: #C8FF00;
+                    background: linear-gradient(135deg, #FFD700, #FFA500);
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #1a1a1a;
-                    font-size: 14px;
+                    color: #FFF;
+                    font-size: 16px;
                     flex-shrink: 0;
+                    box-shadow: 0 2px 6px rgba(255, 140, 0, 0.3);
                 }
 
                 .message.bot .content {
-                    background: white;
+                    background: linear-gradient(to right, #FFF9E6, white);
                     padding: 12px 16px;
                     border-radius: 12px;
                     max-width: 80%;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.1);
+                    border-left: 3px solid #FFD700;
                 }
 
                 .message.user .content {
@@ -287,28 +363,32 @@ class SunsticeAssistant {
                 }
 
                 .quick-action-btn {
-                    background: #f0f0f0;
-                    border: 1px solid #C8FF00;
+                    background: linear-gradient(135deg, #FFF9E6, #FFEDD5);
+                    border: 2px solid #FFD700;
                     padding: 8px 14px;
                     border-radius: 20px;
                     font-size: 13px;
                     cursor: pointer;
-                    transition: all 0.2s;
+                    transition: all 0.3s;
                     white-space: nowrap;
+                    color: #FF6B00;
+                    font-weight: 500;
                 }
 
                 .quick-action-btn:hover {
-                    background: #C8FF00;
-                    color: #1a1a1a;
+                    background: linear-gradient(135deg, #FFD700, #FFA500);
+                    color: white;
                     font-weight: 600;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(255, 140, 0, 0.3);
                 }
 
                 .assistant-input {
                     padding: 15px;
-                    background: white;
+                    background: linear-gradient(to bottom, white, #FFF9E6);
                     display: flex;
                     gap: 10px;
-                    border-top: 2px solid #C8FF00;
+                    border-top: 3px solid #FFD700;
                 }
 
                 .assistant-input input {
@@ -321,26 +401,29 @@ class SunsticeAssistant {
                 }
 
                 .assistant-input input:focus {
-                    border-color: #C8FF00;
+                    border-color: #FFD700;
+                    box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.2);
                 }
 
                 .assistant-input button {
                     width: 40px;
                     height: 40px;
-                    background: #C8FF00;
+                    background: linear-gradient(135deg, #FFD700, #FFA500);
                     border: none;
                     border-radius: 50%;
                     cursor: pointer;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    color: #1a1a1a;
-                    transition: all 0.2s;
+                    color: white;
+                    transition: all 0.3s;
+                    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.3);
                 }
 
                 .assistant-input button:hover {
-                    background: #a8df00;
-                    transform: scale(1.1);
+                    background: linear-gradient(135deg, #FFA500, #FF8C00);
+                    transform: scale(1.15) rotate(15deg);
+                    box-shadow: 0 4px 12px rgba(255, 140, 0, 0.5);
                 }
 
                 @media (max-width: 768px) {
@@ -362,6 +445,10 @@ class SunsticeAssistant {
         const window = document.getElementById('sunstice-assistant-window');
         const sendBtn = document.getElementById('send-message-btn');
         const input = document.getElementById('assistant-input-field');
+        
+        // Initialiser le conteneur de messages
+        this.messagesContainer = document.getElementById('assistant-messages');
+        this.quickActionsContainer = document.getElementById('quick-actions');
 
         btn.addEventListener('click', () => this.toggleWindow());
         closeBtn.addEventListener('click', () => this.toggleWindow());
@@ -466,10 +553,12 @@ class SunsticeAssistant {
                 ]
             },
             general: {
-                welcome: "👋 Bonjour ! Comment puis-je vous aider aujourd'hui ?",
+                welcome: "☀️ Bonjour ! Je suis Helia, votre experte en énergie solaire. Comment puis-je illuminer votre journée ? 😊",
                 actions: [
                     "ℹ️ En savoir plus",
                     "📚 Guide d'utilisation",
+                    "💡 Le saviez-vous ?",
+                    "⚡ C'est quoi l'autoconsommation ?",
                     "💬 Contacter le support"
                 ]
             }
@@ -499,7 +588,7 @@ class SunsticeAssistant {
     getResponse(question) {
         const responses = {
             // Actions homepage
-            "🏠 Comment ça marche ?": "Processus complet en 5 étapes :<br><br>1️⃣ <strong>Recherchez</strong> une adresse, commune ou département via le menu 'Adresse • Coordonnées • GeoJSON'<br>2️⃣ <strong>Visualisez</strong> le terrain sur la carte interactive<br>3️⃣ <strong>Générez</strong> un rapport point courant en cliquant sur 'Rapport point courant'<br>4️⃣ <strong>Exportez</strong> vers Prospects pour créer une fiche projet<br>5️⃣ <strong>Finalisez</strong> votre étude dans le CRM et suivez votre projet !",
+            "🏠 Comment ça marche ?": "☀️ Laissez-moi vous guider dans votre aventure solaire ! Voici le processus en <strong>5 étapes simples</strong> :<br><br>1️⃣ <strong>Recherchez</strong> ➡️ Menu 'Adresse • Coordonnées • GeoJSON' - Tapez n'importe quelle adresse<br><br>2️⃣ <strong>Visualisez</strong> ➡️ La carte interactive vous montre le terrain - Zoomez, explorez !<br><br>3️⃣ <strong>Générez</strong> ➡️ Cliquez sur 'Rapport point courant' - J'analyse tout pour vous<br><br>4️⃣ <strong>Exportez</strong> ➡️ Créez une fiche prospect dans le CRM<br><br>5️⃣ <strong>Finalisez</strong> ➡️ Suivez votre projet jusqu'à la réalisation !<br><br>🌟 <em>C'est aussi simple que ça !</em>",
             "📍 Lancer une analyse": "Parfait ! Voici comment faire :<br><br>• Cliquez sur 'Adresse • Coordonnées • GeoJSON' dans le menu<br>• Saisissez une adresse complète ou des coordonnées GPS<br>• La carte se positionnera automatiquement<br>• Générez ensuite votre rapport point<br>• Exportez vers Prospects pour suivre le projet !",
             "💡 Voir les avantages": "Sun Dev by Sunstice vous offre : ✅ Analyses gratuites et illimitées, ✅ Données cadastrales précises, ✅ Calcul automatique du potentiel photovoltaïque, ✅ Export CRM intégré, ✅ Suivi de projets, ✅ Support expert.",
             "📞 Contacter l'équipe": "Notre équipe est à votre écoute ! Utilisez le formulaire de contact sur la page d'accueil ou envoyez un email à contact@sunstice.com",
@@ -528,13 +617,17 @@ class SunsticeAssistant {
             "🔐 Mot de passe oublié ?": "Page de connexion → 'Mot de passe oublié' → Entrez votre email → Suivez le lien reçu par email pour réinitialiser.",
             "✨ Créer un compte": "Cliquez sur 'Créer un compte'. Remplissez le formulaire : email, mot de passe, nom, entreprise. C'est gratuit !",
             "❓ Problème de connexion": "Vérifiez :<br><br>✓ Email correct<br>✓ Mot de passe correct (majuscules/minuscules)<br>✓ Compte activé (email de confirmation)<br><br>Sinon, utilisez 'Mot de passe oublié' ou contactez support@sunstice.com",
-            
+                        // Modèles économiques modernes
+            "⚡ C'est quoi l'autoconsommation ?": "Excellente question ! 💡<br><br><strong>L'autoconsommation</strong> = consommer directement l'électricité que vous produisez avec vos panneaux solaires.<br><br>🏠 <strong>Principe</strong> :<br>Panneaux → Onduleur → Consommation directe → Surplus revendu ou stocké<br><br>✅ <strong>Avantages</strong> :<br>• Économies immédiates sur votre facture<br>• Indépendance énergétique partielle<br>• Taux d'autoconso typique : 30-70%<br>• Rentabilité immédiate<br><br>📊 <strong>Exemple</strong> :<br>Installation 6 kWc produit 7500 kWh/an<br>→ 5000 kWh autoconsommés = économies directes<br>→ 2500 kWh surplus revendus<br><br>💡 <em>Optimisez en utilisant vos appareils pendant la journée !</em>",
+            "🏘️ Autoconsommation collective ?": "Concept innovant de partage d'énergie ! 🌟<br><br><strong>Autoconsommation collective</strong> = Partager la production solaire entre plusieurs consommateurs via le réseau public.<br><br>🎯 <strong>Principe</strong> :<br>Un ou plusieurs producteurs alimentent plusieurs consommateurs dans un périmètre ≤ 2 km<br><br>👥 <strong>Qui peut participer ?</strong><br>• Copropriétaires d'un immeuble<br>• Entreprises d'une zone d'activité<br>• Habitants + commerces d'un quartier<br>• Bâtiments publics + citoyens<br><br>✅ <strong>Avantages</strong> :<br>• Mutualisation des coûts<br>• Accès au solaire sans toiture<br>• Solidarité énergétique locale<br>• Réduction pertes (proximité)<br>• Tarif réseau réduit (TURPE)<br><br>📐 <strong>Cadre</strong> : Ordonnance 3 mars 2021<br><br>💡 <em>Une révolution pour démocratiser le solaire !</em>",
+            "💼 C'est quoi un PPA ?": "Le PPA, outil stratégique des grandes entreprises ! 🎯<br><br><strong>PPA (Power Purchase Agreement)</strong> = Contrat d'achat d'électricité long terme entre producteur et consommateur.<br><br>📋 <strong>Types de PPA</strong> :<br><br>1️⃣ <strong>On-site</strong> : Installation sur votre site<br>   → Panneaux sur toiture usine<br>   → Autoconsommation maximale<br><br>2️⃣ <strong>Off-site</strong> : Centrale distante<br>   → Production livrée via réseau<br>   → Grandes quantités possibles<br><br>3️⃣ <strong>Virtuel (VPPA)</strong> : Échange garanties d'origine<br>   → Compensation carbone<br>   → Flexibilité géographique<br><br>✅ <strong>Avantages acheteur</strong> :<br>• Prix électricité sécurisé 10-25 ans<br>• Protection volatilité marché<br>• Décarbonation consommation<br>• Objectifs RSE atteints<br><br>🏢 <strong>Exemples</strong> : Amazon, Orange, SNCF utilisent des PPA<br><br>💡 <em>L'avenir de l'approvisionnement électrique corporate !</em>",            // Autres
+            "💡 Le saviez-vous ?": "Voici quelques faits fascinants sur l'énergie solaire : <br><br>☀️ Le soleil envoie en <strong>1 heure</strong> plus d'énergie que l'humanité n'en consomme en <strong>1 an</strong> !<br><br>🌍 Les panneaux solaires fonctionnent même par temps <strong>nuageux</strong> (30-50% de rendement) !<br><br>♻️ Un panneau solaire peut être <strong>recyclé à 95%</strong> en fin de vie (25-30 ans) !<br><br>📊 Le prix du solaire a <strong>baissé de 90%</strong> en 10 ans !<br><br>⚡ 1 kWc produit environ <strong>1000-1400 kWh/an</strong> en France selon les régions !",
             // Autres
             "📍 Analyser une adresse": "Menu 'Adresse • Coordonnées • GeoJSON' → Entrez l'adresse → Rapport point courant → Exportez vers CRM !",
             "🏘️ Analyser une commune": "Menu 'Commune' → Tapez le nom → Sélectionnez → Rapport commune → Analysez les parcelles !",
-            "ℹ️ En savoir plus": "Sun Dev by Sunstice est la plateforme de pré-études photovoltaïques la plus complète. Nous analysons cadastre, PLU, risques, et calculons le potentiel solaire de vos terrains avec export CRM intégré.",
-            "📚 Guide d'utilisation": "Workflow complet :<br><br>📍 <strong>Recherche</strong> → Menu Adresse/Commune/Département<br>🗺️ <strong>Visualisation</strong> → Carte interactive<br>📄 <strong>Rapport</strong> → Bouton 'Rapport point courant'<br>💼 <strong>Export CRM</strong> → Créer un prospect<br>📊 <strong>Suivi</strong> → Dashboard CRM",
-            "💬 Contacter le support": "Notre support est disponible du lundi au vendredi, 9h-18h. Email : support@sunstice.com | Téléphone : +33 1 23 45 67 89"
+            "ℹ️ En savoir plus": "☀️ Je suis ravie de vous présenter <strong>Sun Dev by Sunstice</strong> !<br><br>Nous sommes la plateforme de pré-études photovoltaïques la plus complète. J'analyse pour vous :<br><br>📍 <strong>Cadastre</strong> - Parcelles et surfaces disponibles<br>🏛️ <strong>PLU</strong> - Réglementation d'urbanisme<br>⚠️ <strong>Risques</strong> - Pour sécuriser vos projets<br>⚡ <strong>Réseaux électriques</strong> - Distance aux postes sources<br>☀️ <strong>Potentiel solaire</strong> - Production estimée en kWh<br>📊 <strong>Export CRM</strong> - Suivi de vos prospects<br><br>Mon objectif ? Rendre l'énergie solaire accessible à tous ! 🌟",
+            "📚 Guide d'utilisation": "☀️ Parfait ! Voici votre feuille de route solaire :<br><br>📍 <strong>1. Recherche</strong><br>Menu Adresse/Commune/Département ➡️ Trouvez votre site<br><br>🗺️ <strong>2. Visualisation</strong><br>Carte interactive ➡️ Explorez le terrain<br><br>📄 <strong>3. Rapport</strong><br>Générez une analyse complète ➡️ Cadastre, PLU, potentiel PV<br><br>💼 <strong>4. Export CRM</strong><br>Créez une fiche prospect ➡️ Centralisez vos projets<br><br>📊 <strong>5. Suivi</strong><br>Dashboard CRM ➡️ Pilotez du premier contact à la réalisation<br><br>💡 <em>Astuce : Commencez par une adresse simple pour vous familiariser !</em>",
+            "💬 Contacter le support": "👋 Besoin d'aide supplémentaire ? Notre équipe passionnée est là pour vous !<br><br>📧 <strong>Email</strong> : support@sunstice.com<br>📞 <strong>Téléphone</strong> : +33 1 23 45 67 89<br>🕒 <strong>Horaires</strong> : Lundi-Vendredi, 9h-18h<br><br>🌟 Nous répondons généralement en moins de 2h !<br><br><em>En attendant, je reste à votre disposition pour toute question !</em> ☀️"
         };
 
         return responses[question] || "Je n'ai pas de réponse spécifique à cette question. N'hésitez pas à contacter notre support pour plus d'informations !";
@@ -549,10 +642,66 @@ class SunsticeAssistant {
         this.addUserMessage(message);
         input.value = '';
         
-        setTimeout(() => {
-            const response = this.findBestResponse(message);
-            this.addBotMessage(response);
-        }, 500);
+        // Essayer d'abord l'IA si activée
+        if (this.aiEnabled) {
+            this.sendToAI(message);
+        } else {
+            // Fallback sur réponses prédéfinies
+            setTimeout(() => {
+                const response = this.findBestResponse(message);
+                this.addBotMessage(response);
+            }, 500);
+        }
+    }
+
+    async sendToAI(message) {
+        try {
+            // Ajouter un indicateur de chargement
+            this.addBotMessage('<div class="typing-indicator"><span></span><span></span><span></span></div>', true);
+            
+            const response = await fetch('/api/helia/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    session_id: this.sessionId,
+                    context: `Page: ${this.currentPage}`
+                })
+            });
+
+            const data = await response.json();
+            
+            // Retirer l'indicateur de chargement
+            const messagesContainer = document.getElementById('assistant-messages');
+            const lastMessage = messagesContainer.lastElementChild;
+            if (lastMessage && lastMessage.querySelector('.typing-indicator')) {
+                lastMessage.remove();
+            }
+
+            if (data.success) {
+                this.addBotMessage(data.response);
+                console.log(`✨ Réponse ${data.mode === 'ai' ? 'IA' : 'fallback'}`);
+            } else {
+                // Si erreur, utiliser fallback
+                const fallbackResponse = this.findBestResponse(message);
+                this.addBotMessage(fallbackResponse);
+            }
+        } catch (error) {
+            console.error('❌ Erreur API Helia:', error);
+            
+            // Retirer l'indicateur de chargement
+            const messagesContainer = document.getElementById('assistant-messages');
+            const lastMessage = messagesContainer.lastElementChild;
+            if (lastMessage && lastMessage.querySelector('.typing-indicator')) {
+                lastMessage.remove();
+            }
+            
+            // Utiliser fallback
+            const fallbackResponse = this.findBestResponse(message);
+            this.addBotMessage(fallbackResponse);
+        }
     }
 
     findBestResponse(message) {
@@ -695,51 +844,161 @@ class SunsticeAssistant {
         return response;
     }
 
-    // Ancienne fonction findBestResponse remplacée par la nouvelle ci-dessus
-    // Ne pas dupliquer, cette fonction est maintenant beaucoup plus intelligente
-
-    addBotMessage(text) {
-        if (lowerMessage.includes('mot de passe') || lowerMessage.includes('connexion')) {
-            return this.getResponse("🔐 Mot de passe oublié ?");
-        }
-        if (lowerMessage.includes('compte') || lowerMessage.includes('inscrire')) {
-            return this.getResponse("✨ Créer un compte");
-        }
-        if (lowerMessage.includes('commune')) {
-            return this.getResponse("🏘️ Analyser une commune");
-        }
-        if (lowerMessage.includes('adresse')) {
-            return this.getResponse("📍 Analyser une adresse");
+    addBotMessage(text, showButtons = true, isTyping = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'assistant-message bot-message';
+        
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'message-icon';
+        iconDiv.innerHTML = '☀️';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        
+        if (isTyping) {
+            contentDiv.classList.add('typing-indicator');
+            contentDiv.innerHTML = '<span></span><span></span><span></span>';
+        } else {
+            contentDiv.innerHTML = text;
         }
         
-        return "Merci pour votre question ! Pour une réponse précise, je vous invite à utiliser les actions rapides ci-dessous ou à contacter notre support : support@sunstice.com 😊";
-    }
-
-    addBotMessage(text) {
-        const messagesContainer = document.getElementById('assistant-messages');
-        const messageHTML = `
-            <div class="message bot">
-                <div class="avatar">
-                    <i class="bi bi-stars"></i>
-                </div>
-                <div class="content">${text}</div>
-            </div>
-        `;
-        messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        this.conversationHistory.push({ type: 'bot', text });
+        messageDiv.appendChild(iconDiv);
+        messageDiv.appendChild(contentDiv);
+        this.messagesContainer.appendChild(messageDiv);
+        
+        if (showButtons && !isTyping) {
+            this.showButtons();
+        }
+        
+        this.scrollToBottom();
+        
+        return messageDiv;
     }
 
     addUserMessage(text) {
-        const messagesContainer = document.getElementById('assistant-messages');
-        const messageHTML = `
-            <div class="message user">
-                <div class="content">${text}</div>
-            </div>
-        `;
-        messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        this.conversationHistory.push({ type: 'user', text });
+        const messageDiv = document.createElement('div');
+        messageDiv.className = 'assistant-message user-message';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        contentDiv.innerHTML = text;
+        
+        messageDiv.appendChild(contentDiv);
+        this.messagesContainer.appendChild(messageDiv);
+        this.scrollToBottom();
+    }
+
+    scrollToBottom() {
+        if (this.messagesContainer) {
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        }
+    }
+
+    showButtons() {
+        if (!this.quickActionsContainer) return;
+        
+        const buttons = this.getQuickActionsForPage();
+        if (buttons.length === 0) return;
+        
+        this.quickActionsContainer.innerHTML = '';
+        buttons.forEach(action => {
+            const btn = document.createElement('button');
+            btn.className = 'quick-action-btn';
+            btn.innerHTML = action.label;
+            btn.onclick = () => this.handleQuickAction(action.action);
+            this.quickActionsContainer.appendChild(btn);
+        });
+    }
+
+    getQuickActionsForPage() {
+        const actions = {
+            homepage: [
+                { label: '🏠 Comment ça marche ?', action: 'how_it_works' },
+                { label: '📍 Rechercher une commune', action: 'search_commune' },
+                { label: '💬 Contacter le support', action: 'contact' }
+            ],
+            recherche: [
+                { label: '🏘️ Analyser une commune', action: 'analyze_commune' },
+                { label: '📊 Filtrer les résultats', action: 'filter_help' },
+                { label: '📥 Exporter vers CRM', action: 'export_crm' }
+            ],
+            crm: [
+                { label: '➕ Créer un prospect', action: 'create_prospect' },
+                { label: '📊 Voir les KPI', action: 'show_kpi' },
+                { label: '🔍 Filtrer prospects', action: 'filter_prospects' }
+            ],
+            rapport: [
+                { label: '📥 Télécharger PDF', action: 'download_pdf' },
+                { label: '📋 Copier dans presse-papier', action: 'copy_report' },
+                { label: '💾 Exporter vers CRM', action: 'export_to_crm' }
+            ],
+            general: [
+                { label: '🏠 Comment ça marche ?', action: 'how_it_works' },
+                { label: '❓ Questions fréquentes', action: 'faq' },
+                { label: '💬 Contacter le support', action: 'contact' }
+            ]
+        };
+        
+        return actions[this.currentPage] || actions.general;
+    }
+
+    handleQuickAction(action) {
+        const responses = {
+            'how_it_works': '🏠 Comment ça marche ?',
+            'search_commune': '📍 Rechercher une commune',
+            'contact': '💬 Contacter le support',
+            'analyze_commune': '🏘️ Analyser une commune',
+            'filter_help': '🔍 Utiliser les filtres',
+            'export_crm': '📤 Exporter vers CRM',
+            'create_prospect': '➕ Créer un prospect',
+            'show_kpi': '📊 Statistiques CRM',
+            'filter_prospects': '🔍 Filtrer les prospects',
+            'download_pdf': '📥 Télécharger le rapport',
+            'copy_report': '📋 Copier dans presse-papier',
+            'export_to_crm': '💾 Sauvegarder dans CRM',
+            'faq': '❓ Questions fréquentes'
+        };
+        
+        const response = this.getResponse(responses[action] || action);
+        this.addBotMessage(response);
+    }
+
+    scrollToBottom() {
+        if (this.messagesContainer) {
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+        }
+    }
+
+    showButtons() {
+        if (!this.quickActionsContainer) return;
+        
+        const actions = this.getQuickActionsForPage();
+        let buttonsHTML = '';
+        
+        actions.forEach(action => {
+            buttonsHTML += `
+                <button class="quick-action-btn" data-action="${action.id}">
+                    ${action.icon} ${action.label}
+                </button>
+            `;
+        });
+        
+        this.quickActionsContainer.innerHTML = buttonsHTML;
+        
+        // Attacher les événements
+        this.quickActionsContainer.querySelectorAll('.quick-action-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const actionId = e.target.closest('button').dataset.action;
+                this.handleQuickAction(actionId);
+            });
+        });
+    }
+
+    handleQuickAction(actionId) {
+        const response = this.getResponse(actionId);
+        if (response) {
+            this.addBotMessage(response, false);
+        }
     }
 }
 

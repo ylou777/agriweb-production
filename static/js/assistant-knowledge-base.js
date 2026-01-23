@@ -1,9 +1,243 @@
 /**
- * Base de connaissances complète pour l'assistant Sunstice
- * Contient toutes les informations sur le fonctionnement de la plateforme
+ * Base de connaissances HELIA ☀️
+ * Culture photovoltaïque approfondie et expertise solaire
+ * Votre guide complet pour maîtriser l'énergie du soleil
  */
 
 const SunsticeKnowledgeBase = {
+    // ===== PRÉSENTATION HELIA =====
+    helia: {
+        nom: "Helia",
+        rôle: "Experte en énergie solaire et assistante photovoltaïque",
+        passion: "Rendre l'énergie solaire accessible à tous",
+        devise: "☀️ L'énergie du futur brille déjà au-dessus de nos têtes !",
+        personnalité: {
+            traits: ["Chaleureuse", "Pédagogue", "Passionnée", "Optimiste"],
+            style: "Vulgarise les concepts techniques avec des exemples concrets",
+            approche: "Accompagne avec bienveillance du débutant à l'expert"
+        },
+        saviez_vous: [
+            "☀️ Le soleil envoie en 1 heure plus d'énergie que l'humanité n'en consomme en 1 an !",
+            "🌍 Les panneaux solaires fonctionnent même par temps nuageux (30-50% de rendement) !",
+            "♻️ Un panneau solaire peut être recyclé à 95% en fin de vie (25-30 ans) !",
+            "� Le prix du solaire a baissé de 90% en 10 ans !",
+            "⚡ 1 kWc produit environ 1000-1400 kWh/an en France selon les régions !",
+            "🏭 Une centrale solaire peut alimenter des milliers de foyers !",
+            "🔋 Les panneaux solaires produisent de l'électricité sans bruit ni pollution !",
+            "🏠 L'autoconsommation permet d'économiser jusqu'à 70% sur sa facture d'électricité !",
+            "🏘️ L'autoconsommation collective peut regrouper jusqu'à 500 participants dans un rayon de 2 km !",
+            "💼 Les PPA (Power Purchase Agreement) sécurisent les prix de l'électricité sur 10-25 ans !",
+            "🌐 Amazon, Orange et SNCF utilisent des PPA pour décarboner leur consommation !",
+            "📊 Un taux d'autoconsommation de 30-70% est typique pour une installation résidentielle !"
+        ]
+    },
+
+    // ===== CULTURE PHOTOVOLTAÏQUE =====
+    culture_pv: {
+        "histoire": {
+            titre: "L'histoire du photovoltaïque",
+            événements: [
+                {
+                    année: 1839,
+                    événement: "Découverte de l'effet photovoltaïque",
+                    auteur: "Alexandre Edmond Becquerel",
+                    description: "Physicien français, observe l'effet photovoltaïque sur des électrodes plongées dans un électrolyte"
+                },
+                {
+                    année: 1954,
+                    événement: "Première cellule photovoltaïque moderne",
+                    auteur: "Laboratoires Bell (USA)",
+                    description: "Rendement de 6% - révolution pour l'époque !"
+                },
+                {
+                    année: 1958,
+                    événement: "Premier satellite à panneaux solaires",
+                    auteur: "Vanguard 1",
+                    description: "Le spatial adopte le solaire pour l'alimentation des satellites"
+                },
+                {
+                    année: "2000-2020",
+                    événement: "Démocratisation mondiale",
+                    description: "Le coût du solaire chute de 90%, rendant l'énergie solaire compétitive"
+                },
+                {
+                    année: 2024,
+                    événement: "Rendements records > 26%",
+                    description: "Les panneaux actuels atteignent des rendements jamais vus"
+                }
+            ]
+        },
+        "vocabulaire": {
+            "kWc": {
+                terme: "Kilowatt-crête",
+                explication: "Puissance maximale que peut produire un panneau solaire dans des conditions optimales standard (1000 W/m², 25°C)",
+                exemple: "Un panneau de 400 Wc (0,4 kWc) produit 400W dans les conditions idéales"
+            },
+            "kWh": {
+                terme: "Kilowatt-heure",
+                explication: "Énergie produite ou consommée. 1 kWh = 1000W pendant 1 heure",
+                exemple: "Un sèche-linge consomme environ 2-3 kWh par cycle"
+            },
+            "Rendement": {
+                terme: "Efficacité de conversion",
+                explication: "Pourcentage de l'énergie solaire reçue qui est transformée en électricité",
+                exemple: "Un panneau à 20% de rendement transforme 200W en électricité pour 1000W de soleil reçu"
+            },
+            "Onduleur": {
+                terme: "Convertisseur DC/AC",
+                explication: "Transforme le courant continu des panneaux en courant alternatif utilisable",
+                exemple: "Comme un traducteur entre le langage des panneaux et celui de votre maison"
+            },
+            "Orientation": {
+                terme: "Direction du panneau",
+                explication: "Plein sud = optimal en France. Sud-Est ou Sud-Ouest = bon compromis",
+                exemple: "Un panneau plein sud produit 100%, plein est/ouest = 70-80%"
+            },
+            "Inclinaison": {
+                terme: "Angle du panneau",
+                explication: "30° = optimal en France. Suit la latitude pour maximiser la production annuelle",
+                exemple: "Trop plat = perte en hiver, trop vertical = perte en été"
+            },
+            "Autoconsommation": {
+                terme: "Consommation directe",
+                explication: "Utiliser l'électricité produite immédiatement dans votre bâtiment",
+                exemple: "Produire et consommer en même temps = économies maximales !"
+            },
+            "Revente": {
+                terme: "Vente surplus ou totale",
+                explication: "Injecter l'électricité dans le réseau contre rémunération",
+                exemple: "Le surplus non consommé peut être vendu à EDF OA"
+            },
+            "Trackers": {
+                terme: "Suiveurs solaires",
+                explication: "Panneaux qui suivent la course du soleil pour maximiser la production (+20-30%)",
+                exemple: "Comme une tournesol qui suit le soleil toute la journée"
+            }
+        },
+        "types_installations": {
+            "Toiture résidentielle": {
+                description: "Installation sur toit de maison individuelle",
+                puissance_typique: "3-9 kWc",
+                usage: "Autoconsommation avec revente surplus",
+                avantages: ["Pas de terrain nécessaire", "Économies électricité", "Valorisation patrimoine"]
+            },
+            "Centrale au sol": {
+                description: "Parc solaire sur terrain agricole ou friche",
+                puissance_typique: "500 kWc - 50 MWc+",
+                usage: "Revente totale de la production",
+                avantages: ["Grande production", "Rentabilité élevée", "Valorisation terrain inutilisé"]
+            },
+            "Ombriere parking": {
+                description: "Structure solaire au-dessus de places de stationnement",
+                puissance_typique: "100-500 kWc",
+                usage: "Autoconsommation entreprise + bornes recharge",
+                avantages: ["Double usage", "Protection véhicules", "Image verte"]
+            },
+            "Agrivoltaïque": {
+                description: "Panneaux surelevés permettant culture/pâturage dessous",
+                puissance_typique: "100 kWc - 5 MWc",
+                usage: "Double revenu : agriculture + électricité",
+                avantages: ["Diversification revenus", "Protection cultures", "Innovation"]
+            },
+            "Bâtiment tertiaire": {
+                description: "Toitures entrepôts, supermarchés, bâtiments industriels",
+                puissance_typique: "50-500 kWc",
+                usage: "Autoconsommation professionnelle",
+                avantages: ["Réduction facture énergie", "RSE", "Grandes surfaces disponibles"]
+            }
+        },
+        "modeles_economiques": {
+            "Autoconsommation individuelle": {
+                description: "Consommation directe de l'électricité produite par ses propres panneaux solaires",
+                principe: "Produire et consommer son électricité sur place, sans passer par le réseau",
+                avantages: [
+                    "Économies sur la facture d'électricité",
+                    "Indépendance énergétique partielle",
+                    "Valorisation du surplus possible (revente)",
+                    "Autoconsommation typique : 30-70% de la production",
+                    "Rentabilité immédiate sur l'électricité consommée"
+                ],
+                fonctionnement: "Panneaux → Onduleur → Consommation directe → Surplus vers réseau ou stockage",
+                exemple: "Une maison avec 6 kWc produit 7500 kWh/an. Si consommation = 5000 kWh autoconsommés + 2500 kWh revendus",
+                taux_typique: "30-70% d'autoconsommation selon profil de consommation",
+                optimisation: "Synchroniser consommation avec production (machines le jour, chauffe-eau solaire, domotique)"
+            },
+            "Autoconsommation collective": {
+                description: "Partage de la production solaire entre plusieurs consommateurs via le réseau public",
+                principe: "Un ou plusieurs producteurs alimentent plusieurs consommateurs dans un périmètre défini (≤ 2 km)",
+                cadre_legal: "Défini par l'Ordonnance n°2021-236 du 3 mars 2021",
+                participants: {
+                    "Producteurs": "Peuvent être consommateurs ou non",
+                    "Consommateurs": "Bénéficient de l'électricité produite localement",
+                    "Gestionnaire": "Personne morale organisant l'opération (syndic, collectivité, société dédiée)"
+                },
+                perimetre: "≤ 2 km entre les points les plus éloignés de l'opération",
+                avantages: [
+                    "Mutualisation des coûts d'installation",
+                    "Accès au solaire pour ceux sans toiture adaptée",
+                    "Valorisation optimale de la production locale",
+                    "Réduction des pertes en ligne (proximité)",
+                    "Création de lien social et solidarité énergétique",
+                    "Tarif d'utilisation du réseau réduit (TURPE)"
+                ],
+                exemples: [
+                    "Immeuble résidentiel : toiture partagée entre copropriétaires",
+                    "Zone d'activité : centrale solaire pour plusieurs entreprises",
+                    "Quartier : ombrières de parking alimentant commerces et logements",
+                    "Commune : centrale au sol pour bâtiments publics + habitants"
+                ],
+                cles_de_repartition: "Fixe, dynamique ou mixte selon clé définie collectivement"
+            },
+            "PPA (Power Purchase Agreement)": {
+                description: "Contrat d'achat d'électricité de long terme entre un producteur et un consommateur",
+                definition_complete: "Accord contractuel où un acheteur (corporate) s'engage à acheter l'électricité produite par une centrale solaire à un prix fixe sur une durée déterminée (10-25 ans)",
+                types: {
+                    "PPA On-site (sur site)": {
+                        description: "Installation sur le site du consommateur",
+                        exemple: "Panneaux sur toiture d'usine, électricité consommée directement",
+                        avantage: "Pas de transport, autoconsommation maximale"
+                    },
+                    "PPA Off-site (hors site)": {
+                        description: "Centrale distante, électricité livrée via le réseau",
+                        exemple: "Entreprise achète production d'une centrale au sol à 50 km",
+                        avantage: "Grandes quantités possibles, pas de contrainte foncière"
+                    },
+                    "PPA virtuel (VPPA)": {
+                        description: "Pas de livraison physique, garanties d'origine échangées",
+                        usage: "Compensation carbone, engagement RSE",
+                        avantage: "Flexibilité géographique totale"
+                    }
+                },
+                acteurs: {
+                    "Producteur": "Développeur/propriétaire de la centrale solaire",
+                    "Acheteur (offtaker)": "Entreprise, collectivité consommant l'électricité",
+                    "Intermédiaires": "Agrégateurs, traders facilitant le contrat"
+                },
+                avantages_acheteur: [
+                    "Prix de l'électricité sécurisé sur long terme",
+                    "Protection contre volatilité des prix du marché",
+                    "Décarbonation de la consommation",
+                    "Atteinte objectifs RSE et neutralité carbone",
+                    "Traçabilité de l'origine renouvelable"
+                ],
+                avantages_producteur: [
+                    "Revenus garantis et prévisibles sur durée du PPA",
+                    "Sécurisation du financement du projet",
+                    "Visibilité économique long terme",
+                    "Indépendance vis-à-vis des tarifs réglementés"
+                ],
+                duree_typique: "10-25 ans",
+                prix: "Fixe, indexé ou formule mixte selon négociation",
+                exemples_concrets: [
+                    "Amazon : PPA pour 100 MW solaires en France",
+                    "Orange : PPA 400 GWh/an sur 20 ans",
+                    "SNCF : Multiples PPA pour alimenter les gares",
+                    "Grands groupes industriels : sécurisation approvisionnement électrique"
+                ]
+            }
+        }
+    },
+
     // ===== ARCHITECTURE GLOBALE =====
     structure: {
         nom: "Sun Dev by Sunstice",
@@ -413,7 +647,17 @@ const SunsticeKnowledgeBase = {
         "💡 Le rapport point affiche les distances exactes aux postes sources",
         "💡 Changez le statut des prospects au fur et à mesure de l'avancement",
         "💡 Les admins voient tous les prospects de l'équipe pour coordination",
-        "💡 L'autocomplétion des communes évite les erreurs de saisie"
+        "💡 L'autocomplétion des communes évite les erreurs de saisie",
+        "☀️ Un panneau solaire de 400 Wc mesure environ 1,7 m² - comme une petite table !",
+        "🌍 La France a installé plus de 16 GW de solaire en 2023 - de quoi alimenter 8 millions de foyers !",
+        "⚡ 1 kWc bien orienté produit de quoi faire 10 000 machines à laver par an !",
+        "🌡️ Les panneaux solaires produisent PLUS par temps frais et ensoleillé que par grande chaleur",
+        "🔋 Une installation de 3 kWc peut couvrir 30-70% des besoins d'un foyer selon la consommation",
+        "💰 Le retour sur investissement d'une installation solaire est généralement de 8-12 ans",
+        "🌞 Le Sud de la France reçoit jusqu'à 1700 kWh/m²/an - comme l'Espagne !",
+        "📈 Le solaire est devenu l'énergie la moins chère de l'histoire en 2020",
+        "♻️ L'énergie nécessaire à fabriquer un panneau est remboursée en 1-3 ans de production",
+        "🏠 Une toiture de 30 m² peut accueillir environ 5-6 kWc de panneaux solaires"
     ],
 
     // ===== DÉPANNAGE =====

@@ -575,11 +575,13 @@ except ImportError:
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0  # Force pas de cache pour les templates
 app.secret_key = os.getenv('SECRET_KEY', 'agriweb-secret-key-2025-commercial')
 
 # Marqueur de version diagnostic pour vérifier que ce fichier (avec la route /api/hta-lignes) est bien chargé
-AGRIWEB_HTA_VERSION = "hta-lignes-v1.0-2025-09-18"
+AGRIWEB_HTA_VERSION = "fix-N-is-not-defined-v4-2026-01-18"
 print(f"🔧 [HTA] Chargement serveur avec version: {AGRIWEB_HTA_VERSION}")
+print(f"🔧 [TEMPLATE] Templates auto-reload activé, cache désactivé")
 
 # Cookies de session sécurisés (Railway/Prod)
 COOKIE_SECURE = os.getenv('COOKIE_SECURE', 'true').lower() in ('1','true','yes','on')
@@ -595,6 +597,14 @@ try:
     print("🔐 [AUTH] Blueprint d'authentification enregistré (/auth/login, /auth/register, /auth/verify-email)")
 except Exception as e:
     print(f"⚠️ [AUTH] Impossible d'enregistrer le blueprint d'auth: {e}")
+
+# Intégration de l'assistant IA Helia (Blueprint)
+try:
+    from helia_ai import helia_bp
+    app.register_blueprint(helia_bp)
+    print("🤖 [HELIA] Blueprint assistant IA enregistré (/api/helia/chat, /api/helia/status)")
+except Exception as e:
+    print(f"⚠️ [HELIA] Impossible d'enregistrer le blueprint Helia IA: {e}")
 
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
@@ -16927,6 +16937,38 @@ def admin_migrate_parametrage():
         return f"❌ Erreur migration: {str(e)}", 500
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+@app.route('/debug/template-version')
+def debug_template_version():
+    """Affiche la version du template rapport_point.html déployé"""
+    try:
+        import hashlib
+        template_path = os.path.join(app.root_path, 'templates', 'rapport_point.html')
+        with open(template_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Hash du fichier
+        file_hash = hashlib.md5(content.encode()).hexdigest()
+        
+        # Chercher la ligne lien_streetview
+        lines = content.split('\n')
+        streetview_lines = [f"Ligne {i+1}: {line.strip()}" for i, line in enumerate(lines) if 'lien_streetview' in line and i > 1600]
+        
+        info = {
+            'template_path': template_path,
+            'file_exists': os.path.exists(template_path),
+            'file_size': len(content),
+            'total_lines': len(lines),
+            'md5_hash': file_hash,
+            'app_root_path': app.root_path,
+            'streetview_lines': streetview_lines[:5],  # Premières 5 occurrences
+            'commit': os.getenv('RAILWAY_GIT_COMMIT_SHA', 'N/A')[:8],
+            'deploy_version': open('DEPLOY_VERSION.txt').read() if os.path.exists('DEPLOY_VERSION.txt') else 'N/A'
+        }
+        
+        return f"<pre>{json.dumps(info, indent=2, ensure_ascii=False)}</pre>"
+    except Exception as e:
+        return f"<pre>❌ Erreur: {str(e)}</pre>", 500
 
 if __name__ == "__main__":
     main()  # Ceci inclut Timer + app.run()
