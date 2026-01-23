@@ -12,9 +12,13 @@ from datetime import datetime
 try:
     from groq import Groq
     GROQ_AVAILABLE = True
-except ImportError:
+    print(f"✅ Import Groq réussi! GROQ_AVAILABLE={GROQ_AVAILABLE}")
+except ImportError as e:
     GROQ_AVAILABLE = False
-    print("⚠️ Groq non installé - Mode fallback activé")
+    print(f"⚠️ Groq non installé - Mode fallback activé. Erreur: {e}")
+except Exception as e:
+    GROQ_AVAILABLE = False
+    print(f"❌ Erreur inattendue lors de l'import Groq: {e}")
 
 # Blueprint pour les routes Helia AI
 helia_bp = Blueprint('helia_ai', __name__)
@@ -610,6 +614,7 @@ class HeliaAI:
     
     def __init__(self):
         self.client = None
+        print(f"🔍 Debug init: GROQ_AVAILABLE={GROQ_AVAILABLE}, GROQ_API_KEY={'présent' if GROQ_API_KEY else 'absent'}")
         if GROQ_AVAILABLE and GROQ_API_KEY:
             try:
                 self.client = Groq(api_key=GROQ_API_KEY)
@@ -617,7 +622,12 @@ class HeliaAI:
             except Exception as e:
                 print(f"⚠️ Erreur initialisation Groq: {e}")
         else:
-            print("⚠️ Helia AI en mode fallback (pas d'API)")
+            raison = []
+            if not GROQ_AVAILABLE:
+                raison.append("Groq non disponible")
+            if not GROQ_API_KEY:
+                raison.append("Clé API manquante")
+            print(f"⚠️ Helia AI en mode fallback: {', '.join(raison)}")
     
     def get_conversation_history(self, session_id):
         """Récupère l'historique de conversation depuis la session"""
