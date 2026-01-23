@@ -853,3 +853,16 @@ def helia_status():
         'provider': 'Groq (gratuit + Function Calling!)' if helia_ai.client else 'Fallback',
         'functions_available': list(AVAILABLE_FUNCTIONS.keys())
     })
+
+
+@helia_bp.route('/api/helia/debug-env', methods=['GET'])
+def debug_env():
+    """Debug des variables d'environnement"""
+    groq_key = os.getenv('GROQ_API_KEY', '')
+    return jsonify({
+        'GROQ_AVAILABLE': GROQ_AVAILABLE,
+        'GROQ_API_KEY_exists': bool(groq_key),
+        'GROQ_API_KEY_length': len(groq_key) if groq_key else 0,
+        'GROQ_API_KEY_preview': f"{groq_key[:10]}...{groq_key[-10:]}" if len(groq_key) > 20 else "vide",
+        'client_initialized': helia_ai.client is not None
+    })
