@@ -169,13 +169,73 @@ HELIA_TOOLS = [
         "type": "function",
         "function": {
             "name": "search_commune",
-            "description": "Recherche et analyse une commune (statistiques, parcelles, postes électriques)",
+            "description": "Recherche et analyse une commune avec filtres avancés (distances postes, surfaces, types)",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "nom_commune": {
                         "type": "string",
                         "description": "Nom de la commune à analyser"
+                    },
+                    "bt_max_distance": {
+                        "type": "number",
+                        "description": "Distance max aux postes BT en km (défaut: 1.0)"
+                    },
+                    "ht_max_distance": {
+                        "type": "number",
+                        "description": "Distance max aux postes HTA en km (défaut: 1.0)"
+                    },
+                    "filter_toitures": {
+                        "type": "boolean",
+                        "description": "Filtrer par toitures uniquement"
+                    },
+                    "toitures_min_surface": {
+                        "type": "number",
+                        "description": "Surface toiture minimum en m² (défaut: 100)"
+                    },
+                    "filter_parkings": {
+                        "type": "boolean",
+                        "description": "Filtrer par parkings uniquement"
+                    },
+                    "parking_min_area": {
+                        "type": "number",
+                        "description": "Surface parking minimum en m² (défaut: 1500)"
+                    },
+                    "filter_friches": {
+                        "type": "boolean",
+                        "description": "Filtrer par friches uniquement"
+                    },
+                    "friches_min_area": {
+                        "type": "number",
+                        "description": "Surface friche minimum en m² (défaut: 1000)"
+                    },
+                    "filter_rpg": {
+                        "type": "boolean",
+                        "description": "Filtrer par parcelles agricoles RPG uniquement"
+                    },
+                    "rpg_min_area": {
+                        "type": "number",
+                        "description": "Surface RPG minimum en hectares (défaut: 1.0)"
+                    },
+                    "rpg_max_area": {
+                        "type": "number",
+                        "description": "Surface RPG maximum en hectares (défaut: 1000)"
+                    },
+                    "culture": {
+                        "type": "string",
+                        "description": "Type de culture RPG (ex: BLE, MAI, ORG, PPH, PTR, etc.)"
+                    },
+                    "filter_zones": {
+                        "type": "boolean",
+                        "description": "Filtrer par zones urbaines uniquement"
+                    },
+                    "zones_min_area": {
+                        "type": "number",
+                        "description": "Surface zone minimum en m² (défaut: 1000)"
+                    },
+                    "zones_type_filter": {
+                        "type": "string",
+                        "description": "Type de zone PLU (ex: U, AU, A, N)"
                     }
                 },
                 "required": ["nom_commune"]
@@ -667,31 +727,86 @@ def function_update_prospect_status(args):
 
 
 def function_search_commune(args):
-    """RECHERCHE COMPLÈTE par commune - Appelle la fonctionnalité /search_by_commune"""
+    """RECHERCHE COMPLÈTE par commune avec filtres - Génère URL avec tous paramètres"""
     try:
         nom_commune = args['nom_commune']
         
-        print(f"🏘️ [HELIA COMMUNE] Recherche complète pour {nom_commune}")
+        # Extraire tous les filtres optionnels
+        bt_max_distance = args.get('bt_max_distance', 1.0)
+        ht_max_distance = args.get('ht_max_distance', 1.0)
         
-        # Import des fonctions nécessaires
-        try:
-            from agriweb_hebergement_gratuit import (
-                get_commune_bbox,
-                get_all_parcelles,
-                get_parkings_info,
-                get_friches_info,
-                get_rpg_info,
-                get_plu_info
-            )
-        except ImportError as e:
-            print(f"❌ [HELIA COMMUNE] Erreur import: {e}")
-            return {"success": False, "message": "❌ Fonctions de recherche commune non disponibles"}
+        filter_toitures = args.get('filter_toitures', False)
+        toitures_min_surface = args.get('toitures_min_surface', 100)
         
-        # Récupérer les coordonnées et bbox de la commune
+        filter_parkings = args.get('filter_parkings', False)
+        parking_min_area = args.get('parking_min_area', 1500)
+        
+        filter_friches = args.get('filter_friches', False)
+        friches_min_area = args.get('friches_min_area', 1000)
+        
+        filter_rpg = args.get('filter_rpg', False)
+        rpg_min_area = args.get('rpg_min_area', 1.0)
+        rpg_max_area = args.get('rpg_max_area', 1000)
+        culture = args.get('culture', '')
+        
+        filter_zones = args.get('filter_zones', False)
+        zones_min_area = args.get('zones_min_area', 1000)
+        zones_type_filter = args.get('zones_type_filter', '')
+        
+        print(f"🏘️ [HELIA COMMUNE] Recherche pour {nom_commune}")
+        print(f"📊 [FILTRES] BT≤{bt_max_distance}km, HTA≤{ht_max_distance}km")
+        if filter_toitures:
+            print(f"🏠 [FILTRES] Toitures ≥{toitures_min_surface}m²")
+        if filter_parkings:
+            print(f"🅿️ [FILTRES] Parkings ≥{parking_min_area}m²")
+        if filter_friches:
+            print(f"🏚️ [FILTRES] Friches ≥{friches_min_area}m²")
+        if filter_rpg:
+            print(f"🌾 [FILTRES] RPG {rpg_min_area}-{rpg_max_area} ha" + (f" culture:{culture}" if culture else ""))
+        if filter_zones:
+            print(f"🏗️ [FILTRES] Zones ≥{zones_min_area}m² type:{zones_type_filter or 'tous'}")
+        
+        # Construire l'URL avec tous les paramètres
+        import urllib.parse
+        params = {
+            'commune': nom_commune,
+            'bt_max_distance': bt_max_distance,
+            'ht_max_distance': ht_max_distance
+        }
+        
+        if filter_toitures:
+            params['filter_toitures'] = 'true'
+            params['toitures_min_surface'] = toitures_min_surface
+        
+        if filter_parkings:
+            params['filter_parkings'] = 'true'
+            params['parking_min_area'] = parking_min_area
+        
+        if filter_friches:
+            params['filter_friches'] = 'true'
+            params['friches_min_area'] = friches_min_area
+        
+        if filter_rpg:
+            params['filter_rpg'] = 'true'
+            params['rpg_min_area'] = rpg_min_area
+            params['rpg_max_area'] = rpg_max_area
+            if culture:
+                params['culture'] = culture
+        
+        if filter_zones:
+            params['filter_zones'] = 'true'
+            params['zones_min_area'] = zones_min_area
+            if zones_type_filter:
+                params['zones_type_filter'] = zones_type_filter
+        
+        # Générer URL complète
+        query_string = urllib.parse.urlencode(params)
+        carte_url = f"/search_by_commune?{query_string}"
+        
+        # Récupérer infos de base de la commune via API Geo Gouv
         try:
-            # API Geo Gouv pour obtenir centre et contour commune
             import requests
-            url = f"https://geo.api.gouv.fr/communes?nom={nom_commune}&fields=nom,code,centre,contour,surface,population&format=json&geometry=centre"
+            url = f"https://geo.api.gouv.fr/communes?nom={nom_commune}&fields=nom,code,centre,surface,population&format=json&geometry=centre"
             resp = requests.get(url, timeout=10)
             
             if resp.status_code == 200:
@@ -703,64 +818,42 @@ def function_search_commune(args):
                 centre = commune_data.get('centre', {}).get('coordinates', [0, 0])
                 lon, lat = centre[0], centre[1]
                 population = commune_data.get('population', 0)
-                surface_km2 = commune_data.get('surface', 0) / 100  # Conversion en km²
-                
-                print(f"✅ [HELIA COMMUNE] Commune trouvée: {commune_data.get('nom')} (pop: {population}, surface: {surface_km2:.2f} km²)")
+                surface_km2 = commune_data.get('surface', 0) / 100
             else:
                 return {"success": False, "message": f"❌ Erreur API Geo Gouv: {resp.status_code}"}
         except Exception as e:
-            print(f"❌ [HELIA COMMUNE] Erreur géocodage commune: {e}")
+            print(f"❌ [HELIA COMMUNE] Erreur géocodage: {e}")
             return {"success": False, "message": f"❌ Erreur: {str(e)}"}
         
-        # Recherche dans un rayon autour du centre (300m pour avoir un aperçu)
-        search_radius = 0.03  # ~3.3 km
+        # Construire le résumé
+        summary = f"🏘️ **{commune_data.get('nom')}** ({commune_data.get('code')})\n\n"
+        summary += f"👥 Population: {population:,} habitants\n"
+        summary += f"📏 Surface: {surface_km2:.2f} km²\n"
+        summary += f"📍 Centre: {lat:.4f}, {lon:.4f}\n\n"
         
-        # Collecter les données principales
-        try:
-            parcelles = get_all_parcelles(lat, lon, radius=search_radius)
-            parkings = get_parkings_info(lat, lon, radius=search_radius)
-            friches = get_friches_info(lat, lon, radius=search_radius)
-            rpg_data = get_rpg_info(lat, lon, radius=search_radius)
-            plu_info = get_plu_info(lat, lon, radius=search_radius)
-            
-            # Compter les résultats
-            nb_parcelles = len(parcelles.get('features', [])) if isinstance(parcelles, dict) else len(parcelles) if isinstance(parcelles, list) else 0
-            nb_parkings = len(parkings.get('features', [])) if isinstance(parkings, dict) else len(parkings) if isinstance(parkings, list) else 0
-            nb_friches = len(friches.get('features', [])) if isinstance(friches, dict) else len(friches) if isinstance(friches, list) else 0
-            nb_rpg = len(rpg_data.get('features', [])) if isinstance(rpg_data, dict) else len(rpg_data) if isinstance(rpg_data, list) else 0
-            nb_zones_plu = len(plu_info.get('features', [])) if isinstance(plu_info, dict) else len(plu_info) if isinstance(plu_info, list) else 0
-            
-        except Exception as e:
-            print(f"❌ [HELIA COMMUNE] Erreur collecte données: {e}")
-            nb_parcelles = nb_parkings = nb_friches = nb_rpg = nb_zones_plu = 0
+        summary += f"🔍 **Filtres appliqués:**\n"
+        summary += f"- ⚡ Postes BT: ≤ {bt_max_distance} km\n"
+        summary += f"- 🔌 Postes HTA: ≤ {ht_max_distance} km\n"
         
-        # Centrer la carte sur la commune
-        if 'map_commands' not in session:
-            session['map_commands'] = []
+        if filter_toitures:
+            summary += f"- 🏠 Toitures: ≥ {toitures_min_surface} m²\n"
+        if filter_parkings:
+            summary += f"- 🅿️ Parkings: ≥ {parking_min_area} m²\n"
+        if filter_friches:
+            summary += f"- 🏚️ Friches: ≥ {friches_min_area} m²\n"
+        if filter_rpg:
+            summary += f"- 🌾 Parcelles RPG: {rpg_min_area}-{rpg_max_area} ha"
+            if culture:
+                summary += f" (culture: {culture})"
+            summary += "\n"
+        if filter_zones:
+            summary += f"- 🏗️ Zones urbaines: ≥ {zones_min_area} m²"
+            if zones_type_filter:
+                summary += f" (type {zones_type_filter})"
+            summary += "\n"
         
-        session['map_commands'].append({
-            'action': 'zoom_to',
-            'lat': lat,
-            'lon': lon,
-            'zoom': 13,  # Vue commune
-            'timestamp': datetime.now().isoformat()
-        })
-        session.modified = True
-        
-        summary = f"🏘️ **Analyse de {commune_data.get('nom')}**\n\n"
-        summary += f"📍 Population: {population:,} habitants\n"
-        summary += f"📏 Surface: {surface_km2:.2f} km²\n\n"
-        summary += f"📊 Données collectées (rayon {search_radius*111:.1f} km autour du centre):\n"
-        summary += f"- 🗺️ {nb_parcelles} parcelle(s) cadastrale(s)\n"
-        summary += f"- 🅿️ {nb_parkings} parking(s)\n"
-        summary += f"- 🏚️ {nb_friches} friche(s)\n"
-        summary += f"- 🏗️ {nb_zones_plu} zone(s) PLU\n"
-        summary += f"- 🌾 {nb_rpg} parcelle(s) agricole(s) RPG\n\n"
-        
-        import urllib.parse
-        carte_url = f"/search_by_commune?commune={urllib.parse.quote(nom_commune)}"
-        summary += f"🗺️ **[Ouvrir la carte avec les résultats]({carte_url})**\n\n"
-        summary += f"💡 Pour un rapport complet, utilise `analyze_commune_report('{nom_commune}')`"
+        summary += f"\n🗺️ **[Ouvrir la carte avec les résultats]({carte_url})**\n\n"
+        summary += f"💡 Pour un rapport PV complet: `analyze_commune_report('{nom_commune}')`"
         
         return {
             "success": True,
@@ -772,13 +865,8 @@ def function_search_commune(args):
                 "lon": lon,
                 "population": population,
                 "surface_km2": surface_km2,
-                "parcelles_count": nb_parcelles,
-                "parkings_count": nb_parkings,
-                "friches_count": nb_friches,
-                "plu_zones_count": nb_zones_plu,
-                "rpg_parcelles_count": nb_rpg,
                 "carte_url": carte_url,
-                "lien_rapport_complet": f"/rapport_commune_complet?commune={nom_commune}"
+                "filtres": params
             }
         }
         
