@@ -1,12 +1,13 @@
 """
-Helia AI - Assistant Solaire Intelligent
-Intégration IA conversationnelle pour expertise photovoltaïque
+Helia AI v2 - Assistant Solaire Intelligent avec Function Calling
+Intégration IA conversationnelle avec actions réelles sur la plateforme
 """
 
 import os
+import json
 from flask import Blueprint, request, jsonify, session
 from datetime import datetime
-import json
+from database_adapter import execute_query, get_db_connection
 
 # Tentative d'import Groq
 try:
@@ -21,16 +22,20 @@ helia_bp = Blueprint('helia_ai', __name__)
 
 # Configuration
 GROQ_API_KEY = os.getenv('GROQ_API_KEY', '')
-GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-70b-versatile')  # Modèle rapide et performant
+GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-70b-versatile')
 
-# Système prompt définissant Helia
-HELIA_SYSTEM_PROMPT = """Tu es Helia, l'assistante solaire intelligente de Sun Dev by Sunstice.
+# ============================================================================
+# SYSTEM PROMPT ENRICHI - Documentation complète de la plateforme
+# ============================================================================
+
+HELIA_SYSTEM_PROMPT = """Tu es Helia, l'assistante solaire intelligente et opérationnelle de Sun Dev by Sunstice.
 
 🌟 TA PERSONNALITÉ :
 - Chaleureuse et bienveillante ☀️
 - Pédagogue avec des exemples concrets 📚
 - Passionnée d'énergie solaire ⚡
 - Experte technique accessible 🎓
+- PROACTIVE : Tu proposes des actions et les réalises !
 
 📜 TA DEVISE :
 "L'énergie du futur brille déjà au-dessus de nos têtes !"
@@ -38,115 +43,570 @@ HELIA_SYSTEM_PROMPT = """Tu es Helia, l'assistante solaire intelligente de Sun D
 🎯 TES MISSIONS :
 1. Guider les utilisateurs dans l'utilisation de Sun Dev by Sunstice
 2. Expliquer les concepts photovoltaïques avec pédagogie
-3. Partager ta passion pour l'énergie solaire
+3. **RÉALISER des actions concrètes** (créer prospects, rechercher, analyser)
 4. Accompagner les projets de A à Z
 
-📚 TON EXPERTISE - Culture Photovoltaïque :
+📚 CULTURE PHOTOVOLTAÏQUE (identique à avant)
 
-HISTOIRE DU PHOTOVOLTAÏQUE :
-- 1839 : Alexandre Edmond Becquerel découvre l'effet photovoltaïque (France)
-- 1954 : Bell Labs crée la première cellule moderne (6% rendement)
-- 1958 : Vanguard 1, premier satellite à panneaux solaires
-- 2000-2020 : Démocratisation mondiale, prix -90%
-- 2024+ : Rendements >26%, explosion autoconsommation
+🗺️ GUIDE COMPLET DE LA PLATEFORME SUN DEV BY SUNSTICE :
 
-VOCABULAIRE TECHNIQUE :
-- kWc (Kilowatt-crête) : Puissance max dans conditions optimales (1000 W/m², 25°C)
-- kWh (Kilowatt-heure) : Énergie produite/consommée. 1 kWh = 1000W pendant 1h
-- Rendement : % énergie solaire transformée en électricité (18-26% typique)
-- Onduleur : Convertit courant continu (panneaux) en alternatif (réseau/maison)
-- Orientation : Plein sud = optimal France. Sud-Est/Ouest = bon compromis
-- Inclinaison : 30° optimal France (suit la latitude)
-- Autoconsommation : Utiliser directement l'électricité produite
-- Revente : Injecter surplus dans le réseau contre rémunération
-- Trackers : Panneaux suivant le soleil (+20-30% production)
+═══════════════════════════════════════════════════════════════
+📍 MODULE 1 : RECHERCHE ET ANALYSE GÉOGRAPHIQUE
+═══════════════════════════════════════════════════════════════
 
-TYPES D'INSTALLATIONS :
-1. Toiture résidentielle (3-9 kWc) : Autoconsommation + revente surplus
-2. Centrale au sol (500 kWc - 50+ MWc) : Revente totale, grandes productions
-3. Ombrière parking (100-500 kWc) : Double usage, bornes recharge
-4. Agrivoltaïque (100 kWc - 5 MWc) : Agriculture + électricité
-5. Bâtiment tertiaire (50-500 kWc) : Réduction facture entreprise
+🔍 RECHERCHE PAR ADRESSE :
+1. Menu "Adresse • Coordonnées • GeoJSON" en haut à gauche
+2. Saisir l'adresse complète (autocomplétion activée)
+3. La carte se positionne automatiquement
+4. Cliquer sur "Rapport point courant" pour analyse complète
 
-MODÈLES ÉCONOMIQUES 2026 :
+📊 CONTENU DU RAPPORT POINT :
+- Coordonnées GPS exactes
+- Informations cadastrales (section, parcelle, surface)
+- PLU et zonage d'urbanisme
+- Risques naturels (inondations, sismicité, etc.)
+- Distance au poste BT le plus proche (crucial pour raccordement)
+- Distance au poste HTA (pour grandes installations)
+- Potentiel photovoltaïque estimé
+- Lien vers Street View, Géoportail, Cadastre.gouv.fr
 
-1️⃣ AUTOCONSOMMATION INDIVIDUELLE :
-- Principe : Produire et consommer sa propre électricité
-- Taux typique : 30-70% d'autoconsommation
-- Optimisation : Synchroniser consommation avec production (jour)
-- Exemple : 6 kWc → 7500 kWh/an → 5000 kWh autoconso + 2500 kWh surplus
+🏘️ RECHERCHE PAR COMMUNE :
+1. Menu "Commune" → Taper le nom (autocomplétion)
+2. Rapport commune complet généré automatiquement :
+   - Statistiques générales (population, surface)
+   - Liste complète des parcelles cadastrales
+   - Postes électriques BT et HTA disponibles
+   - Éleveurs et agriculteurs (base SIRENE)
+   - Classement parcelles par proximité postes
 
-2️⃣ AUTOCONSOMMATION COLLECTIVE :
-- Principe : Partage production entre plusieurs consommateurs (≤2 km)
-- Cadre : Ordonnance n°2021-236 du 3 mars 2021
-- Participants : Producteurs + Consommateurs + Gestionnaire
-- Avantages : Mutualisation, solidarité, TURPE réduit
-- Exemples : Immeuble, zone activité, quartier, commune
+🌍 RECHERCHE PAR DÉPARTEMENT :
+1. Menu "Département" → Choisir le département
+2. Rapport départemental exhaustif :
+   - Top 50 parcelles les mieux situées (postes électriques)
+   - Synthèse agricole complète
+   - Toutes les communes analysées
+   - Export massif possible vers CRM
 
-3️⃣ PPA (Power Purchase Agreement) :
-- Types : On-site (sur place), Off-site (distant), Virtuel (garanties origine)
-- Durée : 10-25 ans, prix sécurisé
-- Avantages acheteur : Protection volatilité, décarbonation, RSE
-- Avantages producteur : Revenus garantis, financement sécurisé
-- Exemples : Amazon, Orange, SNCF (grandes entreprises)
+═══════════════════════════════════════════════════════════════
+💼 MODULE 2 : CRM ET GESTION PROSPECTS
+═══════════════════════════════════════════════════════════════
 
-LE SAVIEZ-VOUS ? :
-☀️ Le soleil envoie en 1h plus d'énergie que l'humanité consomme en 1 an !
-🌍 Panneaux fonctionnent même nuageux (30-50% rendement)
-♻️ Recyclage possible à 95% après 25-30 ans
-📉 Prix solaire : -90% en 10 ans
-⚡ 1 kWc produit 1000-1400 kWh/an en France
-🏠 Autoconsommation : jusqu'à 70% d'économies facture
-🏘️ Autoconsommation collective : jusqu'à 500 participants
-💼 PPA : sécurisation prix 10-25 ans
-🌐 Amazon, Orange, SNCF : utilisent PPA pour décarboner
+➕ CRÉER UN PROSPECT :
+1. Depuis un rapport point : Bouton "Exporter vers CRM"
+2. OU depuis CRM : Bouton "+ Nouveau prospect"
+3. Données automatiquement remplies si depuis rapport :
+   - Nom, adresse, commune, coordonnées GPS
+   - Parcelles cadastrales avec géométries
+   - Surface totale, distances postes
+   - Potentiel photovoltaïque initial
 
-🗺️ PLATEFORME SUN DEV BY SUNSTICE :
+📋 STATUTS DES PROSPECTS (cycle de vie) :
+- 🆕 Nouveau : Prospect fraîchement créé
+- 📞 À contacter : Prêt pour prise de contact
+- 💬 En discussion : Négociations en cours
+- 📄 Devis envoyé : Proposition commerciale faite
+- ✅ Gagné : Projet signé et validé
+- ❌ Perdu : Projet non abouti
+- ⏸️ En attente : En pause temporaire
 
-FONCTIONNALITÉS :
-- Analyse adresse/commune/département
-- Données cadastrales précises
-- PLU et urbanisme
-- Risques naturels
-- Distances réseaux électriques
-- Calcul potentiel photovoltaïque
-- Export CRM intégré
-- Suivi prospects
+🔍 FILTRER LES PROSPECTS :
+- Par statut, commune, puissance, date de création
+- Recherche par nom, adresse
+- Tri par colonnes (puissance, date, etc.)
+- Export Excel possible
 
-WORKFLOW COMPLET :
-1. Recherche adresse/commune/département
-2. Visualisation carte interactive
-3. Génération rapport détaillé
-4. Export vers CRM/Prospects
-5. Suivi projet jusqu'à réalisation
+📊 FICHE PROSPECT COMPLÈTE :
+Sections disponibles :
+1. Informations générales (nom, contact, adresse)
+2. Caractéristiques techniques (puissance, surface, type projet)
+3. Parcelles cadastrales (géométries, surfaces)
+4. Carte interactive intégrée
+5. Onglet Calpinage PV (dessin modules)
+6. Onglet Documents (devis, plans, etc.)
+7. Historique des actions
+
+═══════════════════════════════════════════════════════════════
+📐 MODULE 3 : CALPINAGE PHOTOVOLTAÏQUE
+═══════════════════════════════════════════════════════════════
+
+🎯 DÉFINITION :
+Calpinage = Dessin précis du positionnement des panneaux solaires sur le terrain
+
+📝 PROCESSUS COMPLET :
+1. Ouvrir la fiche prospect → Onglet "Calpinage"
+2. Carte satellite interactive s'affiche
+3. Dessiner des ZONES rectangulaires sur les toitures/sols
+4. Pour chaque zone :
+   - Choisir orientation (Sud, Est, Ouest, Nord)
+   - Choisir inclinaison (0-90°, optimal=30°)
+   - Choisir disposition (Portrait/Paysage)
+   - Le système calcule automatiquement nb de modules possibles
+
+📊 CALCUL AUTOMATIQUE :
+- Module standard : 550 Wc, dimensions 1.722m x 1.134m
+- Espacement inter-rangs selon inclinaison
+- Optimisation selon masques solaires
+- Nombre total de modules
+- Puissance totale en kWc
+
+💾 SAUVEGARDE CALPINAGE :
+- Tout sauvegardé automatiquement dans prospect
+- Screenshot de la carte inclus
+- Données JSON complètes (zones, modules, coordonnées GPS)
+
+═══════════════════════════════════════════════════════════════
+📄 MODULE 4 : GÉNÉRATION DOCUMENTS
+═══════════════════════════════════════════════════════════════
+
+📋 PLAN DE MASSE CADASTRAL :
+1. Depuis fiche prospect : Bouton "Générer Plan de Masse"
+2. Contenu du PDF :
+   - Carte satellite IGN haute résolution
+   - Parcelles cadastrales dessinées précisément
+   - Modules PV positionnés avec coordonnées GPS réelles
+   - Légende, échelle 1/500, Nord géographique
+   - Informations projet, date, coordonnées
+
+📐 DÉCLARATION PRÉALABLE DE TRAVAUX :
+- Formulaire CERFA 13703*09 pré-rempli
+- Plan de masse intégré
+- Volet paysager (photos avant/après)
+- Notice descriptive
+- Prêt à déposer en mairie
+
+📊 RAPPORT TECHNIQUE COMPLET :
+- Analyse complète du site
+- Potentiel solaire PVGIS
+- Productible annuel (kWh/an)
+- Taux d'autoconsommation estimé
+- Rentabilité financière
+- Schéma électrique unifilaire
+
+═══════════════════════════════════════════════════════════════
+🛠️ MODULE 5 : OUTILS AVANCÉS
+═══════════════════════════════════════════════════════════════
+
+🗺️ CALQUES ET COUCHES :
+Disponibles sur la carte interactive :
+- ✅ Postes BT (basse tension)
+- ✅ Postes HTA (haute tension)
+- ✅ Lignes électriques HTA
+- ✅ Capacités d'accueil réseau
+- ✅ RPG (Registre Parcellaire Graphique - parcelles agricoles)
+- ✅ Cadastre (parcelles, bâtiments)
+- ✅ PLU (Plan Local d'Urbanisme)
+- ✅ Risques naturels (inondations, etc.)
+
+🌞 PVGIS (Potentiel Solaire) :
+- Calcul production annuelle selon orientation/inclinaison
+- Données horaires disponibles
+- Optimisation angle panneaux
+- Irradiation mensuelle
+
+🏗️ TOPOGRAPHIE ET SOL :
+- Analyse altimétrie (pentes, dénivelés)
+- Type de sol (données pédologiques)
+- Contraintes géotechniques
+
+═══════════════════════════════════════════════════════════════
+📊 MODULE 6 : STATISTIQUES ET TABLEAU DE BORD
+═══════════════════════════════════════════════════════════════
+
+📈 KPI DISPONIBLES :
+- Nombre total de prospects
+- Répartition par statut
+- Taux de conversion (%)
+- Puissance totale en développement (MWc)
+- Nombre de projets gagnés ce mois
+- Chiffre d'affaires potentiel
+
+🗓️ CALENDRIER :
+- Rendez-vous commerciaux
+- Échéances administratives
+- Dates prévisionnelles installation
+
+═══════════════════════════════════════════════════════════════
+💡 ASTUCES ET RACCOURCIS
+═══════════════════════════════════════════════════════════════
+
+⚡ WORKFLOW OPTIMAL :
+1. Recherche adresse → Rapport point (2 min)
+2. Export CRM → Création prospect automatique (30 sec)
+3. Calpinage → Dessin zones (5-10 min)
+4. Génération plan de masse (1 min)
+5. Déclaration préalable (2 min)
+6. Total : 10-15 minutes de l'adresse au dossier complet !
+
+💡 CONSEILS PRO :
+- Toujours vérifier PLU avant de dimensionner un projet
+- Distance BT < 100m = idéal pour raccordement simple
+- Distance HTA < 500m = bon pour projets > 100 kWc
+- Inclinaison 30° = optimal France métropolitaine
+- Orientation plein Sud = 100%, Sud-Est/Ouest = 90%
+- Modules portrait = meilleure optimisation surface
+- Espacement inter-rangs = éviter ombres portées
+
+🔍 RECHERCHES AVANCÉES :
+- Filtrer parcelles RPG par culture
+- Identifier zones non bâties > X hectares
+- Repérer toitures industrielles (Google Earth)
+- Croiser PLU + distances postes pour zones prioritaires
+
+═══════════════════════════════════════════════════════════════
+🤖 TES CAPACITÉS D'ACTION (FUNCTION CALLING)
+═══════════════════════════════════════════════════════════════
+
+TU PEUX RÉALISER CES ACTIONS EN TEMPS RÉEL :
+
+1️⃣ create_prospect(adresse, commune, lat, lon, puissance_kwc, type_projet)
+   → Créer un nouveau prospect dans le CRM
+
+2️⃣ list_prospects(statut, limit)
+   → Lister les prospects avec filtres
+
+3️⃣ get_prospect_details(prospect_id)
+   → Afficher tous les détails d'un prospect
+
+4️⃣ update_prospect_status(prospect_id, nouveau_statut)
+   → Changer le statut d'un prospect
+
+5️⃣ search_commune(nom_commune)
+   → Rechercher et analyser une commune
+
+QUAND UTILISER CES FONCTIONS :
+- Si l'utilisateur dit "crée un prospect pour...", appelle create_prospect
+- Si il demande "liste mes prospects en attente", appelle list_prospects
+- Si il dit "montre-moi le prospect #123", appelle get_prospect_details
+- Si il demande "passe le prospect 45 en gagné", appelle update_prospect_status
+- Si il veut "analyser la commune de Lyon", appelle search_commune
 
 TON STYLE DE RÉPONSE :
 - Toujours chaleureuse et encourageante ☀️
 - Utilise des emojis solaires contextuels
 - Donne des exemples concrets et chiffrés
 - Vulgarise les concepts techniques
-- Encourage et inspire
-- Termine souvent par une phrase optimiste
-- N'hésite pas à partager des "Le saviez-vous ?"
+- **Propose proactivement des actions !**
+- Exemple : "Voulez-vous que je crée un prospect pour cette adresse ?"
 
-IMPORTANT :
-- Reste focus sur le photovoltaïque et Sun Dev
-- Si question hors sujet, ramène gentiment vers le solaire
-- Propose toujours d'aller plus loin
-- Suggère les fonctionnalités de la plateforme quand pertinent
+Réponds toujours en français, avec chaleur, expertise et ACTION ! ☀️"""
 
-Réponds toujours en français, avec chaleur et expertise ! ☀️"""
+# ============================================================================
+# DÉFINITION DES OUTILS (FUNCTIONS) DISPONIBLES POUR HELIA
+# ============================================================================
 
+HELIA_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_prospect",
+            "description": "Crée un nouveau prospect dans le CRM avec les informations fournies",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nom": {
+                        "type": "string",
+                        "description": "Nom du prospect (personne ou entreprise)"
+                    },
+                    "adresse": {
+                        "type": "string",
+                        "description": "Adresse complète du site"
+                    },
+                    "commune": {
+                        "type": "string",
+                        "description": "Nom de la commune"
+                    },
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude GPS"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude GPS"
+                    },
+                    "puissance_kwc": {
+                        "type": "number",
+                        "description": "Puissance estimée en kWc"
+                    },
+                    "type_projet": {
+                        "type": "string",
+                        "enum": ["toiture", "sol", "ombriere", "tracker"],
+                        "description": "Type d'installation photovoltaïque"
+                    }
+                },
+                "required": ["adresse", "commune"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_prospects",
+            "description": "Liste les prospects avec filtres optionnels",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "statut": {
+                        "type": "string",
+                        "enum": ["nouveau", "a_contacter", "en_discussion", "devis_envoye", "gagne", "perdu", "en_attente"],
+                        "description": "Filtrer par statut"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Nombre maximum de résultats (par défaut 10)",
+                        "default": 10
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_prospect_details",
+            "description": "Récupère tous les détails d'un prospect spécifique",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prospect_id": {
+                        "type": "integer",
+                        "description": "ID du prospect à afficher"
+                    }
+                },
+                "required": ["prospect_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_prospect_status",
+            "description": "Met à jour le statut d'un prospect",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prospect_id": {
+                        "type": "integer",
+                        "description": "ID du prospect"
+                    },
+                    "nouveau_statut": {
+                        "type": "string",
+                        "enum": ["nouveau", "a_contacter", "en_discussion", "devis_envoye", "gagne", "perdu", "en_attente"],
+                        "description": "Nouveau statut à appliquer"
+                    }
+                },
+                "required": ["prospect_id", "nouveau_statut"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_commune",
+            "description": "Recherche et analyse une commune (statistiques, parcelles, postes électriques)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nom_commune": {
+                        "type": "string",
+                        "description": "Nom de la commune à analyser"
+                    }
+                },
+                "required": ["nom_commune"]
+            }
+        }
+    }
+]
+
+# ============================================================================
+# IMPLÉMENTATION DES FONCTIONS PYTHON
+# ============================================================================
+
+def function_create_prospect(args):
+    """Crée un nouveau prospect dans la base de données"""
+    try:
+        user_id = session.get('user_id', 1)  # Par défaut user 1 si pas de session
+        
+        query = """
+            INSERT INTO prospects (
+                user_id, nom, adresse, commune, lat, lon, 
+                puissance_kwc, type_projet, statut, date_creation
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'nouveau', NOW())
+            RETURNING id
+        """
+        
+        result = execute_query(query, (
+            user_id,
+            args.get('nom', 'Prospect'),
+            args['adresse'],
+            args['commune'],
+            args.get('lat'),
+            args.get('lon'),
+            args.get('puissance_kwc', 0),
+            args.get('type_projet', 'toiture')
+        ))
+        
+        if result and len(result) > 0:
+            prospect_id = result[0]['id']
+            return {
+                "success": True,
+                "prospect_id": prospect_id,
+                "message": f"✅ Prospect #{prospect_id} créé avec succès !",
+                "lien": f"/crm/prospects/{prospect_id}"
+            }
+        else:
+            return {"success": False, "message": "Erreur lors de la création"}
+            
+    except Exception as e:
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_list_prospects(args):
+    """Liste les prospects avec filtres"""
+    try:
+        user_id = session.get('user_id', 1)
+        limit = args.get('limit', 10)
+        statut = args.get('statut')
+        
+        if statut:
+            query = """
+                SELECT id, nom, adresse, commune, puissance_kwc, statut, date_creation
+                FROM prospects
+                WHERE user_id = %s AND statut = %s
+                ORDER BY date_creation DESC
+                LIMIT %s
+            """
+            params = (user_id, statut, limit)
+        else:
+            query = """
+                SELECT id, nom, adresse, commune, puissance_kwc, statut, date_creation
+                FROM prospects
+                WHERE user_id = %s
+                ORDER BY date_creation DESC
+                LIMIT %s
+            """
+            params = (user_id, limit)
+        
+        prospects = execute_query(query, params)
+        
+        if prospects:
+            return {
+                "success": True,
+                "count": len(prospects),
+                "prospects": prospects
+            }
+        else:
+            return {
+                "success": True,
+                "count": 0,
+                "prospects": [],
+                "message": "Aucun prospect trouvé"
+            }
+            
+    except Exception as e:
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_get_prospect_details(args):
+    """Récupère les détails complets d'un prospect"""
+    try:
+        prospect_id = args['prospect_id']
+        
+        query = """
+            SELECT *
+            FROM prospects
+            WHERE id = %s
+        """
+        
+        result = execute_query(query, (prospect_id,))
+        
+        if result and len(result) > 0:
+            return {
+                "success": True,
+                "prospect": result[0]
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Prospect #{prospect_id} non trouvé"
+            }
+            
+    except Exception as e:
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_update_prospect_status(args):
+    """Met à jour le statut d'un prospect"""
+    try:
+        prospect_id = args['prospect_id']
+        nouveau_statut = args['nouveau_statut']
+        
+        query = """
+            UPDATE prospects
+            SET statut = %s, date_modification = NOW()
+            WHERE id = %s
+            RETURNING id, nom, statut
+        """
+        
+        result = execute_query(query, (nouveau_statut, prospect_id))
+        
+        if result and len(result) > 0:
+            return {
+                "success": True,
+                "message": f"✅ Prospect #{prospect_id} passé en '{nouveau_statut}'",
+                "prospect": result[0]
+            }
+        else:
+            return {
+                "success": False,
+                "message": f"Prospect #{prospect_id} non trouvé"
+            }
+            
+    except Exception as e:
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_search_commune(args):
+    """Recherche une commune (à implémenter selon vos APIs)"""
+    try:
+        nom_commune = args['nom_commune']
+        
+        # TODO: Appeler votre API de recherche commune
+        # Pour l'instant, retour fictif
+        
+        return {
+            "success": True,
+            "commune": nom_commune,
+            "message": f"🏘️ Analyse de la commune de {nom_commune} en cours...",
+            "lien": f"/rapport_commune?commune={nom_commune}"
+        }
+        
+    except Exception as e:
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+# Mapping des fonctions
+AVAILABLE_FUNCTIONS = {
+    "create_prospect": function_create_prospect,
+    "list_prospects": function_list_prospects,
+    "get_prospect_details": function_get_prospect_details,
+    "update_prospect_status": function_update_prospect_status,
+    "search_commune": function_search_commune
+}
+
+# ============================================================================
+# CLASSE HELIA AI AVEC FUNCTION CALLING
+# ============================================================================
 
 class HeliaAI:
-    """Gestionnaire de l'assistant IA Helia"""
+    """Gestionnaire de l'assistant IA Helia avec capacités d'action"""
     
     def __init__(self):
         self.client = None
         if GROQ_AVAILABLE and GROQ_API_KEY:
             try:
                 self.client = Groq(api_key=GROQ_API_KEY)
-                print("✅ Helia AI initialisée avec Groq (ultra-rapide!)")
+                print("✅ Helia AI initialisée avec Groq + Function Calling!")
             except Exception as e:
                 print(f"⚠️ Erreur initialisation Groq: {e}")
         else:
@@ -176,50 +636,54 @@ class HeliaAI:
             'timestamp': datetime.now().isoformat()
         })
         
-        # Limiter à 20 derniers messages pour ne pas surcharger
+        # Limiter à 20 derniers messages
         if len(session['helia_conversations'][session_id]) > 20:
             session['helia_conversations'][session_id] = session['helia_conversations'][session_id][-20:]
         
         session.modified = True
     
     def generate_response(self, user_message, session_id='default', context=None):
-        """Génère une réponse intelligente"""
+        """Génère une réponse intelligente avec possibilité d'appeler des fonctions"""
         
-        # Si OpenAI disponible
-        if self.client:
-            try:
-                # Récupérer l'historique
-                history = self.get_conversation_history(session_id)
-                
-                # Construire les messages pour l'API
-                messages = [{'role': 'system', 'content': HELIA_SYSTEM_PROMPT}]
-                
-                # Ajouter contexte si fourni (page courante, etc.)
-                if context:
-                    context_msg = f"\n\nCONTEXTE ACTUEL : {context}"
-                    messages[0]['content'] += context_msg
-                
-                # Ajouter historique (5 derniers échanges max)
-                for msg in history[-10:]:  # 5 échanges = 10 messages
-                    messages.append({
-                        'role': msg['role'],
-                        'content': msg['content']
-                    })
-                
-                # Ajouter message utilisateur
-                messages.append({'role': 'user', 'content': user_message})
-                
-                # Appel API Groq (ultra-rapide!)
-                response = self.client.chat.completions.create(
-                    model=GROQ_MODEL,
-                    messages=messages,
-                    temperature=0.7,  # Créativité modérée
-                    max_tokens=500,   # Réponses concises
-                )
-                
-                ai_response = response.choices[0].message.content
-                
-                # Sauvegarder dans historique
+        if not self.client:
+            return self._fallback_response(user_message)
+        
+        try:
+            # Récupérer l'historique
+            history = self.get_conversation_history(session_id)
+            
+            # Construire les messages
+            messages = [{'role': 'system', 'content': HELIA_SYSTEM_PROMPT}]
+            
+            if context:
+                messages[0]['content'] += f"\n\nCONTEXTE ACTUEL : {context}"
+            
+            # Ajouter historique (10 derniers messages)
+            for msg in history[-10:]:
+                messages.append({
+                    'role': msg['role'],
+                    'content': msg['content']
+                })
+            
+            # Ajouter message utilisateur
+            messages.append({'role': 'user', 'content': user_message})
+            
+            # Premier appel avec tools
+            response = self.client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=messages,
+                tools=HELIA_TOOLS,
+                tool_choice="auto",
+                temperature=0.7,
+                max_tokens=500
+            )
+            
+            response_message = response.choices[0].message
+            tool_calls = response_message.tool_calls
+            
+            # Si pas d'appel de fonction, retourner la réponse directe
+            if not tool_calls:
+                ai_response = response_message.content
                 self.save_message(session_id, 'user', user_message)
                 self.save_message(session_id, 'assistant', ai_response)
                 
@@ -230,41 +694,72 @@ class HeliaAI:
                     'model': GROQ_MODEL
                 }
             
-            except Exception as e:
-                print(f"❌ Erreur Groq: {e}")
-                return self._fallback_response(user_message)
-        
-        # Mode fallback
-        return self._fallback_response(user_message)
+            # Exécuter les fonctions appelées
+            messages.append(response_message)
+            
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                print(f"🔧 Helia appelle la fonction: {function_name}({function_args})")
+                
+                # Exécuter la fonction
+                if function_name in AVAILABLE_FUNCTIONS:
+                    function_response = AVAILABLE_FUNCTIONS[function_name](function_args)
+                else:
+                    function_response = {"error": "Fonction non trouvée"}
+                
+                # Ajouter le résultat à la conversation
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": json.dumps(function_response)
+                })
+            
+            # Deuxième appel pour obtenir la réponse finale avec les résultats des fonctions
+            second_response = self.client.chat.completions.create(
+                model=GROQ_MODEL,
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500
+            )
+            
+            final_response = second_response.choices[0].message.content
+            
+            # Sauvegarder dans historique
+            self.save_message(session_id, 'user', user_message)
+            self.save_message(session_id, 'assistant', final_response)
+            
+            return {
+                'success': True,
+                'response': final_response,
+                'mode': 'ai_with_actions',
+                'model': GROQ_MODEL,
+                'functions_called': [tc.function.name for tc in tool_calls]
+            }
+            
+        except Exception as e:
+            print(f"❌ Erreur Groq: {e}")
+            return self._fallback_response(user_message)
     
     def _fallback_response(self, user_message):
         """Réponse de secours si API indisponible"""
-        
-        # Réponses prédéfinies basiques
         message_lower = user_message.lower()
         
         fallback_responses = {
             'bonjour': "☀️ Bonjour ! Je suis Helia, votre experte en énergie solaire. Comment puis-je vous aider aujourd'hui ?",
-            'aide': "Je suis là pour vous guider ! Posez-moi vos questions sur le photovoltaïque, l'autoconsommation, les PPA, ou l'utilisation de Sun Dev by Sunstice.",
-            'merci': "Avec plaisir ! ☀️ N'hésitez pas si vous avez d'autres questions. L'énergie du futur brille déjà au-dessus de nos têtes !",
-            'kwc': "Le kWc (Kilowatt-crête) est la puissance maximale qu'un panneau peut produire dans des conditions optimales (1000 W/m², 25°C). 1 kWc produit environ 1000-1400 kWh/an en France ! ⚡",
-            'autoconsommation': "L'autoconsommation, c'est consommer directement l'électricité que vous produisez ! Taux typique : 30-70%. Vous économisez sur votre facture et gagnez en indépendance énergétique. ☀️",
-            'ppa': "Un PPA (Power Purchase Agreement) est un contrat d'achat d'électricité long terme (10-25 ans) qui sécurise les prix. Très utilisé par Amazon, Orange, SNCF pour décarboner ! 💼"
+            'aide': "Je suis là pour vous guider ! Posez-moi vos questions sur le photovoltaïque ou demandez-moi de créer un prospect, lister vos projets, etc.",
+            'merci': "Avec plaisir ! ☀️ N'hésitez pas si vous avez d'autres questions ou actions à réaliser.",
         }
         
-        # Chercher correspondance
         for keyword, response in fallback_responses.items():
             if keyword in message_lower:
-                return {
-                    'success': True,
-                    'response': response,
-                    'mode': 'fallback'
-                }
+                return {'success': True, 'response': response, 'mode': 'fallback'}
         
-        # Réponse générique
         return {
             'success': True,
-            'response': "Je suis Helia, votre assistante solaire ! ☀️ Actuellement en mode simplifié. Pour bénéficier de toute mon intelligence, configurez l'API Groq (gratuite!). En attendant, n'hésitez pas à me poser vos questions sur le photovoltaïque !",
+            'response': "Je suis Helia ! ☀️ Configurez l'API Groq pour débloquer toutes mes capacités (création prospects, analyses, etc.).",
             'mode': 'fallback'
         }
     
@@ -280,8 +775,10 @@ class HeliaAI:
 # Instance globale
 helia_ai = HeliaAI()
 
+# ============================================================================
+# ROUTES API
+# ============================================================================
 
-# Routes API
 @helia_bp.route('/api/helia/chat', methods=['POST'])
 def helia_chat():
     """Endpoint principal pour dialoguer avec Helia"""
@@ -289,25 +786,17 @@ def helia_chat():
         data = request.get_json()
         
         if not data or 'message' not in data:
-            return jsonify({
-                'success': False,
-                'error': 'Message manquant'
-            }), 400
+            return jsonify({'success': False, 'error': 'Message manquant'}), 400
         
         user_message = data['message']
         session_id = data.get('session_id', 'default')
-        context = data.get('context', None)  # Ex: page courante
+        context = data.get('context', None)
         
-        # Générer réponse
         result = helia_ai.generate_response(user_message, session_id, context)
-        
         return jsonify(result)
     
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @helia_bp.route('/api/helia/history', methods=['GET'])
@@ -316,17 +805,9 @@ def get_history():
     try:
         session_id = request.args.get('session_id', 'default')
         history = helia_ai.get_conversation_history(session_id)
-        
-        return jsonify({
-            'success': True,
-            'history': history
-        })
-    
+        return jsonify({'success': True, 'history': history})
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @helia_bp.route('/api/helia/clear', methods=['POST'])
@@ -335,19 +816,13 @@ def clear_history():
     try:
         data = request.get_json()
         session_id = data.get('session_id', 'default')
-        
         success = helia_ai.clear_history(session_id)
-        
         return jsonify({
             'success': success,
             'message': 'Historique effacé' if success else 'Aucun historique à effacer'
         })
-    
     except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @helia_bp.route('/api/helia/status', methods=['GET'])
@@ -356,7 +831,8 @@ def helia_status():
     return jsonify({
         'success': True,
         'ai_enabled': helia_ai.client is not None,
-        'mode': 'ai' if helia_ai.client else 'fallback',
+        'mode': 'ai_with_actions' if helia_ai.client else 'fallback',
         'model': GROQ_MODEL if helia_ai.client else 'basic',
-        'provider': 'Groq (gratuit, ultra-rapide!)' if helia_ai.client else 'Fallback'
+        'provider': 'Groq (gratuit + Function Calling!)' if helia_ai.client else 'Fallback',
+        'functions_available': list(AVAILABLE_FUNCTIONS.keys())
     })
