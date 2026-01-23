@@ -300,8 +300,12 @@ TU PEUX RÉALISER CES ACTIONS EN TEMPS RÉEL :
 8️⃣ analyze_visible_layers(layer_names)
    → Analyser les informations des calques actuellement affichés
 
+9️⃣ analyze_urban_data()
+   → Analyser RÉELLEMENT les données urbanistiques dans la zone visible
+   (cadastre, PLU, bâtiments : comptages, surfaces, zonages, recommandations PV)
+
 📊 ANALYSE TERRITORIALE :
-9️⃣ search_commune(nom_commune)
+🔟 search_commune(nom_commune)
    → Rechercher et analyser une commune
 
 🔟 analyze_commune_report(nom_commune)
@@ -312,6 +316,7 @@ QUAND UTILISER CES FONCTIONS :
 - CRM : "crée un prospect", "liste mes prospects", "montre le prospect #123", "passe le prospect 45 en gagné"
 - CARTE : "montre-moi les postes BT", "cache le cadastre", "zoom sur Paris", "où suis-je sur la carte ?"
 - ANALYSE : "analyser la commune de Lyon", "potentiel solaire de Bordeaux"
+- URBANISME : "analyse cette zone", "combien de parcelles ici ?", "quel est le zonage PLU ?", "potentiel photovoltaïque de la zone visible"
 
 EXEMPLES D'INTERACTIONS AVEC LA CARTE :
 👤 User: "Active les postes électriques BT"
@@ -326,6 +331,17 @@ EXEMPLES D'INTERACTIONS AVEC LA CARTE :
 🤖 Helia: [appelle get_map_state()]
          "📍 Position actuelle : Lyon (45.764, 4.836), Zoom : 13
           📑 Calques actifs : Postes BT, Cadastre, Satellite"
+
+👤 User: "Analyse cette zone"
+🤖 Helia: [appelle analyze_urban_data()]
+         "📊 Analyse urbanistique :
+          📐 Cadastre : 127 parcelles (moyenne 1.850m², 23,5 ha total)
+          🏛️ PLU : Zone dominante UB (urbain)
+          🏭 Bâtiments : 45 bâtiments dont 12 professionnels
+          💡 Recommandations PV :
+             - Parcelles moyennes idéales pour toitures commerciales
+             - Zone UB : Favoriser toitures et ombrières
+             - 12 bâtiments pro détectés = excellent potentiel toitures !"
 
 TON STYLE DE RÉPONSE :
 - Toujours chaleureuse et encourageante ☀️
@@ -561,6 +577,18 @@ HELIA_TOOLS = [
                         "description": "Liste des calques à analyser (si vide, analyse tous les calques actifs)"
                     }
                 },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_urban_data",
+            "description": "Analyse RÉELLE des données urbanistiques (cadastre, PLU, bâtiments) dans la zone visible de la carte. Compte les parcelles, calcule les surfaces, identifie le zonage PLU, fait des recommandations photovoltaïques.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
                 "required": []
             }
         }
@@ -1005,6 +1033,213 @@ def function_analyze_visible_layers(args):
         return {"success": False, "message": f"Erreur: {str(e)}"}
 
 
+def function_analyze_urban_data(args):
+    """Analyse RÉELLE des données urbanistiques dans la zone visible de la carte"""
+    try:
+        from database_adapter import execute_query
+        
+        # Récupérer la zone visible depuis l'état de la carte
+        map_state = session.get('current_map_state', {})
+        bounds = map_state.get('bounds', {})
+        
+        if not bounds or not all(k in bounds for k in ['north', 'south', 'east', 'west']):
+            return {
+                "success": False,
+                "message": "⚠️ Zone de carte non définie. Déplacez la carte et réessayez."
+            }
+        
+        north = bounds['north']
+        south = bounds['south']
+        east = bounds['east']
+        west = bounds['west']
+        
+        print(f"📍 [HELIA] Analyse urbanistique de la zone: N{north}, S{south}, E{east}, W{west}")
+        
+        analysis_result = {
+            "success": True,
+            "zone": {
+                "nord": north,
+                "sud": south,
+                "est": east,
+                "ouest": west,
+                "centre_lat": (north + south) / 2,
+                "centre_lon": (east + west) / 2
+            },
+            "cadastre": {},
+            "plu": {},
+            "urbanisme": {},
+            "recommandations_pv": []
+        }
+        
+        # ===== ANALYSE CADASTRE =====
+        try:
+            # Requête pour compter les parcelles dans la zone (compatible PostgreSQL et SQLite)
+            cadastre_query = """
+                SELECT 
+                    COUNT(*) as nb_parcelles,
+                    AVG(CAST(surface_m2 AS FLOAT)) as surface_moyenne,
+                    SUM(CAST(surface_m2 AS FLOAT)) as surface_totale
+                FROM parcelles_cadastrales
+                WHERE latitude BETWEEN %s AND %s
+                  AND longitude BETWEEN %s AND %s
+            """
+            
+            cadastre_data = execute_query(cadastre_query, (south, north, west, east), fetch_one=True)
+            
+            if cadastre_data and cadastre_data['nb_parcelles']:
+                nb_parcelles = int(cadastre_data['nb_parcelles'])
+                surface_moy = float(cadastre_data['surface_moyenne']) if cadastre_data['surface_moyenne'] else 0
+                surface_tot = float(cadastre_data['surface_totale']) if cadastre_data['surface_totale'] else 0
+                
+                analysis_result['cadastre'] = {
+                    "nb_parcelles": nb_parcelles,
+                    "surface_moyenne_m2": round(surface_moy, 2),
+                    "surface_totale_m2": round(surface_tot, 2),
+                    "surface_totale_ha": round(surface_tot / 10000, 2),
+                    "densité": "urbain" if surface_moy < 500 else ("péri-urbain" if surface_moy < 2000 else "rural")
+                }
+                
+                # Recommandations basées sur la taille des parcelles
+                if surface_moy > 5000:  # Grandes parcelles
+                    analysis_result['recommandations_pv'].append({
+                        "type": "opportunité",
+                        "message": f"🌾 Grandes parcelles moyennes ({round(surface_moy)}m²) - Excellent pour installations au sol ou ombrières"
+                    })
+                elif surface_moy > 1000:
+                    analysis_result['recommandations_pv'].append({
+                        "type": "potentiel",
+                        "message": f"🏘️ Parcelles moyennes ({round(surface_moy)}m²) - Idéal pour toitures commerciales/industrielles"
+                    })
+            else:
+                analysis_result['cadastre'] = {
+                    "message": "Aucune donnée cadastrale disponible pour cette zone"
+                }
+                
+        except Exception as e:
+            print(f"⚠️ [HELIA] Erreur analyse cadastre: {e}")
+            analysis_result['cadastre'] = {"error": "Données non disponibles"}
+        
+        # ===== ANALYSE PLU (si disponible) =====
+        try:
+            plu_query = """
+                SELECT 
+                    zonage,
+                    COUNT(*) as nb_zones,
+                    SUM(CAST(surface_m2 AS FLOAT)) as surface_totale
+                FROM zones_plu
+                WHERE latitude BETWEEN %s AND %s
+                  AND longitude BETWEEN %s AND %s
+                GROUP BY zonage
+                ORDER BY surface_totale DESC
+            """
+            
+            plu_data = execute_query(plu_query, (south, north, west, east), fetch_all=True)
+            
+            if plu_data:
+                zones_plu = []
+                for zone in plu_data:
+                    zones_plu.append({
+                        "zonage": zone['zonage'],
+                        "nb_zones": zone['nb_zones'],
+                        "surface_ha": round(float(zone['surface_totale']) / 10000, 2)
+                    })
+                
+                analysis_result['plu'] = {
+                    "zones": zones_plu,
+                    "zone_dominante": zones_plu[0]['zonage'] if zones_plu else "Non définie"
+                }
+                
+                # Recommandations basées sur le zonage PLU
+                for zone in zones_plu[:3]:  # Top 3 zones
+                    zonage = zone['zonage']
+                    if zonage.startswith('A'):  # Zone agricole
+                        analysis_result['recommandations_pv'].append({
+                            "type": "réglementation",
+                            "message": f"🌾 Zone {zonage} (agricole) : Photovoltaïque au sol possible avec conditions. Privilégier ombrières de parking ou agrivoltaïsme."
+                        })
+                    elif zonage.startswith('U'):  # Zone urbaine
+                        analysis_result['recommandations_pv'].append({
+                            "type": "réglementation",
+                            "message": f"🏙️ Zone {zonage} (urbaine) : Favoriser toitures et ombrières de parking. Attention intégration paysagère."
+                        })
+                    elif zonage.startswith('N'):  # Zone naturelle
+                        analysis_result['recommandations_pv'].append({
+                            "type": "contrainte",
+                            "message": f"🌲 Zone {zonage} (naturelle) : Contraintes fortes pour le photovoltaïque. Études préalables indispensables."
+                        })
+            else:
+                analysis_result['plu'] = {"message": "Données PLU non disponibles pour cette zone"}
+                
+        except Exception as e:
+            print(f"⚠️ [HELIA] Erreur analyse PLU: {e}")
+            analysis_result['plu'] = {"message": "Données PLU non disponibles"}
+        
+        # ===== ANALYSE BATIMENTS (OSM/Cadastre) =====
+        try:
+            batiments_query = """
+                SELECT 
+                    COUNT(*) as nb_batiments,
+                    AVG(CAST(surface_toiture_m2 AS FLOAT)) as surface_moy_toiture,
+                    COUNT(CASE WHEN usage = 'commercial' OR usage = 'industriel' THEN 1 END) as nb_pro,
+                    COUNT(CASE WHEN usage = 'residentiel' THEN 1 END) as nb_residentiel
+                FROM batiments
+                WHERE latitude BETWEEN %s AND %s
+                  AND longitude BETWEEN %s AND %s
+            """
+            
+            batiments_data = execute_query(batiments_query, (south, north, west, east), fetch_one=True)
+            
+            if batiments_data and batiments_data['nb_batiments']:
+                nb_bat = int(batiments_data['nb_batiments'])
+                surf_moy = float(batiments_data['surface_moy_toiture']) if batiments_data['surface_moy_toiture'] else 0
+                nb_pro = int(batiments_data['nb_pro']) if batiments_data['nb_pro'] else 0
+                nb_res = int(batiments_data['nb_residentiel']) if batiments_data['nb_residentiel'] else 0
+                
+                analysis_result['urbanisme'] = {
+                    "nb_batiments": nb_bat,
+                    "surface_moyenne_toiture_m2": round(surf_moy, 2),
+                    "batiments_professionnels": nb_pro,
+                    "batiments_residentiels": nb_res,
+                    "potentiel_toitures_kwc": round(nb_bat * surf_moy * 0.15, 2)  # Estimation: 15% rendement
+                }
+                
+                if nb_pro > 5:
+                    analysis_result['recommandations_pv'].append({
+                        "type": "opportunité",
+                        "message": f"🏭 {nb_pro} bâtiments pro/industriels détectés - Excellent potentiel toitures photovoltaïques"
+                    })
+                
+                if surf_moy > 200:
+                    analysis_result['recommandations_pv'].append({
+                        "type": "potentiel",
+                        "message": f"🏠 Toitures moyennes de {round(surf_moy)}m² - Adapté pour installations 3-30 kWc"
+                    })
+            else:
+                analysis_result['urbanisme'] = {"message": "Données bâtiments non disponibles"}
+                
+        except Exception as e:
+            print(f"⚠️ [HELIA] Erreur analyse bâtiments: {e}")
+            analysis_result['urbanisme'] = {"message": "Données non disponibles"}
+        
+        # ===== SYNTHÈSE FINALE =====
+        if not analysis_result['recommandations_pv']:
+            analysis_result['recommandations_pv'].append({
+                "type": "info",
+                "message": "💡 Zoomez davantage ou activez d'autres calques pour une analyse plus détaillée"
+            })
+        
+        return analysis_result
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur analyze_urban_data: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "success": False,
+            "message": f"Erreur lors de l'analyse : {str(e)}"
+        }
+
+
 # Mapping des fonctions
 AVAILABLE_FUNCTIONS = {
     "create_prospect": function_create_prospect,
@@ -1016,7 +1251,8 @@ AVAILABLE_FUNCTIONS = {
     "toggle_layer": function_toggle_layer,
     "zoom_to_location": function_zoom_to_location,
     "get_map_state": function_get_map_state,
-    "analyze_visible_layers": function_analyze_visible_layers
+    "analyze_visible_layers": function_analyze_visible_layers,
+    "analyze_urban_data": function_analyze_urban_data
 }
 
 # ============================================================================
