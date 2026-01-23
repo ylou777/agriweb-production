@@ -802,8 +802,15 @@ class HeliaAI:
         return False
 
 
-# Instance globale
-helia_ai = HeliaAI()
+# Instance globale (lazy initialization)
+helia_ai = None
+
+def get_helia_instance():
+    """Récupère ou crée l'instance Helia (lazy initialization)"""
+    global helia_ai
+    if helia_ai is None:
+        helia_ai = HeliaAI()
+    return helia_ai
 
 # ============================================================================
 # ROUTES API
@@ -822,7 +829,7 @@ def helia_chat():
         session_id = data.get('session_id', 'default')
         context = data.get('context', None)
         
-        result = helia_ai.generate_response(user_message, session_id, context)
+        result = get_helia_instance().generate_response(user_message, session_id, context)
         return jsonify(result)
     
     except Exception as e:
@@ -834,7 +841,7 @@ def get_history():
     """Récupère l'historique de conversation"""
     try:
         session_id = request.args.get('session_id', 'default')
-        history = helia_ai.get_conversation_history(session_id)
+        history = get_helia_instance().get_conversation_history(session_id)
         return jsonify({'success': True, 'history': history})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -846,7 +853,7 @@ def clear_history():
     try:
         data = request.get_json()
         session_id = data.get('session_id', 'default')
-        success = helia_ai.clear_history(session_id)
+        success = get_helia_instance().clear_history(session_id)
         return jsonify({
             'success': success,
             'message': 'Historique effacé' if success else 'Aucun historique à effacer'
@@ -858,12 +865,13 @@ def clear_history():
 @helia_bp.route('/api/helia/status', methods=['GET'])
 def helia_status():
     """Statut de l'IA Helia"""
+    instance = get_helia_instance()
     return jsonify({
         'success': True,
-        'ai_enabled': helia_ai.client is not None,
-        'mode': 'ai_with_actions' if helia_ai.client else 'fallback',
-        'model': GROQ_MODEL if helia_ai.client else 'basic',
-        'provider': 'Groq (gratuit + Function Calling!)' if helia_ai.client else 'Fallback',
+        'ai_enabled': instance.client is not None,
+        'mode': 'ai_with_actions' if instance.client else 'fallback',
+        'model': GROQ_MODEL if instance.client else 'basic',
+        'provider': 'Groq (gratuit + Function Calling!)' if instance.client else 'Fallback',
         'functions_available': list(AVAILABLE_FUNCTIONS.keys())
     })
 
@@ -872,10 +880,11 @@ def helia_status():
 def debug_env():
     """Debug des variables d'environnement"""
     groq_key = os.getenv('GROQ_API_KEY', '')
+    instance = get_helia_instance()
     return jsonify({
         'GROQ_AVAILABLE': GROQ_AVAILABLE,
         'GROQ_API_KEY_exists': bool(groq_key),
         'GROQ_API_KEY_length': len(groq_key) if groq_key else 0,
         'GROQ_API_KEY_preview': f"{groq_key[:10]}...{groq_key[-10:]}" if len(groq_key) > 20 else "vide",
-        'client_initialized': helia_ai.client is not None
+        'client_initialized': instance.client is not None
     })
