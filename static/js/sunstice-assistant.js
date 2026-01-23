@@ -86,14 +86,25 @@ class SunsticeAssistant {
                         <div class="assistant-avatar-small me-2">
                             <i class="bi bi-sun-fill"></i>
                         </div>
-                        <div>
+                        <div class="flex-grow-1">
                             <h6 class="mb-0">☀️ Helia</h6>
                             <small class="text-muted">Votre experte en énergie solaire</small>
                         </div>
                     </div>
-                    <button class="btn-close-assistant" id="close-assistant">
-                        <i class="bi bi-x"></i>
-                    </button>
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Sélecteur de mode Helia -->
+                        <div class="helia-mode-selector">
+                            <button class="helia-mode-btn active" data-mode="assiste" title="Mode Assisté (proactif)">
+                                <i class="bi bi-stars"></i>
+                            </button>
+                            <button class="helia-mode-btn" data-mode="manuel" title="Mode Manuel (réactif)">
+                                <i class="bi bi-hand-index"></i>
+                            </button>
+                        </div>
+                        <button class="btn-close-assistant" id="close-assistant">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="assistant-messages" id="assistant-messages">
@@ -426,6 +437,42 @@ class SunsticeAssistant {
                     box-shadow: 0 4px 12px rgba(255, 140, 0, 0.5);
                 }
 
+                /* Mode Selector Styles */
+                .helia-mode-selector {
+                    display: flex;
+                    gap: 5px;
+                    background: rgba(255, 255, 255, 0.3);
+                    border-radius: 20px;
+                    padding: 4px;
+                }
+
+                .helia-mode-btn {
+                    background: transparent;
+                    border: none;
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    cursor: pointer;
+                    color: rgba(255, 107, 0, 0.6);
+                    font-size: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: all 0.3s ease;
+                }
+
+                .helia-mode-btn:hover {
+                    background: rgba(255, 255, 255, 0.5);
+                    color: #FF6B00;
+                }
+
+                .helia-mode-btn.active {
+                    background: white;
+                    color: #FF6B00;
+                    box-shadow: 0 2px 6px rgba(255, 107, 0, 0.3);
+                    font-weight: bold;
+                }
+
                 @media (max-width: 768px) {
                     .sunstice-assistant-window {
                         width: calc(100vw - 20px);
@@ -450,6 +497,15 @@ class SunsticeAssistant {
         this.messagesContainer = document.getElementById('assistant-messages');
         this.quickActionsContainer = document.getElementById('quick-actions');
 
+        // Mode buttons
+        const modeBtns = document.querySelectorAll('.helia-mode-btn');
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => this.switchMode(e.target.closest('.helia-mode-btn').dataset.mode));
+        });
+
+        // Charger le mode actuel au démarrage
+        this.loadCurrentMode();
+
         btn.addEventListener('click', () => this.toggleWindow());
         closeBtn.addEventListener('click', () => this.toggleWindow());
         sendBtn.addEventListener('click', () => this.sendMessage());
@@ -466,6 +522,54 @@ class SunsticeAssistant {
         if (this.isOpen && this.conversationHistory.length === 0) {
             this.showInitialMessage();
         }
+    }
+
+    async loadCurrentMode() {
+        try {
+            const response = await fetch('/api/helia/mode');
+            const data = await response.json();
+            this.updateModeUI(data.mode);
+        } catch (error) {
+            console.warn('⚠️ Impossible de charger le mode Helia, défaut: assisté');
+            this.updateModeUI('assiste');
+        }
+    }
+
+    async switchMode(mode) {
+        try {
+            const response = await fetch('/api/helia/mode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ mode: mode })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                this.updateModeUI(mode);
+                
+                // Afficher une notification de changement de mode
+                const modeLabel = mode === 'assiste' ? 'Assisté (proactif)' : 'Manuel (réactif)';
+                this.addMessage('bot', `🔄 Mode changé : **${modeLabel}**\n\n${mode === 'assiste' ? 
+                    'Je suis maintenant **proactive** et vais vous suggérer des actions automatiquement !' :
+                    'Je vais maintenant attendre vos demandes explicites avant d\'agir.'}`);
+            }
+        } catch (error) {
+            console.error('❌ Erreur changement de mode:', error);
+            this.addMessage('bot', '❌ Impossible de changer de mode. Veuillez réessayer.');
+        }
+    }
+
+    updateModeUI(mode) {
+        const modeBtns = document.querySelectorAll('.helia-mode-btn');
+        modeBtns.forEach(btn => {
+            if (btn.dataset.mode === mode) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
     }
 
     showWelcomeMessage() {

@@ -39,7 +39,7 @@ GROQ_MODEL = os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')  # Modèle plus lé
 # SYSTEM PROMPT ENRICHI - Documentation complète de la plateforme
 # ============================================================================
 
-HELIA_SYSTEM_PROMPT = """Tu es Helia ☀️, assistante IA photovoltaïque AgriWeb.
+HELIA_SYSTEM_PROMPT_ASSISTE = """Tu es Helia ☀️, assistante IA photovoltaïque AgriWeb en MODE ASSISTÉ (proactif).
 
 **Fonctions disponibles:**
 - search_location: recherche complète adresse (toutes APIs)
@@ -47,14 +47,33 @@ HELIA_SYSTEM_PROMPT = """Tu es Helia ☀️, assistante IA photovoltaïque AgriW
 - CRM: create_prospect, export_to_crm, add_prospect_note, update_project_step, get_project_status
 - Rapports: generate_point_report, analyze_commune_report
 
-**Comportement:**
-1. UTILISE tes fonctions (agis, ne conseille pas)
-2. Géocode adresses automatiquement
-3. Explique brièvement ce que tu fais
-4. Propose prochaine action
-5. Réponds UNIQUEMENT sur photovoltaïque (refuse poliment autres sujets)
+**MODE ASSISTÉ - Tu es PROACTIF:**
+1. UTILISE tes fonctions AUTOMATIQUEMENT (agis sans demander confirmation)
+2. SUGGÈRE des actions pertinentes ("Je peux créer un prospect avec ces données")
+3. PROPOSE la suite logique ("Voulez-vous que j'ouvre la carte avec ces résultats ?")
+4. EXPLIQUE brièvement ce que tu fais
+5. Géocode adresses automatiquement
+6. Réponds UNIQUEMENT sur photovoltaïque
 
-Français chaleureux !"""
+Français chaleureux et PROACTIF !"""
+
+HELIA_SYSTEM_PROMPT_MANUEL = """Tu es Helia ☀️, assistante IA photovoltaïque AgriWeb en MODE MANUEL (sur demande).
+
+**Fonctions disponibles:**
+- search_location: recherche complète adresse (toutes APIs)
+- Carte: toggle_layer, zoom_to_location, analyze_urban_data
+- CRM: create_prospect, export_to_crm, add_prospect_note, update_project_step, get_project_status
+- Rapports: generate_point_report, analyze_commune_report
+
+**MODE MANUEL - Tu ATTENDS les demandes:**
+1. UTILISE tes fonctions UNIQUEMENT sur demande explicite
+2. RÉPONDS aux questions sans automatiser
+3. FOURNIS des informations et liens sans agir
+4. NE PROPOSE PAS d'actions non demandées
+5. Géocode adresses si demandé
+6. Réponds UNIQUEMENT sur photovoltaïque
+
+Français chaleureux et RÉACTIF !"""
 
 # ============================================================================
 # DÉFINITION DES OUTILS (FUNCTIONS) DISPONIBLES POUR HELIA
@@ -1892,8 +1911,12 @@ class HeliaAI:
             # Récupérer l'historique
             history = self.get_conversation_history(session_id)
             
+            # Choisir le prompt selon le mode (défaut: assisté)
+            helia_mode = session.get('helia_mode', 'assiste')
+            system_prompt = HELIA_SYSTEM_PROMPT_ASSISTE if helia_mode == 'assiste' else HELIA_SYSTEM_PROMPT_MANUEL
+            
             # Construire les messages
-            messages = [{'role': 'system', 'content': HELIA_SYSTEM_PROMPT}]
+            messages = [{'role': 'system', 'content': system_prompt}]
             
             if context:
                 messages[0]['content'] += f"\n\nCONTEXTE ACTUEL : {context}"
@@ -2101,10 +2124,41 @@ def debug_env():
 
 
 # ============================================================================
-# ROUTES POUR SYNCHRONISATION CARTE <-> HELIA
+# GESTION DES MODES HELIA (ASSISTÉ / MANUEL)
 # ============================================================================
 
-@helia_bp.route('/api/helia/map/commands', methods=['GET'])
+@helia_bp.route('/api/helia/mode', methods=['GET', 'POST'])
+def manage_helia_mode():
+    """Gère le mode de fonctionnement Helia (assisté/manuel)"""
+    try:
+        if request.method == 'POST':
+            data = request.get_json()
+            mode = data.get('mode', 'assiste')  # 'assiste' ou 'manuel'
+            
+            if mode not in ['assiste', 'manuel']:
+                return jsonify({'success': False, 'error': 'Mode invalide'}), 400
+            
+            session['helia_mode'] = mode
+            session.modified = True
+            
+            mode_label = "Helia Assisté" if mode == 'assiste' else "Mode Manuel"
+            return jsonify({
+                'success': True,
+                'mode': mode,
+                'message': f'Mode "{mode_label}" activé !'
+            })
+        else:
+            # GET - Récupérer le mode actuel
+            current_mode = session.get('helia_mode', 'assiste')
+            return jsonify({
+                'success': True,
+                'mode': current_mode
+            })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
 def get_map_commands():
     """Récupère les commandes de carte en attente d'exécution"""
     try:
