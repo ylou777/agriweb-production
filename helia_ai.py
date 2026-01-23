@@ -272,6 +272,7 @@ Disponibles sur la carte interactive :
 
 TU PEUX RÉALISER CES ACTIONS EN TEMPS RÉEL :
 
+📋 GESTION CRM :
 1️⃣ create_prospect(adresse, commune, lat, lon, puissance_kwc, type_projet)
    → Créer un nouveau prospect dans le CRM
 
@@ -284,22 +285,55 @@ TU PEUX RÉALISER CES ACTIONS EN TEMPS RÉEL :
 4️⃣ update_prospect_status(prospect_id, nouveau_statut)
    → Changer le statut d'un prospect
 
-5️⃣ search_commune(nom_commune)
+🗺️ CONTRÔLE DE LA CARTE INTERACTIVE :
+5️⃣ toggle_layer(layer_name, visible)
+   → Activer/désactiver un calque sur la carte
+   Calques disponibles : postes_bt, postes_hta, lignes_hta, capacites_accueil, rpg, cadastre, plu, risques, satellite, osm
+
+6️⃣ zoom_to_location(lat, lon, zoom, location_name)
+   → Centrer la carte sur une position précise
+   Niveaux de zoom recommandés : 6=région, 10=département, 15=quartier, 18=bâtiment
+
+7️⃣ get_map_state()
+   → Récupérer l'état actuel de la carte (position, zoom, calques actifs)
+
+8️⃣ analyze_visible_layers(layer_names)
+   → Analyser les informations des calques actuellement affichés
+
+📊 ANALYSE TERRITORIALE :
+9️⃣ search_commune(nom_commune)
    → Rechercher et analyser une commune
 
+🔟 analyze_commune_report(nom_commune)
+   → Générer et analyser le rapport photovoltaïque complet d'une commune
+   (toitures, parkings, friches, potentiel solaire, etc.)
+
 QUAND UTILISER CES FONCTIONS :
-- Si l'utilisateur dit "crée un prospect pour...", appelle create_prospect
-- Si il demande "liste mes prospects en attente", appelle list_prospects
-- Si il dit "montre-moi le prospect #123", appelle get_prospect_details
-- Si il demande "passe le prospect 45 en gagné", appelle update_prospect_status
-- Si il veut "analyser la commune de Lyon", appelle search_commune
+- CRM : "crée un prospect", "liste mes prospects", "montre le prospect #123", "passe le prospect 45 en gagné"
+- CARTE : "montre-moi les postes BT", "cache le cadastre", "zoom sur Paris", "où suis-je sur la carte ?"
+- ANALYSE : "analyser la commune de Lyon", "potentiel solaire de Bordeaux"
+
+EXEMPLES D'INTERACTIONS AVEC LA CARTE :
+👤 User: "Active les postes électriques BT"
+🤖 Helia: [appelle toggle_layer('postes_bt', true)]
+         "🗺️ Calque 'Postes BT' affiché ! Vous pouvez maintenant voir tous les points de raccordement proches."
+
+👤 User: "Montre-moi Lyon"
+🤖 Helia: [appelle zoom_to_location(45.764, 4.836, 13, 'Lyon')]
+         "🎯 Carte centrée sur Lyon ! Voulez-vous que j'affiche aussi les postes électriques de la zone ?"
+
+👤 User: "Quels calques sont actifs ?"
+🤖 Helia: [appelle get_map_state()]
+         "📍 Position actuelle : Lyon (45.764, 4.836), Zoom : 13
+          📑 Calques actifs : Postes BT, Cadastre, Satellite"
 
 TON STYLE DE RÉPONSE :
 - Toujours chaleureuse et encourageante ☀️
-- Utilise des emojis solaires contextuels
+- Utilise des emojis solaires et cartographiques contextuels
 - Donne des exemples concrets et chiffrés
 - Vulgarise les concepts techniques
 - **Propose proactivement des actions !**
+- **Explique ce que tu fais** : "Je vais activer le calque des postes BT pour vous..."
 - Exemple : "Voulez-vous que je crée un prospect pour cette adresse ?"
 
 Réponds toujours en français, avec chaleur, expertise et ACTION ! ☀️"""
@@ -444,6 +478,90 @@ HELIA_TOOLS = [
                     }
                 },
                 "required": ["nom_commune"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "toggle_layer",
+            "description": "Active ou désactive un calque sur la carte interactive",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "layer_name": {
+                        "type": "string",
+                        "enum": ["postes_bt", "postes_hta", "lignes_hta", "capacites_accueil", "rpg", "cadastre", "plu", "risques", "satellite", "osm"],
+                        "description": "Nom du calque à activer/désactiver"
+                    },
+                    "visible": {
+                        "type": "boolean",
+                        "description": "true pour afficher, false pour masquer"
+                    }
+                },
+                "required": ["layer_name", "visible"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "zoom_to_location",
+            "description": "Centre la carte sur une position et ajuste le niveau de zoom",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude de la position"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude de la position"
+                    },
+                    "zoom": {
+                        "type": "integer",
+                        "description": "Niveau de zoom (1-20, 15=quartier, 18=bâtiment)",
+                        "default": 15
+                    },
+                    "location_name": {
+                        "type": "string",
+                        "description": "Nom descriptif de la position (optionnel)"
+                    }
+                },
+                "required": ["lat", "lon"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_map_state",
+            "description": "Récupère l'état actuel de la carte (position, zoom, calques actifs)",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_visible_layers",
+            "description": "Analyse les informations visibles sur les calques actuellement actifs de la carte",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "layer_names": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Liste des calques à analyser (si vide, analyse tous les calques actifs)"
+                    }
+                },
+                "required": []
             }
         }
     }
@@ -730,6 +848,163 @@ def function_analyze_commune_report(args):
         return {"success": False, "message": f"Erreur: {str(e)}"}
 
 
+def function_toggle_layer(args):
+    """Active/désactive un calque sur la carte"""
+    try:
+        layer_name = args['layer_name']
+        visible = args['visible']
+        
+        # Stocker la commande dans la session pour que le frontend la récupère
+        if 'map_commands' not in session:
+            session['map_commands'] = []
+        
+        session['map_commands'].append({
+            'action': 'toggle_layer',
+            'layer_name': layer_name,
+            'visible': visible,
+            'timestamp': datetime.now().isoformat()
+        })
+        session.modified = True
+        
+        layer_names_fr = {
+            'postes_bt': 'Postes BT',
+            'postes_hta': 'Postes HTA',
+            'lignes_hta': 'Lignes HTA',
+            'capacites_accueil': 'Capacités d\'accueil',
+            'rpg': 'RPG (parcelles agricoles)',
+            'cadastre': 'Cadastre',
+            'plu': 'PLU',
+            'risques': 'Risques naturels',
+            'satellite': 'Vue satellite',
+            'osm': 'OpenStreetMap'
+        }
+        
+        action_fr = "affiché" if visible else "masqué"
+        
+        return {
+            "success": True,
+            "message": f"🗺️ Calque '{layer_names_fr.get(layer_name, layer_name)}' {action_fr}",
+            "layer": layer_name,
+            "visible": visible
+        }
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur toggle_layer: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_zoom_to_location(args):
+    """Centre la carte sur une position"""
+    try:
+        lat = args['lat']
+        lon = args['lon']
+        zoom = args.get('zoom', 15)
+        location_name = args.get('location_name', '')
+        
+        if 'map_commands' not in session:
+            session['map_commands'] = []
+        
+        session['map_commands'].append({
+            'action': 'zoom_to',
+            'lat': lat,
+            'lon': lon,
+            'zoom': zoom,
+            'timestamp': datetime.now().isoformat()
+        })
+        session.modified = True
+        
+        msg = f"🎯 Carte centrée sur {location_name} " if location_name else "🎯 Carte centrée "
+        msg += f"({lat:.5f}, {lon:.5f}) - Zoom niveau {zoom}"
+        
+        return {
+            "success": True,
+            "message": msg,
+            "lat": lat,
+            "lon": lon,
+            "zoom": zoom
+        }
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur zoom_to_location: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_get_map_state(args):
+    """Récupère l'état actuel de la carte"""
+    try:
+        # Récupérer l'état depuis la session si disponible
+        map_state = session.get('current_map_state', {
+            'center': {'lat': 46.603354, 'lon': 1.888334},  # Centre de la France par défaut
+            'zoom': 6,
+            'active_layers': [],
+            'message': "État de carte non encore synchronisé. Demandez à l'utilisateur de partager sa position actuelle."
+        })
+        
+        return {
+            "success": True,
+            "map_state": map_state
+        }
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur get_map_state: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_analyze_visible_layers(args):
+    """Analyse les calques visibles"""
+    try:
+        layer_names = args.get('layer_names', [])
+        
+        # Descriptions des calques
+        layer_descriptions = {
+            'postes_bt': "Postes électriques Basse Tension (BT) - essentiels pour raccordement des installations < 36 kVA. Distance idéale < 100m.",
+            'postes_hta': "Postes électriques Haute Tension A (HTA) - pour installations moyennes et grandes > 100 kWc. Distance idéale < 500m.",
+            'lignes_hta': "Lignes électriques HTA - réseau de distribution moyenne tension. Important pour étudier les capacités d'accueil.",
+            'capacites_accueil': "Capacités d'accueil du réseau électrique - zones où le raccordement est facilité ou saturé.",
+            'rpg': "Registre Parcellaire Graphique - parcelles agricoles déclarées. Utile pour identifier terrains agricoles disponibles.",
+            'cadastre': "Parcelles cadastrales et bâtiments - délimitations officielles des propriétés foncières.",
+            'plu': "Plan Local d'Urbanisme - zonage et règles d'urbanisme (constructibilité, contraintes...).",
+            'risques': "Risques naturels - inondations, séismes, mouvements de terrain. Contraintes réglementaires possibles.",
+            'satellite': "Imagerie satellite - vue aérienne réelle pour identifier toitures, parkings, espaces disponibles.",
+            'osm': "OpenStreetMap - fond de carte collaboratif avec routes, bâtiments, POI."
+        }
+        
+        # Si aucune couche spécifiée, analyser l'état actuel
+        if not layer_names:
+            map_state = session.get('current_map_state', {})
+            layer_names = map_state.get('active_layers', [])
+        
+        if not layer_names:
+            return {
+                "success": True,
+                "message": "ℹ️ Aucun calque actif actuellement. Activez des calques pour visualiser les données photovoltaïques !",
+                "recommendations": [
+                    "Activez 'Postes BT' pour voir les points de raccordement proches",
+                    "Activez 'Cadastre' pour identifier les parcelles",
+                    "Activez 'Satellite' pour analyser visuellement les toitures"
+                ]
+            }
+        
+        analysis = {
+            "success": True,
+            "active_layers_count": len(layer_names),
+            "layers": []
+        }
+        
+        for layer in layer_names:
+            if layer in layer_descriptions:
+                analysis['layers'].append({
+                    'name': layer,
+                    'description': layer_descriptions[layer]
+                })
+        
+        return analysis
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur analyze_visible_layers: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
 # Mapping des fonctions
 AVAILABLE_FUNCTIONS = {
     "create_prospect": function_create_prospect,
@@ -737,7 +1012,11 @@ AVAILABLE_FUNCTIONS = {
     "get_prospect_details": function_get_prospect_details,
     "update_prospect_status": function_update_prospect_status,
     "search_commune": function_search_commune,
-    "analyze_commune_report": function_analyze_commune_report
+    "analyze_commune_report": function_analyze_commune_report,
+    "toggle_layer": function_toggle_layer,
+    "zoom_to_location": function_zoom_to_location,
+    "get_map_state": function_get_map_state,
+    "analyze_visible_layers": function_analyze_visible_layers
 }
 
 # ============================================================================
@@ -1023,3 +1302,48 @@ def debug_env():
         'GROQ_API_KEY_preview': f"{groq_key[:10]}...{groq_key[-10:]}" if len(groq_key) > 20 else "vide",
         'client_initialized': instance.client is not None
     })
+
+
+# ============================================================================
+# ROUTES POUR SYNCHRONISATION CARTE <-> HELIA
+# ============================================================================
+
+@helia_bp.route('/api/helia/map/commands', methods=['GET'])
+def get_map_commands():
+    """Récupère les commandes de carte en attente d'exécution"""
+    try:
+        commands = session.get('map_commands', [])
+        
+        # Nettoyer les commandes après lecture
+        session['map_commands'] = []
+        session.modified = True
+        
+        return jsonify({
+            'success': True,
+            'commands': commands
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@helia_bp.route('/api/helia/map/state', methods=['POST'])
+def update_map_state():
+    """Met à jour l'état actuel de la carte (appelé par le frontend)"""
+    try:
+        data = request.get_json()
+        
+        session['current_map_state'] = {
+            'center': data.get('center', {}),
+            'zoom': data.get('zoom', 6),
+            'active_layers': data.get('active_layers', []),
+            'bounds': data.get('bounds', {}),
+            'timestamp': datetime.now().isoformat()
+        }
+        session.modified = True
+        
+        return jsonify({
+            'success': True,
+            'message': 'État de carte synchronisé'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
