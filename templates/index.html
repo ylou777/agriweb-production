@@ -504,5 +504,37 @@
   </script>
   <script src="{{ url_for('static', filename='js/assistant-knowledge-base.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sunstice-assistant.js') }}"></script>
+  
+  <!-- Script de synchronisation Helia <-> Carte -->
+  <script>
+    // Attendre que l'iframe soit chargée
+    window.addEventListener('load', function() {
+      const mapFrame = document.getElementById('mapFrame');
+      
+      if (mapFrame) {
+        mapFrame.addEventListener('load', function() {
+          try {
+            const mapWindow = mapFrame.contentWindow;
+            
+            // Vérifier que la carte Leaflet existe dans l'iframe
+            if (mapWindow.map && typeof HeliaMapSync !== 'undefined') {
+              console.log('🗺️ Initialisation de la synchronisation Helia <-> Carte');
+              
+              // Créer l'instance de synchronisation
+              window.heliaMapSync = new HeliaMapSync(mapWindow.map);
+              
+              console.log('✅ Synchronisation Helia-Carte activée !');
+            } else {
+              console.warn('⚠️ Carte non trouvée dans iframe ou HeliaMapSync non chargé');
+            }
+          } catch (error) {
+            console.error('❌ Erreur initialisation Helia-Carte:', error);
+          }
+        });
+      } else {
+        console.warn('⚠️ Iframe #mapFrame non trouvée');
+      }
+    });
+  </script>
 </body>
 </html>

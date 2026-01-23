@@ -25,6 +25,7 @@
   <div id="map"></div>
   <div class="summary-bar" id="summaryBar" style="display:none"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/helia_map_sync.js"></script>
   <script>
     // Icônes personnalisées
     const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
@@ -472,6 +473,57 @@
     });
     
     window._leaflet_ready = true;
+  </script>
+  
+  <!-- Script de synchronisation Helia <-> Carte -->
+  <script src="/static/helia_map_sync.js"></script>
+  <script>
+    console.log('🗺️ Initialisation synchronisation Helia-Carte...');
+    
+    // Initialiser la synchronisation après le chargement de la carte
+    if (map && typeof HeliaMapSync !== 'undefined') {
+      const heliaSync = new HeliaMapSync(map);
+      
+      // Enregistrer les fonds de carte
+      heliaSync.registerLayer('satellite', sat);
+      heliaSync.registerLayer('osm', osm);
+      
+      // Créer un proxy pour gérer les calques dynamiques de window._layers
+      // Les calques sont ajoutés dynamiquement via window.addGeoJsonToMap
+      window._heliaLayersRegistry = {};
+      
+      // Hook pour intercepter les nouveaux calques ajoutés
+      const originalAddGeoJson = window.addGeoJsonToMap;
+      window.addGeoJsonToMap = function(feature, style) {
+        // Appeler la fonction originale
+        originalAddGeoJson(feature, style);
+        
+        // Récupérer le calque qui vient d'être ajouté (dernier de la liste)
+        const newLayer = window._layers[window._layers.length - 1];
+        if (newLayer) {
+          // Détecter le type de calque
+          const typeLayer = detectTypeLayer(feature, style);
+          if (typeLayer) {
+            // Enregistrer le calque dans notre registre
+            if (!window._heliaLayersRegistry[typeLayer]) {
+              window._heliaLayersRegistry[typeLayer] = [];
+            }
+            window._heliaLayersRegistry[typeLayer].push(newLayer);
+            
+            // Enregistrer dans HeliaMapSync si c'est le premier calque de ce type
+            if (window._heliaLayersRegistry[typeLayer].length === 1) {
+              heliaSync.registerLayer(typeLayer, newLayer);
+              console.log(`📍 Calque "${typeLayer}" enregistré dans Helia`);
+            }
+          }
+        }
+      };
+      
+      console.log('✅ Synchronisation Helia-Carte activée avec hook dynamique !');
+      window.heliaMapSync = heliaSync;
+    } else {
+      console.warn('⚠️ HeliaMapSync non chargé ou carte non prête');
+    }
   </script>
 </body>
 </html>
