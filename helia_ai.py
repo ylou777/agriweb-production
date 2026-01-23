@@ -1303,15 +1303,19 @@ class HeliaAI:
         return session['helia_conversations'][session_id]
     
     def save_message(self, session_id, role, content):
-        """Sauvegarde un message dans l'historique"""
+        """Sauvegarde un message dans l'historique (ultra-compacté)"""
         if 'helia_conversations' not in session:
             session['helia_conversations'] = {}
         
         if session_id not in session['helia_conversations']:
             session['helia_conversations'][session_id] = []
         
-        # Limiter la taille du contenu pour éviter les cookies trop gros
-        content_trimmed = content[:500] if len(content) > 500 else content
+        # Pour assistant: stocker seulement 150 premiers caractères
+        # Pour user: stocker 300 caractères max
+        if role == 'assistant':
+            content_trimmed = content[:150] if len(content) > 150 else content
+        else:
+            content_trimmed = content[:300] if len(content) > 300 else content
         
         session['helia_conversations'][session_id].append({
             'role': role,
@@ -1319,9 +1323,9 @@ class HeliaAI:
             'timestamp': datetime.now().isoformat()
         })
         
-        # Limiter à 4 derniers messages (2 paires Q/R) pour éviter cookie > 4KB
-        if len(session['helia_conversations'][session_id]) > 4:
-            session['helia_conversations'][session_id] = session['helia_conversations'][session_id][-4:]
+        # Limiter à 2 derniers messages seulement (1 paire Q/R)
+        if len(session['helia_conversations'][session_id]) > 2:
+            session['helia_conversations'][session_id] = session['helia_conversations'][session_id][-2:]
         
         session.modified = True
     
@@ -1341,8 +1345,8 @@ class HeliaAI:
             if context:
                 messages[0]['content'] += f"\n\nCONTEXTE ACTUEL : {context}"
             
-            # Ajouter historique (4 derniers messages max pour éviter cookie overflow)
-            for msg in history[-4:]:
+            # Ajouter historique (2 derniers messages max pour éviter cookie overflow)
+            for msg in history[-2:]:
                 messages.append({
                     'role': msg['role'],
                     'content': msg['content']
