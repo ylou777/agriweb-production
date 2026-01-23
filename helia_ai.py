@@ -692,11 +692,30 @@ def function_create_prospect(args):
         
         if result and len(result) > 0:
             prospect_id = result[0]['id']
+            
+            # Message enrichi
+            summary = f"✅ **Prospect créé avec succès !**\n\n"
+            summary += f"📋 **Détails:**\n"
+            summary += f"- 📍 Adresse: {adresse}\n"
+            summary += f"- 🏘️ Commune: {commune}\n"
+            summary += f"- ⚡ Puissance: {puissance_kwc} kWc\n"
+            summary += f"- 🏗️ Type: {type_projet}\n"
+            summary += f"- 📊 Statut: En cours\n"
+            summary += f"- 🆔 ID: #{prospect_id}\n\n"
+            summary += f"🔗 Accès CRM: /crm/prospects/{prospect_id}"
+            
             return {
                 "success": True,
+                "message": summary,
                 "prospect_id": prospect_id,
-                "message": f"✅ Prospect #{prospect_id} créé avec succès à {args['commune']} !",
-                "lien": f"/crm/prospects/{prospect_id}"
+                "lien": f"/crm/prospects/{prospect_id}",
+                "data": {
+                    "id": prospect_id,
+                    "adresse": adresse,
+                    "commune": commune,
+                    "puissance_kwc": puissance_kwc,
+                    "type_projet": type_projet
+                }
             }
         else:
             return {"success": True, "message": "✅ Prospect créé avec succès !"}
@@ -820,21 +839,121 @@ def function_update_prospect_status(args):
 
 
 def function_search_commune(args):
-    """Recherche une commune (à implémenter selon vos APIs)"""
+    """RECHERCHE COMPLÈTE par commune - Appelle la fonctionnalité /search_by_commune"""
     try:
         nom_commune = args['nom_commune']
         
-        # TODO: Appeler votre API de recherche commune
-        # Pour l'instant, retour fictif
+        print(f"🏘️ [HELIA COMMUNE] Recherche complète pour {nom_commune}")
+        
+        # Import des fonctions nécessaires
+        try:
+            from agriweb_hebergement_gratuit import (
+                get_commune_bbox,
+                get_all_parcelles,
+                get_parkings_info,
+                get_friches_info,
+                get_rpg_info,
+                get_plu_info
+            )
+        except ImportError as e:
+            print(f"❌ [HELIA COMMUNE] Erreur import: {e}")
+            return {"success": False, "message": "❌ Fonctions de recherche commune non disponibles"}
+        
+        # Récupérer les coordonnées et bbox de la commune
+        try:
+            # API Geo Gouv pour obtenir centre et contour commune
+            import requests
+            url = f"https://geo.api.gouv.fr/communes?nom={nom_commune}&fields=nom,code,centre,contour,surface,population&format=json&geometry=centre"
+            resp = requests.get(url, timeout=10)
+            
+            if resp.status_code == 200:
+                communes = resp.json()
+                if not communes:
+                    return {"success": False, "message": f"❌ Commune '{nom_commune}' introuvable"}
+                
+                commune_data = communes[0]
+                centre = commune_data.get('centre', {}).get('coordinates', [0, 0])
+                lon, lat = centre[0], centre[1]
+                population = commune_data.get('population', 0)
+                surface_km2 = commune_data.get('surface', 0) / 100  # Conversion en km²
+                
+                print(f"✅ [HELIA COMMUNE] Commune trouvée: {commune_data.get('nom')} (pop: {population}, surface: {surface_km2:.2f} km²)")
+            else:
+                return {"success": False, "message": f"❌ Erreur API Geo Gouv: {resp.status_code}"}
+        except Exception as e:
+            print(f"❌ [HELIA COMMUNE] Erreur géocodage commune: {e}")
+            return {"success": False, "message": f"❌ Erreur: {str(e)}"}
+        
+        # Recherche dans un rayon autour du centre (300m pour avoir un aperçu)
+        search_radius = 0.03  # ~3.3 km
+        
+        # Collecter les données principales
+        try:
+            parcelles = get_all_parcelles(lat, lon, radius=search_radius)
+            parkings = get_parkings_info(lat, lon, radius=search_radius)
+            friches = get_friches_info(lat, lon, radius=search_radius)
+            rpg_data = get_rpg_info(lat, lon, radius=search_radius)
+            plu_info = get_plu_info(lat, lon, radius=search_radius)
+            
+            # Compter les résultats
+            nb_parcelles = len(parcelles.get('features', [])) if isinstance(parcelles, dict) else len(parcelles) if isinstance(parcelles, list) else 0
+            nb_parkings = len(parkings.get('features', [])) if isinstance(parkings, dict) else len(parkings) if isinstance(parkings, list) else 0
+            nb_friches = len(friches.get('features', [])) if isinstance(friches, dict) else len(friches) if isinstance(friches, list) else 0
+            nb_rpg = len(rpg_data.get('features', [])) if isinstance(rpg_data, dict) else len(rpg_data) if isinstance(rpg_data, list) else 0
+            nb_zones_plu = len(plu_info.get('features', [])) if isinstance(plu_info, dict) else len(plu_info) if isinstance(plu_info, list) else 0
+            
+        except Exception as e:
+            print(f"❌ [HELIA COMMUNE] Erreur collecte données: {e}")
+            nb_parcelles = nb_parkings = nb_friches = nb_rpg = nb_zones_plu = 0
+        
+        # Centrer la carte sur la commune
+        if 'map_commands' not in session:
+            session['map_commands'] = []
+        
+        session['map_commands'].append({
+            'action': 'zoom_to',
+            'lat': lat,
+            'lon': lon,
+            'zoom': 13,  # Vue commune
+            'timestamp': datetime.now().isoformat()
+        })
+        session.modified = True
+        
+        summary = f"🏘️ **Analyse de {commune_data.get('nom')}**\n\n"
+        summary += f"📍 Population: {population:,} habitants\n"
+        summary += f"📏 Surface: {surface_km2:.2f} km²\n\n"
+        summary += f"📊 Données collectées (rayon {search_radius*111:.1f} km autour du centre):\n"
+        summary += f"- 🗺️ {nb_parcelles} parcelle(s) cadastrale(s)\n"
+        summary += f"- 🅿️ {nb_parkings} parking(s)\n"
+        summary += f"- 🏚️ {nb_friches} friche(s)\n"
+        summary += f"- 🏗️ {nb_zones_plu} zone(s) PLU\n"
+        summary += f"- 🌾 {nb_rpg} parcelle(s) agricole(s) RPG\n\n"
+        summary += f"✅ Carte centrée sur la commune !\n\n"
+        summary += f"💡 Pour un rapport complet, utilise `analyze_commune_report('{nom_commune}')`"
         
         return {
             "success": True,
-            "commune": nom_commune,
-            "message": f"🏘️ Analyse de la commune de {nom_commune} en cours...",
-            "lien": f"/rapport_commune?commune={nom_commune}"
+            "message": summary,
+            "data": {
+                "commune": commune_data.get('nom'),
+                "code_insee": commune_data.get('code'),
+                "lat": lat,
+                "lon": lon,
+                "population": population,
+                "surface_km2": surface_km2,
+                "parcelles_count": nb_parcelles,
+                "parkings_count": nb_parkings,
+                "friches_count": nb_friches,
+                "plu_zones_count": nb_zones_plu,
+                "rpg_parcelles_count": nb_rpg,
+                "lien_rapport_complet": f"/rapport_commune_complet?commune={nom_commune}"
+            }
         }
         
     except Exception as e:
+        print(f"❌ [HELIA] Erreur search_commune: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "message": f"Erreur: {str(e)}"}
 
 
