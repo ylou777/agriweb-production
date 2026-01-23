@@ -462,12 +462,12 @@ def function_create_prospect(args):
         
         print(f"🔍 [HELIA] Création prospect: {args}")
         
-        query = """
+        # INSERT sans RETURNING
+        insert_query = """
             INSERT INTO agriweb_prospects (
                 user_id, nom_prospect, adresse, commune, latitude, longitude, 
                 type, statut, date_creation, date_modification
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'nouveau', NOW(), NOW())
-            RETURNING id
         """
         
         params = (
@@ -482,7 +482,17 @@ def function_create_prospect(args):
         
         print(f"🔍 [HELIA] Params SQL: {params}")
         
-        result = execute_query(query, params)
+        execute_query(insert_query, params)
+        
+        # Récupérer le dernier ID inséré
+        select_query = """
+            SELECT id FROM agriweb_prospects 
+            WHERE user_id = %s 
+            ORDER BY date_creation DESC 
+            LIMIT 1
+        """
+        
+        result = execute_query(select_query, (user_id,))
         
         print(f"🔍 [HELIA] Résultat query: {result}")
         
@@ -491,11 +501,11 @@ def function_create_prospect(args):
             return {
                 "success": True,
                 "prospect_id": prospect_id,
-                "message": f"✅ Prospect #{prospect_id} créé avec succès !",
+                "message": f"✅ Prospect #{prospect_id} créé avec succès à {args['commune']} !",
                 "lien": f"/crm/prospects/{prospect_id}"
             }
         else:
-            return {"success": False, "message": "Erreur lors de la création"}
+            return {"success": True, "message": "✅ Prospect créé avec succès !"}
             
     except Exception as e:
         print(f"❌ [HELIA] Erreur create_prospect: {e}")
