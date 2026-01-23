@@ -432,6 +432,8 @@ def function_create_prospect(args):
         
         user_id = session.get('user_id', 1)  # Par défaut user 1 si pas de session
         
+        print(f"🔍 [HELIA] Création prospect: {args}")
+        
         query = """
             INSERT INTO prospects (
                 user_id, nom, adresse, commune, lat, lon, 
@@ -440,7 +442,7 @@ def function_create_prospect(args):
             RETURNING id
         """
         
-        result = execute_query(query, (
+        params = (
             user_id,
             args.get('nom', 'Prospect'),
             args['adresse'],
@@ -449,7 +451,13 @@ def function_create_prospect(args):
             args.get('lon'),
             args.get('puissance_kwc', 0),
             args.get('type_projet', 'toiture')
-        ))
+        )
+        
+        print(f"🔍 [HELIA] Params SQL: {params}")
+        
+        result = execute_query(query, params)
+        
+        print(f"🔍 [HELIA] Résultat query: {result}")
         
         if result and len(result) > 0:
             prospect_id = result[0]['id']
@@ -463,6 +471,9 @@ def function_create_prospect(args):
             return {"success": False, "message": "Erreur lors de la création"}
             
     except Exception as e:
+        print(f"❌ [HELIA] Erreur create_prospect: {e}")
+        import traceback
+        traceback.print_exc()
         return {"success": False, "message": f"Erreur: {str(e)}"}
 
 
