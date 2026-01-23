@@ -1310,15 +1310,18 @@ class HeliaAI:
         if session_id not in session['helia_conversations']:
             session['helia_conversations'][session_id] = []
         
+        # Limiter la taille du contenu pour éviter les cookies trop gros
+        content_trimmed = content[:500] if len(content) > 500 else content
+        
         session['helia_conversations'][session_id].append({
             'role': role,
-            'content': content,
+            'content': content_trimmed,
             'timestamp': datetime.now().isoformat()
         })
         
-        # Limiter à 20 derniers messages
-        if len(session['helia_conversations'][session_id]) > 20:
-            session['helia_conversations'][session_id] = session['helia_conversations'][session_id][-20:]
+        # Limiter à 4 derniers messages (2 paires Q/R) pour éviter cookie > 4KB
+        if len(session['helia_conversations'][session_id]) > 4:
+            session['helia_conversations'][session_id] = session['helia_conversations'][session_id][-4:]
         
         session.modified = True
     
@@ -1338,8 +1341,8 @@ class HeliaAI:
             if context:
                 messages[0]['content'] += f"\n\nCONTEXTE ACTUEL : {context}"
             
-            # Ajouter historique (10 derniers messages)
-            for msg in history[-10:]:
+            # Ajouter historique (4 derniers messages max pour éviter cookie overflow)
+            for msg in history[-4:]:
                 messages.append({
                     'role': msg['role'],
                     'content': msg['content']
@@ -1568,10 +1571,13 @@ def update_map_state():
     try:
         data = request.get_json()
         
+        # Limiter la taille des données pour ne pas surcharger la session
+        active_layers = data.get('active_layers', [])[:20]  # Max 20 layers
+        
         session['current_map_state'] = {
             'center': data.get('center', {}),
             'zoom': data.get('zoom', 6),
-            'active_layers': data.get('active_layers', []),
+            'active_layers': active_layers,
             'bounds': data.get('bounds', {}),
             'timestamp': datetime.now().isoformat()
         }
