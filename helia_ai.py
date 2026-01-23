@@ -429,6 +429,23 @@ HELIA_TOOLS = [
                 "required": ["nom_commune"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "analyze_commune_report",
+            "description": "Analyse en détail le rapport photovoltaïque complet d'une commune (toitures, parkings, friches, potentiel solaire, etc.)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nom_commune": {
+                        "type": "string",
+                        "description": "Nom de la commune dont on veut analyser le rapport"
+                    }
+                },
+                "required": ["nom_commune"]
+            }
+        }
     }
 ]
 
@@ -618,13 +635,100 @@ def function_search_commune(args):
         return {"success": False, "message": f"Erreur: {str(e)}"}
 
 
+def function_analyze_commune_report(args):
+    """Analyse le rapport photovoltaïque complet d'une commune"""
+    try:
+        from rapport_commune_complet import generate_comprehensive_commune_report
+        
+        nom_commune = args['nom_commune']
+        
+        print(f"📊 [HELIA] Analyse rapport pour {nom_commune}")
+        
+        # Générer le rapport complet
+        rapport = generate_comprehensive_commune_report(nom_commune)
+        
+        if not rapport:
+            return {
+                "success": False,
+                "message": f"❌ Impossible de générer le rapport pour {nom_commune}"
+            }
+        
+        # Extraire les données clés pour l'analyse
+        resume = {
+            "commune": nom_commune,
+            "date_generation": rapport.get("metadata", {}).get("date_generation", "N/A"),
+            
+            # Infos générales
+            "population": rapport.get("commune_info", {}).get("population", 0),
+            "superficie_ha": rapport.get("commune_info", {}).get("superficie_total_ha", 0),
+            
+            # Toitures
+            "toitures": {
+                "total": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("total_toitures", 0),
+                "surface_exploitable_m2": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("surface_exploitable_pv_m2", 0),
+                "potentiel_mwc": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("potentiel_total_mwc", 0),
+                "production_annuelle_mwh": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("production_annuelle_mwh", 0),
+                "economie_co2_tonnes": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("economie_co2_tonnes_an", 0)
+            },
+            
+            # Parkings
+            "parkings": {
+                "total": rapport.get("parkings_analysis", {}).get("resume_executif", {}).get("total_parkings", 0),
+                "surface_totale_m2": rapport.get("parkings_analysis", {}).get("resume_executif", {}).get("surface_totale_m2", 0),
+                "potentiel_mwc": rapport.get("parkings_analysis", {}).get("resume_executif", {}).get("potentiel_photovoltaique_mwc", 0)
+            },
+            
+            # Friches
+            "friches": {
+                "total": rapport.get("friches_analysis", {}).get("resume_executif", {}).get("total_friches", 0),
+                "surface_totale_ha": rapport.get("friches_analysis", {}).get("resume_executif", {}).get("surface_totale_ha", 0),
+                "potentiel_reconversion_ha": rapport.get("friches_analysis", {}).get("resume_executif", {}).get("potentiel_reconversion_ha", 0)
+            },
+            
+            # RPG (agriculture)
+            "rpg": {
+                "total_parcelles": rapport.get("rpg_analysis", {}).get("resume_executif", {}).get("total_parcelles", 0),
+                "surface_totale_ha": rapport.get("rpg_analysis", {}).get("resume_executif", {}).get("surface_totale_ha", 0)
+            },
+            
+            # Synthèse
+            "potentiel_global": {
+                "production_totale_mwh_an": (
+                    rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("production_annuelle_mwh", 0) +
+                    rapport.get("parkings_analysis", {}).get("potentiel_energetique", {}).get("production_annuelle_estimee_mwh", 0)
+                ),
+                "economie_co2_totale_tonnes": rapport.get("toitures_analysis", {}).get("resume_executif", {}).get("economie_co2_tonnes_an", 0)
+            },
+            
+            "lien_rapport_complet": f"/rapport_commune?commune={nom_commune}"
+        }
+        
+        return {
+            "success": True,
+            "message": f"✅ Rapport analysé pour {nom_commune}",
+            "data": resume
+        }
+        
+    except ImportError:
+        return {
+            "success": False,
+            "message": "❌ Module de rapport non disponible. Utilisez le lien direct : /rapport_commune?commune=" + args['nom_commune']
+        }
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur analyze_commune_report: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
 # Mapping des fonctions
 AVAILABLE_FUNCTIONS = {
     "create_prospect": function_create_prospect,
     "list_prospects": function_list_prospects,
     "get_prospect_details": function_get_prospect_details,
     "update_prospect_status": function_update_prospect_status,
-    "search_commune": function_search_commune
+    "search_commune": function_search_commune,
+    "analyze_commune_report": function_analyze_commune_report
 }
 
 # ============================================================================
