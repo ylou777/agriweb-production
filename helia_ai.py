@@ -640,6 +640,154 @@ HELIA_TOOLS = [
                 "required": []
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_point_report",
+            "description": "Génère un rapport complet pour un point/adresse avec toutes les données (parcelle cadastrale, PLU, postes électriques, potentiel solaire)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "Adresse complète à analyser (sera géocodée automatiquement)"
+                    },
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude (optionnel si address fourni)"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude (optionnel si address fourni)"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "export_to_crm",
+            "description": "Exporte un rapport (point ou commune) vers le CRM en créant un nouveau prospect avec toutes les données collectées",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source_type": {
+                        "type": "string",
+                        "enum": ["point", "commune"],
+                        "description": "Type de source du rapport (point ou commune)"
+                    },
+                    "adresse": {
+                        "type": "string",
+                        "description": "Adresse du site"
+                    },
+                    "commune": {
+                        "type": "string",
+                        "description": "Nom de la commune"
+                    },
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude GPS"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude GPS"
+                    },
+                    "puissance_kwc": {
+                        "type": "number",
+                        "description": "Puissance estimée en kWc"
+                    },
+                    "surface_m2": {
+                        "type": "number",
+                        "description": "Surface disponible en m²"
+                    },
+                    "type_projet": {
+                        "type": "string",
+                        "enum": ["toiture", "sol", "ombriere", "tracker", "autoconso"],
+                        "description": "Type d'installation photovoltaïque"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes additionnelles sur le prospect"
+                    }
+                },
+                "required": ["commune"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_prospect_note",
+            "description": "Ajoute une note/commentaire à un prospect existant dans le CRM",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prospect_id": {
+                        "type": "integer",
+                        "description": "ID du prospect"
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Texte de la note à ajouter"
+                    }
+                },
+                "required": ["prospect_id", "note"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_project_step",
+            "description": "Met à jour le statut d'une étape dans le workflow d'un projet (Rapport AgriWeb → Visite → Calepinage → Étude autoconso → Devis → Signature → DP → DDR → Installation → Consuel → Mise en service)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "ID du projet"
+                    },
+                    "etape_id": {
+                        "type": "integer",
+                        "description": "ID de l'étape (optionnel si etape_nom fourni)"
+                    },
+                    "etape_nom": {
+                        "type": "string",
+                        "description": "Nom de l'étape (ex: 'Visite technique', 'Devis', 'DP', etc.)"
+                    },
+                    "statut": {
+                        "type": "string",
+                        "enum": ["a_faire", "en_cours", "termine", "bloque"],
+                        "description": "Nouveau statut de l'étape"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "description": "Notes sur l'évolution de l'étape"
+                    }
+                },
+                "required": ["project_id", "statut"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_project_status",
+            "description": "Récupère l'état d'avancement complet d'un projet avec toutes ses étapes et leur statut",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "description": "ID du projet à consulter"
+                    }
+                },
+                "required": ["project_id"]
+            }
+        }
     }
 ]
 
@@ -656,6 +804,15 @@ def function_create_prospect(args):
         
         print(f"🔍 [HELIA] Création prospect: {args}")
         
+        # Extraction des variables
+        adresse = args.get('adresse', '')
+        commune = args.get('commune', '')
+        puissance_kwc = args.get('puissance_kwc', 0)
+        type_projet = args.get('type_projet', 'parking')
+        nom = args.get('nom', 'Prospect Helia')
+        lat = args.get('lat')
+        lon = args.get('lon')
+        
         # INSERT sans RETURNING
         insert_query = """
             INSERT INTO agriweb_prospects (
@@ -664,15 +821,7 @@ def function_create_prospect(args):
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, 'nouveau', NOW(), NOW())
         """
         
-        params = (
-            user_id,
-            args.get('nom', 'Prospect Helia'),
-            args['adresse'],
-            args['commune'],
-            args.get('lat'),
-            args.get('lon'),
-            args.get('type_projet', 'parking')
-        )
+        params = (user_id, nom, adresse, commune, lat, lon, type_projet)
         
         print(f"🔍 [HELIA] Params SQL: {params}")
         
@@ -1532,6 +1681,335 @@ def function_analyze_urban_data(args):
         }
 
 
+def function_generate_point_report(args):
+    """Génère un rapport complet pour un point (adresse)"""
+    try:
+        address = args.get('address')
+        lat = args.get('lat')
+        lon = args.get('lon')
+        
+        # Géocoder si adresse fournie
+        if address and not (lat and lon):
+            if not GEOPY_AVAILABLE:
+                return {"success": False, "message": "⚠️ Géocodage non disponible"}
+            
+            try:
+                from geopy.geocoders import Nominatim
+                geolocator = Nominatim(user_agent="helia_sundev", timeout=10)
+                location = geolocator.geocode(f"{address}, France")
+                
+                if location:
+                    lat = location.latitude
+                    lon = location.longitude
+                else:
+                    return {"success": False, "message": f"❌ Adresse '{address}' introuvable"}
+            except Exception as e:
+                return {"success": False, "message": f"❌ Erreur géocodage: {str(e)}"}
+        
+        if not (lat and lon):
+            return {"success": False, "message": "❌ Coordonnées requises"}
+        
+        print(f"📄 [HELIA RAPPORT POINT] Génération rapport pour {address or f'{lat}, {lon}'}")
+        
+        # Importer et appeler la fonction de rapport
+        try:
+            from agriweb_hebergement_gratuit import build_report_data
+            
+            report_data = build_report_data(lat, lon, address=address)
+            
+            # Extraire résumé
+            summary = f"📄 **Rapport point généré !**\n\n"
+            summary += f"📍 Localisation: {address or f'{lat:.5f}, {lon:.5f}'}\n"
+            summary += f"🗺️ Altitude: {report_data.get('altitude_m', 'N/A')} m\n"
+            
+            if report_data.get('parcelle'):
+                parcelle = report_data['parcelle']
+                summary += f"\n📐 **Parcelle cadastrale:**\n"
+                summary += f"- Référence: {parcelle.get('feuille', 'N/A')}\n"
+                summary += f"- Surface: {parcelle.get('contenance', 'N/A')} m²\n"
+            
+            nb_postes_bt = len(report_data.get('postes', []))
+            nb_postes_hta = len(report_data.get('ht_postes', []))
+            summary += f"\n⚡ **Réseau électrique:**\n"
+            summary += f"- Postes BT: {nb_postes_bt}\n"
+            summary += f"- Postes HTA: {nb_postes_hta}\n"
+            
+            if report_data.get('plu_info'):
+                summary += f"\n🏗️ **Urbanisme:**\n"
+                summary += f"- Zones PLU: {len(report_data['plu_info'].get('features', []))}\n"
+            
+            summary += f"\n☀️ **Potentiel solaire:**\n"
+            summary += f"- Production estimée: {report_data.get('kwh_per_kwc', 'N/A')} kWh/kWc/an\n"
+            
+            summary += f"\n🔗 Lien rapport: /rapport_point?lat={lat}&lon={lon}"
+            
+            return {
+                "success": True,
+                "message": summary,
+                "data": {
+                    "lat": lat,
+                    "lon": lon,
+                    "address": address,
+                    "altitude_m": report_data.get('altitude_m'),
+                    "kwh_per_kwc": report_data.get('kwh_per_kwc'),
+                    "nb_postes_bt": nb_postes_bt,
+                    "nb_postes_hta": nb_postes_hta,
+                    "lien_rapport": f"/rapport_point?lat={lat}&lon={lon}"
+                }
+            }
+            
+        except ImportError as e:
+            print(f"❌ [HELIA RAPPORT POINT] Erreur import: {e}")
+            return {"success": False, "message": "❌ Fonction de rapport non disponible"}
+        except Exception as e:
+            print(f"❌ [HELIA RAPPORT POINT] Erreur génération: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "message": f"❌ Erreur: {str(e)}"}
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur generate_point_report: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_export_to_crm(args):
+    """Exporte un rapport (point ou commune) vers le CRM en créant un prospect"""
+    try:
+        from database_adapter import execute_query
+        
+        source_type = args.get('source_type', 'point')  # 'point' ou 'commune'
+        adresse = args.get('adresse', '')
+        commune = args.get('commune', '')
+        lat = args.get('lat')
+        lon = args.get('lon')
+        puissance_kwc = args.get('puissance_kwc', 0)
+        surface_m2 = args.get('surface_m2', 0)
+        type_projet = args.get('type_projet', 'autoconso')
+        notes = args.get('notes', '')
+        
+        print(f"📤 [HELIA EXPORT CRM] Export {source_type} vers CRM")
+        
+        # Créer le prospect
+        user_id = session.get('user_id', 1)
+        
+        nom_prospect = f"Prospect {commune or adresse}"
+        description = f"Importé depuis rapport {source_type}"
+        if notes:
+            description += f" - {notes}"
+        
+        query = """
+            INSERT INTO agriweb_prospects (
+                user_id, nom_prospect, adresse, commune, latitude, longitude,
+                puissance_kwc, surface_m2, type, statut, description, date_creation
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            RETURNING id, nom_prospect
+        """
+        
+        result = execute_query(query, (
+            user_id, nom_prospect, adresse, commune, lat, lon,
+            puissance_kwc, surface_m2, type_projet, 'En cours', description
+        ), fetch_one=True)
+        
+        if result:
+            prospect_id = result['id']
+            
+            summary = f"✅ **Export CRM réussi !**\n\n"
+            summary += f"📋 **Prospect créé:**\n"
+            summary += f"- 🆔 ID: #{prospect_id}\n"
+            summary += f"- 📍 Adresse: {adresse}\n"
+            summary += f"- 🏘️ Commune: {commune}\n"
+            summary += f"- ⚡ Puissance: {puissance_kwc} kWc\n"
+            summary += f"- 📐 Surface: {surface_m2} m²\n"
+            summary += f"- 🏗️ Type: {type_projet}\n"
+            summary += f"- 📊 Statut: En cours\n\n"
+            summary += f"🔗 Accès CRM: /crm/prospects/{prospect_id}"
+            
+            return {
+                "success": True,
+                "message": summary,
+                "prospect_id": prospect_id,
+                "lien": f"/crm/prospects/{prospect_id}"
+            }
+        else:
+            return {"success": False, "message": "❌ Erreur lors de la création du prospect"}
+            
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur export_to_crm: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_add_prospect_note(args):
+    """Ajoute une note à un prospect CRM"""
+    try:
+        from database_adapter import execute_query
+        
+        prospect_id = args['prospect_id']
+        note_text = args['note']
+        user_id = session.get('user_id', 1)
+        
+        print(f"📝 [HELIA NOTE] Ajout note pour prospect #{prospect_id}")
+        
+        # Ajouter la note
+        query = """
+            INSERT INTO prospect_notes (prospect_id, user_id, note_text, date_creation)
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            RETURNING id
+        """
+        
+        result = execute_query(query, (prospect_id, user_id, note_text), fetch_one=True)
+        
+        if result:
+            return {
+                "success": True,
+                "message": f"✅ Note ajoutée au prospect #{prospect_id}",
+                "note_id": result['id']
+            }
+        else:
+            return {"success": False, "message": "❌ Erreur lors de l'ajout de la note"}
+            
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur add_prospect_note: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_update_project_step(args):
+    """Met à jour l'étape d'un projet (statut, dates, notes)"""
+    try:
+        from database_adapter import execute_query
+        
+        project_id = args['project_id']
+        etape_id = args.get('etape_id')
+        etape_nom = args.get('etape_nom')  # Alternative: nom de l'étape
+        nouveau_statut = args.get('statut', 'en_cours')  # a_faire, en_cours, termine, bloque
+        notes = args.get('notes')
+        
+        print(f"📋 [HELIA ETAPE] Mise à jour étape projet #{project_id}")
+        
+        # Trouver l'étape si nom fourni
+        if etape_nom and not etape_id:
+            query = "SELECT id FROM project_etapes WHERE project_id = %s AND nom_etape ILIKE %s LIMIT 1"
+            result = execute_query(query, (project_id, f"%{etape_nom}%"), fetch_one=True)
+            if result:
+                etape_id = result['id']
+        
+        if not etape_id:
+            return {"success": False, "message": "❌ Étape introuvable"}
+        
+        # Mettre à jour l'étape
+        query = """
+            UPDATE project_etapes
+            SET statut = %s,
+                notes = COALESCE(%s, notes),
+                date_modification = CURRENT_TIMESTAMP
+            WHERE id = %s AND project_id = %s
+            RETURNING nom_etape, statut
+        """
+        
+        result = execute_query(query, (nouveau_statut, notes, etape_id, project_id), fetch_one=True)
+        
+        if result:
+            summary = f"✅ **Étape mise à jour !**\n\n"
+            summary += f"📋 Projet #{project_id}\n"
+            summary += f"📌 Étape: {result['nom_etape']}\n"
+            summary += f"📊 Nouveau statut: {result['statut']}\n"
+            if notes:
+                summary += f"📝 Note: {notes}\n"
+            
+            return {
+                "success": True,
+                "message": summary,
+                "etape": result
+            }
+        else:
+            return {"success": False, "message": "❌ Erreur lors de la mise à jour"}
+            
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur update_project_step: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
+def function_get_project_status(args):
+    """Récupère l'état d'avancement complet d'un projet (toutes les étapes)"""
+    try:
+        from database_adapter import execute_query
+        
+        project_id = args['project_id']
+        
+        print(f"📊 [HELIA PROJET] Récupération statut projet #{project_id}")
+        
+        # Récupérer infos projet
+        project_query = """
+            SELECT pf.*, ap.nom_prospect, ap.commune, ap.adresse
+            FROM project_fiches pf
+            LEFT JOIN agriweb_prospects ap ON pf.prospect_id = ap.id
+            WHERE pf.id = %s
+        """
+        project = execute_query(project_query, (project_id,), fetch_one=True)
+        
+        if not project:
+            return {"success": False, "message": f"❌ Projet #{project_id} introuvable"}
+        
+        # Récupérer toutes les étapes
+        etapes_query = """
+            SELECT id, nom_etape, ordre, statut, notes, date_debut_prevue, date_fin_prevue
+            FROM project_etapes
+            WHERE project_id = %s
+            ORDER BY ordre
+        """
+        etapes = execute_query(etapes_query, (project_id,), fetch_all=True)
+        
+        # Calculer progression
+        total_etapes = len(etapes)
+        etapes_terminees = sum(1 for e in etapes if e['statut'] == 'termine')
+        progression = round((etapes_terminees / total_etapes * 100)) if total_etapes > 0 else 0
+        
+        # Formater résumé
+        summary = f"📊 **Statut du projet #{project_id}**\n\n"
+        summary += f"📋 Nom: {project.get('nom_projet', 'N/A')}\n"
+        summary += f"🏘️ Commune: {project.get('commune', 'N/A')}\n"
+        summary += f"📍 Adresse: {project.get('adresse_projet', 'N/A')}\n"
+        summary += f"📊 Statut général: {project.get('statut_projet', 'N/A')}\n"
+        summary += f"📈 Progression: {progression}% ({etapes_terminees}/{total_etapes} étapes)\n\n"
+        
+        summary += f"📌 **Étapes:**\n"
+        for etape in etapes:
+            status_icon = {
+                'a_faire': '⏳',
+                'en_cours': '🔄',
+                'termine': '✅',
+                'bloque': '🚫'
+            }.get(etape['statut'], '❓')
+            
+            summary += f"{status_icon} {etape['nom_etape']} ({etape['statut']})\n"
+        
+        summary += f"\n🔗 Lien projet: /crm/projets/{project_id}"
+        
+        return {
+            "success": True,
+            "message": summary,
+            "data": {
+                "project_id": project_id,
+                "nom_projet": project.get('nom_projet'),
+                "commune": project.get('commune'),
+                "statut_projet": project.get('statut_projet'),
+                "progression": progression,
+                "total_etapes": total_etapes,
+                "etapes_terminees": etapes_terminees,
+                "etapes": etapes
+            }
+        }
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur get_project_status: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
 # Mapping des fonctions
 AVAILABLE_FUNCTIONS = {
     "create_prospect": function_create_prospect,
@@ -1545,7 +2023,12 @@ AVAILABLE_FUNCTIONS = {
     "search_location": function_search_location,
     "get_map_state": function_get_map_state,
     "analyze_visible_layers": function_analyze_visible_layers,
-    "analyze_urban_data": function_analyze_urban_data
+    "analyze_urban_data": function_analyze_urban_data,
+    "generate_point_report": function_generate_point_report,
+    "export_to_crm": function_export_to_crm,
+    "add_prospect_note": function_add_prospect_note,
+    "update_project_step": function_update_project_step,
+    "get_project_status": function_get_project_status
 }
 
 # ============================================================================
