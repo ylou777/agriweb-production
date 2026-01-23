@@ -8,6 +8,14 @@ import json
 from flask import Blueprint, request, jsonify, session
 from datetime import datetime
 
+# Import pour géocodage
+try:
+    from geopy.geocoders import Nominatim
+    GEOPY_AVAILABLE = True
+except ImportError:
+    GEOPY_AVAILABLE = False
+    print("⚠️ geopy non installé - géocodage désactivé")
+
 # Tentative d'import Groq
 try:
     from groq import Groq
@@ -290,9 +298,15 @@ TU PEUX RÉALISER CES ACTIONS EN TEMPS RÉEL :
    → Activer/désactiver un calque sur la carte
    Calques disponibles : postes_bt, postes_hta, lignes_hta, capacites_accueil, rpg, cadastre, plu, risques, satellite, osm
 
-6️⃣ zoom_to_location(lat, lon, zoom, location_name)
-   → Centrer la carte sur une position précise
-   Niveaux de zoom recommandés : 6=région, 10=département, 15=quartier, 18=bâtiment
+6️⃣ zoom_to_location(address OR lat/lon, zoom)
+   → Centrer la carte sur UNE ADRESSE (PRIVILÉGIER) ou coordonnées GPS
+   📌 IMPORTANT : Donne l'ADRESSE COMPLÈTE (ex: '15 Rue de Paris, Toulouse') - le géocodage est automatique !
+   Niveaux de zoom : 6=région, 10=département, 15=quartier, 18=bâtiment
+   
+   Exemples :
+   ✅ zoom_to_location(address="15 Rue de Nice, Toulouse", zoom=18)
+   ✅ zoom_to_location(address="Mairie de Bordeaux", zoom=16)
+   ⚠️ zoom_to_location(lat=48.8566, lon=2.3522, zoom=15) ← Possible mais moins recommandé
 
 7️⃣ get_map_state()
    → Récupérer l'état actuel de la carte (position, zoom, calques actifs)
@@ -523,29 +537,29 @@ HELIA_TOOLS = [
         "type": "function",
         "function": {
             "name": "zoom_to_location",
-            "description": "Centre la carte sur une position et ajuste le niveau de zoom",
+            "description": "Centre la carte sur une ADRESSE (recommandé) ou coordonnées GPS. Utilise le géocodage automatique.",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "Adresse complète à géocoder (ex: '15 Rue de Paris, Toulouse'). PRIVILÉGIER cette option."
+                    },
                     "lat": {
                         "type": "number",
-                        "description": "Latitude de la position"
+                        "description": "Latitude (optionnel si address fourni)"
                     },
                     "lon": {
                         "type": "number",
-                        "description": "Longitude de la position"
+                        "description": "Longitude (optionnel si address fourni)"
                     },
                     "zoom": {
                         "type": "integer",
                         "description": "Niveau de zoom (1-20, 15=quartier, 18=bâtiment)",
                         "default": 15
-                    },
-                    "location_name": {
-                        "type": "string",
-                        "description": "Nom descriptif de la position (optionnel)"
                     }
                 },
-                "required": ["lat", "lon"]
+                "required": []
             }
         }
     },
@@ -922,12 +936,32 @@ def function_toggle_layer(args):
 
 
 def function_zoom_to_location(args):
-    """Centre la carte sur une position"""
+    """Centre la carte sur une adresse ou position - UTILISE LE GÉOCODAGE EXISTANT"""
     try:
-        lat = args['lat']
-        lon = args['lon']
+        address = args.get('address')
+        lat = args.get('lat')
+        lon = args.get('lon')
         zoom = args.get('zoom', 15)
-        location_name = args.get('location_name', '')
+        
+        # Si adresse fournie, géocoder avec Nominatim
+        if address and not (lat and lon):
+            if not GEOPY_AVAILABLE:
+                return {"success": False, "message": "⚠️ Géocodage non disponible, fournissez lat/lon"}
+            
+            try:
+                geolocator = Nominatim(user_agent="helia_sundev", timeout=10)
+                location = geolocator.geocode(f"{address}, France")
+                
+                if location:
+                    lat = location.latitude
+                    lon = location.longitude
+                    location_name = address
+                else:
+                    return {"success": False, "message": f"❌ Adresse '{address}' introuvable"}
+            except Exception as e:
+                return {"success": False, "message": f"❌ Erreur géocodage: {str(e)}"}
+        else:
+            location_name = f"{lat:.5f}, {lon:.5f}"
         
         if 'map_commands' not in session:
             session['map_commands'] = []
@@ -941,8 +975,7 @@ def function_zoom_to_location(args):
         })
         session.modified = True
         
-        msg = f"🎯 Carte centrée sur {location_name} " if location_name else "🎯 Carte centrée "
-        msg += f"({lat:.5f}, {lon:.5f}) - Zoom niveau {zoom}"
+        msg = f"🎯 Carte centrée sur {location_name} ({lat:.5f}, {lon:.5f}) - Zoom {zoom}"
         
         return {
             "success": True,
