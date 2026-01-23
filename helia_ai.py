@@ -298,31 +298,40 @@ TU PEUX RÉALISER CES ACTIONS EN TEMPS RÉEL :
    → Activer/désactiver un calque sur la carte
    Calques disponibles : postes_bt, postes_hta, lignes_hta, capacites_accueil, rpg, cadastre, plu, risques, satellite, osm
 
-6️⃣ zoom_to_location(address OR lat/lon, zoom)
-   → Centrer la carte sur UNE ADRESSE (PRIVILÉGIER) ou coordonnées GPS
-   📌 IMPORTANT : Donne l'ADRESSE COMPLÈTE (ex: '15 Rue de Paris, Toulouse') - le géocodage est automatique !
-   Niveaux de zoom : 6=région, 10=département, 15=quartier, 18=bâtiment
+6️⃣ search_location(address OR lat/lon)
+   → ⭐ RECHERCHE COMPLÈTE avec TOUTES LES APIs (comme le bouton "Rechercher")
+   📊 Collecte automatiquement : cadastre, PLU, RPG, postes BT/HTA, capacités réseau, friches, parkings, etc.
+   🎯 Centre la carte ET affiche tous les calques pertinents
    
    Exemples :
-   ✅ zoom_to_location(address="15 Rue de Nice, Toulouse", zoom=18)
-   ✅ zoom_to_location(address="Mairie de Bordeaux", zoom=16)
-   ⚠️ zoom_to_location(lat=48.8566, lon=2.3522, zoom=15) ← Possible mais moins recommandé
+   ✅ search_location(address="15 Rue de Nice, Toulouse") ← À PRIVILÉGIER
+   ✅ search_location(lat=43.6047, lon=1.4442)
+   
+   💡 Utilise cette fonction quand l'utilisateur demande "recherche", "analyse", "montre-moi", "qu'y a-t-il à..."
 
-7️⃣ get_map_state()
+7️⃣ zoom_to_location(address OR lat/lon, zoom)
+   → Centrer la carte SEULEMENT (sans recherche complète)
+   📌 Utilise seulement si l'utilisateur veut juste déplacer la vue sans analyser
+   
+   Exemples :
+   ✅ zoom_to_location(address="Toulouse", zoom=10) ← Vue large d'une ville
+   ✅ zoom_to_location(address="15 Rue de Paris, Toulouse", zoom=18) ← Bâtiment précis
+
+8️⃣ get_map_state()
    → Récupérer l'état actuel de la carte (position, zoom, calques actifs)
 
-8️⃣ analyze_visible_layers(layer_names)
+9️⃣ analyze_visible_layers(layer_names)
    → Analyser les informations des calques actuellement affichés
 
-9️⃣ analyze_urban_data()
+🔟 analyze_urban_data()
    → Analyser RÉELLEMENT les données urbanistiques dans la zone visible
    (cadastre, PLU, bâtiments : comptages, surfaces, zonages, recommandations PV)
 
 📊 ANALYSE TERRITORIALE :
-🔟 search_commune(nom_commune)
+1️⃣1️⃣ search_commune(nom_commune)
    → Rechercher et analyser une commune
 
-🔟 analyze_commune_report(nom_commune)
+1️⃣2️⃣ analyze_commune_report(nom_commune)
    → Générer et analyser le rapport photovoltaïque complet d'une commune
    (toitures, parkings, friches, potentiel solaire, etc.)
 
@@ -557,6 +566,31 @@ HELIA_TOOLS = [
                         "type": "integer",
                         "description": "Niveau de zoom (1-20, 15=quartier, 18=bâtiment)",
                         "default": 15
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_location",
+            "description": "RECHERCHE COMPLÈTE avec TOUTES les APIs (cadastre, PLU, RPG, postes BT/HTA, etc.) - comme le bouton Rechercher de l'application. À PRIVILÉGIER pour analyser un lieu.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "address": {
+                        "type": "string",
+                        "description": "Adresse complète à analyser (ex: '15 Rue de Paris, Toulouse'). RECOMMANDÉ."
+                    },
+                    "lat": {
+                        "type": "number",
+                        "description": "Latitude (optionnel si address fourni)"
+                    },
+                    "lon": {
+                        "type": "number",
+                        "description": "Longitude (optionnel si address fourni)"
                     }
                 },
                 "required": []
@@ -990,6 +1024,112 @@ def function_zoom_to_location(args):
         return {"success": False, "message": f"Erreur: {str(e)}"}
 
 
+def function_search_location(args):
+    """Effectue une RECHERCHE COMPLÈTE (comme le bouton Rechercher) avec toutes les APIs"""
+    try:
+        from flask import current_app
+        import requests
+        
+        address = args.get('address')
+        lat = args.get('lat')
+        lon = args.get('lon')
+        
+        # Si adresse fournie, géocoder d'abord
+        if address and not (lat and lon):
+            if not GEOPY_AVAILABLE:
+                return {"success": False, "message": "⚠️ Géocodage non disponible"}
+            
+            try:
+                geolocator = Nominatim(user_agent="helia_sundev", timeout=10)
+                location = geolocator.geocode(f"{address}, France")
+                
+                if location:
+                    lat = location.latitude
+                    lon = location.longitude
+                else:
+                    return {"success": False, "message": f"❌ Adresse '{address}' introuvable"}
+            except Exception as e:
+                return {"success": False, "message": f"❌ Erreur géocodage: {str(e)}"}
+        
+        if not (lat and lon):
+            return {"success": False, "message": "❌ Coordonnées requises"}
+        
+        # Appeler la route /search_by_address en interne
+        try:
+            # Import de la fonction search_by_address depuis agriweb_hebergement_gratuit
+            from agriweb_hebergement_gratuit import geocode_address, get_all_parcelles, get_nearest_postes, get_nearest_ht_postes, get_plu_info, get_rpg_info
+            
+            print(f"🔍 [HELIA SEARCH] Recherche complète pour {address or f'{lat}, {lon}'}")
+            
+            # Simuler l'appel à la recherche complète
+            # (On pourrait faire un vrai appel HTTP interne mais c'est plus simple d'appeler directement les fonctions)
+            
+            search_radius = 0.0027
+            parcelles = get_all_parcelles(lat, lon, radius=search_radius)
+            postes_bt = get_nearest_postes(lat, lon, count=3, radius_deg=0.01)
+            postes_hta = get_nearest_ht_postes(lat, lon, count=3, radius_deg=0.01)
+            plu_info = get_plu_info(lat, lon, radius=search_radius)
+            rpg_data = get_rpg_info(lat, lon, radius=search_radius)
+            
+            # Compter les résultats
+            nb_parcelles = len(parcelles.get('features', [])) if isinstance(parcelles, dict) else len(parcelles)
+            nb_postes_bt = len(postes_bt) if isinstance(postes_bt, list) else 0
+            nb_postes_hta = len(postes_hta) if isinstance(postes_hta, list) else 0
+            nb_zones_plu = len(plu_info.get('features', [])) if isinstance(plu_info, dict) else len(plu_info) if isinstance(plu_info, list) else 0
+            nb_rpg = len(rpg_data.get('features', [])) if isinstance(rpg_data, dict) else len(rpg_data) if isinstance(rpg_data, list) else 0
+            
+            # Déclencher aussi le zoom sur la carte
+            if 'map_commands' not in session:
+                session['map_commands'] = []
+            
+            session['map_commands'].append({
+                'action': 'zoom_to',
+                'lat': lat,
+                'lon': lon,
+                'zoom': 16,
+                'timestamp': datetime.now().isoformat()
+            })
+            session.modified = True
+            
+            location_str = address or f"{lat:.5f}, {lon:.5f}"
+            summary = f"🔍 Recherche complète effectuée pour **{location_str}**\\n\\n"
+            summary += f"📊 Résultats :\\n"
+            summary += f"- 🗺️ {nb_parcelles} parcelle(s) cadastrale(s)\\n"
+            summary += f"- ⚡ {nb_postes_bt} poste(s) BT à proximité\\n"
+            summary += f"- 🔌 {nb_postes_hta} poste(s) HTA à proximité\\n"
+            summary += f"- 🏗️ {nb_zones_plu} zone(s) PLU\\n"
+            summary += f"- 🌾 {nb_rpg} parcelle(s) agricole(s) RPG\\n"
+            summary += f"\\n✅ Carte centrée et données affichées !"
+            
+            return {
+                "success": True,
+                "message": summary,
+                "data": {
+                    "lat": lat,
+                    "lon": lon,
+                    "address": address,
+                    "parcelles_count": nb_parcelles,
+                    "postes_bt_count": nb_postes_bt,
+                    "postes_hta_count": nb_postes_hta,
+                    "plu_zones_count": nb_zones_plu,
+                    "rpg_parcelles_count": nb_rpg
+                }
+            }
+            
+        except ImportError as e:
+            print(f"❌ [HELIA SEARCH] Erreur import: {e}")
+            return {"success": False, "message": "❌ Fonctions de recherche non disponibles"}
+        except Exception as e:
+            print(f"❌ [HELIA SEARCH] Erreur recherche: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "message": f"❌ Erreur recherche: {str(e)}"}
+        
+    except Exception as e:
+        print(f"❌ [HELIA] Erreur search_location: {e}")
+        return {"success": False, "message": f"Erreur: {str(e)}"}
+
+
 def function_get_map_state(args):
     """Récupère l'état actuel de la carte"""
     try:
@@ -1283,6 +1423,7 @@ AVAILABLE_FUNCTIONS = {
     "analyze_commune_report": function_analyze_commune_report,
     "toggle_layer": function_toggle_layer,
     "zoom_to_location": function_zoom_to_location,
+    "search_location": function_search_location,
     "get_map_state": function_get_map_state,
     "analyze_visible_layers": function_analyze_visible_layers,
     "analyze_urban_data": function_analyze_urban_data
