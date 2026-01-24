@@ -423,6 +423,8 @@ class PlanMasseGenerator:
             return
         
         print(f"[PLAN] ­ƒÅÿ´©Å Dessin de {len(parcelles)} parcelles...")
+        print(f"[PLAN] DEBUG plan_bbox: x={self.plan_bbox.get('x', 0):.1f}, y={self.plan_bbox.get('y', 0):.1f}, width={self.plan_bbox.get('width', 0):.1f}, height={self.plan_bbox.get('height', 0):.1f}")
+        print(f"[PLAN] DEBUG gps_bounds: lat[{self.gps_bounds.get('min_lat', 0):.6f}, {self.gps_bounds.get('max_lat', 0):.6f}], lon[{self.gps_bounds.get('min_lon', 0):.6f}, {self.gps_bounds.get('max_lon', 0):.6f}]")
         
         # ­ƒöÑ SAUVEGARDER l'├®tat du canvas avant le clipping
         c.saveState()
@@ -517,6 +519,7 @@ class PlanMasseGenerator:
                         first_point = False
                         if label_x is None:  # Position ├®tiquette sur le premier polygone
                             label_x, label_y = pdf_x, pdf_y
+                        print(f"[PLAN] DEBUG premier point: GPS({lat:.6f}, {lon:.6f}) → PDF({pdf_x:.1f}, {pdf_y:.1f})")
                         points_converted += 1
                     else:
                         path.lineTo(pdf_x, pdf_y)
