@@ -10553,12 +10553,35 @@ def rapport_map_point():
                         "idu": cadastre_props.get('idu', 'N/A')
                     }
                     
+                    # 🔧 CORRECTION PLAN DE MASSE: Formater les parcelles cadastrales pour le générateur de plan
+                    parcelles_cadastrales = []
+                    for feat in cadastre_data.get('features', []):
+                        feat_props = feat.get('properties', {})
+                        feat_geom = feat.get('geometry', {})
+                        
+                        parcelle_formatted = {
+                            "section": feat_props.get('section', ''),
+                            "numero": feat_props.get('numero', ''),
+                            "surface": feat_props.get('contenance', 0),  # Surface en m²
+                            "commune": feat_props.get('nom_com', ''),
+                            "code_insee": feat_props.get('code_insee', ''),
+                            "geometry": feat_geom,  # Géométrie GeoJSON complète
+                            "geojson": feat  # Feature GeoJSON complet
+                        }
+                        parcelles_cadastrales.append(parcelle_formatted)
+                    
+                    # Stocker dans le champ que le plan de masse cherche
+                    report_data["parcelles_cadastrales"] = parcelles_cadastrales
+                    log_step("CONTEXT", f"✅ {len(parcelles_cadastrales)} parcelle(s) cadastrale(s) formatée(s) pour plan de masse", "SUCCESS")
+                    
                     log_step("CONTEXT", f"✅ API Cadastre: {report_data.get('commune_name', 'OK')}", "SUCCESS")
                 else:
                     api_details["cadastre"]["error"] = "Aucune donnée cadastrale trouvée"
+                    report_data["parcelles_cadastrales"] = []
                     log_step("CONTEXT", "⚠️ API Cadastre: Aucune donnée", "WARNING")
             except Exception as e:
                 api_details["cadastre"]["error"] = str(e)
+                report_data["parcelles_cadastrales"] = []
                 log_step("CONTEXT", f"❌ Erreur API Cadastre: {e}", "ERROR")
             
             # API GPU

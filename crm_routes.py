@@ -3544,17 +3544,29 @@ def register_crm_routes(app):
             
             prospect_data = dict(row)
             
-            # 2. Extraire calpinage depuis la base de données
+            # 2. Extraire calpinage ET parcelles cadastrales depuis la base de données
             calpinage_data = None
             if prospect_data.get('data_json'):
                 if isinstance(prospect_data['data_json'], str):
                     try:
                         data_json = json.loads(prospect_data['data_json'])
                         calpinage_data = data_json.get('calpinage')
-                    except:
+                        
+                        # 🔧 CORRECTION: Extraire les parcelles cadastrales depuis data_json
+                        if 'parcelles_cadastrales' in data_json and data_json['parcelles_cadastrales']:
+                            prospect_data['parcelles_cadastrales'] = data_json['parcelles_cadastrales']
+                            print(f"✓ Parcelles cadastrales: {len(data_json['parcelles_cadastrales'])} trouvée(s) dans data_json")
+                        
+                    except Exception as e:
+                        print(f"⚠️ Erreur parsing data_json: {e}")
                         pass
                 elif isinstance(prospect_data['data_json'], dict):
                     calpinage_data = prospect_data['data_json'].get('calpinage')
+                    
+                    # 🔧 CORRECTION: Extraire les parcelles cadastrales depuis data_json (dict)
+                    if 'parcelles_cadastrales' in prospect_data['data_json']:
+                        prospect_data['parcelles_cadastrales'] = prospect_data['data_json']['parcelles_cadastrales']
+                        print(f"✓ Parcelles cadastrales: {len(prospect_data['parcelles_cadastrales'])} trouvée(s)")
             
             if calpinage_data:
                 nb_modules = sum(z.get('nbModules', 0) for z in calpinage_data.get('zones', []))
