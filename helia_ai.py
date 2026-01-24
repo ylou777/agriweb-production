@@ -1960,6 +1960,9 @@ class HeliaAI:
             # Exécuter les fonctions appelées
             messages.append(response_message)
             
+            # Collecter les données (carte_url, etc.) des fonctions
+            combined_data = {}
+            
             for tool_call in tool_calls:
                 function_name = tool_call.function.name
                 function_args = json.loads(tool_call.function.arguments)
@@ -1971,6 +1974,10 @@ class HeliaAI:
                     function_response = AVAILABLE_FUNCTIONS[function_name](function_args)
                 else:
                     function_response = {"error": "Fonction non trouvée"}
+                
+                # Collecter les données pour le frontend
+                if isinstance(function_response, dict) and 'data' in function_response:
+                    combined_data.update(function_response['data'])
                 
                 # Ajouter le résultat à la conversation
                 messages.append({
@@ -1994,13 +2001,19 @@ class HeliaAI:
             self.save_message(session_id, 'user', user_message)
             self.save_message(session_id, 'assistant', final_response)
             
-            return {
+            result = {
                 'success': True,
                 'response': final_response,
                 'mode': 'ai_with_actions',
                 'model': GROQ_MODEL,
                 'functions_called': [tc.function.name for tc in tool_calls]
             }
+            
+            # Ajouter les données collectées (carte_url, etc.)
+            if combined_data:
+                result['data'] = combined_data
+            
+            return result
             
         except Exception as e:
             print(f"❌ Erreur Groq: {e}")

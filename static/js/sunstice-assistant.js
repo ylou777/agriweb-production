@@ -787,6 +787,12 @@ class SunsticeAssistant {
             if (data.success) {
                 this.addBotMessage(data.response);
                 console.log(`✨ Réponse ${data.mode === 'ai' ? 'IA' : 'fallback'}`);
+                
+                // Ouvrir automatiquement la carte si une URL est présente dans la réponse
+                if (data.data && data.data.carte_url) {
+                    console.log('🗺️ Ouverture automatique de la carte:', data.data.carte_url);
+                    this.openMap(data.data.carte_url);
+                }
             } else {
                 // Si erreur, utiliser fallback
                 const fallbackResponse = this.findBestResponse(message);
@@ -805,6 +811,32 @@ class SunsticeAssistant {
             // Utiliser fallback
             const fallbackResponse = this.findBestResponse(message);
             this.addBotMessage(fallbackResponse);
+        }
+    }
+
+    openMap(carte_url) {
+        /**
+         * Ouvre automatiquement la carte avec les résultats de la recherche
+         */
+        try {
+            const mapFrame = document.getElementById('mapFrame');
+            
+            if (mapFrame) {
+                // Charger l'URL dans l'iframe de la carte
+                mapFrame.src = `/static/map.html?redirect=${encodeURIComponent(carte_url)}`;
+                console.log('✅ Carte ouverte:', carte_url);
+                
+                // Feedback visuel dans le chat
+                setTimeout(() => {
+                    this.addBotMessage('🗺️ <em>Carte mise à jour avec les résultats !</em>', false);
+                }, 500);
+            } else {
+                console.warn('⚠️ Iframe mapFrame non trouvée');
+                // Ouvrir dans un nouvel onglet si l'iframe n'existe pas
+                window.open(carte_url, '_blank');
+            }
+        } catch (error) {
+            console.error('❌ Erreur ouverture carte:', error);
         }
     }
 
