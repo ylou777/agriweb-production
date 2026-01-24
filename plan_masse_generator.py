@@ -441,6 +441,9 @@ class PlanMasseGenerator:
             geojson = parcelle.get('geojson') or parcelle.get('geometry')
             
             print(f"[PLAN] Parcelle {section}{numero}: geojson={'OUI' if geojson else 'NON'}, surface={surface}")
+            print(f"[PLAN] DEBUG parcelle keys: {list(parcelle.keys())}")
+            if geojson:
+                print(f"[PLAN] DEBUG geojson type: {type(geojson)}, keys: {list(geojson.keys()) if isinstance(geojson, dict) else 'N/A'}")
             
             # Si g├®om├®trie GeoJSON disponible, l'utiliser
             if geojson and isinstance(geojson, dict):
