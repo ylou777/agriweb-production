@@ -830,99 +830,7 @@ def get_all_gpu_data(geom):
     return results
 
 # Fonction supprimée - conservé seulement main() à la fin du fichier
-
-def get_nearest_osm_building(lat, lon, radius_meters=50):
-    """
-    Récupère le bâtiment OSM le plus proche d'un point (lat, lon).
-    Utilisé quand l'adresse pointe dans la rue et ne touche pas de parcelle.
-    
-    Args:
-        lat: Latitude du point
-        lon: Longitude du point
-        radius_meters: Rayon de recherche en mètres (défaut: 50m)
-    
-    Returns:
-        dict: Geometry GeoJSON du bâtiment le plus proche, ou None
-    """
-    import requests
-    from shapely.geometry import shape, Point
-    
-    try:
-        # Requête Overpass pour les bâtiments dans un rayon
-        overpass_query = f"""
-        [out:json][timeout:15];
-        (
-          way["building"](around:{radius_meters},{lat},{lon});
-          relation["building"](around:{radius_meters},{lat},{lon});
-        );
-        out geom;
-        """
-        
-        response = requests.post(
-            "https://overpass-api.de/api/interpreter",
-            data=overpass_query,
-            timeout=20
-        )
-        
-        if response.status_code != 200:
-            return None
-            
-        osm_data = response.json()
-        elements = osm_data.get('elements', [])
-        
-        if not elements:
-            return None
-        
-        # Convertir en GeoJSON et trouver le plus proche
-        point = Point(lon, lat)
-        nearest_building = None
-        min_distance = float('inf')
-        
-        for elem in elements:
-            try:
-                # Construire le polygone du bâtiment
-                if elem.get('type') == 'way' and 'geometry' in elem:
-                    coords = [(node['lon'], node['lat']) for node in elem['geometry']]
-                    if coords and coords[0] != coords[-1]:
-                        coords.append(coords[0])  # Fermer le polygone
-                    
-                    if len(coords) >= 4:  # Au moins 3 points + fermeture
-                        building_geom = {
-                            "type": "Polygon",
-                            "coordinates": [coords]
-                        }
-                        building_shape = shape(building_geom)
-                        
-                        # Calculer distance au point
-                        distance = point.distance(building_shape)
-                        
-                        if distance < min_distance:
-                            min_distance = distance
-                            nearest_building = building_geom
-                            
-            except Exception as e:
-                continue  # Ignorer les bâtiments mal formés
-        
-        return nearest_building
-        
-    except Exception as e:
-        print(f"⚠️ Erreur récupération bâtiment OSM: {e}")
-        return None
-
-
-def get_api_cadastre_data(point_geojson, try_osm_building_fallback=True):
-    """
-    Récupère les données cadastrales pour un point.
-    Si aucune parcelle n'est trouvée et que try_osm_building_fallback=True,
-    cherche le bâtiment OSM le plus proche et réessaie avec sa géométrie.
-    
-    Args:
-        point_geojson: GeoJSON du point (ex: {"type": "Point", "coordinates": [lon, lat]})
-        try_osm_building_fallback: Si True, utilise le bâtiment OSM si point dans la rue
-    
-    Returns:
-        dict: Données cadastrales (FeatureCollection GeoJSON) ou None
-    """
+def get_api_cadastre_data(point_geojson):
     url = "https://apicarto.ign.fr/api/cadastre/parcelle"
     params = {
         "geom": json.dumps(point_geojson),
@@ -932,38 +840,7 @@ def get_api_cadastre_data(point_geojson, try_osm_building_fallback=True):
     try:
         response = requests.get(url, params=params, timeout=10)
         if response.ok:
-            data = response.json()
-            
-            # Si aucune parcelle trouvée ET fallback activé
-            if try_osm_building_fallback and (not data or not data.get('features')):
-                print("📍 Point ne touche aucune parcelle, recherche du bâtiment OSM le plus proche...")
-                
-                # Extraire lat/lon du point
-                coords = point_geojson.get('coordinates', [])
-                if len(coords) == 2:
-                    lon, lat = coords
-                    
-                    # Trouver le bâtiment OSM le plus proche
-                    building_geom = get_nearest_osm_building(lat, lon, radius_meters=50)
-                    
-                    if building_geom:
-                        print("🏠 Bâtiment OSM trouvé, nouvelle requête cadastre avec sa géométrie...")
-                        
-                        # Réessayer avec la géométrie du bâtiment
-                        params_building = {
-                            "geom": json.dumps(building_geom),
-                            "_limit": 1000,
-                            "source_ign": "PCI"
-                        }
-                        response_building = requests.get(url, params=params_building, timeout=10)
-                        
-                        if response_building.ok:
-                            building_data = response_building.json()
-                            if building_data and building_data.get('features'):
-                                print(f"✅ {len(building_data['features'])} parcelle(s) trouvée(s) via bâtiment OSM")
-                                return building_data
-            
-            return data
+            return response.json()
         return None
     except Exception as e:
         print("Erreur API cadastre IGN:", e)
