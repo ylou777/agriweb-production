@@ -191,6 +191,10 @@ def log_search_results(commune, results):
     postes_hta_count = count_features(results.get('postes_hta'))
     sirene_count = count_features(results.get('sirene'))
 
+    print(f"[DEBUG COUNT] RPG: {rpg_count}, Parkings: {parkings_count}, Friches: {friches_count}, Toitures: {toitures_count}")
+    print(f"[DEBUG COUNT] results.get('toitures') type: {type(results.get('toitures'))}")
+    if results.get('toitures'):
+        print(f"[DEBUG COUNT] results.get('toitures') keys: {results.get('toitures').keys() if isinstance(results.get('toitures'), dict) else 'NOT A DICT'}")
     # print(f"   🌾 Parcelles RPG: {rpg_count}")  # Optimisé pour production multi-user
     # print(f"   🅿️ Parkings: {parkings_count}")  # Optimisé pour production multi-user
     # print(f"   🏚️ Friches: {friches_count}")  # Optimisé pour production multi-user
