@@ -4431,6 +4431,79 @@ def get_sirene_info_by_polygon(commune_geom):
     """Récupère les données Sirene en utilisant le polygone exact de la commune"""
     return get_data_by_commune_polygon(commune_geom, None, SIRENE_LAYER)
 
+def get_enedis_consommation_by_commune(code_commune, annee=None):
+    """
+    Récupère les données de consommation électrique Enedis depuis PostgreSQL Railway
+    
+    Args:
+        code_commune: Code INSEE de la commune (ex: '06088' pour Nice)
+        annee: Année spécifique (None = année la plus récente)
+    
+    Returns:
+        Liste de dict avec latitude, longitude, consommation_mwh, secteur, adresse
+    """
+    import os
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    if not DATABASE_URL:
+        # En local, pas de données Enedis
+        return []
+    
+    try:
+        # Convertir postgres:// en postgresql://
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        
+        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        cur = conn.cursor()
+        
+        # Requête pour récupérer les consommations de la commune
+        if annee:
+            query = """
+                SELECT 
+                    latitude, longitude, adresse, nom_commune,
+                    consommation_annuelle_totale_mwh as consommation_mwh,
+                    code_grand_secteur as secteur,
+                    nombre_de_sites,
+                    annee
+                FROM consommation_enedis
+                WHERE code_commune = %s AND annee = %s
+                  AND latitude IS NOT NULL AND longitude IS NOT NULL
+                ORDER BY consommation_annuelle_totale_mwh DESC
+                LIMIT 500
+            """
+            cur.execute(query, (code_commune, annee))
+        else:
+            # Prendre l'année la plus récente disponible
+            query = """
+                SELECT 
+                    latitude, longitude, adresse, nom_commune,
+                    consommation_annuelle_totale_mwh as consommation_mwh,
+                    code_grand_secteur as secteur,
+                    nombre_de_sites,
+                    annee
+                FROM consommation_enedis
+                WHERE code_commune = %s 
+                  AND latitude IS NOT NULL AND longitude IS NOT NULL
+                  AND annee = (SELECT MAX(annee) FROM consommation_enedis WHERE code_commune = %s)
+                ORDER BY consommation_annuelle_totale_mwh DESC
+                LIMIT 500
+            """
+            cur.execute(query, (code_commune, code_commune))
+        
+        results = cur.fetchall()
+        cur.close()
+        conn.close()
+        
+        # Convertir en liste de dict standard (pas RealDict)
+        return [dict(row) for row in results]
+        
+    except Exception as e:
+        print(f"⚠️  [ENEDIS] Erreur récupération consommation: {e}")
+        return []
+
 def get_batiments_info_by_polygon(commune_geom):
     """
     Récupère TOUS les bâtiments d'une commune en utilisant OpenStreetMap via l'API Overpass
@@ -8057,6 +8130,11 @@ def search_by_commune():
     # sirene_data = get_sirene_info_by_polygon(contour)
     # log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
     sirene_data = []  # Désactivé pour performances
+    
+    # Récupérer les consommations électriques Enedis (depuis PostgreSQL Railway)
+    log_data_collection("ENEDIS", f"Récupération consommations électriques Enedis")
+    enedis_data = get_enedis_consommation_by_commune(code_commune) if code_commune else []
+    log_data_collection("ENEDIS", f"✅ {len(enedis_data)} consommations trouvées")
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
@@ -9192,6 +9270,7 @@ def search_by_commune():
         "solaire": toitures_data if filter_toitures else solaire_data,
         "zaer": zaer_data,
         "sirene": sirene_data,
+        "enedis": enedis_data,  # Consommations électriques des entreprises
         # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
         # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
         "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe

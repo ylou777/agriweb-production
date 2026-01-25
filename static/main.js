@@ -18,6 +18,7 @@ const LAYER_CONFIG = {
   solaire:        { label: "Potentiel Solaire", color: "gold" },
   zaer:           { label: "ZAER", color: "cyan" },
   sirene:         { label: "Entreprises Sirene", color: "darkred" },
+  enedis:         { label: "Consommations Électriques", color: "#FF5733" },
   hta_lignes_aeriennes:     { label: "Lignes HTA Aériennes", color: "orange" },
   hta_lignes_souterraines:  { label: "Lignes HTA Souterraines", color: "purple" }
   // Ne pas mettre ici les sous-couches urbanisme (dynamiques)
@@ -889,6 +890,93 @@ function displayAllLayers(data) {
           layer.bindPopup(popup, {maxWidth: 400});
         }
       });
+      addOrMergeLayer(layerKey, label, leafletLayer);
+      return;
+    }
+
+    // ----------- Consommations Électriques Enedis ----------- (marqueurs proportionnels)
+    if (layerKey === "enedis") {
+      // Données Enedis: [{latitude, longitude, consommation_mwh, secteur, adresse, ...}]
+      if (!Array.isArray(geojson) || geojson.length === 0) return;
+      
+      // Convertir en FeatureCollection si nécessaire
+      const features = geojson.map(item => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [item.longitude, item.latitude]
+        },
+        properties: item
+      }));
+      
+      const featureCollection = {
+        type: "FeatureCollection",
+        features: features
+      };
+      
+      const leafletLayer = m.L.geoJSON(featureCollection, {
+        pointToLayer: function (feature, latlng) {
+          const props = feature.properties;
+          const conso = props.consommation_mwh || 0;
+          
+          // Taille du marqueur proportionnelle à la consommation
+          let radius = 8; // Taille minimale
+          if (conso > 100) radius = 20;
+          else if (conso > 50) radius = 16;
+          else if (conso > 20) radius = 12;
+          else if (conso > 5) radius = 10;
+          
+          // Couleur selon le secteur
+          let color = '#FF5733'; // Par défaut: rouge/orange
+          if (props.secteur === 'INDUSTRIE') color = '#C70039';
+          else if (props.secteur === 'TERTIAIRE') color = '#FF8C00';
+          else if (props.secteur === 'AGRICULTURE') color = '#28A745';
+          
+          return m.L.circleMarker(latlng, {
+            radius: radius,
+            fillColor: color,
+            color: '#fff',
+            weight: 2,
+            opacity: 0.9,
+            fillOpacity: 0.7
+          });
+        },
+        onEachFeature: function (feature, layer) {
+          const props = feature.properties;
+          
+          // Popup informatif
+          let popup = `<div style="font-family: 'Poppins', Arial, sans-serif; font-size: 14px; min-width: 280px;">`;
+          popup += `<div style="font-weight: 700; font-size: 17px; margin-bottom: 8px; color: #FF5733;">⚡ Consommation Électrique</div>`;
+          popup += `<table style="width: 100%;">`;
+          
+          function row(label, val, highlight = false) {
+            const style = highlight ? 'font-weight: 700; font-size: 16px; color: #C70039;' : 'color: #2d2d2d;';
+            return val ? `<tr><th style="text-align: left; color: #28616a; font-weight: 500; padding: 4px 8px 4px 0;">${label}</th><td style="${style} padding: 4px 0;">${val}</td></tr>` : "";
+          }
+          
+          popup += row("Consommation", `${props.consommation_mwh.toFixed(2)} MWh/an`, true);
+          popup += row("Secteur", props.secteur);
+          popup += row("Adresse", props.adresse);
+          popup += row("Commune", props.nom_commune);
+          if (props.nombre_de_sites > 1) popup += row("Nb sites", props.nombre_de_sites);
+          if (props.annee) popup += row("Année", props.annee);
+          
+          popup += `</table>`;
+          
+          // Calcul ROI indicatif
+          const tarifMoyenKwh = 0.20; // €/kWh
+          const economieAnnuelle = props.consommation_mwh * 1000 * tarifMoyenKwh;
+          popup += `<div style="margin-top: 10px; padding: 8px; background: #f0f8ff; border-left: 3px solid #007bff;">`;
+          popup += `<b>💡 Économies potentielles:</b><br>`;
+          popup += `~${economieAnnuelle.toLocaleString('fr-FR', {maximumFractionDigits: 0})} €/an`;
+          popup += `</div>`;
+          
+          popup += `</div>`;
+          
+          layer.bindPopup(popup, {maxWidth: 350});
+        }
+      });
+      
       addOrMergeLayer(layerKey, label, leafletLayer);
       return;
     }
