@@ -8188,9 +8188,13 @@ def search_by_commune():
     sirene_data = []  # Désactivé pour performances
     
     # Récupérer les consommations électriques Enedis (depuis PostgreSQL Railway)
-    log_data_collection("ENEDIS", f"Récupération consommations électriques Enedis")
-    enedis_data = get_enedis_consommation_by_commune(code_commune) if code_commune else []
-    log_data_collection("ENEDIS", f"✅ {len(enedis_data)} consommations trouvées")
+    try:
+        log_data_collection("ENEDIS", f"Récupération consommations électriques Enedis")
+        enedis_data = get_enedis_consommation_by_commune(code_commune) if code_commune else []
+        log_data_collection("ENEDIS", f"✅ {len(enedis_data)} consommations trouvées")
+    except Exception as e:
+        log_data_collection("ENEDIS", f"⚠️ Erreur récupération Enedis: {e}")
+        enedis_data = []
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
