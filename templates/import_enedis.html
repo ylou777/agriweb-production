@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Enedis - Railway</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            background: #eef1ff;
+            border-color: #764ba2;
+        }
+        .upload-area.dragging {
+            background: #e0e7ff;
+            border-color: #4c51bf;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .file-label {
+            font-size: 18px;
+            color: #667eea;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .file-info {
+            color: #666;
+            font-size: 14px;
+        }
+        .selected-file {
+            background: #4ade80;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: inline-block;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .progress {
+            display: none;
+            margin: 20px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e7ff;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        .result {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+            color: #065f46;
+        }
+        .error {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+            color: #991b1b;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Import Enedis</h1>
+        <p class="subtitle">Uploader le CSV de consommation électrique vers Railway PostgreSQL</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <label for="fileInput" class="file-label">
+                📁 Cliquez ou glissez-déposez votre fichier CSV
+            </label>
+            <p class="file-info">
+                Fichier attendu: <code>consommation-annuelle-entreprise-par-adresse.csv</code><br>
+                Format: CSV avec séparateur point-virgule (;)
+            </p>
+            <input type="file" id="fileInput" accept=".csv" />
+        </div>
+        
+        <div id="selectedFile" style="text-align: center;"></div>
+        
+        <button id="uploadBtn" onclick="uploadFile()" disabled>
+            🚀 Importer et Géocoder
+        </button>
+        
+        <div class="progress" id="progress">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+        </div>
+        
+        <div class="result" id="result"></div>
+    </div>
+    
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('uploadArea');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const selectedFile = document.getElementById('selectedFile');
+        const progress = document.getElementById('progress');
+        const progressFill = document.getElementById('progressFill');
+        const result = document.getElementById('result');
+        
+        let file = null;
+        
+        // Click sur zone upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // Sélection fichier
+        fileInput.addEventListener('change', (e) => {
+            file = e.target.files[0];
+            if (file) {
+                selectedFile.innerHTML = `<div class="selected-file">✅ ${file.name} (${(file.size / (1024*1024)).toFixed(1)} MB)</div>`;
+                uploadBtn.disabled = false;
+            }
+        });
+        
+        // Drag & drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragging');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragging');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragging');
+            file = e.dataTransfer.files[0];
+            if (file) {
+                selectedFile.innerHTML = `<div class="selected-file">✅ ${file.name} (${(file.size / (1024*1024)).toFixed(1)} MB)</div>`;
+                uploadBtn.disabled = false;
+            }
+        });
+        
+        // Upload
+        async function uploadFile() {
+            if (!file) return;
+            
+            uploadBtn.disabled = true;
+            progress.style.display = 'block';
+            result.style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                progressFill.style.width = '30%';
+                progressFill.textContent = 'Upload en cours...';
+                
+                const response = await fetch('/api/admin/import-enedis', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                progressFill.style.width = '80%';
+                progressFill.textContent = 'Traitement...';
+                
+                const data = await response.json();
+                
+                progressFill.style.width = '100%';
+                progressFill.textContent = '✅ Terminé!';
+                
+                if (data.success) {
+                    result.className = 'result success';
+                    result.innerHTML = `
+                        <h3>✅ Import réussi!</h3>
+                        <div class="stats">
+                            <div class="stat-card">
+                                <div class="stat-value">${data.rows_imported.toLocaleString()}</div>
+                                <div class="stat-label">Lignes importées</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${data.rows_geocoded.toLocaleString()}</div>
+                                <div class="stat-label">Géocodées</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${data.geocoding_rate}</div>
+                                <div class="stat-label">Taux géocodage</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${data.duration_seconds.toFixed(1)}s</div>
+                                <div class="stat-label">Durée</div>
+                            </div>
+                        </div>
+                        <p style="margin-top: 20px; text-align: center;">
+                            🎉 Les données Enedis sont maintenant disponibles!<br>
+                            Rafraîchissez votre recherche commune pour voir les marqueurs.
+                        </p>
+                    `;
+                } else {
+                    result.className = 'result error';
+                    result.innerHTML = `<h3>❌ Erreur</h3><p>${data.error}</p>`;
+                }
+                
+                result.style.display = 'block';
+                
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `<h3>❌ Erreur réseau</h3><p>${error.message}</p>`;
+                result.style.display = 'block';
+                progressFill.style.width = '0%';
+            }
+            
+            uploadBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>

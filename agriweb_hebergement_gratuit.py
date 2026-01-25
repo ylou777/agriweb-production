@@ -17483,6 +17483,192 @@ def api_crm_stats():
             "error": str(e)
         }), 500
 
+@app.route('/admin/import-enedis')
+def admin_import_enedis_page():
+    """Page d'upload du CSV Enedis"""
+    return render_template('import_enedis.html')
+
+@app.route('/api/admin/import-enedis', methods=['POST'])
+def import_enedis_data():
+    """
+    Import des données Enedis depuis un CSV uploadé
+    Crée la table et géocode les adresses avec centroids communes
+    """
+    import csv
+    import io
+    import time
+    from datetime import datetime
+    
+    try:
+        start_time = time.time()
+        
+        # Vérifier qu'on est sur Railway avec PostgreSQL
+        DATABASE_URL = os.environ.get('DATABASE_URL')
+        if not DATABASE_URL:
+            return jsonify({
+                "success": False,
+                "error": "DATABASE_URL non configurée - Import impossible"
+            }), 500
+        
+        # Récupérer le fichier uploadé
+        if 'file' not in request.files:
+            return jsonify({
+                "success": False,
+                "error": "Aucun fichier CSV fourni"
+            }), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({
+                "success": False,
+                "error": "Nom de fichier vide"
+            }), 400
+        
+        print(f"📁 [IMPORT_ENEDIS] Réception CSV: {file.filename}")
+        
+        # Lire le CSV
+        csv_content = file.read().decode('utf-8')
+        csv_reader = csv.DictReader(io.StringIO(csv_content), delimiter=';')
+        
+        # Convertir postgres:// en postgresql://
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        
+        import psycopg2
+        from psycopg2.extras import execute_batch
+        
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # 1. Créer la table si elle n'existe pas
+        print(f"🔧 [IMPORT_ENEDIS] Création table consommation_enedis...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS consommation_enedis (
+                id SERIAL PRIMARY KEY,
+                annee INTEGER,
+                code_commune VARCHAR(10),
+                nom_commune VARCHAR(200),
+                adresse TEXT,
+                code_grand_secteur VARCHAR(50),
+                code_naf VARCHAR(10),
+                nombre_de_sites INTEGER,
+                consommation_annuelle_totale_mwh DECIMAL(12,2),
+                latitude DECIMAL(10,6),
+                longitude DECIMAL(10,6),
+                date_import TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_enedis_commune ON consommation_enedis(code_commune);
+            CREATE INDEX IF NOT EXISTS idx_enedis_coords ON consommation_enedis(latitude, longitude);
+            CREATE INDEX IF NOT EXISTS idx_enedis_secteur ON consommation_enedis(code_grand_secteur);
+        """)
+        conn.commit()
+        print(f"✅ [IMPORT_ENEDIS] Table créée")
+        
+        # 2. Charger les centroids communes depuis geo.api.gouv.fr
+        print(f"🗺️ [IMPORT_ENEDIS] Chargement centroids communes...")
+        import requests
+        response = requests.get("https://geo.api.gouv.fr/communes?fields=code,centre&format=json&geometry=centre")
+        communes_data = response.json()
+        
+        commune_centroids = {}
+        for commune in communes_data:
+            code = commune.get('code')
+            centre = commune.get('centre')
+            if code and centre and 'coordinates' in centre:
+                lon, lat = centre['coordinates']
+                commune_centroids[code] = (lat, lon)
+        
+        print(f"✅ [IMPORT_ENEDIS] {len(commune_centroids)} centroids chargés")
+        
+        # 3. Parser et insérer les données par batch
+        print(f"📊 [IMPORT_ENEDIS] Import des lignes CSV...")
+        
+        batch_data = []
+        rows_imported = 0
+        rows_geocoded = 0
+        batch_size = 1000
+        
+        for row in csv_reader:
+            try:
+                code_commune = row.get('Code commune', '').strip()
+                
+                # Géocodage via centroid commune
+                lat, lon = None, None
+                if code_commune in commune_centroids:
+                    lat, lon = commune_centroids[code_commune]
+                    rows_geocoded += 1
+                
+                batch_data.append((
+                    int(row.get('Année', 0)),
+                    code_commune,
+                    row.get('Nom de la commune', '').strip(),
+                    row.get('Adresse', '').strip(),
+                    row.get('Code grand secteur', '').strip(),
+                    row.get('Code NAF', '').strip(),
+                    int(row.get('Nombre de sites', 0)),
+                    float(row.get('Consommation annuelle totale de l'adresse (MWh)', 0).replace(',', '.')),
+                    lat,
+                    lon
+                ))
+                
+                # Insert par batch de 1000
+                if len(batch_data) >= batch_size:
+                    execute_batch(cur, """
+                        INSERT INTO consommation_enedis 
+                        (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                         code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, batch_data)
+                    conn.commit()
+                    
+                    rows_imported += len(batch_data)
+                    print(f"   📦 {rows_imported:,} lignes importées ({rows_geocoded:,} géocodées)...")
+                    batch_data = []
+                    
+            except Exception as e:
+                print(f"⚠️ [IMPORT_ENEDIS] Erreur ligne: {e}")
+                continue
+        
+        # Insérer le dernier batch
+        if batch_data:
+            execute_batch(cur, """
+                INSERT INTO consommation_enedis 
+                (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                 code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, batch_data)
+            conn.commit()
+            rows_imported += len(batch_data)
+        
+        cur.close()
+        conn.close()
+        
+        duration = time.time() - start_time
+        
+        print(f"✅ [IMPORT_ENEDIS] Import terminé!")
+        print(f"   - Lignes importées: {rows_imported:,}")
+        print(f"   - Lignes géocodées: {rows_geocoded:,} ({rows_geocoded/rows_imported*100:.1f}%)")
+        print(f"   - Durée: {duration:.1f}s")
+        
+        return jsonify({
+            "success": True,
+            "table_created": True,
+            "rows_imported": rows_imported,
+            "rows_geocoded": rows_geocoded,
+            "geocoding_rate": f"{rows_geocoded/rows_imported*100:.1f}%",
+            "duration_seconds": duration
+        })
+        
+    except Exception as e:
+        print(f"❌ [IMPORT_ENEDIS] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route('/debug/template-version')
 def debug_template_version():
     """Affiche la version du template rapport_point.html déployé"""
