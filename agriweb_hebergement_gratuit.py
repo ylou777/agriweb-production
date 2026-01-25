@@ -4448,8 +4448,10 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
     
     DATABASE_URL = os.environ.get('DATABASE_URL')
     if not DATABASE_URL:
-        # En local, pas de données Enedis
+        print(f"⚠️ [ENEDIS] DATABASE_URL non configurée - aucune donnée Enedis disponible")
         return []
+    
+    print(f"🔍 [ENEDIS] Recherche consommations pour commune {code_commune}...")
     
     try:
         # Convertir postgres:// en postgresql://
@@ -4497,11 +4499,26 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         cur.close()
         conn.close()
         
-        # Convertir en liste de dict standard (pas RealDict)
-        return [dict(row) for row in results]
+        print(f"✅ [ENEDIS] {len(results)} consommations trouvées pour {code_commune}")
+        
+        # Convertir en liste de dict standard et nettoyer les chaînes pour éviter les problèmes JSON
+        clean_results = []
+        for row in results:
+            clean_row = {}
+            for key, value in dict(row).items():
+                # Nettoyer les chaînes pour éviter les problèmes JSON
+                if isinstance(value, str):
+                    # Remplacer les guillemets et caractères problématiques
+                    value = value.replace('"', "'").replace('\n', ' ').replace('\r', '')
+                clean_row[key] = value
+            clean_results.append(clean_row)
+        
+        return clean_results
         
     except Exception as e:
-        print(f"⚠️  [ENEDIS] Erreur récupération consommation: {e}")
+        print(f"⚠️ [ENEDIS] Erreur récupération consommation pour {code_commune}: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def calculate_enedis_stats(enedis_data):
