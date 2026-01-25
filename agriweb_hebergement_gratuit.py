@@ -9327,7 +9327,6 @@ def search_by_commune():
         "zaer": zaer_data,
         "sirene": sirene_data,
         "enedis": enedis_data,  # Consommations électriques des entreprises
-        "enedis_stats": calculate_enedis_stats(enedis_data),  # Statistiques agrégées
         # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
         # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
         "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe
@@ -17318,6 +17317,146 @@ def api_crm_export():
         print(f"❌ [CRM_EXPORT] Erreur: {e}")
         import traceback
         traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/crm/prospects', methods=['GET'])
+def api_crm_get_prospects():
+    """
+    Récupère la liste des prospects avec filtres optionnels
+    Supporte les filtres: statut, type, commune, departement, secteur_enedis, conso_min
+    """
+    try:
+        from database_adapter import execute_query
+        
+        # Récupérer les paramètres de filtre
+        statut = request.args.get('statut', '').strip()
+        type_prospect = request.args.get('type', '').strip()
+        commune = request.args.get('commune', '').strip()
+        departement = request.args.get('departement', '').strip()
+        secteur_enedis = request.args.get('secteur_enedis', '').strip()
+        conso_min = request.args.get('conso_min', '').strip()
+        
+        # Construire la requête SQL avec filtres
+        query = "SELECT * FROM agriweb_prospects WHERE 1=1"
+        params = {}
+        
+        if statut:
+            query += " AND statut = :statut"
+            params['statut'] = statut
+        
+        if type_prospect:
+            query += " AND type = :type"
+            params['type'] = type_prospect
+        
+        if commune:
+            query += " AND commune LIKE :commune"
+            params['commune'] = f'%{commune}%'
+        
+        if departement:
+            query += " AND departement = :departement"
+            params['departement'] = departement
+        
+        if secteur_enedis:
+            query += " AND secteur_enedis = :secteur_enedis"
+            params['secteur_enedis'] = secteur_enedis
+        
+        if conso_min:
+            try:
+                query += " AND consommation_enedis_mwh >= :conso_min"
+                params['conso_min'] = float(conso_min)
+            except ValueError:
+                pass
+        
+        query += " ORDER BY date_creation DESC"
+        
+        prospects = execute_query(query, params)
+        
+        return jsonify({
+            "success": True,
+            "prospects": prospects or [],
+            "count": len(prospects) if prospects else 0
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM_API] Erreur récupération prospects: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/crm/prospect/<int:prospect_id>', methods=['GET'])
+def api_crm_get_prospect(prospect_id):
+    """Récupère les détails d'un prospect spécifique"""
+    try:
+        from database_adapter import execute_query
+        
+        query = "SELECT * FROM agriweb_prospects WHERE id = :id"
+        result = execute_query(query, {'id': prospect_id})
+        
+        if result and len(result) > 0:
+            return jsonify({
+                "success": True,
+                "prospect": result[0]
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Prospect non trouvé"
+            }), 404
+            
+    except Exception as e:
+        print(f"❌ [CRM_API] Erreur récupération prospect {prospect_id}: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/crm/stats', methods=['GET'])
+def api_crm_stats():
+    """Récupère les statistiques globales du CRM"""
+    try:
+        from database_adapter import execute_query
+        
+        # Total prospects
+        total_query = "SELECT COUNT(*) as total FROM agriweb_prospects"
+        total_result = execute_query(total_query)
+        total = total_result[0]['total'] if total_result else 0
+        
+        # Par type
+        type_query = """
+            SELECT type, COUNT(*) as count 
+            FROM agriweb_prospects 
+            GROUP BY type
+        """
+        type_result = execute_query(type_query)
+        
+        stats = {
+            "total": total,
+            "parkings": 0,
+            "toitures": 0,
+            "friches": 0,
+            "rpg": 0
+        }
+        
+        if type_result:
+            for row in type_result:
+                type_name = row['type']
+                count = row['count']
+                if type_name in stats:
+                    stats[type_name + 's'] = count  # parking -> parkings
+        
+        return jsonify({
+            "success": True,
+            "stats": stats
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM_API] Erreur stats: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
