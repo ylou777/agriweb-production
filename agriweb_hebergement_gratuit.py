@@ -13825,6 +13825,12 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 batiments_fc = get_batiments_data(contour) or {"type": "FeatureCollection", "features": []}
                 batiments = batiments_fc.get("features", [])
                 print(f"    🏠 Bâtiments OSM bruts: {len(batiments)}")
+                print(f"    📊 Postes BT disponibles: {len(postes_bt_data)}, HTA: {len(postes_hta_data)}")
+                print(f"    🎯 Filtres: surface≥{min_surface}m², filter_by_distance={filter_by_distance}, BT≤{max_distance_bt}m, HTA≤{max_distance_hta}m")
+
+                rejected_geom = 0
+                rejected_surface = 0
+                rejected_distance = 0
 
                 for b in batiments:
                     try:
@@ -13832,14 +13838,17 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         if not geom.is_valid:
                             geom = geom.buffer(0)
                             if not geom.is_valid:
+                                rejected_geom += 1
                                 continue
                         # Double garde: doit intersecter la commune
                         if not (commune_poly.contains(geom) or commune_poly.intersects(geom)):
+                            rejected_geom += 1
                             continue
 
                         # Surface en m²
                         surface_m2 = shp_transform(to_l93, geom).area
                         if surface_m2 < min_surface:
+                            rejected_surface += 1
                             continue
 
                         # Distances aux postes
@@ -13858,6 +13867,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                             else:
                                 distance_ok = bt_ok or hta_ok
                             if not distance_ok:
+                                rejected_distance += 1
                                 continue
                         # Sinon, pas de filtre distance
 
@@ -13886,6 +13896,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     except Exception as _e:
                         continue
                 print(f"    ✅ Toitures retenues après filtres: {len(toitures_data)}")
+                print(f"    ❌ Rejetés: géométrie={rejected_geom}, surface={rejected_surface}, distance={rejected_distance}")
                 
                 # Enrichissement cadastral des toitures (méthode simplifiée - comme zones urbaines)
                 if toitures_data:
