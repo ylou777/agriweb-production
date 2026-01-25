@@ -17607,7 +17607,7 @@ def import_enedis_data():
                     row.get('Code grand secteur', '').strip(),
                     row.get('Code NAF', '').strip(),
                     int(row.get('Nombre de sites', 0)),
-                    float(row.get('Consommation annuelle totale de l'adresse (MWh)', 0).replace(',', '.')),
+                    float(row.get("Consommation annuelle totale de l'adresse (MWh)", 0).replace(',', '.')),
                     lat,
                     lon
                 ))
