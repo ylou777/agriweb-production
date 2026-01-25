@@ -13708,6 +13708,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
         rpg_data = get_rpg_info_by_polygon(contour) if filters.get("filter_rpg", True) else []
         postes_bt_data = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
         postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+        
+        print(f"🔍 [DEBUG-COLLECTE] filter_parkings={filters.get('filter_parkings')}, filter_toitures={filters.get('filter_toitures')}, filter_friches={filters.get('filter_friches')}")
+        
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
         
