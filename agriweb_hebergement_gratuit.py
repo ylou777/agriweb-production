@@ -4504,6 +4504,62 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         print(f"⚠️  [ENEDIS] Erreur récupération consommation: {e}")
         return []
 
+def calculate_enedis_stats(enedis_data):
+    """
+    Calcule des statistiques agrégées sur les données Enedis
+    
+    Args:
+        enedis_data: Liste de dict avec consommation_mwh, secteur, nombre_de_sites
+        
+    Returns:
+        Dict avec statistiques (total, par secteur, top sites, potentiel PV)
+    """
+    if not enedis_data:
+        return {
+            "total_sites": 0,
+            "consommation_totale_mwh": 0,
+            "consommation_moyenne_mwh": 0,
+            "par_secteur": {},
+            "sites_haute_conso": 0,  # >100 MWh/an
+            "potentiel_autoconsommation_kwc": 0
+        }
+    
+    total_sites = sum(site.get('nombre_de_sites', 1) for site in enedis_data)
+    consommation_totale = sum(site.get('consommation_mwh', 0) for site in enedis_data)
+    
+    # Par secteur
+    secteurs = {}
+    for site in enedis_data:
+        secteur = site.get('secteur', 'NON_AFFECTE')
+        if secteur not in secteurs:
+            secteurs[secteur] = {"nb_sites": 0, "consommation_mwh": 0}
+        secteurs[secteur]["nb_sites"] += site.get('nombre_de_sites', 1)
+        secteurs[secteur]["consommation_mwh"] += site.get('consommation_mwh', 0)
+    
+    # Sites haute consommation (>100 MWh/an = éligibles PV grande toiture)
+    sites_haute_conso = sum(1 for s in enedis_data if s.get('consommation_mwh', 0) >= 100)
+    
+    # Estimation potentiel autoconsommation : 30% conso → PV
+    # 1 kWc produit ~1,2 MWh/an → besoin = 30% conso / 1.2
+    potentiel_kwc = (consommation_totale * 0.30 / 1.2) * 1000  # en kWc
+    
+    return {
+        "total_sites": total_sites,
+        "consommation_totale_mwh": round(consommation_totale, 2),
+        "consommation_moyenne_mwh": round(consommation_totale / total_sites, 2) if total_sites > 0 else 0,
+        "par_secteur": {
+            k: {
+                "nb_sites": v["nb_sites"],
+                "consommation_mwh": round(v["consommation_mwh"], 2),
+                "pourcentage": round((v["consommation_mwh"] / consommation_totale * 100) if consommation_totale > 0 else 0, 1)
+            }
+            for k, v in secteurs.items()
+        },
+        "sites_haute_conso": sites_haute_conso,
+        "potentiel_autoconsommation_kwc": round(potentiel_kwc, 0)
+    }
+
+
 def get_batiments_info_by_polygon(commune_geom):
     """
     Récupère TOUS les bâtiments d'une commune en utilisant OpenStreetMap via l'API Overpass
@@ -9271,6 +9327,7 @@ def search_by_commune():
         "zaer": zaer_data,
         "sirene": sirene_data,
         "enedis": enedis_data,  # Consommations électriques des entreprises
+        "enedis_stats": calculate_enedis_stats(enedis_data),  # Statistiques agrégées
         # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
         # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
         "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe
@@ -13584,6 +13641,18 @@ def init_crm_database():
         pass
     try:
         cursor.execute('ALTER TABLE project_fiches ADD COLUMN parcelles_cadastrales TEXT')
+    except:
+        pass
+    try:
+        cursor.execute('ALTER TABLE agriweb_prospects ADD COLUMN consommation_enedis_mwh REAL')
+    except:
+        pass
+    try:
+        cursor.execute('ALTER TABLE agriweb_prospects ADD COLUMN secteur_enedis TEXT')
+    except:
+        pass
+    try:
+        cursor.execute('ALTER TABLE agriweb_prospects ADD COLUMN nb_sites_enedis INTEGER')
     except:
         pass
     

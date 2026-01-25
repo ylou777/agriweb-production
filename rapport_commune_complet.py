@@ -251,6 +251,26 @@ def generate_comprehensive_commune_report(commune_name, filters=None):
                     "lignes_electriques": {"longueur_km": 0, "capacite_transport": ""},
                     "capacite_raccordement_disponible": {"bt_kva": 0, "hta_mva": 0}
                 },
+                "consommation_electrique_enedis": {
+                    "resume": {
+                        "total_sites": 0,
+                        "consommation_totale_mwh": 0,
+                        "consommation_moyenne_site_mwh": 0,
+                        "annee_reference": None
+                    },
+                    "par_secteur": {
+                        "INDUSTRIE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0},
+                        "TERTIAIRE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0},
+                        "AGRICULTURE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0},
+                        "NON_AFFECTE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0}
+                    },
+                    "top_10_consommateurs": [],
+                    "potentiel_autoconsommation": {
+                        "nb_sites_eligibles": 0,
+                        "consommation_eligible_mwh": 0,
+                        "economie_potentielle_euros": 0
+                    }
+                },
                 "gaz": {
                     "reseau_present": False,
                     "capacite_distribution": "",
@@ -385,6 +405,99 @@ def generate_comprehensive_commune_report(commune_name, filters=None):
     return rapport
 
 # ===== FONCTIONS D'IMPLEMENTATION =====
+
+def analyze_enedis_data(enedis_data):
+    """
+    Analyse les données de consommation électrique Enedis
+    
+    Args:
+        enedis_data: Liste de dict avec consommation_mwh, secteur, adresse, nombre_de_sites
+        
+    Returns:
+        Dict avec analyse détaillée des consommations
+    """
+    if not enedis_data:
+        return {
+            "resume": {
+                "total_sites": 0,
+                "consommation_totale_mwh": 0,
+                "consommation_moyenne_site_mwh": 0,
+                "annee_reference": None
+            },
+            "par_secteur": {
+                "INDUSTRIE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0},
+                "TERTIAIRE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0},
+                "AGRICULTURE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0},
+                "NON_AFFECTE": {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0}
+            },
+            "top_10_consommateurs": [],
+            "potentiel_autoconsommation": {
+                "nb_sites_eligibles": 0,
+                "consommation_eligible_mwh": 0,
+                "economie_potentielle_euros": 0
+            }
+        }
+    
+    # Calculer totaux
+    total_sites = sum(site.get('nombre_de_sites', 1) for site in enedis_data)
+    consommation_totale = sum(site.get('consommation_mwh', 0) for site in enedis_data)
+    annee_reference = enedis_data[0].get('annee') if enedis_data else None
+    
+    # Analyser par secteur
+    secteurs = {}
+    for site in enedis_data:
+        secteur = site.get('secteur', 'NON_AFFECTE')
+        if secteur not in secteurs:
+            secteurs[secteur] = {"nb_sites": 0, "consommation_mwh": 0}
+        secteurs[secteur]["nb_sites"] += site.get('nombre_de_sites', 1)
+        secteurs[secteur]["consommation_mwh"] += site.get('consommation_mwh', 0)
+    
+    # Calculer pourcentages
+    par_secteur = {}
+    for secteur_name in ["INDUSTRIE", "TERTIAIRE", "AGRICULTURE", "NON_AFFECTE"]:
+        if secteur_name in secteurs:
+            par_secteur[secteur_name] = {
+                "nb_sites": secteurs[secteur_name]["nb_sites"],
+                "consommation_mwh": round(secteurs[secteur_name]["consommation_mwh"], 2),
+                "pourcentage": round((secteurs[secteur_name]["consommation_mwh"] / consommation_totale * 100) if consommation_totale > 0 else 0, 1)
+            }
+        else:
+            par_secteur[secteur_name] = {"nb_sites": 0, "consommation_mwh": 0, "pourcentage": 0}
+    
+    # Top 10 consommateurs
+    top_10 = sorted(enedis_data, key=lambda x: x.get('consommation_mwh', 0), reverse=True)[:10]
+    top_10_formatted = [
+        {
+            "adresse": site.get('adresse', 'Non spécifiée'),
+            "consommation_mwh": round(site.get('consommation_mwh', 0), 2),
+            "secteur": site.get('secteur', 'NON_AFFECTE'),
+            "nombre_sites": site.get('nombre_de_sites', 1)
+        }
+        for site in top_10
+    ]
+    
+    # Potentiel autoconsommation (sites >50 MWh/an = éligibles)
+    sites_eligibles = [s for s in enedis_data if s.get('consommation_mwh', 0) >= 50]
+    consommation_eligible = sum(s.get('consommation_mwh', 0) for s in sites_eligibles)
+    
+    # Estimation économie : 30% autoconso × 0.20 €/kWh
+    economie_potentielle = consommation_eligible * 1000 * 0.30 * 0.20
+    
+    return {
+        "resume": {
+            "total_sites": total_sites,
+            "consommation_totale_mwh": round(consommation_totale, 2),
+            "consommation_moyenne_site_mwh": round(consommation_totale / total_sites, 2) if total_sites > 0 else 0,
+            "annee_reference": annee_reference
+        },
+        "par_secteur": par_secteur,
+        "top_10_consommateurs": top_10_formatted,
+        "potentiel_autoconsommation": {
+            "nb_sites_eligibles": len(sites_eligibles),
+            "consommation_eligible_mwh": round(consommation_eligible, 2),
+            "economie_potentielle_euros": round(economie_potentielle, 2)
+        }
+    }
 
 def collect_commune_data(commune_name, filters):
     """Collecte toutes les données nécessaires pour le rapport"""
