@@ -8052,9 +8052,11 @@ def search_by_commune():
         
         # print(f"✅ [SOLAIRE-ADRESSES] Enrichissement terminé pour {len(solaire_data)} toitures")  # Optimisé pour production
     
-    log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
-    sirene_data = get_sirene_info_by_polygon(contour)
-    log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
+    # SIRENE désactivé pour améliorer les performances de recherche (très volumineuse, peu utile sur carte)
+    # log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
+    # sirene_data = get_sirene_info_by_polygon(contour)
+    # log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
+    sirene_data = []  # Désactivé pour performances
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
