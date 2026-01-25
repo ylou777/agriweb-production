@@ -13639,6 +13639,50 @@ def generate_integrated_commune_report(commune_name, filters=None):
     if filters is None:
         filters = {}
     
+    # Fonction helper pour trouver le poste le plus proche
+    def _find_nearest_poste(pt_lon: float, pt_lat: float, postes: list) -> dict:
+        try:
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            for poste in (postes or []):
+                try:
+                    g = poste.get('geometry')
+                    if not g:
+                        continue
+                    d = shape(g).distance(p) * 111000
+                    if best_d is None or (d < best_d):
+                        best = poste
+                        best_d = d
+                except Exception:
+                    continue
+            if best is None:
+                return {}
+            coords = best.get('geometry', {}).get('coordinates', [None, None])
+            pr = best.get('properties', {})
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': coords[0],
+                'lat': coords[1],
+                'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
+                'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or pr.get('nom_commun') or '',
+                'tension': pr.get('tension') or pr.get('Tension') or '',
+                'fonction': pr.get('fonction') or pr.get('Fonction') or '',
+                'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or pr.get('p_inst') or '',
+                'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
+                'type': pr.get('type') or pr.get('Type') or '',
+                'commune': pr.get('nom_commun') or pr.get('commune') or '',
+                'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
+                'epci': pr.get('nom_epci') or '',
+                'code_epci': pr.get('code_epci') or '',
+                'departement': pr.get('nom_depart') or pr.get('departement') or '',
+                'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
+                'region': pr.get('nom_region') or pr.get('region') or '',
+                'code_region': pr.get('code_regio') or pr.get('code_region') or ''
+            }
+        except Exception:
+            return {}
+    
     print(f"📊 [RAPPORT_INTÉGRÉ] Génération du rapport pour {commune_name}")
     
     try:
@@ -14263,49 +14307,6 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'commune': commune_code,
                     'prefixe': prefixe,
                     'reference_complete': f"{commune_code}{prefixe}{section}{numero}".strip()
-                }
-            except Exception:
-                return {}
-
-        def _find_nearest_poste(pt_lon: float, pt_lat: float, postes: list) -> dict:
-            try:
-                p = Point(pt_lon, pt_lat)
-                best = None
-                best_d = None
-                for poste in (postes or []):
-                    try:
-                        g = poste.get('geometry')
-                        if not g:
-                            continue
-                        d = shape(g).distance(p) * 111000
-                        if best_d is None or (d < best_d):
-                            best = poste
-                            best_d = d
-                    except Exception:
-                        continue
-                if best is None:
-                    return {}
-                coords = best.get('geometry', {}).get('coordinates', [None, None])
-                pr = best.get('properties', {})
-                return {
-                    'distance_m': round(best_d, 2) if best_d is not None else None,
-                    'lon': coords[0],
-                    'lat': coords[1],
-                    'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or pr.get('nom_commun') or '',
-                    'tension': pr.get('tension') or pr.get('Tension') or '',
-                    'fonction': pr.get('fonction') or pr.get('Fonction') or '',
-                    'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or pr.get('p_inst') or '',
-                    'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
-                    'type': pr.get('type') or pr.get('Type') or '',
-                    'commune': pr.get('nom_commun') or pr.get('commune') or '',
-                    'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
-                    'epci': pr.get('nom_epci') or '',
-                    'code_epci': pr.get('code_epci') or '',
-                    'departement': pr.get('nom_depart') or pr.get('departement') or '',
-                    'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
-                    'region': pr.get('nom_region') or pr.get('region') or '',
-                    'code_region': pr.get('code_regio') or pr.get('code_region') or ''
                 }
             except Exception:
                 return {}
