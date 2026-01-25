@@ -13893,7 +13893,10 @@ def generate_integrated_commune_report(commune_name, filters=None):
                             "geometry": b.get("geometry"),
                             "properties": props
                         })
+                        if len(toitures_data) <= 3:  # Log les 3 premières seulement
+                            print(f"    ✅ Toiture #{len(toitures_data)} ajoutée: {surface_m2:.0f}m², BT={d_bt:.0f}m, HTA={d_hta:.0f}m" if d_bt and d_hta else f"    ✅ Toiture #{len(toitures_data)} ajoutée: {surface_m2:.0f}m²")
                     except Exception as _e:
+                        print(f"    ⚠️ Exception lors du traitement bâtiment: {_e}")
                         continue
                 print(f"    ✅ Toitures retenues après filtres: {len(toitures_data)}")
                 print(f"    ❌ Rejetés: géométrie={rejected_geom}, surface={rejected_surface}, distance={rejected_distance}")
