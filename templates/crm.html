@@ -141,7 +141,7 @@
         <!-- Filtres -->
         <div class="filters">
             <div class="row">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label"><i class="bi bi-funnel"></i> Statut</label>
                     <select id="filterStatut" class="form-select" onchange="loadProspects()">
                         <option value="">Tous</option>
@@ -151,7 +151,7 @@
                         <option value="perdu">Perdu</option>
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label"><i class="bi bi-tag"></i> Type</label>
                     <select id="filterType" class="form-select" onchange="loadProspects()">
                         <option value="">Tous</option>
@@ -160,11 +160,24 @@
                         <option value="friche">Friche</option>
                     </select>
                 </div>
-                <div class="col-md-3">
-                    <label class="form-label"><i class="bi bi-search"></i> Commune</label>
-                    <input type="text" id="filterCommune" class="form-control" placeholder="Rechercher une commune..." onkeyup="loadProspects()">
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-lightning-charge"></i> Secteur Enedis</label>
+                    <select id="filterSecteurEnedis" class="form-select" onchange="loadProspects()">
+                        <option value="">Tous</option>
+                        <option value="INDUSTRIE">Industrie</option>
+                        <option value="TERTIAIRE">Tertiaire</option>
+                        <option value="AGRICULTURE">Agriculture</option>
+                    </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-bolt"></i> Conso min (MWh)</label>
+                    <input type="number" id="filterConsoMin" class="form-control" placeholder="Ex: 100" onchange="loadProspects()">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label"><i class="bi bi-search"></i> Commune</label>
+                    <input type="text" id="filterCommune" class="form-control" placeholder="Rechercher..." onkeyup="loadProspects()">
+                </div>
+                <div class="col-md-2">
                     <label class="form-label"><i class="bi bi-map"></i> Département</label>
                     <input type="text" id="filterDepartement" class="form-control" placeholder="Ex: 29" onkeyup="loadProspects()">
                 </div>
@@ -186,6 +199,8 @@
                                 <th>Commune</th>
                                 <th>Adresse</th>
                                 <th>Surface</th>
+                                <th>Conso Enedis</th>
+                                <th>Secteur</th>
                                 <th>Propriétaire</th>
                                 <th>BT</th>
                                 <th>HTA</th>
@@ -197,7 +212,7 @@
                         </thead>
                         <tbody id="prospectsTable">
                             <tr>
-                                <td colspan="12" class="text-center py-5">
+                                <td colspan="14" class="text-center py-5">
                                     <div class="spinner-border text-primary" role="status">
                                         <span class="visually-hidden">Chargement...</span>
                                     </div>
@@ -269,12 +284,16 @@
             const type = document.getElementById('filterType').value;
             const commune = document.getElementById('filterCommune').value;
             const departement = document.getElementById('filterDepartement').value;
+            const secteurEnedis = document.getElementById('filterSecteurEnedis').value;
+            const consoMin = document.getElementById('filterConsoMin').value;
 
             const params = new URLSearchParams();
             if (statut) params.append('statut', statut);
             if (type) params.append('type', type);
             if (commune) params.append('commune', commune);
             if (departement) params.append('departement', departement);
+            if (secteurEnedis) params.append('secteur_enedis', secteurEnedis);
+            if (consoMin) params.append('conso_min', consoMin);
 
             try {
                 const response = await fetch('/api/crm/prospects?' + params.toString());
@@ -303,7 +322,7 @@
             if (prospects.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="12" class="text-center py-5 text-muted">
+                        <td colspan="14" class="text-center py-5 text-muted">
                             <i class="bi bi-inbox"></i>
                             <p class="mt-3">Aucun prospect trouvé</p>
                         </td>
@@ -312,13 +331,40 @@
                 return;
             }
 
-            tbody.innerHTML = prospects.map(p => `
+            tbody.innerHTML = prospects.map(p => {
+                // Badge couleur pour secteur Enedis
+                let secteurBadge = '';
+                if (p.secteur_enedis) {
+                    const secteurColors = {
+                        'INDUSTRIE': 'danger',
+                        'TERTIAIRE': 'warning',
+                        'AGRICULTURE': 'success',
+                        'NON_AFFECTE': 'secondary'
+                    };
+                    const color = secteurColors[p.secteur_enedis] || 'secondary';
+                    secteurBadge = `<span class="badge bg-${color}">${p.secteur_enedis}</span>`;
+                }
+                
+                // Indicateur haute consommation
+                let consoDisplay = 'N/A';
+                if (p.consommation_enedis_mwh) {
+                    const conso = Math.round(p.consommation_enedis_mwh);
+                    if (conso >= 100) {
+                        consoDisplay = `<strong class="text-danger">${conso} MWh ⚡</strong>`;
+                    } else {
+                        consoDisplay = `${conso} MWh`;
+                    }
+                }
+                
+                return `
                 <tr class="prospect-row" onclick="showProspectDetails(${p.id})">
                     <td>${p.id}</td>
                     <td><span class="badge badge-type-${p.type}">${p.type}</span></td>
                     <td>${p.commune || 'N/A'}</td>
                     <td><small>${p.adresse || 'Non disponible'}</small></td>
                     <td>${p.surface_m2 ? Math.round(p.surface_m2) + ' m²' : 'N/A'}</td>
+                    <td>${consoDisplay}</td>
+                    <td>${secteurBadge || '-'}</td>
                     <td><small>${p.proprietaire_siren ? '🏢 ' + (p.proprietaire_denomination || 'N/A').substring(0, 25) + '...' : '-'}</small></td>
                     <td>${p.poste_bt_distance_m ? Math.round(p.poste_bt_distance_m) + ' m' : 'N/A'}</td>
                     <td>${p.poste_hta_distance_m ? Math.round(p.poste_hta_distance_m) + ' m' : 'N/A'}</td>
@@ -335,7 +381,8 @@
                         </a>
                     </td>
                 </tr>
-            `).join('');
+            `;
+            }).join('');
         }
 
         async function showProspectDetails(id) {
@@ -385,6 +432,33 @@
                                     </div>
                                 </div>
                                 ` : ''}
+                                
+                                ${p.consommation_enedis_mwh ? `
+                                <div class="mb-3">
+                                    <h6 class="text-primary"><i class="bi bi-lightning-charge"></i> Consommation Électrique Enedis</h6>
+                                    <div class="alert alert-primary mb-2">
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <strong class="fs-4">${Math.round(p.consommation_enedis_mwh)} MWh/an</strong>
+                                                ${p.consommation_enedis_mwh >= 100 ? '<br><span class="badge bg-danger">⚡ Haute consommation</span>' : ''}
+                                            </div>
+                                            <div class="col-6">
+                                                ${p.secteur_enedis ? `
+                                                    <strong>Secteur:</strong><br>
+                                                    <span class="badge bg-${p.secteur_enedis === 'INDUSTRIE' ? 'danger' : p.secteur_enedis === 'TERTIAIRE' ? 'warning' : 'success'}">${p.secteur_enedis}</span>
+                                                ` : ''}
+                                                ${p.nb_sites_enedis ? `<br><small>${p.nb_sites_enedis} site(s)</small>` : ''}
+                                            </div>
+                                        </div>
+                                        <hr>
+                                        <small>
+                                            <i class="bi bi-graph-up"></i> Potentiel autoconsommation: <strong>${Math.round(p.consommation_enedis_mwh * 0.3)} MWh/an</strong><br>
+                                            <i class="bi bi-cash"></i> Économie estimée: <strong>${Math.round(p.consommation_enedis_mwh * 1000 * 0.3 * 0.20).toLocaleString('fr-FR')} €/an</strong>
+                                        </small>
+                                    </div>
+                                </div>
+                                ` : ''}
+                                
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Distance Poste BT</label>
