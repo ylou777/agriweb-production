@@ -17526,9 +17526,9 @@ def import_enedis_data():
         
         print(f"📁 [IMPORT_ENEDIS] Réception CSV: {file.filename}")
         
-        # Lire le CSV
+        # Lire le CSV - utiliser virgule comme délimiteur
         csv_content = file.read().decode('utf-8')
-        csv_reader = csv.DictReader(io.StringIO(csv_content), delimiter=';')
+        csv_reader = csv.DictReader(io.StringIO(csv_content), delimiter=',')
         
         # Convertir postgres:// en postgresql://
         if DATABASE_URL.startswith('postgres://'):
@@ -17611,14 +17611,14 @@ def import_enedis_data():
                     rows_geocoded += 1
                 
                 batch_data.append((
-                    int(row.get('Année', row.get('annee', 2023))),
+                    int(row.get('Année', 2023)),
                     code_commune,
-                    row.get('Nom de la commune', row.get('nom_commune', ''))[:200].strip(),
-                    row.get('Adresse', row.get('adresse', ''))[:500].strip(),
-                    row.get('Code grand secteur', row.get('code_grand_secteur', ''))[:50].strip(),
-                    row.get('Code NAF', row.get('code_naf', ''))[:10].strip(),
-                    int(row.get('Nombre de sites', row.get('nombre_de_sites', 1)) or 1),
-                    float(str(row.get("Consommation annuelle totale de l'adresse (MWh)", row.get('consommation_annuelle_totale_mwh', 0)) or 0).replace(',', '.')),
+                    row.get('Nom commune', '')[:200].strip(),
+                    row.get('Adresse', '')[:500].strip(),
+                    row.get('code_grand_secteur', '')[:50].strip(),
+                    row.get('code_secteur_naf2', '')[:10].strip(),
+                    int(row.get('Nombre de sites', 1) or 1),
+                    float(str(row.get("Consommation annuelle totale de l'adresse (MWh)", 0) or 0).replace(',', '.')),
                     lat,
                     lon
                 ))
