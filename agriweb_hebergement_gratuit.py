@@ -17119,6 +17119,210 @@ def admin_migrate_parametrage():
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
+# ============================================================================
+# API CRM - EXPORT PROSPECTS DEPUIS RAPPORT
+# ============================================================================
+@app.route('/api/crm/export', methods=['POST'])
+def api_crm_export():
+    """
+    Exporte les données d'un rapport vers le CRM comme nouveaux prospects
+    Enrichit automatiquement avec les données Enedis si disponibles
+    """
+    try:
+        from database_adapter import execute_query
+        import json
+        
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "Aucune donnée reçue"}), 400
+        
+        toitures = data.get('toitures', [])
+        parkings = data.get('parkings', [])
+        friches = data.get('friches', [])
+        rpg = data.get('rpg', [])
+        
+        created_count = 0
+        created_ids = []
+        
+        # Fonction helper pour enrichir avec Enedis
+        def enrich_with_enedis(lat, lon, commune_code=None):
+            """Cherche la consommation Enedis la plus proche"""
+            enedis_data = {
+                'consommation_mwh': None,
+                'secteur': None,
+                'nb_sites': None
+            }
+            
+            try:
+                if not lat or not lon:
+                    return enedis_data
+                
+                # Chercher données Enedis dans un rayon de 500m
+                DATABASE_URL = os.environ.get('DATABASE_URL')
+                if not DATABASE_URL:
+                    return enedis_data
+                
+                if DATABASE_URL.startswith('postgres://'):
+                    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+                
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                
+                conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+                cur = conn.cursor()
+                
+                # Recherche dans un carré de ~1km autour du point
+                lat_range = 0.01
+                lon_range = 0.01
+                
+                cur.execute("""
+                    SELECT latitude, longitude,
+                           consommation_annuelle_totale_mwh,
+                           code_grand_secteur,
+                           nombre_de_sites
+                    FROM consommation_enedis
+                    WHERE latitude BETWEEN %s AND %s
+                      AND longitude BETWEEN %s AND %s
+                      AND geocoded = TRUE
+                    ORDER BY consommation_annuelle_totale_mwh DESC
+                    LIMIT 10
+                """, (lat - lat_range, lat + lat_range, 
+                      lon - lon_range, lon + lon_range))
+                
+                sites = cur.fetchall()
+                cur.close()
+                conn.close()
+                
+                if sites:
+                    # Prendre le site le plus proche
+                    from geopy.distance import geodesic
+                    min_distance = float('inf')
+                    closest_site = None
+                    
+                    for site in sites:
+                        distance = geodesic((lat, lon), (float(site['latitude']), float(site['longitude']))).meters
+                        if distance < min_distance and distance < 500:  # Max 500m
+                            min_distance = distance
+                            closest_site = site
+                    
+                    if closest_site:
+                        enedis_data = {
+                            'consommation_mwh': float(closest_site['consommation_annuelle_totale_mwh']),
+                            'secteur': closest_site['code_grand_secteur'],
+                            'nb_sites': int(closest_site['nombre_de_sites'])
+                        }
+            except Exception as e:
+                print(f"⚠️ [ENEDIS_ENRICH] Erreur enrichissement: {e}")
+            
+            return enedis_data
+        
+        # Traiter toitures
+        for toiture in toitures:
+            try:
+                lat = toiture.get('lat', 0)
+                lon = toiture.get('lon', 0)
+                commune = toiture.get('commune', '')
+                
+                # Enrichissement Enedis
+                enedis = enrich_with_enedis(lat, lon)
+                
+                # Extraire les données du prospect
+                parcelles_data = toiture.get('parcelles', [])
+                parcelles_json = json.dumps(parcelles_data) if parcelles_data else None
+                
+                # Données du poste BT/HTA
+                poste_bt = toiture.get('poste_bt_proche', {})
+                poste_hta = toiture.get('poste_hta_proche', {})
+                
+                # Construire data_json complet
+                prospect_json = json.dumps({
+                    'source': 'rapport_point',
+                    'parcelles': parcelles_data,
+                    'poste_bt': poste_bt,
+                    'poste_hta': poste_hta,
+                    'enedis': {
+                        'consommation_mwh': enedis['consommation_mwh'],
+                        'secteur': enedis['secteur'],
+                        'nb_sites': enedis['nb_sites']
+                    }
+                })
+                
+                # Insertion
+                query = """
+                    INSERT INTO agriweb_prospects (
+                        type, commune, adresse, latitude, longitude,
+                        surface_m2, parcelles_cadastrales,
+                        poste_bt_distance_m, poste_hta_distance_m,
+                        lien_streetview, lien_annuaire,
+                        statut, priorite,
+                        consommation_enedis_mwh, secteur_enedis, nb_sites_enedis,
+                        data_json,
+                        date_creation, date_modification
+                    ) VALUES (
+                        :type, :commune, :adresse, :latitude, :longitude,
+                        :surface_m2, :parcelles_cadastrales,
+                        :poste_bt_distance_m, :poste_hta_distance_m,
+                        :lien_streetview, :lien_annuaire,
+                        :statut, :priorite,
+                        :consommation_enedis_mwh, :secteur_enedis, :nb_sites_enedis,
+                        :data_json,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                """
+                
+                params = {
+                    'type': 'toiture',
+                    'commune': commune,
+                    'adresse': toiture.get('adresse', ''),
+                    'latitude': float(lat) if lat else None,
+                    'longitude': float(lon) if lon else None,
+                    'surface_m2': float(toiture.get('surface_m2', 0)) if toiture.get('surface_m2') else None,
+                    'parcelles_cadastrales': parcelles_json,
+                    'poste_bt_distance_m': float(poste_bt.get('distance_m', 0)) if poste_bt.get('distance_m') else None,
+                    'poste_hta_distance_m': float(poste_hta.get('distance_m', 0)) if poste_hta.get('distance_m') else None,
+                    'lien_streetview': toiture.get('lien_streetview', ''),
+                    'lien_annuaire': toiture.get('lien_annuaire', ''),
+                    'statut': 'nouveau',
+                    'priorite': 'haute' if enedis['consommation_mwh'] and enedis['consommation_mwh'] > 100 else 'moyenne',
+                    'consommation_enedis_mwh': enedis['consommation_mwh'],
+                    'secteur_enedis': enedis['secteur'],
+                    'nb_sites_enedis': enedis['nb_sites'],
+                    'data_json': prospect_json
+                }
+                
+                result = execute_query(query, params)
+                created_count += 1
+                if result and isinstance(result, list) and len(result) > 0:
+                    created_ids.append(result[0].get('id'))
+                
+            except Exception as e:
+                print(f"⚠️ [CRM_EXPORT] Erreur toiture: {e}")
+                continue
+        
+        # TODO: Ajouter traitement parkings, friches, RPG de la même manière
+        
+        return jsonify({
+            "success": True,
+            "total_exported": created_count,
+            "details": {
+                "toitures": len(toitures),
+                "parkings": 0,  # À implémenter
+                "friches": 0,   # À implémenter
+                "rpg": 0        # À implémenter
+            },
+            "created_ids": created_ids,
+            "message": f"{created_count} prospect(s) créé(s) avec succès"
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM_EXPORT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route('/debug/template-version')
 def debug_template_version():
     """Affiche la version du template rapport_point.html déployé"""
