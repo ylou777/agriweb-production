@@ -17587,11 +17587,22 @@ def import_enedis_data():
         batch_data = []
         rows_imported = 0
         rows_geocoded = 0
+        rows_skipped = 0
         batch_size = 1000
+        
+        # Afficher les colonnes du CSV
+        first_row = True
         
         for row in csv_reader:
             try:
+                if first_row:
+                    print(f"🔍 [IMPORT_ENEDIS] Colonnes CSV détectées: {list(row.keys())}")
+                    first_row = False
+                
                 code_commune = row.get('Code commune', '').strip()
+                if not code_commune:
+                    rows_skipped += 1
+                    continue
                 
                 # Géocodage via centroid commune
                 lat, lon = None, None
@@ -17600,14 +17611,14 @@ def import_enedis_data():
                     rows_geocoded += 1
                 
                 batch_data.append((
-                    int(row.get('Année', 0)),
+                    int(row.get('Année', row.get('annee', 2023))),
                     code_commune,
-                    row.get('Nom de la commune', '').strip(),
-                    row.get('Adresse', '').strip(),
-                    row.get('Code grand secteur', '').strip(),
-                    row.get('Code NAF', '').strip(),
-                    int(row.get('Nombre de sites', 0)),
-                    float(row.get("Consommation annuelle totale de l'adresse (MWh)", 0).replace(',', '.')),
+                    row.get('Nom de la commune', row.get('nom_commune', ''))[:200].strip(),
+                    row.get('Adresse', row.get('adresse', ''))[:500].strip(),
+                    row.get('Code grand secteur', row.get('code_grand_secteur', ''))[:50].strip(),
+                    row.get('Code NAF', row.get('code_naf', ''))[:10].strip(),
+                    int(row.get('Nombre de sites', row.get('nombre_de_sites', 1)) or 1),
+                    float(str(row.get("Consommation annuelle totale de l'adresse (MWh)", row.get('consommation_annuelle_totale_mwh', 0)) or 0).replace(',', '.')),
                     lat,
                     lon
                 ))
@@ -17627,7 +17638,9 @@ def import_enedis_data():
                     batch_data = []
                     
             except Exception as e:
-                print(f"⚠️ [IMPORT_ENEDIS] Erreur ligne: {e}")
+                rows_skipped += 1
+                if rows_skipped <= 5:  # N'afficher que les 5 premières erreurs
+                    print(f"⚠️ [IMPORT_ENEDIS] Erreur ligne {rows_imported + rows_skipped}: {e}")
                 continue
         
         # Insérer le dernier batch
@@ -17648,15 +17661,19 @@ def import_enedis_data():
         
         print(f"✅ [IMPORT_ENEDIS] Import terminé!")
         print(f"   - Lignes importées: {rows_imported:,}")
-        print(f"   - Lignes géocodées: {rows_geocoded:,} ({rows_geocoded/rows_imported*100:.1f}%)")
+        print(f"   - Lignes géocodées: {rows_geocoded:,} ({rows_geocoded/rows_imported*100:.1f}%)" if rows_imported > 0 else "   - Lignes géocodées: 0 (0%)")
+        print(f"   - Lignes sautées: {rows_skipped:,}")
         print(f"   - Durée: {duration:.1f}s")
+        
+        geocoding_rate = f"{rows_geocoded/rows_imported*100:.1f}%" if rows_imported > 0 else "0%"
         
         return jsonify({
             "success": True,
             "table_created": True,
             "rows_imported": rows_imported,
             "rows_geocoded": rows_geocoded,
-            "geocoding_rate": f"{rows_geocoded/rows_imported*100:.1f}%",
+            "rows_skipped": rows_skipped,
+            "geocoding_rate": geocoding_rate,
             "duration_seconds": duration
         })
         
