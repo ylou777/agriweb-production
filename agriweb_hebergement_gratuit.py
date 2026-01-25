@@ -13819,7 +13819,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
             print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur collecte éleveurs: {e}")
             eleveurs_data = []
         
-        sirene_data = get_sirene_info_by_polygon(contour)
+        # SIRENE désactivé pour éviter timeouts (très volumineuse, cause ReadTimeoutError)
+        # sirene_data = get_sirene_info_by_polygon(contour)
+        sirene_data = []  # Désactivé pour performances et stabilité
         
         # =========================================================================
         # 🏛️ FONCTION UTILITAIRE ENRICHISSEMENT CADASTRAL
