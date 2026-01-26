@@ -7983,12 +7983,26 @@ def search_by_commune():
     log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
     
     # Récupération des données de consommation Enedis
-    log_data_collection("ENEDIS", "Récupération des données de consommation électrique")
-    enedis_data = filter_in_commune(fetch_wfs_data(ENEDIS_LAYER, bbox))
-    safe_print(f"🔌 [ENEDIS] Données brutes récupérées: {len(enedis_data)} points")
-    if enedis_data:
-        safe_print(f"🔌 [ENEDIS] Premier point: {enedis_data[0] if enedis_data else 'AUCUN'}")
-    log_data_collection("ENEDIS", f"✅ {len(enedis_data)} points de consommation trouvés")
+    print(f"🔌 [ENEDIS] === DÉBUT RÉCUPÉRATION ===")
+    enedis_data = []
+    try:
+        print(f"🔌 [ENEDIS] Appel fetch_wfs_data avec couche: {ENEDIS_LAYER}")
+        print(f"🔌 [ENEDIS] Bbox: {bbox}")
+        raw_enedis = fetch_wfs_data(ENEDIS_LAYER, bbox)
+        print(f"🔌 [ENEDIS] Données WFS récupérées: {len(raw_enedis)} features")
+        
+        enedis_data = filter_in_commune(raw_enedis)
+        print(f"🔌 [ENEDIS] Après filtrage commune: {len(enedis_data)} points")
+        
+        if enedis_data:
+            print(f"🔌 [ENEDIS] Premier point: {json.dumps(enedis_data[0], indent=2)[:500]}")
+    except Exception as e:
+        print(f"❌ [ENEDIS] EXCEPTION: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"❌ [ENEDIS] Traceback:\n{traceback.format_exc()}")
+        enedis_data = []
+    
+    print(f"🔌 [ENEDIS] === FIN RÉCUPÉRATION === Résultat: {len(enedis_data)} points")
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
