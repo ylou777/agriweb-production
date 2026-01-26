@@ -6344,14 +6344,20 @@ def build_map(
         import json, base64
         print(f"🔌 [ENEDIS_FOLIUM] Ajout de {len(enedis_data)} points de consommation à la carte")
         markers_added = 0
-        for site in enedis_data:
+        markers_skipped = 0
+        for idx, site in enumerate(enedis_data, 1):
             # Les données viennent de GeoServer WFS
             lat_enedis = site.get("latitude")
             lon_enedis = site.get("longitude")
             
             if not lat_enedis or not lon_enedis:
-                print(f"⚠️ [ENEDIS_FOLIUM] Coordonnées invalides ignorées: {site}")
+                print(f"⚠️ [ENEDIS_FOLIUM] Point {idx}/{len(enedis_data)} - Coordonnées invalides ignorées: {site}")
+                markers_skipped += 1
                 continue
+            
+            # Debug: Log premier et dernier point
+            if idx == 1 or idx == len(enedis_data):
+                print(f"🔍 [ENEDIS_DEBUG] Point {idx}/{len(enedis_data)}: lat={lat_enedis}, lon={lon_enedis}, conso={site.get('consommation_mwh', 0):.1f} MWh")
             
             # Construction du popup enrichi - utiliser les bons noms de champs
             conso_mwh = site.get("consommation_mwh", 0)
@@ -6404,7 +6410,8 @@ def build_map(
             ).add_to(enedis_group)
             markers_added += 1
         
-        print(f"✅ [ENEDIS_FOLIUM] {markers_added} marqueurs CircleMarker effectivement ajoutés au groupe")
+        print(f"✅ [ENEDIS_FOLIUM] {markers_added} marqueurs CircleMarker effectivement ajoutés au groupe (skipped: {markers_skipped})")
+        print(f"📊 [ENEDIS_STATS] Total itérations: {len(enedis_data)}, Ajoutés: {markers_added}, Ignorés: {markers_skipped}")
     map_obj.add_child(enedis_group)
 
     # PLU
