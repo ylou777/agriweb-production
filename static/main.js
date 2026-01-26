@@ -896,8 +896,15 @@ function displayAllLayers(data) {
 
     // ----------- Consommations Électriques Enedis ----------- (marqueurs proportionnels)
     if (layerKey === "enedis") {
+      console.log("[ENEDIS] Traitement des données Enedis:", geojson);
+      
       // Données Enedis: [{latitude, longitude, consommation_mwh, secteur, adresse, ...}]
-      if (!Array.isArray(geojson) || geojson.length === 0) return;
+      if (!Array.isArray(geojson) || geojson.length === 0) {
+        console.log("[ENEDIS] Aucune donnée Enedis à afficher");
+        return;
+      }
+      
+      console.log(`[ENEDIS] ${geojson.length} points de consommation à afficher`);
       
       // Convertir en FeatureCollection si nécessaire
       const features = geojson.map(item => ({

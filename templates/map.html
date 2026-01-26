@@ -435,6 +435,59 @@
         // Ajouter la couche par défaut
         baseLayers.osm.addTo(map);
         
+        // 🔄 Synchronisation des couches entre map.html et l'iframe Folium
+        function syncLayersWithIframe() {
+            const iframe = document.getElementById('mapFrame');
+            if (!iframe || !iframe.contentWindow) return;
+            
+            try {
+                const iframeDoc = iframe.contentWindow.document;
+                const layerControl = iframeDoc.querySelector('.leaflet-control-layers');
+                
+                if (layerControl) {
+                    console.log('[SYNC] Synchronisation des couches avec iframe Folium');
+                    
+                    // Parcourir les checkboxes de map.html
+                    document.querySelectorAll('.layer-checkbox[data-layer]').forEach(checkbox => {
+                        const layerId = checkbox.dataset.layer;
+                        
+                        // Chercher la couche correspondante dans l'iframe
+                        const labels = iframeDoc.querySelectorAll('.leaflet-control-layers-overlays label');
+                        labels.forEach(label => {
+                            const text = label.textContent.toLowerCase();
+                            let match = false;
+                            
+                            if (layerId === 'enedis' && text.includes('consommation')) match = true;
+                            else if (layerId === 'batiments_osm' && text.includes('bâtiment')) match = true;
+                            else if (layerId === 'parcelles_cadastrales' && text.includes('parcelle')) match = true;
+                            
+                            if (match) {
+                                const input = label.querySelector('input[type="checkbox"]');
+                                if (input) {
+                                    // Synchroniser l'état
+                                    input.checked = checkbox.checked;
+                                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                                    console.log(`[SYNC] ${layerId} synchronisé: ${checkbox.checked}`);
+                                }
+                            }
+                        });
+                    });
+                }
+            } catch (err) {
+                console.warn('[SYNC] Erreur de synchronisation:', err);
+            }
+        }
+        
+        // Écouter le chargement de l'iframe
+        const mapFrame = document.getElementById('mapFrame');
+        if (mapFrame) {
+            mapFrame.addEventListener('load', function() {
+                console.log('[IFRAME] Carte chargée, synchronisation des couches...');
+                // Attendre un peu que Folium initialise LayerControl
+                setTimeout(syncLayersWithIframe, 500);
+            });
+        }
+        
         // Couches de données
         const dataLayers = {};
         
@@ -495,6 +548,13 @@
                 layers: 'gpu:HTA_SOUTERRAINE',
                 format: 'image/png',
                 transparent: true
+            },
+            enedis: {
+                name: 'Consommations Électriques Enedis',
+                url: '/proxy/wms',
+                layers: 'gpu:consommation_enedis',
+                format: 'image/png',
+                transparent: true
             }
         };
         
@@ -518,8 +578,40 @@
                 const layerId = this.dataset.layer;
                 const config = layerConfigs[layerId];
                 
+                // 🔄 Contrôle des couches dans l'iframe Folium
+                const iframe = document.getElementById('mapFrame');
+                if (iframe && iframe.contentWindow) {
+                    try {
+                        // Accéder au document de l'iframe
+                        const iframeDoc = iframe.contentWindow.document;
+                        const layerControl = iframeDoc.querySelector('.leaflet-control-layers');
+                        
+                        if (layerControl) {
+                            // Chercher le label correspondant à la couche Enedis
+                            const labels = iframeDoc.querySelectorAll('.leaflet-control-layers-overlays label');
+                            labels.forEach(label => {
+                                const text = label.textContent.toLowerCase();
+                                if ((layerId === 'enedis' && text.includes('consommation')) ||
+                                    (layerId === 'batiments_osm' && text.includes('bâtiment')) ||
+                                    (layerId === 'parcelles_cadastrales' && text.includes('parcelle'))) {
+                                    const input = label.querySelector('input[type="checkbox"]');
+                                    if (input) {
+                                        input.checked = this.checked;
+                                        // Déclencher l'événement pour mettre à jour la visibilité
+                                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                                        console.log(`[LAYER_CONTROL] ${layerId} ${this.checked ? 'activé' : 'désactivé'} dans iframe`);
+                                    }
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        console.warn('[LAYER_CONTROL] Impossible d\'accéder à l\'iframe:', err);
+                    }
+                }
+                
+                // 🗺️ Gestion WMS pour les couches non présentes dans Folium
                 if (this.checked) {
-                    // Ajouter la couche
+                    // Ajouter la couche WMS (fallback si pas dans iframe)
                     if (!dataLayers[layerId]) {
                         dataLayers[layerId] = L.tileLayer.wms(config.url, {
                             layers: config.layers,
@@ -530,7 +622,7 @@
                     }
                     dataLayers[layerId].addTo(map);
                 } else {
-                    // Supprimer la couche
+                    // Supprimer la couche WMS
                     if (dataLayers[layerId] && map.hasLayer(dataLayers[layerId])) {
                         map.removeLayer(dataLayers[layerId]);
                     }

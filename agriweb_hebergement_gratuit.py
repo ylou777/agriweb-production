@@ -6331,18 +6331,19 @@ def build_map(
     enedis_group = folium.FeatureGroup(name="Consommation Enedis", show=True)
     if enedis_data:
         import json, base64
+        print(f"🔌 [ENEDIS_FOLIUM] Ajout de {len(enedis_data)} points de consommation à la carte")
         for site in enedis_data:
-            # Les données viennent de PostgreSQL, pas de WFS
+            # Les données viennent de GeoServer WFS
             lat_enedis = site.get("latitude")
             lon_enedis = site.get("longitude")
             
             if not lat_enedis or not lon_enedis:
                 continue
             
-            # Construction du popup enrichi
-            conso_mwh = site.get("consommation_annuelle_totale_mwh", 0) or site.get("consommation_mwh", 0)
+            # Construction du popup enrichi - utiliser les bons noms de champs
+            conso_mwh = site.get("consommation_mwh", 0)
             adresse = site.get("adresse", "N/A")
-            secteur = site.get("code_grand_secteur", "N/A")
+            secteur = site.get("secteur", "INCONNU")
             nb_sites = site.get("nombre_de_sites", 1)
             annee = site.get("annee", "N/A")
             
@@ -8072,13 +8073,16 @@ def search_by_commune():
 
     # 2) Récupère le contour de la commune via Geo API Gouv
     commune_infos = requests.get(
-        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour"
+        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour,code"
     ).json()
     if not commune_infos or not commune_infos[0].get("contour"):
         return jsonify({"error": "Contour de la commune introuvable."}), 404
     contour = commune_infos[0]["contour"]
     centre = commune_infos[0]["centre"]
     lat, lon = centre["coordinates"][1], centre["coordinates"][0]
+    code_commune = commune_infos[0].get("code", None)  # Code INSEE de la commune
+    
+    print(f"🔍 [COMMUNE_INFO] Commune: {commune}, Code INSEE: {code_commune}")
 
     # 3) Emprise bbox englobant le polygone (pour limiter la requête WFS)
     try:
@@ -8252,6 +8256,8 @@ def search_by_commune():
         log_data_collection("ENEDIS", f"Récupération consommations électriques Enedis")
         enedis_data = get_enedis_consommation_by_commune(code_commune) if code_commune else []
         log_data_collection("ENEDIS", f"✅ {len(enedis_data)} consommations trouvées")
+        if enedis_data:
+            print(f"🔌 [ENEDIS] Premier point de consommation: lat={enedis_data[0].get('latitude')}, lon={enedis_data[0].get('longitude')}, conso={enedis_data[0].get('consommation_mwh')} MWh")
     except Exception as e:
         log_data_collection("ENEDIS", f"⚠️ Erreur récupération Enedis: {e}")
         enedis_data = []
@@ -9411,6 +9417,12 @@ def search_by_commune():
             }
         }
     }
+    
+    # 🔍 DEBUG: Logger les données Enedis envoyées
+    print(f"📊 [RESPONSE_DATA] Données envoyées au frontend:")
+    print(f"   - Enedis: {len(enedis_data)} points")
+    if enedis_data:
+        print(f"   - Premier point Enedis: lat={enedis_data[0].get('latitude')}, lon={enedis_data[0].get('longitude')}, conso={enedis_data[0].get('consommation_mwh')} MWh")
     
     # DEBUG: Vérifier le contenu de response_data (optimisé)
     # print(f"🔧 [DEBUG_RPG_PARCELLES] response_data créé avec clés: {list(response_data.keys())}")
