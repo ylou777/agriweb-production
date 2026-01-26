@@ -5922,9 +5922,9 @@ def build_map(
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         
         # Bouton KPI pour poste BT
-        import json
-        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+        import json, base64
+        props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
+        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
             style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
             📤 Envoyer vers KPI
         </button>"""
@@ -5961,9 +5961,9 @@ def build_map(
         popup += f"<br><b>Capacité dispo</b>: {capa}"
         
         # Bouton KPI pour poste HTA
-        import json
-        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+        import json, base64
+        props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
+        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
             style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
             📤 Envoyer vers KPI
         </button>"""
@@ -6090,9 +6090,9 @@ def build_map(
             popup_html += f"<b>Année:</b> {annee}<br>"
             
             # Bouton KPI
-            import json
-            props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-            popup_html += f'''<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_enedis}, lon: {lon_enedis}, type: 'enedis', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+            import json, base64
+            props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
+            popup_html += f'''<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_enedis}, lon: {lon_enedis}, type: 'enedis', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
                 style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
                 📤 Envoyer vers KPI
             </button>'''
@@ -6384,12 +6384,12 @@ def build_map(
                             # Déterminer le type pour KPI
                             kpi_type = "toiture" if name == "Potentiel Solaire" else name.lower().rstrip('s')
                             
-                            # Échapper les propriétés pour JavaScript
-                            import json
-                            props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
+                            # Encoder les propriétés en base64 pour JavaScript
+                            import json, base64
+                            props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
                             
-                            # Utiliser postMessage avec une chaîne JSON échappée
-                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+                            # Utiliser postMessage avec base64
+                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
                                 style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
                                 📤 Envoyer vers KPI
                             </button>"""
