@@ -4433,7 +4433,7 @@ def get_sirene_info_by_polygon(commune_geom):
 
 def get_enedis_consommation_by_commune(code_commune, annee=None):
     """
-    Récupère les données de consommation électrique Enedis depuis PostgreSQL Railway
+    Récupère les données de consommation électrique Enedis depuis GeoServer WFS
     
     Args:
         code_commune: Code INSEE de la commune (ex: '06088' pour Nice)
@@ -4442,81 +4442,63 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
     Returns:
         Liste de dict avec latitude, longitude, consommation_mwh, secteur, adresse
     """
-    import os
-    import psycopg2
-    from psycopg2.extras import RealDictCursor
+    import requests
     
-    DATABASE_URL = os.environ.get('DATABASE_URL')
-    if not DATABASE_URL:
-        print(f"⚠️ [ENEDIS] DATABASE_URL non configurée - aucune donnée Enedis disponible")
-        return []
-    
-    print(f"🔍 [ENEDIS] Recherche consommations pour commune {code_commune}...")
+    print(f"🔍 [ENEDIS] Recherche consommations GeoServer pour commune {code_commune}...")
     
     try:
-        # Convertir postgres:// en postgresql://
-        if DATABASE_URL.startswith('postgres://'):
-            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        # Construire l'URL WFS GeoServer
+        wfs_url = f"{GEOSERVER_URL}/wfs"
         
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-        cur = conn.cursor()
+        # Paramètres WFS avec filtre CQL sur code_commune
+        params = {
+            'service': 'WFS',
+            'version': '1.0.0',
+            'request': 'GetFeature',
+            'typeName': 'gpu:consommation_enedis',
+            'outputFormat': 'application/json',
+            'CQL_FILTER': f"code_commune='{code_commune}'"
+        }
         
-        # Requête pour récupérer les consommations de la commune
+        # Ajouter filtre année si spécifié
         if annee:
-            query = """
-                SELECT 
-                    latitude, longitude, adresse, nom_commune,
-                    consommation_annuelle_totale_mwh as consommation_mwh,
-                    code_grand_secteur as secteur,
-                    nombre_de_sites,
-                    annee
-                FROM consommation_enedis
-                WHERE code_commune = %s AND annee = %s
-                  AND latitude IS NOT NULL AND longitude IS NOT NULL
-                ORDER BY consommation_annuelle_totale_mwh DESC
-                LIMIT 500
-            """
-            cur.execute(query, (code_commune, annee))
-        else:
-            # Prendre l'année la plus récente disponible
-            query = """
-                SELECT 
-                    latitude, longitude, adresse, nom_commune,
-                    consommation_annuelle_totale_mwh as consommation_mwh,
-                    code_grand_secteur as secteur,
-                    nombre_de_sites,
-                    annee
-                FROM consommation_enedis
-                WHERE code_commune = %s 
-                  AND latitude IS NOT NULL AND longitude IS NOT NULL
-                  AND annee = (SELECT MAX(annee) FROM consommation_enedis WHERE code_commune = %s)
-                ORDER BY consommation_annuelle_totale_mwh DESC
-                LIMIT 500
-            """
-            cur.execute(query, (code_commune, code_commune))
+            params['CQL_FILTER'] += f" AND annee={annee}"
         
-        results = cur.fetchall()
-        cur.close()
-        conn.close()
+        # Requête WFS
+        response = requests.get(wfs_url, params=params, timeout=30)
+        response.raise_for_status()
         
-        print(f"✅ [ENEDIS] {len(results)} consommations trouvées pour {code_commune}")
+        geojson = response.json()
+        features = geojson.get('features', [])
         
-        # Convertir en liste de dict standard et nettoyer les chaînes pour éviter les problèmes JSON
-        clean_results = []
-        for row in results:
-            clean_row = {}
-            for key, value in dict(row).items():
-                # Nettoyer les chaînes pour éviter les problèmes JSON
-                if isinstance(value, str):
-                    # Remplacer les guillemets et caractères problématiques
-                    value = value.replace('"', "'").replace('\n', ' ').replace('\r', '')
-                clean_row[key] = value
-            clean_results.append(clean_row)
+        print(f"✅ [ENEDIS] {len(features)} consommations trouvées pour {code_commune}")
         
-        return clean_results
+        # Convertir GeoJSON en format attendu par le frontend
+        results = []
+        for feature in features[:500]:  # Limiter à 500 résultats
+            props = feature.get('properties', {})
+            geom = feature.get('geometry', {})
+            coords = geom.get('coordinates', [])
+            
+            if coords and len(coords) >= 2:
+                results.append({
+                    'longitude': coords[0],
+                    'latitude': coords[1],
+                    'consommation_mwh': props.get('consommation_mwh', 0),
+                    'secteur': props.get('secteur', 'INCONNU'),
+                    'adresse': props.get('adresse', ''),
+                    'nom_commune': props.get('nom_commune', ''),
+                    'nombre_de_sites': props.get('nb_sites', 1),
+                    'annee': props.get('annee', 2023)
+                })
+        
+        # Trier par consommation décroissante
+        results.sort(key=lambda x: x.get('consommation_mwh', 0), reverse=True)
+        
+        return results
         
     except Exception as e:
-        print(f"⚠️ [ENEDIS] Erreur récupération consommation pour {code_commune}: {e}")
+        print(f"⚠️ [ENEDIS] Erreur récupération consommation GeoServer pour {code_commune}: {e}")
         import traceback
         traceback.print_exc()
         return []
