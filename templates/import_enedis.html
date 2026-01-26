@@ -169,7 +169,13 @@
         <div id="selectedFile" style="text-align: center;"></div>
         
         <button id="uploadBtn" onclick="uploadFile()" disabled>
-            🚀 Importer et Géocoder
+            🚀 Importer et Géocoder (Upload)
+        </button>
+        
+        <div style="text-align: center; margin: 15px 0; color: #666;">- OU -</div>
+        
+        <button onclick="importFromUrl()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+            🌐 Importer depuis data.gouv.fr (Recommandé)
         </button>
         
         <div class="progress" id="progress">
@@ -294,6 +300,72 @@
             }
             
             uploadBtn.disabled = false;
+        }
+        
+        // Import depuis URL (recommandé pour gros fichiers)
+        async function importFromUrl() {
+            if (confirm('Import depuis data.gouv.fr ?\n\nCela va télécharger ~380 MB et prendre 5-10 minutes.\n\nContinuer ?')) {
+                progress.style.display = 'block';
+                result.style.display = 'none';
+                
+                progressFill.style.width = '10%';
+                progressFill.textContent = 'Téléchargement...';
+                
+                try {
+                    const response = await fetch('/api/admin/import-enedis-url', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            url: 'https://opendata.agenceore.fr/api/explore/v2.1/catalog/datasets/conso-elec-gaz-annuelle-par-adresse/exports/csv'
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    progressFill.style.width = '100%';
+                    progressFill.textContent = '✅ Terminé!';
+                    
+                    if (data.success) {
+                        result.className = 'result success';
+                        result.innerHTML = `
+                            <h3>✅ Import réussi!</h3>
+                            <div class="stats">
+                                <div class="stat-card">
+                                    <div class="stat-value">${data.rows_imported.toLocaleString()}</div>
+                                    <div class="stat-label">Lignes importées</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">${data.rows_geocoded.toLocaleString()}</div>
+                                    <div class="stat-label">Géocodées</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">${data.geocoding_rate}</div>
+                                    <div class="stat-label">Taux géocodage</div>
+                                </div>
+                                <div class="stat-card">
+                                    <div class="stat-value">${Math.round(data.duration_seconds/60)}min</div>
+                                    <div class="stat-label">Durée</div>
+                                </div>
+                            </div>
+                            <p style="margin-top: 20px; text-align: center;">
+                                🎉 ${data.rows_imported.toLocaleString()} données Enedis importées!<br>
+                                Rafraîchissez votre recherche commune pour voir les marqueurs.
+                            </p>
+                        `;
+                    } else {
+                        result.className = 'result error';
+                        result.innerHTML = `<h3>❌ Erreur</h3><p>${data.error}</p>`;
+                    }
+                    
+                    result.style.display = 'block';
+                    
+                } catch (error) {
+                    result.className = 'result error';
+                    result.innerHTML = `<h3>❌ Erreur</h3><p>${error.message}</p>`;
+                    result.style.display = 'block';
+                    progressFill.style.width = '0%';
+                }
+            }
         }
     </script>
 </body>

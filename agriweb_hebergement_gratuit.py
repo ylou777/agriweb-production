@@ -17488,6 +17488,158 @@ def admin_import_enedis_page():
     """Page d'upload du CSV Enedis"""
     return render_template('import_enedis.html')
 
+@app.route('/api/admin/import-enedis-url', methods=['POST'])
+def import_enedis_from_url():
+    """
+    Import Enedis depuis URL data.gouv.fr (évite upload gros fichier)
+    """
+    import requests
+    import csv
+    import io
+    import time
+    
+    try:
+        # URL par défaut du dataset Enedis
+        url = request.json.get('url', 'https://opendata.agenceore.fr/api/explore/v2.1/catalog/datasets/conso-elec-gaz-annuelle-par-adresse/exports/csv')
+        
+        DATABASE_URL = os.environ.get('DATABASE_URL')
+        if not DATABASE_URL:
+            return jsonify({"success": False, "error": "DATABASE_URL non configurée"}), 500
+        
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        
+        print(f"📥 [IMPORT_ENEDIS_URL] Téléchargement depuis {url[:100]}...")
+        
+        # Télécharger par streaming pour éviter saturation mémoire
+        import psycopg2
+        from psycopg2.extras import execute_batch
+        
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # Créer la table
+        print(f"🔧 [IMPORT_ENEDIS_URL] Création table...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS consommation_enedis (
+                id SERIAL PRIMARY KEY,
+                annee INTEGER,
+                code_commune VARCHAR(10),
+                nom_commune VARCHAR(200),
+                adresse TEXT,
+                code_grand_secteur VARCHAR(50),
+                code_naf VARCHAR(10),
+                nombre_de_sites INTEGER,
+                consommation_annuelle_totale_mwh DECIMAL(12,2),
+                latitude DECIMAL(10,6),
+                longitude DECIMAL(10,6),
+                date_import TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_enedis_commune ON consommation_enedis(code_commune);
+            CREATE INDEX IF NOT EXISTS idx_enedis_coords ON consommation_enedis(latitude, longitude);
+        """)
+        conn.commit()
+        
+        # Charger centroids communes
+        print(f"🗺️  [IMPORT_ENEDIS_URL] Chargement centroids...")
+        resp_geo = requests.get("https://geo.api.gouv.fr/communes?fields=code,centre&format=json")
+        communes_data = resp_geo.json()
+        commune_centroids = {c['code']: (c['centre']['coordinates'][1], c['centre']['coordinates'][0]) 
+                            for c in communes_data if 'code' in c and 'centre' in c}
+        
+        # Stream le CSV
+        print(f"📊 [IMPORT_ENEDIS_URL] Stream CSV...")
+        response = requests.get(url, stream=True, timeout=600)
+        response.raise_for_status()
+        
+        # Parser le CSV en streaming
+        lines = response.iter_lines(decode_unicode=True)
+        csv_reader = csv.DictReader(lines, delimiter=',')
+        
+        batch_data = []
+        rows_imported = 0
+        rows_geocoded = 0
+        rows_skipped = 0
+        batch_size = 5000
+        start_time = time.time()
+        
+        for row in csv_reader:
+            try:
+                code_commune = row.get('Code commune', '').strip()
+                if not code_commune:
+                    continue
+                
+                lat, lon = None, None
+                if code_commune in commune_centroids:
+                    lat, lon = commune_centroids[code_commune]
+                    rows_geocoded += 1
+                
+                batch_data.append((
+                    int(row.get('Année', 2023)),
+                    code_commune,
+                    row.get('Nom commune', '')[:200].strip(),
+                    row.get('Adresse', '')[:500].strip(),
+                    row.get('code_grand_secteur', '')[:50].strip(),
+                    row.get('code_secteur_naf2', '')[:10].strip(),
+                    int(row.get('Nombre de sites', 1) or 1),
+                    float(str(row.get("Consommation annuelle totale de l'adresse (MWh)", 0) or 0).replace(',', '.')),
+                    lat,
+                    lon
+                ))
+                
+                if len(batch_data) >= batch_size:
+                    execute_batch(cur, """
+                        INSERT INTO consommation_enedis 
+                        (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                         code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, batch_data)
+                    conn.commit()
+                    
+                    rows_imported += len(batch_data)
+                    print(f"   📦 {rows_imported:,} importées, {rows_geocoded:,} géocodées ({time.time()-start_time:.0f}s)...")
+                    batch_data = []
+                    
+            except Exception as e:
+                rows_skipped += 1
+                if rows_skipped <= 5:
+                    print(f"⚠️  Erreur ligne: {e}")
+                continue
+        
+        # Dernier batch
+        if batch_data:
+            execute_batch(cur, """
+                INSERT INTO consommation_enedis 
+                (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                 code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, batch_data)
+            conn.commit()
+            rows_imported += len(batch_data)
+        
+        cur.close()
+        conn.close()
+        
+        duration = time.time() - start_time
+        
+        print(f"✅ [IMPORT_ENEDIS_URL] Terminé: {rows_imported:,} lignes en {duration:.1f}s")
+        
+        return jsonify({
+            "success": True,
+            "rows_imported": rows_imported,
+            "rows_geocoded": rows_geocoded,
+            "rows_skipped": rows_skipped,
+            "geocoding_rate": f"{rows_geocoded/rows_imported*100:.1f}%" if rows_imported > 0 else "0%",
+            "duration_seconds": duration
+        })
+        
+    except Exception as e:
+        print(f"❌ [IMPORT_ENEDIS_URL] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/admin/import-enedis', methods=['POST'])
 def import_enedis_data():
     """
