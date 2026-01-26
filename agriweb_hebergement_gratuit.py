@@ -4475,18 +4475,18 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         print(f"✅ [ENEDIS] {len(features)} consommations trouvées pour {code_commune}")
         
         # ⚠️ IMPORTANT: Les coordonnées dans GeoServer sont toutes identiques (erreur de géocodage initial)
-        # STRATÉGIE OPTIMISÉE: Trier d'abord par consommation, puis géocoder seulement le top 100
-        # (Limité à 100 pour éviter timeout - géocodage ~1s/adresse)
+        # STRATÉGIE OPTIMISÉE: Trier d'abord par consommation, puis géocoder seulement le top 20
+        # (Limité à 20 pour éviter timeout - géocodage ~1-2s/adresse = ~20-40s total)
         
         # 1. Extraire et trier par consommation AVANT géocodage
-        MAX_GEOCODE = 100  # Limiter pour performance (100 adresses = ~100-200s)
+        MAX_GEOCODE = 20  # Limiter drastiquement pour performance (20 adresses = ~30-60s)
         features_sorted = sorted(
             features,
             key=lambda f: f.get('properties', {}).get('consommation_mwh', 0),
             reverse=True
         )[:MAX_GEOCODE]
         
-        print(f"🎯 [ENEDIS] Géocodage des {len(features_sorted)} points avec consommation la plus élevée...")
+        print(f"🎯 [ENEDIS] Géocodage des {len(features_sorted)} points TOP consommation (limité à {MAX_GEOCODE} pour éviter timeout)...")
         
         # 2. Géocoder seulement les 500 adresses sélectionnées
         results = []
@@ -4502,35 +4502,43 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
             if adresse and nom_commune:
                 full_address = f"{adresse}, {nom_commune}, France"
                 
-                # Géocoder l'adresse pour obtenir les vraies coordonnées
-                geocode_result = geocode_address(full_address)
-                
-                if geocode_result and geocode_result.get('lat') and geocode_result.get('lon'):
-                    lat, lon = geocode_result['lat'], geocode_result['lon']
+                try:
+                    # Géocoder l'adresse pour obtenir les vraies coordonnées
+                    geocode_result = geocode_address(full_address)
                     
-                    # Vérifier que les coordonnées sont valides (France métropolitaine)
-                    if -5 <= lon <= 10 and 41 <= lat <= 51:
-                        results.append({
-                            'longitude': lon,
-                            'latitude': lat,
-                            'consommation_mwh': props.get('consommation_mwh', 0),
-                            'secteur': props.get('secteur', 'INCONNU'),
-                            'adresse': adresse,
-                            'nom_commune': nom_commune,
-                            'nombre_de_sites': props.get('nb_sites', 1),
-                            'annee': props.get('annee', 2023)
-                        })
-                        geocoded_count += 1
+                    if geocode_result and geocode_result.get('lat') and geocode_result.get('lon'):
+                        lat, lon = geocode_result['lat'], geocode_result['lon']
                         
-                        # Log progression tous les 50 points
-                        if geocoded_count % 50 == 0:
-                            print(f"📍 [GEOCODING] {geocoded_count} adresses géocodées...")
+                        # Vérifier que les coordonnées sont valides (France métropolitaine)
+                        if -5 <= lon <= 10 and 41 <= lat <= 51:
+                            results.append({
+                                'longitude': lon,
+                                'latitude': lat,
+                                'consommation_mwh': props.get('consommation_mwh', 0),
+                                'secteur': props.get('secteur', 'INCONNU'),
+                                'adresse': adresse,
+                                'nom_commune': nom_commune,
+                                'nombre_de_sites': props.get('nb_sites', 1),
+                                'annee': props.get('annee', 2023)
+                            })
+                            geocoded_count += 1
+                            
+                            # Log progression tous les 5 points
+                            if geocoded_count % 5 == 0:
+                                print(f"📍 [GEOCODING] {geocoded_count}/{len(features_sorted)} adresses géocodées...")
+                        else:
+                            skipped_count += 1
+                            print(f"⚠️ [GEOCODING] Point {idx} - Coordonnées hors France: {lat}, {lon}")
                     else:
                         skipped_count += 1
-                else:
+                        print(f"⚠️ [GEOCODING] Point {idx} - Échec géocodage: {full_address[:50]}")
+                        
+                except Exception as e:
                     skipped_count += 1
+                    print(f"❌ [GEOCODING] Point {idx} - Erreur: {e}")
             else:
                 skipped_count += 1
+                print(f"⚠️ [GEOCODING] Point {idx} - Adresse ou commune manquante")
         
         print(f"✅ [GEOCODING] Géocodage terminé: {geocoded_count} succès, {skipped_count} échecs")
         
