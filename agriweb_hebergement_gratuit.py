@@ -3307,6 +3307,7 @@ SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène (~50 
 GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/rest/layers"  # Pour lister les couches
 GEOSERVER_OWS_URL = f"{GEOSERVER_URL}/ows"  # Pour les requêtes WFS/GetFeature
 ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
+ENEDIS_LAYER = "gpu:consommation_enedis"  # Couche de consommation électrique Enedis
 # Ajout couche PPRI (adapter le nom si besoin)
 PPRI_LAYER = "gpu:ppri"  # <-- Vérifiez le nom exact dans votre GeoServer
 
@@ -6033,7 +6034,8 @@ def build_map(
     eleveurs_data=None,
     capacites_reseau=None,
     ppri_data=None,  # Ajout PPRI
-    hta_lignes_data=None  # Ajout lignes HTA
+    hta_lignes_data=None,  # Ajout lignes HTA
+    enedis_data=None  # Ajout consommations Enedis
 ):
     import folium
     from folium.plugins import Draw, MeasureControl, MarkerCluster
@@ -6075,6 +6077,8 @@ def build_map(
         capacites_reseau = []
     if ppri_data is None or not isinstance(ppri_data, dict):
         ppri_data = {"type": "FeatureCollection", "features": []}
+    if enedis_data is None:
+        enedis_data = []
     
     # === CRÉATION DE LA CARTE avec zoom adapté (16 pour parcelle) ===
     map_obj = folium.Map(location=[lat, lon], zoom_start=16, tiles=None, max_zoom=22)
@@ -6186,9 +6190,9 @@ def build_map(
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         
         # Bouton KPI pour poste BT
-        import json
-        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+        import json, base64
+        props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
+        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
             style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
             📤 Envoyer vers KPI
         </button>"""
@@ -6225,9 +6229,9 @@ def build_map(
         popup += f"<br><b>Capacité dispo</b>: {capa}"
         
         # Bouton KPI pour poste HTA
-        import json
-        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+        import json, base64
+        props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
+        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
             style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
             📤 Envoyer vers KPI
         </button>"""
@@ -6322,6 +6326,63 @@ def build_map(
             ).add_to(eleveurs_group)
     
     map_obj.add_child(eleveurs_group)
+
+    # --- Consommation Enedis ---
+    enedis_group = folium.FeatureGroup(name="Consommation Enedis", show=True)
+    if enedis_data:
+        import json, base64
+        for site in enedis_data:
+            # Les données viennent de PostgreSQL, pas de WFS
+            lat_enedis = site.get("latitude")
+            lon_enedis = site.get("longitude")
+            
+            if not lat_enedis or not lon_enedis:
+                continue
+            
+            # Construction du popup enrichi
+            conso_mwh = site.get("consommation_annuelle_totale_mwh", 0) or site.get("consommation_mwh", 0)
+            adresse = site.get("adresse", "N/A")
+            secteur = site.get("code_grand_secteur", "N/A")
+            nb_sites = site.get("nombre_de_sites", 1)
+            annee = site.get("annee", "N/A")
+            
+            popup_html = f"<b>⚡ Consommation Électrique</b><br>"
+            popup_html += f"<b>Adresse:</b> {adresse}<br>"
+            popup_html += f"<b>Consommation:</b> {conso_mwh:.2f} MWh/an<br>"
+            popup_html += f"<b>Secteur:</b> {secteur}<br>"
+            popup_html += f"<b>Nombre de sites:</b> {nb_sites}<br>"
+            popup_html += f"<b>Année:</b> {annee}<br>"
+            
+            # Bouton KPI avec base64
+            props_json_b64 = base64.b64encode(json.dumps(site).encode()).decode()
+            popup_html += f'''<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_enedis}, lon: {lon_enedis}, type: 'enedis', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
+                style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
+                📤 Envoyer vers KPI
+            </button>'''
+            
+            # Lien Street View
+            streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_enedis},{lon_enedis}"
+            popup_html += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
+            
+            # Icône et couleur selon la consommation
+            if conso_mwh >= 100:
+                color = "red"  # Haute consommation
+            elif conso_mwh >= 50:
+                color = "orange"  # Consommation moyenne
+            else:
+                color = "lightgreen"  # Faible consommation
+            
+            folium.CircleMarker(
+                [lat_enedis, lon_enedis],
+                radius=8,
+                popup=popup_html,
+                tooltip=f"⚡ {conso_mwh:.1f} MWh/an - {secteur}",
+                color=color,
+                fill=True,
+                fillColor=color,
+                fillOpacity=0.7
+            ).add_to(enedis_group)
+    map_obj.add_child(enedis_group)
 
     # PLU
     plu_group = folium.FeatureGroup(name="PLU", show=True)
@@ -6586,12 +6647,12 @@ def build_map(
                             # Déterminer le type pour KPI
                             kpi_type = "toiture" if name == "Potentiel Solaire" else name.lower().rstrip('s')
                             
-                            # Échapper les propriétés pour JavaScript
-                            import json
-                            props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
+                            # Encoder les propriétés en base64 pour JavaScript
+                            import json, base64
+                            props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
                             
-                            # Utiliser postMessage avec une chaîne JSON échappée
-                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
+                            # Utiliser postMessage avec base64
+                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
                                 style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
                                 📤 Envoyer vers KPI
                             </button>"""
@@ -9253,7 +9314,8 @@ def search_by_commune():
             api_urbanisme=api_urbanisme,
             eleveurs_data=eleveurs_data,
             ppri_data=ppri_data,
-            hta_lignes_data=hta_lignes_data  # Ajout des lignes HTA
+            hta_lignes_data=hta_lignes_data,  # Ajout des lignes HTA
+            enedis_data=enedis_data  # Ajout consommations Enedis
         )
         # Optimisé pour performance
         # print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")
@@ -14279,6 +14341,35 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 print(f"✅ [CADASTRE-FRICHES] Enrichissement terminé")
 
         sirene_data = get_sirene_info_by_polygon(contour)
+
+        # Récupération des données de consommation Enedis
+        print("=" * 80)
+        print("🔌🔌🔌 [ENEDIS] DÉBUT RÉCUPÉRATION DONNÉES CONSOMMATION ENEDIS 🔌🔌🔌")
+        print("=" * 80)
+        print(f"🔌 [ENEDIS] Couche WFS: {ENEDIS_LAYER}")
+        print(f"🔌 [ENEDIS] Bbox: {bbox}")
+        enedis_data = []
+        try:
+            print(f"🔌 [ENEDIS] Appel fetch_wfs_data avec couche: {ENEDIS_LAYER}")
+            print(f"🔌 [ENEDIS] Bbox: {bbox}")
+            raw_enedis = fetch_wfs_data(ENEDIS_LAYER, bbox)
+            print(f"🔌 [ENEDIS] Données WFS récupérées: {len(raw_enedis)} features")
+            
+            enedis_data = filter_in_commune(raw_enedis)
+            print(f"🔌 [ENEDIS] Après filtrage commune: {len(enedis_data)} points")
+            
+            if enedis_data:
+                import json
+                print(f"🔌 [ENEDIS] Premier point: {json.dumps(enedis_data[0], indent=2)[:500]}")
+        except Exception as e:
+            print(f"❌ [ENEDIS] EXCEPTION: {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"❌ [ENEDIS] Traceback:\n{traceback.format_exc()}")
+            enedis_data = []
+        
+        print("=" * 80)
+        print(f"🔌 [ENEDIS] FIN RÉCUPÉRATION - Total: {len(enedis_data)} points de consommation")
+        print("=" * 80)
 
         # Calcul rapide d'une valeur d'irradiation (kWh/kWc/an) via PVGIS au centre de la commune
         pvgis_kwh_per_kwc = None
