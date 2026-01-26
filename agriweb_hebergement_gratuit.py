@@ -9419,7 +9419,9 @@ def search_by_commune():
         "solaire": toitures_data if filter_toitures else solaire_data,
         "zaer": zaer_data,
         "sirene": sirene_data,
-        "enedis": enedis_data,  # Consommations électriques des entreprises
+        # ✅ Enedis data (top 500 triés par consommation) - optimisé pour traitement frontend
+        "enedis_data": enedis_data,  # Liste limitée à 500 points max (voir get_enedis_consommation_by_commune)
+        "enedis_count": len(enedis_data),  # Compteur pour info
         # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
         # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
         "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe
