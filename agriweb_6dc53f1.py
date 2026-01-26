@@ -7983,7 +7983,11 @@ def search_by_commune():
     log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
     
     # Récupération des données de consommation Enedis
-    print(f"🔌 [ENEDIS] === DÉBUT RÉCUPÉRATION ===")
+    print("=" * 80)
+    print("🔌🔌🔌 [ENEDIS] DÉBUT RÉCUPÉRATION DONNÉES CONSOMMATION ENEDIS 🔌🔌🔌")
+    print("=" * 80)
+    print(f"🔌 [ENEDIS] Couche WFS: {ENEDIS_LAYER}")
+    print(f"🔌 [ENEDIS] Bbox: {bbox}")
     enedis_data = []
     try:
         print(f"🔌 [ENEDIS] Appel fetch_wfs_data avec couche: {ENEDIS_LAYER}")
@@ -8002,7 +8006,9 @@ def search_by_commune():
         print(f"❌ [ENEDIS] Traceback:\n{traceback.format_exc()}")
         enedis_data = []
     
-    print(f"🔌 [ENEDIS] === FIN RÉCUPÉRATION === Résultat: {len(enedis_data)} points")
+    print("=" * 80)
+    print(f"🔌 [ENEDIS] FIN RÉCUPÉRATION - Total: {len(enedis_data)} points de consommation")
+    print("=" * 80)
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
