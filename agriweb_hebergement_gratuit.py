@@ -15608,6 +15608,51 @@ def revoke_session(session_token):
     
     return redirect(url_for('admin_sessions'))
 
+@app.route("/clear_map_cache")
+def clear_map_cache():
+    """
+    Route pour vider le cache des cartes Folium
+    Accessible sans authentification pour permettre le nettoyage rapide
+    """
+    try:
+        import glob
+        cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+        
+        if not os.path.exists(cartes_dir):
+            return jsonify({
+                "status": "warning",
+                "message": "Répertoire cartes/ inexistant",
+                "deleted": 0
+            })
+        
+        # Supprimer tous les fichiers HTML dans cartes/
+        pattern = os.path.join(cartes_dir, "*.html")
+        files = glob.glob(pattern)
+        deleted_count = 0
+        
+        for file in files:
+            try:
+                os.remove(file)
+                deleted_count += 1
+                print(f"🧹 [CACHE_CLEAR] Supprimé: {os.path.basename(file)}")
+            except Exception as e:
+                print(f"⚠️ [CACHE_CLEAR] Erreur suppression {os.path.basename(file)}: {e}")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Cache vidé avec succès",
+            "deleted": deleted_count,
+            "total_found": len(files)
+        })
+    
+    except Exception as e:
+        print(f"❌ [CACHE_CLEAR] Erreur: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "deleted": 0
+        }), 500
+
 @app.route("/admin", methods=["GET", "POST"])
 @require_admin
 def admin_dashboard():
