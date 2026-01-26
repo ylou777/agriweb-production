@@ -7985,6 +7985,9 @@ def search_by_commune():
     # Récupération des données de consommation Enedis
     log_data_collection("ENEDIS", "Récupération des données de consommation électrique")
     enedis_data = filter_in_commune(fetch_wfs_data(ENEDIS_LAYER, bbox))
+    safe_print(f"🔌 [ENEDIS] Données brutes récupérées: {len(enedis_data)} points")
+    if enedis_data:
+        safe_print(f"🔌 [ENEDIS] Premier point: {enedis_data[0] if enedis_data else 'AUCUN'}")
     log_data_collection("ENEDIS", f"✅ {len(enedis_data)} points de consommation trouvés")
 
     point = {"type": "Point", "coordinates": [lon, lat]}
