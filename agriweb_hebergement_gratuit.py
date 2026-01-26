@@ -4476,27 +4476,38 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         
         # Convertir GeoJSON en format attendu par le frontend
         results = []
-        for feature in features[:500]:  # Limiter à 500 résultats
+        for feature in features:  # Traiter TOUS les résultats
             props = feature.get('properties', {})
             geom = feature.get('geometry', {})
             coords = geom.get('coordinates', [])
             
+            # Filtrer les coordonnées invalides
             if coords and len(coords) >= 2:
-                results.append({
-                    'longitude': coords[0],
-                    'latitude': coords[1],
-                    'consommation_mwh': props.get('consommation_mwh', 0),
-                    'secteur': props.get('secteur', 'INCONNU'),
-                    'adresse': props.get('adresse', ''),
-                    'nom_commune': props.get('nom_commune', ''),
-                    'nombre_de_sites': props.get('nb_sites', 1),
-                    'annee': props.get('annee', 2023)
-                })
+                lon, lat = coords[0], coords[1]
+                # Vérifier que les coordonnées sont valides (France métropolitaine)
+                if -5 <= lon <= 10 and 41 <= lat <= 51:
+                    results.append({
+                        'longitude': lon,
+                        'latitude': lat,
+                        'consommation_mwh': props.get('consommation_mwh', 0),
+                        'secteur': props.get('secteur', 'INCONNU'),
+                        'adresse': props.get('adresse', ''),
+                        'nom_commune': props.get('nom_commune', ''),
+                        'nombre_de_sites': props.get('nb_sites', 1),
+                        'annee': props.get('annee', 2023)
+                    })
         
-        # Trier par consommation décroissante
+        # Trier par consommation décroissante et prendre les 500 plus importants
         results.sort(key=lambda x: x.get('consommation_mwh', 0), reverse=True)
+        top_500 = results[:500]
         
-        return results
+        print(f"🔌 [ENEDIS] Retour des {len(top_500)} points avec consommation la plus élevée")
+        if top_500:
+            print(f"🔌 [ENEDIS] Premier point: lat={top_500[0]['latitude']}, lon={top_500[0]['longitude']}, conso={top_500[0]['consommation_mwh']} MWh")
+            if len(top_500) > 1:
+                print(f"🔌 [ENEDIS] Dernier point (500ème): conso={top_500[-1]['consommation_mwh']} MWh")
+        
+        return top_500
         
     except Exception as e:
         print(f"⚠️ [ENEDIS] Erreur récupération consommation GeoServer pour {code_commune}: {e}")
@@ -6332,12 +6343,14 @@ def build_map(
     if enedis_data:
         import json, base64
         print(f"🔌 [ENEDIS_FOLIUM] Ajout de {len(enedis_data)} points de consommation à la carte")
+        markers_added = 0
         for site in enedis_data:
             # Les données viennent de GeoServer WFS
             lat_enedis = site.get("latitude")
             lon_enedis = site.get("longitude")
             
             if not lat_enedis or not lon_enedis:
+                print(f"⚠️ [ENEDIS_FOLIUM] Coordonnées invalides ignorées: {site}")
                 continue
             
             # Construction du popup enrichi - utiliser les bons noms de champs
@@ -6389,6 +6402,9 @@ def build_map(
                 fillOpacity=0.9,  # Opacité élevée pour visibilité
                 zIndexOffset=1000  # Toujours au-dessus des autres couches
             ).add_to(enedis_group)
+            markers_added += 1
+        
+        print(f"✅ [ENEDIS_FOLIUM] {markers_added} marqueurs CircleMarker effectivement ajoutés au groupe")
     map_obj.add_child(enedis_group)
 
     # PLU
