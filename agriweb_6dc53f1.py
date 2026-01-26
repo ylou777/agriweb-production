@@ -3293,6 +3293,7 @@ SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène (~50 
 GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/rest/layers"  # Pour lister les couches
 GEOSERVER_OWS_URL = f"{GEOSERVER_URL}/ows"  # Pour les requêtes WFS/GetFeature
 ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
+ENEDIS_LAYER = "gpu:consommation_enedis"  # Couche de consommation électrique Enedis
 # Ajout couche PPRI (adapter le nom si besoin)
 PPRI_LAYER = "gpu:ppri"  # <-- Vérifiez le nom exact dans votre GeoServer
 
@@ -7915,6 +7916,11 @@ def search_by_commune():
     log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
     sirene_data = get_sirene_info_by_polygon(contour)
     log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
+    
+    # Récupération des données de consommation Enedis
+    log_data_collection("ENEDIS", "Récupération des données de consommation électrique")
+    enedis_data = filter_in_commune(fetch_wfs_data(ENEDIS_LAYER, bbox))
+    log_data_collection("ENEDIS", f"✅ {len(enedis_data)} points de consommation trouvés")
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
@@ -9050,6 +9056,7 @@ def search_by_commune():
         "solaire": toitures_data if filter_toitures else solaire_data,
         "zaer": zaer_data,
         "sirene": sirene_data,
+        "enedis": {"type": "FeatureCollection", "features": enedis_data},
         # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
         # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
         "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe
