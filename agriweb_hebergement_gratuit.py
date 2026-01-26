@@ -6366,22 +6366,28 @@ def build_map(
             popup_html += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
             
             # Icône et couleur selon la consommation
+            # Couleurs très contrastées pour visibilité maximale
             if conso_mwh >= 100:
-                color = "red"  # Haute consommation
+                color = "#FF0000"  # Rouge vif - Haute consommation
+                radius = 12
             elif conso_mwh >= 50:
-                color = "orange"  # Consommation moyenne
+                color = "#FF6600"  # Orange vif - Consommation moyenne
+                radius = 10
             else:
-                color = "lightgreen"  # Faible consommation
+                color = "#FFFF00"  # Jaune vif - Faible consommation
+                radius = 8
             
             folium.CircleMarker(
                 [lat_enedis, lon_enedis],
-                radius=8,
+                radius=radius,
                 popup=popup_html,
                 tooltip=f"⚡ {conso_mwh:.1f} MWh/an - {secteur}",
-                color=color,
+                color="#000000",  # Bordure noire pour contraste
+                weight=2,
                 fill=True,
                 fillColor=color,
-                fillOpacity=0.7
+                fillOpacity=0.9,  # Opacité élevée pour visibilité
+                zIndexOffset=1000  # Toujours au-dessus des autres couches
             ).add_to(enedis_group)
     map_obj.add_child(enedis_group)
 
