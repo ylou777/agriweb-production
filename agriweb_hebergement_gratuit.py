@@ -4475,70 +4475,92 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         print(f"✅ [ENEDIS] {len(features)} consommations trouvées pour {code_commune}")
         
         # ⚠️ IMPORTANT: Les coordonnées dans GeoServer sont toutes identiques (erreur de géocodage initial)
-        # STRATÉGIE OPTIMISÉE: Trier d'abord par consommation, puis géocoder seulement le top 20
-        # (Limité à 20 pour éviter timeout - géocodage ~1-2s/adresse = ~20-40s total)
+        # STRATÉGIE OPTIMISÉE: Trier d'abord par consommation, puis géocoder le top 100 en PARALLÈLE
+        # (100 adresses avec 10 threads = ~10-15 secondes)
+        
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
         
         # 1. Extraire et trier par consommation AVANT géocodage
-        MAX_GEOCODE = 20  # Limiter drastiquement pour performance (20 adresses = ~30-60s)
+        MAX_GEOCODE = 100  # Top 100 consommations par commune
         features_sorted = sorted(
             features,
             key=lambda f: f.get('properties', {}).get('consommation_mwh', 0),
             reverse=True
         )[:MAX_GEOCODE]
         
-        print(f"🎯 [ENEDIS] Géocodage des {len(features_sorted)} points TOP consommation (limité à {MAX_GEOCODE} pour éviter timeout)...")
+        print(f"🎯 [ENEDIS] Géocodage PARALLÈLE de {len(features_sorted)} points TOP consommation (temps estimé: ~10-15s)...")
         
-        # 2. Géocoder seulement les 500 adresses sélectionnées
+        # 2. Fonction de géocodage pour threading
         results = []
+        results_lock = threading.Lock()
         geocoded_count = 0
         skipped_count = 0
+        stats_lock = threading.Lock()
         
-        for idx, feature in enumerate(features_sorted, 1):
+        def geocode_feature(feature_data):
+            idx, feature = feature_data
             props = feature.get('properties', {})
             adresse = props.get('adresse', '')
             nom_commune = props.get('nom_commune', '')
             
-            # Construire l'adresse complète pour géocodage
-            if adresse and nom_commune:
-                full_address = f"{adresse}, {nom_commune}, France"
-                
-                try:
-                    # Géocoder l'adresse pour obtenir les vraies coordonnées
-                    geocode_result = geocode_address(full_address)
-                    
-                    if geocode_result and geocode_result.get('lat') and geocode_result.get('lon'):
-                        lat, lon = geocode_result['lat'], geocode_result['lon']
-                        
-                        # Vérifier que les coordonnées sont valides (France métropolitaine)
-                        if -5 <= lon <= 10 and 41 <= lat <= 51:
-                            results.append({
-                                'longitude': lon,
-                                'latitude': lat,
-                                'consommation_mwh': props.get('consommation_mwh', 0),
-                                'secteur': props.get('secteur', 'INCONNU'),
-                                'adresse': adresse,
-                                'nom_commune': nom_commune,
-                                'nombre_de_sites': props.get('nb_sites', 1),
-                                'annee': props.get('annee', 2023)
-                            })
-                            geocoded_count += 1
-                            
-                            # Log progression tous les 5 points
-                            if geocoded_count % 5 == 0:
-                                print(f"📍 [GEOCODING] {geocoded_count}/{len(features_sorted)} adresses géocodées...")
-                        else:
-                            skipped_count += 1
-                            print(f"⚠️ [GEOCODING] Point {idx} - Coordonnées hors France: {lat}, {lon}")
-                    else:
-                        skipped_count += 1
-                        print(f"⚠️ [GEOCODING] Point {idx} - Échec géocodage: {full_address[:50]}")
-                        
-                except Exception as e:
+            if not adresse or not nom_commune:
+                with stats_lock:
+                    nonlocal skipped_count
                     skipped_count += 1
-                    print(f"❌ [GEOCODING] Point {idx} - Erreur: {e}")
-            else:
+                return None
+            
+            full_address = f"{adresse}, {nom_commune}, France"
+            
+            try:
+                geocode_result = geocode_address(full_address)
+                
+                if geocode_result and geocode_result.get('lat') and geocode_result.get('lon'):
+                    lat, lon = geocode_result['lat'], geocode_result['lon']
+                    
+                    # Vérifier coordonnées France métropolitaine
+                    if -5 <= lon <= 10 and 41 <= lat <= 51:
+                        result = {
+                            'longitude': lon,
+                            'latitude': lat,
+                            'consommation_mwh': props.get('consommation_mwh', 0),
+                            'secteur': props.get('secteur', 'INCONNU'),
+                            'adresse': adresse,
+                            'nom_commune': nom_commune,
+                            'nombre_de_sites': props.get('nb_sites', 1),
+                            'annee': props.get('annee', 2023)
+                        }
+                        
+                        with results_lock:
+                            results.append(result)
+                        
+                        with stats_lock:
+                            nonlocal geocoded_count
+                            geocoded_count += 1
+                            if geocoded_count % 10 == 0:
+                                print(f"📍 [GEOCODING] {geocoded_count}/{len(features_sorted)} adresses géocodées...")
+                        
+                        return result
+                    
+            except Exception:
+                pass
+            
+            with stats_lock:
                 skipped_count += 1
-                print(f"⚠️ [GEOCODING] Point {idx} - Adresse ou commune manquante")
+            return None
+        
+        # 3. Géocodage parallèle avec 10 threads
+        MAX_WORKERS = 10
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            feature_data = [(idx, f) for idx, f in enumerate(features_sorted, 1)]
+            futures = [executor.submit(geocode_feature, data) for data in feature_data]
+            
+            # Attendre la fin de tous les threads
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    pass
         
         print(f"✅ [GEOCODING] Géocodage terminé: {geocoded_count} succès, {skipped_count} échecs")
         
