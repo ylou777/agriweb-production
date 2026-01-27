@@ -3933,13 +3933,13 @@ def geocode_address(address):
                     print(f"[DEBUG] Geocodage IGN validé: {result_label} -> {coords[1]:.6f}, {coords[0]:.6f}")
                     return coords[1], coords[0]  # lat, lon
             
-            # Si aucun résultat validé, prend le premier (fallback)
+            # Si aucun résultat validé, prend le premier (fallback acceptable)
             if features:
                 feature = features[0]
                 coords = feature["geometry"]["coordinates"]
                 props = feature["properties"]
-                print(f"[DEBUG] Geocodage IGN (non validé): {props.get('label', address)} -> {coords[1]:.6f}, {coords[0]:.6f}")
-                # Ne retourne pas le résultat non validé, passe à Nominatim
+                print(f"[DEBUG] Geocodage IGN (non validé mais accepté): {props.get('label', address)} -> {coords[1]:.6f}, {coords[0]:.6f}")
+                return coords[1], coords[0]  # lat, lon - On accepte quand même le résultat IGN
                 
     except Exception as e:
         print(f"[WARN] Erreur API IGN geocodage: {e}")
