@@ -4458,7 +4458,7 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
             'request': 'GetFeature',
             'typeName': 'gpu:consommation_enedis',
             'outputFormat': 'application/json',
-            'CQL_FILTER': f"code_commune='{code_commune}'"
+            'CQL_FILTER': f"code_commune={code_commune}"  # Sans quotes car c'est un nombre
         }
         
         # Ajouter filtre année si spécifié
