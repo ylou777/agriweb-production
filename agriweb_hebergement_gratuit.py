@@ -4515,8 +4515,9 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
             try:
                 geocode_result = geocode_address(full_address)
                 
-                if geocode_result and geocode_result.get('lat') and geocode_result.get('lon'):
-                    lat, lon = geocode_result['lat'], geocode_result['lon']
+                # geocode_address retourne un tuple (lat, lon) ou None
+                if geocode_result and len(geocode_result) == 2:
+                    lat, lon = geocode_result
                     
                     # Vérifier coordonnées France métropolitaine
                     if -5 <= lon <= 10 and 41 <= lat <= 51:
