@@ -4214,6 +4214,71 @@ def get_all_ht_postes(lat, lon, radius_deg=0.5):
         })
     return postes  # Pas de slicing ici])[:3]
 
+def get_all_consommation(lat, lon, radius_deg=0.05):
+    """
+    Récupère tous les points de consommation Enedis dans un rayon donné
+    
+    Args:
+        lat: Latitude du point de référence
+        lon: Longitude du point de référence
+        radius_deg: Rayon de recherche en degrés (défaut: 0.05 = ~5.5 km)
+    
+    Returns:
+        Liste de features GeoJSON avec distance calculée
+    """
+    bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
+    features = fetch_wfs_data('gpu:consommation_enedis', bbox)
+    if not features:
+        return []
+    
+    point = Point(lon, lat)
+    consos = []
+    for feature in features:
+        try:
+            geom_shp = shape(feature["geometry"])
+            dist = geom_shp.distance(point) * 111000  # Conversion en mètres
+            props = feature["properties"].copy() if feature.get("properties") else {}
+            
+            # Extraction des coordonnées de la géométrie
+            coords = feature["geometry"].get("coordinates", [])
+            conso_lon, conso_lat = coords[0], coords[1] if len(coords) >= 2 else (None, None)
+            
+            # Normalisation des propriétés pour le rapport
+            props["adresse"] = props.get("adresse") or "Adresse inconnue"
+            props["consommation_mwh"] = props.get("consommation_mwh") or props.get("consommation") or 0
+            props["secteur"] = props.get("secteur") or "NON_AFFECTE"
+            props["nom_commune"] = props.get("nom_commune") or props.get("commune") or ""
+            props["latitude"] = conso_lat
+            props["longitude"] = conso_lon
+            props["distance"] = round(dist, 2)
+            
+            consos.append({
+                "type": "Feature",
+                "properties": props,
+                "geometry": mapping(geom_shp),
+                "distance": round(dist, 2)
+            })
+        except Exception:
+            continue
+    
+    return consos
+
+def get_nearest_consommation(lat, lon, count=3, radius_deg=0.05):
+    """
+    Récupère les N points de consommation les plus proches
+    
+    Args:
+        lat: Latitude du point de référence
+        lon: Longitude du point de référence
+        count: Nombre de points à retourner
+        radius_deg: Rayon de recherche en degrés
+    
+    Returns:
+        Liste des points de consommation triés par distance (les plus proches en premier)
+    """
+    consos = get_all_consommation(lat, lon, radius_deg=radius_deg)
+    return sorted(consos, key=lambda x: x.get("properties", {}).get("distance", float('inf')))[:count]
+
 def get_all_capacites_reseau(lat, lon, radius_deg=0.1):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
     # print(f"[DEBUG CAPACITES] bbox: {bbox}")  # Optimisé pour performance
@@ -14005,6 +14070,52 @@ def generate_integrated_commune_report(commune_name, filters=None):
         except Exception:
             return {}
     
+    def _find_nearest_conso(pt_lon: float, pt_lat: float, consos: list) -> dict:
+        """
+        Trouve le point de consommation Enedis le plus proche d'un point donné
+        
+        Args:
+            pt_lon: Longitude du point de référence
+            pt_lat: Latitude du point de référence
+            consos: Liste de features GeoJSON de points de consommation
+        
+        Returns:
+            Dict avec les informations du point de consommation le plus proche
+        """
+        try:
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            for conso in (consos or []):
+                try:
+                    g = conso.get('geometry')
+                    if not g:
+                        continue
+                    d = shape(g).distance(p) * 111000  # Distance en mètres
+                    if best_d is None or (d < best_d):
+                        best = conso
+                        best_d = d
+                except Exception:
+                    continue
+            if best is None:
+                return {}
+            coords = best.get('geometry', {}).get('coordinates', [None, None])
+            pr = best.get('properties', {})
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': coords[0],
+                'lat': coords[1],
+                'adresse': pr.get('adresse') or '',
+                'consommation_mwh': pr.get('consommation_mwh') or pr.get('consommation') or 0,
+                'secteur': pr.get('secteur') or 'NON_AFFECTE',
+                'nom_commune': pr.get('nom_commune') or pr.get('commune') or '',
+                'nombre_de_sites': pr.get('nombre_de_sites') or pr.get('nb_sites') or 1,
+                'annee': pr.get('annee') or 2023,
+                'code_commune': pr.get('code_commune') or ''
+            }
+        except Exception:
+            return {}
+    
     print(f"📊 [RAPPORT_INTÉGRÉ] Génération du rapport pour {commune_name}")
     
     try:
@@ -14076,6 +14187,36 @@ def generate_integrated_commune_report(commune_name, filters=None):
         postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
+        
+        # Récupération des données Enedis pour la commune
+        code_commune = commune_info.get("code", "")
+        enedis_data_raw = []
+        if code_commune:
+            try:
+                print(f"🔌 [ENEDIS] Récupération consommations pour {code_commune}...")
+                enedis_data_raw = get_enedis_consommation_by_commune(code_commune)
+                print(f"🔌 [ENEDIS] {len(enedis_data_raw)} points de consommation récupérés")
+                
+                # Convertir en features GeoJSON pour utilisation avec _find_nearest_conso
+                enedis_features = []
+                for conso in enedis_data_raw:
+                    lat_c = conso.get('latitude')
+                    lon_c = conso.get('longitude')
+                    if lat_c and lon_c:
+                        enedis_features.append({
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "Point",
+                                "coordinates": [lon_c, lat_c]
+                            },
+                            "properties": conso
+                        })
+                print(f"🔌 [ENEDIS] {len(enedis_features)} features GeoJSON créées")
+            except Exception as e:
+                print(f"⚠️ [ENEDIS] Erreur récupération: {e}")
+                enedis_features = []
+        else:
+            enedis_features = []
         
         # Éleveurs sur la commune
         eleveurs_data = []
@@ -14772,6 +14913,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_nearest_conso(lon_c, lat_c, enedis_features),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt,
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
@@ -14804,6 +14946,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_nearest_conso(lon_c, lat_c, enedis_features),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt,
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
@@ -14840,6 +14983,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_nearest_conso(lon_c, lat_c, enedis_features),
                     'parcelles': props.get('parcelles_cadastrales', []),
                     'lien_streetview': props.get('lien_streetview') or f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}",
                     'lien_annuaire': _build_annuaire_link(addr_txt),
