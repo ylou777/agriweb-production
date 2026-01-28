@@ -6330,14 +6330,6 @@ def build_map(
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         
-        # Bouton KPI pour poste BT
-        import json, base64
-        props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
-            style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-            📤 Envoyer vers KPI
-        </button>"""
-        
         streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="darkgreen", icon="flash", prefix="fa")).add_to(bt_group)
@@ -6368,14 +6360,6 @@ def build_map(
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         popup += f"<br><b>Capacité dispo</b>: {capa}"
-        
-        # Bouton KPI pour poste HTA
-        import json, base64
-        props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
-            style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-            📤 Envoyer vers KPI
-        </button>"""
         
         streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
@@ -6502,13 +6486,6 @@ def build_map(
             popup_html += f"<b>Secteur:</b> {secteur}<br>"
             popup_html += f"<b>Nombre de sites:</b> {nb_sites}<br>"
             popup_html += f"<b>Année:</b> {annee}<br>"
-            
-            # Bouton KPI avec base64
-            props_json_b64 = base64.b64encode(json.dumps(site).encode()).decode()
-            popup_html += f'''<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_enedis}, lon: {lon_enedis}, type: 'enedis', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
-                style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-                📤 Envoyer vers KPI
-            </button>'''
             
             # Lien Street View
             streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_enedis},{lon_enedis}"
@@ -6794,35 +6771,8 @@ def build_map(
                     
                     tooltip_text = "<br>".join(tooltip_lines)
                     
-                    # Bouton KPI pour toitures, parkings, friches
-                    kpi_button = ""
-                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
-                        try:
-                            from shapely.geometry import shape
-                            geom_shape = shape(geom)
-                            centroid = geom_shape.centroid
-                            lat_center = centroid.y
-                            lon_center = centroid.x
-                            
-                            # Déterminer le type pour KPI
-                            kpi_type = "toiture" if name == "Potentiel Solaire" else name.lower().rstrip('s')
-                            
-                            # Encoder les propriétés en base64 pour JavaScript
-                            import json, base64
-                            props_json_b64 = base64.b64encode(json.dumps(props).encode()).decode()
-                            
-                            # Utiliser postMessage avec base64
-                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse(atob('{props_json_b64}'))}}; window.top.postMessage(data, '*');" 
-                                style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-                                📤 Envoyer vers KPI
-                            </button>"""
-                        except Exception as e:
-                            print(f"[DEBUG] Erreur création bouton KPI: {e}")
-                            import traceback
-                            traceback.print_exc()
-                    
                     # Créer le popup avec les liens Street View et Pages Jaunes si disponibles
-                    popup_content = tooltip_text + kpi_button + street_view_link + pages_jaunes_link
+                    popup_content = tooltip_text + street_view_link + pages_jaunes_link
                     
                     # SOLUTION SIMPLE ET ROBUSTE: Utiliser les fonctions prédéfinies
                     if name == "Parkings":
@@ -14083,10 +14033,12 @@ def generate_integrated_commune_report(commune_name, filters=None):
             Dict avec les informations du point de consommation le plus proche
         """
         try:
+            if not consos:
+                return {}
             p = Point(pt_lon, pt_lat)
             best = None
             best_d = None
-            for conso in (consos or []):
+            for conso in consos:
                 try:
                     g = conso.get('geometry')
                     if not g:
@@ -14188,14 +14140,23 @@ def generate_integrated_commune_report(commune_name, filters=None):
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
         
-        # Récupération des données Enedis pour la commune
+        # Récupération des données Enedis pour la commune (limitée pour perfs)
         code_commune = commune_info.get("code", "")
         enedis_data_raw = []
+        MAX_ENEDIS_POINTS = 50  # Limiter à 50 points pour éviter surcharge
         if code_commune:
             try:
                 print(f"🔌 [ENEDIS] Récupération consommations pour {code_commune}...")
                 enedis_data_raw = get_enedis_consommation_by_commune(code_commune)
                 print(f"🔌 [ENEDIS] {len(enedis_data_raw)} points de consommation récupérés")
+                
+                # Trier par consommation décroissante et limiter
+                enedis_data_raw = sorted(
+                    enedis_data_raw, 
+                    key=lambda x: x.get('consommation_mwh', 0) or 0, 
+                    reverse=True
+                )[:MAX_ENEDIS_POINTS]
+                print(f"🔌 [ENEDIS] Limitation aux {len(enedis_data_raw)} plus gros consommateurs")
                 
                 # Convertir en features GeoJSON pour utilisation avec _find_nearest_conso
                 enedis_features = []
@@ -14889,9 +14850,10 @@ def generate_integrated_commune_report(commune_name, filters=None):
             return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(addr)}&univers=pagesjaunes&idOu="
 
         # Limiter le volume des détails pour préserver les perfs sur très grandes communes
-        max_details = int((filters or {}).get('max_details', 200))
+        max_details = int((filters or {}).get('max_details', 50))  # Réduit à 50 pour éviter boucles infinies
 
         # Détails Parkings
+        print(f"🅿️ [RAPPORT] Traitement de {min(len(parkings_data or []), max_details)} parkings...")
         parkings_details = []
         for feat in (parkings_data or [])[:max_details]:
             try:
@@ -14924,6 +14886,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 continue
 
         # Détails Friches
+        print(f"🏚️ [RAPPORT] Traitement de {min(len(friches_data or []), max_details)} friches...")
         friches_details = []
         for feat in (friches_data or [])[:max_details]:
             try:
@@ -14957,6 +14920,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 continue
 
         # Détails Toitures
+        print(f"🏠 [RAPPORT] Traitement de {min(len(toitures_data or []), max_details)} toitures...")
         toitures_details = []
         for feat in (toitures_data or [])[:max_details]:
             try:
