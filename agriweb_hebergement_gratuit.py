@@ -4482,14 +4482,14 @@ def get_enedis_consommation_by_commune(code_commune, annee=None):
         import threading
         
         # 1. Extraire et trier par consommation AVANT géocodage
-        MAX_GEOCODE = 100  # Top 100 consommations par commune
+        MAX_GEOCODE = 20  # Top 20 pour éviter timeouts et boucles (20 adresses = ~3-5s)
         features_sorted = sorted(
             features,
             key=lambda f: f.get('properties', {}).get('consommation_mwh', 0),
             reverse=True
         )[:MAX_GEOCODE]
         
-        print(f"🎯 [ENEDIS] Géocodage PARALLÈLE de {len(features_sorted)} points TOP consommation (temps estimé: ~10-15s)...")
+        print(f"🎯 [ENEDIS] Géocodage PARALLÈLE de {len(features_sorted)} points TOP consommation (temps estimé: ~3-5s)...")
         
         # 2. Fonction de géocodage pour threading
         results = []
