@@ -14068,6 +14068,76 @@ def generate_integrated_commune_report(commune_name, filters=None):
         except Exception:
             return {}
     
+    def _find_conso_by_address(address: str, enedis_raw_data: list) -> dict:
+        """
+        Recherche une consommation Enedis par adresse
+        
+        Args:
+            address: Adresse à rechercher (format: numéro rue, code postal ville)
+            enedis_raw_data: Liste brute des données Enedis de la commune
+        
+        Returns:
+            Dict avec les informations de consommation si trouvé, {} sinon
+        """
+        try:
+            if not address or not enedis_raw_data:
+                return {}
+            
+            # Normaliser l'adresse de recherche
+            addr_norm = address.lower().strip()
+            # Extraire le numéro de rue et le nom de rue
+            parts = addr_norm.split(',')
+            if not parts:
+                return {}
+            
+            rue_part = parts[0].strip()  # Ex: "15 rue de la république"
+            
+            # Chercher dans les données Enedis
+            best_match = None
+            best_score = 0
+            
+            for conso in enedis_raw_data:
+                conso_addr = (conso.get('adresse') or '').lower().strip()
+                if not conso_addr:
+                    continue
+                
+                # Score de correspondance simple
+                score = 0
+                
+                # Correspondance exacte = meilleur score
+                if rue_part in conso_addr or conso_addr in rue_part:
+                    score = 100
+                else:
+                    # Correspondance partielle sur les mots
+                    rue_words = set(rue_part.split())
+                    conso_words = set(conso_addr.split())
+                    common_words = rue_words & conso_words
+                    if common_words:
+                        score = len(common_words) * 10
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = conso
+            
+            # Si on a trouvé une correspondance raisonnable
+            if best_match and best_score >= 30:  # Seuil minimum
+                return {
+                    'distance_m': 0,  # Distance non applicable pour recherche par adresse
+                    'lon': best_match.get('longitude'),
+                    'lat': best_match.get('latitude'),
+                    'adresse': best_match.get('adresse') or '',
+                    'consommation_mwh': best_match.get('consommation_mwh') or best_match.get('consommation') or 0,
+                    'secteur': best_match.get('secteur') or 'NON_AFFECTE',
+                    'nom_commune': best_match.get('nom_commune') or best_match.get('commune') or '',
+                    'nombre_de_sites': best_match.get('nombre_de_sites') or best_match.get('nb_sites') or 1,
+                    'annee': best_match.get('annee') or 2023,
+                    'code_commune': best_match.get('code_commune') or ''
+                }
+            
+            return {}
+        except Exception:
+            return {}
+    
     print(f"📊 [RAPPORT_INTÉGRÉ] Génération du rapport pour {commune_name}")
     
     try:
@@ -14140,103 +14210,20 @@ def generate_integrated_commune_report(commune_name, filters=None):
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
         
-        # Récupération des données Enedis pour la commune (filtrée spatialement)
+        # Récupération des données Enedis pour la commune
         code_commune = commune_info.get("code", "")
         enedis_data_raw = []
-        enedis_features = []
         
         if code_commune:
             try:
                 print(f"🔌 [ENEDIS] Récupération consommations pour {code_commune}...")
                 enedis_data_raw = get_enedis_consommation_by_commune(code_commune)
                 print(f"🔌 [ENEDIS] {len(enedis_data_raw)} points de consommation récupérés")
-                
-                # Stratégie optimisée : filtrer spatialement autour des toitures/parkings/friches
-                # Créer un buffer de 200m autour de chaque site détecté
-                from shapely.ops import unary_union
-                from shapely.geometry import Point as ShapelyPoint
-                
-                sites_of_interest = []
-                for feat in (toitures_data or []):
-                    geom = feat.get('geometry')
-                    if geom:
-                        sites_of_interest.append(shape(geom))
-                
-                for feat in (parkings_data or []):
-                    geom = feat.get('geometry')
-                    if geom:
-                        sites_of_interest.append(shape(geom))
-                
-                for feat in (friches_data or []):
-                    geom = feat.get('geometry')
-                    if geom:
-                        sites_of_interest.append(shape(geom))
-                
-                if sites_of_interest:
-                    # Créer une zone tampon de 200m (≈ 0.002° en latitude) autour des sites
-                    buffer_distance = 0.002  # ~200 mètres
-                    buffered_zones = [site.buffer(buffer_distance) for site in sites_of_interest]
-                    search_zone = unary_union(buffered_zones)
-                    
-                    print(f"🔌 [ENEDIS] Zone de recherche créée autour de {len(sites_of_interest)} sites")
-                    
-                    # Filtrer les points Enedis dans cette zone - LIMITE À 30 POINTS MAX pour éviter boucles
-                    filtered_points = []
-                    for conso in enedis_data_raw:
-                        lat_c = conso.get('latitude')
-                        lon_c = conso.get('longitude')
-                        if lat_c and lon_c:
-                            point = ShapelyPoint(lon_c, lat_c)
-                            if search_zone.contains(point) or search_zone.intersects(point):
-                                filtered_points.append(conso)
-                                if len(filtered_points) >= 30:  # LIMITE STRICTE
-                                    print(f"⚠️ [ENEDIS] Limite de 30 points atteinte, arrêt du filtrage")
-                                    break
-                    
-                    # Trier par consommation décroissante et garder les 30 plus gros
-                    filtered_points.sort(key=lambda x: x.get('consommation_mwh', 0) or 0, reverse=True)
-                    for conso in filtered_points[:30]:
-                        lat_c = conso.get('latitude')
-                        lon_c = conso.get('longitude')
-                        if lat_c and lon_c:
-                            enedis_features.append({
-                                "type": "Feature",
-                                "geometry": {
-                                    "type": "Point",
-                                    "coordinates": [lon_c, lat_c]
-                                },
-                                "properties": conso
-                            })
-                    
-                    print(f"🔌 [ENEDIS] {len(enedis_features)} points pertinents dans la zone (max 30, 200m des sites)")
-                else:
-                    # Pas de sites détectés : garder les 30 plus gros consommateurs comme fallback
-                    print(f"🔌 [ENEDIS] Aucun site détecté, fallback sur top 30 consommateurs")
-                    enedis_sorted = sorted(
-                        enedis_data_raw, 
-                        key=lambda x: x.get('consommation_mwh', 0) or 0, 
-                        reverse=True
-                    )[:30]  # Réduit de 100 à 30
-                    
-                    for conso in enedis_sorted:
-                        lat_c = conso.get('latitude')
-                        lon_c = conso.get('longitude')
-                        if lat_c and lon_c:
-                            enedis_features.append({
-                                "type": "Feature",
-                                "geometry": {
-                                    "type": "Point",
-                                    "coordinates": [lon_c, lat_c]
-                                },
-                                "properties": conso
-                            })
-                    print(f"🔌 [ENEDIS] {len(enedis_features)} features GeoJSON créées")
-                    
             except Exception as e:
                 print(f"⚠️ [ENEDIS] Erreur récupération: {e}")
                 import traceback
                 traceback.print_exc()
-                enedis_features = []
+                enedis_data_raw = []
         
         # Éleveurs sur la commune
         eleveurs_data = []
@@ -14934,7 +14921,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'conso_proche': _find_nearest_conso(lon_c, lat_c, enedis_features),
+                    'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt,
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
@@ -14968,7 +14955,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'conso_proche': _find_nearest_conso(lon_c, lat_c, enedis_features),
+                    'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt,
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
@@ -15006,12 +14993,17 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'conso_proche': _find_nearest_conso(lon_c, lat_c, enedis_features),
+                    'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
                     'parcelles': props.get('parcelles_cadastrales', []),
                     'lien_streetview': props.get('lien_streetview') or f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}",
                     'lien_annuaire': _build_annuaire_link(addr_txt),
                     'osm_id': props.get('osm_id'),
-                    'building': props.get('building', 'yes')
+                    'building': props.get('building', 'yes'),
+                    'amenity': props.get('amenity'),
+                    'shop': props.get('shop'),
+                    'landuse': props.get('landuse'),
+                    'office': props.get('office'),
+                    'industrial': props.get('industrial')
                 }
                 if addr_txt:
                     pv['adresse'] = addr_txt
