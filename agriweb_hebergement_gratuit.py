@@ -14180,31 +14180,43 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     
                     print(f"🔌 [ENEDIS] Zone de recherche créée autour de {len(sites_of_interest)} sites")
                     
-                    # Filtrer les points Enedis dans cette zone
+                    # Filtrer les points Enedis dans cette zone - LIMITE À 30 POINTS MAX pour éviter boucles
+                    filtered_points = []
                     for conso in enedis_data_raw:
                         lat_c = conso.get('latitude')
                         lon_c = conso.get('longitude')
                         if lat_c and lon_c:
                             point = ShapelyPoint(lon_c, lat_c)
                             if search_zone.contains(point) or search_zone.intersects(point):
-                                enedis_features.append({
-                                    "type": "Feature",
-                                    "geometry": {
-                                        "type": "Point",
-                                        "coordinates": [lon_c, lat_c]
-                                    },
-                                    "properties": conso
-                                })
+                                filtered_points.append(conso)
+                                if len(filtered_points) >= 30:  # LIMITE STRICTE
+                                    print(f"⚠️ [ENEDIS] Limite de 30 points atteinte, arrêt du filtrage")
+                                    break
                     
-                    print(f"🔌 [ENEDIS] {len(enedis_features)} points pertinents dans la zone (200m des sites)")
+                    # Trier par consommation décroissante et garder les 30 plus gros
+                    filtered_points.sort(key=lambda x: x.get('consommation_mwh', 0) or 0, reverse=True)
+                    for conso in filtered_points[:30]:
+                        lat_c = conso.get('latitude')
+                        lon_c = conso.get('longitude')
+                        if lat_c and lon_c:
+                            enedis_features.append({
+                                "type": "Feature",
+                                "geometry": {
+                                    "type": "Point",
+                                    "coordinates": [lon_c, lat_c]
+                                },
+                                "properties": conso
+                            })
+                    
+                    print(f"🔌 [ENEDIS] {len(enedis_features)} points pertinents dans la zone (max 30, 200m des sites)")
                 else:
-                    # Pas de sites détectés : garder les 100 plus gros consommateurs comme fallback
-                    print(f"🔌 [ENEDIS] Aucun site détecté, fallback sur top 100 consommateurs")
+                    # Pas de sites détectés : garder les 30 plus gros consommateurs comme fallback
+                    print(f"🔌 [ENEDIS] Aucun site détecté, fallback sur top 30 consommateurs")
                     enedis_sorted = sorted(
                         enedis_data_raw, 
                         key=lambda x: x.get('consommation_mwh', 0) or 0, 
                         reverse=True
-                    )[:100]
+                    )[:30]  # Réduit de 100 à 30
                     
                     for conso in enedis_sorted:
                         lat_c = conso.get('latitude')
