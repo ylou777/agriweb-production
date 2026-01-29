@@ -14140,44 +14140,91 @@ def generate_integrated_commune_report(commune_name, filters=None):
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
         
-        # Récupération des données Enedis pour la commune (limitée pour perfs)
+        # Récupération des données Enedis pour la commune (filtrée spatialement)
         code_commune = commune_info.get("code", "")
         enedis_data_raw = []
-        MAX_ENEDIS_POINTS = 50  # Limiter à 50 points pour éviter surcharge
+        enedis_features = []
+        
         if code_commune:
             try:
                 print(f"🔌 [ENEDIS] Récupération consommations pour {code_commune}...")
                 enedis_data_raw = get_enedis_consommation_by_commune(code_commune)
                 print(f"🔌 [ENEDIS] {len(enedis_data_raw)} points de consommation récupérés")
                 
-                # Trier par consommation décroissante et limiter
-                enedis_data_raw = sorted(
-                    enedis_data_raw, 
-                    key=lambda x: x.get('consommation_mwh', 0) or 0, 
-                    reverse=True
-                )[:MAX_ENEDIS_POINTS]
-                print(f"🔌 [ENEDIS] Limitation aux {len(enedis_data_raw)} plus gros consommateurs")
+                # Stratégie optimisée : filtrer spatialement autour des toitures/parkings/friches
+                # Créer un buffer de 200m autour de chaque site détecté
+                from shapely.ops import unary_union
+                from shapely.geometry import Point as ShapelyPoint
                 
-                # Convertir en features GeoJSON pour utilisation avec _find_nearest_conso
-                enedis_features = []
-                for conso in enedis_data_raw:
-                    lat_c = conso.get('latitude')
-                    lon_c = conso.get('longitude')
-                    if lat_c and lon_c:
-                        enedis_features.append({
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "Point",
-                                "coordinates": [lon_c, lat_c]
-                            },
-                            "properties": conso
-                        })
-                print(f"🔌 [ENEDIS] {len(enedis_features)} features GeoJSON créées")
+                sites_of_interest = []
+                for feat in (toitures_data or []):
+                    geom = feat.get('geometry')
+                    if geom:
+                        sites_of_interest.append(shape(geom))
+                
+                for feat in (parkings_data or []):
+                    geom = feat.get('geometry')
+                    if geom:
+                        sites_of_interest.append(shape(geom))
+                
+                for feat in (friches_data or []):
+                    geom = feat.get('geometry')
+                    if geom:
+                        sites_of_interest.append(shape(geom))
+                
+                if sites_of_interest:
+                    # Créer une zone tampon de 200m (≈ 0.002° en latitude) autour des sites
+                    buffer_distance = 0.002  # ~200 mètres
+                    buffered_zones = [site.buffer(buffer_distance) for site in sites_of_interest]
+                    search_zone = unary_union(buffered_zones)
+                    
+                    print(f"🔌 [ENEDIS] Zone de recherche créée autour de {len(sites_of_interest)} sites")
+                    
+                    # Filtrer les points Enedis dans cette zone
+                    for conso in enedis_data_raw:
+                        lat_c = conso.get('latitude')
+                        lon_c = conso.get('longitude')
+                        if lat_c and lon_c:
+                            point = ShapelyPoint(lon_c, lat_c)
+                            if search_zone.contains(point) or search_zone.intersects(point):
+                                enedis_features.append({
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [lon_c, lat_c]
+                                    },
+                                    "properties": conso
+                                })
+                    
+                    print(f"🔌 [ENEDIS] {len(enedis_features)} points pertinents dans la zone (200m des sites)")
+                else:
+                    # Pas de sites détectés : garder les 100 plus gros consommateurs comme fallback
+                    print(f"🔌 [ENEDIS] Aucun site détecté, fallback sur top 100 consommateurs")
+                    enedis_sorted = sorted(
+                        enedis_data_raw, 
+                        key=lambda x: x.get('consommation_mwh', 0) or 0, 
+                        reverse=True
+                    )[:100]
+                    
+                    for conso in enedis_sorted:
+                        lat_c = conso.get('latitude')
+                        lon_c = conso.get('longitude')
+                        if lat_c and lon_c:
+                            enedis_features.append({
+                                "type": "Feature",
+                                "geometry": {
+                                    "type": "Point",
+                                    "coordinates": [lon_c, lat_c]
+                                },
+                                "properties": conso
+                            })
+                    print(f"🔌 [ENEDIS] {len(enedis_features)} features GeoJSON créées")
+                    
             except Exception as e:
                 print(f"⚠️ [ENEDIS] Erreur récupération: {e}")
+                import traceback
+                traceback.print_exc()
                 enedis_features = []
-        else:
-            enedis_features = []
         
         # Éleveurs sur la commune
         eleveurs_data = []
