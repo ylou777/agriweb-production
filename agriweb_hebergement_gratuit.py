@@ -14867,58 +14867,10 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 return []
 
-        # Reverse géocodage rapide avec cache et timeout strict
+        # Reverse géocodage COMPLÈTEMENT DÉSACTIVÉ pour éviter boucles infinies
         _rev_cache = {}
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
-            """Reverse geocoding avec cache - max 50 appels pour éviter boucles"""
-            try:
-                if lon_f is None or lat_f is None:
-                    return ""
-                
-                # Cache basé sur coordonnées arrondies
-                key = (round(lon_f, 4), round(lat_f, 4))
-                if key in _rev_cache:
-                    return _rev_cache[key]
-                
-                # Limite stricte : max 50 appels par rapport
-                if len(_rev_cache) >= 50:
-                    return ""
-                
-                url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
-                r = requests.get(url, timeout=0.5)  # Timeout très court
-                if r.ok:
-                    js = r.json() or {}
-                    feats = js.get("features") or []
-                    if feats:
-                        label = (feats[0].get("properties") or {}).get("label") or ""
-                        _rev_cache[key] = label
-                        return label
-            except Exception:
-                pass
-            return ""
-        
-        def _build_annuaire_link(address: str) -> str:
-            addr = (address or "").strip()
-            if not addr:
-                return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(commune_name)}&univers=pagesjaunes&idOu="
-            return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(addr)}&univers=pagesjaunes&idOu="
-
-        # Limiter le volume des détails pour préserver les perfs sur très grandes communes
-        max_details = int((filters or {}).get('max_details', 50))  # Réduit à 50 pour éviter boucles infinies
-
-        # Détails Parkings
-        print(f"🅿️ [RAPPORT] Traitement de {min(len(parkings_data or []), max_details)} parkings...")
-        parkings_details = []
-        for feat in (parkings_data or [])[:max_details]:
-            try:
-                geom = feat.get('geometry')
-                if not geom:
-                    continue
-                shp = shape(geom)
-                c = shp.centroid
-                lat_c, lon_c = c.y, c.x
-                area_m2 = shp_transform(to_l93, shp).area
-                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+            """Désactivé - retourne toujours vide""" = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                 # Pas d'adresse pour parkings - désactivé pour éviter boucles infinies
                 addr_txt = ""
@@ -14995,16 +14947,12 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 if d_hta is None:
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                 
-                # Essayer d'abord l'adresse OSM, sinon reverse geocoding (max 50 appels)
+                # Utiliser UNIQUEMENT les adresses OSM (pas de reverse geocoding)
                 addr_txt = props.get('addr:street', '') or props.get('name', '') or ''
                 if addr_txt and props.get('addr:housenumber'):
                     addr_txt = f"{props.get('addr:housenumber')} {addr_txt}"
                 if addr_txt and props.get('addr:city'):
                     addr_txt = f"{addr_txt}, {props.get('addr:city')}"
-                
-                # Si pas d'adresse OSM, tenter reverse geocoding (limité à 50)
-                if not addr_txt:
-                    addr_txt = _reverse_address_quick(lon_c, lat_c)
                 
                 pv = {
                     'lat': lat_c,
