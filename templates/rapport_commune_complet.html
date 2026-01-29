@@ -522,7 +522,7 @@
                     </div>
                 </div>
 
-                {% set park_details = rapport.get('parkings_analysis', {}).get('details', []) %}
+                {% set park_details = rapport.get('parkings_details', []) %}
                 {% if park_details and (park_details | length) > 0 %}
                 <div class="analysis-detail">
                     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -681,7 +681,7 @@
                     </p>
                 </div>
 
-                {% set fr_details = rapport.friches_analysis.get('details', []) %}
+                {% set fr_details = rapport.get('friches_details', []) %}
                 {% if fr_details and (fr_details | length) > 0 %}
                 <div class="analysis-detail">
                     <h6 class="mb-3">Détails des friches ({{ fr_details | length }})</h6>
@@ -826,7 +826,7 @@
                     </div>
                 </div>
 
-                {% set toit_details = rapport.get('toitures_analysis', {}).get('details', []) %}
+                {% set toit_details = rapport.get('toitures_details', []) %}
                 {% if toit_details and (toit_details | length) > 0 %}
                 <div class="analysis-detail">
                     <div class="d-flex justify-content-between align-items-center mb-3">
