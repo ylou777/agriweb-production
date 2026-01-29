@@ -14867,11 +14867,34 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 return []
 
-        # Reverse géocodage rapide et lien PagesJaunes à partir de l'adresse exacte
-        # DÉSACTIVÉ pour éviter boucles infinies - utilise les adresses OSM directement
+        # Reverse géocodage rapide avec cache et timeout strict
         _rev_cache = {}
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
-            # Désactivé - retourne vide pour éviter appels API massifs
+            """Reverse geocoding avec cache - max 50 appels pour éviter boucles"""
+            try:
+                if lon_f is None or lat_f is None:
+                    return ""
+                
+                # Cache basé sur coordonnées arrondies
+                key = (round(lon_f, 4), round(lat_f, 4))
+                if key in _rev_cache:
+                    return _rev_cache[key]
+                
+                # Limite stricte : max 50 appels par rapport
+                if len(_rev_cache) >= 50:
+                    return ""
+                
+                url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
+                r = requests.get(url, timeout=0.5)  # Timeout très court
+                if r.ok:
+                    js = r.json() or {}
+                    feats = js.get("features") or []
+                    if feats:
+                        label = (feats[0].get("properties") or {}).get("label") or ""
+                        _rev_cache[key] = label
+                        return label
+            except Exception:
+                pass
             return ""
         
         def _build_annuaire_link(address: str) -> str:
@@ -14972,12 +14995,16 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 if d_hta is None:
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                 
-                # Utiliser l'adresse OSM directement au lieu du reverse geocoding
+                # Essayer d'abord l'adresse OSM, sinon reverse geocoding (max 50 appels)
                 addr_txt = props.get('addr:street', '') or props.get('name', '') or ''
                 if addr_txt and props.get('addr:housenumber'):
                     addr_txt = f"{props.get('addr:housenumber')} {addr_txt}"
                 if addr_txt and props.get('addr:city'):
                     addr_txt = f"{addr_txt}, {props.get('addr:city')}"
+                
+                # Si pas d'adresse OSM, tenter reverse geocoding (limité à 50)
+                if not addr_txt:
+                    addr_txt = _reverse_address_quick(lon_c, lat_c)
                 
                 pv = {
                     'lat': lat_c,
