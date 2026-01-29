@@ -14868,27 +14868,12 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 return []
 
         # Reverse géocodage rapide et lien PagesJaunes à partir de l'adresse exacte
+        # DÉSACTIVÉ pour éviter boucles infinies - utilise les adresses OSM directement
         _rev_cache = {}
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
-            try:
-                if lon_f is None or lat_f is None:
-                    return ""
-                key = (round(lon_f, 5), round(lat_f, 5))
-                if key in _rev_cache:
-                    return _rev_cache[key]
-                url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
-                r = requests.get(url, timeout=0.9)
-                if r.ok:
-                    js = r.json() or {}
-                    feats = js.get("features") or []
-                    if feats:
-                        label = (feats[0].get("properties") or {}).get("label") or ""
-                        _rev_cache[key] = label
-                        return label
-            except Exception:
-                pass
+            # Désactivé - retourne vide pour éviter appels API massifs
             return ""
-
+        
         def _build_annuaire_link(address: str) -> str:
             addr = (address or "").strip()
             if not addr:
@@ -14912,7 +14897,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 area_m2 = shp_transform(to_l93, shp).area
                 d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                # Pas d'adresse pour parkings - désactivé pour éviter boucles infinies
+                addr_txt = ""
                 details = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -14923,7 +14909,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
                     'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
-                    'adresse': addr_txt,
+                    'adresse': addr_txt or 'Non disponible',
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
                 }
                 details['lien_annuaire'] = _build_annuaire_link(addr_txt)
@@ -14945,7 +14931,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 area_m2 = shp_transform(to_l93, shp).area
                 d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                # Pas d'adresse pour friches - désactivé pour éviter boucles infinies
+                addr_txt = ""
                 details = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -14957,7 +14944,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
                     'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
-                    'adresse': addr_txt,
+                    'adresse': addr_txt or 'Non disponible',
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
                 }
                 details['lien_annuaire'] = _build_annuaire_link(addr_txt)
@@ -14984,7 +14971,14 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 if d_hta is None:
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                
+                # Utiliser l'adresse OSM directement au lieu du reverse geocoding
+                addr_txt = props.get('addr:street', '') or props.get('name', '') or ''
+                if addr_txt and props.get('addr:housenumber'):
+                    addr_txt = f"{props.get('addr:housenumber')} {addr_txt}"
+                if addr_txt and props.get('addr:city'):
+                    addr_txt = f"{addr_txt}, {props.get('addr:city')}"
+                
                 pv = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -15003,10 +14997,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'shop': props.get('shop'),
                     'landuse': props.get('landuse'),
                     'office': props.get('office'),
-                    'industrial': props.get('industrial')
+                    'industrial': props.get('industrial'),
+                    'adresse': addr_txt or 'Non disponible'
                 }
-                if addr_txt:
-                    pv['adresse'] = addr_txt
                 toitures_details.append(pv)
             except Exception:
                 continue
