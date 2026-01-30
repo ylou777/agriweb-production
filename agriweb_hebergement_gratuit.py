@@ -14138,6 +14138,63 @@ def generate_integrated_commune_report(commune_name, filters=None):
         except Exception:
             return {}
     
+    def _find_conso_by_proximity(pt_lon: float, pt_lat: float, enedis_raw_data: list, max_distance_m: float = 50) -> dict:
+        """
+        Recherche une consommation Enedis par proximité GPS (rayon de 50m max)
+        
+        Args:
+            pt_lon: Longitude du point de référence
+            pt_lat: Latitude du point de référence
+            enedis_raw_data: Liste brute des données Enedis de la commune
+            max_distance_m: Distance maximale en mètres (défaut 50m)
+        
+        Returns:
+            Dict avec les informations de consommation si trouvé à moins de 50m, {} sinon
+        """
+        try:
+            if not enedis_raw_data or pt_lon is None or pt_lat is None:
+                return {}
+            
+            from shapely.geometry import Point
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            
+            for conso in enedis_raw_data:
+                try:
+                    lat_c = conso.get('latitude')
+                    lon_c = conso.get('longitude')
+                    if not lat_c or not lon_c:
+                        continue
+                    
+                    # Distance en mètres
+                    d = Point(lon_c, lat_c).distance(p) * 111000
+                    
+                    # Seulement si < 50m
+                    if d <= max_distance_m and (best_d is None or d < best_d):
+                        best = conso
+                        best_d = d
+                except Exception:
+                    continue
+            
+            if best is None:
+                return {}
+            
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': best.get('longitude'),
+                'lat': best.get('latitude'),
+                'adresse': best.get('adresse') or '',
+                'consommation_mwh': best.get('consommation_mwh') or best.get('consommation') or 0,
+                'secteur': best.get('secteur') or 'NON_AFFECTE',
+                'nom_commune': best.get('nom_commune') or best.get('commune') or '',
+                'nombre_de_sites': best.get('nombre_de_sites') or best.get('nb_sites') or 1,
+                'annee': best.get('annee') or 2023,
+                'code_commune': best.get('code_commune') or ''
+            }
+        except Exception:
+            return {}
+    
     print(f"📊 [RAPPORT_INTÉGRÉ] Génération du rapport pour {commune_name}")
     
     try:
@@ -14882,7 +14939,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt or 'Non disponible',
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
@@ -14917,7 +14974,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
                     'adresse': addr_txt or 'Non disponible',
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
@@ -14962,7 +15019,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'conso_proche': _find_conso_by_address(addr_txt, enedis_data_raw),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
                     'parcelles': props.get('parcelles_cadastrales', []),
                     'lien_streetview': props.get('lien_streetview') or f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}",
                     'lien_annuaire': _build_annuaire_link(addr_txt),
