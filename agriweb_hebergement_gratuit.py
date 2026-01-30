@@ -6491,23 +6491,53 @@ def build_map(
             streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_enedis},{lon_enedis}"
             popup_html += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
             
-            # Icône et couleur selon la consommation
-            # Couleurs très contrastées pour visibilité maximale
-            if conso_mwh >= 100:
+            # Icône et couleur selon la consommation - système progressif
+            # Échelle de couleur et taille pour visibilité maximale
+            if conso_mwh >= 200:
+                color = "#8B0000"  # Rouge foncé - Très haute consommation
+                radius = 14
+                icon_text = "🔴🔴"
+            elif conso_mwh >= 100:
                 color = "#FF0000"  # Rouge vif - Haute consommation
                 radius = 12
+                icon_text = "🔴"
             elif conso_mwh >= 50:
-                color = "#FF6600"  # Orange vif - Consommation moyenne
+                color = "#FF6600"  # Orange vif - Consommation élevée
                 radius = 10
-            else:
-                color = "#FFFF00"  # Jaune vif - Faible consommation
+                icon_text = "🟠"
+            elif conso_mwh >= 25:
+                color = "#FFA500"  # Orange clair - Consommation moyenne
                 radius = 8
+                icon_text = "🟡"
+            elif conso_mwh >= 10:
+                color = "#FFFF00"  # Jaune vif - Consommation modérée
+                radius = 7
+                icon_text = "🟢"
+            else:
+                color = "#90EE90"  # Vert clair - Faible consommation
+                radius = 6
+                icon_text = "🟢"
             
             folium.CircleMarker(
                 [lat_enedis, lon_enedis],
                 radius=radius,
                 popup=popup_html,
-                tooltip=f"⚡ {conso_mwh:.1f} MWh/an - {secteur}",
+                tooltip=f"{icon_text}
+                icon_text = "🟡"
+            elif conso_mwh >= 10:
+                color = "#FFFF00"  # Jaune vif - Consommation modérée
+                radius = 7
+                icon_text = "🟢"
+            else:
+                color = "#90EE90"  # Vert clair - Faible consommation
+                radius = 6
+                icon_text = "🟢"
+            
+            folium.CircleMarker(
+                [lat_enedis, lon_enedis],
+                radius=radius,
+                popup=popup_html,
+                tooltip=f"{icon_text} {conso_mwh:.1f} MWh/an - {secteur}",
                 color="#000000",  # Bordure noire pour contraste
                 weight=2,
                 fill=True,
