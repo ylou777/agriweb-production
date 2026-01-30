@@ -549,7 +549,6 @@
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
-                                    <th>Consommation</th>
                                     <th>Position</th>
                                     <th>Actions</th>
                                 </tr>
@@ -694,7 +693,6 @@
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
-                                    <th>Consommation</th>
                                     <th>Position</th>
                                     <th>Zoom</th>
                                 </tr>
@@ -743,21 +741,6 @@
                                                 {% if hta.epci %}🏛️ {{ hta.epci }}<br>{% endif %}
                                                 {% if hta.departement %}📍 {{ hta.departement }}<br>{% endif %}
                                                 📌 {{ '%.5f'|format(hta.lat) }}, {{ '%.5f'|format(hta.lon) }}
-                                            </small>
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% set conso = d.conso_proche or {} %}
-                                        {% if conso.distance_m %}
-                                            <strong>{{ conso.adresse or 'Site de consommation' }}</strong><br>
-                                            <small>
-                                                📍 {{ '%.0f'|format(conso.distance_m) }} m<br>
-                                                {% if conso.consommation_mwh %}⚡ {{ '%.1f'|format(conso.consommation_mwh) }} MWh<br>{% endif %}
-                                                {% if conso.secteur %}🏭 {{ conso.secteur }}<br>{% endif %}
-                                                {% if conso.nombre_de_sites %}📊 {{ conso.nombre_de_sites }} site(s)<br>{% endif %}
-                                                {% if conso.annee %}📅 {{ conso.annee }}{% endif %}
                                             </small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
@@ -853,7 +836,6 @@
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
-                                    <th>Consommation</th>
                                     <th>Position</th>
                                     <th>Zoom</th>
                                 </tr>
