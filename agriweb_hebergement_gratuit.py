@@ -15409,16 +15409,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
             # Lightweight reverse geocode using BAN for nicer popups (guarded + timeout)
             import requests as _rq
             def _reverse_address(lon_f: float, lat_f: float) -> str:
-                try:
-                    url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
-                    r = _rq.get(url, timeout=0.8)
-                    if r.ok:
-                        js = r.json() or {}
-                        feats = js.get("features") or []
-                        if feats:
-                            return (feats[0].get("properties") or {}).get("label") or ""
-                except Exception:
-                    pass
+                # DÉSACTIVÉ pour éviter boucles infinies - retourne vide
                 return ""
 
             def _join_parcelles(refs: list) -> str:
