@@ -6522,21 +6522,6 @@ def build_map(
                 [lat_enedis, lon_enedis],
                 radius=radius,
                 popup=popup_html,
-                tooltip=f"{icon_text}
-                icon_text = "🟡"
-            elif conso_mwh >= 10:
-                color = "#FFFF00"  # Jaune vif - Consommation modérée
-                radius = 7
-                icon_text = "🟢"
-            else:
-                color = "#90EE90"  # Vert clair - Faible consommation
-                radius = 6
-                icon_text = "🟢"
-            
-            folium.CircleMarker(
-                [lat_enedis, lon_enedis],
-                radius=radius,
-                popup=popup_html,
                 tooltip=f"{icon_text} {conso_mwh:.1f} MWh/an - {secteur}",
                 color="#000000",  # Bordure noire pour contraste
                 weight=2,
@@ -14957,7 +14942,17 @@ def generate_integrated_commune_report(commune_name, filters=None):
         # Reverse géocodage COMPLÈTEMENT DÉSACTIVÉ pour éviter boucles infinies
         _rev_cache = {}
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
-            """Désactivé - retourne toujours vide""" = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+            """Désactivé - retourne toujours vide"""
+            return ""
+        
+        # Traitement parkings  
+        parkings_details = []
+        for feat in parkings_data:
+            try:
+                geom = shape(feat['geometry'])
+                lon_c, lat_c = geom.centroid.x, geom.centroid.y
+                area_m2 = geom.area * (111000**2)
+                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                 # Pas d'adresse pour parkings - désactivé pour éviter boucles infinies
                 addr_txt = ""
@@ -17437,6 +17432,10 @@ try:
     import crm_routes
     crm_routes.register_crm_routes(app)
     print("✅ Routes CRM PostgreSQL enregistrées")
+    
+    # Enregistrer les routes autoconsommation collective
+    crm_routes.register_autoconso_routes(app)
+    print("✅ Routes Autoconsommation Collective enregistrées")
     
     # Initialiser les tables CRM PostgreSQL si on est sur Railway
     import database_adapter
