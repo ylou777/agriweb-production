@@ -15007,10 +15007,11 @@ def generate_integrated_commune_report(commune_name, filters=None):
         # Détails Parkings
         print(f"🅿️ [RAPPORT] Traitement de {min(len(parkings_data or []), max_details)} parkings...")
         parkings_details = []
-        for feat in (parkings_data or [])[:max_details]:
+        for idx, feat in enumerate((parkings_data or [])[:max_details]):
             try:
                 geom = feat.get('geometry')
                 if not geom:
+                    print(f"  ⚠️ Parking {idx}: pas de géométrie")
                     continue
                 shp = shape(geom)
                 c = shp.centroid
@@ -15035,8 +15036,13 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 }
                 details['lien_annuaire'] = _build_annuaire_link(addr_txt)
                 parkings_details.append(details)
-            except Exception:
+                if idx < 3:
+                    print(f"  ✅ Parking {idx}: {area_m2:.0f}m², BT={d_bt:.0f}m, HTA={d_hta:.0f}m")
+            except Exception as e:
+                print(f"  ❌ Parking {idx}: erreur {e}")
                 continue
+        
+        print(f"✅ [RAPPORT] parkings_details créé: {len(parkings_details)} parkings")
 
         print(f"📊 [RAPPORT_INTÉGRÉ] Données collectées:")
         print(f"    🌾 RPG: {len(rpg_data)} parcelles")
