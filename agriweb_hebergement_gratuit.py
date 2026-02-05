@@ -191,6 +191,10 @@ def log_search_results(commune, results):
     postes_hta_count = count_features(results.get('postes_hta'))
     sirene_count = count_features(results.get('sirene'))
 
+    print(f"[DEBUG COUNT] RPG: {rpg_count}, Parkings: {parkings_count}, Friches: {friches_count}, Toitures: {toitures_count}")
+    print(f"[DEBUG COUNT] results.get('toitures') type: {type(results.get('toitures'))}")
+    if results.get('toitures'):
+        print(f"[DEBUG COUNT] results.get('toitures') keys: {results.get('toitures').keys() if isinstance(results.get('toitures'), dict) else 'NOT A DICT'}")
     # print(f"   🌾 Parcelles RPG: {rpg_count}")  # Optimisé pour production multi-user
     # print(f"   🅿️ Parkings: {parkings_count}")  # Optimisé pour production multi-user
     # print(f"   🏚️ Friches: {friches_count}")  # Optimisé pour production multi-user
@@ -605,18 +609,6 @@ try:
     print("🤖 [HELIA] Blueprint assistant IA enregistré (/api/helia/chat, /api/helia/status)")
 except Exception as e:
     print(f"⚠️ [HELIA] Impossible d'enregistrer le blueprint Helia IA: {e}")
-
-# Route de démo pour le personnage Helia
-@app.route('/helia-demo')
-def helia_demo():
-    """Page de démonstration du personnage animé Helia"""
-    return render_template('helia_demo.html')
-
-# Route de démo pour l'agent Helia
-@app.route('/helia-agent')
-def helia_agent():
-    """Page de démonstration de l'agent intelligent Helia"""
-    return render_template('helia_agent_demo.html')
 
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
@@ -3315,6 +3307,7 @@ SIRENE_LAYER = "gpu:GeolocalisationEtablissement_Sirene france"  # Sirène (~50 
 GEOSERVER_WFS_URL = f"{GEOSERVER_URL}/rest/layers"  # Pour lister les couches
 GEOSERVER_OWS_URL = f"{GEOSERVER_URL}/ows"  # Pour les requêtes WFS/GetFeature
 ELEVEURS_LAYER = "gpu:etablissements_eleveurs"
+ENEDIS_LAYER = "gpu:consommation_enedis"  # Couche de consommation électrique Enedis
 # Ajout couche PPRI (adapter le nom si besoin)
 PPRI_LAYER = "gpu:ppri"  # <-- Vérifiez le nom exact dans votre GeoServer
 
@@ -3940,13 +3933,13 @@ def geocode_address(address):
                     print(f"[DEBUG] Geocodage IGN validé: {result_label} -> {coords[1]:.6f}, {coords[0]:.6f}")
                     return coords[1], coords[0]  # lat, lon
             
-            # Si aucun résultat validé, prend le premier (fallback)
+            # Si aucun résultat validé, prend le premier (fallback acceptable)
             if features:
                 feature = features[0]
                 coords = feature["geometry"]["coordinates"]
                 props = feature["properties"]
-                print(f"[DEBUG] Geocodage IGN (non validé): {props.get('label', address)} -> {coords[1]:.6f}, {coords[0]:.6f}")
-                # Ne retourne pas le résultat non validé, passe à Nominatim
+                print(f"[DEBUG] Geocodage IGN (non validé mais accepté): {props.get('label', address)} -> {coords[1]:.6f}, {coords[0]:.6f}")
+                return coords[1], coords[0]  # lat, lon - On accepte quand même le résultat IGN
                 
     except Exception as e:
         print(f"[WARN] Erreur API IGN geocodage: {e}")
@@ -4221,6 +4214,71 @@ def get_all_ht_postes(lat, lon, radius_deg=0.5):
         })
     return postes  # Pas de slicing ici])[:3]
 
+def get_all_consommation(lat, lon, radius_deg=0.05):
+    """
+    Récupère tous les points de consommation Enedis dans un rayon donné
+    
+    Args:
+        lat: Latitude du point de référence
+        lon: Longitude du point de référence
+        radius_deg: Rayon de recherche en degrés (défaut: 0.05 = ~5.5 km)
+    
+    Returns:
+        Liste de features GeoJSON avec distance calculée
+    """
+    bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
+    features = fetch_wfs_data('gpu:consommation_enedis', bbox)
+    if not features:
+        return []
+    
+    point = Point(lon, lat)
+    consos = []
+    for feature in features:
+        try:
+            geom_shp = shape(feature["geometry"])
+            dist = geom_shp.distance(point) * 111000  # Conversion en mètres
+            props = feature["properties"].copy() if feature.get("properties") else {}
+            
+            # Extraction des coordonnées de la géométrie
+            coords = feature["geometry"].get("coordinates", [])
+            conso_lon, conso_lat = coords[0], coords[1] if len(coords) >= 2 else (None, None)
+            
+            # Normalisation des propriétés pour le rapport
+            props["adresse"] = props.get("adresse") or "Adresse inconnue"
+            props["consommation_mwh"] = props.get("consommation_mwh") or props.get("consommation") or 0
+            props["secteur"] = props.get("secteur") or "NON_AFFECTE"
+            props["nom_commune"] = props.get("nom_commune") or props.get("commune") or ""
+            props["latitude"] = conso_lat
+            props["longitude"] = conso_lon
+            props["distance"] = round(dist, 2)
+            
+            consos.append({
+                "type": "Feature",
+                "properties": props,
+                "geometry": mapping(geom_shp),
+                "distance": round(dist, 2)
+            })
+        except Exception:
+            continue
+    
+    return consos
+
+def get_nearest_consommation(lat, lon, count=3, radius_deg=0.05):
+    """
+    Récupère les N points de consommation les plus proches
+    
+    Args:
+        lat: Latitude du point de référence
+        lon: Longitude du point de référence
+        count: Nombre de points à retourner
+        radius_deg: Rayon de recherche en degrés
+    
+    Returns:
+        Liste des points de consommation triés par distance (les plus proches en premier)
+    """
+    consos = get_all_consommation(lat, lon, radius_deg=radius_deg)
+    return sorted(consos, key=lambda x: x.get("properties", {}).get("distance", float('inf')))[:count]
+
 def get_all_capacites_reseau(lat, lon, radius_deg=0.1):
     bbox = f"{lon-radius_deg},{lat-radius_deg},{lon+radius_deg},{lat+radius_deg},EPSG:4326"
     # print(f"[DEBUG CAPACITES] bbox: {bbox}")  # Optimisé pour performance
@@ -4438,6 +4496,210 @@ def get_plu_info_by_polygon(commune_geom):
 def get_sirene_info_by_polygon(commune_geom):
     """Récupère les données Sirene en utilisant le polygone exact de la commune"""
     return get_data_by_commune_polygon(commune_geom, None, SIRENE_LAYER)
+
+def get_enedis_consommation_by_commune(code_commune, annee=None):
+    """
+    Récupère les données de consommation électrique Enedis depuis GeoServer WFS
+    
+    Args:
+        code_commune: Code INSEE de la commune (ex: '06088' pour Nice)
+        annee: Année spécifique (None = année la plus récente)
+    
+    Returns:
+        Liste de dict avec latitude, longitude, consommation_mwh, secteur, adresse
+    """
+    import requests
+    
+    print(f"🔍 [ENEDIS] Recherche consommations GeoServer pour commune {code_commune}...")
+    
+    try:
+        # Construire l'URL WFS GeoServer
+        wfs_url = f"{GEOSERVER_URL}/wfs"
+        
+        # Paramètres WFS avec filtre CQL sur code_commune
+        params = {
+            'service': 'WFS',
+            'version': '1.0.0',
+            'request': 'GetFeature',
+            'typeName': 'gpu:consommation_enedis',
+            'outputFormat': 'application/json',
+            'CQL_FILTER': f"code_commune={code_commune}"  # Sans quotes car c'est un nombre
+        }
+        
+        # Ajouter filtre année si spécifié
+        if annee:
+            params['CQL_FILTER'] += f" AND annee={annee}"
+        
+        # Requête WFS
+        response = requests.get(wfs_url, params=params, timeout=30)
+        response.raise_for_status()
+        
+        geojson = response.json()
+        features = geojson.get('features', [])
+        
+        print(f"✅ [ENEDIS] {len(features)} consommations trouvées pour {code_commune}")
+        
+        # ⚠️ IMPORTANT: Les coordonnées dans GeoServer sont toutes identiques (erreur de géocodage initial)
+        # STRATÉGIE OPTIMISÉE: Trier d'abord par consommation, puis géocoder le top 100 en PARALLÈLE
+        # (100 adresses avec 10 threads = ~10-15 secondes)
+        
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import threading
+        
+        # 1. Extraire et trier par consommation AVANT géocodage
+        MAX_GEOCODE = 20  # Top 20 pour éviter timeouts et boucles (20 adresses = ~3-5s)
+        features_sorted = sorted(
+            features,
+            key=lambda f: f.get('properties', {}).get('consommation_mwh', 0),
+            reverse=True
+        )[:MAX_GEOCODE]
+        
+        print(f"🎯 [ENEDIS] Géocodage PARALLÈLE de {len(features_sorted)} points TOP consommation (temps estimé: ~3-5s)...")
+        
+        # 2. Fonction de géocodage pour threading
+        results = []
+        results_lock = threading.Lock()
+        geocoded_count = 0
+        skipped_count = 0
+        stats_lock = threading.Lock()
+        
+        def geocode_feature(feature_data):
+            idx, feature = feature_data
+            props = feature.get('properties', {})
+            adresse = props.get('adresse', '')
+            nom_commune = props.get('nom_commune', '')
+            
+            if not adresse or not nom_commune:
+                with stats_lock:
+                    nonlocal skipped_count
+                    skipped_count += 1
+                return None
+            
+            full_address = f"{adresse}, {nom_commune}, France"
+            
+            try:
+                geocode_result = geocode_address(full_address)
+                
+                # geocode_address retourne un tuple (lat, lon) ou None
+                if geocode_result and len(geocode_result) == 2:
+                    lat, lon = geocode_result
+                    
+                    # Vérifier coordonnées France métropolitaine
+                    if -5 <= lon <= 10 and 41 <= lat <= 51:
+                        result = {
+                            'longitude': lon,
+                            'latitude': lat,
+                            'consommation_mwh': props.get('consommation_mwh', 0),
+                            'secteur': props.get('secteur', 'INCONNU'),
+                            'adresse': adresse,
+                            'nom_commune': nom_commune,
+                            'nombre_de_sites': props.get('nb_sites', 1),
+                            'annee': props.get('annee', 2023)
+                        }
+                        
+                        with results_lock:
+                            results.append(result)
+                        
+                        with stats_lock:
+                            nonlocal geocoded_count
+                            geocoded_count += 1
+                            if geocoded_count % 10 == 0:
+                                print(f"📍 [GEOCODING] {geocoded_count}/{len(features_sorted)} adresses géocodées...")
+                        
+                        return result
+                    
+            except Exception:
+                pass
+            
+            with stats_lock:
+                skipped_count += 1
+            return None
+        
+        # 3. Géocodage parallèle avec 10 threads
+        MAX_WORKERS = 10
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            feature_data = [(idx, f) for idx, f in enumerate(features_sorted, 1)]
+            futures = [executor.submit(geocode_feature, data) for data in feature_data]
+            
+            # Attendre la fin de tous les threads
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception:
+                    pass
+        
+        print(f"✅ [GEOCODING] Géocodage terminé: {geocoded_count} succès, {skipped_count} échecs")
+        
+        # Les résultats sont déjà triés (on a trié avant le géocodage)
+        print(f"🔌 [ENEDIS] Retour de {len(results)} points géocodés avec succès")
+        if results:
+            print(f"🔌 [ENEDIS] Premier point: lat={results[0]['latitude']}, lon={results[0]['longitude']}, conso={results[0]['consommation_mwh']} MWh")
+            if len(results) > 1:
+                print(f"🔌 [ENEDIS] Dernier point: conso={results[-1]['consommation_mwh']} MWh")
+        
+        return results
+        
+    except Exception as e:
+        print(f"⚠️ [ENEDIS] Erreur récupération consommation GeoServer pour {code_commune}: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
+
+def calculate_enedis_stats(enedis_data):
+    """
+    Calcule des statistiques agrégées sur les données Enedis
+    
+    Args:
+        enedis_data: Liste de dict avec consommation_mwh, secteur, nombre_de_sites
+        
+    Returns:
+        Dict avec statistiques (total, par secteur, top sites, potentiel PV)
+    """
+    if not enedis_data:
+        return {
+            "total_sites": 0,
+            "consommation_totale_mwh": 0,
+            "consommation_moyenne_mwh": 0,
+            "par_secteur": {},
+            "sites_haute_conso": 0,  # >100 MWh/an
+            "potentiel_autoconsommation_kwc": 0
+        }
+    
+    total_sites = sum(site.get('nombre_de_sites', 1) for site in enedis_data)
+    consommation_totale = sum(site.get('consommation_mwh', 0) for site in enedis_data)
+    
+    # Par secteur
+    secteurs = {}
+    for site in enedis_data:
+        secteur = site.get('secteur', 'NON_AFFECTE')
+        if secteur not in secteurs:
+            secteurs[secteur] = {"nb_sites": 0, "consommation_mwh": 0}
+        secteurs[secteur]["nb_sites"] += site.get('nombre_de_sites', 1)
+        secteurs[secteur]["consommation_mwh"] += site.get('consommation_mwh', 0)
+    
+    # Sites haute consommation (>100 MWh/an = éligibles PV grande toiture)
+    sites_haute_conso = sum(1 for s in enedis_data if s.get('consommation_mwh', 0) >= 100)
+    
+    # Estimation potentiel autoconsommation : 30% conso → PV
+    # 1 kWc produit ~1,2 MWh/an → besoin = 30% conso / 1.2
+    potentiel_kwc = (consommation_totale * 0.30 / 1.2) * 1000  # en kWc
+    
+    return {
+        "total_sites": total_sites,
+        "consommation_totale_mwh": round(consommation_totale, 2),
+        "consommation_moyenne_mwh": round(consommation_totale / total_sites, 2) if total_sites > 0 else 0,
+        "par_secteur": {
+            k: {
+                "nb_sites": v["nb_sites"],
+                "consommation_mwh": round(v["consommation_mwh"], 2),
+                "pourcentage": round((v["consommation_mwh"] / consommation_totale * 100) if consommation_totale > 0 else 0, 1)
+            }
+            for k, v in secteurs.items()
+        },
+        "sites_haute_conso": sites_haute_conso,
+        "potentiel_autoconsommation_kwc": round(potentiel_kwc, 0)
+    }
+
 
 def get_batiments_info_by_polygon(commune_geom):
     """
@@ -5913,7 +6175,8 @@ def build_map(
     eleveurs_data=None,
     capacites_reseau=None,
     ppri_data=None,  # Ajout PPRI
-    hta_lignes_data=None  # Ajout lignes HTA
+    hta_lignes_data=None,  # Ajout lignes HTA
+    enedis_data=None  # Ajout consommations Enedis
 ):
     import folium
     from folium.plugins import Draw, MeasureControl, MarkerCluster
@@ -5955,6 +6218,8 @@ def build_map(
         capacites_reseau = []
     if ppri_data is None or not isinstance(ppri_data, dict):
         ppri_data = {"type": "FeatureCollection", "features": []}
+    if enedis_data is None:
+        enedis_data = []
     
     # === CRÉATION DE LA CARTE avec zoom adapté (16 pour parcelle) ===
     map_obj = folium.Map(location=[lat, lon], zoom_start=16, tiles=None, max_zoom=22)
@@ -6065,14 +6330,6 @@ def build_map(
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         
-        # Bouton KPI pour poste BT
-        import json
-        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_bt', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
-            style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-            📤 Envoyer vers KPI
-        </button>"""
-        
         streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
         folium.Marker([lat_p, lon_p], popup=popup, icon=folium.Icon(color="darkgreen", icon="flash", prefix="fa")).add_to(bt_group)
@@ -6103,14 +6360,6 @@ def build_map(
         if dist_m is not None:
             popup += f"<br><b>Distance</b>: {dist_m:.1f} m"
         popup += f"<br><b>Capacité dispo</b>: {capa}"
-        
-        # Bouton KPI pour poste HTA
-        import json
-        props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-        popup += f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_p}, lon: {lon_p}, type: 'poste_hta', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
-            style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-            📤 Envoyer vers KPI
-        </button>"""
         
         streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
         popup += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
@@ -6202,6 +6451,90 @@ def build_map(
             ).add_to(eleveurs_group)
     
     map_obj.add_child(eleveurs_group)
+
+    # --- Consommation Enedis ---
+    enedis_group = folium.FeatureGroup(name="Consommation Enedis", show=True)
+    if enedis_data:
+        import json, base64
+        print(f"🔌 [ENEDIS_FOLIUM] Ajout de {len(enedis_data)} points de consommation à la carte")
+        markers_added = 0
+        markers_skipped = 0
+        for idx, site in enumerate(enedis_data, 1):
+            # Les données viennent de GeoServer WFS
+            lat_enedis = site.get("latitude")
+            lon_enedis = site.get("longitude")
+            
+            if not lat_enedis or not lon_enedis:
+                print(f"⚠️ [ENEDIS_FOLIUM] Point {idx}/{len(enedis_data)} - Coordonnées invalides ignorées: {site}")
+                markers_skipped += 1
+                continue
+            
+            # Debug: Log premier et dernier point
+            if idx == 1 or idx == len(enedis_data):
+                print(f"🔍 [ENEDIS_DEBUG] Point {idx}/{len(enedis_data)}: lat={lat_enedis}, lon={lon_enedis}, conso={site.get('consommation_mwh', 0):.1f} MWh")
+            
+            # Construction du popup enrichi - utiliser les bons noms de champs
+            conso_mwh = site.get("consommation_mwh", 0)
+            adresse = site.get("adresse", "N/A")
+            secteur = site.get("secteur", "INCONNU")
+            nb_sites = site.get("nombre_de_sites", 1)
+            annee = site.get("annee", "N/A")
+            
+            popup_html = f"<b>⚡ Consommation Électrique</b><br>"
+            popup_html += f"<b>Adresse:</b> {adresse}<br>"
+            popup_html += f"<b>Consommation:</b> {conso_mwh:.2f} MWh/an<br>"
+            popup_html += f"<b>Secteur:</b> {secteur}<br>"
+            popup_html += f"<b>Nombre de sites:</b> {nb_sites}<br>"
+            popup_html += f"<b>Année:</b> {annee}<br>"
+            
+            # Lien Street View
+            streetview_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_enedis},{lon_enedis}"
+            popup_html += f"<br><a href='{streetview_url}' target='_blank'>Voir sur Street View</a>"
+            
+            # Icône et couleur selon la consommation - système progressif
+            # Échelle de couleur et taille pour visibilité maximale
+            if conso_mwh >= 200:
+                color = "#8B0000"  # Rouge foncé - Très haute consommation
+                radius = 14
+                icon_text = "🔴🔴"
+            elif conso_mwh >= 100:
+                color = "#FF0000"  # Rouge vif - Haute consommation
+                radius = 12
+                icon_text = "🔴"
+            elif conso_mwh >= 50:
+                color = "#FF6600"  # Orange vif - Consommation élevée
+                radius = 10
+                icon_text = "🟠"
+            elif conso_mwh >= 25:
+                color = "#FFA500"  # Orange clair - Consommation moyenne
+                radius = 8
+                icon_text = "🟡"
+            elif conso_mwh >= 10:
+                color = "#FFFF00"  # Jaune vif - Consommation modérée
+                radius = 7
+                icon_text = "🟢"
+            else:
+                color = "#90EE90"  # Vert clair - Faible consommation
+                radius = 6
+                icon_text = "🟢"
+            
+            folium.CircleMarker(
+                [lat_enedis, lon_enedis],
+                radius=radius,
+                popup=popup_html,
+                tooltip=f"{icon_text} {conso_mwh:.1f} MWh/an - {secteur}",
+                color="#000000",  # Bordure noire pour contraste
+                weight=2,
+                fill=True,
+                fillColor=color,
+                fillOpacity=0.9,  # Opacité élevée pour visibilité
+                zIndexOffset=1000  # Toujours au-dessus des autres couches
+            ).add_to(enedis_group)
+            markers_added += 1
+        
+        print(f"✅ [ENEDIS_FOLIUM] {markers_added} marqueurs CircleMarker effectivement ajoutés au groupe (skipped: {markers_skipped})")
+        print(f"📊 [ENEDIS_STATS] Total itérations: {len(enedis_data)}, Ajoutés: {markers_added}, Ignorés: {markers_skipped}")
+    map_obj.add_child(enedis_group)
 
     # PLU
     plu_group = folium.FeatureGroup(name="PLU", show=True)
@@ -6453,35 +6786,8 @@ def build_map(
                     
                     tooltip_text = "<br>".join(tooltip_lines)
                     
-                    # Bouton KPI pour toitures, parkings, friches
-                    kpi_button = ""
-                    if name in ["Parkings", "Friches", "Potentiel Solaire"]:
-                        try:
-                            from shapely.geometry import shape
-                            geom_shape = shape(geom)
-                            centroid = geom_shape.centroid
-                            lat_center = centroid.y
-                            lon_center = centroid.x
-                            
-                            # Déterminer le type pour KPI
-                            kpi_type = "toiture" if name == "Potentiel Solaire" else name.lower().rstrip('s')
-                            
-                            # Échapper les propriétés pour JavaScript
-                            import json
-                            props_json_escaped = json.dumps(props).replace("'", "\\'").replace('"', '\\"')
-                            
-                            # Utiliser postMessage avec une chaîne JSON échappée
-                            kpi_button = f"""<br><button onclick="var data = {{action: 'sendToKPI', lat: {lat_center}, lon: {lon_center}, type: '{kpi_type}', properties: JSON.parse('{props_json_escaped}')}}; window.top.postMessage(data, '*');" 
-                                style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-top: 8px; width: 100%;">
-                                📤 Envoyer vers KPI
-                            </button>"""
-                        except Exception as e:
-                            print(f"[DEBUG] Erreur création bouton KPI: {e}")
-                            import traceback
-                            traceback.print_exc()
-                    
                     # Créer le popup avec les liens Street View et Pages Jaunes si disponibles
-                    popup_content = tooltip_text + kpi_button + street_view_link + pages_jaunes_link
+                    popup_content = tooltip_text + street_view_link + pages_jaunes_link
                     
                     # SOLUTION SIMPLE ET ROBUSTE: Utiliser les fonctions prédéfinies
                     if name == "Parkings":
@@ -7891,13 +8197,16 @@ def search_by_commune():
 
     # 2) Récupère le contour de la commune via Geo API Gouv
     commune_infos = requests.get(
-        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour"
+        f"https://geo.api.gouv.fr/communes?nom={quote_plus(commune)}&fields=centre,contour,code"
     ).json()
     if not commune_infos or not commune_infos[0].get("contour"):
         return jsonify({"error": "Contour de la commune introuvable."}), 404
     contour = commune_infos[0]["contour"]
     centre = commune_infos[0]["centre"]
     lat, lon = centre["coordinates"][1], centre["coordinates"][0]
+    code_commune = commune_infos[0].get("code", None)  # Code INSEE de la commune
+    
+    print(f"🔍 [COMMUNE_INFO] Commune: {commune}, Code INSEE: {code_commune}")
 
     # 3) Emprise bbox englobant le polygone (pour limiter la requête WFS)
     try:
@@ -8060,9 +8369,22 @@ def search_by_commune():
         
         # print(f"✅ [SOLAIRE-ADRESSES] Enrichissement terminé pour {len(solaire_data)} toitures")  # Optimisé pour production
     
-    log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
-    sirene_data = get_sirene_info_by_polygon(contour)
-    log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
+    # SIRENE désactivé pour améliorer les performances de recherche (très volumineuse, peu utile sur carte)
+    # log_data_collection("SIRENE", f"Récupération entreprises SIRENE (rayon {sir_km} km)")
+    # sirene_data = get_sirene_info_by_polygon(contour)
+    # log_data_collection("SIRENE", f"✅ {len(sirene_data)} entreprises trouvées")
+    sirene_data = []  # Désactivé pour performances
+    
+    # Récupérer les consommations électriques Enedis (depuis PostgreSQL Railway)
+    try:
+        log_data_collection("ENEDIS", f"Récupération consommations électriques Enedis")
+        enedis_data = get_enedis_consommation_by_commune(code_commune) if code_commune else []
+        log_data_collection("ENEDIS", f"✅ {len(enedis_data)} consommations trouvées")
+        if enedis_data:
+            print(f"🔌 [ENEDIS] Premier point de consommation: lat={enedis_data[0].get('latitude')}, lon={enedis_data[0].get('longitude')}, conso={enedis_data[0].get('consommation_mwh')} MWh")
+    except Exception as e:
+        log_data_collection("ENEDIS", f"⚠️ Erreur récupération Enedis: {e}")
+        enedis_data = []
 
     point = {"type": "Point", "coordinates": [lon, lat]}
     
@@ -9122,7 +9444,8 @@ def search_by_commune():
             api_urbanisme=api_urbanisme,
             eleveurs_data=eleveurs_data,
             ppri_data=ppri_data,
-            hta_lignes_data=hta_lignes_data  # Ajout des lignes HTA
+            hta_lignes_data=hta_lignes_data,  # Ajout des lignes HTA
+            enedis_data=enedis_data  # Ajout consommations Enedis
         )
         # Optimisé pour performance
         # print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")
@@ -9198,6 +9521,9 @@ def search_by_commune():
         "solaire": toitures_data if filter_toitures else solaire_data,
         "zaer": zaer_data,
         "sirene": sirene_data,
+        # ✅ Enedis data (top 500 triés par consommation) - optimisé pour traitement frontend
+        "enedis_data": enedis_data,  # Liste limitée à 500 points max (voir get_enedis_consommation_by_commune)
+        "enedis_count": len(enedis_data),  # Compteur pour info
         # ⚠️ NE PAS ENVOYER carte_html - provoque freeze navigateur (154MB!)
         # "carte_html": carte_html,  # ❌ DÉSACTIVÉ - trop volumineux
         "carte_url": carte_url,    # ✅ Seule l'URL est nécessaire pour l'iframe
@@ -9217,6 +9543,12 @@ def search_by_commune():
             }
         }
     }
+    
+    # 🔍 DEBUG: Logger les données Enedis envoyées
+    print(f"📊 [RESPONSE_DATA] Données envoyées au frontend:")
+    print(f"   - Enedis: {len(enedis_data)} points")
+    if enedis_data:
+        print(f"   - Premier point Enedis: lat={enedis_data[0].get('latitude')}, lon={enedis_data[0].get('longitude')}, conso={enedis_data[0].get('consommation_mwh')} MWh")
     
     # DEBUG: Vérifier le contenu de response_data (optimisé)
     # print(f"🔧 [DEBUG_RPG_PARCELLES] response_data créé avec clés: {list(response_data.keys())}")
@@ -10565,12 +10897,35 @@ def rapport_map_point():
                         "idu": cadastre_props.get('idu', 'N/A')
                     }
                     
+                    # 🔧 CORRECTION PLAN DE MASSE: Formater les parcelles cadastrales pour le générateur de plan
+                    parcelles_cadastrales = []
+                    for feat in cadastre_data.get('features', []):
+                        feat_props = feat.get('properties', {})
+                        feat_geom = feat.get('geometry', {})
+                        
+                        parcelle_formatted = {
+                            "section": feat_props.get('section', ''),
+                            "numero": feat_props.get('numero', ''),
+                            "surface": feat_props.get('contenance', 0),  # Surface en m²
+                            "commune": feat_props.get('nom_com', ''),
+                            "code_insee": feat_props.get('code_insee', ''),
+                            "geometry": feat_geom,  # Géométrie GeoJSON complète
+                            "geojson": feat  # Feature GeoJSON complet
+                        }
+                        parcelles_cadastrales.append(parcelle_formatted)
+                    
+                    # Stocker dans le champ que le plan de masse cherche
+                    report_data["parcelles_cadastrales"] = parcelles_cadastrales
+                    log_step("CONTEXT", f"✅ {len(parcelles_cadastrales)} parcelle(s) cadastrale(s) formatée(s) pour plan de masse", "SUCCESS")
+                    
                     log_step("CONTEXT", f"✅ API Cadastre: {report_data.get('commune_name', 'OK')}", "SUCCESS")
                 else:
                     api_details["cadastre"]["error"] = "Aucune donnée cadastrale trouvée"
+                    report_data["parcelles_cadastrales"] = []
                     log_step("CONTEXT", "⚠️ API Cadastre: Aucune donnée", "WARNING")
             except Exception as e:
                 api_details["cadastre"]["error"] = str(e)
+                report_data["parcelles_cadastrales"] = []
                 log_step("CONTEXT", f"❌ Erreur API Cadastre: {e}", "ERROR")
             
             # API GPU
@@ -13490,6 +13845,18 @@ def init_crm_database():
         cursor.execute('ALTER TABLE project_fiches ADD COLUMN parcelles_cadastrales TEXT')
     except:
         pass
+    try:
+        cursor.execute('ALTER TABLE agriweb_prospects ADD COLUMN consommation_enedis_mwh REAL')
+    except:
+        pass
+    try:
+        cursor.execute('ALTER TABLE agriweb_prospects ADD COLUMN secteur_enedis TEXT')
+    except:
+        pass
+    try:
+        cursor.execute('ALTER TABLE agriweb_prospects ADD COLUMN nb_sites_enedis INTEGER')
+    except:
+        pass
     
     # Table des étapes du projet (workflow autoconsommation)
     cursor.execute('''
@@ -13545,37 +13912,6 @@ def open_browser():
         return
     open_browser._opened = True
     webbrowser.open_new("http://127.0.0.1:5000")
-
-def main():
-    try:
-        # Import des utilisateurs existants au démarrage
-        print("🔄 Import des utilisateurs existants...")
-        import_existing_users()
-        
-        # Initialisation de la base CRM
-        init_crm_database()
-        
-        print("Routes disponibles:")
-        pprint.pprint(list(app.url_map.iter_rules()))
-        
-        # Vérification si on est en mode Railway
-        port = int(os.environ.get("PORT", 5000))
-        host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
-        
-        # Pas d'ouverture de navigateur en production
-        if host == "127.0.0.1":
-            Timer(1, open_browser).start()
-            
-        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
-        
-        # Lancer le serveur Flask
-        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print("[main] Startup error:", e)
-        logging.error(f"[main] Startup error: {e}\nTraceback:\n{tb}")
-
 @app.route("/debug_toitures_ui")
 def debug_toitures_ui():
     """Interface de debug pour la recherche de toitures"""
@@ -13623,6 +13959,225 @@ def generate_integrated_commune_report(commune_name, filters=None):
     
     if filters is None:
         filters = {}
+    
+    # Fonction helper pour trouver le poste le plus proche
+    def _find_nearest_poste(pt_lon: float, pt_lat: float, postes: list) -> dict:
+        try:
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            for poste in (postes or []):
+                try:
+                    g = poste.get('geometry')
+                    if not g:
+                        continue
+                    d = shape(g).distance(p) * 111000
+                    if best_d is None or (d < best_d):
+                        best = poste
+                        best_d = d
+                except Exception:
+                    continue
+            if best is None:
+                return {}
+            coords = best.get('geometry', {}).get('coordinates', [None, None])
+            pr = best.get('properties', {})
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': coords[0],
+                'lat': coords[1],
+                'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
+                'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or pr.get('nom_commun') or '',
+                'tension': pr.get('tension') or pr.get('Tension') or '',
+                'fonction': pr.get('fonction') or pr.get('Fonction') or '',
+                'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or pr.get('p_inst') or '',
+                'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
+                'type': pr.get('type') or pr.get('Type') or '',
+                'commune': pr.get('nom_commun') or pr.get('commune') or '',
+                'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
+                'epci': pr.get('nom_epci') or '',
+                'code_epci': pr.get('code_epci') or '',
+                'departement': pr.get('nom_depart') or pr.get('departement') or '',
+                'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
+                'region': pr.get('nom_region') or pr.get('region') or '',
+                'code_region': pr.get('code_regio') or pr.get('code_region') or ''
+            }
+        except Exception:
+            return {}
+    
+    def _find_nearest_conso(pt_lon: float, pt_lat: float, consos: list) -> dict:
+        """
+        Trouve le point de consommation Enedis le plus proche d'un point donné
+        
+        Args:
+            pt_lon: Longitude du point de référence
+            pt_lat: Latitude du point de référence
+            consos: Liste de features GeoJSON de points de consommation
+        
+        Returns:
+            Dict avec les informations du point de consommation le plus proche
+        """
+        try:
+            if not consos:
+                return {}
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            for conso in consos:
+                try:
+                    g = conso.get('geometry')
+                    if not g:
+                        continue
+                    d = shape(g).distance(p) * 111000  # Distance en mètres
+                    if best_d is None or (d < best_d):
+                        best = conso
+                        best_d = d
+                except Exception:
+                    continue
+            if best is None:
+                return {}
+            coords = best.get('geometry', {}).get('coordinates', [None, None])
+            pr = best.get('properties', {})
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': coords[0],
+                'lat': coords[1],
+                'adresse': pr.get('adresse') or '',
+                'consommation_mwh': pr.get('consommation_mwh') or pr.get('consommation') or 0,
+                'secteur': pr.get('secteur') or 'NON_AFFECTE',
+                'nom_commune': pr.get('nom_commune') or pr.get('commune') or '',
+                'nombre_de_sites': pr.get('nombre_de_sites') or pr.get('nb_sites') or 1,
+                'annee': pr.get('annee') or 2023,
+                'code_commune': pr.get('code_commune') or ''
+            }
+        except Exception:
+            return {}
+    
+    def _find_conso_by_address(address: str, enedis_raw_data: list) -> dict:
+        """
+        Recherche une consommation Enedis par adresse
+        
+        Args:
+            address: Adresse à rechercher (format: numéro rue, code postal ville)
+            enedis_raw_data: Liste brute des données Enedis de la commune
+        
+        Returns:
+            Dict avec les informations de consommation si trouvé, {} sinon
+        """
+        try:
+            if not address or not enedis_raw_data:
+                return {}
+            
+            # Normaliser l'adresse de recherche
+            addr_norm = address.lower().strip()
+            # Extraire le numéro de rue et le nom de rue
+            parts = addr_norm.split(',')
+            if not parts:
+                return {}
+            
+            rue_part = parts[0].strip()  # Ex: "15 rue de la république"
+            
+            # Chercher dans les données Enedis
+            best_match = None
+            best_score = 0
+            
+            for conso in enedis_raw_data:
+                conso_addr = (conso.get('adresse') or '').lower().strip()
+                if not conso_addr:
+                    continue
+                
+                # Score de correspondance simple
+                score = 0
+                
+                # Correspondance exacte = meilleur score
+                if rue_part in conso_addr or conso_addr in rue_part:
+                    score = 100
+                else:
+                    # Correspondance partielle sur les mots
+                    rue_words = set(rue_part.split())
+                    conso_words = set(conso_addr.split())
+                    common_words = rue_words & conso_words
+                    if common_words:
+                        score = len(common_words) * 10
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = conso
+            
+            # Si on a trouvé une correspondance raisonnable
+            if best_match and best_score >= 30:  # Seuil minimum
+                return {
+                    'distance_m': 0,  # Distance non applicable pour recherche par adresse
+                    'lon': best_match.get('longitude'),
+                    'lat': best_match.get('latitude'),
+                    'adresse': best_match.get('adresse') or '',
+                    'consommation_mwh': best_match.get('consommation_mwh') or best_match.get('consommation') or 0,
+                    'secteur': best_match.get('secteur') or 'NON_AFFECTE',
+                    'nom_commune': best_match.get('nom_commune') or best_match.get('commune') or '',
+                    'nombre_de_sites': best_match.get('nombre_de_sites') or best_match.get('nb_sites') or 1,
+                    'annee': best_match.get('annee') or 2023,
+                    'code_commune': best_match.get('code_commune') or ''
+                }
+            
+            return {}
+        except Exception:
+            return {}
+    
+    def _find_conso_by_proximity(pt_lon: float, pt_lat: float, enedis_raw_data: list, max_distance_m: float = 50) -> dict:
+        """
+        Recherche une consommation Enedis par proximité GPS (rayon de 50m max)
+        
+        Args:
+            pt_lon: Longitude du point de référence
+            pt_lat: Latitude du point de référence
+            enedis_raw_data: Liste brute des données Enedis de la commune
+            max_distance_m: Distance maximale en mètres (défaut 50m)
+        
+        Returns:
+            Dict avec les informations de consommation si trouvé à moins de 50m, {} sinon
+        """
+        try:
+            if not enedis_raw_data or pt_lon is None or pt_lat is None:
+                return {}
+            
+            from shapely.geometry import Point
+            p = Point(pt_lon, pt_lat)
+            best = None
+            best_d = None
+            
+            for conso in enedis_raw_data:
+                try:
+                    lat_c = conso.get('latitude')
+                    lon_c = conso.get('longitude')
+                    if not lat_c or not lon_c:
+                        continue
+                    
+                    # Distance en mètres
+                    d = Point(lon_c, lat_c).distance(p) * 111000
+                    
+                    # Seulement si < 50m
+                    if d <= max_distance_m and (best_d is None or d < best_d):
+                        best = conso
+                        best_d = d
+                except Exception:
+                    continue
+            
+            if best is None:
+                return {}
+            
+            return {
+                'distance_m': round(best_d, 2) if best_d is not None else None,
+                'lon': best.get('longitude'),
+                'lat': best.get('latitude'),
+                'adresse': best.get('adresse') or '',
+                'consommation_mwh': best.get('consommation_mwh') or best.get('consommation') or 0,
+                'secteur': best.get('secteur') or 'NON_AFFECTE',
+                'nom_commune': best.get('nom_commune') or best.get('commune') or '',
+                'nombre_de_sites': best.get('nombre_de_sites') or best.get('nb_sites') or 1,
+                'annee': best.get('annee') or 2023,
+                'code_commune': best.get('code_commune') or ''
+            }
+        except Exception:
+            return {}
     
     print(f"📊 [RAPPORT_INTÉGRÉ] Génération du rapport pour {commune_name}")
     
@@ -13696,6 +14251,21 @@ def generate_integrated_commune_report(commune_name, filters=None):
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
         
+        # Récupération des données Enedis pour la commune
+        code_commune = commune_info.get("code", "")
+        enedis_data_raw = []
+        
+        if code_commune:
+            try:
+                print(f"🔌 [ENEDIS] Récupération consommations pour {code_commune}...")
+                enedis_data_raw = get_enedis_consommation_by_commune(code_commune)
+                print(f"🔌 [ENEDIS] {len(enedis_data_raw)} points de consommation récupérés")
+            except Exception as e:
+                print(f"⚠️ [ENEDIS] Erreur récupération: {e}")
+                import traceback
+                traceback.print_exc()
+                enedis_data_raw = []
+        
         # Éleveurs sur la commune
         eleveurs_data = []
         try:
@@ -13758,7 +14328,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
             print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur collecte éleveurs: {e}")
             eleveurs_data = []
         
-        sirene_data = get_sirene_info_by_polygon(contour)
+        # SIRENE désactivé pour éviter timeouts (très volumineuse, cause ReadTimeoutError)
+        # sirene_data = get_sirene_info_by_polygon(contour)
+        sirene_data = []  # Désactivé pour performances et stabilité
         
         # =========================================================================
         # 🏛️ FONCTION UTILITAIRE ENRICHISSEMENT CADASTRAL
@@ -13866,6 +14438,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                             "properties": props
                         })
                     except Exception as _e:
+                        # Log seulement les erreurs inattendues, pas toutes les exceptions
                         continue
                 print(f"    ✅ Toitures retenues après filtres: {len(toitures_data)}")
                 
@@ -14066,6 +14639,35 @@ def generate_integrated_commune_report(commune_name, filters=None):
 
         sirene_data = get_sirene_info_by_polygon(contour)
 
+        # Récupération des données de consommation Enedis
+        print("=" * 80)
+        print("🔌🔌🔌 [ENEDIS] DÉBUT RÉCUPÉRATION DONNÉES CONSOMMATION ENEDIS 🔌🔌🔌")
+        print("=" * 80)
+        print(f"🔌 [ENEDIS] Couche WFS: {ENEDIS_LAYER}")
+        print(f"🔌 [ENEDIS] Bbox: {bbox}")
+        enedis_data = []
+        try:
+            print(f"🔌 [ENEDIS] Appel fetch_wfs_data avec couche: {ENEDIS_LAYER}")
+            print(f"🔌 [ENEDIS] Bbox: {bbox}")
+            raw_enedis = fetch_wfs_data(ENEDIS_LAYER, bbox)
+            print(f"🔌 [ENEDIS] Données WFS récupérées: {len(raw_enedis)} features")
+            
+            enedis_data = filter_in_commune(raw_enedis)
+            print(f"🔌 [ENEDIS] Après filtrage commune: {len(enedis_data)} points")
+            
+            if enedis_data:
+                import json
+                print(f"🔌 [ENEDIS] Premier point: {json.dumps(enedis_data[0], indent=2)[:500]}")
+        except Exception as e:
+            print(f"❌ [ENEDIS] EXCEPTION: {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"❌ [ENEDIS] Traceback:\n{traceback.format_exc()}")
+            enedis_data = []
+        
+        print("=" * 80)
+        print(f"🔌 [ENEDIS] FIN RÉCUPÉRATION - Total: {len(enedis_data)} points de consommation")
+        print("=" * 80)
+
         # Calcul rapide d'une valeur d'irradiation (kWh/kWc/an) via PVGIS au centre de la commune
         pvgis_kwh_per_kwc = None
         try:
@@ -14235,49 +14837,6 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 return {}
 
-        def _find_nearest_poste(pt_lon: float, pt_lat: float, postes: list) -> dict:
-            try:
-                p = Point(pt_lon, pt_lat)
-                best = None
-                best_d = None
-                for poste in (postes or []):
-                    try:
-                        g = poste.get('geometry')
-                        if not g:
-                            continue
-                        d = shape(g).distance(p) * 111000
-                        if best_d is None or (d < best_d):
-                            best = poste
-                            best_d = d
-                    except Exception:
-                        continue
-                if best is None:
-                    return {}
-                coords = best.get('geometry', {}).get('coordinates', [None, None])
-                pr = best.get('properties', {})
-                return {
-                    'distance_m': round(best_d, 2) if best_d is not None else None,
-                    'lon': coords[0],
-                    'lat': coords[1],
-                    'id': pr.get('id') or pr.get('identifiant') or pr.get('code') or pr.get('nom') or '',
-                    'nom': pr.get('nom') or pr.get('lib_poste') or pr.get('libelle') or pr.get('nom_commun') or '',
-                    'tension': pr.get('tension') or pr.get('Tension') or '',
-                    'fonction': pr.get('fonction') or pr.get('Fonction') or '',
-                    'puissance': pr.get('puissance') or pr.get('Puissance') or pr.get('Capacité') or pr.get('capacite') or pr.get('p_inst') or '',
-                    'etat': pr.get('etat') or pr.get('Etat') or pr.get('statut') or '',
-                    'type': pr.get('type') or pr.get('Type') or '',
-                    'commune': pr.get('nom_commun') or pr.get('commune') or '',
-                    'code_commune': pr.get('code_commu') or pr.get('code_commune') or '',
-                    'epci': pr.get('nom_epci') or '',
-                    'code_epci': pr.get('code_epci') or '',
-                    'departement': pr.get('nom_depart') or pr.get('departement') or '',
-                    'code_departement': pr.get('code_depar') or pr.get('code_departement') or '',
-                    'region': pr.get('nom_region') or pr.get('region') or '',
-                    'code_region': pr.get('code_regio') or pr.get('code_region') or ''
-                }
-            except Exception:
-                return {}
-
         # Note: cadastre_features déjà récupéré plus haut pour l'enrichissement
 
         def _parcelles_for_point(lon: float, lat: float, max_match: int = 3) -> list:
@@ -14349,69 +14908,14 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 return []
 
-        # Reverse géocodage rapide et lien PagesJaunes à partir de l'adresse exacte
+        # Reverse géocodage COMPLÈTEMENT DÉSACTIVÉ pour éviter boucles infinies
         _rev_cache = {}
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
-            try:
-                if lon_f is None or lat_f is None:
-                    return ""
-                key = (round(lon_f, 5), round(lat_f, 5))
-                if key in _rev_cache:
-                    return _rev_cache[key]
-                url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
-                r = requests.get(url, timeout=0.9)
-                if r.ok:
-                    js = r.json() or {}
-                    feats = js.get("features") or []
-                    if feats:
-                        label = (feats[0].get("properties") or {}).get("label") or ""
-                        _rev_cache[key] = label
-                        return label
-            except Exception:
-                pass
+            """Désactivé - retourne toujours vide"""
             return ""
 
-        def _build_annuaire_link(address: str) -> str:
-            addr = (address or "").strip()
-            if not addr:
-                return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(commune_name)}&univers=pagesjaunes&idOu="
-            return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(addr)}&univers=pagesjaunes&idOu="
-
-        # Limiter le volume des détails pour préserver les perfs sur très grandes communes
-        max_details = int((filters or {}).get('max_details', 200))
-
-        # Détails Parkings
-        parkings_details = []
-        for feat in (parkings_data or [])[:max_details]:
-            try:
-                geom = feat.get('geometry')
-                if not geom:
-                    continue
-                shp = shape(geom)
-                c = shp.centroid
-                lat_c, lon_c = c.y, c.x
-                area_m2 = shp_transform(to_l93, shp).area
-                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
-                d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = _reverse_address_quick(lon_c, lat_c)
-                details = {
-                    'lat': lat_c,
-                    'lon': lon_c,
-                    'surface_m2': round(area_m2, 2),
-                    'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
-                    'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
-                    'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
-                    'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
-                    'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
-                    'adresse': addr_txt,
-                    'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
-                }
-                details['lien_annuaire'] = _build_annuaire_link(addr_txt)
-                parkings_details.append(details)
-            except Exception:
-                continue
-
         # Détails Friches
+        print(f"🏚️ [RAPPORT] Traitement de {min(len(friches_data or []), max_details)} friches...")
         friches_details = []
         for feat in (friches_data or [])[:max_details]:
             try:
@@ -14424,7 +14928,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 area_m2 = shp_transform(to_l93, shp).area
                 d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                # Pas d'adresse pour friches - désactivé pour éviter boucles infinies
+                addr_txt = ""
                 details = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -14434,8 +14939,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
                     'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
-                    'adresse': addr_txt,
+                    'adresse': addr_txt or 'Non disponible',
                     'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
                 }
                 details['lien_annuaire'] = _build_annuaire_link(addr_txt)
@@ -14444,6 +14950,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 continue
 
         # Détails Toitures
+        print(f"🏠 [RAPPORT] Traitement de {min(len(toitures_data or []), max_details)} toitures...")
         toitures_details = []
         for feat in (toitures_data or [])[:max_details]:
             try:
@@ -14461,7 +14968,14 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 if d_hta is None:
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = _reverse_address_quick(lon_c, lat_c)
+                
+                # Utiliser UNIQUEMENT les adresses OSM (pas de reverse geocoding)
+                addr_txt = props.get('addr:street', '') or props.get('name', '') or ''
+                if addr_txt and props.get('addr:housenumber'):
+                    addr_txt = f"{props.get('addr:housenumber')} {addr_txt}"
+                if addr_txt and props.get('addr:city'):
+                    addr_txt = f"{addr_txt}, {props.get('addr:city')}"
+                
                 pv = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -14470,14 +14984,19 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
                     'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
                     'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
                     'parcelles': props.get('parcelles_cadastrales', []),
                     'lien_streetview': props.get('lien_streetview') or f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}",
                     'lien_annuaire': _build_annuaire_link(addr_txt),
                     'osm_id': props.get('osm_id'),
-                    'building': props.get('building', 'yes')
+                    'building': props.get('building', 'yes'),
+                    'amenity': props.get('amenity'),
+                    'shop': props.get('shop'),
+                    'landuse': props.get('landuse'),
+                    'office': props.get('office'),
+                    'industrial': props.get('industrial'),
+                    'adresse': addr_txt or 'Non disponible'
                 }
-                if addr_txt:
-                    pv['adresse'] = addr_txt
                 toitures_details.append(pv)
             except Exception:
                 continue
@@ -14825,16 +15344,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
             # Lightweight reverse geocode using BAN for nicer popups (guarded + timeout)
             import requests as _rq
             def _reverse_address(lon_f: float, lat_f: float) -> str:
-                try:
-                    url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
-                    r = _rq.get(url, timeout=0.8)
-                    if r.ok:
-                        js = r.json() or {}
-                        feats = js.get("features") or []
-                        if feats:
-                            return (feats[0].get("properties") or {}).get("label") or ""
-                except Exception:
-                    pass
+                # DÉSACTIVÉ pour éviter boucles infinies - retourne vide
                 return ""
 
             def _join_parcelles(refs: list) -> str:
@@ -15302,6 +15812,51 @@ def revoke_session(session_token):
         flash(f'Erreur lors de la révocation: {e}', 'error')
     
     return redirect(url_for('admin_sessions'))
+
+@app.route("/clear_map_cache")
+def clear_map_cache():
+    """
+    Route pour vider le cache des cartes Folium
+    Accessible sans authentification pour permettre le nettoyage rapide
+    """
+    try:
+        import glob
+        cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+        
+        if not os.path.exists(cartes_dir):
+            return jsonify({
+                "status": "warning",
+                "message": "Répertoire cartes/ inexistant",
+                "deleted": 0
+            })
+        
+        # Supprimer tous les fichiers HTML dans cartes/
+        pattern = os.path.join(cartes_dir, "*.html")
+        files = glob.glob(pattern)
+        deleted_count = 0
+        
+        for file in files:
+            try:
+                os.remove(file)
+                deleted_count += 1
+                print(f"🧹 [CACHE_CLEAR] Supprimé: {os.path.basename(file)}")
+            except Exception as e:
+                print(f"⚠️ [CACHE_CLEAR] Erreur suppression {os.path.basename(file)}: {e}")
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Cache vidé avec succès",
+            "deleted": deleted_count,
+            "total_found": len(files)
+        })
+    
+    except Exception as e:
+        print(f"❌ [CACHE_CLEAR] Erreur: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "deleted": 0
+        }), 500
 
 @app.route("/admin", methods=["GET", "POST"])
 @require_admin
@@ -16818,6 +17373,10 @@ try:
     crm_routes.register_crm_routes(app)
     print("✅ Routes CRM PostgreSQL enregistrées")
     
+    # Enregistrer les routes d'autoconsommation collective
+    crm_routes.register_autoconso_routes(app)
+    print("✅ Routes Autoconso Collective enregistrées")
+    
     # Initialiser les tables CRM PostgreSQL si on est sur Railway
     import database_adapter
     database_adapter.init_database()
@@ -16950,6 +17509,705 @@ def admin_migrate_parametrage():
 
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
+# ============================================================================
+# API CRM - EXPORT PROSPECTS DEPUIS RAPPORT
+# ============================================================================
+@app.route('/api/crm/export', methods=['POST'])
+def api_crm_export():
+    """
+    Exporte les données d'un rapport vers le CRM comme nouveaux prospects
+    Enrichit automatiquement avec les données Enedis si disponibles
+    """
+    try:
+        from database_adapter import execute_query
+        import json
+        
+        data = request.json
+        if not data:
+            return jsonify({"success": False, "error": "Aucune donnée reçue"}), 400
+        
+        toitures = data.get('toitures', [])
+        parkings = data.get('parkings', [])
+        friches = data.get('friches', [])
+        rpg = data.get('rpg', [])
+        
+        created_count = 0
+        created_ids = []
+        
+        # Fonction helper pour enrichir avec Enedis
+        def enrich_with_enedis(lat, lon, commune_code=None):
+            """Cherche la consommation Enedis la plus proche"""
+            enedis_data = {
+                'consommation_mwh': None,
+                'secteur': None,
+                'nb_sites': None
+            }
+            
+            try:
+                if not lat or not lon:
+                    return enedis_data
+                
+                # Chercher données Enedis dans un rayon de 500m
+                DATABASE_URL = os.environ.get('DATABASE_URL')
+                if not DATABASE_URL:
+                    return enedis_data
+                
+                if DATABASE_URL.startswith('postgres://'):
+                    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+                
+                import psycopg2
+                from psycopg2.extras import RealDictCursor
+                
+                conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+                cur = conn.cursor()
+                
+                # Recherche dans un carré de ~1km autour du point
+                lat_range = 0.01
+                lon_range = 0.01
+                
+                cur.execute("""
+                    SELECT latitude, longitude,
+                           consommation_annuelle_totale_mwh,
+                           code_grand_secteur,
+                           nombre_de_sites
+                    FROM consommation_enedis
+                    WHERE latitude BETWEEN %s AND %s
+                      AND longitude BETWEEN %s AND %s
+                      AND geocoded = TRUE
+                    ORDER BY consommation_annuelle_totale_mwh DESC
+                    LIMIT 10
+                """, (lat - lat_range, lat + lat_range, 
+                      lon - lon_range, lon + lon_range))
+                
+                sites = cur.fetchall()
+                cur.close()
+                conn.close()
+                
+                if sites:
+                    # Prendre le site le plus proche
+                    from geopy.distance import geodesic
+                    min_distance = float('inf')
+                    closest_site = None
+                    
+                    for site in sites:
+                        distance = geodesic((lat, lon), (float(site['latitude']), float(site['longitude']))).meters
+                        if distance < min_distance and distance < 500:  # Max 500m
+                            min_distance = distance
+                            closest_site = site
+                    
+                    if closest_site:
+                        enedis_data = {
+                            'consommation_mwh': float(closest_site['consommation_annuelle_totale_mwh']),
+                            'secteur': closest_site['code_grand_secteur'],
+                            'nb_sites': int(closest_site['nombre_de_sites'])
+                        }
+            except Exception as e:
+                print(f"⚠️ [ENEDIS_ENRICH] Erreur enrichissement: {e}")
+            
+            return enedis_data
+        
+        # Traiter toitures
+        for toiture in toitures:
+            try:
+                lat = toiture.get('lat', 0)
+                lon = toiture.get('lon', 0)
+                commune = toiture.get('commune', '')
+                
+                # Enrichissement Enedis
+                enedis = enrich_with_enedis(lat, lon)
+                
+                # Extraire les données du prospect
+                parcelles_data = toiture.get('parcelles', [])
+                parcelles_json = json.dumps(parcelles_data) if parcelles_data else None
+                
+                # Données du poste BT/HTA
+                poste_bt = toiture.get('poste_bt_proche', {})
+                poste_hta = toiture.get('poste_hta_proche', {})
+                
+                # Construire data_json complet
+                prospect_json = json.dumps({
+                    'source': 'rapport_point',
+                    'parcelles': parcelles_data,
+                    'poste_bt': poste_bt,
+                    'poste_hta': poste_hta,
+                    'enedis': {
+                        'consommation_mwh': enedis['consommation_mwh'],
+                        'secteur': enedis['secteur'],
+                        'nb_sites': enedis['nb_sites']
+                    }
+                })
+                
+                # Insertion
+                query = """
+                    INSERT INTO agriweb_prospects (
+                        type, commune, adresse, latitude, longitude,
+                        surface_m2, parcelles_cadastrales,
+                        poste_bt_distance_m, poste_hta_distance_m,
+                        lien_streetview, lien_annuaire,
+                        statut, priorite,
+                        consommation_enedis_mwh, secteur_enedis, nb_sites_enedis,
+                        data_json,
+                        date_creation, date_modification
+                    ) VALUES (
+                        :type, :commune, :adresse, :latitude, :longitude,
+                        :surface_m2, :parcelles_cadastrales,
+                        :poste_bt_distance_m, :poste_hta_distance_m,
+                        :lien_streetview, :lien_annuaire,
+                        :statut, :priorite,
+                        :consommation_enedis_mwh, :secteur_enedis, :nb_sites_enedis,
+                        :data_json,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                """
+                
+                params = {
+                    'type': 'toiture',
+                    'commune': commune,
+                    'adresse': toiture.get('adresse', ''),
+                    'latitude': float(lat) if lat else None,
+                    'longitude': float(lon) if lon else None,
+                    'surface_m2': float(toiture.get('surface_m2', 0)) if toiture.get('surface_m2') else None,
+                    'parcelles_cadastrales': parcelles_json,
+                    'poste_bt_distance_m': float(poste_bt.get('distance_m', 0)) if poste_bt.get('distance_m') else None,
+                    'poste_hta_distance_m': float(poste_hta.get('distance_m', 0)) if poste_hta.get('distance_m') else None,
+                    'lien_streetview': toiture.get('lien_streetview', ''),
+                    'lien_annuaire': toiture.get('lien_annuaire', ''),
+                    'statut': 'nouveau',
+                    'priorite': 'haute' if enedis['consommation_mwh'] and enedis['consommation_mwh'] > 100 else 'moyenne',
+                    'consommation_enedis_mwh': enedis['consommation_mwh'],
+                    'secteur_enedis': enedis['secteur'],
+                    'nb_sites_enedis': enedis['nb_sites'],
+                    'data_json': prospect_json
+                }
+                
+                result = execute_query(query, params)
+                created_count += 1
+                if result and isinstance(result, list) and len(result) > 0:
+                    created_ids.append(result[0].get('id'))
+                
+            except Exception as e:
+                print(f"⚠️ [CRM_EXPORT] Erreur toiture: {e}")
+                continue
+        
+        # TODO: Ajouter traitement parkings, friches, RPG de la même manière
+        
+        return jsonify({
+            "success": True,
+            "total_exported": created_count,
+            "details": {
+                "toitures": len(toitures),
+                "parkings": 0,  # À implémenter
+                "friches": 0,   # À implémenter
+                "rpg": 0        # À implémenter
+            },
+            "created_ids": created_ids,
+            "message": f"{created_count} prospect(s) créé(s) avec succès"
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM_EXPORT] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/crm/prospects', methods=['GET'])
+def api_crm_get_prospects():
+    """
+    Récupère la liste des prospects avec filtres optionnels
+    Supporte les filtres: statut, type, commune, departement, secteur_enedis, conso_min
+    """
+    try:
+        from database_adapter import execute_query
+        
+        # Récupérer les paramètres de filtre
+        statut = request.args.get('statut', '').strip()
+        type_prospect = request.args.get('type', '').strip()
+        commune = request.args.get('commune', '').strip()
+        departement = request.args.get('departement', '').strip()
+        secteur_enedis = request.args.get('secteur_enedis', '').strip()
+        conso_min = request.args.get('conso_min', '').strip()
+        
+        # Construire la requête SQL avec filtres
+        query = "SELECT * FROM agriweb_prospects WHERE 1=1"
+        params = {}
+        
+        if statut:
+            query += " AND statut = :statut"
+            params['statut'] = statut
+        
+        if type_prospect:
+            query += " AND type = :type"
+            params['type'] = type_prospect
+        
+        if commune:
+            query += " AND commune LIKE :commune"
+            params['commune'] = f'%{commune}%'
+        
+        if departement:
+            query += " AND departement = :departement"
+            params['departement'] = departement
+        
+        if secteur_enedis:
+            query += " AND secteur_enedis = :secteur_enedis"
+            params['secteur_enedis'] = secteur_enedis
+        
+        if conso_min:
+            try:
+                query += " AND consommation_enedis_mwh >= :conso_min"
+                params['conso_min'] = float(conso_min)
+            except ValueError:
+                pass
+        
+        query += " ORDER BY date_creation DESC"
+        
+        prospects = execute_query(query, params)
+        
+        return jsonify({
+            "success": True,
+            "prospects": prospects or [],
+            "count": len(prospects) if prospects else 0
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM_API] Erreur récupération prospects: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/crm/prospect/<int:prospect_id>', methods=['GET'])
+def api_crm_get_prospect(prospect_id):
+    """Récupère les détails d'un prospect spécifique"""
+    try:
+        from database_adapter import execute_query
+        
+        query = "SELECT * FROM agriweb_prospects WHERE id = :id"
+        result = execute_query(query, {'id': prospect_id})
+        
+        if result and len(result) > 0:
+            return jsonify({
+                "success": True,
+                "prospect": result[0]
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": "Prospect non trouvé"
+            }), 404
+            
+    except Exception as e:
+        print(f"❌ [CRM_API] Erreur récupération prospect {prospect_id}: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/crm/stats', methods=['GET'])
+def api_crm_stats():
+    """Récupère les statistiques globales du CRM"""
+    try:
+        from database_adapter import execute_query
+        
+        # Total prospects
+        total_query = "SELECT COUNT(*) as total FROM agriweb_prospects"
+        total_result = execute_query(total_query)
+        total = total_result[0]['total'] if total_result else 0
+        
+        # Par type
+        type_query = """
+            SELECT type, COUNT(*) as count 
+            FROM agriweb_prospects 
+            GROUP BY type
+        """
+        type_result = execute_query(type_query)
+        
+        stats = {
+            "total": total,
+            "parkings": 0,
+            "toitures": 0,
+            "friches": 0,
+            "rpg": 0
+        }
+        
+        if type_result:
+            for row in type_result:
+                type_name = row['type']
+                count = row['count']
+                if type_name in stats:
+                    stats[type_name + 's'] = count  # parking -> parkings
+        
+        return jsonify({
+            "success": True,
+            "stats": stats
+        })
+        
+    except Exception as e:
+        print(f"❌ [CRM_API] Erreur stats: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/admin/import-enedis')
+def admin_import_enedis_page():
+    """Page d'upload du CSV Enedis"""
+    return render_template('import_enedis.html')
+
+@app.route('/api/admin/import-enedis-url', methods=['POST'])
+def import_enedis_from_url():
+    """
+    Import Enedis depuis URL data.gouv.fr (évite upload gros fichier)
+    """
+    import requests
+    import csv
+    import io
+    import time
+    
+    try:
+        # URL par défaut du dataset Enedis
+        url = request.json.get('url', 'https://opendata.agenceore.fr/api/explore/v2.1/catalog/datasets/conso-elec-gaz-annuelle-par-adresse/exports/csv')
+        
+        DATABASE_URL = os.environ.get('DATABASE_URL')
+        if not DATABASE_URL:
+            return jsonify({"success": False, "error": "DATABASE_URL non configurée"}), 500
+        
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        
+        print(f"📥 [IMPORT_ENEDIS_URL] Téléchargement depuis {url[:100]}...")
+        
+        # Télécharger par streaming pour éviter saturation mémoire
+        import psycopg2
+        from psycopg2.extras import execute_batch
+        
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # Créer la table
+        print(f"🔧 [IMPORT_ENEDIS_URL] Création table...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS consommation_enedis (
+                id SERIAL PRIMARY KEY,
+                annee INTEGER,
+                code_commune VARCHAR(10),
+                nom_commune VARCHAR(200),
+                adresse TEXT,
+                code_grand_secteur VARCHAR(50),
+                code_naf VARCHAR(10),
+                nombre_de_sites INTEGER,
+                consommation_annuelle_totale_mwh DECIMAL(12,2),
+                latitude DECIMAL(10,6),
+                longitude DECIMAL(10,6),
+                date_import TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_enedis_commune ON consommation_enedis(code_commune);
+            CREATE INDEX IF NOT EXISTS idx_enedis_coords ON consommation_enedis(latitude, longitude);
+        """)
+        conn.commit()
+        
+        # Charger centroids communes
+        print(f"🗺️  [IMPORT_ENEDIS_URL] Chargement centroids...")
+        resp_geo = requests.get("https://geo.api.gouv.fr/communes?fields=code,centre&format=json")
+        communes_data = resp_geo.json()
+        commune_centroids = {c['code']: (c['centre']['coordinates'][1], c['centre']['coordinates'][0]) 
+                            for c in communes_data if 'code' in c and 'centre' in c}
+        
+        # Stream le CSV
+        print(f"📊 [IMPORT_ENEDIS_URL] Stream CSV...")
+        response = requests.get(url, stream=True, timeout=600)
+        response.raise_for_status()
+        
+        # Parser le CSV en streaming
+        lines = response.iter_lines(decode_unicode=True)
+        csv_reader = csv.DictReader(lines, delimiter=',')
+        
+        batch_data = []
+        rows_imported = 0
+        rows_geocoded = 0
+        rows_skipped = 0
+        batch_size = 5000
+        start_time = time.time()
+        
+        for row in csv_reader:
+            try:
+                code_commune = row.get('Code commune', '').strip()
+                if not code_commune:
+                    continue
+                
+                lat, lon = None, None
+                if code_commune in commune_centroids:
+                    lat, lon = commune_centroids[code_commune]
+                    rows_geocoded += 1
+                
+                batch_data.append((
+                    int(row.get('Année', 2023)),
+                    code_commune,
+                    row.get('Nom commune', '')[:200].strip(),
+                    row.get('Adresse', '')[:500].strip(),
+                    row.get('code_grand_secteur', '')[:50].strip(),
+                    row.get('code_secteur_naf2', '')[:10].strip(),
+                    int(row.get('Nombre de sites', 1) or 1),
+                    float(str(row.get("Consommation annuelle totale de l'adresse (MWh)", 0) or 0).replace(',', '.')),
+                    lat,
+                    lon
+                ))
+                
+                if len(batch_data) >= batch_size:
+                    execute_batch(cur, """
+                        INSERT INTO consommation_enedis 
+                        (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                         code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, batch_data)
+                    conn.commit()
+                    
+                    rows_imported += len(batch_data)
+                    print(f"   📦 {rows_imported:,} importées, {rows_geocoded:,} géocodées ({time.time()-start_time:.0f}s)...")
+                    batch_data = []
+                    
+            except Exception as e:
+                rows_skipped += 1
+                if rows_skipped <= 5:
+                    print(f"⚠️  Erreur ligne: {e}")
+                continue
+        
+        # Dernier batch
+        if batch_data:
+            execute_batch(cur, """
+                INSERT INTO consommation_enedis 
+                (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                 code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, batch_data)
+            conn.commit()
+            rows_imported += len(batch_data)
+        
+        cur.close()
+        conn.close()
+        
+        duration = time.time() - start_time
+        
+        print(f"✅ [IMPORT_ENEDIS_URL] Terminé: {rows_imported:,} lignes en {duration:.1f}s")
+        
+        return jsonify({
+            "success": True,
+            "rows_imported": rows_imported,
+            "rows_geocoded": rows_geocoded,
+            "rows_skipped": rows_skipped,
+            "geocoding_rate": f"{rows_geocoded/rows_imported*100:.1f}%" if rows_imported > 0 else "0%",
+            "duration_seconds": duration
+        })
+        
+    except Exception as e:
+        print(f"❌ [IMPORT_ENEDIS_URL] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/admin/import-enedis', methods=['POST'])
+def import_enedis_data():
+    """
+    Import des données Enedis depuis un CSV uploadé
+    Crée la table et géocode les adresses avec centroids communes
+    """
+    import csv
+    import io
+    import time
+    from datetime import datetime
+    
+    try:
+        start_time = time.time()
+        
+        # Vérifier qu'on est sur Railway avec PostgreSQL
+        DATABASE_URL = os.environ.get('DATABASE_URL')
+        if not DATABASE_URL:
+            return jsonify({
+                "success": False,
+                "error": "DATABASE_URL non configurée - Import impossible"
+            }), 500
+        
+        # Récupérer le fichier uploadé
+        if 'file' not in request.files:
+            return jsonify({
+                "success": False,
+                "error": "Aucun fichier CSV fourni"
+            }), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({
+                "success": False,
+                "error": "Nom de fichier vide"
+            }), 400
+        
+        print(f"📁 [IMPORT_ENEDIS] Réception CSV: {file.filename}")
+        
+        # Lire le CSV - utiliser virgule comme délimiteur
+        csv_content = file.read().decode('utf-8')
+        csv_reader = csv.DictReader(io.StringIO(csv_content), delimiter=',')
+        
+        # Convertir postgres:// en postgresql://
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        
+        import psycopg2
+        from psycopg2.extras import execute_batch
+        
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        
+        # 1. Créer la table si elle n'existe pas
+        print(f"🔧 [IMPORT_ENEDIS] Création table consommation_enedis...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS consommation_enedis (
+                id SERIAL PRIMARY KEY,
+                annee INTEGER,
+                code_commune VARCHAR(10),
+                nom_commune VARCHAR(200),
+                adresse TEXT,
+                code_grand_secteur VARCHAR(50),
+                code_naf VARCHAR(10),
+                nombre_de_sites INTEGER,
+                consommation_annuelle_totale_mwh DECIMAL(12,2),
+                latitude DECIMAL(10,6),
+                longitude DECIMAL(10,6),
+                date_import TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_enedis_commune ON consommation_enedis(code_commune);
+            CREATE INDEX IF NOT EXISTS idx_enedis_coords ON consommation_enedis(latitude, longitude);
+            CREATE INDEX IF NOT EXISTS idx_enedis_secteur ON consommation_enedis(code_grand_secteur);
+        """)
+        conn.commit()
+        print(f"✅ [IMPORT_ENEDIS] Table créée")
+        
+        # 2. Charger les centroids communes depuis geo.api.gouv.fr
+        print(f"🗺️ [IMPORT_ENEDIS] Chargement centroids communes...")
+        import requests
+        response = requests.get("https://geo.api.gouv.fr/communes?fields=code,centre&format=json&geometry=centre")
+        communes_data = response.json()
+        
+        commune_centroids = {}
+        for commune in communes_data:
+            code = commune.get('code')
+            centre = commune.get('centre')
+            if code and centre and 'coordinates' in centre:
+                lon, lat = centre['coordinates']
+                commune_centroids[code] = (lat, lon)
+        
+        print(f"✅ [IMPORT_ENEDIS] {len(commune_centroids)} centroids chargés")
+        
+        # 3. Parser et insérer les données par batch
+        print(f"📊 [IMPORT_ENEDIS] Import des lignes CSV...")
+        
+        batch_data = []
+        rows_imported = 0
+        rows_geocoded = 0
+        rows_skipped = 0
+        batch_size = 1000
+        
+        # Afficher les colonnes du CSV
+        first_row = True
+        
+        for row in csv_reader:
+            try:
+                if first_row:
+                    print(f"🔍 [IMPORT_ENEDIS] Colonnes CSV détectées: {list(row.keys())}")
+                    first_row = False
+                
+                code_commune = row.get('Code commune', '').strip()
+                if not code_commune:
+                    rows_skipped += 1
+                    continue
+                
+                # Géocodage via centroid commune
+                lat, lon = None, None
+                if code_commune in commune_centroids:
+                    lat, lon = commune_centroids[code_commune]
+                    rows_geocoded += 1
+                
+                batch_data.append((
+                    int(row.get('Année', 2023)),
+                    code_commune,
+                    row.get('Nom commune', '')[:200].strip(),
+                    row.get('Adresse', '')[:500].strip(),
+                    row.get('code_grand_secteur', '')[:50].strip(),
+                    row.get('code_secteur_naf2', '')[:10].strip(),
+                    int(row.get('Nombre de sites', 1) or 1),
+                    float(str(row.get("Consommation annuelle totale de l'adresse (MWh)", 0) or 0).replace(',', '.')),
+                    lat,
+                    lon
+                ))
+                
+                # Insert par batch de 1000
+                if len(batch_data) >= batch_size:
+                    execute_batch(cur, """
+                        INSERT INTO consommation_enedis 
+                        (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                         code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, batch_data)
+                    conn.commit()
+                    
+                    rows_imported += len(batch_data)
+                    print(f"   📦 {rows_imported:,} lignes importées ({rows_geocoded:,} géocodées)...")
+                    batch_data = []
+                    
+            except Exception as e:
+                rows_skipped += 1
+                if rows_skipped <= 5:  # N'afficher que les 5 premières erreurs
+                    print(f"⚠️ [IMPORT_ENEDIS] Erreur ligne {rows_imported + rows_skipped}: {e}")
+                continue
+        
+        # Insérer le dernier batch
+        if batch_data:
+            execute_batch(cur, """
+                INSERT INTO consommation_enedis 
+                (annee, code_commune, nom_commune, adresse, code_grand_secteur, 
+                 code_naf, nombre_de_sites, consommation_annuelle_totale_mwh, latitude, longitude)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, batch_data)
+            conn.commit()
+            rows_imported += len(batch_data)
+        
+        cur.close()
+        conn.close()
+        
+        duration = time.time() - start_time
+        
+        print(f"✅ [IMPORT_ENEDIS] Import terminé!")
+        print(f"   - Lignes importées: {rows_imported:,}")
+        print(f"   - Lignes géocodées: {rows_geocoded:,} ({rows_geocoded/rows_imported*100:.1f}%)" if rows_imported > 0 else "   - Lignes géocodées: 0 (0%)")
+        print(f"   - Lignes sautées: {rows_skipped:,}")
+        print(f"   - Durée: {duration:.1f}s")
+        
+        geocoding_rate = f"{rows_geocoded/rows_imported*100:.1f}%" if rows_imported > 0 else "0%"
+        
+        return jsonify({
+            "success": True,
+            "table_created": True,
+            "rows_imported": rows_imported,
+            "rows_geocoded": rows_geocoded,
+            "rows_skipped": rows_skipped,
+            "geocoding_rate": geocoding_rate,
+            "duration_seconds": duration
+        })
+        
+    except Exception as e:
+        print(f"❌ [IMPORT_ENEDIS] Erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 @app.route('/debug/template-version')
 def debug_template_version():
     """Affiche la version du template rapport_point.html déployé"""
@@ -16982,5 +18240,64 @@ def debug_template_version():
     except Exception as e:
         return f"<pre>❌ Erreur: {str(e)}</pre>", 500
 
+# Initialisation lazy (au premier appel) pour éviter de bloquer Gunicorn
+_app_initialized = False
+
+def init_app_once():
+    """Initialise l'application une seule fois, de manière non-bloquante"""
+    global _app_initialized
+    if _app_initialized:
+        return
+    
+    try:
+        # Import des utilisateurs existants au démarrage
+        print("🔄 [INIT] Import des utilisateurs existants...")
+        import_existing_users()
+        
+        # Initialisation de la base CRM
+        print("🔄 [INIT] Initialisation base CRM...")
+        init_crm_database()
+        
+        print("✅ [INIT] Application initialisée avec succès")
+        _app_initialized = True
+        
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"⚠️ [INIT] Erreur d'initialisation (non-bloquante): {e}")
+        logging.warning(f"[INIT] Non-blocking initialization error: {e}\nTraceback:\n{tb}")
+        # Ne pas lever l'exception pour permettre à l'app de démarrer quand même
+        _app_initialized = True  # Marquer comme initialisé pour ne pas réessayer
+
+# Hook Flask: initialisation au premier appel (lazy)
+@app.before_request
+def before_first_request():
+    """Initialise l'app au premier appel HTTP"""
+    init_app_once()
+
+# Exécution locale uniquement (pas avec Gunicorn)
 if __name__ == "__main__":
-    main()  # Ceci inclut Timer + app.run()
+    try:
+        # En mode local, initialiser immédiatement
+        init_app_once()
+        
+        print("📋 Routes disponibles:")
+        pprint.pprint(list(app.url_map.iter_rules()))
+        
+        # Vérification si on est en mode Railway
+        port = int(os.environ.get("PORT", 5000))
+        host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
+        
+        # Pas d'ouverture de navigateur en production
+        if host == "127.0.0.1":
+            Timer(1, open_browser).start()
+            
+        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
+        
+        # Lancer le serveur Flask
+        app.run(host=host, port=port, debug=False)
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print("[MAIN] Startup error:", e)
+        logging.error(f"[MAIN] Startup error: {e}\nTraceback:\n{tb}")
