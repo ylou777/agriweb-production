@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-import sys
-import io
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
-# -*- coding: utf-8 -*-
 # --- GeoRisques API: fetch risks for a point ---
 import requests
 import os
@@ -13918,6 +13912,37 @@ def open_browser():
         return
     open_browser._opened = True
     webbrowser.open_new("http://127.0.0.1:5000")
+
+def main():
+    try:
+        # Import des utilisateurs existants au démarrage
+        print("🔄 Import des utilisateurs existants...")
+        import_existing_users()
+        
+        # Initialisation de la base CRM
+        init_crm_database()
+        
+        print("Routes disponibles:")
+        pprint.pprint(list(app.url_map.iter_rules()))
+        
+        # Vérification si on est en mode Railway
+        port = int(os.environ.get("PORT", 5000))
+        host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
+        
+        # Pas d'ouverture de navigateur en production
+        if host == "127.0.0.1":
+            Timer(1, open_browser).start()
+            
+        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
+        
+        # Lancer le serveur Flask
+        app.run(host=host, port=port, debug=False)  # Debug False pour éviter les reloads multiples
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print("[main] Startup error:", e)
+        logging.error(f"[main] Startup error: {e}\nTraceback:\n{tb}")
+
 @app.route("/debug_toitures_ui")
 def debug_toitures_ui():
     """Interface de debug pour la recherche de toitures"""
@@ -14919,6 +14944,35 @@ def generate_integrated_commune_report(commune_name, filters=None):
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
             """Désactivé - retourne toujours vide"""
             return ""
+        
+        # Traitement parkings  
+        parkings_details = []
+        for feat in parkings_data:
+            try:
+                geom = shape(feat['geometry'])
+                lon_c, lat_c = geom.centroid.x, geom.centroid.y
+                area_m2 = geom.area * (111000**2)
+                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                # Pas d'adresse pour parkings - désactivé pour éviter boucles infinies
+                addr_txt = ""
+                details = {
+                    'lat': lat_c,
+                    'lon': lon_c,
+                    'surface_m2': round(area_m2, 2),
+                    'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                    'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
+                    'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
+                    'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
+                    'adresse': addr_txt or 'Non disponible',
+                    'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
+                }
+                details['lien_annuaire'] = _build_annuaire_link(addr_txt)
+                parkings_details.append(details)
+            except Exception:
+                continue
 
         # Détails Friches
         print(f"🏚️ [RAPPORT] Traitement de {min(len(friches_data or []), max_details)} friches...")
@@ -17379,9 +17433,9 @@ try:
     crm_routes.register_crm_routes(app)
     print("✅ Routes CRM PostgreSQL enregistrées")
     
-    # Enregistrer les routes d'autoconsommation collective
+    # Enregistrer les routes autoconsommation collective
     crm_routes.register_autoconso_routes(app)
-    print("✅ Routes Autoconso Collective enregistrées")
+    print("✅ Routes Autoconsommation Collective enregistrées")
     
     # Initialiser les tables CRM PostgreSQL si on est sur Railway
     import database_adapter
@@ -18246,64 +18300,5 @@ def debug_template_version():
     except Exception as e:
         return f"<pre>❌ Erreur: {str(e)}</pre>", 500
 
-# Initialisation lazy (au premier appel) pour éviter de bloquer Gunicorn
-_app_initialized = False
-
-def init_app_once():
-    """Initialise l'application une seule fois, de manière non-bloquante"""
-    global _app_initialized
-    if _app_initialized:
-        return
-    
-    try:
-        # Import des utilisateurs existants au démarrage
-        print("🔄 [INIT] Import des utilisateurs existants...")
-        import_existing_users()
-        
-        # Initialisation de la base CRM
-        print("🔄 [INIT] Initialisation base CRM...")
-        init_crm_database()
-        
-        print("✅ [INIT] Application initialisée avec succès")
-        _app_initialized = True
-        
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print(f"⚠️ [INIT] Erreur d'initialisation (non-bloquante): {e}")
-        logging.warning(f"[INIT] Non-blocking initialization error: {e}\nTraceback:\n{tb}")
-        # Ne pas lever l'exception pour permettre à l'app de démarrer quand même
-        _app_initialized = True  # Marquer comme initialisé pour ne pas réessayer
-
-# Hook Flask: initialisation au premier appel (lazy)
-@app.before_request
-def before_first_request():
-    """Initialise l'app au premier appel HTTP"""
-    init_app_once()
-
-# Exécution locale uniquement (pas avec Gunicorn)
 if __name__ == "__main__":
-    try:
-        # En mode local, initialiser immédiatement
-        init_app_once()
-        
-        print("📋 Routes disponibles:")
-        pprint.pprint(list(app.url_map.iter_rules()))
-        
-        # Vérification si on est en mode Railway
-        port = int(os.environ.get("PORT", 5000))
-        host = "0.0.0.0" if "PORT" in os.environ else "127.0.0.1"
-        
-        # Pas d'ouverture de navigateur en production
-        if host == "127.0.0.1":
-            Timer(1, open_browser).start()
-            
-        print(f"🚀 Démarrage AgriWeb sur {host}:{port}")
-        
-        # Lancer le serveur Flask
-        app.run(host=host, port=port, debug=False)
-    except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print("[MAIN] Startup error:", e)
-        logging.error(f"[MAIN] Startup error: {e}\nTraceback:\n{tb}")
+    main()  # Ceci inclut Timer + app.run()
