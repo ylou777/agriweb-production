@@ -4047,60 +4047,6 @@ def register_autoconso_routes(app):
                 },
                 'source': 'enedis-api'
             })
-                else:
-                    moyenne_conso = 0
-                    nb_relevés = 0
-                
-                # Prendre la première adresse ou combiner si plusieurs
-                adresses_list = list(point_data['adresses'])
-                if len(adresses_list) == 1:
-                    adresse_finale = adresses_list[0]
-                else:
-                    # Plusieurs adresses pour ces coordonnées, prendre la plus courte (souvent la plus précise)
-                    adresse_finale = min(adresses_list, key=len)
-                    print(f"📍 [COORDS] {len(adresses_list)} adresses pour {coords_key}: {adresses_list[:3]}")
-                
-                point_data['adresse'] = adresse_finale
-                point_data['consommation_annuelle_mwh'] = round(moyenne_conso, 2)
-                point_data['nb_releves'] = nb_relevés
-                del point_data['consommations']  # Nettoyer
-                del point_data['adresses']  # Nettoyer
-                
-                point_data['sirene'] = None
-                
-                # Enrichir avec l'API Recherche-Entreprises.gouv.fr (gratuite, sans token)
-                # IMPORTANT: Passer la commune pour filtrer géographiquement !
-                try:
-                    commune_point = point_data.get('commune', '')
-                    entreprises = get_sirene_by_adresse(adresse_finale, commune=commune_point)
-                    
-                    if entreprises and len(entreprises) > 0:
-                        # Prendre le premier établissement trouvé
-                        entreprise = entreprises[0]
-                        
-                        if entreprise.get('denomination'):
-                            point_data['sirene'] = entreprise
-                            print(f"✅ [ENTREPRISE] {adresse_finale[:50]} ({commune_point}) → {entreprise['denomination'][:50]}")
-                        else:
-                            print(f"⚠️ [ENTREPRISE] Établissement trouvé sans dénomination pour {adresse_finale[:50]}")
-                    else:
-                        print(f"❌ [ENTREPRISE] Aucune entreprise pour {adresse_finale[:50]} ({commune_point})")
-                        
-                except Exception as sirene_error:
-                    print(f"⚠️ [ENTREPRISE] Erreur: {sirene_error}")
-                
-                filtered_points.append(point_data)
-            filtered_points.sort(key=lambda p: p['distance_km'])
-            
-            return jsonify({
-                'points': filtered_points,
-                'total': len(filtered_points),
-                'radius_km': radius_km,
-                'prospect': {
-                    'latitude': lat,
-                    'longitude': lon
-                }
-            })
             
         except Exception as e:
             print(f"❌ [AUTOCONSO API] Erreur: {e}")
