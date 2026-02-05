@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 # --- GeoRisques API: fetch risks for a point ---
 import requests
 import os
