@@ -15004,6 +15004,40 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 continue
 
+        # Détails Parkings
+        print(f"🅿️ [RAPPORT] Traitement de {min(len(parkings_data or []), max_details)} parkings...")
+        parkings_details = []
+        for feat in (parkings_data or [])[:max_details]:
+            try:
+                geom = feat.get('geometry')
+                if not geom:
+                    continue
+                shp = shape(geom)
+                c = shp.centroid
+                lat_c, lon_c = c.y, c.x
+                area_m2 = shp_transform(to_l93, shp).area
+                d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
+                d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
+                addr_txt = ""  # Pas d'adresse pour parkings
+                details = {
+                    'lat': lat_c,
+                    'lon': lon_c,
+                    'surface_m2': round(area_m2, 2),
+                    'surface_ha': round(area_m2 / 10000.0, 4),
+                    'min_distance_bt_m': round(d_bt, 2) if d_bt is not None else None,
+                    'min_distance_hta_m': round(d_hta, 2) if d_hta is not None else None,
+                    'poste_bt_proche': _find_nearest_poste(lon_c, lat_c, postes_bt_data),
+                    'poste_hta_proche': _find_nearest_poste(lon_c, lat_c, postes_hta_data),
+                    'conso_proche': _find_conso_by_proximity(lon_c, lat_c, enedis_data_raw, max_distance_m=50),
+                    'parcelles': feat.get('properties', {}).get('parcelles_cadastrales', []),
+                    'adresse': addr_txt or 'Non disponible',
+                    'lien_streetview': f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
+                }
+                details['lien_annuaire'] = _build_annuaire_link(addr_txt)
+                parkings_details.append(details)
+            except Exception:
+                continue
+
         print(f"📊 [RAPPORT_INTÉGRÉ] Données collectées:")
         print(f"    🌾 RPG: {len(rpg_data)} parcelles")
         print(f"    🐄 Éleveurs: {len(eleveurs_data)} exploitants")
