@@ -4047,8 +4047,12 @@ def register_autoconso_routes(app):
                 },
                 'source': 'enedis-api'
             })
-            
+        
         except Exception as e:
+            print(f"❌ [AUTOCONSO API] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
             print(f"❌ [AUTOCONSO API] Erreur: {e}")
             import traceback
             traceback.print_exc()
