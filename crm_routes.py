@@ -3601,3 +3601,510 @@ def register_crm_routes(app):
                 'error': f'Erreur: {str(e)}'
             }), 500
 
+
+def register_autoconso_routes(app):
+    """
+    Enregistre les routes pour l'autoconsommation collective
+    """
+    from shapely.geometry import shape, Point
+    import math
+    import requests
+    
+    def get_sirene_by_siret(siret):
+        """
+        Récupère les données d'une entreprise via l'API SIRENE officielle
+        https://api.insee.fr/entreprises/sirene/V3/siret/{siret}
+        """
+        if not siret or len(siret) < 14:
+            return None
+        
+        try:
+            url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
+            headers = {
+                'Accept': 'application/json',
+                'User-Agent': 'AgriWeb/1.0'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                etablissement = data.get('etablissement', {})
+                unite_legale = etablissement.get('uniteLegale', {})
+                
+                return {
+                    'siret': siret,
+                    'denomination': (
+                        unite_legale.get('denominationUniteLegale') or
+                        unite_legale.get('prenomUsuelUniteLegale', '') + ' ' + unite_legale.get('nomUniteLegale', '') or
+                        etablissement.get('enseigne1Etablissement') or
+                        ''
+                    ).strip(),
+                    'activite': unite_legale.get('activitePrincipaleUniteLegale', ''),
+                    'tranche_effectifs': unite_legale.get('trancheEffectifsUniteLegale', ''),
+                    'etat': etablissement.get('etatAdministratifEtablissement', ''),
+                    'categorie': unite_legale.get('categorieJuridiqueUniteLegale', '')
+                }
+            elif response.status_code == 404:
+                print(f"⚠️ [API SIRENE] SIRET {siret} non trouvé")
+                return None
+            else:
+                print(f"⚠️ [API SIRENE] Erreur {response.status_code} pour SIRET {siret}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ [API SIRENE] Erreur requête: {e}")
+            return None
+    import requests
+    
+    def get_entreprise_from_siret(siret):
+        """
+        Interroge l'API SIRENE de l'INSEE pour récupérer les infos d'une entreprise
+        https://api.insee.fr/entreprises/sirene/V3/siret/{siret}
+        """
+        if not siret or len(siret) != 14:
+            return None
+        
+        try:
+            # API SIRENE publique (pas besoin de token pour consultation simple)
+            url = f"https://api.insee.fr/entreprises/sirene/V3/siret/{siret}"
+            headers = {
+                'Accept': 'application/json',
+                'User-Agent': 'AgriWeb/1.0'
+            }
+            
+            response = requests.get(url, headers=headers, timeout=5)
+            
+            if response.status_code == 200:
+                data = response.json()
+                etablissement = data.get('etablissement', {})
+                unite_legale = etablissement.get('uniteLegale', {})
+                periode = etablissement.get('periodesEtablissement', [{}])[0] if etablissement.get('periodesEtablissement') else {}
+                
+                return {
+                    'siret': siret,
+                    'denomination': (
+                        unite_legale.get('denominationUniteLegale') or
+                        unite_legale.get('nomUniteLegale') or
+                        periode.get('enseigne1Etablissement') or
+                        ''
+                    ),
+                    'activite': unite_legale.get('activitePrincipaleUniteLegale', ''),
+                    'tranche_effectifs': unite_legale.get('trancheEffectifsUniteLegale', ''),
+                    'etat': etablissement.get('etatAdministratifEtablissement', ''),
+                    'adresse': etablissement.get('adresseEtablissement', {})
+                }
+            elif response.status_code == 404:
+                print(f"⚠️ [API SIRENE] SIRET {siret} non trouvé dans l'API INSEE")
+                return None
+            else:
+                print(f"⚠️ [API SIRENE] Erreur HTTP {response.status_code} pour SIRET {siret}")
+                return None
+                
+        except requests.exceptions.Timeout:
+            print(f"⏱️ [API SIRENE] Timeout pour SIRET {siret}")
+            return None
+        except Exception as e:
+            print(f"❌ [API SIRENE] Erreur pour SIRET {siret}: {e}")
+            return None
+    
+    def get_sirene_by_adresse(adresse, commune=None):
+        """
+        Recherche les entreprises par adresse via l'API Recherche-Entreprises.gouv.fr
+        API publique, gratuite, sans token : https://recherche-entreprises.api.gouv.fr
+        
+        Args:
+            adresse: Adresse du point de consommation
+            commune: Nom de la commune pour filtrer géographiquement (IMPORTANT!)
+        """
+        if not adresse or len(adresse) < 5:
+            return []
+        
+        try:
+            # Nettoyer l'adresse
+            adresse_clean = adresse.strip().replace('  ', ' ')
+            
+            # IMPORTANT: Ajouter la commune pour éviter les résultats d'autres régions
+            query = f"{adresse_clean} {commune}" if commune else adresse_clean
+            
+            # API Recherche-Entreprises (publique, gratuite, sans token)
+            url = "https://recherche-entreprises.api.gouv.fr/search"
+            params = {
+                'q': query,
+                'per_page': 5,  # Limiter à 5 résultats
+                'page': 1
+            }
+            headers = {
+                'Accept': 'application/json',
+                'User-Agent': 'AgriWeb/2.0'
+            }
+            
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results_data = data.get('results', [])
+                total = data.get('total_results', 0)
+                
+                if not results_data:
+                    print(f"⚠️ [API ENTREPRISE] Aucun résultat pour: {query[:50]}")
+                    return []
+                
+                print(f"✅ [API ENTREPRISE] {total} entreprise(s) trouvée(s) pour: {query[:50]} (affichage: {len(results_data)})")
+                
+                # FILTRER les résultats pour ne garder QUE ceux de la commune ciblée
+                results = []
+                for entreprise in results_data:
+                    siege = entreprise.get('siege', {})
+                    commune_entreprise = siege.get('libelle_commune', '').upper()
+                    
+                    # Vérifier si la commune correspond (ignorer la casse)
+                    if commune and commune_entreprise:
+                        commune_clean = commune.upper().strip()
+                        # Ne garder que si la commune correspond exactement
+                        if commune_clean not in commune_entreprise:
+                            print(f"⚠️ [FILTRE] Rejeté: {entreprise.get('nom_complet', 'N/A')[:40]} ({commune_entreprise}) != {commune_clean}")
+                            continue
+                    
+                    results.append({
+                        'siret': siege.get('siret', ''),
+                        'denomination': entreprise.get('nom_complet', '') or entreprise.get('nom_raison_sociale', ''),
+                        'activite': siege.get('activite_principale', ''),
+                        'tranche_effectifs': '',  # Non disponible dans cette API
+                        'etat': siege.get('etat_administratif', ''),
+                        'categorie': '',  # Non disponible directement
+                        'adresse_complete': siege.get('adresse', ''),
+                        'commune': commune_entreprise,
+                        'code_postal': siege.get('code_postal', ''),
+                        'latitude': siege.get('latitude', ''),
+                        'longitude': siege.get('longitude', '')
+                    })
+                
+                if results:
+                    print(f"✅ [FILTRE] {len(results)} entreprise(s) conservée(s) après filtrage commune")
+                else:
+                    print(f"⚠️ [FILTRE] Aucune entreprise dans la commune '{commune}' après filtrage")
+                
+                return results
+                
+            else:
+                print(f"⚠️ [API ENTREPRISE] Erreur HTTP {response.status_code} pour: {adresse_clean[:50]}")
+                return []
+                
+        except requests.exceptions.Timeout:
+            print(f"⏱️ [API ENTREPRISE] Timeout pour: {adresse[:50]}")
+            return []
+        except Exception as e:
+            print(f"❌ [API ENTREPRISE] Erreur pour '{adresse[:50]}': {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    def get_enedis_consommation_by_coords(lat, lon, radius_m=500):
+        """
+        Interroge l'API Enedis Open Data pour récupérer les consommations annuelles
+        des entreprises dans une commune donnée
+        
+        ⚠️ LIMITATION: L'API Enedis n'a pas de coordonnées GPS dans le dataset
+        On utilise donc une recherche par commune (code_commune via reverse geocoding)
+        
+        API: https://opendata.enedis.fr/data-fair/api/v1/datasets/consommation-annuelle-entreprise-par-adresse
+        
+        Args:
+            lat: Latitude du point central
+            lon: Longitude du point central  
+            radius_m: Rayon de recherche en mètres (ignoré - recherche par commune)
+        
+        Returns:
+            Liste des points de consommation de la commune
+        """
+        try:
+            # ⚠️ Étape 1: Trouver le code INSEE de la commune via reverse geocoding
+            geocode_url = "https://api-adresse.data.gouv.fr/reverse/"
+            geocode_params = {'lat': lat, 'lon': lon}
+            
+            print(f"🔌 [ENEDIS API] Étape 1: Reverse geocoding ({lat:.6f}, {lon:.6f})")
+            
+            geocode_resp = requests.get(geocode_url, params=geocode_params, timeout=10)
+            
+            if geocode_resp.status_code != 200:
+                print(f"⚠️ [ENEDIS API] Échec reverse geocoding HTTP {geocode_resp.status_code}")
+                return []
+            
+            geocode_data = geocode_resp.json()
+            if not geocode_data.get('features'):
+                print(f"⚠️ [ENEDIS API] Aucune commune trouvée aux coordonnées")
+                return []
+            
+            code_commune = geocode_data['features'][0]['properties'].get('citycode')
+            nom_commune = geocode_data['features'][0]['properties'].get('city', '')
+            
+            if not code_commune:
+                print(f"⚠️ [ENEDIS API] Code commune introuvable")
+                return []
+            
+            print(f"✅ [ENEDIS API] Commune trouvée: {nom_commune} ({code_commune})")
+            
+            # Étape 2: Interroger Enedis avec le code commune
+            url = "https://opendata.enedis.fr/data-fair/api/v1/datasets/qjl5f5v2mfxajth6gk2t8u7h/lines"
+            
+            params = {
+                'size': 100,  # Max 100 résultats
+                'select': 'adresse,nom_commune,code_commune,code_grand_secteur,consommation_annuelle_totale_de_ladresse_mwh,nombre_de_sites,annee',
+                'qs': f'code_commune:{code_commune}',  # Filtre par commune
+                'sort': '-consommation_annuelle_totale_de_ladresse_mwh'  # Trier par conso décroissante
+            }
+            
+            print(f"🔌 [ENEDIS API] Étape 2: Requête consommations commune {code_commune}")
+            
+            response = requests.get(url, params=params, timeout=15)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('results', [])
+                total = data.get('total', len(results))
+                
+                if results:
+                    print(f"✅ [ENEDIS API] {len(results)}/{total} consommations trouvées dans {nom_commune}")
+                    
+                    # Formater les résultats pour compatibilité avec l'ancien format
+                    formatted_results = []
+                    for point in results:
+                        formatted_results.append({
+                            'adresse': point.get('adresse', ''),
+                            'commune': point.get('nom_commune', nom_commune),
+                            'code_commune': point.get('code_commune', code_commune),
+                            'secteur': point.get('code_grand_secteur', ''),
+                            'consommation_annuelle_mwh': point.get('consommation_annuelle_totale_de_ladresse_mwh', 0),
+                            'nb_sites': point.get('nombre_de_sites', 0),
+                            'annee': point.get('annee', 2022),
+                            'pdl': None,  # Non disponible dans ce dataset
+                            'distance_m': 0,  # Distance non calculable sans GPS
+                            'source': 'enedis-commune'  # Indiquer la source
+                        })
+                    
+                    return formatted_results
+                else:
+                    print(f"⚠️ [ENEDIS API] Aucune consommation dans commune {nom_commune}")
+                    return []
+            else:
+                print(f"⚠️ [ENEDIS API] Erreur HTTP {response.status_code}")
+                return []
+                
+        except requests.exceptions.Timeout:
+            print(f"⏱️ [ENEDIS API] Timeout")
+            return []
+        except Exception as e:
+            print(f"❌ [ENEDIS API] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+    
+    @app.route('/crm/autoconso-collective/<int:prospect_id>')
+    def autoconso_collective_page(prospect_id):
+        """Page d'analyse d'autoconsommation collective pour un prospect"""
+        try:
+            # Récupérer les infos du prospect
+            prospect = execute_query(
+                'SELECT * FROM agriweb_prospects WHERE id = %s',
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not prospect:
+                return "Prospect non trouvé", 404
+            
+            return render_template('autoconso_collective.html', prospect=prospect)
+            
+        except Exception as e:
+            print(f"❌ [AUTOCONSO] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return f"Erreur: {str(e)}", 500
+    
+    @app.route('/api/crm/autoconso-collective/<int:prospect_id>/points-conso')
+    def get_autoconso_points(prospect_id):
+        """
+        Récupère tous les points de consommation Enedis RÉELS dans un rayon donné
+        autour du prospect, enrichis avec les données SIRENE
+        
+        🔌 Utilise l'API officielle Enedis Open Data
+        """
+        try:
+            # Récupérer le rayon demandé (défaut: 1km pour autoconso collective)
+            radius_km = float(request.args.get('radius', 1))
+            radius_m = int(radius_km * 1000)  # Convertir en mètres pour l'API
+            
+            # Récupérer les coordonnées du prospect  
+            prospect = execute_query(
+                'SELECT latitude, longitude, commune FROM agriweb_prospects WHERE id = %s',
+                (prospect_id,),
+                fetch_one=True
+            )
+            
+            if not prospect:
+                return jsonify({'error': 'Prospect non trouvé'}), 404
+            
+            lat = prospect['latitude']
+            lon = prospect['longitude']
+            commune_prospect = prospect.get('commune', '')
+            
+            print(f"\n🔌 [AUTOCONSO COLLECTIVE] Recherche consommateurs autour de ({lat:.6f}, {lon:.6f})")
+            print(f"📏 Rayon: {radius_km} km ({radius_m} m)")
+            
+            # 🆕 UTILISER L'API ENEDIS OFFICIELLE
+            enedis_points = get_enedis_consommation_by_coords(lat, lon, radius_m)
+            
+            if not enedis_points:
+                print("⚠️ Aucun point Enedis trouvé, fallback sur ancienne méthode")
+                # Fallback sur ancienne méthode si API Enedis ne répond pas
+                from agriweb_hebergement_gratuit import get_all_consommation
+                radius_deg = radius_km / 111.0
+                all_features = get_all_consommation(lat, lon, radius_deg=radius_deg)
+                
+                if not all_features:
+                    return jsonify({
+                        'points': [],
+                        'total': 0,
+                        'radius_km': radius_km,
+                        'source': 'fallback-empty'
+                    })
+                
+                # Traiter les features (ancien code)
+                points_formatted = []
+                for feature in all_features:
+                    props = feature.get('properties', {})
+                    distance_m = props.get('distance', 0)
+                    
+                    if distance_m / 1000.0 <= radius_km:
+                        points_formatted.append({
+                            'latitude': props.get('latitude'),
+                            'longitude': props.get('longitude'),
+                            'adresse': props.get('adresse', 'N/A'),
+                            'commune': props.get('nom_commune', ''),
+                            'consommation_annuelle_mwh': props.get('consommation_mwh', 0),
+                            'secteur': props.get('secteur', 'NON_AFFECTE'),
+                            'distance_km': round(distance_m / 1000.0, 2),
+                            'source': 'fallback'
+                        })
+                
+                return jsonify({
+                    'points': points_formatted,
+                    'total': len(points_formatted),
+                    'radius_km': radius_km,
+                    'source': 'fallback'
+                })
+            
+            # 🆕 TRAITER LES RÉSULTATS ENEDIS
+            points_enrichis = []
+            
+            for point in enedis_points:
+                point_lat = point.get('latitude')
+                point_lon = point.get('longitude')
+                adresse = point.get('adresse', 'N/A')
+                commune = point.get('nom_commune', '')
+                conso_mwh = point.get('consommation_annuelle_mwh', 0)
+                distance_km = round(point.get('distance_m', 0) / 1000.0, 2)
+                
+                # Enrichir avec SIRENE (entreprise à cette adresse)
+                sirene_data = None
+                try:
+                    entreprises = get_sirene_by_adresse(adresse, commune=commune)
+                    if entreprises and len(entreprises) > 0:
+                        ent = entreprises[0]
+                        sirene_data = {
+                            'siret': ent.get('siret', ''),
+                            'denomination': ent.get('denomination', ''),
+                            'activite': ent.get('activite', ''),
+                            'etat': ent.get('etat', '')
+                        }
+                except Exception as e:
+                    print(f"⚠️ Erreur enrichissement SIRENE: {e}")
+                
+                points_enrichis.append({
+                    'latitude': point_lat,
+                    'longitude': point_lon,
+                    'adresse': adresse,
+                    'commune': commune,
+                    'consommation_annuelle_mwh': conso_mwh,
+                    'secteur': point.get('secteur', 'NON_AFFECTE'),
+                    'nb_sites': point.get('nb_sites', 1),
+                    'pdl': point.get('pdl', ''),
+                    'distance_km': distance_km,
+                    'sirene': sirene_data,
+                    'source': 'enedis-api'
+                })
+            
+            print(f"✅ [AUTOCONSO] {len(points_enrichis)} points consommateurs trouvés")
+            
+            return jsonify({
+                'points': points_enrichis,
+                'total': len(points_enrichis),
+                'radius_km': radius_km,
+                'prospect': {
+                    'latitude': lat,
+                    'longitude': lon
+                },
+                'source': 'enedis-api'
+            })
+                else:
+                    moyenne_conso = 0
+                    nb_relevés = 0
+                
+                # Prendre la première adresse ou combiner si plusieurs
+                adresses_list = list(point_data['adresses'])
+                if len(adresses_list) == 1:
+                    adresse_finale = adresses_list[0]
+                else:
+                    # Plusieurs adresses pour ces coordonnées, prendre la plus courte (souvent la plus précise)
+                    adresse_finale = min(adresses_list, key=len)
+                    print(f"📍 [COORDS] {len(adresses_list)} adresses pour {coords_key}: {adresses_list[:3]}")
+                
+                point_data['adresse'] = adresse_finale
+                point_data['consommation_annuelle_mwh'] = round(moyenne_conso, 2)
+                point_data['nb_releves'] = nb_relevés
+                del point_data['consommations']  # Nettoyer
+                del point_data['adresses']  # Nettoyer
+                
+                point_data['sirene'] = None
+                
+                # Enrichir avec l'API Recherche-Entreprises.gouv.fr (gratuite, sans token)
+                # IMPORTANT: Passer la commune pour filtrer géographiquement !
+                try:
+                    commune_point = point_data.get('commune', '')
+                    entreprises = get_sirene_by_adresse(adresse_finale, commune=commune_point)
+                    
+                    if entreprises and len(entreprises) > 0:
+                        # Prendre le premier établissement trouvé
+                        entreprise = entreprises[0]
+                        
+                        if entreprise.get('denomination'):
+                            point_data['sirene'] = entreprise
+                            print(f"✅ [ENTREPRISE] {adresse_finale[:50]} ({commune_point}) → {entreprise['denomination'][:50]}")
+                        else:
+                            print(f"⚠️ [ENTREPRISE] Établissement trouvé sans dénomination pour {adresse_finale[:50]}")
+                    else:
+                        print(f"❌ [ENTREPRISE] Aucune entreprise pour {adresse_finale[:50]} ({commune_point})")
+                        
+                except Exception as sirene_error:
+                    print(f"⚠️ [ENTREPRISE] Erreur: {sirene_error}")
+                
+                filtered_points.append(point_data)
+            filtered_points.sort(key=lambda p: p['distance_km'])
+            
+            return jsonify({
+                'points': filtered_points,
+                'total': len(filtered_points),
+                'radius_km': radius_km,
+                'prospect': {
+                    'latitude': lat,
+                    'longitude': lon
+                }
+            })
+            
+        except Exception as e:
+            print(f"❌ [AUTOCONSO API] Erreur: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': str(e)}), 500
+

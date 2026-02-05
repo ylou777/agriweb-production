@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autoconsommation Collective - {{ prospect.commune or prospect.adresse_complete }}</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .main-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+            color: white;
+            padding: 30px;
+        }
+        
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        
+        .radius-selector {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .radius-btn {
+            margin: 5px;
+        }
+        
+        .radius-btn.active {
+            background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
+            border: none;
+            color: white;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .point-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .point-item:hover {
+            background: #f8f9fa;
+        }
+        
+        .consumption-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        
+        .consumption-high { background: #dc3545; color: white; }
+        .consumption-medium { background: #fd7e14; color: white; }
+        .consumption-low { background: #ffc107; color: black; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12">
+                <div class="main-container">
+                    <!-- Header -->
+                    <div class="header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="mb-2">
+                                    <i class="bi bi-lightning-charge-fill"></i>
+                                    Autoconsommation Collective
+                                </h1>
+                                <p class="mb-0">
+                                    <i class="bi bi-geo-alt-fill"></i>
+                                    {{ prospect.commune or prospect.adresse_complete }}
+                                </p>
+                            </div>
+                            <button class="btn btn-light" onclick="window.close()">
+                                <i class="bi bi-x-lg"></i> Fermer
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Card -->
+                    <div class="stats-card mx-4">
+                        <div class="row text-center">
+                            <div class="col-md-3">
+                                <h3 class="mb-0" id="total-points">-</h3>
+                                <small>Points de consommation</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="mb-0" id="sirene-count">-</h3>
+                                <small>Entreprises identifiées</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="mb-0" id="current-radius">5</h3>
+                                <small>Rayon (km)</small>
+                            </div>
+                            <div class="col-md-3">
+                                <h3 class="mb-0" id="total-consumption">-</h3>
+                                <small>Consommation totale (MWh/an)</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Map and List -->
+                    <div class="row g-0">
+                        <div class="col-md-8">
+                            <div style="position: relative;">
+                                <!-- Radius Selector -->
+                                <div class="radius-selector">
+                                    <div class="d-flex flex-column">
+                                        <small class="text-muted mb-2"><strong>Rayon de recherche</strong></small>
+                                        <button class="btn btn-sm btn-outline-warning radius-btn active" data-radius="5">
+                                            5 km
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning radius-btn" data-radius="10">
+                                            10 km
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-warning radius-btn" data-radius="20">
+                                            20 km
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Map -->
+                                <div id="map"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div style="height: 600px; overflow-y: auto; border-left: 1px solid #dee2e6;">
+                                <div class="p-3">
+                                    <h5 class="mb-3">
+                                        <i class="bi bi-list-ul"></i>
+                                        Liste des points
+                                    </h5>
+                                    <div id="points-list">
+                                        <div class="text-center text-muted p-4">
+                                            <div class="spinner-border" role="status">
+                                                <span class="visually-hidden">Chargement...</span>
+                                            </div>
+                                            <p class="mt-2">Chargement des points...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    
+    <script>
+        const prospectId = {{ prospect.id }};
+        const prospectLat = {{ prospect.latitude }};
+        const prospectLon = {{ prospect.longitude }};
+        
+        let map;
+        let circleLayer;
+        let markersClusterGroup;  // Changed from markersLayer
+        let currentRadius = 5;
+        let currentPoints = [];
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([prospectLat, prospectLon], 13);
+            
+            // Couche OpenStreetMap
+            const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            });
+            
+            // Couche satellite ESRI
+            const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles © Esri — Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 19
+            });
+            
+            // Ajouter la couche OSM par défaut
+            osmLayer.addTo(map);
+            
+            // Gestionnaire de couches (layer control)
+            const baseMaps = {
+                "🗺️ Carte OpenStreetMap": osmLayer,
+                "🛰️ Vue Satellite": satelliteLayer
+            };
+            
+            L.control.layers(baseMaps, null, {
+                position: 'topright'
+            }).addTo(map);
+            
+            // Add prospect marker
+            L.marker([prospectLat, prospectLon], {
+                icon: L.divIcon({
+                    className: 'prospect-marker',
+                    html: '<div style="background: #667eea; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [20, 20],
+                    iconAnchor: [10, 10]
+                })
+            }).addTo(map).bindPopup('<strong>Prospect</strong><br>Point de départ');
+            
+            // Initialize layers
+            circleLayer = L.layerGroup().addTo(map);
+            markersClusterGroup = L.markerClusterGroup({
+                maxClusterRadius: 50,  // Rayon de regroupement en pixels
+                spiderfyOnMaxZoom: true,
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true
+            });
+            map.addLayer(markersClusterGroup);
+            
+            // Load initial data
+            loadPoints(currentRadius);
+        }
+        
+        // Load consumption points
+        async function loadPoints(radius) {
+            try {
+                const response = await fetch(`/api/crm/autoconso-collective/${prospectId}/points-conso?radius=${radius}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                console.log(`📊 Données reçues:`, data);
+                console.log(`📍 ${data.total} points de consommation`);
+                console.log(`🏢 ${data.points.filter(p => p.sirene).length} points avec données SIRENE`);
+                
+                // Debug: afficher le premier point pour voir la structure
+                if (data.points.length > 0) {
+                    console.log(`🔍 Premier point (exemple):`, data.points[0]);
+                }
+                
+                currentPoints = data.points;
+                updateMap(data);
+                updateStats(data);
+                updateList(data.points);
+                
+            } catch (error) {
+                console.error('Erreur:', error);
+                document.getElementById('points-list').innerHTML = `
+                    <div class="alert alert-danger m-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        Erreur: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        // Update map with points
+        function updateMap(data) {
+            if (!data || !data.points) {
+                console.error('❌ Données invalides dans updateMap:', data);
+                return;
+            }
+            
+            // Clear existing layers
+            circleLayer.clearLayers();
+            markersClusterGroup.clearLayers();  // Changed from markersLayer
+            
+            console.log(`🗺️ Début updateMap avec ${data.points.length} points`);
+            
+            // Analyser les coordonnées pour détecter les doublons
+            const coordsMap = new Map();
+            data.points.forEach((p, idx) => {
+                const key = `${p.latitude.toFixed(6)},${p.longitude.toFixed(6)}`;
+                if (!coordsMap.has(key)) {
+                    coordsMap.set(key, []);
+                }
+                coordsMap.get(key).push(idx);
+            });
+            
+            const duplicates = Array.from(coordsMap.entries()).filter(([key, indices]) => indices.length > 1);
+            if (duplicates.length > 0) {
+                console.warn(`⚠️ ${duplicates.length} positions avec plusieurs points superposés:`);
+                duplicates.slice(0, 3).forEach(([key, indices]) => {
+                    console.log(`  - Position ${key}: ${indices.length} points (indices: ${indices.join(', ')})`);
+                });
+            }
+            console.log(`📍 ${coordsMap.size} positions uniques sur ${data.points.length} points`);
+            
+            // Add radius circle
+            L.circle([prospectLat, prospectLon], {
+                radius: data.radius_km * 1000,
+                color: '#f7971e',
+                fillColor: '#ffd200',
+                fillOpacity: 0.1,
+                weight: 2
+            }).addTo(circleLayer);
+            
+            // Add consumption points
+            let validMarkers = 0;
+            let invalidMarkers = 0;
+            
+            data.points.forEach((point, index) => {
+                // Vérification des coordonnées
+                if (!point.latitude || !point.longitude) {
+                    console.warn(`⚠️ Point ${index} sans coordonnées:`, point);
+                    invalidMarkers++;
+                    return;
+                }
+                
+                if (isNaN(point.latitude) || isNaN(point.longitude)) {
+                    console.warn(`⚠️ Point ${index} coordonnées invalides:`, point.latitude, point.longitude);
+                    invalidMarkers++;
+                    return;
+                }
+                
+                const consumption = point.consommation_annuelle_mwh || 0;
+                
+                // Color based on consumption
+                let color, size;
+                if (consumption > 100) {
+                    color = '#dc3545';
+                    size = 12;
+                } else if (consumption > 50) {
+                    color = '#fd7e14';
+                    size = 10;
+                } else if (consumption > 20) {
+                    color = '#ffc107';
+                    size = 8;
+                } else {
+                    color = '#28a745';
+                    size = 6;
+                }
+                
+                const marker = L.circleMarker([point.latitude, point.longitude], {
+                    radius: size,
+                    fillColor: color,
+                    color: 'white',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+                
+                validMarkers++;
+                
+                marker.bindPopup(`
+                    <div style="min-width: 250px;">
+                        <strong style="font-size: 1.1em; color: #333;">${point.adresse || 'Adresse non disponible'}</strong><br>
+                        ${point.sirene ? `
+                            <hr style="margin: 8px 0;">
+                            <div style="background: #f8f9fa; padding: 10px; border-radius: 6px;">
+                                <strong style="color: #667eea; font-size: 1em;">
+                                    <i class="bi bi-building"></i> ${point.sirene.denomination || 'Entreprise'}
+                                </strong><br>
+                                ${point.sirene.adresse_complete ? `
+                                    <small style="color: #666; display: block; margin-top: 5px;">
+                                        <i class="bi bi-geo-alt"></i> ${point.sirene.adresse_complete}
+                                    </small>
+                                ` : ''}
+                                ${point.sirene.siret ? `<small><i class="bi bi-hash"></i> SIRET: ${point.sirene.siret}</small><br>` : ''}
+                                ${point.sirene.activite ? `<small><i class="bi bi-briefcase"></i> Activité: ${point.sirene.activite}</small><br>` : ''}
+                                ${point.sirene.tranche_effectifs ? `<small><i class="bi bi-people"></i> Effectifs: ${point.sirene.tranche_effectifs}</small><br>` : ''}
+                                ${point.sirene.denomination ? `
+                                    <div style="margin-top: 8px;">
+                                        <a href="https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=${encodeURIComponent(point.sirene.denomination)}&ou=${encodeURIComponent(point.commune || '')}" 
+                                           target="_blank" 
+                                           class="btn btn-sm btn-outline-primary" 
+                                           style="font-size: 0.8em; padding: 3px 8px;">
+                                            <i class="bi bi-telephone"></i> Trouver le téléphone
+                                        </a>
+                                    </div>
+                                ` : ''}
+                            </div>
+                            <hr style="margin: 8px 0;">
+                        ` : ''}
+                        <small><strong><i class="bi bi-lightning-charge"></i> Consommation:</strong> ${consumption.toFixed(2)} MWh/an</small><br>
+                        ${point.nb_releves > 1 ? `<small style="color: #666;"><em>(Moyenne de ${point.nb_releves} relevés)</em></small><br>` : ''}
+                        <small><strong><i class="bi bi-pin-map"></i> Distance:</strong> ${point.distance_km} km</small>
+                    </div>
+                `);
+                
+                marker.on('click', () => {
+                    highlightPoint(point);
+                });
+                
+                // Add to cluster group instead of direct layer
+                markersClusterGroup.addLayer(marker);
+            });
+            
+            console.log(`✅ ${validMarkers} marqueurs créés, ${invalidMarkers} points invalides`);
+            
+            // Fit bounds if points exist
+            if (data.points.length > 0) {
+                const validPoints = data.points.filter(p => p.latitude && p.longitude && !isNaN(p.latitude) && !isNaN(p.longitude));
+                if (validPoints.length > 0) {
+                    const bounds = L.latLngBounds(
+                        validPoints.map(p => [p.latitude, p.longitude])
+                    );
+                    bounds.extend([prospectLat, prospectLon]);
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                    console.log(`🎯 Carte centrée sur ${validPoints.length} points valides`);
+                }
+            }
+        }
+        
+        // Update stats
+        function updateStats(data) {
+            if (!data || !data.points) {
+                console.error('❌ Données invalides dans updateStats:', data);
+                return;
+            }
+            
+            document.getElementById('total-points').textContent = data.total || 0;
+            document.getElementById('current-radius').textContent = data.radius_km || 5;
+            
+            const totalConsumption = data.points.reduce((sum, p) => sum + (p.consommation_annuelle_mwh || 0), 0);
+            document.getElementById('total-consumption').textContent = totalConsumption.toFixed(2);
+            
+            const sireneCount = data.points.filter(p => p.sirene && p.sirene.denomination).length;
+            document.getElementById('sirene-count').textContent = sireneCount;
+        }
+        
+        // Update points list
+        function updateList(points) {
+            if (!points) {
+                console.error('❌ Points invalides dans updateList');
+                document.getElementById('points-list').innerHTML = '<div class="text-center text-muted p-4">Erreur de chargement</div>';
+                return;
+            }
+            
+            const listHtml = points.length === 0 
+                ? '<div class="text-center text-muted p-4">Aucun point trouvé dans ce rayon</div>'
+                : points.map(point => {
+                    const consumption = point.consommation_annuelle_mwh || 0;
+                    let badgeClass;
+                    if (consumption > 100) badgeClass = 'consumption-high';
+                    else if (consumption > 50) badgeClass = 'consumption-medium';
+                    else badgeClass = 'consumption-low';
+                    
+                    return `
+                        <div class="point-item" onclick="focusPoint(${point.latitude}, ${point.longitude})">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="flex-grow-1">
+                                    ${point.sirene ? `
+                                        <div class="fw-bold text-primary mb-1">
+                                            <i class="bi bi-building"></i> ${point.sirene.denomination || 'Entreprise'}
+                                        </div>
+                                        ${point.sirene.activite ? `<small class="text-muted d-block">📊 ${point.sirene.activite}</small>` : ''}
+                                        ${point.sirene.adresse_complete ? `
+                                            <small class="text-muted d-block mt-1">
+                                                <i class="bi bi-geo-alt-fill"></i> ${point.sirene.adresse_complete}
+                                            </small>
+                                        ` : `
+                                            <small class="text-muted d-block mt-1">
+                                                <i class="bi bi-geo-alt-fill"></i> ${point.adresse || 'Adresse non disponible'}
+                                            </small>
+                                        `}
+                                    ` : `
+                                        <div class="fw-bold text-secondary mb-1">
+                                            <i class="bi bi-geo-alt-fill"></i> Point de consommation
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            ${point.adresse || 'Adresse non disponible'}
+                                        </small>
+                                    `}
+                                    <small class="text-muted d-block mt-1">
+                                        <i class="bi bi-pin-map"></i> ${point.distance_km} km
+                                        ${point.sirene && point.sirene.tranche_effectifs ? ` • 👥 ${point.sirene.tranche_effectifs}` : ''}
+                                    </small>
+                                </div>
+                                <span class="consumption-badge ${badgeClass}">
+                                    ${consumption.toFixed(1)} MWh
+                                </span>
+                            </div>
+                            ${point.sirene && point.sirene.siret ? `
+                                <small class="text-muted d-block">
+                                    <i class="bi bi-hash"></i> SIRET: ${point.sirene.siret}
+                                </small>
+                            ` : ''}
+                            ${point.sirene && point.sirene.denomination ? `
+                                <div class="mt-2">
+                                    <a href="https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=${encodeURIComponent(point.sirene.denomination)}&ou=${encodeURIComponent(point.commune || '')}" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       style="font-size: 0.75em; padding: 4px 10px;"
+                                       onclick="event.stopPropagation();">
+                                        <i class="bi bi-telephone"></i> Téléphone
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            
+            document.getElementById('points-list').innerHTML = listHtml;
+        }
+        
+        // Focus on a point
+        function focusPoint(lat, lon) {
+            map.setView([lat, lon], 16);
+        }
+        
+        // Highlight point in list
+        function highlightPoint(point) {
+            const items = document.querySelectorAll('.point-item');
+            items.forEach(item => item.classList.remove('bg-light'));
+            
+            const index = currentPoints.indexOf(point);
+            if (index !== -1) {
+                items[index].classList.add('bg-light');
+                items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+        
+        // Handle radius change
+        document.querySelectorAll('.radius-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Update active state
+                document.querySelectorAll('.radius-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Load new data
+                const radius = parseInt(btn.dataset.radius);
+                currentRadius = radius;
+                loadPoints(radius);
+            });
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initMap);
+    </script>
+</body>
+</html>
