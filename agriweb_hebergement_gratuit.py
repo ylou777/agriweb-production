@@ -14913,6 +14913,16 @@ def generate_integrated_commune_report(commune_name, filters=None):
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
             """Désactivé - retourne toujours vide"""
             return ""
+        
+        def _build_annuaire_link(address: str) -> str:
+            """Construit un lien vers un annuaire d'entreprises"""
+            if not address:
+                return ""
+            try:
+                from urllib.parse import quote_plus
+                return f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui=&ou={quote_plus(address)}"
+            except Exception:
+                return ""
 
         # Limite du nombre de détails par catégorie
         max_details = 100
