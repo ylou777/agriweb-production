@@ -4047,9 +4047,9 @@ def register_autoconso_routes(app):
                 },
                 'source': 'enedis-api'
             })
-                else:
-                    moyenne_conso = 0
-                    nb_relevés = 0
+            else:
+                moyenne_conso = 0
+                nb_relevés = 0
                 
                 # Prendre la première adresse ou combiner si plusieurs
                 adresses_list = list(point_data['adresses'])
