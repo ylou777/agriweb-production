@@ -28,26 +28,34 @@ class LabelManager:
         self.center_x = center_x  # Centre de l'image pour calculer la distance
         self.center_y = center_y
     
-    def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=16):
+    def find_non_overlapping_position(self, initial_x, initial_y, width, height, max_attempts=24):
         """Trouve une position non superpos├®e pour une ├®tiquette"""
-        # Positions alternatives ├á essayer (offsets relatifs)
+        # Positions alternatives ├á essayer (offsets relatifs) - BEAUCOUP plus de variations
         offsets = [
             (0, 0),             # Position originale
-            (2*cm, 0),          # Décalé droite
-            (-2*cm, 0),         # Décalé gauche
-            (0, 2*cm),          # Décalé haut
-            (0, -2*cm),         # Décalé bas
-            (2*cm, 2*cm),       # Décalé haut-droite
-            (-2*cm, 2*cm),      # Décalé haut-gauche
-            (2*cm, -2*cm),      # Décalé bas-droite
-            (-2*cm, -2*cm),     # Décalé bas-gauche
-            (4*cm, 0),          # Décalé droite (large)
-            (-4*cm, 0),         # Décalé gauche (large)
-            (0, 4*cm),          # Décalé haut (large)
-            (0, -4*cm),         # Décalé bas (large)
-            (3*cm, 3*cm),       # Diagonale haut-droite
-            (-3*cm, 3*cm),      # Diagonale haut-gauche
-            (3*cm, -3*cm),      # Diagonale bas-droite
+            (3*cm, 2*cm),       # Haut-droite (priorité)
+            (-3*cm, 2*cm),      # Haut-gauche
+            (3*cm, -2*cm),      # Bas-droite
+            (-3*cm, -2*cm),     # Bas-gauche
+            (5*cm, 0),          # Droite loin
+            (-5*cm, 0),         # Gauche loin
+            (0, 4*cm),          # Haut loin
+            (0, -4*cm),         # Bas loin
+            (4*cm, 3*cm),       # Diagonale haut-droite large
+            (-4*cm, 3*cm),      # Diagonale haut-gauche large
+            (4*cm, -3*cm),      # Diagonale bas-droite large
+            (-4*cm, -3*cm),     # Diagonale bas-gauche large
+            (2*cm, 4*cm),       # Haut-droite intermédiaire
+            (-2*cm, 4*cm),      # Haut-gauche intermédiaire
+            (2*cm, -4*cm),      # Bas-droite intermédiaire
+            (-2*cm, -4*cm),     # Bas-gauche intermédiaire
+            (6*cm, 1*cm),       # Très droite
+            (-6*cm, 1*cm),      # Très gauche
+            (1*cm, 5*cm),       # Très haut
+            (1*cm, -5*cm),      # Très bas
+            (5*cm, 4*cm),       # Grande diagonale haut-droite
+            (-5*cm, 4*cm),      # Grande diagonale haut-gauche
+            (5*cm, -4*cm),      # Grande diagonale bas-droite
         ]
         
         for offset_x, offset_y in offsets[:max_attempts]:
@@ -163,6 +171,8 @@ class PlanMasseGenerator:
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
         
+        print(f"[PLAN] ­ƒôî D├®marrage _draw_plan_cadastral: lat={lat}, lon={lon}")
+        
         # Initialiser screenshot_used
         self.screenshot_used = False
         
@@ -194,22 +204,29 @@ class PlanMasseGenerator:
         bbox_width_meters = plan_width_cm * 5  # 1cm = 5m ├á l'├®chelle 1/500
         bbox_height_meters = plan_height_cm * 5
         
-        # Prendre la plus grande dimension et AUGMENTER MASSIVEMENT pour couverture TOTALE
-        bbox_meters = max(bbox_width_meters, bbox_height_meters) * 3.5  # 350% de rayon pour GARANTIR couverture
+        # ­ƒöÑ ├ëCHELLE 1/500 RESPECT├ëE: correspondance exacte entre cadre PDF et terrain
+        # L'image satellite doit couvrir EXACTEMENT les dimensions calcul├®es
+        # Si cadre = 30cm × 20cm, alors image = 150m × 100m (1cm = 5m)
         
-        print(f"[PLAN] ├ëchelle 1/500: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m r├®els")
-        print(f"[PLAN] Bbox satellite: {bbox_meters*2:.0f}m de c├┤t├® (rayon {bbox_meters:.0f}m)")
+        print(f"[PLAN] ├ëchelle 1/500 EXACTE: Cadre {plan_width_cm:.1f}x{plan_height_cm:.1f}cm = {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m r├®els")
         
-        # Convertir en degr├®s avec les BONS facteurs
-        meters_to_lat = bbox_meters * meters_per_degree_lat
-        meters_to_lon = bbox_meters * meters_per_degree_lng
+        # Convertir en degr├®s avec les BONS facteurs - DIMENSIONS EXACTES pour 1/500
+        # Demi-dimensions (rayon) pour centrer autour du point GPS
+        meters_to_lat = (bbox_height_meters / 2) * meters_per_degree_lat
+        meters_to_lon = (bbox_width_meters / 2) * meters_per_degree_lng
         
-        # Stocker les limites GPS r├®elles
+        # Stocker les limites GPS r├®elles - EXACTES pour ├®chelle 1/500
         self.gps_bounds = {
             'min_lat': lat - meters_to_lat,
             'max_lat': lat + meters_to_lat,
             'min_lon': lon - meters_to_lon,
             'max_lon': lon + meters_to_lon
+        }
+        
+        # Stocker les facteurs de conversion pour r├®utilisation dans _fetch_satellite_image_rect
+        self.gps_conversion_factors = {
+            'meters_per_degree_lat': meters_per_degree_lat,
+            'meters_per_degree_lng': meters_per_degree_lng
         }
         
         if lat and lon:
@@ -266,14 +283,30 @@ class PlanMasseGenerator:
             
             # ­ƒöÑ FALLBACK: Image satellite si pas de screenshot
             if not self.screenshot_used:
-                satellite_img = self._fetch_satellite_image_bbox(lat, lon, bbox_meters, width=1600, height=1400)
+                print(f"[PLAN] ­ƒöù Tentative t├®l├®chargement image satellite...")
+                print(f"[PLAN]   GPS: lat={lat}, lon={lon}")
+                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (├®chelle 1/500)")
+                
+                # ­ƒöÑ AUGMENTER la bbox pour l'API satellite si trop petite
+                # Les API satellite (ArcGIS, Google) n'aiment pas les bbox < 200m
+                min_size = 200  # 200m minimum
+                satellite_width = max(bbox_width_meters, min_size)
+                satellite_height = max(bbox_height_meters, min_size)
+                
+                if satellite_width != bbox_width_meters or satellite_height != bbox_height_meters:
+                    print(f"[PLAN] ­ƒöÑ Bbox satellite ├®largie: {satellite_width:.0f}x{satellite_height:.0f}m (pour ├®viter HTTP 500)")
+                
+                # R├®duire la r├®solution pour ├®viter erreurs API (800x600 au lieu de 1600x1400)
+                satellite_img = self._fetch_satellite_image_rect(lat, lon, satellite_width, satellite_height, width=800, height=600)
                 if satellite_img:
                     # REMPLIR TOUT LE CADRE (pas de blanc autour)
                     c.drawImage(ImageReader(satellite_img), 
                               plan_x, plan_y, 
                               width=plan_width, height=plan_height,
                               preserveAspectRatio=False, mask='auto')  # False = remplit tout
-                    print(f"[PLAN] Ô£à Image satellite: {bbox_meters*2:.0f}m de rayon ├á l'├®chelle 1/500")
+                    print(f"[PLAN] Ô£à Image satellite affich├®e (recadr├®e ├á l'├®chelle 1/500)")
+                else:
+                    print(f"[PLAN] ÔØî ERREUR: Image satellite = None, pas d'image charg├®e !")
                 self.screenshot_used = False  # Image satellite, pas de screenshot
         
         # Syst├¿me de coordonn├®es : conversion GPS ÔåÆ PDF
@@ -285,13 +318,18 @@ class PlanMasseGenerator:
             'height': plan_height,
             'lat_center': lat,
             'lon_center': lon,
-            'meters_per_cm': bbox_meters / (plan_width / cm) if plan_width > 0 else 1
+            'meters_per_cm': 5.0  # ├ëCHELLE 1/500 EXACTE: 1cm = 5m
         }
         
         # Initialiser le LabelManager avec le centre du plan
         center_x = plan_x + plan_width / 2
         center_y = plan_y + plan_height / 2
         self.label_manager = LabelManager(center_x, center_y)
+        
+        # NOUVEAU: Pré-enregistrer les zones PV dans le LabelManager AVANT les parcelles
+        # pour éviter que les étiquettes de parcelles se superposent aux zones PV
+        if self.calpinage and 'zones' in self.calpinage:
+            self._register_pv_zones_in_label_manager()
         
         # 1. PARCELLES CADASTRALES (avec vraies g├®om├®tries si disponibles)
         self._draw_parcelles(c, self.plan_bbox['x'] + self.plan_bbox['width']/2, self.plan_bbox['y'] + self.plan_bbox['height']/2, lat, lon)
@@ -542,27 +580,53 @@ class PlanMasseGenerator:
                 c.drawPath(path, stroke=1, fill=0)
                 c.setDash()  # R├®initialiser
             
-            # ├ëtiquette VISIBLE avec fond blanc - POSITIONNEMENT ANTI-SUPERPOSITION
+            # ├ëtiquette VISIBLE avec fond blanc - POSITIONNEMENT EXT├ëRIEUR ANTI-SUPERPOSITION
             if label_x is not None and label_y is not None:
                 # Dimensions de l'├®tiquette
-                text_w = 2.8*cm
-                text_h = 0.8*cm
+                text_w = 3*cm  # Légèrement plus large
+                text_h = 0.9*cm  # Légèrement plus haute
                 
-                # Trouver une position non superpos├®e
+                # Placer l'étiquette à l'extérieur (au-dessus et à droite de la parcelle)
+                # Augmenter les offsets initiaux pour éviter le centre
+                offset_x = 4*cm  # Décalage horizontal vers la droite (augmenté)
+                offset_y = 3*cm  # Décalage vertical vers le haut (augmenté)
+                initial_x = label_x + offset_x
+                initial_y = label_y + offset_y
+                
+                # Trouver une position non superpos├®e avec l'algorithme amélioré
                 final_x, final_y = self.label_manager.find_non_overlapping_position(
-                    label_x, label_y, text_w, text_h
+                    initial_x, initial_y, text_w, text_h
                 )
                 
-                # Ligne de repère (tiret) entre la parcelle et l'étiquette
-                if (final_x != label_x or final_y != label_y):  # Seulement si déplacée
-                    c.setStrokeColor(colors.HexColor('#FF0000'))
-                    c.setLineWidth(1)
-                    c.setDash(3, 2)  # Tirets courts
-                    # Ligne du point d'origine au centre de l'étiquette
-                    label_center_x = final_x + text_w / 2
-                    label_center_y = final_y + text_h / 2
-                    c.line(label_x, label_y, label_center_x, label_center_y)
-                    c.setDash()  # Réinitialiser
+                # Ligne de repère VISIBLE pour relier l'étiquette à la parcelle
+                # Ligne avec point de départ à la bordure de l'étiquette (pas au centre)
+                c.setStrokeColor(colors.HexColor('#000000'))  # Noir pour meilleure visibilité
+                c.setLineWidth(1.2)  # Plus épaisse
+                c.setDash(4, 3)  # Tirets plus visibles
+                
+                # Calculer le point de connexion sur le bord de l'étiquette le plus proche du point d'origine
+                label_center_x = final_x + text_w / 2
+                label_center_y = final_y + text_h / 2
+                
+                # Point de connexion sur le bord de l'étiquette
+                if label_x < label_center_x:
+                    connect_x = final_x  # Bord gauche
+                else:
+                    connect_x = final_x + text_w  # Bord droit
+                    
+                if label_y < label_center_y:
+                    connect_y = final_y  # Bord bas
+                else:
+                    connect_y = final_y + text_h  # Bord haut
+                
+                # Ligne de repère du point de la parcelle au bord de l'étiquette
+                c.line(label_x, label_y, connect_x, connect_y)
+                
+                # Petit cercle au point d'origine pour marquer la position sur la parcelle
+                c.setFillColor(colors.HexColor('#FF0000'))
+                c.circle(label_x, label_y, 0.12*cm, fill=1, stroke=0)
+                
+                c.setDash()  # Réinitialiser
                 
                 # Fond blanc opaque
                 c.setFillColor(colors.white)
@@ -631,25 +695,30 @@ class PlanMasseGenerator:
         c.rect(parc_x, parc_y, parc_w, parc_h, fill=0, stroke=1)
         c.setDash()
         
-        # ├ëtiquette DISCR├êTE en bas ├á gauche de la parcelle - POSITIONNEMENT ANTI-SUPERPOSITION
+        # ├ëtiquette à l'extérieur de la parcelle - POSITIONNEMENT EXT├ëRIEUR
         label_bg_w = 2.5*cm
         label_bg_h = 0.6*cm
         
+        # Placer l'étiquette à l'extérieur (au-dessus et à droite de la parcelle)
+        offset_x = 3*cm  # Décalage horizontal vers la droite
+        offset_y = 2*cm  # Décalage vertical vers le haut
+        initial_x = parc_x + offset_x
+        initial_y = parc_y + offset_y
+        
         # Trouver une position non superpos├®e
         final_parc_x, final_parc_y = self.label_manager.find_non_overlapping_position(
-            parc_x, parc_y, label_bg_w, label_bg_h
+            initial_x, initial_y, label_bg_w, label_bg_h
         )
         
-        # Ligne de repère (tiret) entre la parcelle et l'étiquette
-        if (final_parc_x != parc_x or final_parc_y != parc_y):  # Seulement si déplacée
-            c.setStrokeColor(colors.HexColor('#FF00FF'))
-            c.setLineWidth(1)
-            c.setDash(3, 2)  # Tirets courts
-            # Ligne du coin de la parcelle au centre de l'étiquette
-            label_center_x = final_parc_x + label_bg_w / 2
-            label_center_y = final_parc_y + label_bg_h / 2
-            c.line(parc_x, parc_y, label_center_x, label_center_y)
-            c.setDash()  # Réinitialiser
+        # Ligne de repère TOUJOURS affichée pour relier l'étiquette à la parcelle
+        c.setStrokeColor(colors.HexColor('#FF00FF'))
+        c.setLineWidth(0.8)
+        c.setDash(3, 2)  # Tirets courts
+        # Ligne du coin de la parcelle au centre de l'étiquette
+        label_center_x = final_parc_x + label_bg_w / 2
+        label_center_y = final_parc_y + label_bg_h / 2
+        c.line(parc_x, parc_y, label_center_x, label_center_y)
+        c.setDash()  # Réinitialiser
         
         c.setFillColorRGB(1, 1, 1, 0.8)  # Blanc semi-transparent
         c.setStrokeColor(colors.HexColor('#FF00FF'))
@@ -699,6 +768,58 @@ class PlanMasseGenerator:
         """DEPRECATED - Utiliser _draw_modules_pv_from_gps ├á la place"""
         pass
     
+    def _register_pv_zones_in_label_manager(self):
+        """Pré-enregistre les zones PV dans le LabelManager pour éviter superpositions avec étiquettes parcelles"""
+        if not self.calpinage or 'zones' not in self.calpinage:
+            return
+        
+        zones = self.calpinage['zones']
+        
+        for zone in zones:
+            zone_coords = zone.get('coordinates', [])
+            if not zone_coords or len(zone_coords) < 4:
+                continue
+            
+            # Convertir les coordonnées GPS en PDF pour obtenir la bbox de la zone
+            pdf_coords = []
+            for coord in zone_coords:
+                pdf_x, pdf_y = self._lat_lon_to_pdf(coord['lat'], coord['lng'])
+                pdf_coords.append((pdf_x, pdf_y))
+            
+            if len(pdf_coords) < 4:
+                continue
+            
+            # Calculer la bounding box de la zone PV
+            min_x = min(p[0] for p in pdf_coords)
+            max_x = max(p[0] for p in pdf_coords)
+            min_y = min(p[1] for p in pdf_coords)
+            max_y = max(p[1] for p in pdf_coords)
+            
+            zone_width = max_x - min_x
+            zone_height = max_y - min_y
+            
+            # Enregistrer la zone dans le LabelManager avec une marge de sécurité
+            margin = 1*cm  # Marge autour de la zone PV
+            self.label_manager.used_positions.append({
+                'x': min_x - margin,
+                'y': min_y - margin,
+                'width': zone_width + 2*margin,
+                'height': zone_height + 2*margin
+            })
+            
+            # Enregistrer aussi l'espace pour l'étiquette de zone (estimé)
+            zone_label_w = 5*cm
+            zone_label_h = 0.6*cm
+            label_x, label_y = pdf_coords[0]  # Position approximative
+            self.label_manager.used_positions.append({
+                'x': label_x,
+                'y': label_y,
+                'width': zone_label_w,
+                'height': zone_label_h
+            })
+            
+            print(f"[PLAN] 🔒 Zone PV enregistrée dans LabelManager: {zone_width/cm:.1f}x{zone_height/cm:.1f}cm")
+    
     def _draw_modules_pv_from_gps(self, c):
         """Dessine les modules PV selon leurs VRAIES coordonn├®es GPS sauvegard├®es"""
         
@@ -718,9 +839,9 @@ class PlanMasseGenerator:
             print(f"[PLAN] ­ƒôì Dessin {len(modules_positions)} modules avec coordonn├®es GPS pour zone {zone.get('numero', '?')}")
             
             # Dessiner chaque module selon ses coordonn├®es GPS
-            c.setStrokeColor(colors.HexColor('#1565C0'))  # Bleu fonc├®
+            c.setStrokeColor(colors.HexColor('#0D47A1'))  # Bleu très foncé pour bordure visible
             c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
-            c.setLineWidth(0.5)
+            c.setLineWidth(2)  # Bordure épaisse pour visibilité
             
             for module in modules_positions:
                 corners = module.get('corners', [])
@@ -745,51 +866,6 @@ class PlanMasseGenerator:
                 
                 # Dessiner le module
                 c.drawPath(path, stroke=1, fill=1)
-            
-            # Dessiner le contour de la zone (optionnel)
-            zone_coords = zone.get('coordinates', [])
-            if zone_coords:
-                path = c.beginPath()
-                first = True
-                
-                for coord in zone_coords:
-                    pdf_x, pdf_y = self._lat_lon_to_pdf(coord['lat'], coord['lng'])
-                    
-                    if first:
-                        path.moveTo(pdf_x, pdf_y)
-                        first = False
-                    else:
-                        path.lineTo(pdf_x, pdf_y)
-                
-                path.close()
-                
-                # Contour zone rouge en pointill├®s
-                c.setStrokeColor(colors.HexColor('#D32F2F'))
-                c.setLineWidth(2)
-                c.setDash(4, 2)
-                c.drawPath(path, stroke=1, fill=0)
-                c.setDash()
-                
-                # ├ëtiquette zone - POSITIONNEMENT ANTI-SUPERPOSITION
-                if zone_coords:
-                    label_x, label_y = self._lat_lon_to_pdf(zone_coords[0]['lat'], zone_coords[0]['lng'])
-                    
-                    # Dimensions de l'├®tiquette de zone
-                    zone_label_w = 5*cm
-                    zone_label_h = 0.6*cm
-                    
-                    # Trouver une position non superpos├®e
-                    final_label_x, final_label_y = self.label_manager.find_non_overlapping_position(
-                        label_x, label_y, zone_label_w, zone_label_h
-                    )
-                    
-                    c.setFillColor(colors.HexColor('#D32F2F'))
-                    c.setFont("Helvetica-Bold", 8)
-                    nb_modules = zone.get('nbModules', len(modules_positions))
-                    nb_cols = zone.get('nbCols', 0)
-                    nb_rows = zone.get('nbRows', 0)
-                    c.drawString(final_label_x + 0.4*cm, final_label_y + 0.4*cm,
-                                f"Zone PV: {nb_modules} modules ({nb_cols}├ù{nb_rows})")
     
     def _draw_cotations_zones(self, c):
         """Dessine les cotations (largeur et longueur) sur chaque zone PV"""
@@ -891,58 +967,42 @@ class PlanMasseGenerator:
     def _draw_legend(self, c):
         """Dessine la legende"""
         x = 2*cm
-        y = 12*cm  # Plus haut pour eviter chevauchement
+        y = 13*cm  # Plus haut pour eviter chevauchement
         
         c.setFont("Helvetica-Bold", 10)
         c.setFillColor(colors.black)
-        c.drawString(x, y, "LEGENDE :")
+        c.drawString(x, y, "LÉGENDE :")
         
         y -= 0.6*cm
         c.setFont("Helvetica", 9)
         
-        # Parcelle
-        c.setStrokeColor(colors.HexColor('#FF00FF'))
-        c.setLineWidth(2)
-        c.setDash(8, 4)
-        c.line(x, y, x + 1.5*cm, y)
-        c.setDash()
-        c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Limites parcellaires cadastrales")
-        
-        # Batiment
-        y -= 0.5*cm
-        c.setFillColor(colors.HexColor('#FFE4B5'))
-        c.setStrokeColor(colors.black)
-        c.setLineWidth(1)
+        # Parcelles cadastrales - Contour rouge épais + fond jaune
+        c.setFillColorRGB(1, 1, 0, 0.15)  # Jaune transparent
+        c.setStrokeColor(colors.HexColor('#FF0000'))
+        c.setLineWidth(2.5)
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Batiment existant")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Parcelles cadastrales (fond jaune + contour rouge)")
         
-        # Modules PV
-        y -= 0.5*cm
+        # Modules PV individuels
+        y -= 0.55*cm
         c.setFillColor(colors.HexColor('#2196F3'))
-        c.setStrokeColor(colors.HexColor('#1565C0'))
+        c.setStrokeColor(colors.HexColor('#0D47A1'))  # Bordure foncée
+        c.setLineWidth(2)  # Bordure épaisse comme sur le plan
         c.rect(x, y - 0.25*cm, 1.5*cm, 0.4*cm, fill=1, stroke=1)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovoltaiques (position reelle)")
-        
-        # Zone PV
-        y -= 0.5*cm
-        c.setStrokeColor(colors.HexColor('#D32F2F'))
-        c.setLineWidth(2)
-        c.setDash(4, 2)
-        c.line(x, y, x + 1.5*cm, y)
-        c.setDash()
-        c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Contour zone PV")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Modules photovoltaïques (contour bleu foncé)")
         
         # Cotations
-        y -= 0.5*cm
+        y -= 0.55*cm
         c.setStrokeColor(colors.HexColor('#D32F2F'))
         c.setLineWidth(1.5)
         c.line(x, y, x + 1.5*cm, y)
+        # Petites barres perpendiculaires pour montrer le style de cotation
+        c.line(x, y - 0.15*cm, x, y + 0.15*cm)
+        c.line(x + 1.5*cm, y - 0.15*cm, x + 1.5*cm, y + 0.15*cm)
         c.setFillColor(colors.black)
-        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations (en metres)")
+        c.drawString(x + 2*cm, y - 0.15*cm, "Cotations dimensions (en mètres)")
     
     def _draw_cartouche(self, c):
         """Cartouche technique avec informations completes"""
@@ -1057,6 +1117,84 @@ class PlanMasseGenerator:
         
         return None
     
+    def _fetch_satellite_image_rect(self, lat, lon, width_meters, height_meters, width=1600, height=1400):
+        """
+        T├®l├®charge une image satellite rectangulaire depuis ArcGIS World Imagery
+        RESPECTE l'├®chelle 1/500 avec dimensions exactes
+        
+        Args:
+            lat, lon: Coordonn├®es GPS du centre
+            width_meters: Largeur en m├¿tres (dimension Est-Ouest)
+            height_meters: Hauteur en m├¿tres (dimension Nord-Sud)
+            width, height: Dimensions de l'image en pixels
+            
+        Returns:
+            BytesIO de l'image ou None
+        """
+        print(f"[PLAN] ­ƒÄ¿ _fetch_satellite_image_rect appel├®e: lat={lat}, lon={lon}, w={width_meters}m, h={height_meters}m")
+        
+        # V├®rifier que les coordonn├®es GPS sont valides
+        if lat is None or lon is None:
+            print(f"[PLAN] ÔØî Coordonn├®es GPS manquantes (lat={lat}, lon={lon})")
+            return None
+        
+        try:
+            # ­ƒöÑ UTILISER LES M├èMES FACTEURS GPS que pour le plan (CRITIQUE pour alignement)
+            if hasattr(self, 'gps_conversion_factors'):
+                meters_per_degree_lat = self.gps_conversion_factors['meters_per_degree_lat']
+                meters_per_degree_lng = self.gps_conversion_factors['meters_per_degree_lng']
+                print(f"[PLAN] ­ƒöÑ Utilisation facteurs GPS pr├®cis pour image satellite")
+            else:
+                # Fallback (ne devrait jamais arriver)
+                import math
+                lat_rad = lat * math.pi / 180 if lat else 0.785398
+                meters_per_degree_lat = 1 / 111320
+                meters_per_degree_lng = 1 / (111320 * math.cos(lat_rad))
+                print(f"[PLAN] ÔÜá´©Å Facteurs GPS fallback (gps_conversion_factors manquant)")
+            
+            # Conversion m├¿tres ÔåÆ degr├®s avec facteurs PR├ëCIS
+            meters_to_lat = (height_meters / 2) * meters_per_degree_lat  # Demi-hauteur
+            meters_to_lon = (width_meters / 2) * meters_per_degree_lng   # Demi-largeur
+            
+            # Calculer bbox rectangulaire
+            min_lon = lon - meters_to_lon
+            max_lon = lon + meters_to_lon
+            min_lat = lat - meters_to_lat
+            max_lat = lat + meters_to_lat
+            
+            # ArcGIS World Imagery
+            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+            
+            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+            
+            params = {
+                'bbox': bbox_str,
+                'bboxSR': '4326',
+                'size': f'{width},{height}',
+                'format': 'png',
+                'f': 'image'
+            }
+            
+            print(f"[PLAN] ­ƒø░´©Å T├®l├®chargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (├®chelle 1/500), {width}x{height}px")
+            print(f"[PLAN] ­ƒôì GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
+            
+            response = requests.get(url, params=params, timeout=15)
+            if response.status_code == 200:
+                img_size_kb = len(response.content) / 1024
+                print(f"[PLAN] Ô£à Image satellite ArcGIS OK ({img_size_kb:.1f} KB)")
+                return io.BytesIO(response.content)
+            else:
+                print(f"[PLAN] ÔØî Erreur API ArcGIS: HTTP {response.status_code}")
+                print(f"[PLAN]    Bbox demand├®e: {width_meters:.0f}x{height_meters:.0f}m")
+                print(f"[PLAN]    URL: {response.url[:200]}...")
+                    
+        except Exception as e:
+            print(f"[PLAN] ÔØî Erreur t├®l├®chargement satellite: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        return None
+    
     def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
         """
         R├®cup├¿re une image satellite avec une bbox en m├¿tres autour du point central
@@ -1095,8 +1233,8 @@ class PlanMasseGenerator:
                 'f': 'image'
             }
             
-            print(f"[PLAN] ­ƒø░´©Å T├®l├®chargement image satellite: bbox={bbox_meters:.0f}m ({bbox_meters*2:.0f}m c├┤t├®), size={width}x{height}")
-            print(f"[PLAN] ­ƒôì GPS bounds: [{min_lat:.6f}, {max_lat:.6f}] x [{min_lon:.6f}, {max_lon:.6f}]")
+            print(f"[PLAN] ­ƒø░´©Å T├®l├®chargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (├®chelle 1/500), size={width}x{height}px")
+            print(f"[PLAN] ­ƒôì GPS bounds: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
             response = requests.get(url, params=params, timeout=15)
             if response.status_code == 200:
@@ -1118,16 +1256,19 @@ class PlanMasseGenerator:
             parcelles_data = self.data.get(field)
             
             if parcelles_data:
-                # Si c'est un dict avec une cl├® 'parcelles'
+                # Si c'est un dict avec une clé 'parcelles'
                 if isinstance(parcelles_data, dict):
+                    # 🔥 CORRECTION: Chercher dans data_json.parcelles_cadastrales (rapport par point)
                     if 'parcelles_cadastrales' in parcelles_data:
                         parcelles_data = parcelles_data['parcelles_cadastrales']
+                        print(f"[PLAN] ✅ Parcelles trouvées dans {field}.parcelles_cadastrales")
                     elif 'parcelles' in parcelles_data:
                         parcelles_data = parcelles_data['parcelles']
+                        print(f"[PLAN] ✅ Parcelles trouvées dans {field}.parcelles")
                 
-                # Si c'est d├®j├á une liste
+                # Si c'est déjà une liste
                 if isinstance(parcelles_data, list) and len(parcelles_data) > 0:
-                    print(f"[PLAN] Ô£à Trouv├® {len(parcelles_data)} parcelles dans '{field}'")
+                    print(f"[PLAN] ✅ Trouvé {len(parcelles_data)} parcelles dans '{field}'")
                     # Enrichir avec g├®om├®tries depuis API Cadastre si manquantes
                     parcelles_data = self._enrich_parcelles_with_geometry(parcelles_data)
                     # Normaliser les surfaces (essayer plusieurs cl├®s)
@@ -1251,6 +1392,65 @@ class PlanMasseGenerator:
                 
                 print(f"[PLAN] Ô£à API retourne {len(api_features)} parcelles dans la bbox")
                 
+                # ­ƒöÑ SI CALPINAGE: Filtrer les parcelles qui INTERSECTENT r├®ellement les zones PV
+                if self.calpinage and 'zones' in self.calpinage and len(self.calpinage['zones']) > 0:
+                    print(f"[PLAN] ­ƒÄ» MODE CALPINAGE: Filtrage des {len(api_features)} parcelles par intersection avec zones PV")
+                    
+                    # Cr├®er les g├®om├®tries des zones PV
+                    from shapely.geometry import Polygon, shape
+                    from shapely.ops import unary_union
+                    
+                    pv_polygons = []
+                    for zone in self.calpinage['zones']:
+                        zone_coords = zone.get('coordinates', [])
+                        if len(zone_coords) >= 3:
+                            # Convertir en format shapely (lon, lat)
+                            shapely_coords = [(c['lng'], c['lat']) for c in zone_coords]
+                            try:
+                                poly = Polygon(shapely_coords)
+                                if poly.is_valid:
+                                    pv_polygons.append(poly)
+                            except Exception as e:
+                                print(f"[PLAN] ÔÜá´©Å Zone PV invalide: {e}")
+                    
+                    if not pv_polygons:
+                        print(f"[PLAN] ÔÜá´©Å Aucune zone PV valide pour filtrage")
+                        return parcelles
+                    
+                    # Union de toutes les zones PV
+                    pv_union = unary_union(pv_polygons)
+                    print(f"[PLAN] ­ƒÄì {len(pv_polygons)} zone(s) PV cr├®├®e(s) pour filtrage")
+                    
+                    # Filtrer les parcelles qui INTERSECTENT les zones PV
+                    enriched = []
+                    for feat in api_features:
+                        props = feat.get('properties', {})
+                        geom = feat.get('geometry', {})
+                        
+                        try:
+                            parcelle_shape = shape(geom)
+                            if parcelle_shape.is_valid and parcelle_shape.intersects(pv_union):
+                                # Cette parcelle intersecte les zones PV
+                                parcelle_formatted = {
+                                    "section": props.get('section', ''),
+                                    "numero": props.get('numero', ''),
+                                    "surface": props.get('contenance', 0),
+                                    "commune": props.get('commune', ''),
+                                    "code_insee": props.get('code_insee', ''),
+                                    "geometry": geom,
+                                    "geojson": feat
+                                }
+                                enriched.append(parcelle_formatted)
+                                print(f"[PLAN]   Ô£à {props.get('section')}{props.get('numero')}: {props.get('contenance', 0)}m┬▓ (INTERSECTE)")
+                            else:
+                                print(f"[PLAN]   Ôåû {props.get('section')}{props.get('numero')}: ignor├®e (hors zones PV)")
+                        except Exception as e:
+                            print(f"[PLAN] ÔÜá´©Å Erreur intersection {props.get('section')}{props.get('numero')}: {e}")
+                    
+                    print(f"[PLAN] Ô£à {len(enriched)} parcelles intersectant les zones PV")
+                    return enriched
+                
+                # Mode normal: enrichir les parcelles existantes
                 # Afficher les premi├¿res parcelles de l'API pour debug
                 for i, feat in enumerate(api_features[:3]):
                     props = feat.get('properties', {})
