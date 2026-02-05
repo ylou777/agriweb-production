@@ -14914,6 +14914,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
             """Désactivé - retourne toujours vide"""
             return ""
 
+        # Limite du nombre de détails par catégorie
+        max_details = 100
+        
         # Détails Friches
         print(f"🏚️ [RAPPORT] Traitement de {min(len(friches_data or []), max_details)} friches...")
         friches_details = []
