@@ -6522,21 +6522,6 @@ def build_map(
                 [lat_enedis, lon_enedis],
                 radius=radius,
                 popup=popup_html,
-                tooltip=f"{icon_text}
-                icon_text = "🟡"
-            elif conso_mwh >= 10:
-                color = "#FFFF00"  # Jaune vif - Consommation modérée
-                radius = 7
-                icon_text = "🟢"
-            else:
-                color = "#90EE90"  # Vert clair - Faible consommation
-                radius = 6
-                icon_text = "🟢"
-            
-            folium.CircleMarker(
-                [lat_enedis, lon_enedis],
-                radius=radius,
-                popup=popup_html,
                 tooltip=f"{icon_text} {conso_mwh:.1f} MWh/an - {secteur}",
                 color="#000000",  # Bordure noire pour contraste
                 weight=2,
