@@ -162,18 +162,32 @@ def init_database():
     print("📊 [DATABASE] Initialisation des tables CRM...")
     
     if IS_RAILWAY:
-        # FIX: DROP et recréer project_fiches AVANT tout pour éviter "database is locked"
+        # Vérifier et migrer les tables project_* (SANS les supprimer!)
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
-                print("🔄 [INIT] DROP des tables project_* pour recréation...")
-                cursor.execute("DROP TABLE IF EXISTS project_documents CASCADE")
-                cursor.execute("DROP TABLE IF EXISTS project_etapes CASCADE")
-                cursor.execute("DROP TABLE IF EXISTS project_fiches CASCADE")
+                print("🔄 [INIT] Vérification des tables project_* (sans DROP)...")
+                
+                # Ajouter les colonnes manquantes à project_fiches si elles n'existent pas
+                migration_columns = [
+                    ("puissance_kwc", "REAL"),
+                    ("production_annuelle_kwh", "REAL"),
+                    ("taux_autoconso_pct", "REAL"),
+                    ("nombre_panneaux", "INTEGER"),
+                    ("productible_mwh", "REAL"),
+                ]
+                for col_name, col_type in migration_columns:
+                    try:
+                        cursor.execute(f"""
+                            ALTER TABLE project_fiches ADD COLUMN IF NOT EXISTS {col_name} {col_type}
+                        """)
+                    except Exception:
+                        pass  # Colonne existe déjà ou table pas encore créée
+                
                 conn.commit()
-                print("✅ [INIT] Tables project_* supprimées")
+                print("✅ [INIT] Tables project_* vérifiées (données préservées)")
         except Exception as e:
-            print(f"⚠️ [INIT] Erreur DROP tables: {e}")
+            print(f"⚠️ [INIT] Erreur migration tables: {e}")
         
         # Schéma PostgreSQL
         schema = """
@@ -273,6 +287,11 @@ def init_database():
             departement TEXT,
             surface_totale REAL,
             puissance_estimee REAL,
+            puissance_kwc REAL,
+            production_annuelle_kwh REAL,
+            productible_mwh REAL,
+            taux_autoconso_pct REAL,
+            nombre_panneaux INTEGER,
             statut_projet TEXT DEFAULT 'etude',
             date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

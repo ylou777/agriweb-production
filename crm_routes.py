@@ -2134,6 +2134,18 @@ def register_crm_routes(app):
                 ''', (project['id'],))
                 print(f"✅ [ETAPE UPDATE] Étape 2 (Visite technique) marquée comme terminée pour projet {project['id']}")
             
+            # Synchroniser data_json vers la fiche projet
+            if project:
+                try:
+                    execute_query('''
+                        UPDATE project_fiches 
+                        SET data_json = %s, date_modification = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    ''', (json.dumps(current_data), project['id']))
+                    print(f"✅ [PROJECT SYNC] data_json synchronisé vers fiche projet {project['id']}")
+                except Exception as sync_err:
+                    print(f"⚠️ [PROJECT SYNC] Erreur synchro visite→projet: {sync_err}")
+            
             return jsonify({
                 'success': True,
                 'message': 'Visite technique sauvegardée avec succès'
@@ -2228,74 +2240,113 @@ def register_crm_routes(app):
             
             print(f"[CALPINAGE SAVE] ✅ Prospect {prospect_id} mis à jour")
             
-            # TODO: Désactivé temporairement - table project_fiches n'existe pas
-            # # Chercher ou créer un projet pour ce prospect
-            # project = execute_query(
-            #     'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
-            #     (prospect_id,),
-            #     fetch_one=True
-            # )
-            
-            project = None  # Désactiver la gestion de projet pour l'instant
-            
-            if False and not project:
-                # Créer un nouveau projet car il n'existe pas encore
-                print(f"[CALPINAGE SAVE] Pas de projet existant, création...")
+            # Synchroniser avec la fiche projet
+            try:
+                # Chercher le projet existant pour ce prospect
+                project = execute_query(
+                    'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                    (prospect_id,),
+                    fetch_one=True
+                )
                 
-                # Récupérer les infos du prospect pour créer le projet
-                result = execute_query('''
-                    INSERT INTO project_fiches (
-                        prospect_id, nom_projet, statut_projet,
-                        date_creation, date_modification
-                    ) VALUES (
-                        %s, %s, 'en_cours',
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                    )
-                    RETURNING id
-                ''', (prospect_id, f"Projet PV - {prospect.get('nom', '')} {prospect.get('prenom', '')}"),
-                fetch_one=True)
+                if not project:
+                    # Créer un nouveau projet
+                    print(f"[CALPINAGE SAVE] Pas de projet existant, création...")
+                    commune = prospect.get('commune', '')
+                    adresse = prospect.get('adresse_complete', '') or prospect.get('adresse', '')
+                    
+                    result = execute_query('''
+                        INSERT INTO project_fiches (
+                            prospect_id, nom_projet, commune, adresse_projet,
+                            statut_projet, data_json,
+                            date_creation, date_modification
+                        ) VALUES (
+                            %s, %s, %s, %s, 'etude', %s,
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                        RETURNING id
+                    ''', (
+                        prospect_id,
+                        f"Projet PV - {commune or adresse or prospect_id}",
+                        commune,
+                        adresse,
+                        json.dumps(current_data)
+                    ), fetch_one=True)
+                    
+                    if result:
+                        project_id_fiche = result['id']
+                        print(f"✅ [PROJECT CREATE] Nouvelle fiche projet {project_id_fiche} créée via calpinage")
+                        
+                        # Créer les étapes du workflow
+                        etapes_autoconso = [
+                            ('Rapport de recherche AgriWeb', 1),
+                            ('Visite technique', 2),
+                            ('Calepinage', 3),
+                            ('Étude d\'autoconsommation', 4),
+                            ('Devis commercial', 5),
+                            ('Signature & Facture', 6),
+                            ('Déclaration Préalable de Travaux (DP)', 7),
+                            ('Déclaration de Raccordement (DDR)', 8),
+                            ('Installation & DOE', 9),
+                            ('Consuel', 10),
+                            ('Mise en service & Maintenance', 11)
+                        ]
+                        
+                        for etape_nom, ordre in etapes_autoconso:
+                            statut = 'termine' if ordre == 3 else 'a_faire'
+                            execute_query('''
+                                INSERT INTO project_etapes (project_id, nom_etape, ordre, statut, date_fin_reelle)
+                                VALUES (%s, %s, %s, %s, {})
+                            '''.format('CURRENT_DATE' if ordre == 3 else 'NULL'),
+                            (project_id_fiche, etape_nom, ordre, statut))
+                        
+                        print(f"✅ [ETAPES CREATE] 11 étapes créées pour projet {project_id_fiche}")
+                        project = {'id': project_id_fiche}
                 
-                if result:
-                    project_id = result['id']
-                    print(f"✅ [PROJECT CREATE] Nouvelle fiche projet {project_id} créée via calepinage")
+                if project:
+                    # Mettre à jour la fiche projet avec les données PV du calpinage
+                    totaux = current_data.get('calpinage', {}).get('totaux', {})
+                    puissance_kwc = float(totaux.get('puissanceTotale', 0))
+                    productible_mwh = float(totaux.get('productibleTotal', 0))
+                    zones = current_data.get('calpinage', {}).get('zones', [])
+                    nb_panneaux = sum(z.get('nbModules', 0) for z in zones)
                     
-                    # Créer les étapes du workflow
-                    etapes_autoconso = [
-                        ('Rapport de recherche AgriWeb', 1),
-                        ('Visite technique', 2),
-                        ('Calepinage', 3),
-                        ('Étude d\'autoconsommation', 4),
-                        ('Devis commercial', 5),
-                        ('Signature & Facture', 6),
-                        ('Déclaration Préalable de Travaux (DP)', 7),
-                        ('Déclaration de Raccordement (DDR)', 8),
-                        ('Installation & DOE', 9),
-                        ('Consuel', 10),
-                        ('Mise en service & Maintenance', 11)
-                    ]
+                    execute_query('''
+                        UPDATE project_fiches 
+                        SET data_json = %s,
+                            puissance_kwc = %s,
+                            production_annuelle_kwh = %s,
+                            productible_mwh = %s,
+                            nombre_panneaux = %s,
+                            puissance_estimee = %s,
+                            date_modification = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    ''', (
+                        json.dumps(current_data),
+                        puissance_kwc,
+                        puissance_kwc * 1100,  # Estimation kWh/an
+                        productible_mwh,
+                        nb_panneaux,
+                        puissance_kwc,
+                        project['id']
+                    ))
                     
-                    for etape_nom, ordre in etapes_autoconso:
-                        # L'étape Calepinage (3) est terminée
-                        statut = 'termine' if ordre == 3 else 'a_faire'
-                        date_fin = 'CURRENT_DATE' if ordre == 3 else 'NULL'
-                        execute_query(f'''
-                            INSERT INTO project_etapes (project_id, nom_etape, ordre, statut, date_fin_reelle)
-                            VALUES (%s, %s, %s, %s, {date_fin})
-                        ''', (project_id, etape_nom, ordre, statut))
+                    # Marquer l'étape Calepinage (ordre 3) comme terminée
+                    execute_query('''
+                        UPDATE project_etapes 
+                        SET statut = 'termine', 
+                            date_fin_reelle = CURRENT_DATE
+                        WHERE project_id = %s 
+                        AND ordre = 3
+                        AND statut != 'termine'
+                    ''', (project['id'],))
                     
-                    print(f"✅ [ETAPES CREATE] 11 étapes créées pour projet {project_id}, étape 3 (Calepinage) terminée")
-            else:  # elif False:  # Désactivé temporairement
-                # Marquer l'étape "Calepinage" (ordre 3) comme terminée
-                # execute_query('''
-                #     UPDATE project_etapes 
-                #     SET statut = 'termine', 
-                #         date_fin_reelle = CURRENT_DATE
-                #     WHERE project_id = %s 
-                #     AND ordre = 3
-                #     AND statut != 'termine'
-                # ''', (project['id'],))
-                # print(f"✅ [ETAPE UPDATE] Étape 3 (Calepinage) marquée comme terminée pour projet {project['id']}")
-                pass
+                    print(f"✅ [PROJECT SYNC] Fiche projet {project['id']} mise à jour: {puissance_kwc} kWc, {nb_panneaux} panneaux")
+                    
+            except Exception as e:
+                print(f"⚠️ [CALPINAGE→PROJET] Erreur synchro projet: {e}")
+                import traceback
+                traceback.print_exc()
             
             return jsonify({
                 'success': True,
