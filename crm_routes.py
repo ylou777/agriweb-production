@@ -3865,24 +3865,63 @@ def register_autoconso_routes(app):
                 total = data.get('total', len(results))
                 
                 if results:
-                    print(f"✅ [ENEDIS API] {len(results)}/{total} consommations trouvées dans {nom_commune}")
+                    print(f"✅ [ENEDIS API] {len(results)}/{total} lignes brutes trouvées dans {nom_commune}")
                     
-                    # Formater les résultats avec géocodage des adresses
-                    formatted_results = []
                     import math
                     
-                    # Géocoder en batch via l'API adresse.data.gouv.fr
+                    # 🔑 ÉTAPE 1: Regrouper par adresse et calculer la MOYENNE des années
+                    adresse_groups = {}
                     for point in results:
-                        adresse_raw = point.get('adresse', '')
-                        commune_name = point.get('nom_commune', nom_commune)
-                        conso = point.get('consommation_annuelle_totale_de_ladresse_mwh', 0)
+                        adresse_raw = point.get('adresse', '').strip().upper()
+                        if not adresse_raw:
+                            continue
                         
-                        # Géocoder l'adresse pour obtenir lat/lon
-                        point_lat = None
-                        point_lon = None
-                        distance_m = 0
+                        conso = point.get('consommation_annuelle_totale_de_ladresse_mwh', 0) or 0
+                        annee = point.get('annee', 0)
                         
-                        if adresse_raw:
+                        if adresse_raw not in adresse_groups:
+                            adresse_groups[adresse_raw] = {
+                                'adresse_original': point.get('adresse', ''),
+                                'commune': point.get('nom_commune', nom_commune),
+                                'code_commune': point.get('code_commune', code_commune),
+                                'secteur': point.get('code_grand_secteur', ''),
+                                'nb_sites': point.get('nombre_de_sites', 0),
+                                'consos': [],
+                                'annees': []
+                            }
+                        
+                        if conso > 0:
+                            adresse_groups[adresse_raw]['consos'].append(conso)
+                            if annee:
+                                adresse_groups[adresse_raw]['annees'].append(annee)
+                    
+                    print(f"📊 [ENEDIS API] {len(adresse_groups)} adresses uniques (regroupées depuis {len(results)} lignes)")
+                    
+                    # 🔑 ÉTAPE 2: Géocoder chaque adresse UNIQUE et calculer la moyenne
+                    formatted_results = []
+                    geocode_cache = {}  # Cache pour éviter les doublons de géocodage
+                    
+                    for adresse_key, group in adresse_groups.items():
+                        adresse_raw = group['adresse_original']
+                        commune_name = group['commune']
+                        
+                        # Calculer la consommation MOYENNE sur toutes les années
+                        consos = group['consos']
+                        if not consos:
+                            continue
+                        conso_moyenne = sum(consos) / len(consos)
+                        nb_releves = len(consos)
+                        annees = sorted(group['annees']) if group['annees'] else []
+                        
+                        # Géocoder (avec cache)
+                        cache_key = f"{adresse_raw}_{commune_name}"
+                        if cache_key in geocode_cache:
+                            point_lat, point_lon, distance_m = geocode_cache[cache_key]
+                        else:
+                            point_lat = None
+                            point_lon = None
+                            distance_m = 0
+                            
                             try:
                                 geo_url = "https://api-adresse.data.gouv.fr/search/"
                                 geo_params = {
@@ -3898,35 +3937,37 @@ def register_autoconso_routes(app):
                                         point_lon = coords[0]
                                         point_lat = coords[1]
                                         
-                                        # Calculer la distance au prospect
                                         dlat = math.radians(point_lat - lat)
                                         dlon = math.radians(point_lon - lon)
                                         a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(point_lat)) * math.sin(dlon/2)**2
                                         distance_m = 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
                             except Exception as e:
                                 print(f"⚠️ Géocodage échoué pour '{adresse_raw[:40]}': {e}")
+                            
+                            geocode_cache[cache_key] = (point_lat, point_lon, distance_m)
                         
-                        # Ne garder que les points avec coordonnées valides
                         if point_lat is not None and point_lon is not None:
                             formatted_results.append({
                                 'adresse': adresse_raw,
                                 'commune': commune_name,
                                 'nom_commune': commune_name,
-                                'code_commune': point.get('code_commune', code_commune),
-                                'secteur': point.get('code_grand_secteur', ''),
-                                'consommation_annuelle_mwh': conso if conso else 0,
-                                'nb_sites': point.get('nombre_de_sites', 0),
-                                'annee': point.get('annee', 2022),
+                                'code_commune': group['code_commune'],
+                                'secteur': group['secteur'],
+                                'consommation_annuelle_mwh': round(conso_moyenne, 2),
+                                'nb_sites': group['nb_sites'],
+                                'nb_releves': nb_releves,
+                                'annees': annees,
                                 'pdl': None,
                                 'latitude': point_lat,
                                 'longitude': point_lon,
                                 'distance_m': distance_m,
                                 'source': 'enedis-commune'
                             })
-                        else:
-                            print(f"⚠️ Point sans coordonnées ignoré: {adresse_raw[:50]}")
                     
-                    print(f"📍 {len(formatted_results)}/{len(results)} points géocodés avec succès")
+                    # Trier par consommation décroissante
+                    formatted_results.sort(key=lambda x: x['consommation_annuelle_mwh'], reverse=True)
+                    
+                    print(f"📍 {len(formatted_results)} points uniques géocodés (moyenne sur {nb_releves} années max)")
                     return formatted_results
                 else:
                     print(f"⚠️ [ENEDIS API] Aucune consommation dans commune {nom_commune}")

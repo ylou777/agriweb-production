@@ -506,7 +506,8 @@
                                     </small>
                                 </div>
                                 <span class="consumption-badge ${badgeClass}">
-                                    ${consumption.toFixed(1)} MWh
+                                    ${consumption.toFixed(1)} MWh/an
+                                    ${point.nb_releves > 1 ? `<small style="display:block;font-size:0.7em;opacity:0.8">moy. ${point.nb_releves} ans</small>` : ''}
                                 </span>
                             </div>
                             ${point.sirene && point.sirene.siret ? `
