@@ -18,25 +18,58 @@
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
         }
         
         .main-container {
             background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            border-radius: 0;
+            box-shadow: none;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
         }
         
         .header {
             background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
             color: white;
-            padding: 30px;
+            padding: 15px 30px;
+            flex-shrink: 0;
+        }
+        
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            margin: 0;
+            flex-shrink: 0;
+        }
+        
+        .map-list-row {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+        }
+        
+        .map-col {
+            flex: 1;
+            position: relative;
+            min-height: 0;
         }
         
         #map {
-            height: 600px;
+            height: 100%;
             width: 100%;
+        }
+        
+        .list-col {
+            width: 400px;
+            min-width: 350px;
+            max-width: 450px;
+            overflow-y: auto;
+            border-left: 1px solid #dee2e6;
         }
         
         .radius-selector {
@@ -58,14 +91,6 @@
             background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
             border: none;
             color: white;
-        }
-        
-        .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
         }
         
         .point-item {
@@ -93,10 +118,7 @@
     </style>
 </head>
 <body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-12">
-                <div class="main-container">
+    <div class="main-container">
                     <!-- Header -->
                     <div class="header">
                         <div class="d-flex justify-content-between align-items-center">
@@ -117,21 +139,21 @@
                     </div>
                     
                     <!-- Stats Card -->
-                    <div class="stats-card mx-4">
-                        <div class="row text-center">
-                            <div class="col-md-3">
+                    <div class="stats-card">
+                        <div class="row text-center g-0">
+                            <div class="col-3">
                                 <h3 class="mb-0" id="total-points">-</h3>
                                 <small>Points de consommation</small>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-3">
                                 <h3 class="mb-0" id="sirene-count">-</h3>
                                 <small>Entreprises identifiées</small>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-3">
                                 <h3 class="mb-0" id="current-radius">5</h3>
                                 <small>Rayon (km)</small>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-3">
                                 <h3 class="mb-0" id="total-consumption">-</h3>
                                 <small>Consommation totale (MWh/an)</small>
                             </div>
@@ -139,9 +161,9 @@
                     </div>
                     
                     <!-- Map and List -->
-                    <div class="row g-0">
-                        <div class="col-md-8">
-                            <div style="position: relative;">
+                    <div class="map-list-row">
+                        <div class="map-col">
+                            <div style="position: relative; height: 100%;">
                                 <!-- Radius Selector -->
                                 <div class="radius-selector">
                                     <div class="d-flex flex-column">
@@ -163,29 +185,24 @@
                             </div>
                         </div>
                         
-                        <div class="col-md-4">
-                            <div style="height: 600px; overflow-y: auto; border-left: 1px solid #dee2e6;">
-                                <div class="p-3">
-                                    <h5 class="mb-3">
-                                        <i class="bi bi-list-ul"></i>
-                                        Liste des points
-                                    </h5>
-                                    <div id="points-list">
-                                        <div class="text-center text-muted p-4">
-                                            <div class="spinner-border" role="status">
-                                                <span class="visually-hidden">Chargement...</span>
-                                            </div>
-                                            <p class="mt-2">Chargement des points...</p>
+                        <div class="list-col">
+                            <div class="p-3">
+                                <h5 class="mb-3">
+                                    <i class="bi bi-list-ul"></i>
+                                    Liste des points
+                                </h5>
+                                <div id="points-list">
+                                    <div class="text-center text-muted p-4">
+                                        <div class="spinner-border" role="status">
+                                            <span class="visually-hidden">Chargement...</span>
                                         </div>
+                                        <p class="mt-2">Chargement des points...</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
