@@ -14908,10 +14908,26 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception:
                 return []
 
-        # Reverse géocodage COMPLÈTEMENT DÉSACTIVÉ pour éviter boucles infinies
+        # Reverse géocodage via BAN (Base Adresse Nationale) avec cache
         _rev_cache = {}
         def _reverse_address_quick(lon_f: float, lat_f: float) -> str:
-            """Désactivé - retourne toujours vide"""
+            try:
+                if lon_f is None or lat_f is None:
+                    return ""
+                key = (round(lon_f, 5), round(lat_f, 5))
+                if key in _rev_cache:
+                    return _rev_cache[key]
+                url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
+                r = requests.get(url, timeout=1.5)
+                if r.ok:
+                    js = r.json() or {}
+                    feats = js.get("features") or []
+                    if feats:
+                        label = (feats[0].get("properties") or {}).get("label") or ""
+                        _rev_cache[key] = label
+                        return label
+            except Exception:
+                pass
             return ""
         
         def _build_annuaire_link(address: str) -> str:
@@ -14941,8 +14957,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 area_m2 = shp_transform(to_l93, shp).area
                 d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                # Pas d'adresse pour friches - désactivé pour éviter boucles infinies
-                addr_txt = ""
+                addr_txt = _reverse_address_quick(lon_c, lat_c)
                 details = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -14982,12 +14997,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 if d_hta is None:
                     d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
                 
-                # Utiliser UNIQUEMENT les adresses OSM (pas de reverse geocoding)
-                addr_txt = props.get('addr:street', '') or props.get('name', '') or ''
-                if addr_txt and props.get('addr:housenumber'):
-                    addr_txt = f"{props.get('addr:housenumber')} {addr_txt}"
-                if addr_txt and props.get('addr:city'):
-                    addr_txt = f"{addr_txt}, {props.get('addr:city')}"
+                addr_txt = _reverse_address_quick(lon_c, lat_c)
                 
                 pv = {
                     'lat': lat_c,
@@ -15029,7 +15039,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 area_m2 = shp_transform(to_l93, shp).area
                 d_bt = calculate_min_distance((lon_c, lat_c), postes_bt_data) if postes_bt_data else None
                 d_hta = calculate_min_distance((lon_c, lat_c), postes_hta_data) if postes_hta_data else None
-                addr_txt = ""  # Pas d'adresse pour parkings
+                addr_txt = _reverse_address_quick(lon_c, lat_c)
                 details = {
                     'lat': lat_c,
                     'lon': lon_c,
@@ -15391,7 +15401,21 @@ def generate_integrated_commune_report(commune_name, filters=None):
             # Lightweight reverse geocode using BAN for nicer popups (guarded + timeout)
             import requests as _rq
             def _reverse_address(lon_f: float, lat_f: float) -> str:
-                # DÉSACTIVÉ pour éviter boucles infinies - retourne vide
+                try:
+                    key = (round(lon_f, 5), round(lat_f, 5))
+                    if key in _rev_cache:
+                        return _rev_cache[key]
+                    url = f"https://api-adresse.data.gouv.fr/reverse/?lon={lon_f}&lat={lat_f}"
+                    r = _rq.get(url, timeout=1.0)
+                    if r.ok:
+                        js = r.json() or {}
+                        feats = js.get("features") or []
+                        if feats:
+                            label = (feats[0].get("properties") or {}).get("label") or ""
+                            _rev_cache[key] = label
+                            return label
+                except Exception:
+                    pass
                 return ""
 
             def _join_parcelles(refs: list) -> str:
