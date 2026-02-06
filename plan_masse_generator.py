@@ -1091,68 +1091,91 @@ class PlanMasseGenerator:
         c.drawString(x + w/2 + 0.3*cm, info_y, "Signature :")
     
     def _fetch_satellite_image(self, lat, lon, zoom=19, width=1200, height=1000):
-        """R├®cup├¿re une image satellite via API"""
+        """Récupère une image satellite via API (IGN prioritaire, ArcGIS fallback)"""
+        delta = 0.0001 * (20 - zoom)  # Approximatif
+        min_lat = lat - delta
+        max_lat = lat + delta
+        min_lon = lon - delta
+        max_lon = lon + delta
+        
+        # Méthode 1: IGN Géoplateforme WMS
         try:
-            # ArcGIS World Imagery (gratuit, haute r├®solution)
-            url = f"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-            
-            # Calculer bbox autour du point
-            # ├Ç zoom 19, ~10m de rayon
-            delta = 0.0001 * (20 - zoom)  # Approximatif
-            bbox = f"{lon - delta},{lat - delta},{lon + delta},{lat + delta}"
-            
+            ign_params = {
+                'SERVICE': 'WMS',
+                'VERSION': '1.3.0',
+                'REQUEST': 'GetMap',
+                'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
+                'CRS': 'EPSG:4326',
+                'BBOX': f'{min_lat},{min_lon},{max_lat},{max_lon}',
+                'WIDTH': str(width),
+                'HEIGHT': str(height),
+                'FORMAT': 'image/png',
+                'STYLES': ''
+            }
+            response = requests.get('https://data.geopf.fr/wms-r', params=ign_params, timeout=15)
+            if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
+                if len(response.content) > 5000:
+                    return io.BytesIO(response.content)
+        except Exception as e:
+            print(f"IGN satellite error: {e}")
+        
+        # Méthode 2: ArcGIS Export (fallback)
+        try:
             params = {
-                'bbox': bbox,
+                'bbox': f'{min_lon},{min_lat},{max_lon},{max_lat}',
                 'bboxSR': '4326',
                 'size': f'{width},{height}',
                 'format': 'png',
                 'f': 'image'
             }
-            
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export', params=params, timeout=15)
             if response.status_code == 200:
                 return io.BytesIO(response.content)
         except Exception as e:
-            print(f"Erreur image satellite: {e}")
+            print(f"ArcGIS satellite error: {e}")
         
         return None
     
     def _fetch_satellite_image_rect(self, lat, lon, width_meters, height_meters, width=1600, height=1400):
         """
-        T├®l├®charge une image satellite rectangulaire depuis ArcGIS World Imagery
-        RESPECTE l'├®chelle 1/500 avec dimensions exactes
+        Télécharge une image satellite rectangulaire
+        RESPECTE l'échelle 1/500 avec dimensions exactes
+        
+        Essaye dans l'ordre:
+        1. IGN Géoplateforme WMS (orthophotos françaises, gratuit, fiable)
+        2. ArcGIS World Imagery Export (fallback)
         
         Args:
-            lat, lon: Coordonn├®es GPS du centre
-            width_meters: Largeur en m├¿tres (dimension Est-Ouest)
-            height_meters: Hauteur en m├¿tres (dimension Nord-Sud)
+            lat, lon: Coordonnées GPS du centre
+            width_meters: Largeur en mètres (dimension Est-Ouest)
+            height_meters: Hauteur en mètres (dimension Nord-Sud)
             width, height: Dimensions de l'image en pixels
             
         Returns:
             BytesIO de l'image ou None
         """
-        print(f"[PLAN] ­ƒÄ¿ _fetch_satellite_image_rect appel├®e: lat={lat}, lon={lon}, w={width_meters}m, h={height_meters}m")
+        print(f"[PLAN] 🎿 _fetch_satellite_image_rect appelée: lat={lat}, lon={lon}, w={width_meters}m, h={height_meters}m")
         
-        # V├®rifier que les coordonn├®es GPS sont valides
+        # Vérifier que les coordonnées GPS sont valides
         if lat is None or lon is None:
-            print(f"[PLAN] ÔØî Coordonn├®es GPS manquantes (lat={lat}, lon={lon})")
+            print(f"[PLAN] ❌ Coordonnées GPS manquantes (lat={lat}, lon={lon})")
             return None
         
         try:
-            # ­ƒöÑ UTILISER LES M├èMES FACTEURS GPS que pour le plan (CRITIQUE pour alignement)
+            # 🔑 UTILISER LES MÊMES FACTEURS GPS que pour le plan (CRITIQUE pour alignement)
             if hasattr(self, 'gps_conversion_factors'):
                 meters_per_degree_lat = self.gps_conversion_factors['meters_per_degree_lat']
                 meters_per_degree_lng = self.gps_conversion_factors['meters_per_degree_lng']
-                print(f"[PLAN] ­ƒöÑ Utilisation facteurs GPS pr├®cis pour image satellite")
+                print(f"[PLAN] 🔑 Utilisation facteurs GPS précis pour image satellite")
             else:
                 # Fallback (ne devrait jamais arriver)
                 import math
                 lat_rad = lat * math.pi / 180 if lat else 0.785398
                 meters_per_degree_lat = 1 / 111320
                 meters_per_degree_lng = 1 / (111320 * math.cos(lat_rad))
-                print(f"[PLAN] ÔÜá´©Å Facteurs GPS fallback (gps_conversion_factors manquant)")
+                print(f"[PLAN] ⚠️ Facteurs GPS fallback (gps_conversion_factors manquant)")
             
-            # Conversion m├¿tres ÔåÆ degr├®s avec facteurs PR├ëCIS
+            # Conversion mètres → degrés avec facteurs PRÉCIS
             meters_to_lat = (height_meters / 2) * meters_per_degree_lat  # Demi-hauteur
             meters_to_lon = (width_meters / 2) * meters_per_degree_lng   # Demi-largeur
             
@@ -1162,90 +1185,227 @@ class PlanMasseGenerator:
             min_lat = lat - meters_to_lat
             max_lat = lat + meters_to_lat
             
-            # ArcGIS World Imagery
-            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-            
             bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
             
-            params = {
-                'bbox': bbox_str,
-                'bboxSR': '4326',
-                'size': f'{width},{height}',
-                'format': 'png',
-                'f': 'image'
-            }
+            print(f"[PLAN] 🖼️ Téléchargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (échelle 1/500), {width}x{height}px")
+            print(f"[PLAN] 📌 GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
-            print(f"[PLAN] ­ƒø░´©Å T├®l├®chargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (├®chelle 1/500), {width}x{height}px")
-            print(f"[PLAN] ­ƒôì GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
+            # ========================================
+            # MÉTHODE 1: IGN Géoplateforme WMS (orthophotos françaises)
+            # ========================================
+            try:
+                ign_url = "https://data.geopf.fr/wms-r"
+                ign_params = {
+                    'SERVICE': 'WMS',
+                    'VERSION': '1.3.0',
+                    'REQUEST': 'GetMap',
+                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
+                    'CRS': 'EPSG:4326',
+                    'BBOX': f"{min_lat},{min_lon},{max_lat},{max_lon}",  # WMS 1.3.0: lat,lon order
+                    'WIDTH': str(width),
+                    'HEIGHT': str(height),
+                    'FORMAT': 'image/png',
+                    'STYLES': ''
+                }
+                
+                print(f"[PLAN] 🇫🇷 Tentative IGN Géoplateforme WMS...")
+                response = requests.get(ign_url, params=ign_params, timeout=15)
+                
+                if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
+                    img_size_kb = len(response.content) / 1024
+                    if img_size_kb > 5:  # Vérifier que ce n'est pas une image vide
+                        print(f"[PLAN] ✅ Image satellite IGN OK ({img_size_kb:.1f} KB)")
+                        return io.BytesIO(response.content)
+                    else:
+                        print(f"[PLAN] ⚠️ Image IGN trop petite ({img_size_kb:.1f} KB), tentative ArcGIS...")
+                else:
+                    print(f"[PLAN] ⚠️ IGN WMS: HTTP {response.status_code}, content-type: {response.headers.get('content-type', 'N/A')}")
+            except Exception as e:
+                print(f"[PLAN] ⚠️ IGN WMS échoué: {e}")
             
-            response = requests.get(url, params=params, timeout=15)
-            if response.status_code == 200:
-                img_size_kb = len(response.content) / 1024
-                print(f"[PLAN] Ô£à Image satellite ArcGIS OK ({img_size_kb:.1f} KB)")
-                return io.BytesIO(response.content)
-            else:
-                print(f"[PLAN] ÔØî Erreur API ArcGIS: HTTP {response.status_code}")
-                print(f"[PLAN]    Bbox demand├®e: {width_meters:.0f}x{height_meters:.0f}m")
-                print(f"[PLAN]    URL: {response.url[:200]}...")
+            # ========================================
+            # MÉTHODE 2: ArcGIS World Imagery (fallback)
+            # ========================================
+            try:
+                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+                arcgis_params = {
+                    'bbox': bbox_str,
+                    'bboxSR': '4326',
+                    'size': f'{width},{height}',
+                    'format': 'png',
+                    'f': 'image'
+                }
+                
+                print(f"[PLAN] 🌍 Tentative ArcGIS World Imagery...")
+                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
+                if response.status_code == 200:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image satellite ArcGIS OK ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ❌ ArcGIS: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"[PLAN] ❌ ArcGIS échoué: {e}")
+            
+            # ========================================
+            # MÉTHODE 3: Google Maps Static API (dernier recours)
+            # ========================================
+            try:
+                # Assembler les tuiles depuis le serveur de tuiles ArcGIS (même URL que Leaflet)
+                print(f"[PLAN] 🗺️ Tentative assemblage tuiles ArcGIS...")
+                tile_img = self._fetch_satellite_from_tiles(lat, lon, width_meters, height_meters, width, height)
+                if tile_img:
+                    return tile_img
+            except Exception as e:
+                print(f"[PLAN] ❌ Assemblage tuiles échoué: {e}")
                     
         except Exception as e:
-            print(f"[PLAN] ÔØî Erreur t├®l├®chargement satellite: {e}")
+            print(f"[PLAN] ❌ Erreur téléchargement satellite: {e}")
             import traceback
             traceback.print_exc()
         
+        print(f"[PLAN] ❌ TOUTES les méthodes satellite ont échoué!")
         return None
+
+    def _fetch_satellite_from_tiles(self, lat, lon, width_meters, height_meters, img_width=800, img_height=600):
+        """
+        Assemble une image satellite à partir des tuiles XYZ (même serveur que Leaflet).
+        Utilisé en dernier recours si les API WMS/export échouent.
+        """
+        import math
+        from PIL import Image
+        
+        # Zoom 18 pour bon compromis résolution/couverture
+        zoom = 18
+        
+        # Convertir lat/lon en coordonnées de tuile
+        n = 2 ** zoom
+        x_center = (lon + 180.0) / 360.0 * n
+        y_center = (1.0 - math.log(math.tan(math.radians(lat)) + 1.0 / math.cos(math.radians(lat))) / math.pi) / 2.0 * n
+        
+        tile_size = 256
+        
+        # Calculer combien de tuiles couvrir
+        # À zoom 18, une tuile couvre environ 0.6m/pixel → 256px = ~150m
+        meters_per_pixel = 156543.03392 * math.cos(math.radians(lat)) / (2 ** zoom)
+        pixels_needed_x = int(width_meters / meters_per_pixel) + tile_size
+        pixels_needed_y = int(height_meters / meters_per_pixel) + tile_size
+        
+        tiles_x = max(3, pixels_needed_x // tile_size + 2)
+        tiles_y = max(3, pixels_needed_y // tile_size + 2)
+        
+        # Limiter pour ne pas faire trop de requêtes
+        tiles_x = min(tiles_x, 8)
+        tiles_y = min(tiles_y, 8)
+        
+        x_start = int(x_center) - tiles_x // 2
+        y_start = int(y_center) - tiles_y // 2
+        
+        # Créer image composite
+        composite = Image.new('RGB', (tiles_x * tile_size, tiles_y * tile_size))
+        
+        tile_count = 0
+        for tx in range(tiles_x):
+            for ty in range(tiles_y):
+                tile_x = x_start + tx
+                tile_y = y_start + ty
+                
+                tile_url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{tile_y}/{tile_x}"
+                try:
+                    r = requests.get(tile_url, timeout=5)
+                    if r.status_code == 200:
+                        tile_img = Image.open(io.BytesIO(r.content))
+                        composite.paste(tile_img, (tx * tile_size, ty * tile_size))
+                        tile_count += 1
+                except:
+                    pass
+        
+        if tile_count < 2:
+            print(f"[PLAN] ❌ Seulement {tile_count} tuiles récupérées, abandon")
+            return None
+        
+        # Recadrer au centre pour obtenir la bonne taille
+        cx = composite.width // 2
+        cy = composite.height // 2
+        crop_w = int(width_meters / meters_per_pixel)
+        crop_h = int(height_meters / meters_per_pixel)
+        
+        left = max(0, cx - crop_w // 2)
+        top = max(0, cy - crop_h // 2)
+        right = min(composite.width, cx + crop_w // 2)
+        bottom = min(composite.height, cy + crop_h // 2)
+        
+        cropped = composite.crop((left, top, right, bottom))
+        cropped = cropped.resize((img_width, img_height), Image.LANCZOS)
+        
+        buf = io.BytesIO()
+        cropped.save(buf, format='PNG')
+        buf.seek(0)
+        
+        print(f"[PLAN] ✅ Image satellite assemblée depuis {tile_count} tuiles ({img_width}x{img_height}px)")
+        return buf
     
     def _fetch_satellite_image_bbox(self, lat, lon, bbox_meters, width=1200, height=1000):
         """
-        R├®cup├¿re une image satellite avec une bbox en m├¿tres autour du point central
-        
-        Args:
-            lat, lon: Coordonn├®es GPS du centre
-            bbox_meters: Rayon en m├¿tres pour la bbox
-            width, height: Dimensions de l'image en pixels
-            
-        Returns:
-            BytesIO de l'image ou None
+        Récupère une image satellite avec une bbox en mètres autour du point central.
+        Utilise IGN en priorité, ArcGIS en fallback.
         """
         try:
-            # Conversion m├¿tres ÔåÆ degr├®s (approximatif pour France m├®tropolitaine)
-            # 1 degr├® latitude Ôëê 111 km
-            # 1 degr├® longitude Ôëê 111 km * cos(latitude) Ôëê 78 km ├á 45┬░ de latitude
             meters_to_lat = bbox_meters / 111000
-            meters_to_lon = bbox_meters / (111000 * 0.7)  # cos(45┬░) Ôëê 0.7
+            meters_to_lon = bbox_meters / (111000 * 0.7)
             
-            # Calculer bbox
             min_lon = lon - meters_to_lon
             max_lon = lon + meters_to_lon
             min_lat = lat - meters_to_lat
             max_lat = lat + meters_to_lat
             
-            # ArcGIS World Imagery
-            url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+            print(f"[PLAN] 🖼️ Téléchargement image satellite: bbox={bbox_meters:.0f}m, size={width}x{height}px")
+            print(f"[PLAN] 📌 GPS bounds: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
-            bbox_str = f"{min_lon},{min_lat},{max_lon},{max_lat}"
+            # Méthode 1: IGN Géoplateforme WMS
+            try:
+                ign_params = {
+                    'SERVICE': 'WMS',
+                    'VERSION': '1.3.0',
+                    'REQUEST': 'GetMap',
+                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
+                    'CRS': 'EPSG:4326',
+                    'BBOX': f'{min_lat},{min_lon},{max_lat},{max_lon}',
+                    'WIDTH': str(width),
+                    'HEIGHT': str(height),
+                    'FORMAT': 'image/png',
+                    'STYLES': ''
+                }
+                response = requests.get('https://data.geopf.fr/wms-r', params=ign_params, timeout=15)
+                if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
+                    img_size_kb = len(response.content) / 1024
+                    if img_size_kb > 5:
+                        print(f"[PLAN] ✅ Image satellite IGN OK ({img_size_kb:.1f} KB)")
+                        return io.BytesIO(response.content)
+            except Exception as e:
+                print(f"[PLAN] ⚠️ IGN WMS échoué: {e}")
             
-            params = {
-                'bbox': bbox_str,
-                'bboxSR': '4326',
-                'size': f'{width},{height}',
-                'format': 'png',
-                'f': 'image'
-            }
-            
-            print(f"[PLAN] ­ƒø░´©Å T├®l├®chargement image satellite: {width_meters:.0f}x{height_meters:.0f}m (├®chelle 1/500), size={width}x{height}px")
-            print(f"[PLAN] ­ƒôì GPS bounds: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
-            
-            response = requests.get(url, params=params, timeout=15)
-            if response.status_code == 200:
-                img_size_kb = len(response.content) / 1024
-                print(f"[PLAN] Ô£à Image satellite t├®l├®charg├®e ({img_size_kb:.1f} KB)")
-                return io.BytesIO(response.content)
-            else:
-                print(f"[PLAN] ÔØî Erreur API ArcGIS: HTTP {response.status_code}")
-                print(f"[PLAN] ­ƒöù URL: {response.url}")
+            # Méthode 2: ArcGIS Export (fallback)
+            try:
+                params = {
+                    'bbox': f'{min_lon},{min_lat},{max_lon},{max_lat}',
+                    'bboxSR': '4326',
+                    'size': f'{width},{height}',
+                    'format': 'png',
+                    'f': 'image'
+                }
+                response = requests.get('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export', params=params, timeout=15)
+                if response.status_code == 200:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image satellite ArcGIS OK ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ❌ ArcGIS: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"[PLAN] ❌ ArcGIS échoué: {e}")
+                
         except Exception as e:
-            print(f"[PLAN] ÔØî Erreur image satellite: {e}")
+            print(f"[PLAN] ❌ Erreur image satellite: {e}")
         
         return None
     
