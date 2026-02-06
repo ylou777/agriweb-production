@@ -307,6 +307,7 @@
             // Analyser les coordonnées pour détecter les doublons
             const coordsMap = new Map();
             data.points.forEach((p, idx) => {
+                if (p.latitude == null || p.longitude == null) return;
                 const key = `${p.latitude.toFixed(6)},${p.longitude.toFixed(6)}`;
                 if (!coordsMap.has(key)) {
                     coordsMap.set(key, []);

@@ -3867,22 +3867,66 @@ def register_autoconso_routes(app):
                 if results:
                     print(f"✅ [ENEDIS API] {len(results)}/{total} consommations trouvées dans {nom_commune}")
                     
-                    # Formater les résultats pour compatibilité avec l'ancien format
+                    # Formater les résultats avec géocodage des adresses
                     formatted_results = []
-                    for point in results:
-                        formatted_results.append({
-                            'adresse': point.get('adresse', ''),
-                            'commune': point.get('nom_commune', nom_commune),
-                            'code_commune': point.get('code_commune', code_commune),
-                            'secteur': point.get('code_grand_secteur', ''),
-                            'consommation_annuelle_mwh': point.get('consommation_annuelle_totale_de_ladresse_mwh', 0),
-                            'nb_sites': point.get('nombre_de_sites', 0),
-                            'annee': point.get('annee', 2022),
-                            'pdl': None,  # Non disponible dans ce dataset
-                            'distance_m': 0,  # Distance non calculable sans GPS
-                            'source': 'enedis-commune'  # Indiquer la source
-                        })
+                    import math
                     
+                    # Géocoder en batch via l'API adresse.data.gouv.fr
+                    for point in results:
+                        adresse_raw = point.get('adresse', '')
+                        commune_name = point.get('nom_commune', nom_commune)
+                        conso = point.get('consommation_annuelle_totale_de_ladresse_mwh', 0)
+                        
+                        # Géocoder l'adresse pour obtenir lat/lon
+                        point_lat = None
+                        point_lon = None
+                        distance_m = 0
+                        
+                        if adresse_raw:
+                            try:
+                                geo_url = "https://api-adresse.data.gouv.fr/search/"
+                                geo_params = {
+                                    'q': f"{adresse_raw} {commune_name}",
+                                    'limit': 1,
+                                    'citycode': code_commune
+                                }
+                                geo_resp = requests.get(geo_url, params=geo_params, timeout=5)
+                                if geo_resp.status_code == 200:
+                                    geo_data = geo_resp.json()
+                                    if geo_data.get('features'):
+                                        coords = geo_data['features'][0]['geometry']['coordinates']
+                                        point_lon = coords[0]
+                                        point_lat = coords[1]
+                                        
+                                        # Calculer la distance au prospect
+                                        dlat = math.radians(point_lat - lat)
+                                        dlon = math.radians(point_lon - lon)
+                                        a = math.sin(dlat/2)**2 + math.cos(math.radians(lat)) * math.cos(math.radians(point_lat)) * math.sin(dlon/2)**2
+                                        distance_m = 6371000 * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+                            except Exception as e:
+                                print(f"⚠️ Géocodage échoué pour '{adresse_raw[:40]}': {e}")
+                        
+                        # Ne garder que les points avec coordonnées valides
+                        if point_lat is not None and point_lon is not None:
+                            formatted_results.append({
+                                'adresse': adresse_raw,
+                                'commune': commune_name,
+                                'nom_commune': commune_name,
+                                'code_commune': point.get('code_commune', code_commune),
+                                'secteur': point.get('code_grand_secteur', ''),
+                                'consommation_annuelle_mwh': conso if conso else 0,
+                                'nb_sites': point.get('nombre_de_sites', 0),
+                                'annee': point.get('annee', 2022),
+                                'pdl': None,
+                                'latitude': point_lat,
+                                'longitude': point_lon,
+                                'distance_m': distance_m,
+                                'source': 'enedis-commune'
+                            })
+                        else:
+                            print(f"⚠️ Point sans coordonnées ignoré: {adresse_raw[:50]}")
+                    
+                    print(f"📍 {len(formatted_results)}/{len(results)} points géocodés avec succès")
                     return formatted_results
                 else:
                     print(f"⚠️ [ENEDIS API] Aucune consommation dans commune {nom_commune}")
@@ -4049,10 +4093,6 @@ def register_autoconso_routes(app):
             })
         
         except Exception as e:
-            print(f"❌ [AUTOCONSO API] Erreur: {e}")
-            import traceback
-            traceback.print_exc()
-            return jsonify({'error': str(e)}), 500
             print(f"❌ [AUTOCONSO API] Erreur: {e}")
             import traceback
             traceback.print_exc()
