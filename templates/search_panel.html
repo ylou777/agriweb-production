@@ -33,6 +33,9 @@
         <button type="submit" class="btn btn-primary w-100 mt-3">
           <i class="bi bi-search"></i> Rechercher
         </button>
+        <button type="button" class="btn btn-warning w-100 mt-2" onclick="directReportAddress()">
+          <i class="bi bi-file-earmark-text"></i> Rapport direct
+        </button>
       </form>
       
       <!-- Zone de logs pour la recherche par adresse -->
@@ -335,6 +338,9 @@
         
   <button id="communeSearchButton" type="submit" class="btn btn-secondary w-100 mt-2">
     <i class="bi bi-search"></i> Rechercher commune
+  </button>
+  <button type="button" class="btn btn-warning w-100 mt-2" onclick="directReportCommune()">
+    <i class="bi bi-file-earmark-text"></i> Rapport direct commune
   </button>
   <div id="communeSearchLog" class="form-text text-info mb-2" style="min-height:1.5em;"></div>
       </form>

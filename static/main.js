@@ -80,6 +80,98 @@ function getFriendlyLabel(key) {
 }
 
 // Rapport par commune - Version complète intégrée
+
+// ============================================================================
+// RAPPORT DIRECT - Sans passer par la recherche
+// ============================================================================
+
+/**
+ * Rapport direct commune : lit les champs du formulaire et ouvre le rapport
+ * sans passer par la recherche intermédiaire
+ */
+function directReportCommune() {
+  const commune = document.getElementById('commune')?.value?.trim();
+  if (!commune) return alert("Veuillez saisir un nom de commune !");
+
+  const boolVal = (id, defVal=false) => {
+    const el = document.getElementById(id);
+    return el ? !!el.checked : defVal;
+  };
+  const numVal = (id, defVal=0) => {
+    const el = document.getElementById(id);
+    const v = el ? parseFloat(el.value) : defVal;
+    return isNaN(v) ? defVal : v;
+  };
+
+  const params = new URLSearchParams();
+  params.set('commune', commune);
+  
+  // Couches principales
+  params.set('filter_rpg', String(boolVal('filter_rpg_commune', true)));
+  params.set('rpg_min_area', String(numVal('rpg_min_area', 1)));
+  params.set('rpg_max_area', String(numVal('rpg_max_area', 1000)));
+  params.set('filter_parkings', String(boolVal('filter_parkings_commune', false)));
+  params.set('parking_min_area', String(numVal('parking_min_area', 1500)));
+  params.set('filter_friches', String(boolVal('filter_friches_commune', false)));
+  params.set('friches_min_area', String(numVal('friches_min_area', 1000)));
+  params.set('filter_zones', String(boolVal('filter_zones_commune', false)));
+  params.set('zones_min_area', String(numVal('zones_min_area', 1000)));
+  params.set('zones_type_filter', document.getElementById('zones_type_filter')?.value || '');
+  params.set('filter_toitures', String(boolVal('filter_toitures_commune', false)));
+  params.set('toitures_min_surface', String(numVal('min_surface_toiture', 100)));
+  
+  // Filtres distance
+  params.set('filter_by_distance', String(boolVal('filter_by_distance_commune', false)));
+  params.set('max_distance_bt', String(numVal('bt_max_distance_commune', 2000)));
+  params.set('max_distance_hta', String(numVal('ht_max_distance_commune', 5000)));
+  const posteType = document.querySelector('input[name="poste_type_filter"]:checked')?.value || 'ALL';
+  params.set('poste_type_filter', posteType);
+  
+  params.set('export_format', 'html');
+  window.open(`/rapport_commune_complet?${params.toString()}`, "_blank");
+}
+
+/**
+ * Rapport direct adresse : géocode l'adresse puis ouvre le rapport point
+ */
+function directReportAddress() {
+  const searchInput = document.getElementById('search_input')?.value?.trim();
+  if (!searchInput) return alert("Veuillez saisir une adresse !");
+
+  // Vérifier si c'est déjà des coordonnées (lat, lon)
+  const coordMatch = searchInput.match(/^([+-]?\d+\.?\d*)[,;\s]+([+-]?\d+\.?\d*)$/);
+  if (coordMatch) {
+    const lat = parseFloat(coordMatch[1]);
+    const lon = parseFloat(coordMatch[2]);
+    window.open(`/rapport_map?lat=${lat}&lon=${lon}`, "_blank");
+    return;
+  }
+
+  // Géocoder l'adresse via API Géoplateforme
+  const btn = event?.target;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Géocodage...'; }
+  
+  fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(searchInput)}&limit=1`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.features && data.features.length > 0) {
+        const coords = data.features[0].geometry.coordinates;
+        const lon = coords[0];
+        const lat = coords[1];
+        const address = data.features[0].properties?.label || searchInput;
+        window.open(`/rapport_map?lat=${lat}&lon=${lon}&address=${encodeURIComponent(address)}`, "_blank");
+      } else {
+        alert("❌ Adresse non trouvée. Essayez avec plus de détails.");
+      }
+    })
+    .catch(err => {
+      alert("❌ Erreur de géocodage: " + err.message);
+    })
+    .finally(() => {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-file-earmark-text"></i> Rapport direct'; }
+    });
+}
+
 function generateCommuneReport() {
   const search = window.lastCommuneSearch;
   if (!search || !search.commune) return alert("Faites d'abord une recherche de commune !");
