@@ -15375,15 +15375,9 @@ def generate_integrated_commune_report(commune_name, filters=None):
         }
 
         # Génération d'une carte Folium dédiée au rapport (parkings, friches, toitures, postes)
-        # MAIS si une carte de recherche vient d'être générée et est en cache, on l'utilise en priorité
+        # Génération d'une carte Folium dédiée au rapport avec TOUTES les couches
+        # (on ne réutilise plus le cache de search_by_commune pour garantir que parkings/friches/toitures soient affichés)
         try:
-            # Si une carte existe déjà en cache (issue de la recherche), on l'intègre directement
-            if (last_map_params or {}).get("html"):
-                # Utilise l'endpoint /generated_map qui renvoie le HTML en mémoire
-                rapport["carte_url"] = "/generated_map"
-                # Note: carte_static_url désactivée car staticmap.openstreetmap.de n'est plus disponible
-                # On saute la (re)génération d'une autre carte
-                raise StopIteration()
 
             m = folium.Map(location=[lat, lon], zoom_start=13, tiles=None, max_zoom=22)
             folium.TileLayer(
@@ -15413,6 +15407,8 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     features_iter = ensure_feature_list(fc)
                 except Exception:
                     features_iter = (fc or [])
+                added_count = 0
+                err_count = 0
                 for f in features_iter:
                     geom = f.get("geometry") if isinstance(f, dict) else None
                     props = (f.get("properties") or {}) if isinstance(f, dict) else {}
@@ -15445,38 +15441,44 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         if addr_txt and not enriched.get("adresse"):
                             enriched["adresse"] = addr_txt
 
+                        # Construire fields et aliases synchronisés (même longueur)
+                        all_field_alias = [
+                            ("surface_m2", "Surface (m²)"),
+                            ("surface_toiture_m2", "Surface toiture (m²)"),
+                            ("parcelles", "Parcelles"),
+                            ("adresse", "Adresse"),
+                            ("min_distance_bt_m", "Dist. BT (m)"),
+                            ("min_distance_hta_m", "Dist. HTA (m)"),
+                        ]
+                        tt_fields = [k for k, _ in all_field_alias if k in enriched]
+                        tt_aliases = [a for k, a in all_field_alias if k in enriched]
+
+                        kwargs_tooltip = {}
+                        kwargs_popup = {}
+                        if tt_fields:
+                            kwargs_tooltip = dict(
+                                tooltip=folium.GeoJsonTooltip(fields=tt_fields, aliases=tt_aliases, sticky=True)
+                            )
+                            kwargs_popup = dict(
+                                popup=folium.GeoJsonPopup(fields=tt_fields, aliases=tt_aliases, labels=True, localize=True)
+                            )
+
                         gj = folium.GeoJson(
                             {"type": "Feature", "geometry": geom, "properties": enriched},
                             name=name,
-                            style_function=lambda _:
-                                {"color": color, "weight": 2, "fillColor": color, "fillOpacity": 0.2},
-                            tooltip=folium.GeoJsonTooltip(
-                                fields=[k for k in [
-                                    "surface_m2", "surface_toiture_m2", "parcelles", "adresse",
-                                    "min_distance_bt_m", "min_distance_hta_m"
-                                ] if k in enriched],
-                                aliases=[
-                                    "Surface (m²)", "Surface toiture (m²)", "Parcelles", "Adresse",
-                                    "Dist. BT (m)", "Dist. HTA (m)"
-                                ],
-                                sticky=True
-                            ),
-                            popup=folium.GeoJsonPopup(
-                                fields=[k for k in [
-                                    "surface_m2", "surface_toiture_m2", "parcelles", "adresse",
-                                    "min_distance_bt_m", "min_distance_hta_m"
-                                ] if k in enriched],
-                                aliases=[
-                                    "Surface (m²)", "Surface toiture (m²)", "Parcelles", "Adresse",
-                                    "Dist. BT (m)", "Dist. HTA (m)"
-                                ],
-                                labels=True,
-                                localize=True
-                            )
+                            style_function=lambda _, c=color:
+                                {"color": c, "weight": 2, "fillColor": c, "fillOpacity": 0.2},
+                            **kwargs_tooltip,
+                            **kwargs_popup
                         )
                         gj.add_to(group)
-                    except Exception:
+                        added_count += 1
+                    except Exception as exc:
+                        err_count += 1
+                        if err_count <= 3:
+                            print(f"      ⚠️ [CARTE/{name}] Erreur feature: {exc}")
                         continue
+                print(f"   🗺️ [CARTE] Couche '{name}': {added_count} features ajoutées, {err_count} erreurs")
                 m.add_child(group)
 
             # Ajouter couches
@@ -15517,9 +15519,6 @@ def generate_integrated_commune_report(commune_name, filters=None):
             except Exception as _:
                 rapport.setdefault("carte_url", "/static/map.html")
             # Note: carte_static_url désactivée car staticmap.openstreetmap.de n'est plus disponible
-        except StopIteration:
-            # Carte de recherche utilisée, rien d'autre à faire
-            pass
         except Exception as e:
             print(f"⚠️ [RAPPORT_INTÉGRÉ] Erreur génération carte: {e}")
             rapport.setdefault("carte_url", "/static/map.html")
