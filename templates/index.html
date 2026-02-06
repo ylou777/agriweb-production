@@ -14,167 +14,362 @@
   <!-- Autocomplétion adresses et communes -->
   <link rel="stylesheet" href="{{ url_for('static', filename='autocomplete.css') }}">
   <style>
+    /* ===== MINIMAL FLAT DESIGN ===== */
+    :root {
+      --sidebar-w: 360px;
+      --c-bg: #fafafa;
+      --c-surface: #ffffff;
+      --c-border: #e8e8e8;
+      --c-text: #1a1a1a;
+      --c-text-secondary: #6b7280;
+      --c-accent: #2563eb;
+      --c-accent-light: #eff6ff;
+      --c-success: #059669;
+      --c-danger: #dc2626;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --transition: 0.2s cubic-bezier(.4,0,.2,1);
+    }
+
     html, body {
       height: 100%;
       min-height: 100vh;
     }
     body {
       margin: 0;
-      font-family: Poppins, sans-serif;
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       height: 100vh;
       display: flex;
       flex-direction: column;
       min-height: 100vh;
+      color: var(--c-text);
+      background: var(--c-bg);
     }
-    /* === CSS FORCE SIDEBAR À GAUCHE === */
+
+    /* === LAYOUT === */
     .main-container {
       flex: 1 1 0;
       display: flex !important;
       flex-direction: row !important;
       min-height: 0;
-      height: 100vh; /* Pleine hauteur maintenant qu'il n'y a plus de navbar */
+      height: 100vh;
       overflow: hidden;
       align-items: stretch;
       position: relative;
     }
-    
-    /* SIDEBAR FORCÉE À GAUCHE */
+
+    /* === SIDEBAR === */
     #sidebar {
       position: absolute !important;
       left: 0 !important;
       top: 0 !important;
-      width: 340px !important;
-      min-width: 340px !important;
-      max-width: 340px !important;
+      width: var(--sidebar-w) !important;
+      min-width: var(--sidebar-w) !important;
+      max-width: var(--sidebar-w) !important;
       height: 100% !important;
       overflow-y: auto;
-      background: #fff !important;
+      background: var(--c-surface) !important;
       z-index: 10 !important;
-      border-right: 1px solid #f1f1f1;
+      border-right: 1px solid var(--c-border);
       display: flex !important;
       flex-direction: column !important;
       flex-shrink: 0 !important;
       flex-grow: 0 !important;
     }
-    
-    /* CARTE FORCÉE À DROITE */
+    #sidebar::-webkit-scrollbar { width: 4px; }
+    #sidebar::-webkit-scrollbar-track { background: transparent; }
+    #sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+    /* === SIDEBAR HEADER === */
+    .sidebar-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--c-border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .sidebar-brand {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--c-text);
+      flex-grow: 1;
+    }
+    .sidebar-brand span {
+      color: var(--c-accent);
+    }
+
+    /* === NAVIGATION PILLS === */
+    .nav-pills-row {
+      display: flex;
+      gap: 6px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--c-border);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .nav-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--c-text-secondary);
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 20px;
+      text-decoration: none;
+      transition: all var(--transition);
+      white-space: nowrap;
+      cursor: pointer;
+    }
+    .nav-pill:hover {
+      color: var(--c-accent);
+      border-color: var(--c-accent);
+      background: var(--c-accent-light);
+      transform: translateY(-1px);
+    }
+    .nav-pill i { font-size: 0.85rem; }
+    .nav-pill.pill-danger:hover {
+      color: var(--c-danger);
+      border-color: var(--c-danger);
+      background: #fef2f2;
+    }
+
+    /* === ACCORDION FLAT === */
+    .accordion { --bs-accordion-border-color: transparent; }
+    .accordion-item {
+      border: none !important;
+      background: transparent;
+    }
+    .accordion-button {
+      padding: 14px 24px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--c-text);
+      background: transparent !important;
+      border: none;
+      box-shadow: none !important;
+      border-bottom: 1px solid var(--c-border);
+      border-radius: 0 !important;
+      transition: all var(--transition);
+      gap: 10px;
+    }
+    .accordion-button:hover {
+      background: var(--c-bg) !important;
+    }
+    .accordion-button:not(.collapsed) {
+      color: var(--c-accent);
+      background: var(--c-accent-light) !important;
+      border-bottom-color: var(--c-accent);
+    }
+    .accordion-button::after {
+      width: 14px;
+      height: 14px;
+      background-size: 14px;
+      opacity: 0.4;
+      transition: transform var(--transition), opacity var(--transition);
+    }
+    .accordion-button:not(.collapsed)::after {
+      opacity: 0.8;
+    }
+    .accordion-button i, .accordion-button .bi {
+      font-size: 1rem;
+      opacity: 0.7;
+    }
+    .accordion-button:not(.collapsed) i,
+    .accordion-button:not(.collapsed) .bi {
+      opacity: 1;
+    }
+    .accordion-collapse {
+      transition: height 0.25s ease;
+    }
+    .accordion-body {
+      padding: 16px 24px 20px;
+      background: var(--c-bg);
+    }
+
+    /* === FORM CONTROLS FLAT === */
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--c-text-secondary);
+      margin-bottom: 4px;
+      letter-spacing: 0.01em;
+    }
+    .form-control, .form-select {
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      background: var(--c-surface);
+    }
+    .form-control:focus, .form-select:focus {
+      border-color: var(--c-accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    .form-range::-webkit-slider-thumb {
+      background: var(--c-accent);
+    }
+    .form-range::-webkit-slider-runnable-track {
+      background: var(--c-border);
+    }
+
+    /* === BUTTONS FLAT === */
+    .accordion-body .btn {
+      border-radius: var(--radius-sm);
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 9px 16px;
+      transition: all var(--transition);
+      letter-spacing: 0.01em;
+    }
+    .btn-primary {
+      background: var(--c-accent);
+      border-color: var(--c-accent);
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(37,99,235,0.25);
+    }
+    .btn-warning {
+      background: #f59e0b;
+      border-color: #f59e0b;
+      color: #fff;
+    }
+    .btn-warning:hover {
+      background: #d97706;
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245,158,11,0.25);
+    }
+    .btn-secondary {
+      background: #6b7280;
+      border-color: #6b7280;
+    }
+
+    /* === CARDS (filtres commune) === */
+    .accordion-body .card {
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      box-shadow: none;
+      background: var(--c-surface);
+    }
+    .accordion-body .card-header {
+      background: transparent;
+      border-bottom: 1px solid var(--c-border);
+      padding: 10px 14px;
+    }
+    .accordion-body .card-body {
+      padding: 12px 14px;
+    }
+
+    /* === SLIDER VALUE BADGE === */
+    .slider-value {
+      font-weight: 600;
+      color: var(--c-accent);
+      font-size: 0.82rem;
+    }
+
+    /* === LOG AREAS === */
+    pre {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      height: 200px;
+      overflow: auto;
+      font-size: 0.78rem;
+      color: var(--c-text-secondary);
+    }
+    #searchLog {
+      border-radius: var(--radius-sm) !important;
+      font-size: 0.8rem !important;
+    }
+
+    /* === MISC === */
+    .layer-list { list-style: none; padding-left: 0; margin: 0 0 1em 0; }
+    .layer-list li { display: flex; align-items: center; margin-bottom: 5px; }
+    .layer-color { width: 14px; height: 14px; display: inline-block; border-radius: 4px; margin-right: 8px; border: 1px solid #ccc; }
+
+    /* === MAP === */
     #mapFrame {
       position: absolute !important;
-      left: 340px !important;
+      left: var(--sidebar-w) !important;
       top: 0 !important;
-      width: calc(100% - 340px) !important;
+      width: calc(100% - var(--sidebar-w)) !important;
       height: 100% !important;
       min-width: 0;
       border: none;
       display: block;
       background: #eee;
     }
-    .layer-list {
-      list-style: none;
-      padding-left: 0;
-      margin: 0 0 1em 0;
-    }
-    .layer-list li {
-      display: flex;
-      align-items: center;
-      margin-bottom: 5px;
-    }
-    .layer-color {
-      width: 14px;
-      height: 14px;
-      display: inline-block;
-      border-radius: 4px;
-      margin-right: 8px;
-      border: 1px solid #bbb;
-    }
-    pre {
-      background: #f0f0f0;
-      padding: 1em;
-      height: 200px;
-      overflow: auto;
-      font-size: .8rem;
-    }
-    .slider-value {
-      font-weight: 500;
-    }
-    /* Responsive sidebar pour mobile */
+
+    /* === RESPONSIVE === */
     @media (max-width: 991px) {
-      .main-container {
-        flex-direction: column !important;
-        position: relative !important;
-      }
+      .main-container { flex-direction: column !important; position: relative !important; }
       #sidebar {
         position: fixed !important;
         left: -100vw !important;
-        top: 0 !important; /* Plus de décalage de navbar */
-        width: 90vw !important;
-        max-width: 98vw !important;
-        height: 100vh !important; /* Pleine hauteur */
+        top: 0 !important;
+        width: 92vw !important;
+        max-width: 400px !important;
+        height: 100vh !important;
         z-index: 1050 !important;
-        box-shadow: 4px 0 24px #0002;
-        transition: left 0.3s;
+        box-shadow: 8px 0 30px rgba(0,0,0,0.08);
+        transition: left 0.3s cubic-bezier(.4,0,.2,1);
         flex-direction: column !important;
       }
-      #sidebar.show {
-        left: 0 !important;
-      }
+      #sidebar.show { left: 0 !important; }
       #mapFrame {
         position: relative !important;
         left: 0 !important;
         top: 0 !important;
         width: 100% !important;
-        height: 100vh !important; /* Pleine hauteur */
+        height: 100vh !important;
       }
+      .nav-pills-row { padding: 10px 12px; }
     }
     #closeSidebarBtn { display: none; }
     @media (max-width: 991px) {
       #closeSidebarBtn { display: inline-block; }
     }
-    
-    /* Force TOUS les contrôles de carte au-dessus de TOUT */
-    .leaflet-control-layers,
-    .leaflet-control-zoom,
-    .leaflet-control-zoom-in,
-    .leaflet-control-zoom-out,
-    .leaflet-control,
-    .leaflet-top,
-    .leaflet-bottom,
-    .leaflet-left,
-    .leaflet-right,
-    .leaflet-control-container,
-    .leaflet-control-layers-base,
-    .leaflet-control-layers-overlays,
-    .leaflet-control-layers-toggle {
-      z-index: 9999 !important;
-    }
-    
-    /* Force spécifiquement les boutons de zoom et layer control */
-    .leaflet-control-zoom a,
-    .leaflet-control-layers-toggle,
-    .leaflet-control-layers-list {
-      z-index: 9999 !important;
-    }
-    
-    /* Bouton flottant pour mobile */
+
+    /* === LEAFLET Z-INDEX === */
+    .leaflet-control-layers, .leaflet-control-zoom, .leaflet-control-zoom-in,
+    .leaflet-control-zoom-out, .leaflet-control, .leaflet-top, .leaflet-bottom,
+    .leaflet-left, .leaflet-right, .leaflet-control-container,
+    .leaflet-control-layers-base, .leaflet-control-layers-overlays,
+    .leaflet-control-layers-toggle { z-index: 9999 !important; }
+    .leaflet-control-zoom a, .leaflet-control-layers-toggle,
+    .leaflet-control-layers-list { z-index: 9999 !important; }
+
+    /* === MOBILE TOGGLE === */
     #openSidebarBtn {
       position: fixed;
-      top: 20px;
-      left: 20px;
+      top: 16px;
+      left: 16px;
       z-index: 10000;
-      background: #007bff;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 50px;
-      height: 50px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      background: var(--c-surface);
+      color: var(--c-text);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius);
+      width: 44px;
+      height: 44px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       display: none;
+      transition: all var(--transition);
     }
-    
+    #openSidebarBtn:hover {
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
     @media (max-width: 991px) {
-      #openSidebarBtn {
-        display: block;
-      }
+      #openSidebarBtn { display: block; }
     }
   </style>
 </head>
@@ -182,45 +377,25 @@
   <div class="main-container">
     <!-- SIDEBAR DOIT ÊTRE À GAUCHE - PREMIER ÉLÉMENT -->
     <div id="sidebar" class="text-dark">
-      <div class="offcanvas-header d-flex align-items-center px-3 pt-3">
-        <h5 class="offcanvas-title flex-grow-1 mb-0">🗺️ AgriWeb</h5>
-        <button id="closeSidebarBtn" class="btn-close text-reset ms-2" type="button"></button>
+      <!-- Header -->
+      <div class="sidebar-header">
+        <div class="sidebar-brand"><span>Agri</span>Web</div>
+        <button id="closeSidebarBtn" class="btn-close text-reset" type="button"></button>
       </div>
-      <div class="offcanvas-body p-0">
+
+      <!-- Navigation pills -->
+      <div class="nav-pills-row">
+        <a href="/crm" target="_blank" class="nav-pill"><i class="bi bi-people"></i> Prospects</a>
+        <a href="/crm/projets" target="_blank" class="nav-pill"><i class="bi bi-folder2-open"></i> Projets</a>
+        <a href="/crm/stats" target="_blank" class="nav-pill"><i class="bi bi-bar-chart-line"></i> KPI</a>
+        <a href="/" class="nav-pill"><i class="bi bi-house"></i> Accueil</a>
+        <a href="/logout" class="nav-pill pill-danger"><i class="bi bi-box-arrow-right"></i> Quitter</a>
+      </div>
+
+      <!-- Sections -->
+      <div style="flex:1; overflow-y:auto; padding-bottom:16px;">
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
-        </div>
-
-        <div class="accordion" id="toolsAccordion">
-          <!-- Section Navigation -->
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#navCollapse">
-                <i class="bi bi-gear me-2"></i>Navigation
-              </button>
-            </h2>
-            <div id="navCollapse" class="accordion-collapse collapse" data-bs-parent="#toolsAccordion">
-              <div class="accordion-body">
-                <div class="d-grid gap-2">
-                  <a href="/crm" target="_blank" class="btn btn-primary">
-                    <i class="bi bi-window me-2"></i>Prospects
-                  </a>
-                  <a href="/crm/projets" target="_blank" class="btn btn-info">
-                    <i class="bi bi-folder-fill me-2"></i>Fiches Projets
-                  </a>
-                  <a href="/crm/stats" target="_blank" class="btn btn-success">
-                    <i class="bi bi-graph-up me-2"></i>Dashboard & KPI
-                  </a>
-                  <button id="homeBtn" type="button" class="btn btn-outline-secondary" onclick="window.location.href='/'">
-                    <i class="bi bi-house"></i> Accueil
-                  </button>
-                  <button id="logoutBtn" type="button" class="btn btn-outline-danger" onclick="window.location.href='/logout'">
-                    <i class="bi bi-box-arrow-right"></i> Déconnexion
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
