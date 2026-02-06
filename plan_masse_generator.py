@@ -832,12 +832,16 @@ class PlanMasseGenerator:
                 print(f"[PLAN] ÔÜá´©Å Aucune position GPS pour zone {zone.get('numero', '?')}")
                 continue
             
-            print(f"[PLAN] ­ƒôì Dessin {len(modules_positions)} modules avec coordonn├®es GPS pour zone {zone.get('numero', '?')}")
+            print(f"[PLAN] 📌 Dessin {len(modules_positions)} modules avec coordonnées GPS pour zone {zone.get('numero', '?')}")
             
-            # Dessiner chaque module selon ses coordonn├®es GPS
-            c.setStrokeColor(colors.HexColor('#0D47A1'))  # Bleu très foncé pour bordure visible
-            c.setFillColor(colors.HexColor('#2196F3'))    # Bleu clair
-            c.setLineWidth(2)  # Bordure épaisse pour visibilité
+            # 🔑 Dessiner chaque module INDIVIDUELLEMENT avec bordure visible
+            # Étape 1: Remplissage semi-transparent de chaque module
+            c.saveState()
+            c.setFillColor(colors.HexColor('#1565C0'))  # Bleu foncé
+            c.setFillAlpha(0.35)  # Semi-transparent pour voir le satellite en dessous
+            c.setStrokeColor(colors.HexColor('#0D47A1'))  # Bordure bleu très foncé
+            c.setStrokeAlpha(0.9)
+            c.setLineWidth(0.5)
             
             for module in modules_positions:
                 corners = module.get('corners', [])
@@ -845,7 +849,7 @@ class PlanMasseGenerator:
                 if len(corners) < 4:
                     continue
                 
-                # Convertir les 4 coins GPS ÔåÆ coordonn├®es PDF
+                # Convertir les 4 coins GPS → coordonnées PDF
                 path = c.beginPath()
                 first = True
                 
@@ -859,9 +863,38 @@ class PlanMasseGenerator:
                         path.lineTo(pdf_x, pdf_y)
                 
                 path.close()
+                c.drawPath(path, stroke=0, fill=1)
+            
+            c.restoreState()
+            
+            # Étape 2: Dessiner les bordures de chaque module PAR-DESSUS
+            # (séparé du fill pour que les bordures soient toujours visibles)
+            c.saveState()
+            c.setStrokeColor(colors.HexColor('#0D47A1'))
+            c.setLineWidth(0.6)
+            
+            for module in modules_positions:
+                corners = module.get('corners', [])
                 
-                # Dessiner le module
-                c.drawPath(path, stroke=1, fill=1)
+                if len(corners) < 4:
+                    continue
+                
+                path = c.beginPath()
+                first = True
+                
+                for corner in corners:
+                    pdf_x, pdf_y = self._lat_lon_to_pdf(corner['lat'], corner['lng'])
+                    
+                    if first:
+                        path.moveTo(pdf_x, pdf_y)
+                        first = False
+                    else:
+                        path.lineTo(pdf_x, pdf_y)
+                
+                path.close()
+                c.drawPath(path, stroke=1, fill=0)
+            
+            c.restoreState()
     
     def _draw_cotations_zones(self, c):
         """Dessine les cotations (largeur et longueur) sur chaque zone PV"""
