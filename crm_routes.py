@@ -1139,6 +1139,15 @@ def register_crm_routes(app):
             nom_fichier = f"CERFA_Raccordement_{prospect.get('nom_prospect', prospect.get('commune', prospect_id))}.pdf"
             nom_fichier = nom_fichier.replace(' ', '_').replace('/', '_')
             
+            # Sauvegarder dans la dataroom
+            try:
+                pdf_buffer.seek(0)
+                pdf_bytes = pdf_buffer.read()
+                save_to_dataroom(prospect_id, pdf_bytes, nom_fichier, 'cerfa', source='auto-cerfa')
+                pdf_buffer.seek(0)
+            except Exception as dr_err:
+                print(f"⚠️ [DATAROOM] Erreur sauvegarde CERFA: {dr_err}")
+            
             return send_file(
                 pdf_buffer,
                 mimetype='application/pdf',
@@ -1508,15 +1517,26 @@ def register_crm_routes(app):
                     SELECT 
                         id,
                         project_id,
+                        prospect_id,
                         nom_document,
+                        nom_fichier,
                         type_document,
+                        categorie,
+                        mime_type,
                         chemin_fichier,
-                        date_upload,
+                        url_document,
                         taille_octets,
-                        notes
+                        etape_id,
+                        statut,
+                        version,
+                        notes,
+                        source,
+                        date_upload,
+                        date_creation,
+                        CASE WHEN file_data IS NOT NULL THEN true ELSE false END as has_file
                     FROM project_documents
                     WHERE project_id = %s
-                    ORDER BY date_upload DESC
+                    ORDER BY date_creation DESC
                 ''', (project_id,), fetch_all=True)
                 projet['documents'] = documents if documents else []
             except Exception as doc_error:
@@ -1611,31 +1631,221 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/projets/<int:project_id>/documents', methods=['POST'])
     def add_document(project_id):
-        """Ajoute un document au projet"""
+        """Ajoute un document au projet (JSON ou upload fichier)"""
         try:
-            data = request.json
+            # Vérifier que le projet existe et récupérer prospect_id
+            project = execute_query(
+                'SELECT id, prospect_id FROM project_fiches WHERE id = %s',
+                (project_id,), fetch_one=True
+            )
+            if not project:
+                return jsonify({'success': False, 'error': 'Projet non trouvé'}), 404
             
+            prospect_id = project.get('prospect_id')
+            
+            # Upload de fichier (multipart/form-data)
+            if request.content_type and 'multipart/form-data' in request.content_type:
+                file = request.files.get('file')
+                if not file or file.filename == '':
+                    return jsonify({'success': False, 'error': 'Aucun fichier sélectionné'}), 400
+                
+                import base64
+                file_content = file.read()
+                file_base64 = base64.b64encode(file_content).decode('utf-8')
+                
+                nom_fichier = file.filename
+                mime_type = file.content_type or 'application/octet-stream'
+                taille = len(file_content)
+                type_document = request.form.get('type_document', 'autre')
+                categorie = request.form.get('categorie', type_document)
+                notes = request.form.get('notes', '')
+                etape_id = request.form.get('etape_id')
+                etape_id = int(etape_id) if etape_id else None
+                
+                doc_id = execute_query('''
+                    INSERT INTO project_documents (
+                        project_id, prospect_id, nom_document, nom_fichier,
+                        type_document, categorie, mime_type, file_data,
+                        taille_octets, etape_id, statut, notes, source
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                ''', (
+                    project_id, prospect_id, nom_fichier, nom_fichier,
+                    type_document, categorie, mime_type, file_base64,
+                    taille, etape_id, 'valide', notes, 'upload'
+                ), fetch_one=True)['id']
+                
+                print(f"📎 [DATAROOM] Fichier uploadé: {nom_fichier} ({taille} bytes) → doc_id={doc_id}")
+                return jsonify({'success': True, 'document_id': doc_id, 'nom_fichier': nom_fichier})
+            
+            # Ajout par JSON (ancien système, rétrocompatible)
+            data = request.json
             doc_id = execute_query('''
                 INSERT INTO project_documents (
-                    project_id, etape_id, type_document, nom_fichier, 
-                    chemin_fichier, url_document, statut, notes
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    project_id, prospect_id, nom_document, nom_fichier,
+                    type_document, categorie, etape_id, 
+                    chemin_fichier, url_document, statut, notes, source
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
-                project_id,
-                data.get('etape_id'),
-                data.get('type_document'),
+                project_id, prospect_id,
+                data.get('nom_fichier', data.get('nom_document', 'Document')),
                 data.get('nom_fichier'),
+                data.get('type_document', 'autre'),
+                data.get('categorie', data.get('type_document', 'autre')),
+                int(data['etape_id']) if data.get('etape_id') else None,
                 data.get('chemin_fichier'),
                 data.get('url_document'),
-                data.get('statut', 'brouillon'),
-                data.get('notes')
+                data.get('statut', 'valide'),
+                data.get('notes'),
+                data.get('source', 'manual')
             ), fetch_one=True)['id']
             
             return jsonify({'success': True, 'document_id': doc_id})
             
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>/download')
+    def download_document(project_id, doc_id):
+        """Télécharge un fichier de la dataroom"""
+        try:
+            doc = execute_query(
+                'SELECT nom_fichier, nom_document, mime_type, file_data, url_document FROM project_documents WHERE id = %s AND project_id = %s',
+                (doc_id, project_id), fetch_one=True
+            )
+            
+            if not doc:
+                return "Document non trouvé", 404
+            
+            # Si le fichier est stocké en base64
+            if doc.get('file_data'):
+                import base64
+                from io import BytesIO
+                file_bytes = base64.b64decode(doc['file_data'])
+                buffer = BytesIO(file_bytes)
+                buffer.seek(0)
+                
+                filename = doc.get('nom_fichier') or doc.get('nom_document') or 'document'
+                mime = doc.get('mime_type') or 'application/octet-stream'
+                
+                return send_file(
+                    buffer,
+                    mimetype=mime,
+                    as_attachment=True,
+                    download_name=filename
+                )
+            
+            # Si c'est une URL, rediriger
+            if doc.get('url_document'):
+                from flask import redirect
+                return redirect(doc['url_document'])
+            
+            return "Aucun fichier associé", 404
+            
+        except Exception as e:
+            return f"Erreur: {str(e)}", 500
+
+    @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>/preview')
+    def preview_document(project_id, doc_id):
+        """Aperçu inline d'un fichier (PDF, images)"""
+        try:
+            doc = execute_query(
+                'SELECT nom_fichier, mime_type, file_data FROM project_documents WHERE id = %s AND project_id = %s',
+                (doc_id, project_id), fetch_one=True
+            )
+            
+            if not doc or not doc.get('file_data'):
+                return "Document non trouvé", 404
+            
+            import base64
+            from io import BytesIO
+            file_bytes = base64.b64decode(doc['file_data'])
+            buffer = BytesIO(file_bytes)
+            buffer.seek(0)
+            
+            mime = doc.get('mime_type') or 'application/octet-stream'
+            
+            return send_file(
+                buffer,
+                mimetype=mime,
+                as_attachment=False,
+                download_name=doc.get('nom_fichier') or 'document'
+            )
+            
+        except Exception as e:
+            return f"Erreur: {str(e)}", 500
+
+    def save_to_dataroom(prospect_id, file_bytes, nom_fichier, type_document, mime_type='application/pdf', source='auto'):
+        """Sauvegarde automatique d'un fichier généré dans la dataroom du prospect"""
+        try:
+            import base64
+            file_base64 = base64.b64encode(file_bytes).decode('utf-8')
+            taille = len(file_bytes)
+            
+            # Trouver le projet du prospect
+            project = execute_query(
+                'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                (prospect_id,), fetch_one=True
+            )
+            
+            if not project:
+                print(f"⚠️ [DATAROOM] Pas de fiche projet pour prospect {prospect_id}, création auto...")
+                # Créer le projet s'il n'existe pas
+                prospect = execute_query(
+                    'SELECT commune, adresse_complete FROM agriweb_prospects WHERE id = %s',
+                    (prospect_id,), fetch_one=True
+                )
+                commune = prospect.get('commune', '') if prospect else ''
+                auto_create_project_for_prospect(prospect_id, commune=commune)
+                project = execute_query(
+                    'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
+                    (prospect_id,), fetch_one=True
+                )
+            
+            if not project:
+                print(f"❌ [DATAROOM] Impossible de créer le projet pour prospect {prospect_id}")
+                return None
+            
+            # Vérifier si un document du même type/source existe déjà → mettre à jour
+            existing = execute_query(
+                'SELECT id, version FROM project_documents WHERE project_id = %s AND type_document = %s AND source = %s ORDER BY date_creation DESC LIMIT 1',
+                (project['id'], type_document, source), fetch_one=True
+            )
+            
+            if existing:
+                # Mettre à jour le document existant (nouvelle version)
+                new_version = (existing.get('version') or 1) + 1
+                execute_query('''
+                    UPDATE project_documents 
+                    SET file_data = %s, taille_octets = %s, nom_fichier = %s, nom_document = %s,
+                        mime_type = %s, version = %s, date_modification = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                ''', (file_base64, taille, nom_fichier, nom_fichier, mime_type, new_version, existing['id']))
+                print(f"📎 [DATAROOM] Document mis à jour: {nom_fichier} v{new_version} (doc_id={existing['id']})")
+                return existing['id']
+            else:
+                # Créer un nouveau document
+                doc_id = execute_query('''
+                    INSERT INTO project_documents (
+                        project_id, prospect_id, nom_document, nom_fichier,
+                        type_document, categorie, mime_type, file_data,
+                        taille_octets, statut, source
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                ''', (
+                    project['id'], prospect_id, nom_fichier, nom_fichier,
+                    type_document, type_document, mime_type, file_base64,
+                    taille, 'valide', source
+                ), fetch_one=True)['id']
+                print(f"📎 [DATAROOM] Nouveau document: {nom_fichier} (doc_id={doc_id})")
+                return doc_id
+                
+        except Exception as e:
+            print(f"⚠️ [DATAROOM] Erreur sauvegarde: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     @app.route('/api/crm/projets/<int:project_id>/documents/<int:doc_id>', methods=['PUT'])
     def update_document(project_id, doc_id):
@@ -2717,6 +2927,15 @@ def register_crm_routes(app):
             
             print(f"✅ [SCHEMA UNIFILAIRE] PDF généré: {filename}")
             
+            # Sauvegarder automatiquement dans la dataroom
+            try:
+                buffer.seek(0)
+                pdf_bytes = buffer.read()
+                save_to_dataroom(prospect_id, pdf_bytes, filename, 'schema_unifilaire', source='auto-schema')
+                buffer.seek(0)
+            except Exception as dr_err:
+                print(f"⚠️ [DATAROOM] Erreur sauvegarde schema: {dr_err}")
+            
             # Marquer l'étape "Calepinage" (ordre 3) comme terminée si un projet existe
             project = execute_query(
                 'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
@@ -3023,12 +3242,22 @@ def register_crm_routes(app):
                 ''', (project['id'],))
                 print(f"✅ [ETAPE UPDATE] Étape 5 (Devis commercial) marquée comme terminée pour projet {project['id']}")
             
+            # Sauvegarder automatiquement dans la dataroom
+            prop_filename = f'Proposition_Professionnelle_{prospect.get("commune", "NA")}_{datetime.now().strftime("%Y%m%d")}.pdf'
+            try:
+                buffer.seek(0)
+                pdf_bytes = buffer.read()
+                save_to_dataroom(prospect_id, pdf_bytes, prop_filename, 'proposition', source='auto-proposition')
+                buffer.seek(0)
+            except Exception as dr_err:
+                print(f"⚠️ [DATAROOM] Erreur sauvegarde proposition: {dr_err}")
+            
             # Retourner le PDF
             return send_file(
                 buffer,
                 mimetype='application/pdf',
                 as_attachment=True,
-                download_name=f'Proposition_Professionnelle_{prospect.get("commune", "NA")}_{datetime.now().strftime("%Y%m%d")}.pdf'
+                download_name=prop_filename
             )
             
         except Exception as e:
@@ -3632,9 +3861,19 @@ def register_crm_routes(app):
             filename = f"Plan_Masse_Cadastral_{commune}_{datetime.now().strftime('%Y%m%d')}.pdf"
             
             print(f"✅ [PLAN DE MASSE] Fichier créé: {filename}")
+            
+            # 5. Sauvegarder automatiquement dans la dataroom
+            try:
+                pdf_buffer.seek(0)
+                pdf_bytes = pdf_buffer.read()
+                save_to_dataroom(prospect_id, pdf_bytes, filename, 'plan_masse', source='auto-plan-masse')
+                pdf_buffer.seek(0)
+            except Exception as dr_err:
+                print(f"⚠️ [DATAROOM] Erreur sauvegarde plan de masse: {dr_err}")
+            
             print(f"{'='*70}\n")
             
-            # 5. Retourner le PDF
+            # 6. Retourner le PDF
             return send_file(
                 pdf_buffer,
                 mimetype='application/pdf',

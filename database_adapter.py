@@ -184,6 +184,30 @@ def init_database():
                     except Exception:
                         pass  # Colonne existe déjà ou table pas encore créée
                 
+                # Ajouter les colonnes manquantes à project_documents pour la dataroom
+                doc_migration_columns = [
+                    ("prospect_id", "INTEGER"),
+                    ("nom_fichier", "TEXT"),
+                    ("categorie", "TEXT DEFAULT 'autre'"),
+                    ("mime_type", "TEXT"),
+                    ("url_document", "TEXT"),
+                    ("file_data", "TEXT"),
+                    ("etape_id", "INTEGER"),
+                    ("statut", "TEXT DEFAULT 'valide'"),
+                    ("version", "INTEGER DEFAULT 1"),
+                    ("source", "TEXT DEFAULT 'upload'"),
+                    ("date_creation", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                    ("date_modification", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"),
+                ]
+                for col_name, col_type in doc_migration_columns:
+                    try:
+                        col_base = col_name
+                        cursor.execute(f"""
+                            ALTER TABLE project_documents ADD COLUMN IF NOT EXISTS {col_base} {col_type}
+                        """)
+                    except Exception:
+                        pass
+                
                 conn.commit()
                 print("✅ [INIT] Tables project_* vérifiées (données préservées)")
         except Exception as e:
@@ -322,12 +346,24 @@ def init_database():
         CREATE TABLE IF NOT EXISTS project_documents (
             id SERIAL PRIMARY KEY,
             project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
+            prospect_id INTEGER,
             nom_document TEXT NOT NULL,
+            nom_fichier TEXT,
             type_document TEXT,
+            categorie TEXT DEFAULT 'autre',
+            mime_type TEXT,
             chemin_fichier TEXT,
-            date_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            url_document TEXT,
+            file_data TEXT,
             taille_octets INTEGER,
-            notes TEXT
+            etape_id INTEGER,
+            statut TEXT DEFAULT 'valide',
+            version INTEGER DEFAULT 1,
+            notes TEXT,
+            source TEXT DEFAULT 'upload',
+            date_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS crm_appointments (
@@ -442,13 +478,25 @@ def init_database():
 
         CREATE TABLE IF NOT EXISTS project_documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER REFERENCES project_fiches(id),
+            project_id INTEGER REFERENCES project_fiches(id) ON DELETE CASCADE,
+            prospect_id INTEGER,
             nom_document TEXT NOT NULL,
+            nom_fichier TEXT,
             type_document TEXT,
+            categorie TEXT DEFAULT 'autre',
+            mime_type TEXT,
             chemin_fichier TEXT,
-            date_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            url_document TEXT,
+            file_data TEXT,
             taille_octets INTEGER,
-            notes TEXT
+            etape_id INTEGER,
+            statut TEXT DEFAULT 'valide',
+            version INTEGER DEFAULT 1,
+            notes TEXT,
+            source TEXT DEFAULT 'upload',
+            date_upload TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
         CREATE TABLE IF NOT EXISTS crm_appointments (

@@ -290,7 +290,7 @@
                         </li>
                         <li class="nav-item">
                             <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabDocuments">
-                                <i class="bi bi-file-earmark-text"></i> Documents (<span id="docsCount">0</span>)
+                                <i class="bi bi-folder-fill"></i> Dataroom (<span id="docsCount">0</span>)
                             </button>
                         </li>
                     </ul>
@@ -322,14 +322,78 @@
                             <div id="etapesList"></div>
                         </div>
                         
-                        <!-- Tab Documents -->
+                        <!-- Tab Dataroom -->
                         <div class="tab-pane fade" id="tabDocuments">
-                            <button class="btn btn-primary btn-sm mb-3" onclick="showAddDocumentForm()">
-                                <i class="bi bi-plus-circle"></i> Ajouter un document
-                            </button>
+                            <!-- Upload Zone -->
+                            <div class="card mb-3 border-primary">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="mb-0"><i class="bi bi-cloud-upload"></i> Ajouter des fichiers</h6>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="toggleUploadForm()">
+                                            <i class="bi bi-chevron-down" id="uploadToggleIcon"></i>
+                                        </button>
+                                    </div>
+                                    <div id="uploadFormContainer">
+                                        <form id="uploadForm" enctype="multipart/form-data">
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-md-4">
+                                                    <label class="form-label form-label-sm">Fichier (PDF, JPEG, PNG...)</label>
+                                                    <input type="file" class="form-control form-control-sm" name="file" id="fileInput" 
+                                                           accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.dwg,.dxf" required>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label form-label-sm">Type</label>
+                                                    <select class="form-select form-select-sm" name="type_document" id="uploadTypeSelect">
+                                                        <option value="plan_masse">Plan de masse</option>
+                                                        <option value="calepinage">Calepinage</option>
+                                                        <option value="proposition">Proposition commerciale</option>
+                                                        <option value="schema_unifilaire">Schéma unifilaire</option>
+                                                        <option value="cerfa">CERFA</option>
+                                                        <option value="rapport_agriweb">Rapport AgriWeb</option>
+                                                        <option value="etude_autoconso">Étude autoconsommation</option>
+                                                        <option value="devis">Devis</option>
+                                                        <option value="facture">Facture</option>
+                                                        <option value="dp">Déclaration Préalable</option>
+                                                        <option value="ddr">Déclaration Raccordement</option>
+                                                        <option value="fiche_technique">Fiche technique</option>
+                                                        <option value="photo">Photo chantier</option>
+                                                        <option value="contrat">Contrat</option>
+                                                        <option value="doe">DOE</option>
+                                                        <option value="consuel">Consuel</option>
+                                                        <option value="autre" selected>Autre</option>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <label class="form-label form-label-sm">Notes (optionnel)</label>
+                                                    <input type="text" class="form-control form-control-sm" name="notes" placeholder="Description...">
+                                                </div>
+                                                <div class="col-md-2">
+                                                    <button type="button" class="btn btn-primary btn-sm w-100" onclick="uploadFile()">
+                                                        <i class="bi bi-upload"></i> Envoyer
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div id="uploadProgress" class="mt-2" style="display:none;">
+                                                <div class="progress" style="height: 5px;">
+                                                    <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                                                </div>
+                                                <small class="text-muted">Envoi en cours...</small>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Documents auto-générés -->
+                            <div id="autoDocsList" class="mb-3"></div>
+                            
+                            <!-- Documents uploadés -->
+                            <div id="uploadedDocsList"></div>
+                            
+                            <!-- Ancien formulaire JSON (caché) -->
                             <div id="addDocumentForm" class="card mb-3" style="display: none;">
                                 <div class="card-body">
-                                    <h6>Nouveau document</h6>
+                                    <h6>Ajouter un lien</h6>
                                     <form id="documentForm">
                                         <div class="row">
                                             <div class="col-md-6 mb-2">
@@ -931,73 +995,155 @@
             });
         }
 
-        // Afficher les documents
+        // Afficher les documents (Dataroom)
         function displayDocuments(documents, etapes) {
             document.getElementById('docsCount').textContent = documents.length;
             
-            // Remplir le select des étapes
+            // Remplir le select des étapes (ancien formulaire)
             const select = document.getElementById('documentEtapeSelect');
-            select.innerHTML = '<option value="">Aucune</option>';
-            etapes.forEach(e => {
-                const option = document.createElement('option');
-                option.value = e.id;
-                option.textContent = `${e.etape_ordre}. ${e.etape_nom}`;
-                select.appendChild(option);
-            });
-            
-            if (documents.length === 0) {
-                document.getElementById('documentsList').innerHTML = '<p class="text-muted">Aucun document</p>';
-                return;
+            if (select) {
+                select.innerHTML = '<option value="">Aucune</option>';
+                etapes.forEach(e => {
+                    const option = document.createElement('option');
+                    option.value = e.id;
+                    option.textContent = `${e.etape_ordre}. ${e.etape_nom}`;
+                    select.appendChild(option);
+                });
             }
             
-            document.getElementById('documentsList').innerHTML = `
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Nom fichier</th>
-                                <th>Étape</th>
-                                <th>Version</th>
-                                <th>Statut</th>
-                                <th>Date</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${documents.map(d => `
-                                <tr>
-                                    <td><span class="badge bg-secondary">${formatDocType(d.type_document)}</span></td>
-                                    <td>${d.nom_fichier}</td>
-                                    <td><small>${d.etape_nom || 'N/A'}</small></td>
-                                    <td><span class="badge bg-info">v${d.version}</span></td>
-                                    <td>${getDocStatusBadge(d.statut)}</td>
-                                    <td><small>${new Date(d.date_creation).toLocaleDateString('fr-FR')}</small></td>
-                                    <td>
-                                        ${d.url_document ? `<a href="${d.url_document}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a>` : ''}
-                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteDocument(${d.id})">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+            // Séparer auto-générés et uploadés manuellement
+            const autoDocs = documents.filter(d => d.source && d.source.startsWith('auto-'));
+            const manualDocs = documents.filter(d => !d.source || !d.source.startsWith('auto-'));
+            
+            // Section auto-générés
+            const autoContainer = document.getElementById('autoDocsList');
+            if (autoDocs.length > 0) {
+                autoContainer.innerHTML = `
+                    <div class="card border-success">
+                        <div class="card-header bg-success bg-opacity-10 py-2">
+                            <h6 class="mb-0"><i class="bi bi-robot"></i> Documents auto-générés <span class="badge bg-success">${autoDocs.length}</span></h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="row g-2">
+                                ${autoDocs.map(d => renderDocCard(d)).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                autoContainer.innerHTML = '';
+            }
+            
+            // Section documents uploadés / manuels
+            const uploadContainer = document.getElementById('uploadedDocsList');
+            if (manualDocs.length > 0) {
+                uploadContainer.innerHTML = `
+                    <div class="card">
+                        <div class="card-header py-2">
+                            <h6 class="mb-0"><i class="bi bi-file-earmark-arrow-up"></i> Documents ajoutés <span class="badge bg-primary">${manualDocs.length}</span></h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="row g-2">
+                                ${manualDocs.map(d => renderDocCard(d)).join('')}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (autoDocs.length === 0) {
+                uploadContainer.innerHTML = '<p class="text-muted text-center py-3"><i class="bi bi-folder2-open"></i> Aucun document dans la dataroom</p>';
+            } else {
+                uploadContainer.innerHTML = '';
+            }
+            
+            // Legacy list (hidden)
+            document.getElementById('documentsList').innerHTML = '';
+        }
+        
+        function renderDocCard(d) {
+            const icon = getDocIcon(d.type_document, d.mime_type);
+            const hasFile = d.has_file || (d.file_data && d.file_data !== '');
+            const dateStr = d.date_creation ? new Date(d.date_creation).toLocaleDateString('fr-FR') : '';
+            const sourceLabel = d.source && d.source.startsWith('auto-') 
+                ? `<span class="badge bg-success bg-opacity-75" style="font-size:0.65rem"><i class="bi bi-robot"></i> Auto</span>` 
+                : '';
+            
+            let actionBtns = '';
+            if (hasFile) {
+                actionBtns += `<a href="/api/crm/projets/${currentProjectId}/documents/${d.id}/preview" target="_blank" class="btn btn-sm btn-outline-primary" title="Aperçu"><i class="bi bi-eye"></i></a> `;
+                actionBtns += `<a href="/api/crm/projets/${currentProjectId}/documents/${d.id}/download" class="btn btn-sm btn-outline-success" title="Télécharger"><i class="bi bi-download"></i></a> `;
+            } else if (d.url_document) {
+                actionBtns += `<a href="${d.url_document}" target="_blank" class="btn btn-sm btn-outline-primary" title="Ouvrir"><i class="bi bi-box-arrow-up-right"></i></a> `;
+            }
+            actionBtns += `<button class="btn btn-sm btn-outline-danger" onclick="deleteDocument(${d.id})" title="Supprimer"><i class="bi bi-trash"></i></button>`;
+            
+            return `
+                <div class="col-md-6">
+                    <div class="card h-100 border-light shadow-sm">
+                        <div class="card-body p-2 d-flex align-items-start">
+                            <div class="me-2 text-center" style="min-width:36px;font-size:1.5rem;">${icon}</div>
+                            <div class="flex-grow-1" style="min-width:0;">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div style="min-width:0;overflow:hidden;">
+                                        <strong class="d-block text-truncate" style="font-size:0.85rem;" title="${d.nom_fichier || d.type_document}">${d.nom_fichier || formatDocType(d.type_document)}</strong>
+                                        <small class="text-muted">${formatDocType(d.type_document)}</small>
+                                        ${sourceLabel}
+                                        ${d.version > 1 ? `<span class="badge bg-info" style="font-size:0.6rem">v${d.version}</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-1">
+                                    <small class="text-muted">${dateStr}</small>
+                                    <div class="btn-group btn-group-sm">${actionBtns}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             `;
+        }
+        
+        function getDocIcon(type, mimeType) {
+            const icons = {
+                plan_masse: '<i class="bi bi-map text-success"></i>',
+                calepinage: '<i class="bi bi-grid-3x3 text-primary"></i>',
+                proposition: '<i class="bi bi-file-earmark-bar-graph text-warning"></i>',
+                schema_unifilaire: '<i class="bi bi-diagram-3 text-info"></i>',
+                cerfa: '<i class="bi bi-file-earmark-ruled text-danger"></i>',
+                rapport_agriweb: '<i class="bi bi-file-earmark-text text-primary"></i>',
+                etude_autoconso: '<i class="bi bi-lightning text-warning"></i>',
+                devis: '<i class="bi bi-receipt text-success"></i>',
+                facture: '<i class="bi bi-receipt-cutoff text-danger"></i>',
+                dp: '<i class="bi bi-building text-secondary"></i>',
+                ddr: '<i class="bi bi-plug text-info"></i>',
+                doe: '<i class="bi bi-journal-check text-success"></i>',
+                consuel: '<i class="bi bi-patch-check text-primary"></i>',
+                contrat: '<i class="bi bi-file-earmark-lock text-dark"></i>',
+                fiche_technique: '<i class="bi bi-gear text-secondary"></i>',
+                photo: '<i class="bi bi-camera text-info"></i>'
+            };
+            if (icons[type]) return icons[type];
+            // Fallback par mime type
+            if (mimeType && mimeType.startsWith('image/')) return '<i class="bi bi-file-image text-info"></i>';
+            return '<i class="bi bi-file-earmark text-secondary"></i>';
         }
 
         function formatDocType(type) {
             const types = {
+                plan_masse: 'Plan de masse',
                 rapport_agriweb: 'Rapport AgriWeb',
                 calepinage: 'Calepinage',
+                proposition: 'Proposition commerciale',
+                schema_unifilaire: 'Schéma unifilaire',
+                cerfa: 'CERFA',
                 etude_autoconso: 'Étude autoconso',
                 devis: 'Devis',
                 facture: 'Facture',
-                dp: 'DP',
-                ddr: 'DDR',
+                dp: 'Déclaration Préalable',
+                ddr: 'Raccordement (DDR)',
                 doe: 'DOE',
                 consuel: 'Consuel',
+                contrat: 'Contrat',
+                fiche_technique: 'Fiche technique',
+                photo: 'Photo',
                 maintenance: 'Maintenance',
                 autre: 'Autre'
             };
@@ -1012,6 +1158,71 @@
                 envoye: '<span class="badge bg-info">Envoyé</span>'
             };
             return badges[statut] || '<span class="badge bg-secondary">Brouillon</span>';
+        }
+        
+        function toggleUploadForm() {
+            const container = document.getElementById('uploadFormContainer');
+            const icon = document.getElementById('uploadToggleIcon');
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                icon.className = 'bi bi-chevron-down';
+            } else {
+                container.style.display = 'none';
+                icon.className = 'bi bi-chevron-right';
+            }
+        }
+        
+        // Upload fichier vers la dataroom
+        function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const typeSelect = document.getElementById('uploadTypeSelect');
+            const notesInput = document.querySelector('#uploadForm input[name="notes"]');
+            
+            if (!fileInput.files || !fileInput.files[0]) {
+                alert('⚠️ Veuillez sélectionner un fichier');
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            // Limite 15 Mo
+            if (file.size > 15 * 1024 * 1024) {
+                alert('⚠️ Le fichier est trop volumineux (max 15 Mo)');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('type_document', typeSelect.value);
+            formData.append('nom_fichier', file.name);
+            formData.append('notes', notesInput ? notesInput.value : '');
+            formData.append('prospect_id', currentProspectId || '');
+            
+            // Afficher la barre de progression
+            document.getElementById('uploadProgress').style.display = 'block';
+            
+            fetch(`/api/crm/projets/${currentProjectId}/documents`, {
+                method: 'POST',
+                body: formData  // PAS de Content-Type header, le navigateur le gère
+            })
+            .then(r => r.json())
+            .then(result => {
+                document.getElementById('uploadProgress').style.display = 'none';
+                if (result.success) {
+                    // Reset le formulaire
+                    fileInput.value = '';
+                    if (notesInput) notesInput.value = '';
+                    typeSelect.value = 'autre';
+                    // Rafraîchir la liste
+                    showProjectDetails(currentProjectId);
+                    alert('✅ Fichier envoyé avec succès !');
+                } else {
+                    alert('❌ Erreur: ' + (result.error || 'Erreur inconnue'));
+                }
+            })
+            .catch(err => {
+                document.getElementById('uploadProgress').style.display = 'none';
+                alert('❌ Erreur réseau: ' + err.message);
+            });
         }
 
         function showAddDocumentForm() {
