@@ -3999,7 +3999,44 @@ def register_autoconso_routes(app):
             if not prospect:
                 return "Prospect non trouvé", 404
             
-            return render_template('autoconso_collective.html', prospect=prospect)
+            # Extraire les données de production PV du calpinage
+            pv_production = {
+                'puissance_kwc': 0,
+                'productible_mwh': 0,
+                'nb_zones': 0,
+                'has_calpinage': False
+            }
+            
+            try:
+                data_json = json.loads(prospect['data_json']) if prospect.get('data_json') else {}
+                calpinage = data_json.get('calpinage', {})
+                if calpinage and calpinage.get('totaux'):
+                    totaux = calpinage['totaux']
+                    puissance = float(totaux.get('puissanceTotale', 0))
+                    productible = float(totaux.get('productibleTotal', 0))
+                    
+                    # Si pas de productible PVGIS, estimer par latitude
+                    if puissance > 0 and productible <= 0:
+                        lat = float(prospect.get('latitude', 46))
+                        if lat < 44:
+                            ratio = 1350
+                        elif lat < 47:
+                            ratio = 1150
+                        else:
+                            ratio = 1000
+                        productible = puissance * ratio / 1000  # MWh/an
+                    
+                    pv_production = {
+                        'puissance_kwc': round(puissance, 2),
+                        'productible_mwh': round(productible, 2),
+                        'nb_zones': len(calpinage.get('zones', [])),
+                        'has_calpinage': True
+                    }
+                    print(f"☀️ [AUTOCONSO] Production PV: {puissance} kWc, {productible} MWh/an")
+            except Exception as e:
+                print(f"⚠️ [AUTOCONSO] Erreur lecture calpinage: {e}")
+            
+            return render_template('autoconso_collective.html', prospect=prospect, pv_production=pv_production)
             
         except Exception as e:
             print(f"❌ [AUTOCONSO] Erreur: {e}")

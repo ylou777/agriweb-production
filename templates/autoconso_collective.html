@@ -141,21 +141,29 @@
                     <!-- Stats Card -->
                     <div class="stats-card">
                         <div class="row text-center g-0">
-                            <div class="col-3">
+                            <div class="col-2">
                                 <h3 class="mb-0" id="total-points">-</h3>
-                                <small>Points de consommation</small>
+                                <small>Points conso</small>
                             </div>
-                            <div class="col-3">
+                            <div class="col-2">
                                 <h3 class="mb-0" id="sirene-count">-</h3>
-                                <small>Entreprises identifiées</small>
+                                <small>Entreprises</small>
                             </div>
-                            <div class="col-3">
+                            <div class="col-2">
                                 <h3 class="mb-0" id="current-radius">5</h3>
                                 <small>Rayon (km)</small>
                             </div>
-                            <div class="col-3">
+                            <div class="col-2">
+                                <h3 class="mb-0" id="pv-production" style="color: #ffd200;">{{ pv_production.productible_mwh }} MWh</h3>
+                                <small>☀️ Production PV/an</small>
+                            </div>
+                            <div class="col-2">
                                 <h3 class="mb-0" id="total-consumption">-</h3>
-                                <small>Consommation totale (MWh/an)</small>
+                                <small>Conso totale (MWh/an)</small>
+                            </div>
+                            <div class="col-2">
+                                <h3 class="mb-0" id="coverage-rate" style="color: #00ff88;">- %</h3>
+                                <small>⚡ Taux couverture</small>
                             </div>
                         </div>
                     </div>
@@ -187,6 +195,24 @@
                         
                         <div class="list-col">
                             <div class="p-3">
+                                {% if pv_production.has_calpinage %}
+                                <div class="mb-3 p-2" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border-radius: 8px; color: white;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <strong>☀️ Champ PV</strong><br>
+                                            <small>{{ pv_production.puissance_kwc }} kWc — {{ pv_production.nb_zones }} zone{{ 's' if pv_production.nb_zones > 1 else '' }}</small>
+                                        </div>
+                                        <div class="text-end">
+                                            <strong>{{ pv_production.productible_mwh }} MWh/an</strong><br>
+                                            <small id="coverage-detail">Taux: calcul...</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="mb-3 p-2 text-center" style="background: #f8f9fa; border-radius: 8px; color: #999;">
+                                    <small>⚠️ Aucun calpinage PV enregistré — <a href="/crm/calpinage/{{ prospect.id }}">Créer le calpinage</a></small>
+                                </div>
+                                {% endif %}
                                 <h5 class="mb-3">
                                     <i class="bi bi-list-ul"></i>
                                     Liste des points
@@ -213,6 +239,13 @@
         const prospectId = {{ prospect.id }};
         const prospectLat = {{ prospect.latitude }};
         const prospectLon = {{ prospect.longitude }};
+        
+        // Données de production PV du calpinage
+        const pvProduction = {
+            puissance_kwc: {{ pv_production.puissance_kwc }},
+            productible_mwh: {{ pv_production.productible_mwh }},
+            has_calpinage: {{ 'true' if pv_production.has_calpinage else 'false' }}
+        };
         
         let map;
         let circleLayer;
@@ -472,6 +505,31 @@
             
             const sireneCount = data.points.filter(p => p.sirene && p.sirene.denomination).length;
             document.getElementById('sirene-count').textContent = sireneCount;
+            
+            // Taux de couverture = production PV / consommation totale périmètre
+            if (pvProduction.has_calpinage && pvProduction.productible_mwh > 0 && totalConsumption > 0) {
+                const coverageRate = (pvProduction.productible_mwh / totalConsumption * 100);
+                const coverageEl = document.getElementById('coverage-rate');
+                coverageEl.textContent = coverageRate.toFixed(1) + ' %';
+                
+                // Détail dans le panneau liste
+                const detailEl = document.getElementById('coverage-detail');
+                if (detailEl) {
+                    detailEl.textContent = `Taux: ${coverageRate.toFixed(1)}% (${pvProduction.productible_mwh} / ${totalConsumption.toFixed(1)} MWh)`;
+                }
+                
+                // Couleur selon le taux
+                if (coverageRate >= 100) {
+                    coverageEl.style.color = '#00ff88';  // Vert = surplus
+                } else if (coverageRate >= 50) {
+                    coverageEl.style.color = '#ffd200';  // Jaune = bon
+                } else {
+                    coverageEl.style.color = '#ff6b6b';  // Rouge = faible
+                }
+            } else if (!pvProduction.has_calpinage) {
+                document.getElementById('coverage-rate').textContent = 'N/A';
+                document.getElementById('pv-production').textContent = 'N/A';
+            }
         }
         
         // Update points list
