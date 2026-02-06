@@ -3133,12 +3133,25 @@ def app_interface():
                 # Préparer les options de culture pour le menu déroulant
                 culture_options = sorted(list(set(rpg_culture_mapping.values())))
                 
+                # Vérifier si admin
+                is_admin = False
+                try:
+                    conn = sqlite3.connect(DATABASE_PATH)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user['id'],))
+                    admin_result = cursor.fetchone()
+                    is_admin = bool(admin_result[0]) if admin_result else False
+                    conn.close()
+                except:
+                    pass
+                
                 # Passer les paramètres de zoom au template
                 return render_template("index.html", 
                                        culture_options=culture_options,
                                        zoom_lat=lat,
                                        zoom_lon=lon,
-                                       zoom_address=address)
+                                       zoom_address=address,
+                                       is_admin=is_admin)
             except:
                 return redirect("/app")
     
@@ -3155,7 +3168,8 @@ def app_interface():
                                    culture_options=culture_options,
                                    zoom_lat=lat,
                                    zoom_lon=lon,
-                                   zoom_address=address)
+                                   zoom_address=address,
+                                   is_admin=False)
         except:
             return redirect("/app")
     

@@ -348,7 +348,8 @@
   </div>
 </div>
 
-<!-- Section Département -->
+{% if is_admin %}
+<!-- Section Département (admin uniquement) -->
 <div class="accordion-item">
   <h2 class="accordion-header">
     <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#acc-pane-dept" aria-expanded="false" aria-controls="acc-pane-dept">
@@ -511,6 +512,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- Section Gestion des cartes supprimée (remplacée par CRM) -->
 
