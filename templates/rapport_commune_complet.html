@@ -832,12 +832,13 @@
                                     </th>
                                     <th>#</th>
                                     <th>Surface (m²)</th>
+                                    <th>Adresse</th>
                                     <th>Type d'activité</th>
                                     <th>Parcelles</th>
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Zoom</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -852,6 +853,7 @@
                                     </td>
                                     <td>{{ loop.index }}</td>
                                     <td>{{ '%.0f'|format(d.surface_m2 | default(0, true)) }}</td>
+                                    <td><small>{{ d.adresse or 'Non disponible' }}</small></td>
                                     <td>
                                         <small>
                                             {% if d.amenity %}

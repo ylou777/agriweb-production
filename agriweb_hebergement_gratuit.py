@@ -15530,6 +15530,13 @@ def generate_integrated_commune_report(commune_name, filters=None):
             add_postes(postes_bt_data, "Postes BT", "#006400")
             add_postes(postes_hta_data, "Postes HTA", "#FF8C00")
 
+            # Ajuster le zoom pour cadrer sur la commune
+            try:
+                bounds = commune_poly.bounds  # (minx, miny, maxx, maxy)
+                m.fit_bounds([[bounds[1], bounds[0]], [bounds[3], bounds[2]]])
+            except Exception:
+                pass
+
             folium.LayerControl().add_to(m)
 
             # Sauvegarder la carte
