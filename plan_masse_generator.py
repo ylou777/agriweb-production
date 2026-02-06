@@ -281,22 +281,18 @@ class PlanMasseGenerator:
             else:
                 self.screenshot_used = False
             
-            # ­ƒöÑ FALLBACK: Image satellite si pas de screenshot
+            # 🔑 FALLBACK: Image satellite si pas de screenshot
             if not self.screenshot_used:
-                print(f"[PLAN] ­ƒöù Tentative t├®l├®chargement image satellite...")
+                print(f"[PLAN] 🔙 Tentative téléchargement image satellite...")
                 print(f"[PLAN]   GPS: lat={lat}, lon={lon}")
-                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (├®chelle 1/500)")
+                print(f"[PLAN]   Dimensions plan: {bbox_width_meters:.0f}x{bbox_height_meters:.0f}m (échelle 1/500)")
                 
-                # ­ƒöÑ AUGMENTER la bbox pour l'API satellite si trop petite
-                # Les API satellite (ArcGIS, Google) n'aiment pas les bbox < 200m
-                min_size = 200  # 200m minimum
-                satellite_width = max(bbox_width_meters, min_size)
-                satellite_height = max(bbox_height_meters, min_size)
+                # 🔑 CORRECTION: Utiliser les dimensions EXACTES du plan (pas de bbox élargie)
+                # L'élargissement causait un décalage d'échelle entre l'image satellite et les modules PV
+                # L'API IGN Géoplateforme WMS accepte toutes les tailles de bbox
+                satellite_width = bbox_width_meters
+                satellite_height = bbox_height_meters
                 
-                if satellite_width != bbox_width_meters or satellite_height != bbox_height_meters:
-                    print(f"[PLAN] ­ƒöÑ Bbox satellite ├®largie: {satellite_width:.0f}x{satellite_height:.0f}m (pour ├®viter HTTP 500)")
-                
-                # R├®duire la r├®solution pour ├®viter erreurs API (800x600 au lieu de 1600x1400)
                 satellite_img = self._fetch_satellite_image_rect(lat, lon, satellite_width, satellite_height, width=800, height=600)
                 if satellite_img:
                     # REMPLIR TOUT LE CADRE (pas de blanc autour)
