@@ -15481,6 +15481,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
 
             # Ajouter couches
             # Parkings en violet (#800080)
+            print(f"🗺️ [CARTE] Ajout des couches: parkings={len(parkings_data)}, friches={len(friches_data)}, toitures={len(toitures_data)}")
             add_fc_as_layer(parkings_data, "Parkings", "#800080")
             add_fc_as_layer(friches_data, "Friches", "#8B4513")
             add_fc_as_layer(toitures_data, "Toitures (OSM)", "#FFD700")
