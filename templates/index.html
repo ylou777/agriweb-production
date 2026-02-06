@@ -14,18 +14,22 @@
   <!-- Autocomplétion adresses et communes -->
   <link rel="stylesheet" href="{{ url_for('static', filename='autocomplete.css') }}">
   <style>
-    /* ===== MINIMAL FLAT DESIGN ===== */
+    /* ===== DARK MINIMAL DESIGN ===== */
     :root {
       --sidebar-w: 360px;
-      --c-bg: #fafafa;
-      --c-surface: #ffffff;
-      --c-border: #e8e8e8;
-      --c-text: #1a1a1a;
-      --c-text-secondary: #6b7280;
-      --c-accent: #2563eb;
-      --c-accent-light: #eff6ff;
-      --c-success: #059669;
-      --c-danger: #dc2626;
+      --c-bg: #0f1117;
+      --c-surface: #1a1d27;
+      --c-surface-2: #22252f;
+      --c-border: #2a2d3a;
+      --c-border-light: #353849;
+      --c-text: #e8eaed;
+      --c-text-secondary: #9ba1b0;
+      --c-text-3: #6b7185;
+      --c-accent: #3b82f6;
+      --c-accent-light: rgba(59,130,246,0.1);
+      --c-success: #10b981;
+      --c-danger: #ef4444;
+      --c-orange: #f59e0b;
       --radius: 12px;
       --radius-sm: 8px;
       --transition: 0.2s cubic-bezier(.4,0,.2,1);
@@ -78,7 +82,7 @@
     }
     #sidebar::-webkit-scrollbar { width: 4px; }
     #sidebar::-webkit-scrollbar-track { background: transparent; }
-    #sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+    #sidebar::-webkit-scrollbar-thumb { background: var(--c-border-light); border-radius: 4px; }
 
     /* === SIDEBAR HEADER === */
     .sidebar-header {
@@ -135,7 +139,7 @@
     .nav-pill.pill-danger:hover {
       color: var(--c-danger);
       border-color: var(--c-danger);
-      background: #fef2f2;
+      background: rgba(239,68,68,0.1);
     }
 
     /* === ACCORDION FLAT === */
@@ -171,6 +175,7 @@
       background-size: 14px;
       opacity: 0.4;
       transition: transform var(--transition), opacity var(--transition);
+      filter: invert(1);
     }
     .accordion-button:not(.collapsed)::after {
       opacity: 0.8;
@@ -205,12 +210,16 @@
       font-size: 0.85rem;
       padding: 8px 12px;
       transition: border-color var(--transition), box-shadow var(--transition);
-      background: var(--c-surface);
+      background: var(--c-surface-2);
+      color: var(--c-text);
     }
     .form-control:focus, .form-select:focus {
       border-color: var(--c-accent);
-      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+      background: var(--c-surface-2);
+      color: var(--c-text);
     }
+    .form-control::placeholder { color: var(--c-text-3); }
     .form-range::-webkit-slider-thumb {
       background: var(--c-accent);
     }
@@ -237,19 +246,20 @@
       box-shadow: 0 4px 12px rgba(37,99,235,0.25);
     }
     .btn-warning {
-      background: #f59e0b;
-      border-color: #f59e0b;
+      background: var(--c-orange);
+      border-color: var(--c-orange);
       color: #fff;
     }
     .btn-warning:hover {
-      background: #d97706;
+      background: #b45309;
       color: #fff;
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(245,158,11,0.25);
     }
     .btn-secondary {
-      background: #6b7280;
-      border-color: #6b7280;
+      background: var(--c-surface-2);
+      border-color: var(--c-border);
+      color: var(--c-text-secondary);
     }
 
     /* === CARDS (filtres commune) === */
@@ -295,7 +305,7 @@
     /* === MISC === */
     .layer-list { list-style: none; padding-left: 0; margin: 0 0 1em 0; }
     .layer-list li { display: flex; align-items: center; margin-bottom: 5px; }
-    .layer-color { width: 14px; height: 14px; display: inline-block; border-radius: 4px; margin-right: 8px; border: 1px solid #ccc; }
+    .layer-color { width: 14px; height: 14px; display: inline-block; border-radius: 4px; margin-right: 8px; border: 1px solid var(--c-border); }
 
     /* === MAP === */
     #mapFrame {
@@ -307,7 +317,7 @@
       min-width: 0;
       border: none;
       display: block;
-      background: #eee;
+      background: #1a1d27;
     }
 
     /* === RESPONSIVE === */
@@ -321,7 +331,7 @@
         max-width: 400px !important;
         height: 100vh !important;
         z-index: 1050 !important;
-        box-shadow: 8px 0 30px rgba(0,0,0,0.08);
+        box-shadow: 8px 0 30px rgba(0,0,0,0.4);
         transition: left 0.3s cubic-bezier(.4,0,.2,1);
         flex-direction: column !important;
       }
@@ -361,22 +371,47 @@
       border-radius: var(--radius);
       width: 44px;
       height: 44px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       display: none;
       transition: all var(--transition);
     }
     #openSidebarBtn:hover {
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
     }
     @media (max-width: 991px) {
       #openSidebarBtn { display: block; }
     }
+
+    /* === BOOTSTRAP DARK OVERRIDES === */
+    .accordion-body .card { background: var(--c-surface); color: var(--c-text); }
+    .accordion-body .card-header { background: var(--c-surface-2); color: var(--c-text); }
+    .form-check-label { color: var(--c-text); }
+    .form-check-label.fw-bold { color: var(--c-text); }
+    .text-muted { color: var(--c-text-3) !important; }
+    .text-info { color: var(--c-accent) !important; }
+    .text-success { color: var(--c-success) !important; }
+    .text-danger { color: var(--c-danger) !important; }
+    .text-warning { color: var(--c-orange) !important; }
+    .btn-close { filter: invert(1); }
+    .btn-outline-primary { color: var(--c-accent); border-color: var(--c-accent); }
+    .btn-outline-primary:hover { background: var(--c-accent); color: #fff; }
+    .btn-outline-success { color: var(--c-success); border-color: var(--c-success); }
+    .btn-outline-warning { color: var(--c-orange); border-color: var(--c-orange); }
+    .btn-outline-info { color: var(--c-accent); border-color: var(--c-accent); }
+    .btn-check:checked + .btn-outline-primary,
+    .btn-check:checked + .btn-outline-success,
+    .btn-check:checked + .btn-outline-warning,
+    .btn-check:checked + .btn-outline-info {
+      color: #fff;
+    }
+    small.text-muted { color: var(--c-text-3) !important; }
+    .form-range { accent-color: var(--c-accent); }
   </style>
 </head>
 <body>
   <div class="main-container">
     <!-- SIDEBAR DOIT ÊTRE À GAUCHE - PREMIER ÉLÉMENT -->
-    <div id="sidebar" class="text-dark">
+    <div id="sidebar">
       <!-- Header -->
       <div class="sidebar-header">
         <div class="sidebar-brand"><span>Agri</span>Web</div>

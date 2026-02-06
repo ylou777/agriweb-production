@@ -8,30 +8,32 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>
-        /* ===== MINIMAL FLAT — CRM ===== */
+        /* ===== DARK MINIMAL — CRM ===== */
         :root {
-            --c-bg: #f8f9fb;
-            --c-surface: #ffffff;
-            --c-border: #e5e7eb;
-            --c-text: #111827;
-            --c-text-2: #6b7280;
-            --c-text-3: #9ca3af;
-            --c-accent: #2563eb;
-            --c-accent-light: #eff6ff;
-            --c-green: #059669;
-            --c-green-light: #ecfdf5;
-            --c-orange: #d97706;
-            --c-orange-light: #fffbeb;
-            --c-red: #dc2626;
-            --c-red-light: #fef2f2;
-            --c-purple: #7c3aed;
-            --c-purple-light: #f5f3ff;
+            --c-bg: #0f1117;
+            --c-surface: #1a1d27;
+            --c-surface-2: #22252f;
+            --c-border: #2a2d3a;
+            --c-border-light: #353849;
+            --c-text: #e8eaed;
+            --c-text-2: #9ba1b0;
+            --c-text-3: #6b7185;
+            --c-accent: #3b82f6;
+            --c-accent-light: rgba(59,130,246,0.1);
+            --c-green: #10b981;
+            --c-green-light: rgba(16,185,129,0.1);
+            --c-orange: #f59e0b;
+            --c-orange-light: rgba(245,158,11,0.1);
+            --c-red: #ef4444;
+            --c-red-light: rgba(239,68,68,0.1);
+            --c-purple: #a78bfa;
+            --c-purple-light: rgba(167,139,250,0.1);
             --radius: 12px;
             --radius-sm: 8px;
             --radius-xs: 6px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.04);
-            --shadow: 0 2px 8px rgba(0,0,0,0.06);
-            --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+            --shadow: 0 2px 8px rgba(0,0,0,0.25);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.35);
             --transition: 0.2s cubic-bezier(.4,0,.2,1);
         }
 
@@ -221,7 +223,7 @@
         }
         .prospect-card:hover {
             box-shadow: var(--shadow-lg);
-            border-color: #d1d5db;
+            border-color: var(--c-border-light);
             transform: translateY(-1px);
         }
         .prospect-card.highlight {
@@ -246,7 +248,7 @@
         .badge-parking { background: var(--c-green-light); color: var(--c-green); }
         .badge-toiture { background: var(--c-accent-light); color: var(--c-accent); }
         .badge-friche { background: var(--c-orange-light); color: var(--c-orange); }
-        .badge-rpg { background: #f0fdf4; color: #15803d; }
+        .badge-rpg { background: var(--c-green-light); color: var(--c-green); }
 
         .badge-status {
             font-size: 0.72rem;
@@ -431,6 +433,58 @@
             .stats-row { grid-template-columns: repeat(3, 1fr); }
             .stat-value { font-size: 1.5rem; }
         }
+
+        /* === BOOTSTRAP DARK OVERRIDES === */
+        .card {
+            background: var(--c-surface);
+            border-color: var(--c-border);
+            color: var(--c-text);
+        }
+        .card-header {
+            background: var(--c-surface-2);
+            border-color: var(--c-border);
+            color: var(--c-text);
+        }
+        .card-body { background: var(--c-surface); color: var(--c-text); }
+        .text-muted { color: var(--c-text-3) !important; }
+        .text-success { color: var(--c-green) !important; }
+        .text-primary { color: var(--c-accent) !important; }
+        .text-warning { color: var(--c-orange) !important; }
+        .text-info { color: var(--c-accent) !important; }
+        .text-danger { color: var(--c-red) !important; }
+        .bg-light { background: var(--c-surface) !important; }
+        .border-top { border-color: var(--c-border) !important; }
+        .alert { background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text); }
+        .alert-success { background: var(--c-green-light); border-color: rgba(16,185,129,0.2); color: var(--c-green); }
+        .alert-primary { background: var(--c-accent-light); border-color: rgba(59,130,246,0.2); color: var(--c-accent); }
+        .alert-danger { background: var(--c-red-light); border-color: rgba(239,68,68,0.2); color: var(--c-red); }
+        .alert-warning { background: var(--c-orange-light); border-color: rgba(245,158,11,0.2); color: var(--c-orange); }
+        .form-control, .form-select {
+            background: var(--c-surface-2);
+            color: var(--c-text);
+            border-color: var(--c-border);
+        }
+        .form-control::placeholder { color: var(--c-text-3); }
+        .form-control:disabled, .form-control[readonly] {
+            background: var(--c-bg);
+            color: var(--c-text-2);
+        }
+        .table { color: var(--c-text); }
+        .table-light { background: var(--c-surface-2); }
+        .btn-close { filter: invert(1); }
+        .modal-content {
+            background: var(--c-surface);
+            color: var(--c-text);
+        }
+        .bg-secondary { background: var(--c-surface-2) !important; }
+        .bg-success { background: var(--c-green) !important; }
+        .bg-info { background: var(--c-accent) !important; }
+        .bg-danger { background: var(--c-red) !important; }
+        .bg-warning { background: var(--c-orange) !important; }
+        hr { border-color: var(--c-border); opacity: 0.5; }
+        a { color: var(--c-accent); }
+        a:hover { color: #60a5fa; }
+        strong { color: var(--c-text); }
 
         .modal-fullscreen-lg { max-width: 90%; }
     </style>
@@ -1709,9 +1763,9 @@
                         ${carteUrl ? `
                         <div class="col-md-2">
                             <div class="carte-vignette" data-prospect-id="${prospect.id}" onclick="window.open('${carteUrl}', '_blank'); event.stopPropagation();" 
-                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2); background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
+                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.3); background: #22252f; display: flex; align-items: center; justify-content: center;">
                                 <iframe style="width: 100%; height: 100%; border: none; pointer-events: none; position: absolute; top: 0; left: 0;" title="Carte" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=padding:10px;text-align:center;color:#666;><i class=bi bi-map></i><br><small>Carte indisponible</small></div>';"></iframe>
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #999; font-size: 0.9rem; pointer-events: none;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #6b7185; font-size: 0.9rem; pointer-events: none;">
                                     <i class="bi bi-hourglass-split"></i> Chargement...
                                 </div>
                                 <div style="position: absolute; top: 5px; right: 5px; background: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; z-index: 10;">
@@ -2756,16 +2810,16 @@
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${communeName}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${communeName}</div>
                                 <div class="text-muted">Commune</div>
-                                ${cadastreDetails ? `<small class="text-info">${cadastreDetails.code_insee}</small>` : ''}
+                                ${cadastreDetails ? `<small style="color: var(--c-accent);">${cadastreDetails.code_insee}</small>` : ''}
                             </div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${parcelleRef}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${parcelleRef}</div>
                                 <div class="text-muted">Parcelle</div>
                                 <small class="text-success">Cadastre IGN</small>
                             </div>
@@ -2774,7 +2828,7 @@
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${surface}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${surface}</div>
                                 <div class="text-muted">Superficie</div>
                             </div>
                         </div>
@@ -2782,7 +2836,7 @@
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${zoneUrba}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${zoneUrba}</div>
                                 <div class="text-muted">Zone Urba</div>
                                 <small class="text-info">GPU</small>
                             </div>
@@ -2794,8 +2848,8 @@
             // ========== COORDONNÉES GPS ==========
             html += `
                 <div class="card mb-3">
-                    <div class="card-header bg-primary text-white">
-                        <i class="bi bi-geo-alt-fill"></i> Coordonnées GPS
+                    <div class="card-header" style="background: var(--c-surface-2); border-bottom: 1px solid var(--c-border);">
+                        <i class="bi bi-geo-alt-fill" style="color: var(--c-accent);"></i> Coordonnées GPS
                     </div>
                     <div class="card-body">
                         <p class="mb-0" style="font-family: 'Courier New', monospace; font-size: 1.1rem;">
