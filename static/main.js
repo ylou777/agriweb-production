@@ -2111,6 +2111,46 @@ document.addEventListener('DOMContentLoaded', function() {
     window.listenersAttached = true;
     
     console.log('🔧 [INIT] Attachement des event listeners');
+
+    // ========== INJECTION GLOBALE DU LAYER CONTROL DARK-MODE ==========
+    // À chaque chargement d'une carte dans l'iframe, on injecte le CSS + JS custom
+    const mapIframe = document.getElementById('mapFrame');
+    if (mapIframe) {
+        mapIframe.addEventListener('load', function() {
+            try {
+                const iDoc = mapIframe.contentDocument || mapIframe.contentWindow?.document;
+                if (!iDoc) return;
+                
+                // Vérifier qu'il y a un contrôle Leaflet dans la page
+                // (sinon pas besoin d'injecter)
+                setTimeout(function() {
+                    try {
+                        // Injecter le CSS s'il n'est pas déjà là
+                        if (!iDoc.querySelector('link[href*="layer-control-dark"]')) {
+                            var cssLink = iDoc.createElement('link');
+                            cssLink.rel = 'stylesheet';
+                            cssLink.href = '/static/css/layer-control-dark.css';
+                            (iDoc.head || iDoc.documentElement).appendChild(cssLink);
+                            console.log('[LC-INJECT] CSS injecté dans iframe');
+                        }
+                        // Injecter le JS s'il n'est pas déjà là
+                        if (!iDoc.querySelector('script[src*="layer-control-dark"]')) {
+                            var jsScript = iDoc.createElement('script');
+                            jsScript.src = '/static/js/layer-control-dark.js?t=' + Date.now();
+                            (iDoc.body || iDoc.documentElement).appendChild(jsScript);
+                            console.log('[LC-INJECT] JS injecté dans iframe');
+                        }
+                    } catch(innerErr) {
+                        console.log('[LC-INJECT] Erreur injection:', innerErr);
+                    }
+                }, 300); // Attendre 300ms que Leaflet finisse de s'initialiser
+            } catch(e) {
+                console.log('[LC-INJECT] Cannot access iframe:', e);
+            }
+        });
+        console.log('✅ [INIT] Listener layer-control-dark attaché sur iframe');
+    }
+    // ==================================================================
     
     // Branche sliders si tu utilises
     setupSliders();
