@@ -2151,6 +2151,60 @@ document.addEventListener('DOMContentLoaded', function() {
                             (iDoc.body || iDoc.documentElement).appendChild(jsScript);
                             console.log('[LC-INJECT] JS injecté dans iframe');
                         }
+                        
+                        // Injecter le menu contextuel (clic droit) si absent
+                        var iWin = mapIframe.contentWindow;
+                        if (iWin && iWin.L && !iWin._ctxMenuBound) {
+                            // Trouver la carte Leaflet dans l'iframe
+                            var iMap = null;
+                            // Méthode 1: variable globale 'map'
+                            if (iWin.map && typeof iWin.map.on === 'function') {
+                                iMap = iWin.map;
+                            }
+                            // Méthode 2: chercher dans les variables Folium (map_XXXX)
+                            if (!iMap) {
+                                var wKeys = Object.keys(iWin);
+                                for (var ki = 0; ki < wKeys.length; ki++) {
+                                    if (wKeys[ki].indexOf('map_') === 0 && iWin[wKeys[ki]] && typeof iWin[wKeys[ki]].on === 'function') {
+                                        iMap = iWin[wKeys[ki]];
+                                        break;
+                                    }
+                                }
+                            }
+                            if (iMap) {
+                                iWin._ctxMenuBound = true;
+                                var _ctxP = null;
+                                iMap.on('contextmenu', function(ev) {
+                                    if (_ctxP) iMap.closePopup(_ctxP);
+                                    var lt = ev.latlng.lat.toFixed(6);
+                                    var ln = ev.latlng.lng.toFixed(6);
+                                    _ctxP = iWin.L.popup({closeButton:true, autoClose:true})
+                                        .setLatLng(ev.latlng)
+                                        .setContent(
+                                            '<div style="font-family:Inter,Poppins,sans-serif;min-width:180px">' +
+                                            '<div style="font-size:13px;color:#aaa;margin-bottom:6px">\uD83D\uDCCD ' + lt + ', ' + ln + '</div>' +
+                                            '<button onclick="window._ctxSearch(' + lt + ',' + ln + ')" ' +
+                                            'style="width:100%;padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;margin-bottom:4px">' +
+                                            '\uD83D\uDD0D Rechercher ici</button>' +
+                                            '<button onclick="window._ctxReport(' + lt + ',' + ln + ')" ' +
+                                            'style="width:100%;padding:8px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500">' +
+                                            '\uD83D\uDCC4 Rapport direct</button>' +
+                                            '</div>'
+                                        )
+                                        .openOn(iMap);
+                                });
+                                iWin._ctxSearch = function(lat, lon) {
+                                    iMap.closePopup(_ctxP);
+                                    // iWin.parent = la fenêtre parente de l'iframe = window principal
+                                    iWin.parent.postMessage({action:'searchAt', lat:lat, lon:lon}, '*');
+                                };
+                                iWin._ctxReport = function(lat, lon) {
+                                    iMap.closePopup(_ctxP);
+                                    iWin.parent.postMessage({action:'reportAt', lat:lat, lon:lon}, '*');
+                                };
+                                console.log('[CTX-INJECT] Menu contextuel clic droit injecté dans carte Folium');
+                            }
+                        }
                     } catch(innerErr) {
                         console.log('[LC-INJECT] Erreur injection:', innerErr);
                     }
