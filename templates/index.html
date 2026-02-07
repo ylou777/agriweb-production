@@ -665,6 +665,41 @@
   
   <!-- Script de synchronisation Helia <-> Carte -->
   <script>
+    // Écouter les messages du clic droit carte (rechercher ici / rapport direct)
+    window.addEventListener('message', function(e) {
+      if (!e.data || !e.data.action) return;
+      
+      if (e.data.action === 'searchAt') {
+        // Ouvrir l'accordion Adresse si fermé
+        const accPane = document.getElementById('acc-pane-addr');
+        if (accPane && !accPane.classList.contains('show')) {
+          const btn = accPane.previousElementSibling?.querySelector('.accordion-button');
+          if (btn) btn.click();
+        }
+        // Remplir le champ et soumettre
+        const input = document.getElementById('search_input');
+        if (input) {
+          input.value = e.data.lat + ',' + e.data.lon;
+          // Soumettre le formulaire
+          const form = document.getElementById('unifiedSearchForm');
+          if (form) form.dispatchEvent(new Event('submit', {cancelable:true}));
+        }
+      }
+      
+      if (e.data.action === 'reportAt') {
+        const input = document.getElementById('search_input');
+        if (input) {
+          input.value = e.data.lat + ',' + e.data.lon;
+          // Appeler directReportAddress
+          if (typeof directReportAddress === 'function') {
+            directReportAddress();
+          } else if (typeof window.directReportAddress === 'function') {
+            window.directReportAddress();
+          }
+        }
+      }
+    });
+
     // Attendre que l'iframe soit chargée
     window.addEventListener('load', function() {
       const mapFrame = document.getElementById('mapFrame');

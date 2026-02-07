@@ -384,6 +384,40 @@
       map.setView([lat, lon], zoom || 10);
     };
     window._leaflet_ready = true;
+
+    // === CLIC DROIT : menu contextuel "Rechercher ici" ===
+    var _ctxPopup = null;
+    map.on('contextmenu', function(e) {
+      if (_ctxPopup) map.closePopup(_ctxPopup);
+      var lat = e.latlng.lat.toFixed(6);
+      var lon = e.latlng.lng.toFixed(6);
+      _ctxPopup = L.popup({className:'ctx-popup', closeButton:true, autoClose:true})
+        .setLatLng(e.latlng)
+        .setContent(
+          '<div style="font-family:Inter,Poppins,sans-serif;min-width:180px">' +
+          '<div style="font-size:13px;color:#aaa;margin-bottom:6px">📍 ' + lat + ', ' + lon + '</div>' +
+          '<button onclick="window._ctxSearch(' + lat + ',' + lon + ')" ' +
+          'style="width:100%;padding:8px 12px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500;margin-bottom:4px">' +
+          '🔍 Rechercher ici</button>' +
+          '<button onclick="window._ctxReport(' + lat + ',' + lon + ')" ' +
+          'style="width:100%;padding:8px 12px;background:#f59e0b;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:500">' +
+          '📄 Rapport direct</button>' +
+          '</div>'
+        )
+        .openOn(map);
+    });
+    window._ctxSearch = function(lat, lon) {
+      map.closePopup(_ctxPopup);
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({action:'searchAt', lat:lat, lon:lon}, '*');
+      }
+    };
+    window._ctxReport = function(lat, lon) {
+      map.closePopup(_ctxPopup);
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({action:'reportAt', lat:lat, lon:lon}, '*');
+      }
+    };
   </script>
 </body>
 </html>
