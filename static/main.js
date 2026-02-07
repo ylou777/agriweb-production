@@ -227,11 +227,9 @@ let dynamicLayers = {};
 // --------- UI sliders ---------
 function setupSliders() {
   [
-    ["sirene_radius", "sirene_radius_val", " km"],
     ["ht_max_distance", "htMaxVal", " m"],
     ["bt_max_distance", "btMaxVal", " m"],
     ["capacite_max_distance", "capaciteMaxVal", " m"],
-    ["sirene_radius_commune", "sireneCommVal", " km"],
     ["ht_max_distance_commune", "htMaxValCommune", " m"],
     ["bt_max_distance_commune", "btMaxValCommune", " m"],
     ["minSurface", "minSurfaceVal", " ha"],
@@ -1382,7 +1380,7 @@ async function handleUnifiedSearch(e) {
       ps.append("address", v);
     }
     
-    ps.append("sirene_radius", document.getElementById("sirene_radius").value);
+    ps.append("sirene_radius", "0.05");
     ps.append("ht_radius", (document.getElementById("ht_max_distance").value / 1000).toString());
     ps.append("bt_radius", (document.getElementById("bt_max_distance").value / 1000).toString());
 
@@ -1541,7 +1539,7 @@ async function handleCommuneSearch(e) {
       max_area_ha: document.getElementById("maxSurface")?.value || 1e9,
       ht_max_distance: document.getElementById("ht_max_distance_commune")?.value || 5000,
       bt_max_distance: document.getElementById("bt_max_distance_commune")?.value || 2000,
-      sirene_radius: document.getElementById("sirene_radius_commune")?.value || 0.05,
+      sirene_radius: 0.05,
       // Filtres RPG
       filter_rpg: document.getElementById("filter_rpg_commune")?.checked || false,
       rpg_min_area: document.getElementById("rpg_min_area")?.value || 1,
@@ -1866,7 +1864,7 @@ function generateReport() {
         // === MÉTADONNÉES ===
         search_timestamp: Date.now(),
         data_source: "search_by_address",
-        search_radius: document.getElementById("sirene_radius")?.value || "0.05",
+        search_radius: "0.05",
         interface_version: "3.2.1"
     });
     
