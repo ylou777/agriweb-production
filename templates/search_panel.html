@@ -16,10 +16,6 @@
         </div>
 
         <div class="mb-2">
-          <label class="form-label" for="sirene_radius">Rayon Sirène <span id="sirene_radius_val" class="slider-value"></span></label>
-          <input id="sirene_radius" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
-        </div>
-        <div class="mb-2">
           <label class="form-label" for="bt_max_distance">Distance BT (m) <span id="btMaxValAddr" class="slider-value"></span></label>
           <input id="bt_max_distance" type="range" class="form-range" min="0" max="2000" step="50" value="500">
         </div>
@@ -60,11 +56,6 @@
         <div class="autocomplete-wrapper">
           <input id="commune" name="commune" class="form-control" placeholder="Lyon">
         </div>
-        <div class="mb-2">
-          <label class="form-label" for="sirene_radius_commune">Rayon Sirène <span id="sireneCommVal" class="slider-value"></span></label>
-          <input id="sirene_radius_commune" type="range" class="form-range" min="0" max="10" step="0.1" value="0.05">
-        </div>
-        
         <!-- Filtres par type de données -->
         <div class="mb-3">
           <h6 class="fw-bold mb-2">Filtres par couche :</h6>
@@ -593,12 +584,10 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Configuration des sliders...');
     
     // Sliders section Adresse
-    setupSlider('sirene_radius', 'sirene_radius_val', ' km');
     setupSlider('bt_max_distance', 'btMaxValAddr', ' m');
     setupSlider('ht_max_distance', 'htMaxValAddr', ' m');
     
     // Sliders section Commune
-    setupSlider('sirene_radius_commune', 'sireneCommVal', ' km');
     
     // Sliders section Toitures
     setupSlider('min_surface_toiture', 'minSurfaceToitureVal', ' m²');
@@ -622,8 +611,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Force la mise à jour initiale pour tous les sliders
     const allSliders = [
-      'sirene_radius', 'bt_max_distance', 'ht_max_distance',
-      'sirene_radius_commune', 'min_surface_toiture',
+      'bt_max_distance', 'ht_max_distance',
+      'min_surface_toiture',
       'bt_max_distance_commune', 'ht_max_distance_commune',
       'minSurface', 'maxSurface', 'bt_max_distance_dept', 'ht_max_distance_dept',
       'hta_lines_aerial_distance_dept', 'hta_lines_underground_distance_dept'
