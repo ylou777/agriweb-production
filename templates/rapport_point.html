@@ -562,131 +562,248 @@
                 </div>
                 {% endif %}
 
-                <!-- Section GeoRisques PPRI -->
+                <!-- Section GeoRisques - Synthèse intelligente -->
                 {% if report.georisques_risks %}
                 <div class="card mb-3">
-                    <div class="card-header">
-                        <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+                    <div class="card-header" style="background:rgba(245,158,11,0.12);color:var(--c-orange);border-left:3px solid var(--c-orange)">
+                        <i class="bi bi-shield-exclamation"></i>
                         <strong>Analyse des Risques - GeoRisques</strong>
-                        <span class="badge bg-info ms-2">
+                        <span class="badge bg-warning text-dark ms-2">
                             {% set total_risks = namespace(count=0) %}
                             {% for category, risks in report.georisques_risks.items() %}
-                                {% if risks %}
-                                    {% set total_risks.count = total_risks.count + risks|length %}
-                                {% endif %}
+                                {% if risks %}{% set total_risks.count = total_risks.count + risks|length %}{% endif %}
                             {% endfor %}
-                            {{ total_risks.count }} risque(s) identifié(s)
+                            {{ total_risks.count }} élément(s) identifié(s)
                         </span>
                     </div>
                     <div class="card-body">
-                        <div class="row">
-                            <!-- Affichage des risques par catégorie -->
-                            {% for category_key, risks in report.georisques_risks.items() %}
-                                {% if risks and risks|length > 0 %}
-                                    <div class="col-md-6 mb-3">
-                                        <div class="risk-category">
-                                            <h6 class="text-primary">
-                                                {% if category_key == 'sismique' %}
-                                                    <i class="bi bi-activity"></i> Risques Sismiques
-                                                {% elif category_key == 'catnat' %}
-                                                    <i class="bi bi-cloud-rain-heavy"></i> Catastrophes Naturelles
-                                                {% elif category_key == 'tim' %}
-                                                    <i class="bi bi-building"></i> Transport de Matières Dangereuses
-                                                {% elif category_key == 'azi' %}
-                                                    <i class="bi bi-radioactive"></i> Accidents Industriels
-                                                {% elif category_key == 'cavites' %}
-                                                    <i class="bi bi-geo"></i> Cavités Souterraines
-                                                {% elif category_key == 'mvt' %}
-                                                    <i class="bi bi-arrows-move"></i> Mouvements de Terrain
-                                                {% elif category_key == 'argiles' %}
-                                                    <i class="bi bi-layers"></i> Retrait-Gonflement Argiles
-                                                {% elif category_key == 'radon' %}
-                                                    <i class="bi bi-radioactive"></i> Exposition Radon
-                                                {% elif category_key == 'installations' %}
-                                                    <i class="bi bi-building-exclamation"></i> Installations Classées
-                                                {% elif category_key == 'nucleaire' %}
-                                                    <i class="bi bi-radioactive"></i> Installations Nucléaires
-                                                {% elif category_key == 'tri_zonage' %}
-                                                    <i class="bi bi-water"></i> TRI - Territoires à Risques d'Inondation
-                                                {% elif category_key == 'tri_gaspar' %}
-                                                    <i class="bi bi-water"></i> TRI - GASPAR
-                                                {% elif category_key == 'ssp_casias' %}
-                                                    <i class="bi bi-building-exclamation"></i> Sites et Sols Pollués - CASIAS
-                                                {% elif category_key == 'ssp_instructions' %}
-                                                    <i class="bi bi-file-earmark-text"></i> SSP - Instructions
-                                                {% elif category_key == 'ssp_conclusions_sis' %}
-                                                    <i class="bi bi-file-earmark-check"></i> SSP - Conclusions SIS
-                                                {% elif category_key == 'ssp_conclusions_sup' %}
-                                                    <i class="bi bi-file-earmark-check"></i> SSP - Conclusions SUP
-                                                {% elif category_key == 'casias_detaille' %}
-                                                    <i class="bi bi-building-exclamation"></i> CASIAS Détaillé
+
+                        {# ========== DASHBOARD RÉSUMÉ RAPIDE ========== #}
+                        <div class="row g-3 mb-4">
+                            {# Sismicité #}
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 rounded text-center" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <i class="bi bi-activity" style="font-size:1.5rem;color:var(--c-accent)"></i>
+                                    <div class="mt-1" style="font-size:0.82rem;color:var(--c-text-secondary)">Sismicité</div>
+                                    {% if report.georisques_risks.sismique and report.georisques_risks.sismique|length > 0 %}
+                                        {% set sismo = report.georisques_risks.sismique[0] %}
+                                        <strong style="font-size:1.1rem">Zone {{ sismo.code_zone or sismo.get('Zone Sismicite', '?').split(' ')[0] if sismo.get('Zone Sismicite') else '?' }}</strong>
+                                        <div><small>{{ sismo.zone_sismicite or sismo.get('Zone Sismicite', '') }}</small></div>
+                                    {% else %}
+                                        <strong style="font-size:1.1rem;color:var(--c-success)">Aucun</strong>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {# CatNat #}
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 rounded text-center" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <i class="bi bi-cloud-rain-heavy" style="font-size:1.5rem;color:var(--c-orange)"></i>
+                                    <div class="mt-1" style="font-size:0.82rem;color:var(--c-text-secondary)">Catastrophes Nat.</div>
+                                    <strong style="font-size:1.1rem">{{ report.georisques_risks.catnat|length if report.georisques_risks.catnat else 0 }}</strong>
+                                    <div><small>arrêté(s)</small></div>
+                                </div>
+                            </div>
+                            {# Argiles #}
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 rounded text-center" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <i class="bi bi-layers" style="font-size:1.5rem;color:#a1887f"></i>
+                                    <div class="mt-1" style="font-size:0.82rem;color:var(--c-text-secondary)">Argiles</div>
+                                    {% if report.georisques_risks.argiles and report.georisques_risks.argiles|length > 0 %}
+                                        <strong style="font-size:1.1rem;color:var(--c-orange)">Exposé</strong>
+                                        <div><small>{{ report.georisques_risks.argiles[0].libelle_risque_long or 'Retrait-gonflement' }}</small></div>
+                                    {% else %}
+                                        <strong style="font-size:1.1rem;color:var(--c-success)">Non exposé</strong>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {# Radon #}
+                            <div class="col-md-3 col-6">
+                                <div class="p-3 rounded text-center" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <i class="bi bi-radioactive" style="font-size:1.5rem;color:#a78bfa"></i>
+                                    <div class="mt-1" style="font-size:0.82rem;color:var(--c-text-secondary)">Radon</div>
+                                    {% if report.georisques_risks.radon and report.georisques_risks.radon|length > 0 %}
+                                        {% set radon = report.georisques_risks.radon[0] %}
+                                        {% set classe = radon.classe_potentiel or radon.get('Classe Potentiel', '?') %}
+                                        <strong style="font-size:1.1rem;color:{% if classe|string == '3' %}var(--c-danger){% elif classe|string == '2' %}var(--c-orange){% else %}var(--c-success){% endif %}">
+                                            Classe {{ classe }}
+                                        </strong>
+                                        <div><small>{% if classe|string == '3' %}Potentiel significatif{% elif classe|string == '2' %}Potentiel moyen{% else %}Potentiel faible{% endif %}</small></div>
+                                    {% else %}
+                                        <strong style="font-size:1.1rem;color:var(--c-success)">Non classé</strong>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        {# ========== CATNAT - Tableau compact ========== #}
+                        {% if report.georisques_risks.catnat and report.georisques_risks.catnat|length > 0 %}
+                        <div class="mb-4">
+                            <h6 class="mb-3"><i class="bi bi-cloud-rain-heavy me-2"></i>Catastrophes Naturelles <span class="badge bg-warning text-dark">{{ report.georisques_risks.catnat|length }}</span></h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Type de risque</th>
+                                            <th>Début</th>
+                                            <th>Fin</th>
+                                            <th>Arrêté</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for risk in report.georisques_risks.catnat %}
+                                        <tr>
+                                            <td>
+                                                {% set risque_type = risk.libelle_risque_jo or risk.libelle_risque_long or risk.type_risque or 'Non défini' %}
+                                                {% if 'nondation' in risque_type %}
+                                                    <i class="bi bi-water text-info me-1"></i>
+                                                {% elif 'cheresse' in risque_type or 'Séch' in risque_type %}
+                                                    <i class="bi bi-sun text-warning me-1"></i>
+                                                {% elif 'ouvement' in risque_type %}
+                                                    <i class="bi bi-arrows-move text-danger me-1"></i>
                                                 {% else %}
-                                                    <i class="bi bi-exclamation-triangle"></i> {{ category_key|title }}
+                                                    <i class="bi bi-exclamation-triangle text-warning me-1"></i>
                                                 {% endif %}
-                                                <span class="badge bg-warning text-dark ms-2">{{ risks|length }}</span>
-                                            </h6>
-                                            
-                                            <div class="risks-list">
-                                                {% for risk in risks %}
-                                                    <div class="risk-item border rounded p-2 mb-2 bg-light">
-                                                        <div class="risk-details">
-                                                            <!-- Titre principal du risque -->
-                                                            {% if risk.libelle_risque_long %}
-                                                                <strong class="text-primary">{{ risk.libelle_risque_long }}</strong>
-                                                            {% elif risk.lib_alea %}
-                                                                <strong class="text-primary">{{ risk.lib_alea }}</strong>
-                                                            {% elif risk.type_risque %}
-                                                                <strong class="text-primary">{{ risk.type_risque }}</strong>
-                                                            {% elif risk.nom %}
-                                                                <strong class="text-primary">{{ risk.nom }}</strong>
-                                                            {% elif risk.libelle %}
-                                                                <strong class="text-primary">{{ risk.libelle }}</strong>
-                                                            {% else %}
-                                                                <strong class="text-primary">{{ category_key|title }} #{{ loop.index }}</strong>
-                                                            {% endif %}
-                                                            
-                                                            <!-- Affichage de TOUTES les propriétés du risque -->
-                                                            <div class="mt-2">
-                                                                {% for key, value in risk.items() %}
-                                                                    {% if value and value != '' and key not in ['geometry', 'geom'] %}
-                                                                        <div class="row mb-1">
-                                                                            <div class="col-4">
-                                                                                <small class="text-muted"><strong>{{ key|replace('_', ' ')|title }}:</strong></small>
-                                                                            </div>
-                                                                            <div class="col-8">
-                                                                                <small>
-                                                                                    {% if value is string and value|length > 100 %}
-                                                                                        {{ value[:100] }}...
-                                                                                    {% else %}
-                                                                                        {{ value }}
-                                                                                    {% endif %}
-                                                                                </small>
-                                                                            </div>
-                                                                        </div>
-                                                                    {% endif %}
-                                                                {% endfor %}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {% if not loop.last %}<hr class="my-1">{% endif %}
-                                                {% endfor %}
+                                                {{ risque_type }}
+                                            </td>
+                                            <td><small>{{ risk.date_debut_evt or 'N/A' }}</small></td>
+                                            <td><small>{{ risk.date_fin_evt or 'N/A' }}</small></td>
+                                            <td><small>{{ risk.date_publication_arrete or 'N/A' }}</small></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {# ========== INSTALLATIONS CLASSÉES - Tableau filtré ========== #}
+                        {% if report.georisques_risks.installations and report.georisques_risks.installations|length > 0 %}
+                        <div class="mb-4">
+                            <h6 class="mb-3"><i class="bi bi-building-exclamation me-2"></i>Installations Classées (ICPE) <span class="badge bg-info">{{ report.georisques_risks.installations|length }}</span></h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Établissement</th>
+                                            <th>Adresse</th>
+                                            <th>Seveso</th>
+                                            <th>Régime</th>
+                                            <th>État</th>
+                                            <th>Activités</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for inst in report.georisques_risks.installations %}
+                                        <tr>
+                                            <td>
+                                                <strong>{{ inst.raisonsociale or inst.nom or 'Établissement #' ~ loop.index }}</strong>
+                                            </td>
+                                            <td>
+                                                <small>{{ inst.adresse1 or '' }}{% if inst.codepostal %}, {{ inst.codepostal }}{% endif %} {{ inst.commune or '' }}</small>
+                                            </td>
+                                            <td>
+                                                {% set seveso = inst.statutseveso or inst.get('Statutseveso', 'N/A') %}
+                                                {% if seveso and 'Non' not in seveso|string and seveso != 'N/A' %}
+                                                    <span class="badge" style="background:var(--c-danger)">{{ seveso }}</span>
+                                                {% else %}
+                                                    <small style="color:var(--c-text-3)">Non Seveso</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% set regime = inst.regime or 'N/A' %}
+                                                <span class="badge" style="background:{% if regime == 'Autorisation' %}var(--c-danger){% elif regime == 'Enregistrement' %}var(--c-orange){% else %}var(--c-accent-light);color:var(--c-accent){% endif %}">{{ regime }}</span>
+                                            </td>
+                                            <td>
+                                                {% set etat = inst.etatactivite or inst.get('Etatactivite', '') %}
+                                                {% if 'exploitation' in etat|lower %}
+                                                    <small style="color:var(--c-success)"><i class="bi bi-check-circle-fill me-1"></i>En exploitation</small>
+                                                {% elif etat %}
+                                                    <small>{{ etat }}</small>
+                                                {% else %}
+                                                    <small style="color:var(--c-text-3)">N/A</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if inst.rubriques and inst.rubriques is iterable and inst.rubriques is not string %}
+                                                    {% for rub in inst.rubriques[:3] %}
+                                                        <span class="badge mb-1" style="background:var(--c-surface-2);color:var(--c-text-secondary);border:1px solid var(--c-border);font-size:0.7rem">{{ rub.nature|truncate(35, True) if rub.nature else rub.numeroRubrique }}</span>
+                                                    {% endfor %}
+                                                    {% if inst.rubriques|length > 3 %}<small style="color:var(--c-text-3)">+{{ inst.rubriques|length - 3 }}</small>{% endif %}
+                                                {% else %}
+                                                    <small style="color:var(--c-text-3)">-</small>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {# ========== AUTRES CATÉGORIES - Affichage intelligent ========== #}
+                        {% set skip_categories = ['sismique', 'catnat', 'installations', 'argiles', 'radon'] %}
+                        {% for category_key, risks in report.georisques_risks.items() %}
+                            {% if risks and risks|length > 0 and category_key not in skip_categories %}
+                            <div class="mb-4">
+                                <h6 class="mb-3">
+                                    {% if category_key == 'mvt' %}
+                                        <i class="bi bi-arrows-move me-2"></i>Mouvements de Terrain
+                                    {% elif category_key == 'cavites' %}
+                                        <i class="bi bi-geo me-2"></i>Cavités Souterraines
+                                    {% elif category_key == 'tim' %}
+                                        <i class="bi bi-truck me-2"></i>Transport Matières Dangereuses
+                                    {% elif category_key == 'azi' %}
+                                        <i class="bi bi-water me-2"></i>Atlas Zones Inondables
+                                    {% elif category_key == 'nucleaire' %}
+                                        <i class="bi bi-radioactive me-2"></i>Installations Nucléaires
+                                    {% elif category_key == 'tri_zonage' %}
+                                        <i class="bi bi-water me-2"></i>TRI - Zones Inondation
+                                    {% elif category_key == 'tri_gaspar' %}
+                                        <i class="bi bi-water me-2"></i>TRI - GASPAR
+                                    {% elif category_key in ['ssp_casias', 'casias_detaille'] %}
+                                        <i class="bi bi-building-exclamation me-2"></i>Sites et Sols Pollués
+                                    {% else %}
+                                        <i class="bi bi-exclamation-triangle me-2"></i>{{ category_key|replace('_', ' ')|title }}
+                                    {% endif %}
+                                    <span class="badge bg-warning text-dark">{{ risks|length }}</span>
+                                </h6>
+                                {% for risk in risks %}
+                                <div class="risk-item rounded p-3 mb-2" style="border-left:3px solid var(--c-orange)">
+                                    {# Titre #}
+                                    <strong>
+                                        {{ risk.libelle_risque_long or risk.lib_alea or risk.type_risque or risk.nom or risk.libelle or risk.raisonsociale or category_key|title ~ ' #' ~ loop.index }}
+                                    </strong>
+                                    {# Champs essentiels uniquement #}
+                                    {% set exclude_keys = ['geometry', 'geom', 'code_national_catnat', 'code_insee', 'codeinsee', 'libelle_commune', 'commune', 'coordonneexaiot', 'coordonneeyaiot', 'systemecoordonneesaiot', 'serviceaiot', 'codeaiot', 'siret', 'codenaf', 'inspections', 'documentshorsinspection', 'rubriques', 'longitude', 'latitude', 'date_maj', 'libelle_risque_long', 'lib_alea', 'type_risque', 'nom', 'libelle', 'raisonsociale', 'num_risque'] %}
+                                    <div class="mt-2 row g-2">
+                                        {% for key, value in risk.items() %}
+                                            {% if value and value != '' and key|lower not in exclude_keys and value is not mapping and (value is string or value is number) %}
+                                            <div class="col-md-6">
+                                                <small style="color:var(--c-text-3)">{{ key|replace('_', ' ')|title }}:</small>
+                                                <small> {{ value }}</small>
                                             </div>
-                                        </div>
+                                            {% endif %}
+                                        {% endfor %}
                                     </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+
+                        {# ========== RÉSUMÉ PPRI ========== #}
+                        {% if report.georisques_risks.catnat %}
+                            {% set inondation_count = namespace(n=0) %}
+                            {% for r in report.georisques_risks.catnat %}
+                                {% if r.libelle_risque_jo and 'nondation' in r.libelle_risque_jo %}
+                                    {% set inondation_count.n = inondation_count.n + 1 %}
                                 {% endif %}
                             {% endfor %}
-                        </div>
-                        
-                        <!-- Résumé PPRI si présent -->
-                        {% if report.georisques_risks.catnat %}
-                            {% set ppri_risks = report.georisques_risks.catnat|selectattr('libelle_risque_long', 'defined')|selectattr('libelle_risque_long', 'match', '.*[Ii]nondation.*')|list %}
-                            {% if ppri_risks %}
-                            <div class="alert alert-info mt-3">
-                                <h6><i class="bi bi-water"></i> Information PPRI</h6>
-                                <p class="mb-0">
-                                    <strong>{{ ppri_risks|length }} risque(s) d'inondation</strong> identifié(s) dans cette zone.
-                                    Consultez les documents d'urbanisme locaux pour les prescriptions spécifiques.
-                                </p>
+                            {% if inondation_count.n > 0 %}
+                            <div class="alert alert-info mt-3 mb-0">
+                                <i class="bi bi-water me-2"></i>
+                                <strong>{{ inondation_count.n }} arrêté(s) inondation</strong> identifié(s) — consultez le PLU pour les prescriptions PPRI.
                             </div>
                             {% endif %}
                         {% endif %}
