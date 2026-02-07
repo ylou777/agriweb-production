@@ -1010,37 +1010,197 @@
                             </div>
                         </div>
 
-                        <!-- Détails GPU par couche (totalement dépliés) -->
+                        <!-- Détails GPU - Synthèse urbanisme intelligente -->
                         {% if report.api_details.gpu.success and report.api_details.gpu.details %}
                         <hr>
-                        <h6 class="mb-3">Détails des couches urbanisme par type</h6>
-                        <div class="accordion" id="gpuDetailsAccordion">
-                            {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="heading{{ layer_name|replace('-', '')|replace('_', '') }}">
-                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ layer_name|replace('-', '')|replace('_', '') }}" aria-expanded="true">
-                                        <i class="bi bi-layers me-2"></i>
-                                        {{ layer_info.name_fr }} 
-                                        <span class="badge bg-primary ms-2">{{ layer_info.count }} feature{{ 's' if layer_info.count > 1 else '' }}</span>
-                                    </button>
-                                </h2>
-                                <div id="collapse{{ layer_name|replace('-', '')|replace('_', '') }}" class="accordion-collapse collapse show" data-bs-parent="#gpuDetailsAccordion">
-                                    <div class="accordion-body">
-                                        {% for feature in layer_info.features %}
-                                        <div class="border rounded p-2 mb-2 bg-light">
-                                            {% for key, value in feature.items() %}
-                                            <div class="row">
-                                                <div class="col-4"><small><strong>{{ key|replace('_', ' ')|title }}:</strong></small></div>
-                                                <div class="col-8"><small>{{ value }}</small></div>
-                                            </div>
-                                            {% endfor %}
-                                        </div>
-                                        {% endfor %}
-                                    </div>
+                        
+                        {# ========== DASHBOARD RÉSUMÉ URBANISME ========== #}
+                        <h6 class="mb-3"><i class="bi bi-layers me-2"></i>Urbanisme - Synthèse
+                            <span class="badge bg-primary ms-2">{{ report.api_details.gpu.features_count }} élément(s)</span>
+                        </h6>
+
+                        {# --- Résumé visuel : Document + Zone --- #}
+                        <div class="row g-3 mb-4">
+                            {# Document d'urbanisme #}
+                            {% set doc_info = report.api_details.gpu.details.get('document', report.api_details.gpu.details.get('Document', {})) %}
+                            <div class="col-md-4">
+                                <div class="p-3 rounded" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <div style="font-size:0.82rem;color:var(--c-text-secondary)"><i class="bi bi-file-earmark-text me-1"></i>Document</div>
+                                    {% if doc_info and doc_info.features %}
+                                        {% set doc = doc_info.features[0] %}
+                                        <strong style="font-size:1rem">{{ doc.get('Grid Title', doc.get('grid_title', doc.get('Du Type', 'N/A'))) }}</strong>
+                                        {% if doc.get('Du Type') or doc.get('du_type') %}
+                                            <div><span class="badge" style="background:var(--c-accent)">{{ doc.get('Du Type', doc.get('du_type', '')) }}</span></div>
+                                        {% endif %}
+                                        {% if doc.get('Gpu Status', doc.get('gpu_status', '')) == 'production' %}
+                                            <small style="color:var(--c-success)"><i class="bi bi-check-circle-fill me-1"></i>En production</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <strong>N/A</strong>
+                                    {% endif %}
                                 </div>
                             </div>
-                            {% endfor %}
+                            {# Zone Urba #}
+                            {% set zone_info = report.api_details.gpu.details.get('zone-urba', report.api_details.gpu.details.get('Zone Urba', report.api_details.gpu.details.get('Zone_Urba', {}))) %}
+                            <div class="col-md-4">
+                                <div class="p-3 rounded" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <div style="font-size:0.82rem;color:var(--c-text-secondary)"><i class="bi bi-bounding-box me-1"></i>Zone d'urbanisme</div>
+                                    {% if zone_info and zone_info.features and zone_info.features|length > 0 %}
+                                        {% set zone = zone_info.features[0] %}
+                                        {% set typezone = zone.get('Typezone', zone.get('typezone', '?')) %}
+                                        {% set libelle = zone.get('Libelle', zone.get('libelle', '')) %}
+                                        <strong style="font-size:1.3rem;color:{% if typezone == 'U' %}var(--c-accent){% elif typezone == 'AU' %}var(--c-orange){% elif typezone == 'A' %}var(--c-success){% elif typezone == 'N' %}#10b981{% else %}var(--c-text){% endif %}">
+                                            Zone {{ typezone }} — {{ libelle }}
+                                        </strong>
+                                        {% set libelong = zone.get('Libelong', zone.get('libelong', '')) %}
+                                        {% if libelong %}
+                                            <div><small>{{ libelong }}</small></div>
+                                        {% endif %}
+                                        {% if zone.get('Urlfic') or zone.get('urlfic') %}
+                                            <div class="mt-1"><a href="{{ zone.get('Urlfic', zone.get('urlfic', '')) }}" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-pdf me-1"></i>Règlement</a></div>
+                                        {% endif %}
+                                    {% else %}
+                                        <strong>Non identifiée</strong>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {# Commune #}
+                            {% set muni_info = report.api_details.gpu.details.get('municipality', report.api_details.gpu.details.get('Municipality', {})) %}
+                            <div class="col-md-4">
+                                <div class="p-3 rounded" style="background:var(--c-surface-2);border:1px solid var(--c-border)">
+                                    <div style="font-size:0.82rem;color:var(--c-text-secondary)"><i class="bi bi-geo-alt me-1"></i>Commune</div>
+                                    {% if muni_info and muni_info.features and muni_info.features|length > 0 %}
+                                        {% set muni = muni_info.features[0] %}
+                                        <strong style="font-size:1.1rem">{{ muni.get('Name', muni.get('name', 'N/A')) }}</strong>
+                                        {% if muni.get('Insee', muni.get('insee', '')) %}
+                                            <div><small>INSEE: {{ muni.get('Insee', muni.get('insee', '')) }}</small></div>
+                                        {% endif %}
+                                    {% else %}
+                                        <strong>{{ report.commune_name or 'N/A' }}</strong>
+                                    {% endif %}
+                                </div>
+                            </div>
                         </div>
+
+                        {# ========== PRESCRIPTIONS (filtré) ========== #}
+                        {% set psc_info = report.api_details.gpu.details.get('prescription-surf', report.api_details.gpu.details.get('Prescription Surf', report.api_details.gpu.details.get('prescription_surf', {}))) %}
+                        {% if psc_info and psc_info.features and psc_info.features|length > 0 %}
+                        <div class="mb-4">
+                            <h6 class="mb-2"><i class="bi bi-bookmark-check me-2"></i>Prescriptions de surface <span class="badge bg-warning text-dark">{{ psc_info.count }}</span></h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Libellé</th>
+                                            <th>Type</th>
+                                            <th>Sous-type</th>
+                                            <th>Règlement</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for feat in psc_info.features %}
+                                        <tr>
+                                            <td>{{ feat.get('Libelle', feat.get('libelle', 'N/A')) }}</td>
+                                            <td><span class="badge" style="background:var(--c-accent-light);color:var(--c-accent)">{{ feat.get('Typepsc', feat.get('typepsc', '')) }}</span></td>
+                                            <td><small>{{ feat.get('Stypepsc', feat.get('stypepsc', '')) }}</small></td>
+                                            <td>
+                                                {% set url = feat.get('Urlfic', feat.get('urlfic', '')) %}
+                                                {% if url %}
+                                                    <a href="{{ url }}" target="_blank" title="Voir le document"><i class="bi bi-file-pdf"></i></a>
+                                                {% else %}
+                                                    <small style="color:var(--c-text-3)">-</small>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {# ========== INFORMATIONS DE SURFACE (filtré) ========== #}
+                        {% set inf_info = report.api_details.gpu.details.get('info-surf', report.api_details.gpu.details.get('Info Surf', report.api_details.gpu.details.get('info_surf', {}))) %}
+                        {% if inf_info and inf_info.features and inf_info.features|length > 0 %}
+                        <div class="mb-4">
+                            <h6 class="mb-2"><i class="bi bi-info-circle me-2"></i>Informations de surface <span class="badge bg-info">{{ inf_info.count }}</span></h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Libellé</th>
+                                            <th>Type</th>
+                                            <th>Document</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for feat in inf_info.features %}
+                                        <tr>
+                                            <td>{{ feat.get('Libelle', feat.get('libelle', 'N/A')) }}</td>
+                                            <td><span class="badge" style="background:var(--c-surface-2);color:var(--c-text-secondary);border:1px solid var(--c-border)">{{ feat.get('Typeinf', feat.get('typeinf', '')) }}</span></td>
+                                            <td>
+                                                {% set url = feat.get('Urlfic', feat.get('urlfic', '')) %}
+                                                {% if url %}
+                                                    <a href="{{ url }}" target="_blank" title="Voir le document"><i class="bi bi-file-pdf"></i></a>
+                                                {% else %}
+                                                    <small style="color:var(--c-text-3)">-</small>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {# ========== AUTRES COUCHES (pas déjà affichées) ========== #}
+                        {% set displayed_layers = ['municipality', 'Municipality', 'document', 'Document', 'zone-urba', 'Zone Urba', 'Zone_Urba', 'prescription-surf', 'Prescription Surf', 'prescription_surf', 'info-surf', 'Info Surf', 'info_surf'] %}
+                        {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
+                            {% if layer_name not in displayed_layers and layer_info.features and layer_info.features|length > 0 %}
+                            <div class="mb-3">
+                                <h6 class="mb-2">
+                                    <i class="bi bi-layers me-2"></i>{{ layer_info.name_fr }}
+                                    <span class="badge bg-primary">{{ layer_info.count }}</span>
+                                </h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Libellé</th>
+                                                <th>Détails</th>
+                                                <th>Document</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for feat in layer_info.features %}
+                                            <tr>
+                                                <td>{{ feat.get('Libelle', feat.get('libelle', feat.get('Name', feat.get('name', layer_info.name_fr ~ ' #' ~ loop.index)))) }}</td>
+                                                <td>
+                                                    {% set gpu_exclude = ['Gid', 'gid', 'Gpu Doc Id', 'gpu_doc_id', 'Gpu Status', 'gpu_status', 'Gpu Timestamp', 'gpu_timestamp', 'Partition', 'partition', 'Libelle', 'libelle', 'Nomfic', 'nomfic', 'Urlfic', 'urlfic', 'Idurba', 'idurba', 'Name', 'name', 'Datvalid', 'datvalid', 'Grid Name', 'grid_name', 'Grid Title', 'grid_title', 'Id', 'id'] %}
+                                                    {% set shown_count = namespace(n=0) %}
+                                                    {% for k, v in feat.items() %}
+                                                        {% if k not in gpu_exclude and v and v != '' and shown_count.n < 3 %}
+                                                            <small style="color:var(--c-text-3)">{{ k|replace('_',' ')|title }}:</small> <small>{{ v }}</small>{% if not loop.last %}<br>{% endif %}
+                                                            {% set shown_count.n = shown_count.n + 1 %}
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </td>
+                                                <td>
+                                                    {% set url = feat.get('Urlfic', feat.get('urlfic', '')) %}
+                                                    {% if url %}
+                                                        <a href="{{ url }}" target="_blank"><i class="bi bi-file-pdf"></i></a>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+
                         {% endif %}
                     </div>
                 </div>
