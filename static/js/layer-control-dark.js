@@ -175,13 +175,14 @@
   function boot() {
     /* Attend que le DOM + Leaflet soient prêts avec retry */
     var attempts = 0;
-    var maxAttempts = 20;
+    var maxAttempts = 30;
     function tryInit() {
       attempts++;
-      if (document.querySelector(".leaflet-control-layers")) {
+      var panel = document.querySelector(".leaflet-control-layers");
+      if (panel) {
         initLayerControl();
       } else if (attempts < maxAttempts) {
-        setTimeout(tryInit, 250);
+        setTimeout(tryInit, 200);
       } else {
         console.log("[LC] Abandon après " + maxAttempts + " tentatives");
       }
@@ -189,9 +190,11 @@
     tryInit();
   }
 
-  if (document.readyState === "complete") {
-    setTimeout(boot, 100);
+  /* Le script est injecté APRÈS les scripts Folium, donc le DOM est prêt */
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", function () { boot(); });
   } else {
-    window.addEventListener("load", function () { setTimeout(boot, 100); });
+    /* readyState = interactive ou complete : lancer immédiatement */
+    boot();
   }
 })();

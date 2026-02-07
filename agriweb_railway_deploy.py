@@ -2229,43 +2229,41 @@ from shapely.geometry import shape, MultiPolygon
 # ─────────── GESTIONNAIRE DE CALQUES CUSTOM (dark mode + groupes) ───────────
 def add_styled_layer_control(map_obj, collapsed=True):
     """
-    Ajoute le LayerControl Leaflet puis injecte le CSS/JS custom dark-mode
-    via des liens vers des fichiers statiques (plus fiable que l'inline).
+    Ajoute le LayerControl Leaflet. L'injection CSS/JS dark-mode est
+    gérée par _postprocess_map_html() après save() pour garantir
+    que le CSS soit dans <head> et le JS après les scripts Folium.
     """
-    from folium import Element
     folium.LayerControl(collapsed=collapsed).add_to(map_obj)
-
-    # Injection CSS dans <head> et JS à la fin du <body>
-    inject_html = """
-<link rel="stylesheet" href="/static/css/layer-control-dark.css">
-<script src="/static/js/layer-control-dark.js"></script>
-"""
-    map_obj.get_root().html.add_child(Element(inject_html))
 
 
 def _postprocess_map_html(filepath):
-    """Post-traite un fichier HTML Folium sauvé pour assurer l'injection du layer control."""
+    """Post-traite un fichier HTML Folium sauvé pour assurer l'injection du layer control.
+    Nettoie toute injection existante (même mal placée) et ré-injecte proprement :
+    - CSS dans <head>
+    - JS à la toute fin du fichier (après les scripts Folium qui sont souvent hors <body>)
+    """
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             html = f.read()
         
-        # Vérifier si déjà injecté
-        if 'layer-control-dark.css' in html:
-            return
-        
-        # Injecter dans <head> le CSS et avant </body> le JS
         css_link = '<link rel="stylesheet" href="/static/css/layer-control-dark.css">'
         js_link = '<script src="/static/js/layer-control-dark.js"></script>'
         
+        # Nettoyer toute injection précédente (même mal placée par Element)
+        import re
+        html = re.sub(r'\s*<link[^>]*layer-control-dark\.css[^>]*>', '', html)
+        html = re.sub(r'\s*<script[^>]*layer-control-dark\.js[^>]*></script>', '', html)
+        
+        # Injecter CSS dans <head> (avant </head>)
         if '</head>' in html:
             html = html.replace('</head>', css_link + '\n</head>')
-        
-        if '</body>' in html:
-            html = html.replace('</body>', js_link + '\n</body>')
-        elif '</html>' in html:
-            html = html.replace('</html>', js_link + '\n</html>')
         else:
-            html += '\n' + css_link + '\n' + js_link
+            # Pas de <head>, mettre au tout début
+            html = css_link + '\n' + html
+        
+        # Injecter JS à la TOUTE FIN du fichier
+        # (Folium met ses scripts inline APRÈS </body>, il faut être après eux)
+        html = html.rstrip() + '\n' + js_link + '\n'
         
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(html)
@@ -3425,19 +3423,19 @@ def generated_map():
         html = html.replace('<head>', '<head>\n<meta charset="UTF-8">')
 
     # --- Injection du layer control dark-mode dans TOUT HTML servi ---
-    if html and 'layer-control-dark.css' not in html:
-        lc_css = '<link rel="stylesheet" href="/static/css/layer-control-dark.css">'
-        lc_js = '<script src="/static/js/layer-control-dark.js"></script>'
-        if '</head>' in html:
-            html = html.replace('</head>', lc_css + '\n</head>')
-        else:
-            html = lc_css + '\n' + html
-        if '</body>' in html:
-            html = html.replace('</body>', lc_js + '\n</body>')
-        elif '</html>' in html:
-            html = html.replace('</html>', lc_js + '\n</html>')
-        else:
-            html += '\n' + lc_js
+    import re as _re
+    # Nettoyer toute injection précédente mal placée
+    html = _re.sub(r'\s*<link[^>]*layer-control-dark\.css[^>]*>', '', html)
+    html = _re.sub(r'\s*<script[^>]*layer-control-dark\.js[^>]*></script>', '', html)
+    lc_css = '<link rel="stylesheet" href="/static/css/layer-control-dark.css">'
+    lc_js = '<script src="/static/js/layer-control-dark.js"></script>'
+    # CSS dans <head>
+    if '</head>' in html:
+        html = html.replace('</head>', lc_css + '\n</head>')
+    else:
+        html = lc_css + '\n' + html
+    # JS à la toute fin (après les scripts Folium qui sont souvent hors <body>)
+    html = html.rstrip() + '\n' + lc_js + '\n'
 
     # --- On renvoie toujours un objet Response ---
     resp = make_response(html)

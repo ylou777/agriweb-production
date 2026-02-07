@@ -1436,37 +1436,47 @@ async function handleUnifiedSearch(e) {
     // Mémorise le contexte pour rapport "point courant"
     window.lastSearchData = data;
     
+    // Fonction pour afficher les couches une fois l'iframe prête
+    const applyLayersAndZoom = () => {
+      logSearch('🎨 Affichage des couches de données...');
+      try {
+        displayAllLayers(data);
+      } catch (displayErr) {
+        console.error('[handleUnifiedSearch] Erreur displayAllLayers:', displayErr);
+        logSearch('⚠️ Certaines couches n\'ont pas pu être affichées', 'warning');
+      }
+      try {
+        updateInfoPanel([data]);
+      } catch (infoPanelErr) {
+        console.error('[handleUnifiedSearch] Erreur updateInfoPanel:', infoPanelErr);
+      }
+      const m = getMapFrame();
+      if (data.lat && data.lon && m?.setView) {
+        let z = 14;
+        if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
+        if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
+        logSearch(`🎯 Centrage de la carte sur ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (zoom ${z})`);
+        m.setView(data.lat, data.lon, z);
+      }
+    };
+
     // Recharge la carte générée dans l'iframe
     if (data.carte_url) {
       logSearch('🗺️ Chargement de la carte interactive...');
       console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
       const iframe = document.getElementById("mapFrame");
       // Force le rechargement avec cache bust
-      iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
-      console.log("[DEBUG] URL finale iframe:", iframe.src);
-    }
-    
-    logSearch('🎨 Affichage des couches de données...');
-    try {
-      displayAllLayers(data);
-    } catch (displayErr) {
-      console.error('[handleUnifiedSearch] Erreur displayAllLayers:', displayErr);
-      logSearch('⚠️ Certaines couches n\'ont pas pu être affichées', 'warning');
-    }
-    
-    try {
-      updateInfoPanel([data]);
-    } catch (infoPanelErr) {
-      console.error('[handleUnifiedSearch] Erreur updateInfoPanel:', infoPanelErr);
-    }
-    
-    const m = getMapFrame();
-    if (data.lat && data.lon && m?.setView) {
-      let z = 14;
-      if (data.parcelles && data.parcelles.features && data.parcelles.features.length === 1) z = 16;
-      if (data.rpg && data.rpg.features && data.rpg.features.length === 1) z = 16;
-      logSearch(`🎯 Centrage de la carte sur ${data.lat.toFixed(6)}, ${data.lon.toFixed(6)} (zoom ${z})`);
-      m.setView(data.lat, data.lon, z);
+      const newSrc = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
+      console.log("[DEBUG] URL finale iframe:", newSrc);
+      // Attendre que l'iframe finisse de charger avant d'ajouter les couches
+      iframe.onload = () => {
+        console.log("[DEBUG] Iframe chargée, application des couches...");
+        setTimeout(applyLayersAndZoom, 150);
+      };
+      iframe.src = newSrc;
+    } else {
+      // Pas de carte_url, appliquer directement
+      applyLayersAndZoom();
     }
     
     logSearch('🎉 Recherche terminée avec succès !', 'success');
@@ -1611,35 +1621,43 @@ async function handleCommuneSearch(e) {
         alert(data.error);
         return;
       }
+      // Fonction pour appliquer couches + zoom une fois iframe prête
+      const applyCommuneLayers = () => {
+        setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
+        try {
+          window.lastCommuneSearch = { commune: commune, timestamp: Date.now() };
+        } catch (storageError) {
+          console.warn('⚠️ [STORAGE] Impossible de sauvegarder lastCommuneSearch:', storageError);
+        }
+        displayAllLayers(data);
+        updateInfoPanel([data]);
+        const m = getMapFrame();
+        if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
+      };
+
       // Charger la carte générée si disponible
       if (data.carte_url) {
         setCommuneSearchLog('🗺️ Chargement de la carte interactive...', '#198754');
         const iframe = document.getElementById('mapFrame');
         if (iframe) {
           try {
-            // Éviter le cache du navigateur pour forcer le rechargement
-            iframe.src = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 't=' + Date.now();
-            console.log('✅ [IFRAME] Carte chargée:', iframe.src);
+            const newSrc = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 't=' + Date.now();
+            iframe.onload = () => {
+              console.log('✅ [IFRAME] Carte commune chargée, application des couches...');
+              setTimeout(applyCommuneLayers, 150);
+            };
+            iframe.src = newSrc;
+            console.log('✅ [IFRAME] Chargement lancé:', newSrc);
           } catch (storageError) {
             console.warn('⚠️ [STORAGE] Erreur accès storage (Tracking Prevention):', storageError);
-            // Charger quand même l'iframe même si le storage est bloqué
             iframe.src = data.carte_url;
+            setTimeout(applyCommuneLayers, 500);
           }
         }
+      } else {
+        // Pas de carte_url, appliquer directement
+        applyCommuneLayers();
       }
-      setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
-      // Sauvegarder dans window au lieu de storage pour éviter Tracking Prevention
-      try {
-        window.lastCommuneSearch = { commune: commune, timestamp: Date.now() };
-      } catch (storageError) {
-        console.warn('⚠️ [STORAGE] Impossible de sauvegarder lastCommuneSearch:', storageError);
-        // Continuer quand même sans sauvegarder
-      }
-      displayAllLayers(data);
-      updateInfoPanel([data]);
-      
-      const m = getMapFrame();
-      if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
       setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
       
       // Réinitialiser le flag et nettoyer
