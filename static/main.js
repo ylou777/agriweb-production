@@ -496,11 +496,14 @@ function updateLeafletLayersControl() {
   const m = getMapFrame();
   if (!m || !m.L || !m.map) return;
   
+  const iframeWin = document.getElementById('mapFrame')?.contentWindow;
+  const iframeDoc = iframeWin?.document;
+  
   // === DÉTECTION DU LAYERCONTROL EXISTANT (multi-méthodes) ===
   let existingControl = m._layerControl || null;
   
   if (!existingControl) {
-    // 1) Propriété Leaflet interne
+    // 1) Propriété Leaflet interne (définie par nous lors d'un précédent appel)
     if (m.map._controlLayers && typeof m.map._controlLayers.addOverlay === 'function') {
       existingControl = m.map._controlLayers;
       console.log("[DEBUG] Contrôle trouvé via _controlLayers");
@@ -508,30 +511,14 @@ function updateLeafletLayersControl() {
   }
   
   if (!existingControl) {
-    // 2) Parcourir les contrôles Leaflet enregistrés
+    // 2) Registre global côté iframe
     try {
-      var controls = m.map._controls || [];
-      for (var i = 0; i < controls.length; i++) {
-        if (controls[i] && typeof controls[i].addOverlay === 'function') {
-          existingControl = controls[i];
-          console.log("[DEBUG] Contrôle trouvé via _controls[]");
-          break;
-        }
-      }
-    } catch(e) {}
-  }
-  
-  if (!existingControl) {
-    // 3) Registre global côté iframe
-    try {
-      const w = document.getElementById('mapFrame')?.contentWindow;
-      if (w) {
-        // Chercher dans le window de l'iframe
-        if (w._layerControl && typeof w._layerControl.addOverlay === 'function') {
-          existingControl = w._layerControl;
+      if (iframeWin) {
+        if (iframeWin._layerControl && typeof iframeWin._layerControl.addOverlay === 'function') {
+          existingControl = iframeWin._layerControl;
           console.log("[DEBUG] Contrôle trouvé via iframe._layerControl");
-        } else if (w.leafletLayersControl && typeof w.leafletLayersControl.addOverlay === 'function') {
-          existingControl = w.leafletLayersControl;
+        } else if (iframeWin.leafletLayersControl && typeof iframeWin.leafletLayersControl.addOverlay === 'function') {
+          existingControl = iframeWin.leafletLayersControl;
           console.log("[DEBUG] Contrôle trouvé via iframe.leafletLayersControl");
         }
       }
@@ -539,12 +526,53 @@ function updateLeafletLayersControl() {
   }
   
   if (!existingControl) {
-    // 4) Registre global parent
+    // 3) Registre global parent
     if (window.leafletLayersControl && typeof window.leafletLayersControl.addOverlay === 'function') {
       existingControl = window.leafletLayersControl;
       console.log("[DEBUG] Contrôle trouvé via registre global parent");
     }
   }
+  
+  if (!existingControl) {
+    // 4) MÉTHODE DOM → chercher l'objet Leaflet via les event handlers de la carte
+    // Quand Folium crée un L.control.layers().addTo(map), Leaflet enregistre un handler
+    // de l'événement 'layeradd' dont le contexte (ctx) est le LayerControl
+    try {
+      var events = m.map._events || {};
+      var layerAddHandlers = events.layeradd || [];
+      for (var i = 0; i < layerAddHandlers.length; i++) {
+        var handler = layerAddHandlers[i];
+        if (handler.ctx && typeof handler.ctx.addOverlay === 'function' && typeof handler.ctx.addBaseLayer === 'function') {
+          existingControl = handler.ctx;
+          console.log("[DEBUG] Contrôle trouvé via event handler layeradd");
+          break;
+        }
+      }
+    } catch(e) { console.log("[DEBUG] Erreur recherche event handlers:", e); }
+  }
+  
+  if (!existingControl) {
+    // 5) Dernière tentative : chercher dans les variables globales du script Folium
+    // Folium nomme ses variables layer_control_XXXX
+    try {
+      if (iframeWin) {
+        var keys = Object.keys(iframeWin);
+        for (var i = 0; i < keys.length; i++) {
+          if (keys[i].indexOf('layer_control') === 0) {
+            var obj = iframeWin[keys[i]];
+            if (obj && typeof obj.addOverlay === 'function') {
+              existingControl = obj;
+              console.log("[DEBUG] Contrôle trouvé via variable globale Folium:", keys[i]);
+              break;
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  // === VÉRIFIER SI UN PANNEAU EXISTE DÉJÀ DANS LE DOM ===
+  var domHasControl = iframeDoc && iframeDoc.querySelector('.leaflet-control-layers');
 
   // === UTILISER LE CONTRÔLE EXISTANT OU EN CRÉER UN NOUVEAU ===
   if (existingControl) {
@@ -568,7 +596,16 @@ function updateLeafletLayersControl() {
     m._layerControl = existingControl;
     overlaysControl = existingControl;
     window.leafletLayersControl = existingControl;
+    m.map._controlLayers = existingControl;
+    if (iframeWin) iframeWin._layerControl = existingControl;
+    
+  } else if (domHasControl) {
+    // Le DOM a un contrôle Leaflet (créé par Folium) mais on n'a pas trouvé l'objet JS
+    // NE PAS en créer un second ! Juste s'assurer que le custom LC JS s'applique
+    console.log("[DEBUG] LayerControl DOM détecté (Folium), pas de création d'un second contrôle");
+    
   } else {
+    // Aucun contrôle ni dans le DOM ni en JS — en créer un nouveau (cas map1.html)
     console.log("[DEBUG] Aucun contrôle Leaflet trouvé, création d'un nouveau");
     
     const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
@@ -582,11 +619,11 @@ function updateLeafletLayersControl() {
     m._layerControl = overlaysControl;
     window.leafletLayersControl = overlaysControl;
     m.map._controlLayers = overlaysControl;
+    if (iframeWin) iframeWin._layerControl = overlaysControl;
   }
   
   // === RÉINITIALISER LE CUSTOM LAYER CONTROL (si le JS est chargé dans l'iframe) ===
   try {
-    const iframeWin = document.getElementById('mapFrame')?.contentWindow;
     if (iframeWin) {
       // Reset l'init flag pour permettre une réinitialisation
       const panels = iframeWin.document.querySelectorAll('.leaflet-control-layers');
