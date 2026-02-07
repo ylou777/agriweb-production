@@ -301,6 +301,7 @@ except ImportError as e:
 def save_map_html(map_obj, filename):
     """
     Save a Folium map object to static/cartes/ and return the relative path for use in the app.
+    Injecte automatiquement le layer control dark-mode dans le fichier HTML.
     """
     import os
     # Ensure the directory exists
@@ -309,6 +310,8 @@ def save_map_html(map_obj, filename):
     # Save the map
     filepath = os.path.join(cartes_dir, filename)
     map_obj.save(filepath)
+    # Post-process: injecter le layer control CSS/JS
+    _postprocess_map_html(filepath)
     # Return the relative path from /static/
     return f"cartes/{filename}"
 
@@ -2226,280 +2229,48 @@ from shapely.geometry import shape, MultiPolygon
 # ─────────── GESTIONNAIRE DE CALQUES CUSTOM (dark mode + groupes) ───────────
 def add_styled_layer_control(map_obj, collapsed=True):
     """
-    Remplace le LayerControl Leaflet par défaut par un panneau
-    dark-mode avec groupes thématiques, recherche et compteur.
+    Ajoute le LayerControl Leaflet puis injecte le CSS/JS custom dark-mode
+    via des liens vers des fichiers statiques (plus fiable que l'inline).
     """
     from folium import Element
     folium.LayerControl(collapsed=collapsed).add_to(map_obj)
 
-    custom_lc = r"""
-<style>
-/* === PANNEAU CALQUES : dark-mode Poppins === */
-.leaflet-control-layers{
-    background:transparent!important;border:none!important;box-shadow:none!important;
-    border-radius:0!important;
-}
-.leaflet-control-layers-toggle{
-    width:42px!important;height:42px!important;
-    background:rgba(15,17,23,.92)!important;
-    border-radius:10px!important;border:1px solid rgba(255,255,255,.12)!important;
-    backdrop-filter:blur(12px)!important;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 0l8 4.8-8 4.8L0 4.8 8 0z'/%3E%3Cpath d='M0 7.2l8 4.8 8-4.8v2.4l-8 4.8-8-4.8V7.2z' fill-opacity='.6'/%3E%3Cpath d='M0 11.2l8 4.8 8-4.8v-2.4l-8 4.8-8-4.8v2.4z' fill-opacity='.3'/%3E%3C/svg%3E")!important;
-    background-size:22px 22px!important;background-position:center!important;
-    background-repeat:no-repeat!important;
-    transition:all .2s!important;
-}
-.leaflet-control-layers-toggle:hover{
-    background-color:rgba(59,130,246,.25)!important;
-    border-color:rgba(59,130,246,.5)!important;
-    transform:scale(1.05);
-}
-.leaflet-control-layers-expanded{
-    background:rgba(15,17,23,.95)!important;
-    backdrop-filter:blur(18px)!important;
-    border-radius:14px!important;
-    border:1px solid rgba(255,255,255,.1)!important;
-    box-shadow:0 12px 40px rgba(0,0,0,.5)!important;
-    padding:0!important;
-    min-width:280px!important;max-width:340px!important;
-    max-height:75vh!important;overflow:hidden!important;
-    font-family:'Poppins',system-ui,sans-serif!important;
-}
-/* Header injecté par JS */
-.lc-header{
-    background:linear-gradient(135deg,#3b82f6,#6366f1);
-    color:#fff;padding:14px 16px;
-    font-weight:600;font-size:14px;
-    display:flex;align-items:center;justify-content:space-between;
-    border-radius:14px 14px 0 0;letter-spacing:.3px;
-    user-select:none;
-}
-.lc-header .lc-count{
-    background:rgba(255,255,255,.2);padding:2px 10px;
-    border-radius:20px;font-size:11px;font-weight:500;
-}
-/* Barre recherche */
-.lc-search{
-    padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08);
-}
-.lc-search input{
-    width:100%;padding:7px 12px;border-radius:8px;
-    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-    color:#e2e8f0;font-size:12px;font-family:'Poppins',sans-serif;
-    outline:none;transition:border .2s;
-}
-.lc-search input:focus{border-color:rgba(59,130,246,.5);}
-.lc-search input::placeholder{color:rgba(255,255,255,.3);}
-/* Contenu scrollable */
-.lc-scroll{
-    max-height:calc(75vh - 110px);overflow-y:auto;padding:6px 0;
-}
-.lc-scroll::-webkit-scrollbar{width:5px;}
-.lc-scroll::-webkit-scrollbar-track{background:transparent;}
-.lc-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px;}
-/* Groupes */
-.lc-group{margin:4px 10px;border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden;}
-.lc-group-hdr{
-    display:flex;align-items:center;gap:8px;
-    padding:9px 12px;cursor:pointer;
-    background:rgba(255,255,255,.04);
-    font-size:12px;font-weight:600;color:#94a3b8;
-    transition:background .15s;user-select:none;
-}
-.lc-group-hdr:hover{background:rgba(59,130,246,.08);}
-.lc-group-hdr .lc-chevron{
-    margin-left:auto;transition:transform .2s;font-size:10px;
-}
-.lc-group-hdr.collapsed .lc-chevron{transform:rotate(-90deg);}
-.lc-group-body{padding:2px 4px 6px;}
-.lc-group-body.hidden{display:none;}
-/* Items calques */
-.lc-item{
-    display:flex;align-items:center;gap:8px;
-    padding:6px 10px;border-radius:6px;
-    transition:background .12s;cursor:pointer;
-}
-.lc-item:hover{background:rgba(59,130,246,.08);}
-.lc-item label{
-    display:flex;align-items:center;gap:8px;
-    cursor:pointer;flex:1;margin:0;
-    font-size:12px;color:#cbd5e1;font-weight:400;
-}
-.lc-item input[type=checkbox],
-.lc-item input[type=radio]{
-    accent-color:#3b82f6;width:15px;height:15px;
-    cursor:pointer;flex-shrink:0;
-}
-.lc-item .lc-dot{
-    width:10px;height:10px;border-radius:50%;flex-shrink:0;
-}
-/* Séparateur base/overlays */
-.leaflet-control-layers-separator{display:none!important;}
-/* Cacher le contenu original (remplacé par JS) */
-.leaflet-control-layers-list{display:none!important;}
-</style>
-
-<script>
-(function(){
-    /* Attendre que le DOM et Leaflet soient prêts */
-    function initLayerControl(){
-        var panel = document.querySelector('.leaflet-control-layers-expanded')
-                 || document.querySelector('.leaflet-control-layers');
-        if(!panel) return;
-
-        var list = panel.querySelector('.leaflet-control-layers-list');
-        if(!list) return;
-
-        /* -------- COLLECTER COUCHES -------- */
-        var baseLayers=[], overlays=[];
-        list.querySelectorAll('.leaflet-control-layers-base label').forEach(function(lbl){
-            var inp = lbl.querySelector('input');
-            var txt = lbl.textContent.trim().replace(/^\s+/,'');
-            baseLayers.push({el:lbl,input:inp,name:txt});
-        });
-        list.querySelectorAll('.leaflet-control-layers-overlays label').forEach(function(lbl){
-            var inp = lbl.querySelector('input');
-            var txt = lbl.textContent.trim().replace(/^\s+/,'');
-            overlays.push({el:lbl,input:inp,name:txt});
-        });
-
-        var totalCount = baseLayers.length + overlays.length;
-
-        /* -------- GROUPES THÉMATIQUES -------- */
-        var groups = [
-            {icon:'🗺️', title:'Fonds de carte',      match:/^(Satellite|Fond OSM|OpenStreetMap)/i, layers:baseLayers, isBase:true},
-            {icon:'📐', title:'Cadastre & Parcelles', match:/cadastre|parcell/i, layers:[]},
-            {icon:'🏗️', title:'Urbanisme & PLU',      match:/urbanisme|plu|zone urba|prescription|secteur|info surf/i, layers:[]},
-            {icon:'⚡', title:'Énergie & Réseau',     match:/poste|bt|hta|capac|potentiel solaire|enedis/i, layers:[]},
-            {icon:'🌿', title:'Environnement',        match:/natur|ppri|georisques|zaer/i, layers:[]},
-            {icon:'🐄', title:'Agriculture',          match:/rpg|éleveur|agri/i, layers:[]},
-            {icon:'🏢', title:'Activités & Commerce', match:/sirene|entreprise|parking|friche/i, layers:[]},
-        ];
-        var otherGroup = {icon:'📌', title:'Autres couches', match:null, layers:[]};
-
-        overlays.forEach(function(o){
-            var placed = false;
-            for(var i=0;i<groups.length;i++){
-                if(groups[i].match && groups[i].match.test(o.name)){
-                    groups[i].layers.push(o); placed=true; break;
-                }
-            }
-            if(!placed) otherGroup.layers.push(o);
-        });
-        if(otherGroup.layers.length) groups.push(otherGroup);
-
-        /* -------- DOT COLORS -------- */
-        function dotColor(name){
-            var n=name.toLowerCase();
-            if(/satellite|imagery/i.test(n)) return '#6366f1';
-            if(/osm/i.test(n)) return '#22c55e';
-            if(/cadastre|parcell/i.test(n)) return '#f59e0b';
-            if(/urbanisme|plu|zone urba/i.test(n)) return '#8b5cf6';
-            if(/prescription/i.test(n)) return '#a78bfa';
-            if(/bt/i.test(n)) return '#22d3ee';
-            if(/hta|capac/i.test(n)) return '#f97316';
-            if(/solaire/i.test(n)) return '#fbbf24';
-            if(/ppri/i.test(n)) return '#ef4444';
-            if(/georisques/i.test(n)) return '#dc2626';
-            if(/zaer/i.test(n)) return '#10b981';
-            if(/natur/i.test(n)) return '#34d399';
-            if(/rpg/i.test(n)) return '#84cc16';
-            if(/éleveur/i.test(n)) return '#a3e635';
-            if(/sirene|entreprise/i.test(n)) return '#3b82f6';
-            if(/parking/i.test(n)) return '#64748b';
-            if(/friche/i.test(n)) return '#78716c';
-            return '#94a3b8';
-        }
-
-        /* -------- BUILD HTML -------- */
-        var html = '';
-        html += '<div class="lc-header"><span>🗂️ Calques</span><span class="lc-count">'+totalCount+'</span></div>';
-        html += '<div class="lc-search"><input type="text" placeholder="Rechercher un calque…" id="lc-filter"></div>';
-        html += '<div class="lc-scroll" id="lc-scroll">';
-
-        groups.forEach(function(g, gi){
-            if(!g.layers || !g.layers.length) return;
-            html += '<div class="lc-group" data-group="'+gi+'">';
-            html += '<div class="lc-group-hdr" data-toggle="'+gi+'">'+g.icon+' '+g.title+' <span style="margin-left:4px;font-weight:400;color:rgba(255,255,255,.3);font-size:11px">('+g.layers.length+')</span><span class="lc-chevron">▼</span></div>';
-            html += '<div class="lc-group-body" data-body="'+gi+'">';
-            g.layers.forEach(function(l, li){
-                var id = 'lc-'+gi+'-'+li;
-                html += '<div class="lc-item" data-name="'+l.name.toLowerCase()+'">';
-                html += '<label for="'+id+'">';
-                html += '<span class="lc-dot" style="background:'+dotColor(l.name)+'"></span>';
-                html += l.name;
-                html += '</label>';
-                html += '</div>';
-            });
-            html += '</div></div>';
-        });
-        html += '</div>';
-
-        /* -------- INJECT -------- */
-        var container = document.createElement('div');
-        container.innerHTML = html;
-        container.style.cssText = 'display:flex;flex-direction:column;';
-
-        /* list is hidden via CSS, insert custom UI before it */
-        panel.insertBefore(container, list);
-
-        /* -------- WIRE CHECKBOXES -------- */
-        groups.forEach(function(g, gi){
-            g.layers.forEach(function(l, li){
-                var item = container.querySelector('[data-group="'+gi+'"] .lc-item:nth-child('+(li+1)+')');
-                if(!item || !l.input) return;
-                /* Clone the original input into our custom item */
-                var labelEl = item.querySelector('label');
-                var id = 'lc-'+gi+'-'+li;
-                l.input.id = id;
-                l.input.style.cssText = 'accent-color:#3b82f6;width:15px;height:15px;cursor:pointer;flex-shrink:0;';
-                labelEl.prepend(l.input);
-            });
-        });
-
-        /* -------- COLLAPSE TOGGLE -------- */
-        container.querySelectorAll('.lc-group-hdr').forEach(function(hdr){
-            hdr.addEventListener('click', function(){
-                var idx = this.getAttribute('data-toggle');
-                var body = container.querySelector('[data-body="'+idx+'"]');
-                if(body.classList.contains('hidden')){
-                    body.classList.remove('hidden');
-                    this.classList.remove('collapsed');
-                }else{
-                    body.classList.add('hidden');
-                    this.classList.add('collapsed');
-                }
-            });
-        });
-
-        /* -------- SEARCH -------- */
-        var filterInput = container.querySelector('#lc-filter');
-        if(filterInput){
-            filterInput.addEventListener('input', function(){
-                var q = this.value.toLowerCase();
-                container.querySelectorAll('.lc-item').forEach(function(item){
-                    var n = item.getAttribute('data-name')||'';
-                    item.style.display = (!q || n.indexOf(q)>=0) ? 'flex' : 'none';
-                });
-                /* Hide empty groups */
-                container.querySelectorAll('.lc-group').forEach(function(grp){
-                    var visible = grp.querySelectorAll('.lc-item[style*="flex"], .lc-item:not([style])');
-                    grp.style.display = visible.length ? 'block' : 'none';
-                });
-            });
-        }
-
-        /* Keep panel expanded while interacting */
-        panel.addEventListener('mouseenter', function(){ panel.classList.add('leaflet-control-layers-expanded'); });
-    }
-
-    /* Try init after load */
-    if(document.readyState==='complete') setTimeout(initLayerControl,300);
-    else window.addEventListener('load',function(){ setTimeout(initLayerControl,300); });
-})();
-</script>
+    # Injection CSS dans <head> et JS à la fin du <body>
+    inject_html = """
+<link rel="stylesheet" href="/static/css/layer-control-dark.css">
+<script src="/static/js/layer-control-dark.js"></script>
 """
-    map_obj.get_root().html.add_child(Element(custom_lc))
+    map_obj.get_root().html.add_child(Element(inject_html))
+
+
+def _postprocess_map_html(filepath):
+    """Post-traite un fichier HTML Folium sauvé pour assurer l'injection du layer control."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            html = f.read()
+        
+        # Vérifier si déjà injecté
+        if 'layer-control-dark.css' in html:
+            return
+        
+        # Injecter dans <head> le CSS et avant </body> le JS
+        css_link = '<link rel="stylesheet" href="/static/css/layer-control-dark.css">'
+        js_link = '<script src="/static/js/layer-control-dark.js"></script>'
+        
+        if '</head>' in html:
+            html = html.replace('</head>', css_link + '\n</head>')
+        
+        if '</body>' in html:
+            html = html.replace('</body>', js_link + '\n</body>')
+        elif '</html>' in html:
+            html = html.replace('</html>', js_link + '\n</html>')
+        else:
+            html += '\n' + css_link + '\n' + js_link
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(html)
+    except Exception as e:
+        print(f"[LC] Erreur post-process: {e}")
 
 # ─────────── FIN GESTIONNAIRE DE CALQUES ───────────
 
@@ -3652,6 +3423,21 @@ def generated_map():
     # --- S'assurer que le HTML a les bonnes balises meta pour éviter Quirks Mode ---
     if 'charset' not in html.lower():
         html = html.replace('<head>', '<head>\n<meta charset="UTF-8">')
+
+    # --- Injection du layer control dark-mode dans TOUT HTML servi ---
+    if html and 'layer-control-dark.css' not in html:
+        lc_css = '<link rel="stylesheet" href="/static/css/layer-control-dark.css">'
+        lc_js = '<script src="/static/js/layer-control-dark.js"></script>'
+        if '</head>' in html:
+            html = html.replace('</head>', lc_css + '\n</head>')
+        else:
+            html = lc_css + '\n' + html
+        if '</body>' in html:
+            html = html.replace('</body>', lc_js + '\n</body>')
+        elif '</html>' in html:
+            html = html.replace('</html>', lc_js + '\n</html>')
+        else:
+            html += '\n' + lc_js
 
     # --- On renvoie toujours un objet Response ---
     resp = make_response(html)
@@ -6634,6 +6420,7 @@ def rapport_map_point():
             
             carte_fullpath = os.path.join(carte_path, carte_filename)
             map_obj.save(carte_fullpath)
+            _postprocess_map_html(carte_fullpath)
             
             report_data["carte_url"] = f"/static/cartes/{carte_filename}"
             save_map_to_cache(map_obj, report_data)

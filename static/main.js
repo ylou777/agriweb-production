@@ -496,89 +496,115 @@ function updateLeafletLayersControl() {
   const m = getMapFrame();
   if (!m || !m.L || !m.map) return;
   
-  // Détecter d'abord s'il existe déjà un contrôle sur la carte
-  let existingControl = m._layerControl;
+  // === DÉTECTION DU LAYERCONTROL EXISTANT (multi-méthodes) ===
+  let existingControl = m._layerControl || null;
   
   if (!existingControl) {
-    // Méthode plus robuste : chercher dans le DOM ET dans les contrôles de la carte
-    const layerControlElements = m.map._container.querySelectorAll('.leaflet-control-layers');
-    
-    if (layerControlElements.length > 0) {
-      console.log("[DEBUG] Contrôle de calques trouvé dans le DOM, recherche de l'objet correspondant");
-      
-      // Chercher le contrôle dans la carte Leaflet en parcourant tous les contrôles
-      m.map.eachLayer && m.map.eachLayer((layer) => {
-        // Cette méthode ne fonctionne pas pour les contrôles, essayons autre chose
-      });
-      
-      // Méthode alternative : chercher dans ._controlLayers de Leaflet
-      if (m.map._controlLayers) {
-        existingControl = m.map._controlLayers;
-        console.log("[DEBUG] Contrôle trouvé via _controlLayers");
-      } else {
-        // Dernière méthode : utiliser le registre global des contrôles
-        console.log("[DEBUG] Recherche dans le registre global des contrôles");
-        if (window.leafletLayersControl && typeof window.leafletLayersControl.addOverlay === 'function') {
-          existingControl = window.leafletLayersControl;
-          console.log("[DEBUG] Contrôle trouvé via registre global");
-        }
-      }
+    // 1) Propriété Leaflet interne
+    if (m.map._controlLayers && typeof m.map._controlLayers.addOverlay === 'function') {
+      existingControl = m.map._controlLayers;
+      console.log("[DEBUG] Contrôle trouvé via _controlLayers");
     }
   }
   
-  // Utiliser le contrôle existant ou en créer un nouveau
+  if (!existingControl) {
+    // 2) Parcourir les contrôles Leaflet enregistrés
+    try {
+      var controls = m.map._controls || [];
+      for (var i = 0; i < controls.length; i++) {
+        if (controls[i] && typeof controls[i].addOverlay === 'function') {
+          existingControl = controls[i];
+          console.log("[DEBUG] Contrôle trouvé via _controls[]");
+          break;
+        }
+      }
+    } catch(e) {}
+  }
+  
+  if (!existingControl) {
+    // 3) Registre global côté iframe
+    try {
+      const w = document.getElementById('mapFrame')?.contentWindow;
+      if (w) {
+        // Chercher dans le window de l'iframe
+        if (w._layerControl && typeof w._layerControl.addOverlay === 'function') {
+          existingControl = w._layerControl;
+          console.log("[DEBUG] Contrôle trouvé via iframe._layerControl");
+        } else if (w.leafletLayersControl && typeof w.leafletLayersControl.addOverlay === 'function') {
+          existingControl = w.leafletLayersControl;
+          console.log("[DEBUG] Contrôle trouvé via iframe.leafletLayersControl");
+        }
+      }
+    } catch(e) {}
+  }
+  
+  if (!existingControl) {
+    // 4) Registre global parent
+    if (window.leafletLayersControl && typeof window.leafletLayersControl.addOverlay === 'function') {
+      existingControl = window.leafletLayersControl;
+      console.log("[DEBUG] Contrôle trouvé via registre global parent");
+    }
+  }
+
+  // === UTILISER LE CONTRÔLE EXISTANT OU EN CRÉER UN NOUVEAU ===
   if (existingControl) {
     console.log("[DEBUG] Utilisation du contrôle Leaflet existant");
     
-    // Conserver une liste des labels déjà ajoutés pour éviter les doublons
     if (!existingControl._addedLabels) {
       existingControl._addedLabels = new Set();
     }
     
-    // Ajouter les calques dynamiques au contrôle existant
     Object.entries(dynamicLayers).forEach(([layerName, layer]) => {
       const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
       const label = config.label || layerName;
       
-      // Vérifier si le label n'a pas déjà été ajouté
       if (!existingControl._addedLabels.has(label)) {
         existingControl.addOverlay(layer, label);
         existingControl._addedLabels.add(label);
         console.log(`[DEBUG] Ajout du calque "${label}" au contrôle existant`);
-      } else {
-        console.log(`[DEBUG] Calque "${label}" déjà présent dans le contrôle, ignoré`);
       }
     });
     
-    // Sauvegarder la référence pour les prochaines fois
     m._layerControl = existingControl;
     overlaysControl = existingControl;
-    
-    // Sauvegarder aussi dans le registre global
     window.leafletLayersControl = existingControl;
   } else {
     console.log("[DEBUG] Aucun contrôle Leaflet trouvé, création d'un nouveau");
     
-    // Créer un nouveau contrôle
     const bases = (typeof getBaseLayers === 'function') ? getBaseLayers() : {};
-    overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright" }).addTo(m.map);
+    overlaysControl = m.L.control.layers(bases || {}, dynamicLayers, { position: "topright", collapsed: true }).addTo(m.map);
     
-    // Initialiser la liste des labels ajoutés
     overlaysControl._addedLabels = new Set(Object.keys(dynamicLayers).map(layerName => {
       const config = LAYER_CONFIG[layerName.toLowerCase()] || { label: layerName };
       return config.label || layerName;
     }));
     
-    // Sauvegarder la référence dans l'iframe pour les prochaines fois
     m._layerControl = overlaysControl;
-    
-    // Sauvegarder aussi dans le registre global
     window.leafletLayersControl = overlaysControl;
-    
-    // Sauvegarder dans la carte Leaflet elle-même
     m.map._controlLayers = overlaysControl;
   }
   
+  // === RÉINITIALISER LE CUSTOM LAYER CONTROL (si le JS est chargé dans l'iframe) ===
+  try {
+    const iframeWin = document.getElementById('mapFrame')?.contentWindow;
+    if (iframeWin) {
+      // Reset l'init flag pour permettre une réinitialisation
+      const panels = iframeWin.document.querySelectorAll('.leaflet-control-layers');
+      panels.forEach(function(p) { 
+        if (p.dataset) p.dataset.lcInit = ''; 
+        // Supprimer l'ancien custom UI si existant
+        var oldRoot = p.querySelector('.lc-custom-root');
+        if (oldRoot) oldRoot.remove();
+      });
+      // Recharger le custom layer control JS
+      var lcScript = iframeWin.document.createElement('script');
+      lcScript.src = '/static/js/layer-control-dark.js?t=' + Date.now();
+      iframeWin.document.body.appendChild(lcScript);
+    }
+  } catch(e) {
+    console.log("[DEBUG] Impossible de réinit le custom LC:", e);
+  }
+
   // NOUVELLE FONCTIONNALITÉ: Gestion des événements de cochage/décochage
   // Ajouter les écouteurs d'événements seulement s'ils n'existent pas déjà
   if (!m.map._layersControlEventsBound) {
