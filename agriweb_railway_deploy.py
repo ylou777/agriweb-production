@@ -2222,6 +2222,287 @@ def elevation_profile_route():
 
 
 from shapely.geometry import shape, MultiPolygon
+
+# ─────────── GESTIONNAIRE DE CALQUES CUSTOM (dark mode + groupes) ───────────
+def add_styled_layer_control(map_obj, collapsed=True):
+    """
+    Remplace le LayerControl Leaflet par défaut par un panneau
+    dark-mode avec groupes thématiques, recherche et compteur.
+    """
+    from folium import Element
+    folium.LayerControl(collapsed=collapsed).add_to(map_obj)
+
+    custom_lc = r"""
+<style>
+/* === PANNEAU CALQUES : dark-mode Poppins === */
+.leaflet-control-layers{
+    background:transparent!important;border:none!important;box-shadow:none!important;
+    border-radius:0!important;
+}
+.leaflet-control-layers-toggle{
+    width:42px!important;height:42px!important;
+    background:rgba(15,17,23,.92)!important;
+    border-radius:10px!important;border:1px solid rgba(255,255,255,.12)!important;
+    backdrop-filter:blur(12px)!important;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 0l8 4.8-8 4.8L0 4.8 8 0z'/%3E%3Cpath d='M0 7.2l8 4.8 8-4.8v2.4l-8 4.8-8-4.8V7.2z' fill-opacity='.6'/%3E%3Cpath d='M0 11.2l8 4.8 8-4.8v-2.4l-8 4.8-8-4.8v2.4z' fill-opacity='.3'/%3E%3C/svg%3E")!important;
+    background-size:22px 22px!important;background-position:center!important;
+    background-repeat:no-repeat!important;
+    transition:all .2s!important;
+}
+.leaflet-control-layers-toggle:hover{
+    background-color:rgba(59,130,246,.25)!important;
+    border-color:rgba(59,130,246,.5)!important;
+    transform:scale(1.05);
+}
+.leaflet-control-layers-expanded{
+    background:rgba(15,17,23,.95)!important;
+    backdrop-filter:blur(18px)!important;
+    border-radius:14px!important;
+    border:1px solid rgba(255,255,255,.1)!important;
+    box-shadow:0 12px 40px rgba(0,0,0,.5)!important;
+    padding:0!important;
+    min-width:280px!important;max-width:340px!important;
+    max-height:75vh!important;overflow:hidden!important;
+    font-family:'Poppins',system-ui,sans-serif!important;
+}
+/* Header injecté par JS */
+.lc-header{
+    background:linear-gradient(135deg,#3b82f6,#6366f1);
+    color:#fff;padding:14px 16px;
+    font-weight:600;font-size:14px;
+    display:flex;align-items:center;justify-content:space-between;
+    border-radius:14px 14px 0 0;letter-spacing:.3px;
+    user-select:none;
+}
+.lc-header .lc-count{
+    background:rgba(255,255,255,.2);padding:2px 10px;
+    border-radius:20px;font-size:11px;font-weight:500;
+}
+/* Barre recherche */
+.lc-search{
+    padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.lc-search input{
+    width:100%;padding:7px 12px;border-radius:8px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+    color:#e2e8f0;font-size:12px;font-family:'Poppins',sans-serif;
+    outline:none;transition:border .2s;
+}
+.lc-search input:focus{border-color:rgba(59,130,246,.5);}
+.lc-search input::placeholder{color:rgba(255,255,255,.3);}
+/* Contenu scrollable */
+.lc-scroll{
+    max-height:calc(75vh - 110px);overflow-y:auto;padding:6px 0;
+}
+.lc-scroll::-webkit-scrollbar{width:5px;}
+.lc-scroll::-webkit-scrollbar-track{background:transparent;}
+.lc-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px;}
+/* Groupes */
+.lc-group{margin:4px 10px;border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden;}
+.lc-group-hdr{
+    display:flex;align-items:center;gap:8px;
+    padding:9px 12px;cursor:pointer;
+    background:rgba(255,255,255,.04);
+    font-size:12px;font-weight:600;color:#94a3b8;
+    transition:background .15s;user-select:none;
+}
+.lc-group-hdr:hover{background:rgba(59,130,246,.08);}
+.lc-group-hdr .lc-chevron{
+    margin-left:auto;transition:transform .2s;font-size:10px;
+}
+.lc-group-hdr.collapsed .lc-chevron{transform:rotate(-90deg);}
+.lc-group-body{padding:2px 4px 6px;}
+.lc-group-body.hidden{display:none;}
+/* Items calques */
+.lc-item{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 10px;border-radius:6px;
+    transition:background .12s;cursor:pointer;
+}
+.lc-item:hover{background:rgba(59,130,246,.08);}
+.lc-item label{
+    display:flex;align-items:center;gap:8px;
+    cursor:pointer;flex:1;margin:0;
+    font-size:12px;color:#cbd5e1;font-weight:400;
+}
+.lc-item input[type=checkbox],
+.lc-item input[type=radio]{
+    accent-color:#3b82f6;width:15px;height:15px;
+    cursor:pointer;flex-shrink:0;
+}
+.lc-item .lc-dot{
+    width:10px;height:10px;border-radius:50%;flex-shrink:0;
+}
+/* Séparateur base/overlays */
+.leaflet-control-layers-separator{display:none!important;}
+/* Cacher le contenu original (remplacé par JS) */
+.leaflet-control-layers-list{display:none!important;}
+</style>
+
+<script>
+(function(){
+    /* Attendre que le DOM et Leaflet soient prêts */
+    function initLayerControl(){
+        var panel = document.querySelector('.leaflet-control-layers-expanded')
+                 || document.querySelector('.leaflet-control-layers');
+        if(!panel) return;
+
+        var list = panel.querySelector('.leaflet-control-layers-list');
+        if(!list) return;
+
+        /* -------- COLLECTER COUCHES -------- */
+        var baseLayers=[], overlays=[];
+        list.querySelectorAll('.leaflet-control-layers-base label').forEach(function(lbl){
+            var inp = lbl.querySelector('input');
+            var txt = lbl.textContent.trim().replace(/^\s+/,'');
+            baseLayers.push({el:lbl,input:inp,name:txt});
+        });
+        list.querySelectorAll('.leaflet-control-layers-overlays label').forEach(function(lbl){
+            var inp = lbl.querySelector('input');
+            var txt = lbl.textContent.trim().replace(/^\s+/,'');
+            overlays.push({el:lbl,input:inp,name:txt});
+        });
+
+        var totalCount = baseLayers.length + overlays.length;
+
+        /* -------- GROUPES THÉMATIQUES -------- */
+        var groups = [
+            {icon:'🗺️', title:'Fonds de carte',      match:/^(Satellite|Fond OSM|OpenStreetMap)/i, layers:baseLayers, isBase:true},
+            {icon:'📐', title:'Cadastre & Parcelles', match:/cadastre|parcell/i, layers:[]},
+            {icon:'🏗️', title:'Urbanisme & PLU',      match:/urbanisme|plu|zone urba|prescription|secteur|info surf/i, layers:[]},
+            {icon:'⚡', title:'Énergie & Réseau',     match:/poste|bt|hta|capac|potentiel solaire|enedis/i, layers:[]},
+            {icon:'🌿', title:'Environnement',        match:/natur|ppri|georisques|zaer/i, layers:[]},
+            {icon:'🐄', title:'Agriculture',          match:/rpg|éleveur|agri/i, layers:[]},
+            {icon:'🏢', title:'Activités & Commerce', match:/sirene|entreprise|parking|friche/i, layers:[]},
+        ];
+        var otherGroup = {icon:'📌', title:'Autres couches', match:null, layers:[]};
+
+        overlays.forEach(function(o){
+            var placed = false;
+            for(var i=0;i<groups.length;i++){
+                if(groups[i].match && groups[i].match.test(o.name)){
+                    groups[i].layers.push(o); placed=true; break;
+                }
+            }
+            if(!placed) otherGroup.layers.push(o);
+        });
+        if(otherGroup.layers.length) groups.push(otherGroup);
+
+        /* -------- DOT COLORS -------- */
+        function dotColor(name){
+            var n=name.toLowerCase();
+            if(/satellite|imagery/i.test(n)) return '#6366f1';
+            if(/osm/i.test(n)) return '#22c55e';
+            if(/cadastre|parcell/i.test(n)) return '#f59e0b';
+            if(/urbanisme|plu|zone urba/i.test(n)) return '#8b5cf6';
+            if(/prescription/i.test(n)) return '#a78bfa';
+            if(/bt/i.test(n)) return '#22d3ee';
+            if(/hta|capac/i.test(n)) return '#f97316';
+            if(/solaire/i.test(n)) return '#fbbf24';
+            if(/ppri/i.test(n)) return '#ef4444';
+            if(/georisques/i.test(n)) return '#dc2626';
+            if(/zaer/i.test(n)) return '#10b981';
+            if(/natur/i.test(n)) return '#34d399';
+            if(/rpg/i.test(n)) return '#84cc16';
+            if(/éleveur/i.test(n)) return '#a3e635';
+            if(/sirene|entreprise/i.test(n)) return '#3b82f6';
+            if(/parking/i.test(n)) return '#64748b';
+            if(/friche/i.test(n)) return '#78716c';
+            return '#94a3b8';
+        }
+
+        /* -------- BUILD HTML -------- */
+        var html = '';
+        html += '<div class="lc-header"><span>🗂️ Calques</span><span class="lc-count">'+totalCount+'</span></div>';
+        html += '<div class="lc-search"><input type="text" placeholder="Rechercher un calque…" id="lc-filter"></div>';
+        html += '<div class="lc-scroll" id="lc-scroll">';
+
+        groups.forEach(function(g, gi){
+            if(!g.layers || !g.layers.length) return;
+            html += '<div class="lc-group" data-group="'+gi+'">';
+            html += '<div class="lc-group-hdr" data-toggle="'+gi+'">'+g.icon+' '+g.title+' <span style="margin-left:4px;font-weight:400;color:rgba(255,255,255,.3);font-size:11px">('+g.layers.length+')</span><span class="lc-chevron">▼</span></div>';
+            html += '<div class="lc-group-body" data-body="'+gi+'">';
+            g.layers.forEach(function(l, li){
+                var id = 'lc-'+gi+'-'+li;
+                html += '<div class="lc-item" data-name="'+l.name.toLowerCase()+'">';
+                html += '<label for="'+id+'">';
+                html += '<span class="lc-dot" style="background:'+dotColor(l.name)+'"></span>';
+                html += l.name;
+                html += '</label>';
+                html += '</div>';
+            });
+            html += '</div></div>';
+        });
+        html += '</div>';
+
+        /* -------- INJECT -------- */
+        var container = document.createElement('div');
+        container.innerHTML = html;
+        container.style.cssText = 'display:flex;flex-direction:column;';
+
+        /* list is hidden via CSS, insert custom UI before it */
+        panel.insertBefore(container, list);
+
+        /* -------- WIRE CHECKBOXES -------- */
+        groups.forEach(function(g, gi){
+            g.layers.forEach(function(l, li){
+                var item = container.querySelector('[data-group="'+gi+'"] .lc-item:nth-child('+(li+1)+')');
+                if(!item || !l.input) return;
+                /* Clone the original input into our custom item */
+                var labelEl = item.querySelector('label');
+                var id = 'lc-'+gi+'-'+li;
+                l.input.id = id;
+                l.input.style.cssText = 'accent-color:#3b82f6;width:15px;height:15px;cursor:pointer;flex-shrink:0;';
+                labelEl.prepend(l.input);
+            });
+        });
+
+        /* -------- COLLAPSE TOGGLE -------- */
+        container.querySelectorAll('.lc-group-hdr').forEach(function(hdr){
+            hdr.addEventListener('click', function(){
+                var idx = this.getAttribute('data-toggle');
+                var body = container.querySelector('[data-body="'+idx+'"]');
+                if(body.classList.contains('hidden')){
+                    body.classList.remove('hidden');
+                    this.classList.remove('collapsed');
+                }else{
+                    body.classList.add('hidden');
+                    this.classList.add('collapsed');
+                }
+            });
+        });
+
+        /* -------- SEARCH -------- */
+        var filterInput = container.querySelector('#lc-filter');
+        if(filterInput){
+            filterInput.addEventListener('input', function(){
+                var q = this.value.toLowerCase();
+                container.querySelectorAll('.lc-item').forEach(function(item){
+                    var n = item.getAttribute('data-name')||'';
+                    item.style.display = (!q || n.indexOf(q)>=0) ? 'flex' : 'none';
+                });
+                /* Hide empty groups */
+                container.querySelectorAll('.lc-group').forEach(function(grp){
+                    var visible = grp.querySelectorAll('.lc-item[style*="flex"], .lc-item:not([style])');
+                    grp.style.display = visible.length ? 'block' : 'none';
+                });
+            });
+        }
+
+        /* Keep panel expanded while interacting */
+        panel.addEventListener('mouseenter', function(){ panel.classList.add('leaflet-control-layers-expanded'); });
+    }
+
+    /* Try init after load */
+    if(document.readyState==='complete') setTimeout(initLayerControl,300);
+    else window.addEventListener('load',function(){ setTimeout(initLayerControl,300); });
+})();
+</script>
+"""
+    map_obj.get_root().html.add_child(Element(custom_lc))
+
+# ─────────── FIN GESTIONNAIRE DE CALQUES ───────────
+
 def build_simple_map(
     lat, lon, address,
     parcelle_props, parcelles_data,
@@ -2418,7 +2699,7 @@ def build_simple_map(
     ).add_to(map_obj)
     
     # Contrôle des couches
-    folium.LayerControl().add_to(map_obj)
+    add_styled_layer_control(map_obj)
     
     # Zoom approprié
     map_obj.fit_bounds([[lat-0.002, lon-0.002], [lat+0.002, lon+0.002]])
@@ -2435,7 +2716,8 @@ def build_map(
     api_cadastre=None, api_nature=None, api_urbanisme=None,
     eleveurs_data=None,
     capacites_reseau=None,
-    ppri_data=None  # Ajout PPRI
+    ppri_data=None,  # Ajout PPRI
+    skip_layer_control=False
 ):
     import folium
     from folium.plugins import Draw, MeasureControl, MarkerCluster
@@ -3126,8 +3408,8 @@ def build_map(
         
         map_obj.add_child(nat_grp)
 
-    if not mode_light:
-        folium.LayerControl().add_to(map_obj)
+    if not mode_light and not skip_layer_control:
+        add_styled_layer_control(map_obj)
 
     # --- Zoom sur emprise calculée ---
     bounds = None
@@ -3311,7 +3593,7 @@ def generated_map():
             icon=folium.Icon(color='red', icon='info-sign')
         ).add_to(map_obj)
 
-        folium.LayerControl().add_to(map_obj)
+        add_styled_layer_control(map_obj)
         html = map_obj._repr_html_()
 
     # --- Corriger le DOCTYPE pour toute carte existante aussi ---
@@ -3355,7 +3637,7 @@ def generated_map():
             show=False
         ).add_to(map_obj)
 
-        folium.LayerControl().add_to(map_obj)
+        add_styled_layer_control(map_obj)
         html = map_obj._repr_html_()
 
     # --- Corriger le DOCTYPE pour éviter le mode Quirks ---
@@ -6245,7 +6527,8 @@ def rapport_map_point():
                 report_data.get("api_nature"),
                 report_data.get("api_urbanisme"),
                 eleveurs_data=report_data.get("eleveurs", []),
-                ppri_data=ppri_data
+                ppri_data=ppri_data,
+                skip_layer_control=True  # LayerControl ajouté après GeoRisques
             )
             
             # === AJOUT MARQUEURS GEORISQUES SUR LA CARTE ===
@@ -6341,6 +6624,9 @@ def rapport_map_point():
                         log_step("CARTE", f"✅ {markers_added} marqueur(s) GeoRisques ajoutés sur la carte", "SUCCESS")
             except Exception as geo_map_e:
                 log_step("CARTE", f"⚠️ Erreur ajout marqueurs GeoRisques: {geo_map_e}", "WARNING")
+            
+            # === AJOUT LAYER CONTROL APRÈS TOUTES LES COUCHES ===
+            add_styled_layer_control(map_obj)
             
             carte_filename = f"rapport_point_{timestamp}.html"
             carte_path = os.path.join(app.root_path, "static", "cartes")
@@ -6751,7 +7037,7 @@ def compute_commune_report(
     if result["eleveurs"]["features"]:
         folium.GeoJson(result["eleveurs"], name="Éleveurs").add_to(m)
 
-    folium.LayerControl().add_to(m)
+    add_styled_layer_control(m)
 
     # Enregistre la carte dans static/cartes/
     from datetime import datetime
@@ -11847,7 +12133,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
             add_postes(postes_bt_data, "Postes BT", "#006400")
             add_postes(postes_hta_data, "Postes HTA", "#FF8C00")
 
-            folium.LayerControl().add_to(m)
+            add_styled_layer_control(m)
 
             # Sauvegarder la carte
             def _slugify(txt: str) -> str:
