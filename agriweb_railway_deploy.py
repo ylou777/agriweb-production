@@ -6248,6 +6248,100 @@ def rapport_map_point():
                 ppri_data=ppri_data
             )
             
+            # === AJOUT MARQUEURS GEORISQUES SUR LA CARTE ===
+            try:
+                georisques = report_data.get("georisques_risks", {})
+                if georisques and map_obj:
+                    import folium
+                    georisques_fg = folium.FeatureGroup(name="⚠️ GeoRisques", show=True)
+                    markers_added = 0
+                    
+                    # Couleurs par catégorie
+                    cat_config = {
+                        'installations': {'color': '#ef4444', 'icon': 'industry', 'prefix': 'fa', 'label': 'ICPE'},
+                        'cavites': {'color': '#f59e0b', 'icon': 'circle-exclamation', 'prefix': 'fa', 'label': 'Cavité'},
+                        'mvt': {'color': '#8b5cf6', 'icon': 'arrows-up-down', 'prefix': 'fa', 'label': 'Mvt terrain'},
+                        'ssp_casias': {'color': '#6b7280', 'icon': 'flask', 'prefix': 'fa', 'label': 'Site pollué'},
+                        'casias_detaille': {'color': '#6b7280', 'icon': 'flask', 'prefix': 'fa', 'label': 'Site pollué'},
+                        'nucleaire': {'color': '#dc2626', 'icon': 'radiation', 'prefix': 'fa', 'label': 'Nucléaire'},
+                        'tim': {'color': '#ea580c', 'icon': 'truck', 'prefix': 'fa', 'label': 'TMD'},
+                    }
+                    
+                    for category_key, risks in georisques.items():
+                        if not risks:
+                            continue
+                        config = cat_config.get(category_key, {'color': '#f59e0b', 'icon': 'exclamation-triangle', 'prefix': 'fa', 'label': category_key})
+                        
+                        for risk in risks:
+                            # Récupérer les coordonnées (différents noms de champs)
+                            rlat = risk.get('latitude') or risk.get('Latitude') or risk.get('lat')
+                            rlon = risk.get('longitude') or risk.get('Longitude') or risk.get('lon')
+                            
+                            if rlat and rlon:
+                                try:
+                                    rlat = float(rlat)
+                                    rlon = float(rlon)
+                                except (ValueError, TypeError):
+                                    continue
+                                
+                                # Nom de l'élément
+                                name = (risk.get('raisonsociale') or risk.get('nom') or 
+                                        risk.get('libelle_risque_long') or risk.get('libelle') or
+                                        risk.get('lib_alea') or risk.get('type_risque') or
+                                        f"{config['label']} #{markers_added+1}")
+                                
+                                # Popup HTML compact
+                                popup_parts = [f"<div style='min-width:200px;max-width:300px;font-family:Poppins,sans-serif;font-size:13px'>"]
+                                popup_parts.append(f"<div style='font-weight:600;font-size:14px;margin-bottom:6px;color:{config['color']}'>{name}</div>")
+                                popup_parts.append(f"<div style='background:#f0f0f0;padding:3px 8px;border-radius:4px;display:inline-block;font-size:11px;margin-bottom:6px'>{config['label']}</div>")
+                                
+                                # Champs essentiels selon la catégorie
+                                if category_key == 'installations':
+                                    for k in ['adresse1', 'codepostal', 'commune', 'statutseveso', 'regime', 'etatactivite']:
+                                        v = risk.get(k)
+                                        if v:
+                                            popup_parts.append(f"<div><small style='color:#888'>{k.replace('_',' ').title()}:</small> {v}</div>")
+                                else:
+                                    # Champs génériques essentiels
+                                    exclude = {'geometry', 'geom', 'latitude', 'longitude', 'lat', 'lon', 
+                                               'code_insee', 'codeinsee', 'libelle_commune', 'commune',
+                                               'coordonneexaiot', 'coordonneeyaiot', 'systemecoordonneesaiot',
+                                               'inspections', 'documentshorsinspection', 'rubriques',
+                                               'serviceaiot', 'codeaiot', 'siret', 'codenaf', 'date_maj',
+                                               'raisonsociale', 'nom', 'libelle_risque_long', 'libelle',
+                                               'lib_alea', 'type_risque'}
+                                    shown = 0
+                                    for k, v in risk.items():
+                                        if k.lower() in exclude or not v or v == '':
+                                            continue
+                                        if isinstance(v, (dict, list)):
+                                            continue
+                                        popup_parts.append(f"<div><small style='color:#888'>{k.replace('_',' ').title()}:</small> {str(v)[:80]}</div>")
+                                        shown += 1
+                                        if shown >= 5:
+                                            break
+                                
+                                popup_parts.append("</div>")
+                                popup_html = "".join(popup_parts)
+                                
+                                folium.Marker(
+                                    [rlat, rlon],
+                                    popup=folium.Popup(popup_html, max_width=320),
+                                    tooltip=f"{config['label']}: {name[:40]}",
+                                    icon=folium.Icon(color='red' if config['color'] == '#ef4444' else 
+                                                     'orange' if config['color'] in ['#f59e0b', '#ea580c'] else
+                                                     'purple' if config['color'] == '#8b5cf6' else
+                                                     'gray' if config['color'] == '#6b7280' else 'red',
+                                                     icon='exclamation-triangle', prefix='fa')
+                                ).add_to(georisques_fg)
+                                markers_added += 1
+                    
+                    if markers_added > 0:
+                        georisques_fg.add_to(map_obj)
+                        log_step("CARTE", f"✅ {markers_added} marqueur(s) GeoRisques ajoutés sur la carte", "SUCCESS")
+            except Exception as geo_map_e:
+                log_step("CARTE", f"⚠️ Erreur ajout marqueurs GeoRisques: {geo_map_e}", "WARNING")
+            
             carte_filename = f"rapport_point_{timestamp}.html"
             carte_path = os.path.join(app.root_path, "static", "cartes")
             os.makedirs(carte_path, exist_ok=True)
@@ -6277,6 +6371,22 @@ def rapport_map_point():
         # 3. CRUCIAL : Collecte données contextuelles (altitude, PVGIS, APIs)
         log_step("EXEC", "🚀 Collecte des données contextuelles")
         collect_context_data()
+        
+        # 3.5. AJOUT DONNÉES GEORISQUES (avant carte pour affichage sur la carte)
+        log_step("GEORISQUES", "Récupération des données GeoRisques...")
+        try:
+            georisques_risks = fetch_georisques_risks(lat_float, lon_float)
+            if georisques_risks:
+                report_data["georisques_risks"] = georisques_risks
+                log_step("TEMPLATE", f"✅ report_data.georisques_risks: {len(georisques_risks)} catégories")
+                total = sum(len(risks) for risks in georisques_risks.values() if risks)
+                log_step("TEMPLATE", f"✅ Total risques: {total}")
+            else:
+                report_data["georisques_risks"] = {}
+                log_step("TEMPLATE", "⚠️ Aucun risque GeoRisques retourné")
+        except Exception as geo_e:
+            log_step("GEORISQUES", f"❌ Erreur récupération GeoRisques: {geo_e}", "ERROR")
+            report_data["georisques_risks"] = {}
         
         # 4. Génération carte
         log_step("EXEC", "🚀 Génération de la carte")
@@ -6320,23 +6430,6 @@ def rapport_map_point():
         log_step("TEMPLATE", f"✅ report_data.api_details: {bool(report_data.get('api_details'))}")
         log_step("TEMPLATE", f"✅ report_data.eleveurs: {len(report_data.get('eleveurs', []))}")
         log_step("TEMPLATE", f"✅ report_data.commune_name: {report_data.get('commune_name', 'MISSING')}")
-        
-        # === AJOUT DONNÉES GEORISQUES ===
-        log_step("GEORISQUES", "Récupération des données GeoRisques...")
-        try:
-            georisques_risks = fetch_georisques_risks(lat_float, lon_float)
-            if georisques_risks:
-                report_data["georisques_risks"] = georisques_risks
-                log_step("TEMPLATE", f"✅ report_data.georisques_risks: {len(georisques_risks)} catégories")
-                # Comptage des risques pour debug
-                total = sum(len(risks) for risks in georisques_risks.values() if risks)
-                log_step("TEMPLATE", f"✅ Total risques: {total}")
-            else:
-                report_data["georisques_risks"] = {}
-                log_step("TEMPLATE", "⚠️ Aucun risque GeoRisques retourné")
-        except Exception as geo_e:
-            log_step("GEORISQUES", f"❌ Erreur récupération GeoRisques: {geo_e}", "ERROR")
-            report_data["georisques_risks"] = {}
         
         # 🎯 CRUCIAL: Return du template avec les données
         return render_template("rapport_point.html", report=report_data)
