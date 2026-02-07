@@ -1474,13 +1474,15 @@ async function handleUnifiedSearch(e) {
     window.lastSearchData = data;
     
     // Fonction pour afficher les couches une fois l'iframe prête
-    const applyLayersAndZoom = () => {
-      logSearch('🎨 Affichage des couches de données...');
-      try {
-        displayAllLayers(data);
-      } catch (displayErr) {
-        console.error('[handleUnifiedSearch] Erreur displayAllLayers:', displayErr);
-        logSearch('⚠️ Certaines couches n\'ont pas pu être affichées', 'warning');
+    const applyLayersAndZoom = (skipLayers) => {
+      if (!skipLayers) {
+        logSearch('🎨 Affichage des couches de données...');
+        try {
+          displayAllLayers(data);
+        } catch (displayErr) {
+          console.error('[handleUnifiedSearch] Erreur displayAllLayers:', displayErr);
+          logSearch('⚠️ Certaines couches n\'ont pas pu être affichées', 'warning');
+        }
       }
       try {
         updateInfoPanel([data]);
@@ -1502,13 +1504,16 @@ async function handleUnifiedSearch(e) {
       logSearch('🗺️ Chargement de la carte interactive...');
       console.log("[DEBUG] Chargement nouvelle carte:", data.carte_url);
       const iframe = document.getElementById("mapFrame");
-      // Force le rechargement avec cache bust
       const newSrc = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 'cache=' + Date.now();
       console.log("[DEBUG] URL finale iframe:", newSrc);
-      // Attendre que l'iframe finisse de charger avant d'ajouter les couches
+      // Reset les couches dynamiques car Folium a déjà tout
+      dynamicLayers = {};
+      window.leafletLayersControl = null;
+      // Attendre que l'iframe finisse de charger
       iframe.onload = () => {
-        console.log("[DEBUG] Iframe chargée, application des couches...");
-        setTimeout(applyLayersAndZoom, 150);
+        console.log("[DEBUG] Iframe Folium chargée, skip displayAllLayers (Folium a déjà toutes les couches)");
+        // skipLayers=true car la carte Folium contient déjà toutes les couches
+        setTimeout(() => applyLayersAndZoom(true), 150);
       };
       iframe.src = newSrc;
     } else {
@@ -1659,14 +1664,16 @@ async function handleCommuneSearch(e) {
         return;
       }
       // Fonction pour appliquer couches + zoom une fois iframe prête
-      const applyCommuneLayers = () => {
+      const applyCommuneLayers = (skipLayers) => {
         setCommuneSearchLog('🖼️ Affichage des résultats...', '#198754');
         try {
           window.lastCommuneSearch = { commune: commune, timestamp: Date.now() };
         } catch (storageError) {
           console.warn('⚠️ [STORAGE] Impossible de sauvegarder lastCommuneSearch:', storageError);
         }
-        displayAllLayers(data);
+        if (!skipLayers) {
+          displayAllLayers(data);
+        }
         updateInfoPanel([data]);
         const m = getMapFrame();
         if (data.lat && data.lon && m?.setView) m.setView(data.lat, data.lon, 13);
@@ -1678,22 +1685,26 @@ async function handleCommuneSearch(e) {
         const iframe = document.getElementById('mapFrame');
         if (iframe) {
           try {
+            // Reset les couches dynamiques car Folium a déjà tout
+            dynamicLayers = {};
+            window.leafletLayersControl = null;
             const newSrc = data.carte_url + (data.carte_url.includes('?') ? '&' : '?') + 't=' + Date.now();
             iframe.onload = () => {
-              console.log('✅ [IFRAME] Carte commune chargée, application des couches...');
-              setTimeout(applyCommuneLayers, 150);
+              console.log('✅ [IFRAME] Carte commune Folium chargée, skip displayAllLayers');
+              // skipLayers=true car Folium a déjà toutes les couches
+              setTimeout(() => applyCommuneLayers(true), 150);
             };
             iframe.src = newSrc;
             console.log('✅ [IFRAME] Chargement lancé:', newSrc);
           } catch (storageError) {
             console.warn('⚠️ [STORAGE] Erreur accès storage (Tracking Prevention):', storageError);
             iframe.src = data.carte_url;
-            setTimeout(applyCommuneLayers, 500);
+            setTimeout(() => applyCommuneLayers(true), 500);
           }
         }
       } else {
         // Pas de carte_url, appliquer directement
-        applyCommuneLayers();
+        applyCommuneLayers(false);
       }
       setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
       
