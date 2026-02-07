@@ -187,3 +187,16 @@
 /* ── CACHER L'ORIGINAL LEAFLET (sera remplacé par le JS) ── */
 .leaflet-control-layers-separator { display: none !important; }
 .leaflet-control-layers-list { display: none !important; }
+
+/* ── MASQUER LE PANNEAU CUSTOM QUAND CONTRÔLE REPLIÉ ── */
+.leaflet-control-layers .lc-custom-root {
+    display: none;
+}
+.leaflet-control-layers-expanded .lc-custom-root {
+    display: block;
+}
+
+/* ── TOGGLE CACHÉ QUAND DÉPLIÉ (Leaflet le fait aussi, renforcement) ── */
+.leaflet-control-layers-expanded .leaflet-control-layers-toggle {
+    display: none !important;
+}
