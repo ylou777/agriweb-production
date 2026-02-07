@@ -4,10 +4,8 @@
   <meta charset="UTF-8">
   <title>Carte Départementale dynamique (map1)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Feuilles de style Leaflet, Draw, Measure -->
+  <!-- Feuilles de style Leaflet -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-measure@3.3.0/dist/leaflet-measure.css"/>
   <link rel="icon" href="https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png">
   <link rel="stylesheet" href="/static/css/layer-control-dark.css"/>
   <style>
@@ -34,8 +32,7 @@
       .summary-bar { font-size: 13px; min-width: 120px; padding: 4px 10px; }
       .custom-popup { font-size: 13px; min-width: 140px; max-width: 98vw; }
     }
-    .leaflet-draw-toolbar-top { top: 68px !important; }
-    .leaflet-control-measure { margin-top: 6px !important; }
+
   </style>
 </head>
 <body>
@@ -43,8 +40,6 @@
   <div class="summary-bar" id="summaryBar" style="display:none"></div>
   <!-- JS (attention à bien utiliser leaflet-measure@3.3.0) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
-  <script src="https://unpkg.com/leaflet-measure@3.1.0/dist/leaflet-measure.js"></script>
   <script>
     // Icônes personnalisées
     const iconBt = L.icon({iconUrl: "data:image/svg+xml;base64,"+btoa(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><polygon points='23,3 5,27 18,27 14,37 35,14 20,14' fill='#ffd700' stroke='#c6a200' stroke-width='2'/></svg>`),iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-20]});
@@ -71,77 +66,14 @@
     window.addEventListener("resize", resizeMap);
     setTimeout(resizeMap, 60);
 
-    // === LEAFLET DRAW
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-    const drawControl = new L.Control.Draw({
-      edit: { featureGroup: drawnItems },
-      draw: {
-        polygon: { allowIntersection: false, showArea: true, shapeOptions: { color: '#2b7a78' }},
-        polyline: { shapeOptions: { color: '#2b7a78' }},
-        rectangle: { shapeOptions: { color: '#3a506b' }},
-        circle: { shapeOptions: { color: '#f4b860' }},
-        marker: { icon: iconFeuille }
-      }
-    });
-    map.addControl(drawControl);
-
-    // MESURE
-    L.control.measure({
-      primaryLengthUnit: 'meters',
-      secondaryLengthUnit: 'kilometers',
-      primaryAreaUnit: 'sqmeters',
-      secondaryAreaUnit: 'hectares',
-      activeColor: '#2b7a78',
-      completedColor: '#ca3c25',
-      localization: 'fr',
-      position: 'topright'
-    }).addTo(map);
-
-    // --- Events dessin
-    map.on(L.Draw.Event.CREATED, function (e) {
-      const layer = e.layer;
-      drawnItems.addLayer(layer);
-      let gtype = e.layerType.charAt(0).toUpperCase() + e.layerType.slice(1);
-      layer.bindPopup(
-        `<div class="custom-popup">
-          <div class="popup-title" style="color:#2b7a78">${gtype} dessiné</div>
-          <div class="popup-block">Vous pouvez éditer ou supprimer cette forme.<br>
-          <button onclick="exportDrawnGeoJSON()" class="btn btn-sm btn-outline-success mt-2">Exporter en GeoJSON</button></div>
-        </div>`, {maxWidth: 300}
-      );
-    });
-    map.on('draw:deleted', updateSummaryBar);
-    drawnItems.on('layeradd', updateSummaryBar);
-    drawnItems.on('layerremove', updateSummaryBar);
-
-    // Export GeoJSON des dessins utilisateur
-    window.exportDrawnGeoJSON = function() {
-      const data = drawnItems.toGeoJSON();
-      const txt = JSON.stringify(data, null, 2);
-      const blob = new Blob([txt], {type: "application/json"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "dessins_leaflet.geojson";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    };
-
     // Résumé dynamique (nb objets)
     function updateSummaryBar() {
-      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0) +
-                drawnItems.getLayers().length;
+      const n = window._layers.reduce((acc, l) => acc + (l.getLayers ? l.getLayers().length : 0), 0);
       let communes = new Set();
       window._layers.forEach(l => l.eachLayer?.(lyr => {
         if(lyr.feature?.properties?.commune) communes.add(lyr.feature.properties.commune);
         if(lyr.feature?.properties?.libelleCom) communes.add(lyr.feature.properties.libelleCom);
       }));
-      drawnItems.eachLayer(l => {
-        if (l.feature?.properties?.commune) communes.add(l.feature.properties.commune);
-      });
       let bar = document.getElementById('summaryBar');
       bar.innerHTML = `<b>Objets affichés :</b> ${n}${communes.size>0?` &nbsp;|&nbsp; <b>Communes :</b> ${communes.size}`:""}`
       bar.style.display = n>0 ? "" : "none";
@@ -151,7 +83,6 @@
     window.clearMap = function() {
       window._layers.forEach(l => map.removeLayer(l));
       window._layers = [];
-      drawnItems.clearLayers();
       updateSummaryBar();
     };
 

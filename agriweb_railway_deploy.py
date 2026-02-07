@@ -263,7 +263,7 @@ from flask import (
     make_response, Response, stream_with_context, redirect
 )
 import folium
-from folium.plugins import Draw, MeasureControl, MarkerCluster, Search
+from folium.plugins import MarkerCluster, Search
 from shapely.geometry import shape, mapping, Point
 from shapely.ops import transform as shp_transform
 from shapely.errors import GEOSException
@@ -2285,7 +2285,6 @@ def build_simple_map(
     - La distance au poste le plus proche
     """
     import folium
-    from folium.plugins import Draw, MeasureControl
     from pyproj import Transformer
     from shapely.geometry import shape, mapping
     
@@ -2311,10 +2310,7 @@ def build_simple_map(
     ).add_to(map_obj)
     folium.TileLayer("OpenStreetMap", name="Fond OSM", overlay=False, control=True, show=False).add_to(map_obj)
     
-    # Outils
-    from folium.plugins import Draw
-    Draw(export=True).add_to(map_obj)
-    MeasureControl(position="topright").add_to(map_obj)
+    # (Draw et MeasureControl retirés — inutiles pour l'utilisateur final)
     
     # 1. PARCELLE CADASTRALE CENTRALE avec numéro
     cadastre_group = folium.FeatureGroup(name="Parcelle Cadastrale", show=True)
@@ -2489,7 +2485,7 @@ def build_map(
     skip_layer_control=False
 ):
     import folium
-    from folium.plugins import Draw, MeasureControl, MarkerCluster
+    from folium.plugins import MarkerCluster
     from pyproj import Transformer
     from shapely.geometry import shape, mapping, MultiPolygon
     from utils import decode_rpg_feature, bbox_to_polygon, shp_transform
@@ -2567,10 +2563,7 @@ def build_map(
     # Option: mode léger (pas de LayerControl, pas de Marker inutile)
     mode_light = False  # Désactivé par défaut
     
-    if not mode_light:
-        from folium.plugins import Draw
-        Draw(export=True).add_to(map_obj)
-        MeasureControl(position="topright").add_to(map_obj)
+    # (Draw et MeasureControl retirés — inutiles pour l'utilisateur final)
 
     # Cadastre
     cadastre_group = folium.FeatureGroup(name="Cadastre (WFS)", show=True)
