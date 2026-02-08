@@ -15375,7 +15375,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     if not geom:
                         continue
                     try:
-                        # compute centroid for parcelles/address/Street View
+                        # compute centroid for Street View / reverse geocoding
                         try:
                             shp = shape(geom)
                             c = shp.centroid
@@ -15384,22 +15384,13 @@ def generate_integrated_commune_report(commune_name, filters=None):
                             lat_c = props.get("lat")
                             lon_c = props.get("lon")
 
-                        # Try geometry-based parcel matching first; fallback to centroid-based
-                        parc_refs = _parcelles_for_geom(geom) or (
-                            _parcelles_for_point(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else []
-                        )
-                        # Fallback API query around the feature if cache missed parcels
-                        if not parc_refs and (lat_c is not None and lon_c is not None):
-                            parc_refs = _parcelles_from_api_near(lon_c, lat_c)
-                        parcelles_txt = _join_parcelles(parc_refs)
-                        addr_txt = props.get("adresse") or ""
-                        if not addr_txt or addr_txt in ("Adresse non trouvée", "Erreur géocodage", "N/A", ""):
-                            addr_txt = _reverse_address(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else ""
-
                         # ── Build rich HTML popup matching commune search map ──
                         popup_lines = []
 
-                        # 📍 Adresse
+                        # 📍 Adresse — use existing prop or reverse geocode
+                        addr_txt = props.get("adresse") or props.get("addr:full") or props.get("addr:street") or ""
+                        if not addr_txt or addr_txt in ("Adresse non trouvée", "Erreur géocodage", "N/A"):
+                            addr_txt = _reverse_address(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else ""
                         if addr_txt and addr_txt not in ("Adresse non trouvée", "Erreur géocodage", "N/A", ""):
                             popup_lines.append(f"<b>{cfg['emoji']} Adresse:</b> {addr_txt}")
                             ville = props.get("ville") or props.get("addr:city") or ""
@@ -15410,15 +15401,15 @@ def generate_integrated_commune_report(commune_name, filters=None):
                                 popup_lines.append(f"<b>📮 Code postal:</b> {code_postal}")
 
                         # 📐 Surface
-                        surface = props.get("area") or props.get("surface") or props.get("surface_m2") or props.get("surface_toiture_m2")
+                        surface = props.get("surface_m2") or props.get("surface_toiture_m2") or props.get("area") or props.get("surface")
                         if surface:
                             try:
                                 popup_lines.append(f"<b>{cfg['emoji']} Surface {cfg['label']}:</b> {float(surface):.0f} m²")
                             except (ValueError, TypeError):
                                 popup_lines.append(f"<b>{cfg['emoji']} Surface {cfg['label']}:</b> {surface}")
 
-                        # 🏛️ Références cadastrales
-                        refs_cadastrales = parc_refs or props.get("parcelles_cadastrales", [])
+                        # 🏛️ Références cadastrales — DIRECTLY from enriched properties
+                        refs_cadastrales = props.get("parcelles_cadastrales", [])
                         if refs_cadastrales and isinstance(refs_cadastrales, list) and len(refs_cadastrales) > 0:
                             popup_lines.append(f"<b>🏛️ Parcelles cadastrales ({len(refs_cadastrales)}):</b>")
                             for ref in refs_cadastrales[:5]:
@@ -15429,22 +15420,32 @@ def generate_integrated_commune_report(commune_name, filters=None):
                                     popup_lines.append(f"&nbsp;&nbsp;• {str(ref)}")
                             if len(refs_cadastrales) > 5:
                                 popup_lines.append(f"&nbsp;&nbsp;... et {len(refs_cadastrales)-5} autres")
-                        elif parcelles_txt:
-                            popup_lines.append(f"<b>🏛️ Parcelles:</b> {parcelles_txt}")
 
-                        # ⚡ Distances aux postes
-                        dist_bt = props.get("distance_poste_bt") or props.get("min_distance_bt_m") or props.get("min_poste_distance_m")
-                        dist_hta = props.get("distance_poste_hta") or props.get("min_distance_hta_m")
+                        # ⚡ Distances et détails postes BT/HTA — from enriched poste_bt_proche / poste_hta_proche
+                        dist_bt = props.get("min_distance_bt_m") or props.get("distance_poste_bt") or props.get("min_poste_distance_m")
+                        dist_hta = props.get("min_distance_hta_m") or props.get("distance_poste_hta")
+                        poste_bt = props.get("poste_bt_proche") or {}
+                        poste_hta = props.get("poste_hta_proche") or {}
+
                         if dist_bt is not None:
                             try:
-                                popup_lines.append(f"<b>⚡ Distance poste BT:</b> {float(dist_bt):.0f}m")
+                                bt_line = f"<b>⚡ Poste BT:</b> {float(dist_bt):.0f}m"
                             except (ValueError, TypeError):
-                                popup_lines.append(f"<b>⚡ Distance poste BT:</b> {dist_bt}")
+                                bt_line = f"<b>⚡ Poste BT:</b> {dist_bt}"
+                            if poste_bt.get("nom"):
+                                bt_line += f" — {poste_bt['nom']}"
+                            popup_lines.append(bt_line)
+
                         if dist_hta is not None:
                             try:
-                                popup_lines.append(f"<b>⚡ Distance poste HTA:</b> {float(dist_hta):.0f}m")
+                                hta_line = f"<b>⚡ Poste HTA:</b> {float(dist_hta):.0f}m"
                             except (ValueError, TypeError):
-                                popup_lines.append(f"<b>⚡ Distance poste HTA:</b> {dist_hta}")
+                                hta_line = f"<b>⚡ Poste HTA:</b> {dist_hta}"
+                            if poste_hta.get("nom"):
+                                hta_line += f" — {poste_hta['nom']}"
+                            if poste_hta.get("puissance"):
+                                hta_line += f" ({poste_hta['puissance']})"
+                            popup_lines.append(hta_line)
 
                         # 🔗 Lien Google Street View
                         street_view_link = ""
@@ -15477,7 +15478,7 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         tooltip_html = "<br>".join(popup_lines[:4])  # Premier aperçu au survol
 
                         gj = folium.GeoJson(
-                            {"type": "Feature", "geometry": geom, "properties": props},
+                            {"type": "Feature", "geometry": geom, "properties": {}},
                             name=name,
                             style_function=lambda _, c=color:
                                 {"color": c, "weight": 2, "fillColor": c, "fillOpacity": 0.2},
