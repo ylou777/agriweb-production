@@ -155,6 +155,38 @@ def migrate_existing_table():
         finally:
             cursor.close()
     
+    # Migration multi-tenant: ajouter user_id aux tables CRM
+    for table_name in ['agriweb_prospects', 'project_fiches']:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN user_id INTEGER")
+                conn.commit()
+                print(f"✅ Colonne user_id ajoutée à {table_name}")
+            except Exception as e:
+                conn.rollback()
+                error_msg = str(e).lower()
+                if 'already exists' in error_msg or 'duplicate' in error_msg:
+                    pass  # Colonne existe déjà
+                else:
+                    print(f"⚠️ Migration user_id sur {table_name}: {e}")
+            finally:
+                cursor.close()
+    
+    # Créer les index sur user_id si manquants
+    if IS_RAILWAY:
+        for idx_name, table_name in [('idx_prospects_user_id', 'agriweb_prospects'), ('idx_project_fiches_user_id', 'project_fiches')]:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table_name}(user_id)")
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                finally:
+                    cursor.close()
+            cursor.close()
+    
     print("✅ [MIGRATION] Vérification terminée")
 
 def init_database():
@@ -279,8 +311,11 @@ def init_database():
             osm_building TEXT,
             osm_landuse TEXT,
             osm_office TEXT,
-            osm_industrial TEXT
+            osm_industrial TEXT,
+            user_id INTEGER
         );
+
+        CREATE INDEX IF NOT EXISTS idx_prospects_user_id ON agriweb_prospects(user_id);
 
         CREATE TABLE IF NOT EXISTS prospect_proposals (
             id SERIAL PRIMARY KEY,
@@ -326,8 +361,11 @@ def init_database():
             statut_global TEXT,
             date_fin_prevue TIMESTAMP,
             date_fin_reelle TIMESTAMP,
-            responsable TEXT
+            responsable TEXT,
+            user_id INTEGER
         );
+
+        CREATE INDEX IF NOT EXISTS idx_project_fiches_user_id ON project_fiches(user_id);
 
         CREATE TABLE IF NOT EXISTS project_etapes (
             id SERIAL PRIMARY KEY,
@@ -423,7 +461,8 @@ def init_database():
             osm_building TEXT,
             osm_landuse TEXT,
             osm_office TEXT,
-            osm_industrial TEXT
+            osm_industrial TEXT,
+            user_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS prospect_proposals (
@@ -459,7 +498,8 @@ def init_database():
             date_creation TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             date_modification TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             notes TEXT,
-            data_json TEXT
+            data_json TEXT,
+            user_id INTEGER
         );
 
         CREATE TABLE IF NOT EXISTS project_etapes (

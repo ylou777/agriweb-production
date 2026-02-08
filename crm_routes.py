@@ -1,9 +1,10 @@
 """
 Routes CRM pour AgriWeb - Adaptées pour Railway avec PostgreSQL
 Toutes les connexions SQLite ont été converties pour utiliser database_adapter
+Multi-tenant: chaque utilisateur ne voit que ses propres prospects/projets (admin voit tout)
 """
 
-from flask import render_template, jsonify, request, send_file
+from flask import render_template, jsonify, request, send_file, session as flask_session
 from datetime import datetime
 from database_adapter import execute_query, get_db_connection
 import json
@@ -15,10 +16,73 @@ from plan_masse_generator import generate_plan_masse
 from plan_masse_simple import generate_plan_masse_simple
 
 # ============================================================================
+# HELPER FUNCTIONS - AUTH & MULTI-TENANT
+# ============================================================================
+
+def get_current_crm_user():
+    """
+    Récupère l'utilisateur courant pour l'isolation des données CRM.
+    Retourne (user_id, is_admin) ou (None, False) si non connecté.
+    """
+    session_token = flask_session.get('session_token') or request.cookies.get('session_token')
+    if not session_token:
+        return None, False
+    
+    try:
+        from auth_database import get_auth_db
+        conn = get_auth_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT u.id, u.is_admin
+            FROM users u
+            JOIN user_sessions s ON u.id = s.user_id
+            WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
+        ''', (session_token,))
+        result = cursor.fetchone()
+        conn.close()
+        if result:
+            return result[0], bool(result[1])
+        return None, False
+    except Exception as e:
+        print(f"⚠️ [CRM AUTH] Erreur récupération utilisateur: {e}")
+        return None, False
+
+def verify_prospect_ownership(prospect_id, user_id, is_admin):
+    """Vérifie qu'un prospect appartient à l'utilisateur courant"""
+    if is_admin:
+        return True
+    result = execute_query(
+        'SELECT user_id FROM agriweb_prospects WHERE id = %s',
+        (prospect_id,), fetch_one=True
+    )
+    return result and result.get('user_id') == user_id
+
+def verify_project_ownership(project_id, user_id, is_admin):
+    """Vérifie qu'un projet appartient à l'utilisateur courant"""
+    if is_admin:
+        return True
+    result = execute_query(
+        'SELECT user_id FROM project_fiches WHERE id = %s',
+        (project_id,), fetch_one=True
+    )
+    return result and result.get('user_id') == user_id
+
+def user_filter_clause(user_id, is_admin, table_alias=''):
+    """
+    Retourne (clause_sql, params) pour filtrer par user_id.
+    Admin: pas de filtre. User: WHERE user_id = %s.
+    table_alias: ex 'ap.' pour 'ap.user_id'
+    """
+    prefix = f"{table_alias}." if table_alias else ''
+    if is_admin:
+        return '', ()
+    return f' AND {prefix}user_id = %s', (user_id,)
+
+# ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
 
-def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None):
+def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, user_id=None):
     """
     Crée automatiquement une fiche projet et ses étapes pour un nouveau prospect
     Cette fonction est appelée automatiquement à chaque création de prospect
@@ -30,8 +94,8 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None):
         result = execute_query('''
             INSERT INTO project_fiches (
                 prospect_id, nom_projet, commune, adresse_projet, 
-                statut_projet, data_json
-            ) VALUES (%s, %s, %s, %s, %s, %s)
+                statut_projet, data_json, user_id
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         ''', (
             prospect_id,
@@ -39,7 +103,8 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None):
             commune,
             adresse,
             'etude',
-            '{}'
+            '{}',
+            user_id
         ), fetch_one=True)
         
         if result:
@@ -153,7 +218,10 @@ def register_crm_routes(app):
     def crm_stats():
         """Statistiques CRM pour la page d'accueil"""
         try:
-            stats = execute_query('''
+            user_id, is_admin = get_current_crm_user()
+            filter_clause, filter_params = user_filter_clause(user_id, is_admin)
+
+            stats = execute_query(f'''
                 SELECT 
                     COUNT(*) as total,
                     COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveau,
@@ -165,7 +233,8 @@ def register_crm_routes(app):
                     COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
                     COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
                 FROM agriweb_prospects
-            ''', fetch_one=True)
+                WHERE 1=1{filter_clause}
+            ''', filter_params if filter_params else None, fetch_one=True)
             
             if not stats:
                 return jsonify({
@@ -189,11 +258,14 @@ def register_crm_routes(app):
     def get_dashboard_stats():
         """Récupère toutes les statistiques pour le dashboard CRM KPI"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            filter_clause, filter_params = user_filter_clause(user_id, is_admin)
+
             print("\n" + "="*70)
             print("🔄 [DASHBOARD KPI] Récupération des statistiques...")
             
             # === KPIs GÉNÉRAUX ===
-            kpis = execute_query('''
+            kpis = execute_query(f'''
                 SELECT 
                     COUNT(*) as total,
                     COUNT(CASE WHEN statut = 'nouveau' THEN 1 END) as nouveaux,
@@ -202,7 +274,8 @@ def register_crm_routes(app):
                     COUNT(CASE WHEN statut = 'perdu' THEN 1 END) as perdus,
                     COUNT(CASE WHEN date_creation >= NOW() - INTERVAL '30 days' THEN 1 END) as nouveaux_mois
                 FROM agriweb_prospects
-            ''', fetch_one=True)
+                WHERE 1=1{filter_clause}
+            ''', filter_params if filter_params else None, fetch_one=True)
             
             print(f"📊 [DASHBOARD KPI] KPIs bruts: {kpis}")
             
@@ -221,32 +294,34 @@ def register_crm_routes(app):
             
             # === CHARTS ===
             # Par type
-            by_type_rows = execute_query('''
+            by_type_rows = execute_query(f'''
                 SELECT type, COUNT(*) as count
                 FROM agriweb_prospects
+                WHERE 1=1{filter_clause}
                 GROUP BY type
-            ''')
+            ''', filter_params if filter_params else None)
             by_type = {row['type']: row['count'] for row in by_type_rows}
             
             # Par statut
-            by_statut_rows = execute_query('''
+            by_statut_rows = execute_query(f'''
                 SELECT statut, COUNT(*) as count
                 FROM agriweb_prospects
+                WHERE 1=1{filter_clause}
                 GROUP BY statut
-            ''')
+            ''', filter_params if filter_params else None)
             by_statut = {row['statut']: row['count'] for row in by_statut_rows}
             
             # Timeline (30 derniers jours)
-            timeline_data = execute_query('''
+            timeline_data = execute_query(f'''
                 SELECT 
                     DATE(date_creation) as date,
                     COUNT(*) as count,
                     statut
                 FROM agriweb_prospects
-                WHERE date_creation >= NOW() - INTERVAL '30 days'
+                WHERE date_creation >= NOW() - INTERVAL '30 days'{filter_clause}
                 GROUP BY DATE(date_creation), statut
                 ORDER BY date
-            ''')
+            ''', filter_params if filter_params else None)
             
             # Construire timeline
             from collections import defaultdict
@@ -272,31 +347,32 @@ def register_crm_routes(app):
             nb_proposals_conversion = proposals['nb_proposals']
             
             # Délais moyens (PostgreSQL utilise EXTRACT(EPOCH) pour les intervalles)
-            avg_contact_row = execute_query('''
+            avg_contact_row = execute_query(f'''
                 SELECT 
                     AVG(EXTRACT(EPOCH FROM (date_modification - date_creation))/86400) as avg_delay
                 FROM agriweb_prospects
-                WHERE statut != 'nouveau'
-            ''', fetch_one=True)
+                WHERE statut != 'nouveau'{filter_clause}
+            ''', filter_params if filter_params else None, fetch_one=True)
             avg_contact = avg_contact_row['avg_delay'] or 0 if avg_contact_row else 0
             
-            avg_qualification_row = execute_query('''
+            avg_qualification_row = execute_query(f'''
                 SELECT 
                     AVG(EXTRACT(EPOCH FROM (date_modification - date_creation))/86400) as avg_delay
                 FROM agriweb_prospects
-                WHERE statut = 'qualifie'
-            ''', fetch_one=True)
+                WHERE statut = 'qualifie'{filter_clause}
+            ''', filter_params if filter_params else None, fetch_one=True)
             avg_qualification = avg_qualification_row['avg_delay'] or 0 if avg_qualification_row else 0
             
             # Conversion par type
-            conversion_type_rows = execute_query('''
+            conversion_type_rows = execute_query(f'''
                 SELECT 
                     type,
                     COUNT(*) as total,
                     COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
                 FROM agriweb_prospects
+                WHERE 1=1{filter_clause}
                 GROUP BY type
-            ''')
+            ''', filter_params if filter_params else None)
             conversion_by_type = {}
             for row in conversion_type_rows:
                 total = row['total']
@@ -338,17 +414,17 @@ def register_crm_routes(app):
             }
             
             # === DÉPARTEMENTS ===
-            departments_data = execute_query('''
+            departments_data = execute_query(f'''
                 SELECT 
                     departement,
                     COUNT(*) as total,
                     COUNT(CASE WHEN statut = 'qualifie' THEN 1 END) as qualifies
                 FROM agriweb_prospects
-                WHERE departement IS NOT NULL
+                WHERE departement IS NOT NULL{filter_clause}
                 GROUP BY departement
                 ORDER BY total DESC
                 LIMIT 10
-            ''')
+            ''', filter_params if filter_params else None)
             
             print(f"✅ [DASHBOARD KPI] Données complètes - Total prospects: {kpis['total']}")
             print(f"📈 [DASHBOARD KPI] Charts types: {len(by_type)}, statuts: {len(by_statut)}")
@@ -454,6 +530,10 @@ def register_crm_routes(app):
         start_time = time.time()
         
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+
             print(f"\n{'='*80}")
             print(f"🚀 [CRM EXPORT] === DÉBUT EXPORT CRM ===")
             print(f"⏰ Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -508,8 +588,9 @@ def register_crm_routes(app):
                         poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
-                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial,
+                        user_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parking', parking.get('commune'), parking.get('departement'), parking.get('adresse'),
@@ -526,11 +607,12 @@ def register_crm_routes(app):
                     poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking),
                     parking.get('amenity'), parking.get('shop'), parking.get('building'),
-                    parking.get('landuse'), parking.get('office'), parking.get('industrial')
+                    parking.get('landuse'), parking.get('office'), parking.get('industrial'),
+                    user_id
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
-                    auto_create_project_for_prospect(result['id'], parking.get('commune'), parking.get('adresse'))
+                    auto_create_project_for_prospect(result['id'], parking.get('commune'), parking.get('adresse'), user_id=user_id)
                 
                 total_exported += 1
                 details['parkings'] += 1
@@ -551,8 +633,9 @@ def register_crm_routes(app):
                         poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
-                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial,
+                        user_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'toiture', toiture.get('commune'), toiture.get('departement'), toiture.get('adresse'),
@@ -569,11 +652,12 @@ def register_crm_routes(app):
                     poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture),
                     toiture.get('amenity'), toiture.get('shop'), toiture.get('building'),
-                    toiture.get('landuse'), toiture.get('office'), toiture.get('industrial')
+                    toiture.get('landuse'), toiture.get('office'), toiture.get('industrial'),
+                    user_id
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
-                    auto_create_project_for_prospect(result['id'], toiture.get('commune'), toiture.get('adresse'))
+                    auto_create_project_for_prospect(result['id'], toiture.get('commune'), toiture.get('adresse'), user_id=user_id)
                 
                 total_exported += 1
                 details['toitures'] += 1
@@ -594,8 +678,9 @@ def register_crm_routes(app):
                         poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
                         lien_streetview, lien_annuaire, data_json,
-                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        osm_amenity, osm_shop, osm_building, osm_landuse, osm_office, osm_industrial,
+                        user_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'friche', friche.get('commune'), friche.get('departement'), friche.get('adresse'),
@@ -612,11 +697,12 @@ def register_crm_routes(app):
                     poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche),
                     friche.get('amenity'), friche.get('shop'), friche.get('building'),
-                    friche.get('landuse'), friche.get('office'), friche.get('industrial')
+                    friche.get('landuse'), friche.get('office'), friche.get('industrial'),
+                    user_id
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
-                    auto_create_project_for_prospect(result['id'], friche.get('commune'), friche.get('adresse'))
+                    auto_create_project_for_prospect(result['id'], friche.get('commune'), friche.get('adresse'), user_id=user_id)
                 
                 total_exported += 1
                 details['friches'] += 1
@@ -636,8 +722,8 @@ def register_crm_routes(app):
                         poste_hta_distance_m, poste_hta_nom, poste_hta_puissance, poste_hta_etat, poste_hta_lat, poste_hta_lon,
                         poste_hta_commune, poste_hta_code_commune, poste_hta_epci, poste_hta_code_epci,
                         poste_hta_departement, poste_hta_code_departement, poste_hta_region, poste_hta_code_region,
-                        data_json
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        data_json, user_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 ''', (
                     'parcelle_rpg', rpg.get('commune'), rpg.get('departement'), rpg.get('adresse'),
@@ -652,11 +738,12 @@ def register_crm_routes(app):
                     clean_value(poste_hta.get('lat')), clean_value(poste_hta.get('lon')),
                     poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
                     poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
-                    json.dumps(rpg)
+                    json.dumps(rpg),
+                    user_id
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
-                    auto_create_project_for_prospect(result['id'], rpg.get('commune'), rpg.get('adresse'))
+                    auto_create_project_for_prospect(result['id'], rpg.get('commune'), rpg.get('adresse'), user_id=user_id)
                 
                 total_exported += 1
                 details['rpg'] += 1
@@ -684,11 +771,17 @@ def register_crm_routes(app):
     def get_prospects():
         """Récupère tous les prospects pour l'interface web CRM"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            filter_clause, filter_params = user_filter_clause(user_id, is_admin)
+
             # Récupérer tous les prospects
-            prospects = execute_query('''
+            prospects = execute_query(f'''
                 SELECT * FROM agriweb_prospects 
+                WHERE 1=1{filter_clause}
                 ORDER BY date_creation DESC
-            ''', fetch_all=True)
+            ''', filter_params if filter_params else None, fetch_all=True)
             
             # Mapper contact_telephone -> contact_tel pour compatibilité frontend
             if prospects:
@@ -697,7 +790,7 @@ def register_crm_routes(app):
                         prospect['contact_tel'] = prospect['contact_telephone']
             
             # Calculer les stats
-            stats = execute_query('''
+            stats = execute_query(f'''
                 SELECT 
                     COUNT(*) as total,
                     COUNT(CASE WHEN type = 'parking' THEN 1 END) as parkings,
@@ -705,7 +798,8 @@ def register_crm_routes(app):
                     COUNT(CASE WHEN type = 'friche' THEN 1 END) as friches,
                     COUNT(CASE WHEN type = 'parcelle_rpg' THEN 1 END) as rpg
                 FROM agriweb_prospects
-            ''', fetch_one=True)
+                WHERE 1=1{filter_clause}
+            ''', filter_params if filter_params else None, fetch_one=True)
             
             return jsonify({
                 'success': True,
@@ -723,6 +817,12 @@ def register_crm_routes(app):
     def get_prospect(prospect_id):
         """Récupère les détails d'un prospect spécifique"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
             prospect = execute_query(
                 'SELECT * FROM agriweb_prospects WHERE id = %s',
                 (prospect_id,),
@@ -751,6 +851,12 @@ def register_crm_routes(app):
     def update_prospect(prospect_id):
         """Met à jour un prospect"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
             if not request.is_json:
                 return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
             
@@ -858,6 +964,12 @@ def register_crm_routes(app):
     def update_prospect_from_report(prospect_id):
         """Met à jour un prospect avec les données d'un rapport ponctuel"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
             if not request.is_json:
                 return jsonify({'success': False, 'error': 'La requête doit être en JSON'}), 400
             
@@ -1031,8 +1143,8 @@ def register_crm_routes(app):
                     result = execute_query('''
                         INSERT INTO project_fiches (
                             prospect_id, nom_projet, commune, adresse_projet, 
-                            parcelles_cadastrales, statut_projet, data_json
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            parcelles_cadastrales, statut_projet, data_json, user_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING id
                     ''', (
                         prospect_id,
@@ -1041,7 +1153,8 @@ def register_crm_routes(app):
                         data.get('commune'),
                         data.get('parcelle_cadastrale'),
                         'etude',
-                        json.dumps(data_json_to_save) if data_json_to_save else '{}'
+                        json.dumps(data_json_to_save) if data_json_to_save else '{}',
+                        user_id
                     ), fetch_one=True)
                     
                     print(f"🔍 [PROJECT CREATE] Résultat INSERT: {result}")
@@ -1101,7 +1214,16 @@ def register_crm_routes(app):
     def delete_prospect(prospect_id):
         """Supprime un prospect"""
         try:
-            execute_query('DELETE FROM agriweb_prospects WHERE id = %s', (prospect_id,))
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_prospect_ownership(prospect_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
+            if is_admin:
+                execute_query('DELETE FROM agriweb_prospects WHERE id = %s', (prospect_id,))
+            else:
+                execute_query('DELETE FROM agriweb_prospects WHERE id = %s AND user_id = %s', (prospect_id, user_id))
             
             return jsonify({
                 'success': True,
@@ -1211,7 +1333,10 @@ def register_crm_routes(app):
     def get_all_appointments():
         """Récupère tous les rendez-vous pour le calendrier"""
         try:
-            appointments = execute_query('''
+            user_id, is_admin = get_current_crm_user()
+            filter_clause, filter_params = user_filter_clause(user_id, is_admin, table_alias='ap')
+
+            appointments = execute_query(f'''
                 SELECT 
                     ca.*,
                     ap.nom_prospect,
@@ -1224,8 +1349,9 @@ def register_crm_routes(app):
                     ap.longitude
                 FROM crm_appointments ca
                 JOIN agriweb_prospects ap ON ca.prospect_id = ap.id
+                WHERE 1=1{filter_clause}
                 ORDER BY ca.date_rdv ASC
-            ''', fetch_all=True)
+            ''', filter_params if filter_params else None, fetch_all=True)
             
             return jsonify({
                 'success': True,
@@ -1246,12 +1372,17 @@ def register_crm_routes(app):
     def get_projets():
         """Liste tous les projets (avec filtre optionnel par prospect_id)"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            filter_clause, filter_params = user_filter_clause(user_id, is_admin, table_alias='pf')
+
             # Filtre optionnel par prospect_id
             prospect_id = request.args.get('prospect_id', type=int)
             
             if prospect_id:
                 # Recherche pour un prospect spécifique
-                projets = execute_query('''
+                projets = execute_query(f'''
                     SELECT 
                         pf.id,
                         pf.nom_projet,
@@ -1265,12 +1396,12 @@ def register_crm_routes(app):
                         pf.parcelles_cadastrales,
                         pf.commune
                     FROM project_fiches pf
-                    WHERE pf.prospect_id = %s
+                    WHERE pf.prospect_id = %s{filter_clause}
                     ORDER BY pf.date_creation DESC
-                ''', (prospect_id,), fetch_all=True)
+                ''', (prospect_id,) + filter_params, fetch_all=True)
             else:
                 # Tous les projets
-                projets = execute_query('''
+                projets = execute_query(f'''
                     SELECT 
                         pf.id,
                         pf.nom_projet,
@@ -1284,8 +1415,9 @@ def register_crm_routes(app):
                         pf.parcelles_cadastrales,
                         pf.commune
                     FROM project_fiches pf
+                    WHERE 1=1{filter_clause}
                     ORDER BY pf.date_creation DESC
-                ''', fetch_all=True)
+                ''', filter_params if filter_params else None, fetch_all=True)
             
             # Ajouter les stats d'étapes pour chaque projet
             if projets:
@@ -1313,6 +1445,10 @@ def register_crm_routes(app):
     def create_projet():
         """Crée une nouvelle fiche projet"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+
             data = request.json
             
             # Si on a un prospect_id, récupérer ses données et son rapport
@@ -1373,8 +1509,8 @@ def register_crm_routes(app):
                     prospect_id, nom_projet, type_projet, client_nom, client_email,
                     client_telephone, client_adresse, adresse_projet, parcelles_cadastrales,
                     statut_global, date_fin_prevue, responsable, notes, data_json,
-                    commune, surface_totale, statut_projet
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    commune, surface_totale, statut_projet, user_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             ''', (
                 data.get('prospect_id') or None,
@@ -1393,7 +1529,8 @@ def register_crm_routes(app):
                 prospect_data_json,  # Rapport complet
                 data.get('commune') or prospect_info.get('commune'),
                 data.get('surface_totale') or prospect_info.get('surface_m2'),
-                'etude'  # statut_projet par défaut
+                'etude',  # statut_projet par défaut
+                user_id
             ), fetch_one=True)
             
             print(f"[CREATE_PROJECT] INSERT result={result}")
@@ -1442,6 +1579,12 @@ def register_crm_routes(app):
     def get_projet_details(project_id):
         """Récupère les détails complets d'un projet"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_project_ownership(project_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
             # Infos projet
             projet = execute_query('''
                 SELECT 
@@ -1555,6 +1698,12 @@ def register_crm_routes(app):
     def update_projet(project_id):
         """Met à jour un projet"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_project_ownership(project_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
             data = request.json
             
             execute_query('''
@@ -1590,6 +1739,12 @@ def register_crm_routes(app):
     def delete_projet(project_id):
         """Supprime un projet et toutes ses données associées"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if user_id is None:
+                return jsonify({'success': False, 'error': 'Authentification requise'}), 401
+            if not verify_project_ownership(project_id, user_id, is_admin):
+                return jsonify({'success': False, 'error': 'Accès non autorisé'}), 403
+
             # Supprimer les documents
             execute_query('DELETE FROM project_documents WHERE project_id = %s', (project_id,))
             
@@ -1797,7 +1952,13 @@ def register_crm_routes(app):
                     (prospect_id,), fetch_one=True
                 )
                 commune = prospect.get('commune', '') if prospect else ''
-                auto_create_project_for_prospect(prospect_id, commune=commune)
+                # Récupérer user_id du prospect pour le propager au projet
+                prospect_owner = execute_query(
+                    'SELECT user_id FROM agriweb_prospects WHERE id = %s',
+                    (prospect_id,), fetch_one=True
+                )
+                owner_id = prospect_owner.get('user_id') if prospect_owner else None
+                auto_create_project_for_prospect(prospect_id, commune=commune, user_id=owner_id)
                 project = execute_query(
                     'SELECT id FROM project_fiches WHERE prospect_id = %s ORDER BY date_creation DESC LIMIT 1',
                     (prospect_id,), fetch_one=True
@@ -2291,16 +2452,19 @@ def register_crm_routes(app):
                 # Créer un nouveau projet
                 print(f"[VISITE TECHNIQUE SAVE] Pas de projet existant, création...")
                 
+                # Récupérer user_id du prospect
+                prospect_owner = execute_query('SELECT user_id FROM agriweb_prospects WHERE id = %s', (prospect_id,), fetch_one=True)
+                owner_id = prospect_owner.get('user_id') if prospect_owner else None
                 result = execute_query('''
                     INSERT INTO project_fiches (
                         prospect_id, nom_projet, statut_projet,
-                        date_creation, date_modification
+                        date_creation, date_modification, user_id
                     ) VALUES (
                         %s, %s, 'en_cours',
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s
                     )
                     RETURNING id
-                ''', (prospect_id, f"Projet PV - {prospect.get('nom', '')} {prospect.get('prenom', '')}"),
+                ''', (prospect_id, f"Projet PV - {prospect.get('nom', '')} {prospect.get('prenom', '')}", owner_id),
                 fetch_one=True)
                 
                 if result:
@@ -2465,14 +2629,17 @@ def register_crm_routes(app):
                     commune = prospect.get('commune', '')
                     adresse = prospect.get('adresse_complete', '') or prospect.get('adresse', '')
                     
+                    # Récupérer user_id du prospect
+                    prospect_owner = execute_query('SELECT user_id FROM agriweb_prospects WHERE id = %s', (prospect_id,), fetch_one=True)
+                    owner_id = prospect_owner.get('user_id') if prospect_owner else None
                     result = execute_query('''
                         INSERT INTO project_fiches (
                             prospect_id, nom_projet, commune, adresse_projet,
                             statut_projet, data_json,
-                            date_creation, date_modification
+                            date_creation, date_modification, user_id
                         ) VALUES (
                             %s, %s, %s, %s, 'etude', %s,
-                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, %s
                         )
                         RETURNING id
                     ''', (
@@ -2480,7 +2647,8 @@ def register_crm_routes(app):
                         f"Projet PV - {commune or adresse or prospect_id}",
                         commune,
                         adresse,
-                        json.dumps(current_data)
+                        json.dumps(current_data),
+                        owner_id
                     ), fetch_one=True)
                     
                     if result:
@@ -3272,6 +3440,10 @@ def register_crm_routes(app):
     def cleanup_all_prospects():
         """Supprime TOUS les prospects et projets associés - ATTENTION DANGEREUX"""
         try:
+            user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Accès admin requis'}), 403
+
             # Supprimer tous les projets et étapes (CASCADE)
             execute_query('DELETE FROM project_fiches')
             

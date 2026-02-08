@@ -1015,7 +1015,7 @@ def get_user_by_session(session_token):
         
         cursor.execute('''
             SELECT u.id, u.email, u.name, u.subscription_status, u.trial_end_date,
-                   s.expires_at
+                   s.expires_at, u.is_admin
             FROM users u
             JOIN user_sessions s ON u.id = s.user_id
             WHERE s.session_token = ? AND s.expires_at > CURRENT_TIMESTAMP
@@ -1031,7 +1031,8 @@ def get_user_by_session(session_token):
                 'name': user_data[2],
                 'subscription_status': user_data[3],
                 'trial_end_date': user_data[4],
-                'session_expires': user_data[5]
+                'session_expires': user_data[5],
+                'is_admin': bool(user_data[6])
             }
         return None
         
