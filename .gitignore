@@ -60,6 +60,11 @@ tmp/
 .DS_Store
 Thumbs.db
 
+# Bases de données SQLite (ne pas écraser les utilisateurs en production !)
+*.db
+*.sqlite
+*.sqlite3
+
 # Backups
 backup_*/
 backup_integration_*/

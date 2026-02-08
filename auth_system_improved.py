@@ -5,7 +5,6 @@ AgriWeb 2025 - Version Production
 """
 
 import smtplib
-import sqlite3
 import secrets
 import hashlib
 from datetime import datetime, timedelta
@@ -14,6 +13,9 @@ from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, session, jsonify, render_template_string
 import os
 import re
+
+# Base de données (PostgreSQL sur Railway, SQLite en local)
+from auth_database import get_auth_db, init_auth_tables, USE_POSTGRES
 
 # Configuration email
 EMAIL_CONFIG = {
@@ -24,8 +26,6 @@ EMAIL_CONFIG = {
     'from_name': 'Sun Dev by Sunstice'
 }
 
-DATABASE_PATH = "agriweb_users.db"
-
 class AuthSystem:
     """Système d'authentification sécurisé avec confirmation email"""
     
@@ -34,51 +34,7 @@ class AuthSystem:
         
     def init_database(self):
         """Initialise la base de données avec les tables nécessaires"""
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        
-        # Table des utilisateurs avec confirmation email
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                email TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL,
-                company TEXT,
-                password_hash TEXT NOT NULL,
-                salt TEXT NOT NULL,
-                is_email_verified BOOLEAN DEFAULT 0,
-                email_verification_token TEXT,
-                email_verification_expires TIMESTAMP,
-                password_reset_token TEXT,
-                password_reset_expires TIMESTAMP,
-                subscription_status TEXT DEFAULT 'trial',
-                trial_start_date TIMESTAMP,
-                trial_end_date TIMESTAMP,
-                is_admin BOOLEAN DEFAULT 0,
-                is_active BOOLEAN DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_login TIMESTAMP,
-                login_count INTEGER DEFAULT 0
-            )
-        ''')
-        
-        # Table des sessions
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS user_sessions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                session_token TEXT UNIQUE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                expires_at TIMESTAMP,
-                ip_address TEXT,
-                user_agent TEXT,
-                is_active BOOLEAN DEFAULT 1,
-                FOREIGN KEY (user_id) REFERENCES users (id)
-            )
-        ''')
-        
-        conn.commit()
-        conn.close()
+        init_auth_tables()
         print("✅ Base de données d'authentification initialisée")
     
     def hash_password(self, password, salt=None):
@@ -124,7 +80,7 @@ class AuthSystem:
             if not EMAIL_CONFIG['password'] or EMAIL_CONFIG['password'] in ['votre_mot_de_passe_app', '']:
                 print(f"⚠️ Configuration email manquante - Vérification automatique pour {email}")
                 # Auto-vérifier l'email si pas de configuration SMTP
-                conn = sqlite3.connect(DATABASE_PATH)
+                conn = get_auth_db()
                 cursor = conn.cursor()
                 cursor.execute('''
                     UPDATE users 
@@ -362,7 +318,7 @@ class AuthSystem:
             if not name or len(name.strip()) < 2:
                 return False, "Le nom doit contenir au moins 2 caractères"
             
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             # Vérifier si l'email existe déjà
@@ -421,7 +377,7 @@ class AuthSystem:
     def verify_email(self, token):
         """Vérifie un email avec le token de vérification"""
         try:
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             # Rechercher le token (d'abord normal, puis fallback pour tokens résiduels)
@@ -474,7 +430,7 @@ class AuthSystem:
     def authenticate_user(self, email, password):
         """Authentifie un utilisateur (email doit être vérifié)"""
         try:
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -533,7 +489,7 @@ class AuthSystem:
             session_token = secrets.token_urlsafe(32)
             expires_at = datetime.now() + timedelta(days=7)  # Session 7 jours
             
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -553,7 +509,7 @@ class AuthSystem:
     def request_password_reset(self, email):
         """Demande de réinitialisation de mot de passe"""
         try:
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             # Vérifier que l'utilisateur existe
@@ -698,7 +654,7 @@ class AuthSystem:
     def reset_password_with_token(self, token, new_password):
         """Réinitialise le mot de passe avec un token valide"""
         try:
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             # Vérifier le token et son expiration

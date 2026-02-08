@@ -762,93 +762,12 @@ def api_hta_diagnostic():
 # ║                    SYSTÈME D'AUTHENTIFICATION COMMERCIAL                 ║
 # ╚══════════════════════════════════════════════════════════════════════════╝
 
-# Configuration de la base de données
-DATABASE_PATH = 'agriweb_users.db'
+# Base de données auth : PostgreSQL sur Railway (persistant), SQLite en local
+from auth_database import get_auth_db, init_auth_tables, USE_POSTGRES
 
 def init_database():
-    """Initialise la base de données des utilisateurs"""
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    
-    # Table des utilisateurs
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            company TEXT,
-            password_hash TEXT NOT NULL,
-            salt TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            trial_start_date TIMESTAMP,
-            trial_end_date TIMESTAMP,
-            subscription_status TEXT DEFAULT 'trial',
-            subscription_type TEXT,
-            subscription_plan TEXT,
-            subscription_end_date TIMESTAMP,
-            stripe_customer_id TEXT,
-            stripe_subscription_id TEXT,
-            last_login TIMESTAMP,
-            login_count INTEGER DEFAULT 0,
-            is_active BOOLEAN DEFAULT 1
-        )
-    ''')
-    
-    # Ajouter les colonnes Stripe si elles n'existent pas
-    try:
-        cursor.execute('ALTER TABLE users ADD COLUMN subscription_plan TEXT')
-        print("✅ Colonne subscription_plan ajoutée")
-    except sqlite3.OperationalError:
-        pass  # Colonne existe déjà
-        
-    try:
-        cursor.execute('ALTER TABLE users ADD COLUMN stripe_customer_id TEXT')
-        print("✅ Colonne stripe_customer_id ajoutée")
-    except sqlite3.OperationalError:
-        pass  # Colonne existe déjà
-        
-    try:
-        cursor.execute('ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT')
-        print("✅ Colonne stripe_subscription_id ajoutée")
-    except sqlite3.OperationalError:
-        pass  # Colonne existe déjà
-    
-    # Table des sessions actives
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            session_token TEXT UNIQUE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            expires_at TIMESTAMP,
-            ip_address TEXT,
-            user_agent TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-    
-    # Table des logs d'utilisation
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usage_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            action TEXT,
-            endpoint TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    ''')
-    
-    # Ajouter la colonne is_admin si elle n'existe pas
-    try:
-        cursor.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0')
-        print("✅ Colonne is_admin ajoutée")
-    except sqlite3.OperationalError:
-        # La colonne existe déjà
-        pass
-    
-    conn.commit()
-    conn.close()
+    """Initialise la base de données des utilisateurs (PostgreSQL ou SQLite)"""
+    init_auth_tables()
 
 def hash_password(password, salt=None):
     """Hash un mot de passe avec du sel"""
@@ -876,7 +795,7 @@ def verify_password(password, stored_hash, salt):
 def create_user(email, name, company, password):
     """Crée un nouvel utilisateur avec période d'essai"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         # Vérifier si l'email existe déjà
@@ -929,7 +848,7 @@ def create_demo_accounts():
     
     for account in demo_accounts:
         try:
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             
             # Vérifier si l'utilisateur existe déjà
@@ -961,7 +880,7 @@ def create_demo_accounts():
 def ensure_admin_rights():
     """S'assurer que admin@test.com a les droits administrateur"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         # Forcer les droits admin pour admin@test.com
@@ -983,7 +902,7 @@ def ensure_admin_rights():
 def authenticate_user(email, password):
     """Authentifie un utilisateur"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -1034,7 +953,7 @@ def authenticate_user(email, password):
 def create_session(user_id, ip_address=None, user_agent=None):
     """Crée une session utilisateur avec limite de 3 sessions max"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         # Nettoyer les sessions expirées
@@ -1091,7 +1010,7 @@ def create_session(user_id, ip_address=None, user_agent=None):
 def get_user_by_session(session_token):
     """Récupère un utilisateur par token de session"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         cursor.execute('''
@@ -1123,7 +1042,7 @@ def get_user_by_session(session_token):
 def log_user_action(user_id, action, endpoint):
     """Enregistre une action utilisateur"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO usage_logs (user_id, action, endpoint)
@@ -1379,10 +1298,9 @@ def debug_geoserver():
 def debug_database():
     """Debug de la base de données pour voir les utilisateurs et tokens"""
     try:
-        import sqlite3
         from datetime import datetime
         
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         # Compter les utilisateurs
@@ -1428,7 +1346,7 @@ def debug_database():
         
         return jsonify({
             "status": "ok",
-            "database_path": DATABASE_PATH,
+            "database_type": "PostgreSQL" if USE_POSTGRES else "SQLite",
             "user_count": user_count,
             "users": users_info,
             "environment": "Railway" if os.getenv("RAILWAY_ENVIRONMENT") else "Local",
@@ -1439,7 +1357,7 @@ def debug_database():
         return jsonify({
             "status": "error",
             "error": str(e),
-            "database_path": DATABASE_PATH
+            "database_type": "PostgreSQL" if USE_POSTGRES else "SQLite"
         }), 500
 
 # Endpoint de debug pour tester la réinitialisation de mot de passe
@@ -1517,11 +1435,10 @@ def debug_clean_verification_token():
                 "error": "Email requis"
             }), 400
         
-        import sqlite3
         from datetime import datetime
         
         # Connexion à la base de données
-        conn = sqlite3.connect("agriweb_users.db")
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         # Vérifier l'état avant
@@ -3052,7 +2969,7 @@ def index():
             current_user = user
             # Vérifier si l'utilisateur est admin
             try:
-                conn = sqlite3.connect(DATABASE_PATH)
+                conn = get_auth_db()
                 cursor = conn.cursor()
                 cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user['id'],))
                 admin_result = cursor.fetchone()
@@ -3093,7 +3010,7 @@ def index_original():
         if user:
             current_user = user
             # Vérifier si l'utilisateur est admin
-            conn = sqlite3.connect(DATABASE_PATH)
+            conn = get_auth_db()
             cursor = conn.cursor()
             cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user['id'],))
             admin_result = cursor.fetchone()
@@ -3136,7 +3053,7 @@ def app_interface():
                 # Vérifier si admin
                 is_admin = False
                 try:
-                    conn = sqlite3.connect(DATABASE_PATH)
+                    conn = get_auth_db()
                     cursor = conn.cursor()
                     cursor.execute("SELECT is_admin FROM users WHERE id = ?", (user['id'],))
                     admin_result = cursor.fetchone()
@@ -15833,7 +15750,7 @@ def require_admin(f):
             
         # Vérifier si l'utilisateur est admin
         session_token = session.get('session_token')
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         cursor.execute("""
             SELECT u.email, u.is_admin FROM users u
@@ -15855,7 +15772,7 @@ def require_admin(f):
 def admin_sessions():
     """Page de gestion des sessions actives"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         # Nettoyer les sessions expirées
@@ -15890,7 +15807,7 @@ def admin_sessions():
 def revoke_session(session_token):
     """Révoquer une session spécifique"""
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         cursor.execute('DELETE FROM user_sessions WHERE session_token = ?', (session_token,))
@@ -15953,7 +15870,7 @@ def clear_map_cache():
 @require_admin
 def admin_dashboard():
     """Tableau de bord administrateur avec tracking Stripe"""
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = get_auth_db()
     cursor = conn.cursor()
     
     # Statistiques principales
@@ -16358,7 +16275,7 @@ def admin_sync_stripe_user(user_id):
     if not stripe:
         return jsonify({'error': 'Stripe non configuré'}), 500
         
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = get_auth_db()
     cursor = conn.cursor()
     
     try:
@@ -16826,7 +16743,7 @@ def import_existing_users():
     ]
     
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
+        conn = get_auth_db()
         cursor = conn.cursor()
         
         for user in existing_users:
