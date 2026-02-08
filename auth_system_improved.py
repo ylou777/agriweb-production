@@ -480,8 +480,10 @@ class AuthSystem:
             }, "Connexion réussie"
             
         except Exception as e:
-            print(f"Erreur authentification: {e}")
-            return False, None, "Erreur lors de l'authentification"
+            import traceback
+            tb = traceback.format_exc()
+            print(f"Erreur authentification: {e}\n{tb}")
+            return False, None, f"Erreur lors de l'authentification: {e}"
     
     def create_session(self, user_id, ip_address, user_agent):
         """Crée une nouvelle session utilisateur"""
