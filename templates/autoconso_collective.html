@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Autoconsommation Collective - {{ prospect.commune or prospect.adresse_complete }}</title>
     
-    <!-- Bootstrap 5 -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <!-- Fonts & Bootstrap -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -15,38 +16,147 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     
     <style>
+        /* ===== DARK MINIMAL — Autoconso Collective ===== */
+        :root {
+            --c-bg: #0f1117;
+            --c-surface: #1a1d27;
+            --c-surface-2: #22252f;
+            --c-border: #2a2d3a;
+            --c-border-light: #353849;
+            --c-text: #e8eaed;
+            --c-text-2: #9ba1b0;
+            --c-text-3: #6b7185;
+            --c-accent: #3b82f6;
+            --c-accent-light: rgba(59,130,246,0.1);
+            --c-green: #10b981;
+            --c-green-light: rgba(16,185,129,0.1);
+            --c-orange: #f59e0b;
+            --c-orange-light: rgba(245,158,11,0.1);
+            --c-red: #ef4444;
+            --c-red-light: rgba(239,68,68,0.1);
+            --c-purple: #a78bfa;
+            --c-purple-light: rgba(167,139,250,0.1);
+            --c-yellow: #eab308;
+            --c-yellow-light: rgba(234,179,8,0.1);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-xs: 6px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
+            --shadow: 0 2px 8px rgba(0,0,0,0.25);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.35);
+            --transition: 0.2s cubic-bezier(.4,0,.2,1);
+        }
+
+        * { box-sizing: border-box; }
+
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--c-bg);
             min-height: 100vh;
             margin: 0;
             padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--c-text);
+            -webkit-font-smoothing: antialiased;
         }
         
         .main-container {
-            background: white;
-            border-radius: 0;
-            box-shadow: none;
+            background: var(--c-bg);
             overflow: hidden;
             display: flex;
             flex-direction: column;
             height: 100vh;
         }
         
+        /* === HEADER === */
         .header {
-            background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-            color: white;
-            padding: 15px 30px;
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
+            color: var(--c-text);
+            padding: 14px 28px;
             flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
-        
-        .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 12px 20px;
+        .header h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
             margin: 0;
-            flex-shrink: 0;
+        }
+        .header h1 i { color: var(--c-orange); margin-right: 6px; }
+        .header .location {
+            font-size: 0.8rem;
+            color: var(--c-text-2);
+            margin-top: 2px;
+            font-weight: 400;
+        }
+        .header .location i { color: var(--c-accent); margin-right: 4px; }
+        .btn-close-page {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--c-text-2);
+            background: var(--c-bg);
+            border: 1px solid var(--c-border);
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all var(--transition);
+            cursor: pointer;
+        }
+        .btn-close-page:hover {
+            color: var(--c-red);
+            border-color: var(--c-red);
+            background: var(--c-red-light);
         }
         
+        /* === STATS BAR === */
+        .stats-bar {
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
+            padding: 12px 28px;
+            flex-shrink: 0;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 12px;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 8px 4px;
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            transition: all var(--transition);
+        }
+        .stat-item:hover {
+            border-color: var(--c-border-light);
+            box-shadow: var(--shadow-sm);
+        }
+        .stat-value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+        }
+        .stat-label {
+            font-size: 0.68rem;
+            color: var(--c-text-3);
+            margin-top: 2px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .stat-value.c-blue { color: var(--c-accent); }
+        .stat-value.c-green { color: var(--c-green); }
+        .stat-value.c-orange { color: var(--c-orange); }
+        .stat-value.c-yellow { color: var(--c-yellow); }
+        .stat-value.c-purple { color: var(--c-purple); }
+        .stat-value.c-red { color: var(--c-red); }
+        
+        /* === MAP & LIST LAYOUT === */
         .map-list-row {
             flex: 1;
             min-height: 0;
@@ -67,104 +177,271 @@
         .list-col {
             width: 400px;
             min-width: 350px;
-            max-width: 450px;
+            max-width: 420px;
             overflow-y: auto;
-            border-left: 1px solid #dee2e6;
+            background: var(--c-surface);
+            border-left: 1px solid var(--c-border);
         }
+        /* scrollbar */
+        .list-col::-webkit-scrollbar { width: 5px; }
+        .list-col::-webkit-scrollbar-track { background: transparent; }
+        .list-col::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 4px; }
         
+        /* === RADIUS SELECTOR === */
         .radius-selector {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 16px;
+            right: 16px;
             z-index: 1000;
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            padding: 12px 14px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+        }
+        .radius-selector small {
+            color: var(--c-text-2);
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
         
         .radius-btn {
-            margin: 5px;
-        }
-        
-        .radius-btn.active {
-            background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-            border: none;
-            color: white;
-        }
-        
-        .point-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
+            margin: 3px 0;
+            width: 100%;
+            font-size: 0.8rem;
+            font-weight: 500;
+            padding: 6px 16px;
+            border: 1px solid var(--c-border);
+            background: var(--c-surface-2);
+            color: var(--c-text-2);
+            border-radius: var(--radius-xs);
+            transition: all var(--transition);
             cursor: pointer;
-            transition: background 0.3s;
+        }
+        .radius-btn:hover {
+            border-color: var(--c-accent);
+            color: var(--c-accent);
+            background: var(--c-accent-light);
+        }
+        .radius-btn.active {
+            background: var(--c-accent-light);
+            border-color: var(--c-accent);
+            color: var(--c-accent);
+            font-weight: 600;
         }
         
-        .point-item:hover {
-            background: #f8f9fa;
+        /* === PV CARD === */
+        .pv-card {
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            margin-bottom: 16px;
         }
+        .pv-card .pv-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--c-orange);
+        }
+        .pv-card .pv-detail {
+            font-size: 0.75rem;
+            color: var(--c-text-2);
+            margin-top: 2px;
+        }
+        .pv-card .pv-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--c-text);
+        }
+        .pv-card-empty {
+            background: var(--c-surface-2);
+            border: 1px dashed var(--c-border);
+            border-radius: var(--radius-sm);
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .pv-card-empty small {
+            color: var(--c-text-3);
+            font-size: 0.78rem;
+        }
+        .pv-card-empty a {
+            color: var(--c-accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .pv-card-empty a:hover { text-decoration: underline; }
+        
+        /* === SECTION TITLE === */
+        .section-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--c-text-2);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .section-title i { color: var(--c-accent); margin-right: 6px; }
+        
+        /* === POINT ITEMS === */
+        .point-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--c-border);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .point-item:hover {
+            background: var(--c-surface-2);
+        }
+        .point-item.active {
+            background: var(--c-accent-light);
+            border-left: 3px solid var(--c-accent);
+        }
+        .point-item .point-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--c-text);
+        }
+        .point-item .point-name i { color: var(--c-accent); margin-right: 4px; }
+        .point-item .point-meta {
+            font-size: 0.75rem;
+            color: var(--c-text-3);
+            margin-top: 3px;
+        }
+        .point-item .point-meta i { margin-right: 3px; }
         
         .consumption-badge {
             display: inline-block;
-            padding: 5px 10px;
-            border-radius: 5px;
-            font-weight: bold;
-            font-size: 0.9em;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            letter-spacing: 0.01em;
+        }
+        .consumption-high { background: var(--c-red-light); color: var(--c-red); }
+        .consumption-medium { background: var(--c-orange-light); color: var(--c-orange); }
+        .consumption-low { background: var(--c-yellow-light); color: var(--c-yellow); }
+        
+        /* === TELEPHONE BUTTON === */
+        .btn-tel {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.72rem;
+            font-weight: 500;
+            padding: 4px 10px;
+            border-radius: 16px;
+            border: 1px solid var(--c-border);
+            background: var(--c-surface-2);
+            color: var(--c-text-2);
+            text-decoration: none;
+            transition: all var(--transition);
+        }
+        .btn-tel:hover {
+            border-color: var(--c-green);
+            color: var(--c-green);
+            background: var(--c-green-light);
         }
         
-        .consumption-high { background: #dc3545; color: white; }
-        .consumption-medium { background: #fd7e14; color: white; }
-        .consumption-low { background: #ffc107; color: black; }
+        /* === SIRET === */
+        .siret-text {
+            font-size: 0.72rem;
+            color: var(--c-text-3);
+            font-family: 'SF Mono', 'Consolas', monospace;
+        }
+        
+        /* === LEAFLET OVERRIDES === */
+        .leaflet-control-layers {
+            background: var(--c-surface) !important;
+            border: 1px solid var(--c-border) !important;
+            border-radius: var(--radius-sm) !important;
+            color: var(--c-text) !important;
+            box-shadow: var(--shadow) !important;
+        }
+        .leaflet-control-layers label { color: var(--c-text-2) !important; font-size: 0.8rem; }
+        .leaflet-control-zoom a {
+            background: var(--c-surface) !important;
+            color: var(--c-text) !important;
+            border-color: var(--c-border) !important;
+        }
+        .leaflet-control-zoom a:hover {
+            background: var(--c-surface-2) !important;
+        }
+        .leaflet-popup-content-wrapper {
+            background: var(--c-surface) !important;
+            color: var(--c-text) !important;
+            border: 1px solid var(--c-border) !important;
+            border-radius: var(--radius) !important;
+            box-shadow: var(--shadow-lg) !important;
+        }
+        .leaflet-popup-tip { background: var(--c-surface) !important; }
+        .leaflet-popup-content { font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+        .leaflet-popup-content strong { color: var(--c-text); }
+        .leaflet-popup-content small { color: var(--c-text-2); }
+        .leaflet-popup-content hr { border-color: var(--c-border); opacity: 0.5; }
+        .leaflet-popup-close-button { color: var(--c-text-3) !important; }
+        
+        /* Cluster overrides */
+        .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+            background: rgba(59,130,246,0.15) !important;
+        }
+        .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+            background: var(--c-accent) !important;
+            color: white !important;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+        }
+        
+        /* === SPINNER === */
+        .spinner-border { color: var(--c-accent); }
     </style>
 </head>
 <body>
     <div class="main-container">
                     <!-- Header -->
                     <div class="header">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h1 class="mb-2">
-                                    <i class="bi bi-lightning-charge-fill"></i>
-                                    Autoconsommation Collective
-                                </h1>
-                                <p class="mb-0">
-                                    <i class="bi bi-geo-alt-fill"></i>
-                                    {{ prospect.commune or prospect.adresse_complete }}
-                                </p>
+                        <div>
+                            <h1>
+                                <i class="bi bi-lightning-charge-fill"></i>
+                                Autoconsommation Collective
+                            </h1>
+                            <div class="location">
+                                <i class="bi bi-geo-alt-fill"></i>
+                                {{ prospect.commune or prospect.adresse_complete }}
                             </div>
-                            <button class="btn btn-light" onclick="window.close()">
-                                <i class="bi bi-x-lg"></i> Fermer
-                            </button>
                         </div>
+                        <button class="btn-close-page" onclick="window.close()">
+                            <i class="bi bi-x-lg"></i> Fermer
+                        </button>
                     </div>
                     
-                    <!-- Stats Card -->
-                    <div class="stats-card">
-                        <div class="row text-center g-0">
-                            <div class="col-2">
-                                <h3 class="mb-0" id="total-points">-</h3>
-                                <small>Points conso</small>
-                            </div>
-                            <div class="col-2">
-                                <h3 class="mb-0" id="sirene-count">-</h3>
-                                <small>Entreprises</small>
-                            </div>
-                            <div class="col-2">
-                                <h3 class="mb-0" id="current-radius">5</h3>
-                                <small>Rayon (km)</small>
-                            </div>
-                            <div class="col-2">
-                                <h3 class="mb-0" id="pv-production" style="color: #ffd200;">{{ pv_production.productible_mwh }} MWh</h3>
-                                <small>☀️ Production PV/an</small>
-                            </div>
-                            <div class="col-2">
-                                <h3 class="mb-0" id="total-consumption">-</h3>
-                                <small>Conso totale (MWh/an)</small>
-                            </div>
-                            <div class="col-2">
-                                <h3 class="mb-0" id="coverage-rate" style="color: #00ff88;">- %</h3>
-                                <small>⚡ Taux couverture</small>
-                            </div>
+                    <!-- Stats Bar -->
+                    <div class="stats-bar">
+                        <div class="stat-item">
+                            <div class="stat-value c-blue" id="total-points">-</div>
+                            <div class="stat-label">Points conso</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value c-purple" id="sirene-count">-</div>
+                            <div class="stat-label">Entreprises</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="current-radius">5</div>
+                            <div class="stat-label">Rayon (km)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value c-orange" id="pv-production">{{ pv_production.productible_mwh }}</div>
+                            <div class="stat-label">Production PV (MWh/an)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value" id="total-consumption">-</div>
+                            <div class="stat-label">Conso totale (MWh/an)</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value c-green" id="coverage-rate">- %</div>
+                            <div class="stat-label">Taux couverture</div>
                         </div>
                     </div>
                     
@@ -175,16 +452,10 @@
                                 <!-- Radius Selector -->
                                 <div class="radius-selector">
                                     <div class="d-flex flex-column">
-                                        <small class="text-muted mb-2"><strong>Rayon de recherche</strong></small>
-                                        <button class="btn btn-sm btn-outline-warning radius-btn active" data-radius="5">
-                                            5 km
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-warning radius-btn" data-radius="10">
-                                            10 km
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-warning radius-btn" data-radius="20">
-                                            20 km
-                                        </button>
+                                        <small class="mb-2">Rayon de recherche</small>
+                                        <button class="radius-btn active" data-radius="5">5 km</button>
+                                        <button class="radius-btn" data-radius="10">10 km</button>
+                                        <button class="radius-btn" data-radius="20">20 km</button>
                                     </div>
                                 </div>
                                 
@@ -196,33 +467,32 @@
                         <div class="list-col">
                             <div class="p-3">
                                 {% if pv_production.has_calpinage %}
-                                <div class="mb-3 p-2" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border-radius: 8px; color: white;">
+                                <div class="pv-card">
                                     <div class="d-flex justify-content-between align-items-center">
                                         <div>
-                                            <strong>☀️ Champ PV</strong><br>
-                                            <small>{{ pv_production.puissance_kwc }} kWc — {{ pv_production.nb_zones }} zone{{ 's' if pv_production.nb_zones > 1 else '' }}</small>
+                                            <div class="pv-title"><i class="bi bi-sun-fill"></i> Champ PV</div>
+                                            <div class="pv-detail">{{ pv_production.puissance_kwc }} kWc — {{ pv_production.nb_zones }} zone{{ 's' if pv_production.nb_zones > 1 else '' }}</div>
                                         </div>
                                         <div class="text-end">
-                                            <strong>{{ pv_production.productible_mwh }} MWh/an</strong><br>
-                                            <small id="coverage-detail">Taux: calcul...</small>
+                                            <div class="pv-value">{{ pv_production.productible_mwh }} MWh/an</div>
+                                            <div class="pv-detail" id="coverage-detail">Taux: calcul...</div>
                                         </div>
                                     </div>
                                 </div>
                                 {% else %}
-                                <div class="mb-3 p-2 text-center" style="background: #f8f9fa; border-radius: 8px; color: #999;">
-                                    <small>⚠️ Aucun calpinage PV enregistré — <a href="/crm/calpinage/{{ prospect.id }}">Créer le calpinage</a></small>
+                                <div class="pv-card-empty">
+                                    <small><i class="bi bi-exclamation-triangle"></i> Aucun calpinage PV — <a href="/crm/calpinage/{{ prospect.id }}">Créer le calpinage</a></small>
                                 </div>
                                 {% endif %}
-                                <h5 class="mb-3">
-                                    <i class="bi bi-list-ul"></i>
-                                    Liste des points
-                                </h5>
+                                <div class="section-title">
+                                    <i class="bi bi-list-ul"></i> Liste des points
+                                </div>
                                 <div id="points-list">
-                                    <div class="text-center text-muted p-4">
-                                        <div class="spinner-border" role="status">
+                                    <div class="text-center p-4" style="color: var(--c-text-3);">
+                                        <div class="spinner-border spinner-border-sm" role="status">
                                             <span class="visually-hidden">Chargement...</span>
                                         </div>
-                                        <p class="mt-2">Chargement des points...</p>
+                                        <p class="mt-2" style="font-size: 0.82rem;">Chargement des points...</p>
                                     </div>
                                 </div>
                             </div>
@@ -231,7 +501,7 @@
                 </div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     
@@ -286,11 +556,11 @@
             L.marker([prospectLat, prospectLon], {
                 icon: L.divIcon({
                     className: 'prospect-marker',
-                    html: '<div style="background: #667eea; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>',
-                    iconSize: [20, 20],
-                    iconAnchor: [10, 10]
+                    html: '<div style="background: #3b82f6; width: 18px; height: 18px; border-radius: 50%; border: 3px solid rgba(59,130,246,0.3); box-shadow: 0 0 12px rgba(59,130,246,0.4);"></div>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
                 })
-            }).addTo(map).bindPopup('<strong>Prospect</strong><br>Point de départ');
+            }).addTo(map).bindPopup('<strong style="color: var(--c-text);">Prospect</strong><br><span style="color: var(--c-text-2);">Point de départ</span>');
             
             // Initialize layers
             circleLayer = L.layerGroup().addTo(map);
@@ -333,7 +603,7 @@
             } catch (error) {
                 console.error('Erreur:', error);
                 document.getElementById('points-list').innerHTML = `
-                    <div class="alert alert-danger m-3">
+                    <div style="margin: 12px; padding: 12px 16px; background: var(--c-red-light); border: 1px solid rgba(239,68,68,0.2); border-radius: var(--radius-sm); color: var(--c-red); font-size: 0.85rem;">
                         <i class="bi bi-exclamation-triangle"></i>
                         Erreur: ${error.message}
                     </div>
@@ -377,10 +647,11 @@
             // Add radius circle
             L.circle([prospectLat, prospectLon], {
                 radius: data.radius_km * 1000,
-                color: '#f7971e',
-                fillColor: '#ffd200',
-                fillOpacity: 0.1,
-                weight: 2
+                color: '#3b82f6',
+                fillColor: '#3b82f6',
+                fillOpacity: 0.04,
+                weight: 1.5,
+                dashArray: '6 4'
             }).addTo(circleLayer);
             
             // Add consumption points
@@ -431,38 +702,37 @@
                 validMarkers++;
                 
                 marker.bindPopup(`
-                    <div style="min-width: 250px;">
-                        <strong style="font-size: 1.1em; color: #333;">${point.adresse || 'Adresse non disponible'}</strong><br>
+                    <div style="min-width: 240px; font-family: 'Inter', sans-serif;">
+                        <strong style="font-size: 0.9em; color: var(--c-text);">${point.adresse || 'Adresse non disponible'}</strong><br>
                         ${point.sirene ? `
-                            <hr style="margin: 8px 0;">
-                            <div style="background: #f8f9fa; padding: 10px; border-radius: 6px;">
-                                <strong style="color: #667eea; font-size: 1em;">
+                            <hr style="margin: 8px 0; border-color: var(--c-border); opacity: 0.5;">
+                            <div style="background: var(--c-surface-2); padding: 10px; border-radius: 8px; border: 1px solid var(--c-border);">
+                                <strong style="color: var(--c-accent); font-size: 0.88em;">
                                     <i class="bi bi-building"></i> ${point.sirene.denomination || 'Entreprise'}
                                 </strong><br>
                                 ${point.sirene.adresse_complete ? `
-                                    <small style="color: #666; display: block; margin-top: 5px;">
+                                    <small style="color: var(--c-text-3); display: block; margin-top: 5px;">
                                         <i class="bi bi-geo-alt"></i> ${point.sirene.adresse_complete}
                                     </small>
                                 ` : ''}
-                                ${point.sirene.siret ? `<small><i class="bi bi-hash"></i> SIRET: ${point.sirene.siret}</small><br>` : ''}
-                                ${point.sirene.activite ? `<small><i class="bi bi-briefcase"></i> Activité: ${point.sirene.activite}</small><br>` : ''}
-                                ${point.sirene.tranche_effectifs ? `<small><i class="bi bi-people"></i> Effectifs: ${point.sirene.tranche_effectifs}</small><br>` : ''}
+                                ${point.sirene.siret ? `<small style="color: var(--c-text-3);"><i class="bi bi-hash"></i> SIRET: ${point.sirene.siret}</small><br>` : ''}
+                                ${point.sirene.activite ? `<small style="color: var(--c-text-3);"><i class="bi bi-briefcase"></i> ${point.sirene.activite}</small><br>` : ''}
+                                ${point.sirene.tranche_effectifs ? `<small style="color: var(--c-text-3);"><i class="bi bi-people"></i> ${point.sirene.tranche_effectifs}</small><br>` : ''}
                                 ${point.sirene.denomination ? `
                                     <div style="margin-top: 8px;">
                                         <a href="https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=${encodeURIComponent(point.sirene.denomination)}&ou=${encodeURIComponent(point.commune || '')}" 
                                            target="_blank" 
-                                           class="btn btn-sm btn-outline-primary" 
-                                           style="font-size: 0.8em; padding: 3px 8px;">
-                                            <i class="bi bi-telephone"></i> Trouver le téléphone
+                                           class="btn-tel">
+                                            <i class="bi bi-telephone"></i> Téléphone
                                         </a>
                                     </div>
                                 ` : ''}
                             </div>
-                            <hr style="margin: 8px 0;">
+                            <hr style="margin: 8px 0; border-color: var(--c-border); opacity: 0.5;">
                         ` : ''}
-                        <small><strong><i class="bi bi-lightning-charge"></i> Consommation:</strong> ${consumption.toFixed(2)} MWh/an</small><br>
-                        ${point.nb_releves > 1 ? `<small style="color: #666;"><em>(Moyenne de ${point.nb_releves} relevés)</em></small><br>` : ''}
-                        <small><strong><i class="bi bi-pin-map"></i> Distance:</strong> ${point.distance_km} km</small>
+                        <small style="color: var(--c-text-2);"><strong><i class="bi bi-lightning-charge"></i> Consommation:</strong> ${consumption.toFixed(2)} MWh/an</small><br>
+                        ${point.nb_releves > 1 ? `<small style="color: var(--c-text-3);"><em>(Moyenne de ${point.nb_releves} relevés)</em></small><br>` : ''}
+                        <small style="color: var(--c-text-2);"><strong><i class="bi bi-pin-map"></i> Distance:</strong> ${point.distance_km} km</small>
                     </div>
                 `);
                 
@@ -520,11 +790,11 @@
                 
                 // Couleur selon le taux
                 if (coverageRate >= 100) {
-                    coverageEl.style.color = '#00ff88';  // Vert = surplus
+                    coverageEl.className = 'stat-value c-green';   // Surplus
                 } else if (coverageRate >= 50) {
-                    coverageEl.style.color = '#ffd200';  // Jaune = bon
+                    coverageEl.className = 'stat-value c-orange';  // Correct
                 } else {
-                    coverageEl.style.color = '#ff6b6b';  // Rouge = faible
+                    coverageEl.className = 'stat-value c-red';     // Faible
                 }
             } else if (!pvProduction.has_calpinage) {
                 document.getElementById('coverage-rate').textContent = 'N/A';
@@ -536,12 +806,12 @@
         function updateList(points) {
             if (!points) {
                 console.error('❌ Points invalides dans updateList');
-                document.getElementById('points-list').innerHTML = '<div class="text-center text-muted p-4">Erreur de chargement</div>';
+                document.getElementById('points-list').innerHTML = '<div class="text-center p-4" style="color: var(--c-text-3);">Erreur de chargement</div>';
                 return;
             }
             
             const listHtml = points.length === 0 
-                ? '<div class="text-center text-muted p-4">Aucun point trouvé dans ce rayon</div>'
+                ? '<div class="text-center p-4" style="color: var(--c-text-3); font-size: 0.85rem;">Aucun point trouvé dans ce rayon</div>'
                 : points.map(point => {
                     const consumption = point.consommation_annuelle_mwh || 0;
                     let badgeClass;
@@ -554,48 +824,41 @@
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div class="flex-grow-1">
                                     ${point.sirene ? `
-                                        <div class="fw-bold text-primary mb-1">
+                                        <div class="point-name">
                                             <i class="bi bi-building"></i> ${point.sirene.denomination || 'Entreprise'}
                                         </div>
-                                        ${point.sirene.activite ? `<small class="text-muted d-block">📊 ${point.sirene.activite}</small>` : ''}
-                                        ${point.sirene.adresse_complete ? `
-                                            <small class="text-muted d-block mt-1">
-                                                <i class="bi bi-geo-alt-fill"></i> ${point.sirene.adresse_complete}
-                                            </small>
-                                        ` : `
-                                            <small class="text-muted d-block mt-1">
-                                                <i class="bi bi-geo-alt-fill"></i> ${point.adresse || 'Adresse non disponible'}
-                                            </small>
-                                        `}
+                                        ${point.sirene.activite ? `<div class="point-meta">${point.sirene.activite}</div>` : ''}
+                                        <div class="point-meta">
+                                            <i class="bi bi-geo-alt-fill"></i> ${point.sirene.adresse_complete || point.adresse || 'Adresse non disponible'}
+                                        </div>
                                     ` : `
-                                        <div class="fw-bold text-secondary mb-1">
+                                        <div class="point-name" style="color: var(--c-text-2);">
                                             <i class="bi bi-geo-alt-fill"></i> Point de consommation
                                         </div>
-                                        <small class="text-muted d-block mt-1">
+                                        <div class="point-meta">
                                             ${point.adresse || 'Adresse non disponible'}
-                                        </small>
+                                        </div>
                                     `}
-                                    <small class="text-muted d-block mt-1">
+                                    <div class="point-meta mt-1">
                                         <i class="bi bi-pin-map"></i> ${point.distance_km} km
-                                        ${point.sirene && point.sirene.tranche_effectifs ? ` • 👥 ${point.sirene.tranche_effectifs}` : ''}
-                                    </small>
+                                        ${point.sirene && point.sirene.tranche_effectifs ? ` · ${point.sirene.tranche_effectifs}` : ''}
+                                    </div>
                                 </div>
                                 <span class="consumption-badge ${badgeClass}">
                                     ${consumption.toFixed(1)} MWh/an
-                                    ${point.nb_releves > 1 ? `<small style="display:block;font-size:0.7em;opacity:0.8">moy. ${point.nb_releves} ans</small>` : ''}
+                                    ${point.nb_releves > 1 ? `<small style="display:block;font-size:0.7em;opacity:0.7">moy. ${point.nb_releves} ans</small>` : ''}
                                 </span>
                             </div>
                             ${point.sirene && point.sirene.siret ? `
-                                <small class="text-muted d-block">
-                                    <i class="bi bi-hash"></i> SIRET: ${point.sirene.siret}
-                                </small>
+                                <div class="siret-text">
+                                    # ${point.sirene.siret}
+                                </div>
                             ` : ''}
                             ${point.sirene && point.sirene.denomination ? `
                                 <div class="mt-2">
                                     <a href="https://www.pagesjaunes.fr/pagesblanches/recherche?quoiqui=${encodeURIComponent(point.sirene.denomination)}&ou=${encodeURIComponent(point.commune || '')}" 
                                        target="_blank" 
-                                       class="btn btn-sm btn-outline-primary" 
-                                       style="font-size: 0.75em; padding: 4px 10px;"
+                                       class="btn-tel"
                                        onclick="event.stopPropagation();">
                                         <i class="bi bi-telephone"></i> Téléphone
                                     </a>
@@ -616,11 +879,11 @@
         // Highlight point in list
         function highlightPoint(point) {
             const items = document.querySelectorAll('.point-item');
-            items.forEach(item => item.classList.remove('bg-light'));
+            items.forEach(item => item.classList.remove('active'));
             
             const index = currentPoints.indexOf(point);
             if (index !== -1) {
-                items[index].classList.add('bg-light');
+                items[index].classList.add('active');
                 items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }

@@ -62,4 +62,29 @@ Thumbs.db
 
 # Backups
 backup_*/
+backup_integration_*/
 *.bak
+
+# Fichiers Office temporaires
+~$*
+
+# Fichiers compilés Python
+*.pyd
+*.spec
+
+# Données de test / échantillons
+*_sample.json
+*_test.geojson
+
+# Sauvegardes JSON
+sauvegarde_prospects_*.json
+
+# Fichiers diff/changes temporaires
+*_diff.txt
+*_changes.txt
+
+# Git history dumps
+git_history_*.txt
+
+# Rapports de nettoyage
+cleanup_analysis_report.txt
