@@ -4,20 +4,58 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calpinage Photovoltaïque - {{ prospect.nom_prospect }}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
-    <!-- html2canvas pour capture screenshot -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- Three.js pour la visualisation 3D WebGL -->
     <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
     <style>
-        /* Tooltip pour les parcelles cadastrales */
+        /* ===== DARK MINIMAL — Calpinage PV ===== */
+        :root {
+            --c-bg: #0f1117;
+            --c-surface: #1a1d27;
+            --c-surface-2: #22252f;
+            --c-border: #2a2d3a;
+            --c-border-light: #353849;
+            --c-text: #e8eaed;
+            --c-text-2: #9ba1b0;
+            --c-text-3: #6b7185;
+            --c-accent: #3b82f6;
+            --c-accent-light: rgba(59,130,246,0.1);
+            --c-green: #10b981;
+            --c-green-light: rgba(16,185,129,0.1);
+            --c-orange: #f59e0b;
+            --c-orange-light: rgba(245,158,11,0.1);
+            --c-red: #ef4444;
+            --c-red-light: rgba(239,68,68,0.1);
+            --c-purple: #a78bfa;
+            --c-purple-light: rgba(167,139,250,0.1);
+            --c-yellow: #eab308;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --radius-xs: 6px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.25);
+            --shadow-lg: 0 8px 24px rgba(0,0,0,0.35);
+            --transition: 0.2s cubic-bezier(.4,0,.2,1);
+        }
+        * { box-sizing: border-box; }
+        body {
+            background: var(--c-bg);
+            min-height: 100vh;
+            padding: 0; margin: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            color: var(--c-text);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Tooltip parcelles cadastrales */
         .parcelle-tooltip {
-            background-color: rgba(255, 215, 0, 0.9);
+            background-color: rgba(234, 179, 8, 0.9);
             color: #000;
-            border: 2px solid #FFD700;
+            border: 2px solid var(--c-yellow);
             border-radius: 4px;
             padding: 4px 8px;
             font-weight: bold;
@@ -27,12 +65,13 @@
         
         #map { 
             height: 600px; 
-            border: 2px solid #ddd;
-            border-radius: 8px;
+            border: 1px solid var(--c-border);
+            border-radius: 0 0 var(--radius) var(--radius);
         }
-        /* Styles pour les outils de mesure */
+
+        /* Measure tools */
         .measure-tooltip {
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.85);
             color: white;
             padding: 4px 8px;
             border-radius: 4px;
@@ -41,23 +80,22 @@
             white-space: nowrap;
         }
         .measure-result {
-            background: #28a745;
+            background: var(--c-green);
             color: white;
             padding: 6px 10px;
             border-radius: 4px;
             font-weight: bold;
         }
         .drawing-tools {
-            background: white;
-            border-radius: 8px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
             padding: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow);
         }
-        .drawing-tools .btn {
-            margin: 2px;
-        }
+        .drawing-tools .btn { margin: 2px; }
         .drawing-tools .btn.active {
-            background-color: #0d6efd !important;
+            background-color: var(--c-accent) !important;
             color: white !important;
         }
         .measurements-panel {
@@ -69,97 +107,114 @@
             justify-content: space-between;
             align-items: center;
             padding: 5px 10px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--c-border);
         }
-        .measurement-item:last-child {
-            border-bottom: none;
-        }
-        /* Styles pour le mode plein écran */
-        .map-container {
-            position: relative;
-            transition: all 0.3s ease;
-        }
+        .measurement-item:last-child { border-bottom: none; }
+
+        /* Fullscreen */
+        .map-container { position: relative; transition: all 0.3s ease; }
         .map-container.fullscreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
+            position: fixed; top: 0; left: 0;
+            width: 100vw; height: 100vh;
             z-index: 9999;
-            background: white;
-            padding: 10px;
-            box-sizing: border-box;
+            background: var(--c-bg);
+            padding: 10px; box-sizing: border-box;
         }
         .map-container.fullscreen #map {
             height: calc(100vh - 80px) !important;
             border-radius: 0;
         }
         .map-container.fullscreen .drawing-toolbar {
-            position: absolute;
-            top: 60px;
-            left: 20px;
-            z-index: 10000;
-            background: white;
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            position: absolute; top: 60px; left: 20px; z-index: 10000;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            padding: 10px; border-radius: var(--radius-sm);
+            box-shadow: var(--shadow-lg);
         }
         .fullscreen-header {
             display: none;
-            justify-content: space-between;
-            align-items: center;
+            justify-content: space-between; align-items: center;
             padding: 10px 20px;
-            background: #f8f9fa;
-            border-bottom: 1px solid #ddd;
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
             margin-bottom: 10px;
         }
-        .map-container.fullscreen .fullscreen-header {
-            display: flex;
-        }
-        /* Styles pour le viewer 3D */
-        #viewer3DContainer {
-            display: none;
-            position: relative;
-        }
+        .map-container.fullscreen .fullscreen-header { display: flex; }
+
+        /* 3D Viewer */
+        #viewer3DContainer { display: none; position: relative; }
         #viewer3D {
-            width: 100%;
-            height: 600px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            background: linear-gradient(180deg, #87ceeb 0%, #e0f6ff 100%);
+            width: 100%; height: 600px;
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            background: linear-gradient(180deg, #1a2332 0%, #2c3e50 100%);
         }
         .viewer3d-controls {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            position: absolute; top: 10px; right: 10px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            padding: 10px; border-radius: var(--radius-sm);
+            box-shadow: var(--shadow);
             z-index: 1000;
+            color: var(--c-text-2);
         }
+
         #toggleFullscreen.active {
-            background-color: #dc3545 !important;
-            border-color: #dc3545 !important;
+            background-color: var(--c-red) !important;
+            border-color: var(--c-red) !important;
             color: white !important;
         }
-        .module-selector {
-            background: #f8f9fa;
+
+        /* Module selector / form sections */
+        .module-selector, .calp-section {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
             padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            border-radius: var(--radius);
+            margin-bottom: 16px;
         }
+        .module-selector h5, .calp-section h5 {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--c-text);
+            margin-bottom: 14px;
+        }
+        .form-label {
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--c-text-2);
+        }
+        .form-label strong { color: var(--c-text); font-weight: 600; }
+        .form-control, .form-select {
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
+            border-radius: var(--radius-xs);
+            font-size: 0.85rem;
+            transition: all var(--transition);
+        }
+        .form-control:focus, .form-select:focus {
+            background: var(--c-bg);
+            border-color: var(--c-accent);
+            color: var(--c-text);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        .form-control::placeholder { color: var(--c-text-3); }
+        .form-control-sm { font-size: 0.8rem; }
+        .text-muted, small.text-muted { color: var(--c-text-3) !important; }
+
+        /* Zone cards */
         .zone-card {
-            background: white;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            background: var(--c-surface-2);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            margin-bottom: 12px;
+            transition: all var(--transition);
         }
         .zone-card.selected {
-            border-color: #0d6efd;
-            box-shadow: 0 0 0 0.2rem rgba(13,110,253,.25);
+            border-color: var(--c-accent);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
         }
         .zone-header {
             display: flex;
@@ -168,83 +223,226 @@
             margin-bottom: 10px;
         }
         .zone-title {
-            font-weight: bold;
-            color: #0d6efd;
-            font-size: 1.1em;
+            font-weight: 600;
+            color: var(--c-accent);
+            font-size: 0.92rem;
         }
+
+        /* Stats card (sidebar) */
         .stats-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            color: var(--c-text);
             padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
+            border-radius: var(--radius);
+            margin-bottom: 16px;
         }
         .stats-value {
-            font-size: 2em;
-            font-weight: bold;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            color: var(--c-text);
         }
         .stats-label {
-            opacity: 0.9;
-            font-size: 0.9em;
+            font-size: 0.72rem;
+            color: var(--c-text-3);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
         }
+
+        /* Cards */
+        .card {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            color: var(--c-text);
+        }
+        .card-header {
+            background: var(--c-surface-2) !important;
+            border-bottom: 1px solid var(--c-border);
+            color: var(--c-text) !important;
+            font-size: 0.88rem;
+        }
+        .card-body { background: var(--c-surface); color: var(--c-text); }
+        .card-footer {
+            background: var(--c-surface-2);
+            border-top: 1px solid var(--c-border);
+            color: var(--c-text-2);
+        }
+        .card-body h6 { color: var(--c-text); font-size: 0.88rem; font-weight: 600; }
+        .card-body .text-muted { color: var(--c-text-3) !important; }
+        .card-body strong { color: var(--c-text); }
+
+        /* Buttons */
+        .btn-primary {
+            background: var(--c-accent); border-color: var(--c-accent);
+        }
+        .btn-primary:hover { background: #2563eb; border-color: #2563eb; }
+        .btn-outline-secondary {
+            border-color: var(--c-border); color: var(--c-text-2);
+        }
+        .btn-outline-secondary:hover {
+            background: var(--c-surface-2); border-color: var(--c-accent); color: var(--c-accent);
+        }
+        .btn-outline-success { border-color: var(--c-green); color: var(--c-green); }
+        .btn-outline-success:hover { background: var(--c-green-light); color: var(--c-green); }
+        .btn-outline-danger { border-color: var(--c-red); color: var(--c-red); }
+        .btn-outline-danger:hover { background: var(--c-red-light); color: var(--c-red); }
+        .btn-outline-warning { border-color: var(--c-orange); color: var(--c-orange); }
+        .btn-outline-warning:hover { background: var(--c-orange-light); color: var(--c-orange); }
+        .btn-outline-primary { border-color: var(--c-accent); color: var(--c-accent); }
+        .btn-outline-primary:hover { background: var(--c-accent-light); color: var(--c-accent); }
+        .btn-info { background: var(--c-accent-light); border-color: var(--c-accent); color: var(--c-accent); }
+        .btn-info:hover { background: var(--c-accent); color: white; }
+        .btn-success {
+            background: var(--c-green); border-color: var(--c-green);
+        }
+        .btn-warning {
+            background: var(--c-orange-light); border-color: var(--c-orange); color: var(--c-orange);
+        }
+        .btn-warning:hover { background: var(--c-orange); color: white; }
+        .btn-secondary {
+            background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text-2);
+        }
+        .btn-secondary:hover { border-color: var(--c-border-light); color: var(--c-text); }
+        .btn-light {
+            background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text-2);
+        }
+        .btn-light:hover { background: var(--c-surface); color: var(--c-text); }
+
+        /* Badge overrides */
+        .badge.bg-info { background: var(--c-accent-light) !important; color: var(--c-accent) !important; }
+        .badge.bg-warning { background: var(--c-orange-light) !important; color: var(--c-orange) !important; }
+        .badge.bg-primary { background: var(--c-accent-light) !important; color: var(--c-accent) !important; }
+        .badge.bg-success { background: var(--c-green-light) !important; color: var(--c-green) !important; }
+
+        /* Module preview */
+        .module-preview {
+            border: 1px dashed var(--c-accent);
+            padding: 10px;
+            border-radius: var(--radius-xs);
+            text-align: center;
+            background: var(--c-accent-light);
+        }
+        .module-preview small { color: var(--c-accent) !important; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.2); }
+
         .orientation-compass {
-            width: 100px;
-            height: 100px;
-            border: 2px solid #ddd;
+            width: 100px; height: 100px;
+            border: 2px solid var(--c-border);
             border-radius: 50%;
             position: relative;
             margin: 10px auto;
         }
         .compass-arrow {
-            position: absolute;
-            top: 5px;
-            left: 50%;
+            position: absolute; top: 5px; left: 50%;
             transform: translateX(-50%);
-            width: 0;
-            height: 0;
+            width: 0; height: 0;
             border-left: 8px solid transparent;
             border-right: 8px solid transparent;
-            border-bottom: 40px solid #dc3545;
+            border-bottom: 40px solid var(--c-red);
             transform-origin: 50% 95%;
         }
-        .module-preview {
-            border: 2px dashed #0d6efd;
-            padding: 10px;
-            border-radius: 4px;
-            text-align: center;
-            background: #e7f1ff;
-        }
+
         .rotation-handle {
             position: absolute;
-            width: 20px;
-            height: 20px;
-            background: #0d6efd;
-            border: 2px solid white;
+            width: 20px; height: 20px;
+            background: var(--c-accent);
+            border: 2px solid rgba(255,255,255,0.5);
             border-radius: 50%;
             cursor: grab;
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             z-index: 1000;
             touch-action: none;
             user-select: none;
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
         }
         .rotation-handle:active {
             cursor: grabbing;
-            background: #0a58ca;
+            background: #2563eb;
             transform: scale(1.1);
         }
+
+        /* HR & separators */
+        hr { border-color: var(--c-border); opacity: 0.5; }
+        .border-bottom { border-color: var(--c-border) !important; }
+        .border-top { border-color: var(--c-border) !important; }
+        .bg-light { background: var(--c-surface-2) !important; }
+        .bg-primary { background: var(--c-accent) !important; }
+
+        /* Text overrides */
+        .text-primary { color: var(--c-accent) !important; }
+        .text-success { color: var(--c-green) !important; }
+        .text-info { color: var(--c-accent) !important; }
+        .text-danger { color: var(--c-red) !important; }
+        .text-warning { color: var(--c-orange) !important; }
+
+        /* Page header */
+        .page-header {
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
+            padding: 16px 28px;
+        }
+        .page-header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            margin: 0;
+            color: var(--c-text);
+        }
+        .page-header p {
+            font-size: 0.8rem;
+            color: var(--c-text-3);
+            margin: 4px 0 0;
+        }
+
+        /* Toolbar area */
+        .calp-toolbar {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-bottom: none;
+            border-radius: var(--radius) var(--radius) 0 0;
+            padding: 10px 14px;
+        }
+        .calp-toolbar .btn { font-size: 0.78rem; }
+        .calp-toolbar .btn-group .btn { font-size: 0.76rem; }
+
+        /* Leaflet overrides */
+        .leaflet-control-zoom a {
+            background: var(--c-surface) !important;
+            color: var(--c-text) !important;
+            border-color: var(--c-border) !important;
+        }
+        .leaflet-control-zoom a:hover { background: var(--c-surface-2) !important; }
+        .leaflet-control-layers {
+            background: var(--c-surface) !important;
+            border: 1px solid var(--c-border) !important;
+            color: var(--c-text) !important;
+        }
+        .leaflet-popup-content-wrapper {
+            background: var(--c-surface) !important;
+            color: var(--c-text) !important;
+            border: 1px solid var(--c-border) !important;
+            border-radius: var(--radius) !important;
+        }
+        .leaflet-popup-tip { background: var(--c-surface) !important; }
+
+        /* VR divider */
+        .vr { border-color: var(--c-border); opacity: 0.5; }
     </style>
 </head>
 <body>
-    <div class="container-fluid py-4">
-        <div class="row mb-4">
-            <div class="col-12">
-                <h1>🔆 Calpinage Photovoltaïque</h1>
-                <p class="text-muted">{{ prospect.nom_prospect }} - {{ prospect.adresse }}</p>
-            </div>
-        </div>
+    <div class="page-header">
+        <h1><i class="bi bi-sun"></i> Calpinage Photovoltaïque</h1>
+        <p>{{ prospect.nom_prospect }} — {{ prospect.adresse }}</p>
+    </div>
+
+    <div class="container-fluid" style="padding:20px 28px;">
 
         <div class="row">
             <!-- Colonne gauche : Carte -->
@@ -407,8 +605,8 @@
 
                 <!-- Carte interactive -->
                 <div class="card" id="mapCard">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <strong>🗺️ Carte de calpinage</strong>
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong><i class="bi bi-map"></i> Carte de calpinage</strong>
                         <div>
                             <button class="btn btn-sm btn-info me-1" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">
                                 🌐 Vue 3D
@@ -536,8 +734,8 @@
                 <!-- Visualisation 3D WebGL -->
                 <div id="viewer3DContainer">
                     <div class="card">
-                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
-                            <strong>🌐 Vue 3D immersive - Visualisation WebGL</strong>
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <strong><i class="bi bi-badge-3d"></i> Vue 3D immersive — WebGL</strong>
                             <div>
                                 <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
                                     ☀️ Soleil
@@ -569,12 +767,17 @@
             <div class="col-lg-4">
                 <!-- Statistiques globales -->
                 <div class="stats-card">
-                    <div class="stats-label">Puissance totale installée</div>
-                    <div class="stats-value" id="puissanceTotale">0 kWc</div>
-                    <hr style="border-color: rgba(255,255,255,0.3)">
-                    <div class="stats-label">Productible annuel estimé</div>
-                    <div class="stats-value" id="productibleTotal">0 MWh/an</div>
-                    <small id="productibleDetails"></small>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="stats-label">Puissance installée</div>
+                            <div class="stats-value" id="puissanceTotale" style="color:var(--c-accent);">0 kWc</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="stats-label">Productible annuel</div>
+                            <div class="stats-value" id="productibleTotal" style="color:var(--c-green);">0 MWh</div>
+                        </div>
+                    </div>
+                    <small id="productibleDetails" class="d-block text-center mt-2" style="color:var(--c-text-3);"></small>
                 </div>
 
                 <!-- Localisation -->
@@ -636,33 +839,33 @@
 
                 <!-- Actions -->
                 <div class="d-grid gap-2 mt-3">
-                    <button class="btn btn-info" id="toggleLegende">
-                        🔵 Masquer la légende
+                    <button class="btn btn-outline-primary btn-sm" id="toggleLegende">
+                        <i class="bi bi-circle-fill"></i> Masquer la légende
                     </button>
-                    <button class="btn btn-success btn-lg" id="genererEtude">
-                        📄 Générer l'étude de productible
+                    <button class="btn btn-success" id="genererEtude">
+                        <i class="bi bi-file-earmark-text"></i> Générer l'étude de productible
                     </button>
-                    <button class="btn btn-warning btn-lg" id="genererSchemaUnifilaire">
-                        ⚡ Schéma unifilaire NF C 15-712
+                    <button class="btn btn-warning" id="genererSchemaUnifilaire">
+                        <i class="bi bi-lightning-charge"></i> Schéma unifilaire NF C 15-712
                     </button>
-                    <button class="btn btn-info btn-lg" id="genererPlansStrings">
-                        🎨 Plans de strings détaillés
+                    <button class="btn btn-outline-primary" id="genererPlansStrings">
+                        <i class="bi bi-palette"></i> Plans de strings détaillés
                     </button>
-                    <button class="btn btn-secondary btn-lg" id="genererPlanMasse">
-                        📐 Plan de Masse Cadastral
+                    <button class="btn btn-outline-secondary" id="genererPlanMasse">
+                        <i class="bi bi-rulers"></i> Plan de Masse Cadastral
                     </button>
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
-                        💾 Sauvegarder le calpinage
+                        <i class="bi bi-save"></i> Sauvegarder le calpinage
                     </button>
-                    <a href="/crm" class="btn btn-secondary">
-                        ← Retour au CRM
+                    <a href="/crm" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left"></i> Retour au CRM
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
