@@ -11,6 +11,241 @@ import os
 # Blueprint pour les routes d'authentification
 auth_bp = Blueprint('auth', __name__)
 
+# ── Shared CSS base (dark theme aligned with homepage charte graphique) ──
+AUTH_BASE_CSS = """
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        background: #0a0e27;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #e8eaed;
+        overflow: hidden;
+        position: relative;
+    }
+    /* Animated gradient background */
+    body::before {
+        content: '';
+        position: fixed;
+        top: -50%; left: -50%;
+        width: 200%; height: 200%;
+        background: radial-gradient(ellipse at 20% 50%, rgba(255,183,0,0.06) 0%, transparent 50%),
+                    radial-gradient(ellipse at 80% 20%, rgba(102,126,234,0.06) 0%, transparent 50%),
+                    radial-gradient(ellipse at 50% 80%, rgba(118,75,162,0.04) 0%, transparent 50%);
+        animation: bgDrift 20s ease-in-out infinite;
+        z-index: 0;
+    }
+    @keyframes bgDrift {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        33% { transform: translate(2%, -1%) rotate(1deg); }
+        66% { transform: translate(-1%, 1%) rotate(-0.5deg); }
+    }
+    /* Floating particles */
+    .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .particle {
+        position: absolute;
+        width: 3px; height: 3px;
+        background: rgba(255,183,0,0.3);
+        border-radius: 50%;
+        animation: particleFloat 15s infinite linear;
+    }
+    .particle:nth-child(2) { width: 2px; height: 2px; left: 20%; animation-delay: -3s; animation-duration: 18s; background: rgba(102,126,234,0.25); }
+    .particle:nth-child(3) { left: 40%; animation-delay: -7s; animation-duration: 22s; }
+    .particle:nth-child(4) { width: 2px; height: 2px; left: 60%; animation-delay: -11s; animation-duration: 16s; background: rgba(118,75,162,0.25); }
+    .particle:nth-child(5) { left: 80%; animation-delay: -5s; animation-duration: 20s; }
+    .particle:nth-child(6) { left: 10%; animation-delay: -9s; animation-duration: 25s; background: rgba(255,183,0,0.15); }
+    @keyframes particleFloat {
+        0% { transform: translateY(100vh) scale(0); opacity: 0; }
+        10% { opacity: 1; }
+        90% { opacity: 1; }
+        100% { transform: translateY(-20vh) scale(1.5); opacity: 0; }
+    }
+    /* Auth card - glassmorphism */
+    .auth-card {
+        position: relative; z-index: 1;
+        background: rgba(26, 31, 58, 0.7);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border: 1px solid rgba(255, 183, 0, 0.12);
+        border-radius: 24px;
+        padding: 2.8rem 2.4rem;
+        max-width: 460px;
+        width: 92%;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        animation: cardAppear 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    .auth-card.wide { max-width: 500px; }
+    @keyframes cardAppear {
+        to { opacity: 1; transform: translateY(0); }
+    }
+    /* Brand */
+    .auth-brand {
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.3rem;
+    }
+    .auth-brand .gold {
+        background: linear-gradient(135deg, #FFB700, #FFA000);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .auth-subtitle {
+        color: #9ba1b0;
+        font-size: 0.88rem;
+        font-weight: 400;
+    }
+    .auth-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px; height: 52px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255,183,0,0.15), rgba(255,140,0,0.08));
+        border: 1px solid rgba(255,183,0,0.2);
+        margin-bottom: 1rem;
+        font-size: 1.4rem;
+        color: #FFB700;
+    }
+    /* Form elements */
+    .form-label {
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #9ba1b0;
+        margin-bottom: 0.35rem;
+        letter-spacing: 0.02em;
+    }
+    .form-control {
+        background: rgba(15, 17, 23, 0.6);
+        border: 1px solid rgba(42, 45, 58, 0.8);
+        border-radius: 12px;
+        color: #e8eaed;
+        padding: 0.7rem 1rem;
+        font-size: 0.92rem;
+        font-family: inherit;
+        transition: all 0.25s ease;
+    }
+    .form-control::placeholder { color: #6b7185; }
+    .form-control:focus {
+        background: rgba(15, 17, 23, 0.8);
+        border-color: #FFB700;
+        box-shadow: 0 0 0 3px rgba(255,183,0,0.1);
+        color: #e8eaed;
+        outline: none;
+    }
+    .form-text { color: #6b7185; font-size: 0.78rem; }
+    /* Primary button */
+    .btn-agri {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.78rem 1.5rem;
+        background: linear-gradient(135deg, #FFB700, #FF8C00);
+        color: #0a0e27;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        font-weight: 700;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        text-decoration: none;
+        box-shadow: 0 4px 16px rgba(255,183,0,0.25);
+    }
+    .btn-agri:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 28px rgba(255,183,0,0.4);
+        color: #0a0e27;
+    }
+    .btn-agri:active { transform: translateY(0); }
+    /* Secondary / outline button */
+    .btn-outline-agri {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+        padding: 0.6rem 1.2rem;
+        background: transparent;
+        color: #FFB700;
+        border: 1px solid rgba(255,183,0,0.3);
+        border-radius: 12px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        text-decoration: none;
+    }
+    .btn-outline-agri:hover {
+        background: rgba(255,183,0,0.08);
+        border-color: rgba(255,183,0,0.5);
+        color: #FFB700;
+    }
+    /* Links */
+    .auth-link {
+        color: #FFB700;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 0.85rem;
+        transition: color 0.2s;
+    }
+    .auth-link:hover { color: #FFA000; text-decoration: underline; }
+    .auth-link-muted {
+        color: #6b7185;
+        text-decoration: none;
+        font-size: 0.83rem;
+        transition: color 0.2s;
+    }
+    .auth-link-muted:hover { color: #9ba1b0; }
+    /* Separator */
+    .sep { display: flex; align-items: center; gap: 1rem; margin: 1.4rem 0; }
+    .sep::before, .sep::after { content: ''; flex: 1; height: 1px; background: rgba(42,45,58,0.8); }
+    .sep span { color: #6b7185; font-size: 0.78rem; font-weight: 500; }
+    /* Status icons */
+    .status-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 72px; height: 72px;
+        border-radius: 20px;
+        margin-bottom: 1.2rem;
+        font-size: 2rem;
+    }
+    .status-icon.success {
+        background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05));
+        border: 1px solid rgba(16,185,129,0.25);
+        color: #10b981;
+    }
+    .status-icon.error {
+        background: linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05));
+        border: 1px solid rgba(239,68,68,0.25);
+        color: #ef4444;
+    }
+    .msg-text { color: #9ba1b0; font-size: 0.9rem; line-height: 1.6; }
+    .msg-text strong { color: #e8eaed; }
+    /* Responsive */
+    @media (max-width: 480px) {
+        .auth-card { padding: 2rem 1.4rem; border-radius: 20px; }
+        .auth-brand { font-size: 1.3rem; }
+    }
+"""
+
+PARTICLES_HTML = """
+<div class="particles">
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+    <div class="particle"></div><div class="particle"></div><div class="particle"></div>
+</div>
+"""
+
 @auth_bp.route("/register", methods=["GET"])
 def register_form():
     """Affichage du formulaire d'inscription"""
@@ -20,59 +255,43 @@ def register_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚀 Inscription - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Inscription - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .registration-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            width: 100%;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="registration-card">
-        <div class="text-center mb-4">
-            <h2 class="text-success mb-3">🚀 Inscription AgriWeb Pro</h2>
-            <p class="text-muted">Créez votre compte pour accéder à toutes les fonctionnalités</p>
+    """ + PARTICLES_HTML + """
+    <div class="auth-card wide">
+        <div class="text-center" style="margin-bottom:1.6rem">
+            <div class="auth-icon"><i class="bi bi-rocket-takeoff"></i></div>
+            <div class="auth-brand"><span class="gold">AgriWeb</span> Pro</div>
+            <p class="auth-subtitle">Créez votre compte pour accéder à toutes les fonctionnalités</p>
         </div>
         <form method="POST" action="/auth/register">
-            <div class="mb-3">
-                <label for="name" class="form-label">Nom complet</label>
-                <input type="text" class="form-control" id="name" name="name" required>
+            <div style="margin-bottom:0.9rem">
+                <label class="form-label">Nom complet</label>
+                <input type="text" class="form-control" name="name" placeholder="Jean Dupont" required>
             </div>
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" name="email" required>
+            <div style="margin-bottom:0.9rem">
+                <label class="form-label">Email professionnel</label>
+                <input type="email" class="form-control" name="email" placeholder="vous@entreprise.fr" required>
             </div>
-            <div class="mb-3">
-                <label for="company" class="form-label">Entreprise (optionnel)</label>
-                <input type="text" class="form-control" id="company" name="company">
+            <div style="margin-bottom:0.9rem">
+                <label class="form-label">Entreprise <span style="color:#6b7185">(optionnel)</span></label>
+                <input type="text" class="form-control" name="company" placeholder="Nom de votre entreprise">
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Mot de passe</label>
-                <input type="password" class="form-control" id="password" name="password" required>
+            <div style="margin-bottom:1.2rem">
+                <label class="form-label">Mot de passe</label>
+                <input type="password" class="form-control" name="password" placeholder="Au moins 8 caractères" required minlength="8">
             </div>
-            <button type="submit" class="btn btn-success w-100 mb-3">
-                <i class="bi bi-person-plus"></i> Créer mon compte
+            <button type="submit" class="btn-agri">
+                <i class="bi bi-person-plus-fill"></i> Créer mon compte
             </button>
         </form>
-        <div class="text-center">
-            <small class="text-muted">
-                Déjà un compte ? <a href="/auth/login" class="text-success">Se connecter</a>
-            </small>
+        <div class="sep"><span>ou</span></div>
+        <div style="text-align:center">
+            <span class="auth-link-muted">Déjà un compte ?</span>
+            <a href="/auth/login" class="auth-link" style="margin-left:0.3rem">Se connecter</a>
         </div>
     </div>
 </body>
@@ -149,58 +368,40 @@ def login_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Connexion - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Connexion - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .login-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 450px;
-            width: 100%;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="text-center mb-4">
-            <h2 class="text-success mb-3">🔐 Connexion AgriWeb Pro</h2>
-            <p class="text-muted">Connectez-vous à votre compte</p>
+    """ + PARTICLES_HTML + """
+    <div class="auth-card">
+        <div class="text-center" style="margin-bottom:1.8rem">
+            <div class="auth-icon"><i class="bi bi-shield-lock-fill"></i></div>
+            <div class="auth-brand"><span class="gold">AgriWeb</span> Pro</div>
+            <p class="auth-subtitle">Connectez-vous à votre espace</p>
         </div>
         <form method="POST" action="/auth/login">
-            <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
-                <input type="email" class="form-control" id="email" name="email" required>
+            <div style="margin-bottom:0.9rem">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-control" name="email" placeholder="vous@entreprise.fr" required>
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Mot de passe</label>
-                <input type="password" class="form-control" id="password" name="password" required>
+            <div style="margin-bottom:1.3rem">
+                <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+                    Mot de passe
+                    <a href="/auth/reset-password" class="auth-link-muted" style="font-size:0.78rem">
+                        <i class="bi bi-key"></i> Oublié ?
+                    </a>
+                </label>
+                <input type="password" class="form-control" name="password" placeholder="Votre mot de passe" required>
             </div>
-            <button type="submit" class="btn btn-success w-100 mb-3">
+            <button type="submit" class="btn-agri">
                 <i class="bi bi-box-arrow-in-right"></i> Se connecter
             </button>
         </form>
-        <div class="text-center">
-            <div class="mb-2">
-                <small class="text-muted">
-                    <a href="/auth/reset-password" class="text-warning text-decoration-none">
-                        <i class="bi bi-key"></i> Mot de passe oublié ?
-                    </a>
-                </small>
-            </div>
-            <small class="text-muted">
-                Pas encore de compte ? <a href="/auth/register" class="text-success">S'inscrire</a>
-            </small>
+        <div class="sep"><span>ou</span></div>
+        <div style="text-align:center">
+            <span class="auth-link-muted">Pas encore de compte ?</span>
+            <a href="/auth/register" class="auth-link" style="margin-left:0.3rem">S'inscrire</a>
         </div>
     </div>
 </body>
@@ -335,54 +536,21 @@ SUCCESS_PAGE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - AgriWeb</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>{{ title }} - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .verification-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            text-align: center;
-        }
-        .success-icon {
-            font-size: 4rem;
-            color: #28a745;
-            margin-bottom: 1rem;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="verification-card">
-        <div class="success-icon">
-            <i class="bi bi-check-circle-fill"></i>
-        </div>
-        <h2 class="text-success mb-3">{{ title }}</h2>
-        <p class="text-muted mb-4">{{ message }}</p>
-        <a href="/" class="btn btn-primary">
-            <i class="bi bi-house"></i> Retour à l'accueil
+    """ + PARTICLES_HTML + """
+    <div class="auth-card" style="text-align:center">
+        <div class="status-icon success"><i class="bi bi-check-circle-fill"></i></div>
+        <div class="auth-brand" style="margin-bottom:0.5rem"><span class="gold">{{ title }}</span></div>
+        <p class="msg-text" style="margin-bottom:1.5rem">{{ message }}</p>
+        <a href="/auth/login" class="btn-agri" style="margin-bottom:0.8rem;display:inline-flex">
+            <i class="bi bi-box-arrow-in-right"></i> Se connecter
         </a>
-        <div class="mt-4">
-            <a href="/app" class="btn btn-outline-success">
-                <i class="bi bi-box-arrow-in-right"></i> Se connecter maintenant
-            </a>
+        <div style="margin-top:0.8rem">
+            <a href="/" class="auth-link-muted"><i class="bi bi-house"></i> Retour à l'accueil</a>
         </div>
     </div>
 </body>
@@ -395,54 +563,21 @@ ERROR_PAGE_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }} - AgriWeb</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>{{ title }} - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #dc3545, #fd7e14);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .verification-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            text-align: center;
-        }
-        .error-icon {
-            font-size: 4rem;
-            color: #dc3545;
-            margin-bottom: 1rem;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="verification-card">
-        <div class="error-icon">
-            <i class="bi bi-x-circle-fill"></i>
-        </div>
-        <h2 class="text-danger mb-3">{{ title }}</h2>
-        <p class="text-muted mb-4">{{ message }}</p>
-        <a href="/" class="btn btn-primary">
+    """ + PARTICLES_HTML + """
+    <div class="auth-card" style="text-align:center">
+        <div class="status-icon error"><i class="bi bi-x-circle-fill"></i></div>
+        <div class="auth-brand" style="margin-bottom:0.5rem;color:#ef4444">{{ title }}</div>
+        <p class="msg-text" style="margin-bottom:1.5rem">{{ message }}</p>
+        <a href="/" class="btn-agri" style="margin-bottom:0.8rem;display:inline-flex">
             <i class="bi bi-house"></i> Retour à l'accueil
         </a>
-        <div class="mt-4">
-            <small class="text-muted">
-                Besoin d'aide ? Contactez notre support technique
-            </small>
+        <div style="margin-top:0.8rem">
+            <a href="/auth/login" class="auth-link"><i class="bi bi-box-arrow-in-right"></i> Se connecter</a>
         </div>
     </div>
 </body>
@@ -458,59 +593,30 @@ def reset_password_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔑 Réinitialiser le mot de passe - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Réinitialiser le mot de passe - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #6c757d, #495057);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .reset-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            width: 100%;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #6c757d, #495057);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="reset-card">
-        <div class="text-center mb-4">
-            <h2 class="text-secondary mb-3">🔑 Réinitialiser le mot de passe</h2>
-            <p class="text-muted">Entrez votre email pour recevoir un lien de réinitialisation</p>
+    """ + PARTICLES_HTML + """
+    <div class="auth-card">
+        <div class="text-center" style="margin-bottom:1.8rem">
+            <div class="auth-icon"><i class="bi bi-key-fill"></i></div>
+            <div class="auth-brand"><span class="gold">Mot de passe</span> oublié</div>
+            <p class="auth-subtitle">Entrez votre email pour recevoir un lien de réinitialisation</p>
         </div>
         <form method="POST" action="/auth/reset-password">
-            <div class="mb-3">
-                <label for="email" class="form-label">
-                    <i class="bi bi-envelope"></i> Email
-                </label>
-                <input type="email" class="form-control" id="email" name="email" 
-                       placeholder="votre@email.com" required>
+            <div style="margin-bottom:1.2rem">
+                <label class="form-label"><i class="bi bi-envelope"></i> Email</label>
+                <input type="email" class="form-control" name="email" placeholder="vous@entreprise.fr" required>
             </div>
-            <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-send"></i> Envoyer le lien de réinitialisation
-                </button>
-            </div>
+            <button type="submit" class="btn-agri">
+                <i class="bi bi-send"></i> Envoyer le lien
+            </button>
         </form>
-        <div class="text-center mt-4">
-            <a href="/auth/login" class="text-decoration-none">
-                <i class="bi bi-arrow-left"></i> Retour à la connexion
-            </a>
+        <div class="sep"><span></span></div>
+        <div style="text-align:center">
+            <a href="/auth/login" class="auth-link-muted"><i class="bi bi-arrow-left"></i> Retour à la connexion</a>
         </div>
     </div>
 </body>
@@ -539,38 +645,20 @@ def reset_password_request():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✅ Email envoyé - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Email envoyé - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .success-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            text-align: center;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="success-card">
-        <div class="text-success mb-4">
-            <i class="bi bi-check-circle-fill" style="font-size: 4rem;"></i>
-        </div>
-        <h2 class="text-success mb-3">📧 Email envoyé !</h2>
-        <p class="text-muted mb-4">
+    """ + PARTICLES_HTML + """
+    <div class="auth-card" style="text-align:center">
+        <div class="status-icon success"><i class="bi bi-envelope-check-fill"></i></div>
+        <div class="auth-brand" style="margin-bottom:0.5rem"><span class="gold">Email envoyé</span></div>
+        <p class="msg-text" style="margin-bottom:1.5rem">
             Un lien de réinitialisation a été envoyé à <strong>{{ email }}</strong>.<br>
             Vérifiez votre boîte mail et cliquez sur le lien pour créer un nouveau mot de passe.
         </p>
-        <a href="/auth/login" class="btn btn-success">
+        <a href="/auth/login" class="btn-agri" style="display:inline-flex">
             <i class="bi bi-arrow-left"></i> Retour à la connexion
         </a>
     </div>
@@ -606,65 +694,34 @@ def new_password_form():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Nouveau mot de passe - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Nouveau mot de passe - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .password-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            width: 100%;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="password-card">
-        <div class="text-center mb-4">
-            <h2 class="text-primary mb-3">🔐 Nouveau mot de passe</h2>
-            <p class="text-muted">Choisissez un nouveau mot de passe sécurisé</p>
+    """ + PARTICLES_HTML + """
+    <div class="auth-card">
+        <div class="text-center" style="margin-bottom:1.8rem">
+            <div class="auth-icon"><i class="bi bi-shield-lock-fill"></i></div>
+            <div class="auth-brand"><span class="gold">Nouveau</span> mot de passe</div>
+            <p class="auth-subtitle">Choisissez un nouveau mot de passe sécurisé</p>
         </div>
         <form method="POST" action="/auth/new-password">
             <input type="hidden" name="token" value="{{ token }}">
-            <div class="mb-3">
-                <label for="password" class="form-label">
-                    <i class="bi bi-lock"></i> Nouveau mot de passe
-                </label>
-                <input type="password" class="form-control" id="password" name="password" 
+            <div style="margin-bottom:0.9rem">
+                <label class="form-label"><i class="bi bi-lock"></i> Nouveau mot de passe</label>
+                <input type="password" class="form-control" name="password" 
                        placeholder="Au moins 8 caractères" required minlength="8">
-                <div class="form-text">
-                    Le mot de passe doit contenir au moins 8 caractères avec majuscules, minuscules et chiffres.
-                </div>
+                <div class="form-text">Majuscules, minuscules et chiffres recommandés.</div>
             </div>
-            <div class="mb-3">
-                <label for="confirm_password" class="form-label">
-                    <i class="bi bi-lock-fill"></i> Confirmer le mot de passe
-                </label>
-                <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
+            <div style="margin-bottom:1.2rem">
+                <label class="form-label"><i class="bi bi-lock-fill"></i> Confirmer</label>
+                <input type="password" class="form-control" name="confirm_password" 
                        placeholder="Répétez le mot de passe" required>
             </div>
-            <div class="d-grid gap-2">
-                <button type="submit" class="btn btn-primary">
-                    <i class="bi bi-check2"></i> Définir le nouveau mot de passe
-                </button>
-            </div>
+            <button type="submit" class="btn-agri">
+                <i class="bi bi-check2"></i> Définir le nouveau mot de passe
+            </button>
         </form>
     </div>
 </body>
@@ -701,39 +758,21 @@ def new_password_submit():
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>✅ Mot de passe modifié - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Mot de passe modifié - AgriWeb Pro</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .success-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            text-align: center;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="success-card">
-        <div class="text-success mb-4">
-            <i class="bi bi-check-circle-fill" style="font-size: 4rem;"></i>
-        </div>
-        <h2 class="text-success mb-3">🎉 Mot de passe modifié !</h2>
-        <p class="text-muted mb-4">
+    """ + PARTICLES_HTML + """
+    <div class="auth-card" style="text-align:center">
+        <div class="status-icon success"><i class="bi bi-check-circle-fill"></i></div>
+        <div class="auth-brand" style="margin-bottom:0.5rem"><span class="gold">Mot de passe modifié</span></div>
+        <p class="msg-text" style="margin-bottom:1.5rem">
             Votre mot de passe a été mis à jour avec succès.<br>
             Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.
         </p>
-        <a href="/auth/login" class="btn btn-success">
-            <i class="bi bi-arrow-right"></i> Se connecter
+        <a href="/auth/login" class="btn-agri" style="display:inline-flex">
+            <i class="bi bi-box-arrow-in-right"></i> Se connecter
         </a>
     </div>
 </body>
@@ -758,58 +797,20 @@ RESET_ERROR_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ title }} - AgriWeb Pro</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
-    <style>
-        body {
-            background: linear-gradient(135deg, #dc3545, #c82333);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .error-card {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            padding: 3rem;
-            max-width: 500px;
-            text-align: center;
-        }
-        .error-icon {
-            font-size: 4rem;
-            color: #dc3545;
-            margin-bottom: 1rem;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 600;
-        }
-    </style>
+    <style>""" + AUTH_BASE_CSS + """</style>
 </head>
 <body>
-    <div class="error-card">
-        <div class="error-icon">
-            <i class="bi bi-x-circle-fill"></i>
-        </div>
-        <h2 class="text-danger mb-3">{{ title }}</h2>
-        <p class="text-muted mb-4">{{ message }}</p>
-        <div class="d-grid gap-2">
-            <a href="{{ back_url or '/' }}" class="btn btn-primary">
-                <i class="bi bi-arrow-left"></i> Retour
-            </a>
-            <a href="/auth/login" class="btn btn-outline-secondary">
-                <i class="bi bi-house"></i> Connexion
-            </a>
-        </div>
-        <div class="mt-4">
-            <small class="text-muted">
-                Besoin d'aide ? Contactez notre support technique
-            </small>
+    """ + PARTICLES_HTML + """
+    <div class="auth-card" style="text-align:center">
+        <div class="status-icon error"><i class="bi bi-x-circle-fill"></i></div>
+        <div class="auth-brand" style="margin-bottom:0.5rem;color:#ef4444">{{ title }}</div>
+        <p class="msg-text" style="margin-bottom:1.5rem">{{ message }}</p>
+        <a href="{{ back_url or '/' }}" class="btn-agri" style="margin-bottom:0.8rem;display:inline-flex">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+        <div style="margin-top:0.8rem">
+            <a href="/auth/login" class="auth-link"><i class="bi bi-box-arrow-in-right"></i> Se connecter</a>
         </div>
     </div>
 </body>
