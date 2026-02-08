@@ -669,226 +669,259 @@ class SchemaUnifilaire:
         }
     
     def _dessiner_cartouche(self, c, width, height):
-        """Dessine le cartouche professionnel avec informations client"""
+        """Dessine le cartouche professionnel ingénieur avec grille alignée"""
         
-        # === CARTOUCHE PRINCIPAL (en haut, pleine largeur) ===
-        cart_main_height = 5*cm
-        cart_main_y = height - cart_main_height - 0.5*cm
+        # ── Dimensions cartouche principal (haut de page) ──
+        margin = 1.5*cm
+        cart_w = width - 2 * margin
+        cart_h = 4.8*cm
+        cart_x = margin
+        cart_y = height - cart_h - 0.5*cm
         
+        # Séparateur vertical entre col gauche et col droite
+        col_split_x = cart_x + cart_w * 0.52
+        
+        # ── Cadre extérieur épais ──
         c.setStrokeColor(colors.black)
-        c.setLineWidth(2)
-        c.rect(1.5*cm, cart_main_y, width - 3*cm, cart_main_height)
+        c.setLineWidth(2.5)
+        c.rect(cart_x, cart_y, cart_w, cart_h)
         
-        # Bandeau titre
-        c.setFillColor(colors.HexColor('#28a745'))
-        c.rect(1.5*cm, cart_main_y + cart_main_height - 1.2*cm, width - 3*cm, 1.2*cm, fill=1, stroke=0)
+        # ── Bandeau titre (noir, sobre) ──
+        bandeau_h = 1.1*cm
+        bandeau_y = cart_y + cart_h - bandeau_h
+        c.setFillColor(colors.HexColor('#1a1a2e'))
+        c.rect(cart_x, bandeau_y, cart_w, bandeau_h, fill=1, stroke=0)
         
         c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(2*cm, cart_main_y + cart_main_height - 0.7*cm, "🌱 AgriWeb Pro - SCHÉMA UNIFILAIRE NF C 15-712")
-        c.setFont("Helvetica", 9)
-        c.drawString(2*cm, cart_main_y + cart_main_height - 1.05*cm, "Installation photovoltaïque raccordée au réseau")
+        c.setFont("Helvetica-Bold", 15)
+        c.drawString(cart_x + 0.6*cm, bandeau_y + 0.55*cm,
+                     "AgriWeb Pro  —  SCHEMA UNIFILAIRE NF C 15-712")
+        c.setFont("Helvetica", 8)
+        c.drawString(cart_x + 0.6*cm, bandeau_y + 0.15*cm,
+                     "Installation photovoltaique raccordee au reseau  |  Conforme NF C 03-201")
         c.setFillColor(colors.black)
         
-        # Informations client (2 colonnes)
-        y_info = cart_main_y + cart_main_height - 2*cm
+        # ── Zone infos sous le bandeau ──
+        info_top = bandeau_y  # top de la zone infos = bas du bandeau
+        info_bot = cart_y     # bas = bas du cartouche
+        info_h = info_top - info_bot
         
-        # Colonne gauche
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(2*cm, y_info, "CLIENT:")
+        # Trait séparateur vertical entre les 2 colonnes
+        c.setLineWidth(1)
+        c.line(col_split_x, info_bot, col_split_x, info_top)
+        
+        # ── COLONNE GAUCHE ──
+        lx = cart_x + 0.5*cm
+        row_h = info_h / 4  # 4 lignes
+        
+        # Lignes horizontales internes gauche
+        for i in range(1, 4):
+            ly = info_top - i * row_h
+            c.setLineWidth(0.5)
+            c.line(cart_x, ly, col_split_x, ly)
+        
+        # Ligne 1 : CLIENT
+        y1 = info_top - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(lx, y1, "CLIENT")
+        c.setFillColor(colors.black)
         c.setFont("Helvetica", 9)
-        # Gérer le nom complet (peut être déjà complet dans 'nom')
         nom = self.prospect.get('nom', '').strip()
         prenom = self.prospect.get('prenom', '').strip()
-        if nom and prenom:
-            nom_client = f"{nom} {prenom}"
-        elif nom:
-            nom_client = nom
-        else:
-            nom_client = "Non renseigné"
-        c.drawString(2*cm, y_info - 0.5*cm, nom_client[:40])
+        nom_client = f"{nom} {prenom}".strip() if nom else "Non renseigne"
+        c.drawString(lx + 2.2*cm, y1, nom_client[:40])
         
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(2*cm, y_info - 1.2*cm, "ADRESSE:")
+        # Ligne 2 : ADRESSE
+        y2 = info_top - row_h - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(lx, y2, "ADRESSE")
+        c.setFillColor(colors.black)
         c.setFont("Helvetica", 9)
-        adresse = self.prospect.get('adresse', 'Non renseignée')
-        c.drawString(2*cm, y_info - 1.7*cm, adresse[:50])
+        adresse = self.prospect.get('adresse', 'Non disponible')
+        c.drawString(lx + 2.2*cm, y2, adresse[:45])
         
-        # Extraire code postal de la commune si nécessaire (format: "23000 Guéret")
+        # Ligne 3 : COMMUNE
+        y3 = info_top - 2 * row_h - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(lx, y3, "COMMUNE")
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 9)
         code_postal = self.prospect.get('code_postal', '').strip()
         commune = self.prospect.get('commune', '').strip()
         if not code_postal and commune:
-            # Essayer d'extraire le code postal du début de commune
             import re
             match = re.match(r'^(\d{5})\s+(.+)$', commune)
             if match:
                 code_postal = match.group(1)
                 commune = match.group(2)
+        ville = f"{code_postal} {commune}".strip() or "Non disponible"
+        c.drawString(lx + 2.2*cm, y3, ville[:45])
         
-        ville = f"{code_postal} {commune}".strip()
-        c.drawString(2*cm, y_info - 2.1*cm, ville[:50] if ville else "Non renseignée")
-        
-        # Colonne droite
-        col2_x = width / 2 + 1*cm
-        
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(col2_x, y_info, "PARCELLES CADASTRALES:")
+        # Ligne 4 : DATE D'EDITION
+        y4 = info_top - 3 * row_h - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(lx, y4, "DATE")
+        c.setFillColor(colors.black)
         c.setFont("Helvetica", 9)
-        parcelles_raw = self.prospect.get('references_cadastrales', '')
-        
-        # Gérer les différents formats de parcelles
-        parcelles_list = []
-        if parcelles_raw:
-            if isinstance(parcelles_raw, str):
-                # Si c'est une chaîne JSON, essayer de la parser
-                import json
-                try:
-                    parcelles_obj = json.loads(parcelles_raw)
-                    if isinstance(parcelles_obj, list):
-                        # Liste de dictionnaires ou de strings
-                        for p in parcelles_obj[:3]:
-                            if isinstance(p, dict):
-                                # Format: {'commune': 'XXX', 'prefixe': 'YYY', 'section': 'ZZ', 'numero': '0123'}
-                                ref = ''
-                                if p.get('prefixe'):
-                                    ref += p['prefixe'] + ' '
-                                if p.get('section'):
-                                    ref += p['section'] + ' '
-                                if p.get('numero'):
-                                    ref += p['numero']
-                                parcelles_list.append(ref.strip() if ref.strip() else str(p))
-                            else:
-                                parcelles_list.append(str(p))
-                    elif isinstance(parcelles_obj, dict):
-                        # Un seul dict
-                        ref = ''
-                        if parcelles_obj.get('prefixe'):
-                            ref += parcelles_obj['prefixe'] + ' '
-                        if parcelles_obj.get('section'):
-                            ref += parcelles_obj['section'] + ' '
-                        if parcelles_obj.get('numero'):
-                            ref += parcelles_obj['numero']
-                        parcelles_list.append(ref.strip() if ref.strip() else str(parcelles_obj))
-                    else:
-                        parcelles_list.append(str(parcelles_obj))
-                except:
-                    # Déjà une chaîne simple
-                    parcelles_list.append(parcelles_raw)
-            elif isinstance(parcelles_raw, list):
-                for p in parcelles_raw[:3]:
-                    if isinstance(p, dict):
-                        ref = ''
-                        if p.get('prefixe'):
-                            ref += p['prefixe'] + ' '
-                        if p.get('section'):
-                            ref += p['section'] + ' '
-                        if p.get('numero'):
-                            ref += p['numero']
-                        parcelles_list.append(ref.strip() if ref.strip() else str(p))
-                    else:
-                        parcelles_list.append(str(p))
-            else:
-                parcelles_list.append(str(parcelles_raw))
-        
-        parcelles_display = ', '.join(parcelles_list) if parcelles_list else 'Non renseignées'
-        c.drawString(col2_x, y_info - 0.5*cm, parcelles_display[:40])
-        
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(col2_x, y_info - 1.2*cm, "PUISSANCE INSTALLATION:")
+        c.drawString(lx + 2.2*cm, y4, datetime.now().strftime("%d/%m/%Y"))
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(lx + 5*cm, y4, "IND.")
+        c.setFillColor(colors.black)
         c.setFont("Helvetica", 9)
-        c.drawString(col2_x, y_info - 1.7*cm, f"{self.puissance_totale_kwc:.2f} kWc ({self.nb_modules_total} modules)")
+        c.drawString(lx + 6*cm, y4, self.indice_revision)
         
-        # Afficher le poste de raccordement si injection réseau
-        y_poste = y_info - 2.4*cm
-        if self.type_raccordement in ['autoconso_injection', 'injection_totale']:
-            # Déterminer quel poste utiliser selon la puissance (<1MWc = BT, ≥1MWc = HTA)
-            if self.puissance_totale_kwc < 1000:
-                poste_nom = self.prospect.get('poste_bt_nom', '')
-                poste_distance = self.prospect.get('poste_bt_distance_m', None)
-                poste_puissance = self.prospect.get('poste_bt_puissance', None)
-                poste_etat = self.prospect.get('poste_bt_etat', '')
-                poste_lat = self.prospect.get('poste_bt_lat', None)
-                poste_lon = self.prospect.get('poste_bt_lon', None)
-                poste_type = 'BT'
-            else:
-                poste_nom = self.prospect.get('poste_hta_nom', '')
-                poste_distance = self.prospect.get('poste_hta_distance_m', None)
-                poste_puissance = self.prospect.get('poste_hta_puissance', None)
-                poste_etat = self.prospect.get('poste_hta_etat', '')
-                poste_lat = self.prospect.get('poste_hta_lat', None)
-                poste_lon = self.prospect.get('poste_hta_lon', None)
-                poste_type = 'HTA'
-            
-            if poste_nom or poste_distance:
-                c.setFont("Helvetica-Bold", 10)
-                c.drawString(col2_x, y_poste, f"POSTE {poste_type} RACCORDEMENT:")
-                c.setFont("Helvetica", 9)
-                
-                # Nom du poste
-                poste_info = poste_nom[:30] if poste_nom else 'Non renseigné'
-                c.drawString(col2_x, y_poste - 0.5*cm, poste_info)
-                y_line = y_poste - 0.9*cm
-                
-                # Distance
-                if poste_distance is not None:
-                    c.drawString(col2_x, y_line, f"Distance: {int(poste_distance)}m")
-                    y_line -= 0.4*cm
-                
-                # Puissance
-                if poste_puissance is not None:
-                    c.drawString(col2_x, y_line, f"Puissance: {poste_puissance} kVA")
-                    y_line -= 0.4*cm
-                
-                # Statut
-                if poste_etat:
-                    c.drawString(col2_x, y_line, f"Statut: {poste_etat}")
-                    y_line -= 0.4*cm
-                
-                # Coordonnées GPS
-                if poste_lat and poste_lon:
-                    c.setFont("Helvetica", 8)
-                    c.drawString(col2_x, y_line, f"GPS: {poste_lat:.5f}, {poste_lon:.5f}")
-                    y_line -= 0.4*cm
-                
-                y_poste = y_line
-            else:
-                y_poste -= 0.6*cm
+        # ── COLONNE DROITE ──
+        rx = col_split_x + 0.5*cm
         
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(col2_x, y_poste, "DATE D'ÉDITION:")
+        # Lignes horizontales internes droite (5 lignes)
+        row_h_r = info_h / 5
+        for i in range(1, 5):
+            ly = info_top - i * row_h_r
+            c.setLineWidth(0.5)
+            c.line(col_split_x, ly, cart_x + cart_w, ly)
+        
+        # Ligne 1 : PARCELLES CADASTRALES
+        yr1 = info_top - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(rx, yr1, "PARCELLES")
+        c.setFillColor(colors.black)
         c.setFont("Helvetica", 9)
-        c.drawString(col2_x, y_poste - 0.5*cm, datetime.now().strftime("%d/%m/%Y"))
+        parcelles_display = self._format_parcelles()
+        c.drawString(rx + 2.5*cm, yr1, parcelles_display[:35])
         
-        # Trait séparateur vertical
-        c.setLineWidth(1)
-        c.line(width/2, cart_main_y, width/2, cart_main_y + cart_main_height - 1*cm)
+        # Ligne 2 : PUISSANCE INSTALLATION
+        yr2 = info_top - row_h_r - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(rx, yr2, "PUISSANCE")
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(rx + 2.5*cm, yr2,
+                     f"{self.puissance_totale_kwc:.2f} kWc  ({self.nb_modules_total} modules)")
         
-        # === CARTOUCHE BAS (infos techniques) ===
-        cart_width = 8*cm
-        cart_height = 2.5*cm
-        cart_x = width - cart_width - 1.5*cm
-        cart_y = 1*cm
+        # Ligne 3 : ONDULEUR
+        yr3 = info_top - 2 * row_h_r - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(rx, yr3, "ONDULEUR")
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 9)
+        c.drawString(rx + 2.5*cm, yr3,
+                     f"{self.onduleur['marque']} {self.onduleur['modele']}  ({self.onduleur['p_ac']/1000:.1f} kW AC)")
         
-        c.setLineWidth(2)
-        c.rect(cart_x, cart_y, cart_width, cart_height)
+        # Ligne 4 : POSTE RACCORDEMENT
+        yr4 = info_top - 3 * row_h_r - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(rx, yr4, "RACCORD.")
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 9)
+        poste_info = self._get_poste_info()
+        c.drawString(rx + 2.5*cm, yr4, poste_info[:40])
         
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.6*cm, f"Indice: {self.indice_revision}")
-        c.drawString(cart_x + 3*cm, cart_y + cart_height - 0.6*cm, "Page: 1/2")
-        
+        # Ligne 5 : CONSUEL / NORME
+        yr5 = info_top - 4 * row_h_r - 0.35*cm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(rx, yr5, "NORME")
+        c.setFillColor(colors.black)
         c.setFont("Helvetica", 8)
-        # Adapter la norme selon présence batterie
-        if self.avec_batterie:
-            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Normes: NF C 15-712-1 & 15-712-2")
-            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "PV + Stockage ≤ 250kVA")
-        else:
-            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.2*cm, "Norme: NF C 15-712-1:2017")
-            c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 1.7*cm, "Installations PV ≤ 250kVA")
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 2.2*cm, f"N° CONSUEL: {self.numero_consuel}")
+        norme = "NF C 15-712-1 & 15-712-2" if self.avec_batterie else "NF C 15-712-1:2017"
+        c.drawString(rx + 2.5*cm, yr5, norme)
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#555555'))
+        c.drawString(rx + 8*cm, yr5, "CONSUEL")
+        c.setFillColor(colors.black)
+        c.setFont("Helvetica", 8)
+        c.drawString(rx + 10*cm, yr5, self.numero_consuel or "A completer")
         
-        # === PLAN DE SITUATION (si injection réseau) ===
+        # ── Cartouche bas de page (petit, coin bas-droit) ──
+        cb_w = 7*cm
+        cb_h = 1.8*cm
+        cb_x = width - margin - cb_w
+        cb_y = 0.8*cm
+        
+        c.setLineWidth(1.5)
+        c.rect(cb_x, cb_y, cb_w, cb_h)
+        
+        # Ligne séparatrice interne
+        c.setLineWidth(0.5)
+        c.line(cb_x, cb_y + cb_h / 2, cb_x + cb_w, cb_y + cb_h / 2)
+        c.line(cb_x + cb_w / 2, cb_y, cb_x + cb_w / 2, cb_y + cb_h / 2)
+        
+        c.setFont("Helvetica-Bold", 7)
+        c.drawString(cb_x + 0.2*cm, cb_y + cb_h - 0.4*cm, "SCHEMA UNIFILAIRE NF C 15-712")
+        c.setFont("Helvetica", 7)
+        c.drawString(cb_x + 0.2*cm, cb_y + cb_h - 0.8*cm, f"AgriWeb Pro — {datetime.now().strftime('%d/%m/%Y')}")
+        
+        c.setFont("Helvetica", 7)
+        c.drawString(cb_x + 0.2*cm, cb_y + 0.25*cm, f"Ind. {self.indice_revision}")
+        c.drawString(cb_x + cb_w / 2 + 0.2*cm, cb_y + 0.25*cm, "Page 1/2")
+        
+        # ── Plan de situation (si injection réseau) ──
         if self.type_raccordement in ['autoconso_injection', 'injection_totale']:
             self._dessiner_plan_situation(c, width, height)
+    
+    def _format_parcelles(self):
+        """Formatte les parcelles cadastrales pour affichage cartouche"""
+        parcelles_raw = self.prospect.get('references_cadastrales', '')
+        if not parcelles_raw:
+            return 'Non renseignees'
+        
+        parcelles_list = []
+        if isinstance(parcelles_raw, str):
+            import json
+            try:
+                parcelles_obj = json.loads(parcelles_raw)
+                if isinstance(parcelles_obj, list):
+                    for p in parcelles_obj[:3]:
+                        if isinstance(p, dict):
+                            ref = ' '.join(filter(None, [p.get('prefixe'), p.get('section'), p.get('numero')]))
+                            parcelles_list.append(ref or str(p))
+                        else:
+                            parcelles_list.append(str(p))
+                elif isinstance(parcelles_obj, dict):
+                    ref = ' '.join(filter(None, [parcelles_obj.get('prefixe'), parcelles_obj.get('section'), parcelles_obj.get('numero')]))
+                    parcelles_list.append(ref or str(parcelles_obj))
+                else:
+                    parcelles_list.append(str(parcelles_obj))
+            except Exception:
+                parcelles_list.append(parcelles_raw)
+        elif isinstance(parcelles_raw, list):
+            for p in parcelles_raw[:3]:
+                if isinstance(p, dict):
+                    ref = ' '.join(filter(None, [p.get('prefixe'), p.get('section'), p.get('numero')]))
+                    parcelles_list.append(ref or str(p))
+                else:
+                    parcelles_list.append(str(p))
+        else:
+            parcelles_list.append(str(parcelles_raw))
+        
+        return ', '.join(parcelles_list) if parcelles_list else 'Non renseignees'
+    
+    def _get_poste_info(self):
+        """Retourne les infos du poste de raccordement pour le cartouche"""
+        if self.puissance_totale_kwc < 1000:
+            poste_nom = self.prospect.get('poste_bt_nom', '')
+            poste_distance = self.prospect.get('poste_bt_distance_m', None)
+            poste_type = 'BT'
+        else:
+            poste_nom = self.prospect.get('poste_hta_nom', '')
+            poste_distance = self.prospect.get('poste_hta_distance_m', None)
+            poste_type = 'HTA'
+        
+        parts = [f"Poste {poste_type}"]
+        if poste_nom:
+            parts.append(poste_nom[:20])
+        if poste_distance:
+            parts.append(f"({int(poste_distance)}m)")
+        return ' — '.join(parts) if len(parts) > 1 else 'Non renseigne'
     
     def _dessiner_plan_situation(self, c, width, height):
         """Dessine un plan de situation simplifié montrant l'emplacement du poste de raccordement"""
@@ -1044,21 +1077,21 @@ class SchemaUnifilaire:
         # === TITRE SECTIONS (disposées verticalement à gauche) ===
         titre_x = schema_x_start + 0.8*cm
         
-        c.setFont("Helvetica-Bold", 8)
-        c.setFillColor(colors.HexColor('#0d6efd'))
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColor(colors.HexColor('#1a1a2e'))
         c.drawString(titre_x, strings_y + 0.3*cm, "CHAMP PV")
         
-        c.setFillColor(colors.HexColor('#ffc107'))
+        c.setFillColor(colors.HexColor('#333333'))
         c.drawString(titre_x, boite_dc_y + 0.3*cm, "PROTECTION DC")
         
-        c.setFillColor(colors.HexColor('#28a745'))
-        c.drawString(titre_x, onduleur_y + 0.3*cm, "ONDULEUR")
+        c.setFillColor(colors.HexColor('#333333'))
+        c.drawString(titre_x, onduleur_y + 0.3*cm, "CONVERSION")
         
-        c.setFillColor(colors.HexColor('#dc3545'))
+        c.setFillColor(colors.HexColor('#333333'))
         c.drawString(titre_x, prot_ac_y + 1.5*cm, "PROTECTION AC")
         
-        c.setFillColor(colors.black)
-        c.drawString(titre_x, injection_y + 0.3*cm, "RÉSEAU")
+        c.setFillColor(colors.HexColor('#333333'))
+        c.drawString(titre_x, injection_y + 0.3*cm, "RESEAU")
         
         c.setFillColor(colors.black)
         
@@ -1467,193 +1500,204 @@ class SchemaUnifilaire:
         c.drawString(terre_x + 6*mm, legende_y, f"Terre (≤{self.resistance_terre_max})")
     
     def _dessiner_notes_calculs(self, c, width, height):
-        """Dessine la page des notes de calculs et vérifications"""
+        """Dessine la page des notes de calculs — style ingenieur"""
         
-        # Cartouche page 2
-        cart_width = 18*cm
-        cart_height = 2*cm
-        cart_x = width - cart_width - 1*cm
-        cart_y = 1*cm
+        margin = 1.5*cm
+        
+        # ── Cartouche bas page 2 ──
+        cb_w = 7*cm
+        cb_h = 1.5*cm
+        cb_x = width - margin - cb_w
+        cb_y = 0.8*cm
         
         c.setStrokeColor(colors.black)
-        c.setLineWidth(2)
-        c.rect(cart_x, cart_y, cart_width, cart_height)
+        c.setLineWidth(1.5)
+        c.rect(cb_x, cb_y, cb_w, cb_h)
+        c.setLineWidth(0.5)
+        c.line(cb_x + cb_w / 2, cb_y, cb_x + cb_w / 2, cb_y + cb_h)
         
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.8*cm, "NOTES DE CALCULS - NF C 15-712")
+        c.setFont("Helvetica-Bold", 7)
+        c.drawString(cb_x + 0.2*cm, cb_y + cb_h - 0.4*cm, "NOTES DE CALCULS")
+        c.setFont("Helvetica", 7)
+        c.drawString(cb_x + 0.2*cm, cb_y + 0.25*cm, f"Ind. {self.indice_revision}")
+        c.drawString(cb_x + cb_w / 2 + 0.2*cm, cb_y + cb_h - 0.4*cm, "Page 2/2")
+        c.drawString(cb_x + cb_w / 2 + 0.2*cm, cb_y + 0.25*cm, datetime.now().strftime('%d/%m/%Y'))
         
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(cart_x + 0.3*cm, cart_y + cart_height - 0.6*cm, "Page: 2/2")
-        
-        # Titre page avec bandeau
-        y_titre = height - 2.5*cm
-        c.setFillColor(colors.HexColor('#0d6efd'))
-        c.rect(1.5*cm, y_titre - 0.5*cm, width - 3*cm, 1.2*cm, fill=1, stroke=1)
+        # ── Bandeau titre sobre ──
+        y_titre = height - 2*cm
+        c.setFillColor(colors.HexColor('#1a1a2e'))
+        c.rect(margin, y_titre - 0.3*cm, width - 2 * margin, 1*cm, fill=1, stroke=1)
         
         c.setFillColor(colors.white)
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(2*cm, y_titre, "NOTES DE CALCULS ET VÉRIFICATIONS DE CONFORMITÉ")
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(margin + 0.5*cm, y_titre, "NOTES DE CALCULS ET VERIFICATIONS DE CONFORMITE")
         c.setFillColor(colors.black)
         
-        y = height - 4.5*cm
+        y = height - 4*cm
         
-        # === 1. CONFIGURATION ÉLECTRIQUE ===
+        # ── Couleurs neutres pour tableaux ──
+        header_bg = colors.HexColor('#2d2d3f')
+        header_fg = colors.whitesmoke
+        row_even = colors.HexColor('#f5f5f8')
+        row_odd = colors.white
+        border_color = colors.HexColor('#cccccc')
         
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.HexColor('#28a745'))
-        c.drawString(2*cm, y, "1. CONFIGURATION ÉLECTRIQUE")
-        c.setFillColor(colors.black)
-        y -= 0.8*cm
+        # === 1. CONFIGURATION ELECTRIQUE ===
         
-        # Tableau configuration
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(2*cm, y, "1.  CONFIGURATION ELECTRIQUE")
+        y -= 0.7*cm
+        
         table_data = [
-            ['Paramètre', 'Valeur', 'Référence norme'],
-            ['Puissance totale installée', f"{self.puissance_totale_kwc:.2f} kWc", 'NF C 15-712 art. 3.1'],
+            ['Parametre', 'Valeur', 'Reference norme'],
+            ['Puissance totale installee', f"{self.puissance_totale_kwc:.2f} kWc", 'NF C 15-712 art. 3.1'],
             ['Nombre total de modules', f"{self.nb_modules_total}", ''],
-            ['Module photovoltaïque', f"{self.module_puissance}Wc ({self.module.get('longueur')}×{self.module.get('largeur')}mm)", ''],
+            ['Module photovoltaique', f"{self.module_puissance}Wc ({self.module.get('longueur')}x{self.module.get('largeur')}mm)", ''],
             ['Nombre de strings', f"{len(self.configuration_strings)}", ''],
-            ['Modules par string (moy)', f"{self.nb_modules_total / len(self.configuration_strings):.1f}", ''],
+            ['Modules par string (moy.)', f"{self.nb_modules_total / len(self.configuration_strings):.1f}", ''],
             ['Onduleur', f"{self.onduleur['marque']} {self.onduleur['modele']}", ''],
             ['Puissance onduleur AC', f"{self.onduleur['p_ac']/1000:.1f} kW", ''],
-            ['Ratio DC/AC', f"{(self.puissance_totale_kwc * 1000 / self.onduleur['p_ac']):.2f}", 'Optimal: 1.2-1.3'],
+            ['Ratio DC/AC', f"{(self.puissance_totale_kwc * 1000 / self.onduleur['p_ac']):.2f}", 'Optimal : 1.2 - 1.3'],
         ]
         
-        table = Table(table_data, colWidths=[8*cm, 5*cm, 5*cm])
+        table = Table(table_data, colWidths=[7.5*cm, 5.5*cm, 5.5*cm])
         table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#28a745')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+            ('TEXTCOLOR', (0, 0), (-1, 0), header_fg),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8f9fa')])
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, border_color),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [row_odd, row_even]),
         ]))
         
         table.wrapOn(c, width, height)
-        table.drawOn(c, 2*cm, y - 7*cm)
+        table.drawOn(c, 2*cm, y - 6.5*cm)
         
-        y -= 8.5*cm
+        y -= 8*cm
         
-        # === 2. DIMENSIONNEMENT CÂBLES ===
+        # === 2. DIMENSIONNEMENT CABLES ===
         
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.HexColor('#ffc107'))
-        c.drawString(2*cm, y, "2. DIMENSIONNEMENT DES CÂBLES")
-        c.setFillColor(colors.black)
-        y -= 0.8*cm
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(2*cm, y, "2.  DIMENSIONNEMENT DES CABLES")
+        y -= 0.7*cm
         
         table_data2 = [
-            ['Type câble', 'Section (mm²)', 'Courant max (A)', 'Chute tension', 'Référence norme'],
-            ['Câbles strings DC', f"{self.section_cable_string}", 
+            ['Type cable', 'Section (mm2)', 'I max (A)', 'Chute tension', 'Ref. norme'],
+            ['Cables strings DC', f"{self.section_cable_string}", 
              f"{max(s['i_sc'] * 1.25 for s in self.configuration_strings):.1f}", 
              '< 2%', 'NF C 15-712 art. 7.12.1.1'],
-            ['Câble principal DC', f"{self.section_cable_dc}", 
+            ['Cable principal DC', f"{self.section_cable_dc}", 
              f"{sum(s['i_sc'] * 1.25 for s in self.configuration_strings):.1f}", 
              '< 2%', 'NF C 15-712 art. 7.12.1.1'],
-            ['Câble onduleur AC', f"{self.section_cable_ac}", 
+            ['Cable onduleur AC', f"{self.section_cable_ac}", 
              f"{self.courant_max_ac:.1f}", 
              '< 2%', 'NF C 15-100'],
         ]
         
         table2 = Table(table_data2, colWidths=[5*cm, 3*cm, 3*cm, 3*cm, 4.5*cm])
         table2.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#ffc107')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+            ('TEXTCOLOR', (0, 0), (-1, 0), header_fg),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#fff8e1')])
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, border_color),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [row_odd, row_even]),
         ]))
         
         table2.wrapOn(c, width, height)
-        table2.drawOn(c, 2*cm, y - 4*cm)
+        table2.drawOn(c, 2*cm, y - 3.5*cm)
         
-        y -= 5.5*cm
+        y -= 5*cm
         
-        # === 3. PROTECTIONS ÉLECTRIQUES ===
+        # === 3. PROTECTIONS ELECTRIQUES ===
         
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.HexColor('#dc3545'))
-        c.drawString(2*cm, y, "3. PROTECTIONS ÉLECTRIQUES")
-        c.setFillColor(colors.black)
-        y -= 0.8*cm
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(2*cm, y, "3.  PROTECTIONS ELECTRIQUES")
+        y -= 0.7*cm
         
         table_data3 = [
-            ['Protection', 'Caractéristiques', 'Référence norme'],
+            ['Protection', 'Caracteristiques', 'Ref. norme'],
             ['Sectionneur DC', f"{self.calibre_sectionneur_dc}A - {self.tension_sectionneur_dc}", 'NF C 15-712 art. 7.12.3.1'],
-            ['Parafoudre DC', self.parafoudre_dc, 'NF C 15-712 art. 7.12.3.4 (Obligatoire)'],
-            ['Fusibles strings', self.fusibles_strings, 'Si > 2 strings en parallèle'],
-            ['Disjoncteur AC', f"{self.calibre_disjoncteur_ac}A", 'NF C 15-100'],
-            ['Différentiel AC', self.type_differentiel, 'NF C 15-100 (Obligatoire)'],
+            ['Parafoudre DC', self.parafoudre_dc, 'NF C 15-712 art. 7.12.3.4'],
+            ['Fusibles strings', self.fusibles_strings, 'Si > 2 strings en parallele'],
+            ['Disjoncteur AC', f"{self.calibre_disjoncteur_ac}A courbe C", 'NF C 15-100'],
+            ['Differentiel AC', self.type_differentiel, 'NF C 15-100'],
             ['Parafoudre AC', self.parafoudre_ac, 'NF C 15-712 art. 7.12.3.4'],
-            ['Mise à la terre', f"Résistance < {self.resistance_terre_max}", 'NF C 15-712 art. 7.13'],
+            ['Mise a la terre', f"R < {self.resistance_terre_max}", 'NF C 15-712 art. 7.13'],
         ]
         
         table3 = Table(table_data3, colWidths=[5*cm, 8*cm, 5.5*cm])
         table3.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#dc3545')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('BACKGROUND', (0, 0), (-1, 0), header_bg),
+            ('TEXTCOLOR', (0, 0), (-1, 0), header_fg),
             ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#ffe6e6')])
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ('GRID', (0, 0), (-1, -1), 0.5, border_color),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [row_odd, row_even]),
         ]))
         
         table3.wrapOn(c, width, height)
-        table3.drawOn(c, 2*cm, y - 7*cm)
+        table3.drawOn(c, 2*cm, y - 6*cm)
         
-        y -= 8.5*cm
+        y -= 7.5*cm
         
-        # === 4. VÉRIFICATIONS CONFORMITÉ ===
+        # === 4. VERIFICATIONS CONFORMITE ===
         
-        c.setFont("Helvetica-Bold", 12)
-        c.setFillColor(colors.HexColor('#17a2b8'))
-        c.drawString(2*cm, y, "4. VÉRIFICATIONS DE CONFORMITÉ NF C 15-712")
-        c.setFillColor(colors.black)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(2*cm, y, "4.  VERIFICATIONS DE CONFORMITE NF C 15-712")
         y -= 0.6*cm
         
-        c.setFont("Helvetica", 9)
+        c.setFont("Helvetica", 8)
         checks = [
-            "✅ Tension maximale DC < tension max onduleur (facteur température inclus)",
-            "✅ Tension minimale DC > tension min MPPT onduleur",
-            "✅ Courant max DC < courant max onduleur",
-            "✅ Chutes de tension DC et AC < 2%",
-            "✅ Sections câbles conformes NF C 15-100 (courants admissibles)",
-            "✅ Protections différentielles AC 30mA Type A minimum",
-            "✅ Parafoudres DC et AC Type 2 (obligatoire)",
-            "✅ Sectionneurs DC avec coupure visible",
-            "✅ Mise à la terre des masses métalliques",
-            "✅ Ratio DC/AC onduleur optimisé (1.2-1.3)",
+            "[OK]  Tension maximale DC < tension max onduleur (facteur temperature inclus)",
+            "[OK]  Tension minimale DC > tension min MPPT onduleur",
+            "[OK]  Courant max DC < courant max onduleur",
+            "[OK]  Chutes de tension DC et AC < 2%",
+            "[OK]  Sections cables conformes NF C 15-100 (courants admissibles)",
+            "[OK]  Protections differentielles AC 30mA Type A minimum",
+            "[OK]  Parafoudres DC et AC Type 2 (obligatoire)",
+            "[OK]  Sectionneurs DC avec coupure visible",
+            "[OK]  Mise a la terre des masses metalliques",
+            "[OK]  Ratio DC/AC onduleur optimise (1.2 - 1.3)",
         ]
         
         for check in checks:
             c.drawString(2.5*cm, y, check)
-            y -= 0.5*cm
+            y -= 0.45*cm
         
-        # Note finale
-        y -= 0.5*cm
-        c.setFont("Helvetica-Bold", 10)
-        c.setFillColor(colors.HexColor('#28a745'))
-        c.drawString(2*cm, y, "✅ INSTALLATION CONFORME NF C 15-712-1 (Installations photovoltaïques raccordées au réseau)")
-        c.setFillColor(colors.black)
+        # Conclusion
+        y -= 0.4*cm
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(2*cm, y, "CONCLUSION :  Installation conforme NF C 15-712-1")
+        if self.avec_batterie:
+            y -= 0.4*cm
+            c.drawString(2*cm, y, "               Stockage conforme NF C 15-712-2")
         
         # Avertissement
-        y -= 1.5*cm
-        c.setFont("Helvetica-Bold", 9)
-        c.setFillColor(colors.HexColor('#dc3545'))
-        c.drawString(2*cm, y, "⚠️ IMPORTANT:")
-        c.setFillColor(colors.black)
-        c.setFont("Helvetica", 8)
+        y -= 1.2*cm
+        c.setLineWidth(1)
+        c.rect(2*cm, y - 2*cm, width - 4*cm, 2.3*cm)
+        
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(2.3*cm, y, "AVERTISSEMENT")
+        c.setFont("Helvetica", 7)
         y -= 0.4*cm
-        c.drawString(2*cm, y, "Ce schéma unifilaire est généré automatiquement à partir du calepinage. Les calculs sont conformes aux normes")
-        y -= 0.35*cm
-        c.drawString(2*cm, y, "en vigueur, mais doivent être vérifiés par un professionnel qualifié avant mise en œuvre. Les longueurs de")
-        y -= 0.35*cm
-        c.drawString(2*cm, y, "câbles sont estimées et doivent être mesurées sur site. Le choix du matériel doit tenir compte des contraintes")
-        y -= 0.35*cm
-        c.drawString(2*cm, y, "locales (température, altitude, environnement corrosif, etc.).")
+        c.drawString(2.3*cm, y, "Ce schema unifilaire est genere automatiquement a partir du calepinage. Les calculs sont conformes aux normes")
+        y -= 0.3*cm
+        c.drawString(2.3*cm, y, "en vigueur, mais doivent etre verifies par un professionnel qualifie avant mise en oeuvre. Les longueurs de")
+        y -= 0.3*cm
+        c.drawString(2.3*cm, y, "cables sont estimees et doivent etre mesurees sur site. Le choix du materiel doit tenir compte des contraintes")
+        y -= 0.3*cm
+        c.drawString(2.3*cm, y, "locales (temperature, altitude, environnement corrosif, etc.).")
