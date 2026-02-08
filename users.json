@@ -1,0 +1,20 @@
+{
+  "ylaurent.perso@gmail.com": {
+    "id": "8e37f7ae-9bf6-434e-9bfb-aa575e183dde",
+    "email": "ylaurent.perso@gmail.com",
+    "password": "70aa17083f7afca1de6cea96c88e1e54:3e9169e24f7c47d398f23278e0fae3c8ebbfed653dc1db052b85127dd2138996",
+    "subscription": "trial",
+    "created_at": "2025-08-19T15:06:57.930288",
+    "last_login": "2025-08-19T15:35:06.817353",
+    "is_active": true
+  },
+  "admin@agriweb.fr": {
+    "id": "ff5c8515-2584-4126-862f-45a394a9bd23",
+    "email": "admin@agriweb.fr",
+    "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "created_at": "2025-08-19T15:42:00.130694",
+    "subscription": "trial",
+    "is_active": true,
+    "last_login": "2025-08-19T15:42:07.674122"
+  }
+}
