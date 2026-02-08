@@ -57,6 +57,11 @@ def _adapt_sql(sql):
         sql = re.sub(r'INSERT\s+OR\s+IGNORE\s+INTO', 'INSERT INTO', sql, flags=re.IGNORECASE)
         sql = sql.rstrip().rstrip(';') + ' ON CONFLICT DO NOTHING'
     
+    # Boolean columns: = 1 → = TRUE, = 0 → = FALSE
+    for col in ('is_active', 'is_admin', 'is_email_verified', 'is_verified'):
+        sql = re.sub(rf'\b{col}\s*=\s*1\b', f'{col} = TRUE', sql)
+        sql = re.sub(rf'\b{col}\s*=\s*0\b', f'{col} = FALSE', sql)
+
     # DELETE ... WHERE ... ORDER BY ... LIMIT N 
     # (PostgreSQL ne supporte pas ORDER BY/LIMIT dans DELETE directement)
     delete_match = re.search(

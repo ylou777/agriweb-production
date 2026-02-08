@@ -862,12 +862,14 @@ def create_demo_accounts():
             
             cursor.execute('''
                 INSERT INTO users (email, name, company, password_hash, salt, 
-                                 subscription_status, trial_end_date, is_active, is_admin, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP)
+                                 subscription_status, trial_end_date, is_active, is_admin, is_email_verified, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ''', (
                 account['email'], account['name'], account['company'], 
                 password_hash, salt, account['subscription_status'], trial_end.isoformat(),
-                1 if account['email'] == 'admin@test.com' else 0  # Admin pour admin@test.com
+                True,  # is_active
+                account['email'] == 'admin@test.com',  # is_admin
+                True  # is_email_verified (comptes démo pré-vérifiés)
             ))
             
             conn.commit()
@@ -884,13 +886,13 @@ def ensure_admin_rights():
         cursor = conn.cursor()
         
         # Forcer les droits admin pour admin@test.com
-        cursor.execute('UPDATE users SET is_admin = 1 WHERE email = ?', ('admin@test.com',))
+        cursor.execute('UPDATE users SET is_admin = 1, is_email_verified = 1 WHERE email = ?', ('admin@test.com',))
         conn.commit()
         
         # Vérifier
         cursor.execute('SELECT is_admin FROM users WHERE email = ?', ('admin@test.com',))
         result = cursor.fetchone()
-        if result and result[0] == 1:
+        if result and bool(result[0]):
             print("✅ Droits administrateur confirmés pour admin@test.com")
         else:
             print("⚠️ Problème avec les droits administrateur")
