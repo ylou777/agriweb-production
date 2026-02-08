@@ -1588,8 +1588,11 @@ async function handleCommuneSearch(e) {
   
   setCommuneSearchLog('⏳ Connexion au serveur...', '#0a58ca');
   
-  // Fonction de nettoyage (sans timeout - recherche illimitée)
+  // Fonction de nettoyage idempotente (peut être appelée plusieurs fois sans effet)
+  let cleanupDone = false;
   const cleanup = () => {
+    if (cleanupDone) return; // Éviter double cleanup
+    cleanupDone = true;
     isCommuneSearchRunning = false;
     // Réactiver le bouton
     if (searchBtn) {
@@ -1597,8 +1600,17 @@ async function handleCommuneSearch(e) {
       searchBtn.innerHTML = originalBtnText;
       searchBtn.style.opacity = '1';
     }
+    // Annuler le timer de sécurité
+    if (safetyTimer) clearTimeout(safetyTimer);
     console.log('🧹 [CLEANUP] Flag réinitialisé et bouton réactivé');
   };
+  // Timer de sécurité : si le cleanup n'a pas eu lieu après 60s, forcer
+  const safetyTimer = setTimeout(() => {
+    if (!cleanupDone) {
+      console.warn('⏰ [SAFETY] Cleanup forcé après timeout de sécurité');
+      cleanup();
+    }
+  }, 60000);
   
   switchMap("/static/map.html", async () => {
     const commune = document.getElementById("commune")?.value.trim();
@@ -1692,25 +1704,34 @@ async function handleCommuneSearch(e) {
             iframe.onload = () => {
               console.log('✅ [IFRAME] Carte commune Folium chargée, skip displayAllLayers');
               // skipLayers=true car Folium a déjà toutes les couches
-              setTimeout(() => applyCommuneLayers(true), 150);
+              setTimeout(() => {
+                applyCommuneLayers(true);
+                setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
+                console.log('✅ [SUCCESS] Recherche terminée (après chargement carte)');
+                cleanup();
+              }, 150);
             };
             iframe.src = newSrc;
             console.log('✅ [IFRAME] Chargement lancé:', newSrc);
           } catch (storageError) {
             console.warn('⚠️ [STORAGE] Erreur accès storage (Tracking Prevention):', storageError);
             iframe.src = data.carte_url;
-            setTimeout(() => applyCommuneLayers(true), 500);
+            setTimeout(() => {
+              applyCommuneLayers(true);
+              cleanup();
+            }, 500);
           }
+        } else {
+          // Pas d'iframe trouvé - cleanup quand même
+          cleanup();
         }
       } else {
         // Pas de carte_url, appliquer directement
         applyCommuneLayers(false);
+        setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
+        console.log('✅ [SUCCESS] Recherche terminée');
+        cleanup();
       }
-      setCommuneSearchLog('✅ Recherche terminée avec succès !', '#198754');
-      
-      // Réinitialiser le flag et nettoyer
-      console.log('✅ [SUCCESS] Recherche terminée');
-      cleanup();
       
     } catch (err) {
       setCommuneSearchLog('❌ Erreur lors de la recherche : ' + err, 'red');

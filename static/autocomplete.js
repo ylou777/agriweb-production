@@ -91,9 +91,13 @@ class Autocomplete {
                 this.selectPrevious();
                 break;
             case 'Enter':
-                e.preventDefault();
                 if (this.selectedIndex >= 0) {
+                    e.preventDefault();
                     this.selectSuggestion(this.currentSuggestions[this.selectedIndex]);
+                } else {
+                    // Aucune suggestion sélectionnée : fermer le dropdown
+                    // et laisser le Enter se propager au formulaire (pas de preventDefault)
+                    this.close();
                 }
                 break;
             case 'Escape':

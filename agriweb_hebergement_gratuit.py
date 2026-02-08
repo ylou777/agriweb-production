@@ -15517,58 +15517,62 @@ def rapport_commune_complet():
         print(f"📊 [RAPPORT_COMPLET] Génération du rapport exhaustif pour {commune}")
         
         # Récupération des filtres optionnels
-        try:
-            filters = {
-                # Filtres RPG
-                "filter_rpg": flask_request.values.get("filter_rpg", "true").lower() == "true",
-                "rpg_min_area": float(flask_request.values.get("rpg_min_area", 1.0)),
-                "rpg_max_area": float(flask_request.values.get("rpg_max_area", 1000.0)),
-            
+        # Parsing robuste des filtres : chaque paramètre est parsé individuellement
+        # pour éviter qu'une erreur sur un paramètre ne réinitialise TOUS les filtres
+        def _safe_float(key, default):
+            try:
+                return float(flask_request.values.get(key, default))
+            except (ValueError, TypeError):
+                return float(default)
+        
+        def _safe_bool(key, default="false"):
+            try:
+                return flask_request.values.get(key, default).lower() == "true"
+            except (AttributeError, TypeError):
+                return default.lower() == "true"
+        
+        filters = {
+            # Filtres RPG
+            "filter_rpg": _safe_bool("filter_rpg", "true"),
+            "rpg_min_area": _safe_float("rpg_min_area", 1.0),
+            "rpg_max_area": _safe_float("rpg_max_area", 1000.0),
+        
             # Filtres parkings
-            "filter_parkings": flask_request.values.get("filter_parkings", "false").lower() == "true",
-            "parking_min_area": float(flask_request.values.get("parking_min_area", 1500.0)),
+            "filter_parkings": _safe_bool("filter_parkings", "false"),
+            "parking_min_area": _safe_float("parking_min_area", 1500.0),
 
             # Filtres friches
-            "filter_friches": flask_request.values.get("filter_friches", "false").lower() == "true",
-            "friches_min_area": float(flask_request.values.get("friches_min_area", 1000.0)),
+            "filter_friches": _safe_bool("filter_friches", "false"),
+            "friches_min_area": _safe_float("friches_min_area", 1000.0),
 
             # Filtres toitures
-            "filter_toitures": flask_request.values.get("filter_toitures", "false").lower() == "true",
-            "toitures_min_surface": float(flask_request.values.get("toitures_min_surface", 100.0)),
+            "filter_toitures": _safe_bool("filter_toitures", "false"),
+            "toitures_min_surface": _safe_float("toitures_min_surface", 100.0),
             
             # Filtres zones
-            "filter_zones": flask_request.values.get("filter_zones", "false").lower() == "true",
-            "zones_min_area": float(flask_request.values.get("zones_min_area", 1000.0)),
+            "filter_zones": _safe_bool("filter_zones", "false"),
+            "zones_min_area": _safe_float("zones_min_area", 1000.0),
             "zones_type_filter": flask_request.values.get("zones_type_filter", ""),
             
             # Filtres de distance UNIFIÉS (hors zones)
-            "filter_by_distance": flask_request.values.get("filter_by_distance", "false").lower() == "true",
-            "max_distance_bt": float(flask_request.values.get("max_distance_bt", 500.0)),
-            "max_distance_hta": float(flask_request.values.get("max_distance_hta", 2000.0)),
+            "filter_by_distance": _safe_bool("filter_by_distance", "false"),
+            "max_distance_bt": _safe_float("max_distance_bt", 500.0),
+            "max_distance_hta": _safe_float("max_distance_hta", 2000.0),
             "poste_type_filter": flask_request.values.get("poste_type_filter", "ALL").upper(),
             "distance_logic": (
                 (lambda v: "AND" if v in ("ET", "AND") else ("OR" if v in ("OU", "OR") else "OR"))
             )(flask_request.values.get("distance_logic", "OR").upper()),
 
             # Autres options
-            "calculate_surface_libre": flask_request.values.get("calculate_surface_libre", "false").lower() == "true",
-            "include_detailed_analysis": flask_request.values.get("include_detailed_analysis", "true").lower() == "true",
+            "calculate_surface_libre": _safe_bool("calculate_surface_libre", "false"),
+            "include_detailed_analysis": _safe_bool("include_detailed_analysis", "true"),
             "export_format": flask_request.values.get("export_format", "json").lower()  # json, html, pdf
         }
-        except:
-            # Valeurs par défaut en cas d'erreur de lecture des paramètres
-            filters = {
-                "filter_rpg": True, "rpg_min_area": 1.0, "rpg_max_area": 1000.0,
-                "filter_parkings": False, "parking_min_area": 1500.0,
-                "filter_friches": False, "friches_min_area": 1000.0,
-                "filter_toitures": False, "toitures_min_surface": 100.0,
-                "filter_zones": False, "zones_min_area": 1000.0, "zones_type_filter": "",
-                "filter_by_distance": False, "max_distance_bt": 500.0, "max_distance_hta": 2000.0,
-                "poste_type_filter": "ALL", "distance_logic": "OR",
-                "calculate_surface_libre": False, "include_detailed_analysis": True, "export_format": "json"
-            }
         
-        print(f"📊 [RAPPORT_COMPLET] Filtres appliqués: {len([k for k, v in filters.items() if k.startswith('filter_') and v])} activés")
+        # Log détaillé des filtres actifs pour debug
+        filtres_actifs = [k for k, v in filters.items() if k.startswith('filter_') and v]
+        print(f"📊 [RAPPORT_COMPLET] Filtres appliqués: {len(filtres_actifs)} activés: {filtres_actifs}")
+        print(f"📊 [RAPPORT_COMPLET] filter_toitures={filters.get('filter_toitures')}, toitures_min_surface={filters.get('toitures_min_surface')}")
         
         # Tentative d'utilisation du module complet, sinon fallback vers la version intégrée
         rapport = None
