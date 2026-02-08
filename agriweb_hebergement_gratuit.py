@@ -15360,13 +15360,22 @@ def generate_integrated_commune_report(commune_name, filters=None):
                     features_iter = (fc or [])
                 added_count = 0
                 err_count = 0
+
+                # Emoji et labels selon le type de couche
+                layer_config = {
+                    "Parkings": {"emoji": "🅿️", "label": "parking", "pj_q": "parking", "sv_text": "Voir le parking"},
+                    "Friches": {"emoji": "🌾", "label": "terrain", "pj_q": "terrain", "sv_text": "Voir la friche"},
+                    "Toitures (OSM)": {"emoji": "🏠", "label": "toiture", "pj_q": "", "sv_text": "Voir la toiture"},
+                }
+                cfg = layer_config.get(name, {"emoji": "📍", "label": "zone", "pj_q": "", "sv_text": "Voir le lieu"})
+
                 for f in features_iter:
                     geom = f.get("geometry") if isinstance(f, dict) else None
                     props = (f.get("properties") or {}) if isinstance(f, dict) else {}
                     if not geom:
                         continue
                     try:
-                        # compute centroid for parcelles/address
+                        # compute centroid for parcelles/address/Street View
                         try:
                             shp = shape(geom)
                             c = shp.centroid
@@ -15383,44 +15392,97 @@ def generate_integrated_commune_report(commune_name, filters=None):
                         if not parc_refs and (lat_c is not None and lon_c is not None):
                             parc_refs = _parcelles_from_api_near(lon_c, lat_c)
                         parcelles_txt = _join_parcelles(parc_refs)
-                        addr_txt = _reverse_address(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else ""
+                        addr_txt = props.get("adresse") or ""
+                        if not addr_txt or addr_txt in ("Adresse non trouvée", "Erreur géocodage", "N/A", ""):
+                            addr_txt = _reverse_address(lon_c, lat_c) if (lat_c is not None and lon_c is not None) else ""
 
-                        # enrich props for popup/tooltip fields
-                        enriched = props.copy()
-                        if parcelles_txt and not enriched.get("parcelles"):
-                            enriched["parcelles"] = parcelles_txt
-                        if addr_txt and not enriched.get("adresse"):
-                            enriched["adresse"] = addr_txt
+                        # ── Build rich HTML popup matching commune search map ──
+                        popup_lines = []
 
-                        # Construire fields et aliases synchronisés (même longueur)
-                        all_field_alias = [
-                            ("surface_m2", "Surface (m²)"),
-                            ("surface_toiture_m2", "Surface toiture (m²)"),
-                            ("parcelles", "Parcelles"),
-                            ("adresse", "Adresse"),
-                            ("min_distance_bt_m", "Dist. BT (m)"),
-                            ("min_distance_hta_m", "Dist. HTA (m)"),
-                        ]
-                        tt_fields = [k for k, _ in all_field_alias if k in enriched]
-                        tt_aliases = [a for k, a in all_field_alias if k in enriched]
+                        # 📍 Adresse
+                        if addr_txt and addr_txt not in ("Adresse non trouvée", "Erreur géocodage", "N/A", ""):
+                            popup_lines.append(f"<b>{cfg['emoji']} Adresse:</b> {addr_txt}")
+                            ville = props.get("ville") or props.get("addr:city") or ""
+                            code_postal = props.get("code_postal") or props.get("addr:postcode") or ""
+                            if ville:
+                                popup_lines.append(f"<b>🏙️ Ville:</b> {ville}")
+                            if code_postal:
+                                popup_lines.append(f"<b>📮 Code postal:</b> {code_postal}")
 
-                        kwargs_tooltip = {}
-                        kwargs_popup = {}
-                        if tt_fields:
-                            kwargs_tooltip = dict(
-                                tooltip=folium.GeoJsonTooltip(fields=tt_fields, aliases=tt_aliases, sticky=True)
+                        # 📐 Surface
+                        surface = props.get("area") or props.get("surface") or props.get("surface_m2") or props.get("surface_toiture_m2")
+                        if surface:
+                            try:
+                                popup_lines.append(f"<b>{cfg['emoji']} Surface {cfg['label']}:</b> {float(surface):.0f} m²")
+                            except (ValueError, TypeError):
+                                popup_lines.append(f"<b>{cfg['emoji']} Surface {cfg['label']}:</b> {surface}")
+
+                        # 🏛️ Références cadastrales
+                        refs_cadastrales = parc_refs or props.get("parcelles_cadastrales", [])
+                        if refs_cadastrales and isinstance(refs_cadastrales, list) and len(refs_cadastrales) > 0:
+                            popup_lines.append(f"<b>🏛️ Parcelles cadastrales ({len(refs_cadastrales)}):</b>")
+                            for ref in refs_cadastrales[:5]:
+                                if isinstance(ref, dict):
+                                    ref_txt = ref.get('reference_complete', 'N/A')
+                                    popup_lines.append(f"&nbsp;&nbsp;• {ref_txt}")
+                                else:
+                                    popup_lines.append(f"&nbsp;&nbsp;• {str(ref)}")
+                            if len(refs_cadastrales) > 5:
+                                popup_lines.append(f"&nbsp;&nbsp;... et {len(refs_cadastrales)-5} autres")
+                        elif parcelles_txt:
+                            popup_lines.append(f"<b>🏛️ Parcelles:</b> {parcelles_txt}")
+
+                        # ⚡ Distances aux postes
+                        dist_bt = props.get("distance_poste_bt") or props.get("min_distance_bt_m") or props.get("min_poste_distance_m")
+                        dist_hta = props.get("distance_poste_hta") or props.get("min_distance_hta_m")
+                        if dist_bt is not None:
+                            try:
+                                popup_lines.append(f"<b>⚡ Distance poste BT:</b> {float(dist_bt):.0f}m")
+                            except (ValueError, TypeError):
+                                popup_lines.append(f"<b>⚡ Distance poste BT:</b> {dist_bt}")
+                        if dist_hta is not None:
+                            try:
+                                popup_lines.append(f"<b>⚡ Distance poste HTA:</b> {float(dist_hta):.0f}m")
+                            except (ValueError, TypeError):
+                                popup_lines.append(f"<b>⚡ Distance poste HTA:</b> {dist_hta}")
+
+                        # 🔗 Lien Google Street View
+                        street_view_link = ""
+                        pages_jaunes_link = ""
+                        if lat_c is not None and lon_c is not None:
+                            sv_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_c},{lon_c}"
+                            street_view_link = (
+                                f"<br><a href='{sv_url}' target='_blank' "
+                                f"style='color:#1474fa;text-decoration:none;padding:4px 8px;"
+                                f"background:#f0f8ff;border-radius:4px;display:inline-block;'>"
+                                f"{cfg['emoji']} {cfg['sv_text']}</a>"
                             )
-                            kwargs_popup = dict(
-                                popup=folium.GeoJsonPopup(fields=tt_fields, aliases=tt_aliases, labels=True, localize=True)
+
+                        # 📞 Lien Pages Jaunes
+                        pj_addr = addr_txt if addr_txt and addr_txt not in ("Adresse non trouvée", "Erreur géocodage", "N/A", "") else ""
+                        if pj_addr:
+                            from urllib.parse import quote_plus
+                            pj_encoded = quote_plus(pj_addr)
+                            pj_q = cfg['pj_q']
+                            pj_url = f"https://www.pagesjaunes.fr/annuaire/chercherlespros?quoiqui={pj_q}&ou={pj_encoded}&univers=pagesjaunes&idOu="
+                            pj_label = f"Pages Jaunes - {name}" if pj_q else "Pages Jaunes"
+                            pages_jaunes_link = (
+                                f"<br><a href='{pj_url}' target='_blank' "
+                                f"style='color:#ff8c00;text-decoration:none;padding:4px 8px;"
+                                f"background:#fff8dc;border-radius:4px;display:inline-block;'>"
+                                f"📞 {pj_label}</a>"
                             )
+
+                        popup_html = "<br>".join(popup_lines) + street_view_link + pages_jaunes_link
+                        tooltip_html = "<br>".join(popup_lines[:4])  # Premier aperçu au survol
 
                         gj = folium.GeoJson(
-                            {"type": "Feature", "geometry": geom, "properties": enriched},
+                            {"type": "Feature", "geometry": geom, "properties": props},
                             name=name,
                             style_function=lambda _, c=color:
                                 {"color": c, "weight": 2, "fillColor": c, "fillOpacity": 0.2},
-                            **kwargs_tooltip,
-                            **kwargs_popup
+                            tooltip=folium.Tooltip(tooltip_html) if tooltip_html else None,
+                            popup=safe_folium_popup(popup_html, max_width=400) if popup_html else None,
                         )
                         gj.add_to(group)
                         added_count += 1
@@ -15439,23 +15501,55 @@ def generate_integrated_commune_report(commune_name, filters=None):
             add_fc_as_layer(friches_data, "Friches", "#8B4513")
             add_fc_as_layer(toitures_data, "Toitures (OSM)", "#FFD700")
 
-            # Postes (points)
-            def add_postes(postes, name, color):
+            # Postes BT/HTA avec popups enrichis (Marker + cercle comme la carte de recherche)
+            def add_postes(postes, name, color, icon_name, icon_color):
                 group = folium.FeatureGroup(name=name, show=True)
+                is_hta = "HTA" in name
                 for p in postes:
                     try:
                         coords = p.get("geometry", {}).get("coordinates", [])
-                        if isinstance(coords, (list, tuple)) and len(coords) == 2:
-                            folium.CircleMarker(
-                                location=[coords[1], coords[0]], radius=4,
-                                color=color, fill=True, fill_opacity=0.9
+                        if not (isinstance(coords, (list, tuple)) and len(coords) == 2):
+                            continue
+                        lat_p, lon_p = coords[1], coords[0]
+                        p_props = p.get("properties", {})
+                        dist_m = p.get("distance")
+
+                        # Build popup HTML
+                        popup_lines_p = [f"<b>{name}</b>"]
+                        for k, v in p_props.items():
+                            if v not in (None, "", "N/A"):
+                                popup_lines_p.append(f"{k}: {v}")
+                        if dist_m is not None:
+                            try:
+                                popup_lines_p.append(f"<b>Distance</b>: {float(dist_m):.1f} m")
+                            except (ValueError, TypeError):
+                                popup_lines_p.append(f"<b>Distance</b>: {dist_m}")
+                        if is_hta:
+                            capa = p_props.get("Capacité") or p_props.get("CapacitÃ\x83Â©") or "N/A"
+                            popup_lines_p.append(f"<b>Capacité dispo</b>: {capa}")
+
+                        sv_url = f"https://www.google.com/maps?q=&layer=c&cbll={lat_p},{lon_p}"
+                        popup_lines_p.append(f"<a href='{sv_url}' target='_blank'>📍 Voir sur Street View</a>")
+
+                        popup_txt = "<br>".join(popup_lines_p)
+
+                        folium.Marker(
+                            [lat_p, lon_p],
+                            popup=folium.Popup(popup_txt, max_width=350),
+                            tooltip=f"{name}",
+                            icon=folium.Icon(color=icon_color, icon=icon_name, prefix="fa")
+                        ).add_to(group)
+                        if not is_hta:
+                            folium.Circle(
+                                [lat_p, lon_p], radius=25,
+                                color=color, fill=True, fill_opacity=0.2
                             ).add_to(group)
                     except Exception:
                         continue
                 m.add_child(group)
 
-            add_postes(postes_bt_data, "Postes BT", "#006400")
-            add_postes(postes_hta_data, "Postes HTA", "#FF8C00")
+            add_postes(postes_bt_data, "Postes BT", "#006400", "flash", "darkgreen")
+            add_postes(postes_hta_data, "Postes HTA", "#FF8C00", "bolt", "orange")
 
             # Ajuster le zoom pour cadrer sur la commune
             try:
