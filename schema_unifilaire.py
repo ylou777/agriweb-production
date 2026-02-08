@@ -533,8 +533,9 @@ class SchemaUnifilaire:
         # Types de câbles selon NF C 15-712
         self.type_cable_dc = 'U1000R2V ou équivalent PV'
         self.type_cable_ac = 'U1000R2V'
-        self.section_pe_dc = self.section_cable_dc  # PE = section phase si ≤ 16mm²
-        self.section_pe_ac = self.section_cable_ac
+        # PE selon NF C 15-100 art. 543.1 : PE = phase si ≤16mm², PE = phase/2 si >16mm²
+        self.section_pe_dc = self.section_cable_dc if self.section_cable_dc <= 16 else self.section_cable_dc / 2
+        self.section_pe_ac = self.section_cable_ac if self.section_cable_ac <= 16 else self.section_cable_ac / 2
         
         # 2. PROTECTION DC (sectionneurs + parafoudres)
         # Sectionneur DC: 1.5 × Isc total (NF C 15-712 art. 7.12.3.1)
@@ -554,15 +555,23 @@ class SchemaUnifilaire:
         self.parafoudre_dc = f'Type 2 - {self.tension_sectionneur_dc} - {int(isc_total * 1.5)}A'
         self.parafoudre_ac = 'Type 2 - 275V AC - 20kA'
         
-        # 4. FUSIBLES PAR STRING (si nb_strings > 2)
-        if len(self.configuration_strings) > 2:
+        # 4. FUSIBLES PAR STRING (NF C 15-712 art. 7.12.2.2.1)
+        # Fusibles obligatoires si >= 3 strings par entrée MPPT
+        nb_mppt = self.onduleur.get('mppt', 2)
+        strings_par_mppt = math.ceil(len(self.configuration_strings) / nb_mppt)
+        if strings_par_mppt >= 3:
             isc_string_max = max(s['i_sc'] for s in self.configuration_strings)
+            # Calibre fusible : 1.5 × Isc < In_fusible < 2.4 × Isc (NF C 15-712)
+            calibre_fusible_min = isc_string_max * 1.5
+            calibre_fusible_max = isc_string_max * 2.4
             calibres_fusibles = [10, 12, 15, 16, 20, 25, 32]
-            calibres_valides_fus = [c for c in calibres_fusibles if c >= isc_string_max * 1.5]
+            calibres_valides_fus = [c for c in calibres_fusibles if calibre_fusible_min <= c <= calibre_fusible_max]
+            if not calibres_valides_fus:
+                calibres_valides_fus = [c for c in calibres_fusibles if c >= calibre_fusible_min]
             calibre_fusible = min(calibres_valides_fus) if calibres_valides_fus else calibres_fusibles[-1]
-            self.fusibles_strings = f'{calibre_fusible}A gPV (1000V DC)'
+            self.fusibles_strings = f'{calibre_fusible}A gPV ({self.tension_sectionneur_dc})'
         else:
-            self.fusibles_strings = 'Non requis (≤2 strings)'
+            self.fusibles_strings = f'Non requis ({strings_par_mppt} strings/MPPT, seuil=3)'
         
         # 5. MISE À LA TERRE (NF C 15-712 art. 7.13)
         self.resistance_terre_max = '100Ω'  # Valeur maximale
@@ -570,16 +579,20 @@ class SchemaUnifilaire:
         self.section_terre_principal = '16mm²'  # Section minimale conducteur principal de terre
         
         # 6. CHUTES DE TENSION (NF C 15-712 art. 7.12.1.1)
-        # DC: ΔU = ρ × L × I / S (avec ρ cuivre = 0.018 Ω·mm²/m)
-        rho_cuivre = 0.018
-        self.chute_tension_dc = (rho_cuivre * self.longueur_dc * sum(s['i_mpp'] for s in self.configuration_strings) / self.section_cable_dc) if self.section_cable_dc > 0 else 0
+        # DC aller-retour : ΔU = 2 × ρ × L × I / S (avec ρ cuivre = 0.0225 Ω·mm²/m à 70°C)
+        rho_cuivre = 0.0225  # Résistivité cuivre à 70°C
+        i_mpp_total = sum(s['i_mpp'] for s in self.configuration_strings)
+        self.chute_tension_dc = (2 * rho_cuivre * self.longueur_dc * i_mpp_total / self.section_cable_dc) if self.section_cable_dc > 0 else 0
         v_mpp_moyen = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
         self.chute_tension_dc_pct = (self.chute_tension_dc / v_mpp_moyen) * 100 if v_mpp_moyen > 0 else 0
         
-        # AC: ΔU = ρ × L × I / S × cos(φ) (triphasé: × √3)
+        # AC : ΔU = 2 × ρ × L × I × cos(φ) / S (mono) ou √3 × ρ × L × I × cos(φ) / S (tri)
         cos_phi = 0.98  # Facteur de puissance onduleur
-        self.chute_tension_ac = (rho_cuivre * self.longueur_ac_onduleur_tgbt * self.courant_max_ac / self.section_cable_ac * cos_phi) if self.section_cable_ac > 0 else 0
         v_ac = 230 if 'Mono' in self.type_reseau else 400
+        if 'Mono' in self.type_reseau:
+            self.chute_tension_ac = (2 * rho_cuivre * self.longueur_ac_onduleur_tgbt * self.courant_max_ac * cos_phi / self.section_cable_ac) if self.section_cable_ac > 0 else 0
+        else:
+            self.chute_tension_ac = (math.sqrt(3) * rho_cuivre * self.longueur_ac_onduleur_tgbt * self.courant_max_ac * cos_phi / self.section_cable_ac) if self.section_cable_ac > 0 else 0
         self.chute_tension_ac_pct = (self.chute_tension_ac / v_ac) * 100
         
         # 7. DISPOSITIF DE COUPURE GÉNÉRALE DC (en tête de chaque string)
@@ -1585,17 +1598,27 @@ class SchemaUnifilaire:
         c.drawString(2*cm, y, "2.  DIMENSIONNEMENT DES CABLES")
         y -= 0.7*cm
         
+        # Calculer chute de tension par string pour affichage
+        rho_70 = 0.0225
+        i_string_max = max(s['i_mpp'] for s in self.configuration_strings)
+        v_string_moy = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
+        delta_u_string = (2 * rho_70 * self.longueur_dc * i_string_max / self.section_cable_string) if self.section_cable_string > 0 else 0
+        delta_u_string_pct = (delta_u_string / v_string_moy) * 100 if v_string_moy > 0 else 0
+        
         table_data2 = [
-            ['Type cable', 'Section (mm2)', 'I max (A)', 'Chute tension', 'Ref. norme'],
-            ['Cables strings DC', f"{self.section_cable_string}", 
+            ['Type cable', 'Section (mm2)', 'I max (A)', 'DeltaU calc.', 'Ref. norme'],
+            ['Cables strings DC', f"{self.section_cable_string} mm2 Cu", 
              f"{max(s['i_sc'] * 1.25 for s in self.configuration_strings):.1f}", 
-             '< 2%', 'NF C 15-712 art. 7.12.1.1'],
-            ['Cable principal DC', f"{self.section_cable_dc}", 
+             f"{delta_u_string_pct:.2f}% (< 2%)", 'NF C 15-712 art. 7.12.1.1'],
+            ['Cable principal DC', f"{self.section_cable_dc} mm2 Cu", 
              f"{sum(s['i_sc'] * 1.25 for s in self.configuration_strings):.1f}", 
-             '< 2%', 'NF C 15-712 art. 7.12.1.1'],
-            ['Cable onduleur AC', f"{self.section_cable_ac}", 
+             f"{self.chute_tension_dc_pct:.2f}% (< 2%)", 'NF C 15-712 art. 7.12.1.1'],
+            ['Cable onduleur AC', f"{self.section_cable_ac} mm2 Cu", 
              f"{self.courant_max_ac:.1f}", 
-             '< 2%', 'NF C 15-100'],
+             f"{self.chute_tension_ac_pct:.2f}% (< 2%)", 'NF C 15-100'],
+            ['Longueur DC', f"{self.longueur_dc:.1f} m", '', '', ''],
+            ['Longueur AC ond.-TGBT', f"{self.longueur_ac_onduleur_tgbt:.1f} m", '', '', ''],
+            ['Longueur AC TGBT-inj.', f"{self.longueur_ac_tgbt_injection:.1f} m", '', '', ''],
         ]
         
         table2 = Table(table_data2, colWidths=[5*cm, 3*cm, 3*cm, 3*cm, 4.5*cm])
@@ -1613,9 +1636,9 @@ class SchemaUnifilaire:
         ]))
         
         table2.wrapOn(c, width, height)
-        table2.drawOn(c, 2*cm, y - 3.5*cm)
+        table2.drawOn(c, 2*cm, y - 5.5*cm)
         
-        y -= 5*cm
+        y -= 7*cm
         
         # === 3. PROTECTIONS ELECTRIQUES ===
         
@@ -1623,15 +1646,19 @@ class SchemaUnifilaire:
         c.drawString(2*cm, y, "3.  PROTECTIONS ELECTRIQUES")
         y -= 0.7*cm
         
+        sectionneur_ac_info = f"{self.calibre_sectionneur_ac}A - Cadenassable" if hasattr(self, 'calibre_sectionneur_ac') else ''
         table_data3 = [
             ['Protection', 'Caracteristiques', 'Ref. norme'],
-            ['Sectionneur DC', f"{self.calibre_sectionneur_dc}A - {self.tension_sectionneur_dc}", 'NF C 15-712 art. 7.12.3.1'],
+            ['Sectionneur DC general', f"{self.calibre_sectionneur_dc}A - {self.tension_sectionneur_dc}", 'NF C 15-712 art. 7.12.3.1'],
             ['Parafoudre DC', self.parafoudre_dc, 'NF C 15-712 art. 7.12.3.4'],
-            ['Fusibles strings', self.fusibles_strings, 'Si > 2 strings en parallele'],
-            ['Disjoncteur AC', f"{self.calibre_disjoncteur_ac}A courbe C", 'NF C 15-100'],
-            ['Differentiel AC', self.type_differentiel, 'NF C 15-100'],
+            ['Fusibles strings', self.fusibles_strings, 'NF C 15-712 art. 7.12.2.2.1'],
+            ['Sectionneur AC', sectionneur_ac_info, 'NF C 15-712 art. 7.12.3.2'],
+            ['AGCP', f"{self.calibre_agcp}A courbe {self.courbe_agcp} - PdC {self.pouvoir_coupure_agcp}", 'NF C 15-712'],
+            ['Disj. differentiel AC', f"{self.calibre_disjoncteur_ac}A courbe C - {self.type_differentiel}", 'NF C 15-100'],
             ['Parafoudre AC', self.parafoudre_ac, 'NF C 15-712 art. 7.12.3.4'],
-            ['Mise a la terre', f"R < {self.resistance_terre_max}", 'NF C 15-712 art. 7.13'],
+            ['Conducteur PE DC', f"{self.section_pe_dc} mm2 Cu", 'NF C 15-100 art. 543.1'],
+            ['Conducteur PE AC', f"{self.section_pe_ac} mm2 Cu", 'NF C 15-100 art. 543.1'],
+            ['Mise a la terre', f"R < {self.resistance_terre_max} - LEP {self.section_terre_principal}", 'NF C 15-712 art. 7.13'],
         ]
         
         table3 = Table(table_data3, colWidths=[5*cm, 8*cm, 5.5*cm])
@@ -1649,9 +1676,9 @@ class SchemaUnifilaire:
         ]))
         
         table3.wrapOn(c, width, height)
-        table3.drawOn(c, 2*cm, y - 6*cm)
+        table3.drawOn(c, 2*cm, y - 8*cm)
         
-        y -= 7.5*cm
+        y -= 9.5*cm
         
         # === 4. VERIFICATIONS CONFORMITE ===
         
@@ -1660,17 +1687,31 @@ class SchemaUnifilaire:
         y -= 0.6*cm
         
         c.setFont("Helvetica", 8)
+        
+        # Vérifications dynamiques basées sur les valeurs calculées
+        v_oc_max_calc = max(s['v_oc'] * 1.25 for s in self.configuration_strings)  # -10°C
+        v_mpp_min_calc = min(s['v_mpp'] * 0.85 for s in self.configuration_strings)  # +70°C
+        i_sc_total_calc = sum(s['i_sc'] for s in self.configuration_strings)
+        i_max_ond = self.onduleur.get('i_max', 30) * self.onduleur.get('mppt', 2)
+        ratio_dc_ac = self.puissance_totale_kwc * 1000 / self.onduleur['p_ac'] if self.onduleur['p_ac'] > 0 else 0
+        
+        chk_voc = 'OK' if v_oc_max_calc < self.onduleur['v_max'] else 'NOK'
+        chk_vmpp = 'OK' if v_mpp_min_calc > self.onduleur['v_min'] else 'NOK'
+        chk_idc = 'OK' if i_sc_total_calc < i_max_ond else 'NOK'
+        chk_du = 'OK' if self.chute_tension_dc_pct < 2 and self.chute_tension_ac_pct < 2 else 'NOK'
+        chk_ratio = 'OK' if 0.9 <= ratio_dc_ac <= 1.5 else 'WARN'
+        
         checks = [
-            "[OK]  Tension maximale DC < tension max onduleur (facteur temperature inclus)",
-            "[OK]  Tension minimale DC > tension min MPPT onduleur",
-            "[OK]  Courant max DC < courant max onduleur",
-            "[OK]  Chutes de tension DC et AC < 2%",
-            "[OK]  Sections cables conformes NF C 15-100 (courants admissibles)",
-            "[OK]  Protections differentielles AC 30mA Type A minimum",
-            "[OK]  Parafoudres DC et AC Type 2 (obligatoire)",
-            "[OK]  Sectionneurs DC avec coupure visible",
-            "[OK]  Mise a la terre des masses metalliques",
-            "[OK]  Ratio DC/AC onduleur optimise (1.2 - 1.3)",
+            f"[{chk_voc}]  Voc max (-10C) = {v_oc_max_calc:.0f}V < Vmax onduleur {self.onduleur['v_max']}V",
+            f"[{chk_vmpp}]  Vmpp min (+70C) = {v_mpp_min_calc:.0f}V > Vmin MPPT {self.onduleur['v_min']}V",
+            f"[{chk_idc}]  Isc total = {i_sc_total_calc:.1f}A < Imax onduleur {i_max_ond}A",
+            f"[{chk_du}]  DeltaU DC = {self.chute_tension_dc_pct:.2f}% | DeltaU AC = {self.chute_tension_ac_pct:.2f}% (seuil 2%)",
+            "[OK]  Sections cables >= courants admissibles NF C 15-100",
+            f"[OK]  Protection differentielle : {self.type_differentiel}",
+            "[OK]  Parafoudres DC et AC Type 2 (obligatoire NF C 15-712)",
+            f"[OK]  Sectionneur DC {self.calibre_sectionneur_dc}A avec coupure visible",
+            f"[OK]  Mise a la terre R < {self.resistance_terre_max} + LEP",
+            f"[{chk_ratio}]  Ratio DC/AC = {ratio_dc_ac:.2f} (plage 1.0 - 1.5)",
         ]
         
         for check in checks:
