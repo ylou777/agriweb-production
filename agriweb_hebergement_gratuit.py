@@ -16225,8 +16225,12 @@ def admin_view_user(user_id):
 @app.route("/admin/user/create", methods=["POST"])
 @require_admin
 def admin_create_user():
-    """Créer un nouvel utilisateur depuis le panel admin"""
+    """Créer un nouvel utilisateur depuis le panel admin (bypass email verification)"""
     try:
+        import secrets
+        import hashlib
+        from datetime import datetime, timedelta
+        
         data = request.get_json() if request.is_json else request.form
         
         email = data.get('email', '').strip().lower()
@@ -16238,27 +16242,50 @@ def admin_create_user():
         if not email or not name or not password:
             return jsonify({'success': False, 'error': 'Email, nom et mot de passe requis'}), 400
         
-        # Utiliser auth_system pour créer l'utilisateur
-        from auth_system_improved import auth_system
-        success, message = auth_system.register_user(email, name, company, password)
+        if len(password) < 8:
+            return jsonify({'success': False, 'error': 'Le mot de passe doit faire au moins 8 caractères'}), 400
         
-        if not success:
-            return jsonify({'success': False, 'error': message}), 400
-        
-        # Si succès, mettre à jour le statut selon le rôle choisi
+        # Création directe en base (sans envoi d'email de vérification)
         conn = get_auth_db()
         cursor = conn.cursor()
         
-        if role == 'active':
-            cursor.execute("UPDATE users SET subscription_status = 'active', is_email_verified = 1 WHERE email = ?", (email,))
-        elif role == 'admin':
-            cursor.execute("UPDATE users SET subscription_status = 'active', is_admin = 1, is_email_verified = 1 WHERE email = ?", (email,))
-        else:
-            # trial par défaut - juste vérifier l'email
-            cursor.execute("UPDATE users SET is_email_verified = 1 WHERE email = ?", (email,))
+        # Vérifier si l'email existe déjà
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        if cursor.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': 'Cet email est déjà enregistré'}), 400
+        
+        # Hash du mot de passe (PBKDF2 SHA256, 100k itérations)
+        salt = secrets.token_hex(32)
+        password_hash = hashlib.pbkdf2_hmac(
+            'sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000
+        ).hex()
+        
+        # Dates
+        now = datetime.now()
+        trial_end = now + timedelta(days=7)
+        
+        # Déterminer le statut selon le rôle
+        sub_status = 'active' if role in ('active', 'admin') else 'trial'
+        is_admin_val = 1 if role == 'admin' else 0
+        
+        # Insertion directe - email pré-vérifié, pas besoin de confirmation
+        cursor.execute('''
+            INSERT INTO users (
+                email, name, company, password_hash, salt,
+                is_email_verified, is_admin, is_active,
+                trial_start_date, trial_end_date, subscription_status,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?, ?, ?)
+        ''', (
+            email, name, company or '', password_hash, salt,
+            is_admin_val, now, trial_end, sub_status, now
+        ))
         
         conn.commit()
         conn.close()
+        
+        print(f"✅ [ADMIN] Utilisateur créé: {name} ({email}) - rôle: {role}")
         
         return jsonify({
             'success': True,
