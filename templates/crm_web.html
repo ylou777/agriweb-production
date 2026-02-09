@@ -1132,6 +1132,16 @@
                 const response = await fetch('/api/crm/prospects');
                 const data = await response.json();
                 
+                if (!data.success) {
+                    if (response.status === 401) {
+                        showError('Veuillez vous connecter pour accéder aux prospects');
+                        setTimeout(() => { window.location.href = '/auth/login'; }, 2000);
+                        return;
+                    }
+                    showError(data.error || 'Erreur lors du chargement');
+                    return;
+                }
+                
                 allProspects = data.prospects || [];
                 updateStats(data.stats);
                 populateFormeJuridiqueFilter();
@@ -1395,6 +1405,7 @@
         }
 
         function updateStats(stats) {
+            if (!stats) stats = {total: 0, parkings: 0, toitures: 0, friches: 0};
             document.getElementById('stat-total').textContent = stats.total || 0;
             document.getElementById('stat-parkings').textContent = stats.parkings || 0;
             document.getElementById('stat-toitures').textContent = stats.toitures || 0;
