@@ -3,162 +3,651 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administration - AgriWeb</title>
+    <title>Administration - AgriWeb Pro</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --c-bg: #0f1117;
+            --c-surface: #1a1d27;
+            --c-surface-2: #22252f;
+            --c-surface-3: #2a2d3a;
+            --c-border: #2a2d3a;
+            --c-border-light: #353849;
+            --c-text: #e8eaed;
+            --c-text-secondary: #9ba1b0;
+            --c-text-3: #6b7185;
+            --c-accent: #3b82f6;
+            --c-accent-light: rgba(59,130,246,0.12);
+            --c-success: #10b981;
+            --c-success-light: rgba(16,185,129,0.12);
+            --c-warning: #f59e0b;
+            --c-warning-light: rgba(245,158,11,0.12);
+            --c-danger: #ef4444;
+            --c-danger-light: rgba(239,68,68,0.12);
+            --c-purple: #8b5cf6;
+            --c-purple-light: rgba(139,92,246,0.12);
+            --c-gold: #d4a843;
+            --radius: 14px;
+            --radius-sm: 10px;
+            --transition: 0.2s cubic-bezier(.4,0,.2,1);
+        }
+
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--c-bg);
+            color: var(--c-text);
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* === NAVBAR === */
+        .admin-navbar {
+            background: var(--c-surface);
+            border-bottom: 1px solid var(--c-border);
+            padding: 0 32px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(12px);
+        }
+        .admin-navbar .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 1.05rem;
+            color: var(--c-text);
+            text-decoration: none;
+        }
+        .admin-navbar .brand i {
+            font-size: 1.3rem;
+            color: var(--c-accent);
+        }
+        .admin-navbar .brand .gold { color: var(--c-gold); }
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .nav-links a {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--c-text-secondary);
+            background: var(--c-bg);
+            border: 1px solid var(--c-border);
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all var(--transition);
+        }
+        .nav-links a:hover {
+            color: var(--c-accent);
+            border-color: var(--c-accent);
+            background: var(--c-accent-light);
+            transform: translateY(-1px);
+        }
+        .nav-links a.danger:hover {
+            color: var(--c-danger);
+            border-color: var(--c-danger);
+            background: var(--c-danger-light);
+        }
+
+        /* === MAIN CONTAINER === */
+        .admin-main { padding: 28px 32px 48px; max-width: 1400px; margin: 0 auto; }
+
+        /* === PAGE HEADER === */
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 28px;
+        }
+        .page-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .page-header h1 i { color: var(--c-accent); font-size: 1.6rem; }
+        .page-header p {
+            color: var(--c-text-secondary);
+            font-size: 0.85rem;
+            margin: 4px 0 0;
+        }
+        .header-actions { display: flex; gap: 8px; }
+
+        /* === STAT CARDS === */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px;
-            border: none;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            padding: 22px 24px;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
         }
-        .stat-card-green {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        .stat-card:hover {
+            border-color: var(--c-border-light);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
         }
-        .stat-card-orange {
-            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 3px;
         }
-        .stat-card-purple {
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-            color: #333;
+        .stat-card.card-blue::before { background: var(--c-accent); }
+        .stat-card.card-green::before { background: var(--c-success); }
+        .stat-card.card-orange::before { background: var(--c-warning); }
+        .stat-card.card-purple::before { background: var(--c-purple); }
+
+        .stat-card .stat-icon {
+            width: 42px; height: 42px;
+            border-radius: var(--radius-sm);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+            margin-bottom: 14px;
         }
-        .chart-container {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            padding: 20px;
-            height: 320px; /* Hauteur fixe pour le conteneur */
-            overflow: hidden; /* Empêche le débordement */
+        .card-blue .stat-icon { background: var(--c-accent-light); color: var(--c-accent); }
+        .card-green .stat-icon { background: var(--c-success-light); color: var(--c-success); }
+        .card-orange .stat-icon { background: var(--c-warning-light); color: var(--c-warning); }
+        .card-purple .stat-icon { background: var(--c-purple-light); color: var(--c-purple); }
+
+        .stat-card .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 4px;
         }
-        
+        .stat-card .stat-label {
+            font-size: 0.78rem;
+            color: var(--c-text-secondary);
+            font-weight: 500;
+        }
+        .stat-card .stat-sub {
+            font-size: 0.72rem;
+            color: var(--c-text-3);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .stat-sub .badge-up { color: var(--c-success); }
+        .stat-sub .badge-neutral { color: var(--c-text-3); }
+
+        /* === PANELS === */
+        .panel {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .panel-header h3 {
+            font-size: 0.92rem;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .panel-header h3 i { color: var(--c-accent); font-size: 1.1rem; }
+        .panel-body { padding: 20px 24px; }
+
+        /* === CHARTS ROW === */
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .chart-panel { height: 320px; }
         .chart-wrapper {
             position: relative;
-            height: 250px; /* Hauteur fixe pour le graphique */
+            height: 230px;
             width: 100%;
         }
-        
         .chart-wrapper canvas {
             position: absolute !important;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
             width: 100% !important;
             height: 100% !important;
         }
-        .user-table {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+
+        /* === ACTIONS GRID === */
+        .actions-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 28px;
         }
-        .status-badge {
-            font-size: 0.8em;
+        .action-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 18px 12px;
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            color: var(--c-text-secondary);
+            font-size: 0.76rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition);
+            text-decoration: none;
+            font-family: inherit;
         }
-        .navbar-brand {
-            font-weight: bold;
-            color: #2c3e50 !important;
+        .action-btn i { font-size: 1.3rem; }
+        .action-btn:hover {
+            border-color: var(--c-accent);
+            color: var(--c-accent);
+            background: var(--c-accent-light);
+            transform: translateY(-2px);
+        }
+        .action-btn.btn-create:hover {
+            border-color: var(--c-success);
+            color: var(--c-success);
+            background: var(--c-success-light);
+        }
+
+        /* === USER TABLE === */
+        .user-table-wrap { margin-bottom: 28px; }
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--c-bg);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            padding: 0 14px;
+            width: 280px;
+        }
+        .search-box i { color: var(--c-text-3); font-size: 0.9rem; }
+        .search-box input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--c-text);
+            font-size: 0.82rem;
+            padding: 9px 0;
+            width: 100%;
+            font-family: inherit;
+        }
+        .search-box input::placeholder { color: var(--c-text-3); }
+
+        .table-dark-custom {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .table-dark-custom thead th {
+            padding: 12px 16px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--c-text-3);
+            border-bottom: 1px solid var(--c-border);
+            white-space: nowrap;
+        }
+        .table-dark-custom tbody tr {
+            transition: background var(--transition);
+        }
+        .table-dark-custom tbody tr:hover {
+            background: var(--c-bg);
+        }
+        .table-dark-custom td {
+            padding: 14px 16px;
+            font-size: 0.82rem;
+            border-bottom: 1px solid rgba(42,45,58,0.5);
+            vertical-align: middle;
+        }
+        .user-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .user-avatar {
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 600;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+        .avatar-blue { background: var(--c-accent-light); color: var(--c-accent); }
+        .avatar-green { background: var(--c-success-light); color: var(--c-success); }
+        .avatar-purple { background: var(--c-purple-light); color: var(--c-purple); }
+        .avatar-orange { background: var(--c-warning-light); color: var(--c-warning); }
+        .user-name { font-weight: 500; }
+        .user-id { font-size: 0.7rem; color: var(--c-text-3); }
+
+        /* Badges */
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .badge-trial { background: var(--c-warning-light); color: var(--c-warning); }
+        .badge-active { background: var(--c-success-light); color: var(--c-success); }
+        .badge-cancelled { background: var(--c-danger-light); color: var(--c-danger); }
+        .badge-pending { background: var(--c-purple-light); color: var(--c-purple); }
+        .badge-free { background: rgba(107,113,133,0.15); color: var(--c-text-3); }
+        .badge-basic { background: var(--c-accent-light); color: var(--c-accent); }
+        .badge-pro { background: var(--c-success-light); color: var(--c-success); }
+        .badge-team { background: var(--c-purple-light); color: var(--c-purple); }
+        .badge-enterprise { background: rgba(212,168,67,0.15); color: var(--c-gold); }
+
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .dot-active { background: var(--c-success); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+        .dot-inactive { background: var(--c-danger); }
+
+        /* Action buttons */
+        .actions-cell { display: flex; gap: 4px; }
+        .act-btn {
+            width: 32px; height: 32px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 8px;
+            border: 1px solid var(--c-border);
+            background: transparent;
+            color: var(--c-text-secondary);
+            cursor: pointer;
+            transition: all var(--transition);
+            font-size: 0.85rem;
+        }
+        .act-btn:hover { border-color: var(--c-accent); color: var(--c-accent); background: var(--c-accent-light); }
+        .act-btn.act-danger:hover { border-color: var(--c-danger); color: var(--c-danger); background: var(--c-danger-light); }
+
+        /* === MODAL === */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-card {
+            background: var(--c-surface);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius);
+            width: 100%;
+            max-width: 520px;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+            animation: modalIn 0.2s ease-out;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-head {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--c-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .modal-head h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .modal-head h3 i { color: var(--c-success); }
+        .modal-close {
+            background: none; border: none;
+            color: var(--c-text-3); cursor: pointer;
+            font-size: 1.2rem; transition: color var(--transition);
+        }
+        .modal-close:hover { color: var(--c-text); }
+        .modal-body { padding: 24px; }
+        .modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid var(--c-border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* Form fields */
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--c-text-secondary);
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--c-bg);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            color: var(--c-text);
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color var(--transition);
+        }
+        .form-input:focus { border-color: var(--c-accent); }
+        .form-input::placeholder { color: var(--c-text-3); }
+        .form-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ba1b0' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 36px;
+        }
+
+        /* Buttons */
+        .btn-primary-custom {
+            padding: 9px 22px;
+            background: var(--c-accent);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: inherit;
+        }
+        .btn-primary-custom:hover { background: #2563eb; transform: translateY(-1px); }
+        .btn-secondary-custom {
+            padding: 9px 22px;
+            background: transparent;
+            color: var(--c-text-secondary);
+            border: 1px solid var(--c-border);
+            border-radius: var(--radius-sm);
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: inherit;
+        }
+        .btn-secondary-custom:hover { border-color: var(--c-border-light); color: var(--c-text); }
+        .btn-success-custom {
+            padding: 9px 22px;
+            background: var(--c-success);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition);
+            font-family: inherit;
+        }
+        .btn-success-custom:hover { background: #059669; transform: translateY(-1px); }
+
+        /* Toast notification */
+        .toast-notification {
+            position: fixed;
+            top: 24px;
+            right: 24px;
+            padding: 14px 22px;
+            border-radius: var(--radius-sm);
+            font-size: 0.82rem;
+            font-weight: 500;
+            z-index: 2000;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 400px;
+        }
+        .toast-notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .toast-success { background: var(--c-success); color: white; }
+        .toast-error { background: var(--c-danger); color: white; }
+        .toast-info { background: var(--c-accent); color: white; }
+
+        /* Responsive */
+        @media (max-width: 1200px) {
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .actions-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .admin-main { padding: 16px; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .charts-row { grid-template-columns: 1fr; }
+            .actions-grid { grid-template-columns: repeat(2, 1fr); }
+            .page-header { flex-direction: column; gap: 12px; align-items: flex-start; }
+            .admin-navbar { padding: 0 16px; }
         }
     </style>
 </head>
-<body class="bg-light">
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-        <div class="container">
-            <a class="navbar-brand" href="/admin">
-                <i class="bi bi-shield-check me-2"></i>
-                Administration AgriWeb
-            </a>
-            <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="/admin/sessions">
-                    <i class="fas fa-users-cog me-1"></i>Sessions
-                </a>
-                <a class="nav-link" href="/">
-                    <i class="bi bi-house me-1"></i>
-                    Accueil
-                </a>
-                <a class="nav-link" href="/logout">
-                    <i class="bi bi-box-arrow-right me-1"></i>
-                    Déconnexion
-                </a>
-            </div>
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="admin-navbar">
+        <a class="brand" href="/admin">
+            <i class="bi bi-shield-lock-fill"></i>
+            <span class="gold">AgriWeb</span> Administration
+        </a>
+        <div class="nav-links">
+            <a href="/admin/sessions"><i class="bi bi-people"></i> Sessions</a>
+            <a href="/"><i class="bi bi-house"></i> Accueil</a>
+            <a href="/logout" class="danger"><i class="bi bi-box-arrow-right"></i> Déconnexion</a>
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <h1 class="display-6 fw-bold text-primary">
-                    <i class="bi bi-speedometer2 me-2"></i>
-                    Tableau de Bord Administrateur
-                </h1>
-                <p class="text-muted">Suivi en temps réel de votre plateforme géospatiale</p>
+    <!-- MAIN CONTENT -->
+    <div class="admin-main">
+
+        <!-- PAGE HEADER -->
+        <div class="page-header">
+            <div>
+                <h1><i class="bi bi-speedometer2"></i> Tableau de Bord</h1>
+                <p>Suivi en temps réel de votre plateforme géospatiale</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-success-custom" onclick="openCreateUserModal()">
+                    <i class="bi bi-person-plus me-1"></i> Nouvel utilisateur
+                </button>
             </div>
         </div>
 
-        <!-- Statistiques principales -->
-        <div class="row mb-4">
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-people-fill display-4 mb-3"></i>
-                        <h3 class="card-title">{{ stats.total_users }}</h3>
-                        <p class="card-text">Utilisateurs Total</p>
-                        <small class="opacity-75">+{{ stats.new_users_today }} aujourd'hui</small>
-                    </div>
+        <!-- STAT CARDS -->
+        <div class="stats-grid">
+            <div class="stat-card card-blue">
+                <div class="stat-icon"><i class="bi bi-people-fill"></i></div>
+                <div class="stat-value">{{ stats.total_users }}</div>
+                <div class="stat-label">Utilisateurs Total</div>
+                <div class="stat-sub">
+                    <span class="badge-up">+{{ stats.new_users_today }}</span> aujourd'hui
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card stat-card-green h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-credit-card-fill display-4 mb-3"></i>
-                        <h3 class="card-title">{{ stats.active_subscriptions }}</h3>
-                        <p class="card-text">Abonnements Actifs</p>
-                        <small class="opacity-75">{{ stats.revenue_month }}€ ce mois</small>
-                    </div>
+            <div class="stat-card card-green">
+                <div class="stat-icon"><i class="bi bi-credit-card-fill"></i></div>
+                <div class="stat-value">{{ stats.active_subscriptions }}</div>
+                <div class="stat-label">Abonnements Actifs</div>
+                <div class="stat-sub">
+                    <span class="badge-up">{{ stats.revenue_month }}€</span> ce mois
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card stat-card-orange h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-clock-fill display-4 mb-3"></i>
-                        <h3 class="card-title">{{ stats.active_trials }}</h3>
-                        <p class="card-text">Essais en Cours</p>
-                        <small class="opacity-75">{{ stats.trial_conversions }}% conversion</small>
-                    </div>
+            <div class="stat-card card-orange">
+                <div class="stat-icon"><i class="bi bi-clock-fill"></i></div>
+                <div class="stat-value">{{ stats.active_trials }}</div>
+                <div class="stat-label">Essais en Cours</div>
+                <div class="stat-sub">
+                    <span class="badge-neutral">{{ stats.trial_conversions }}%</span> conversion
                 </div>
             </div>
-            <div class="col-md-3 mb-3">
-                <div class="card stat-card stat-card-purple h-100">
-                    <div class="card-body text-center">
-                        <i class="bi bi-eye-fill display-4 mb-3"></i>
-                        <h3 class="card-title">{{ stats.page_views_today }}</h3>
-                        <p class="card-text">Vues Aujourd'hui</p>
-                        <small class="opacity-75">{{ stats.unique_visitors }} visiteurs uniques</small>
-                    </div>
+            <div class="stat-card card-purple">
+                <div class="stat-icon"><i class="bi bi-eye-fill"></i></div>
+                <div class="stat-value">{{ stats.page_views_today }}</div>
+                <div class="stat-label">Vues Aujourd'hui</div>
+                <div class="stat-sub">
+                    <span class="badge-neutral">{{ stats.unique_visitors }}</span> visiteurs uniques
                 </div>
             </div>
         </div>
 
-        <!-- Graphiques -->
-        <div class="row mb-4">
-            <div class="col-md-6 mb-3">
-                <div class="chart-container">
-                    <h5 class="mb-3">
-                        <i class="bi bi-graph-up text-primary me-2"></i>
-                        Évolution des Utilisateurs
-                    </h5>
+        <!-- CHARTS -->
+        <div class="charts-row">
+            <div class="panel chart-panel">
+                <div class="panel-header">
+                    <h3><i class="bi bi-graph-up"></i> Évolution des Utilisateurs</h3>
+                </div>
+                <div class="panel-body">
                     <div class="chart-wrapper">
                         <canvas id="usersChart"></canvas>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 mb-3">
-                <div class="chart-container">
-                    <h5 class="mb-3">
-                        <i class="bi bi-currency-euro text-success me-2"></i>
-                        Revenus Mensuels
-                    </h5>
+            <div class="panel chart-panel">
+                <div class="panel-header">
+                    <h3><i class="bi bi-currency-euro"></i> Revenus Mensuels</h3>
+                </div>
+                <div class="panel-body">
                     <div class="chart-wrapper">
                         <canvas id="revenueChart"></canvas>
                     </div>
@@ -166,304 +655,370 @@
             </div>
         </div>
 
-        <!-- Actions rapides -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">
-                            <i class="bi bi-lightning-charge me-2"></i>
-                            Actions Rapides
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-3 mb-2">
-                                <button class="btn btn-outline-primary w-100" onclick="exportUsers()">
-                                    <i class="bi bi-download me-1"></i>
-                                    Exporter Utilisateurs
-                                </button>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <button class="btn btn-outline-success w-100" onclick="sendNewsletter()">
-                                    <i class="bi bi-envelope me-1"></i>
-                                    Newsletter
-                                </button>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <button class="btn btn-outline-warning w-100" onclick="checkSystem()">
-                                    <i class="bi bi-gear me-1"></i>
-                                    Vérifier Système
-                                </button>
-                            </div>
-                            <div class="col-md-3 mb-2">
-                                <button class="btn btn-outline-info w-100" onclick="viewLogs()">
-                                    <i class="bi bi-file-text me-1"></i>
-                                    Logs Système
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <!-- QUICK ACTIONS -->
+        <div class="actions-grid">
+            <button class="action-btn btn-create" onclick="openCreateUserModal()">
+                <i class="bi bi-person-plus-fill"></i>
+                Créer Utilisateur
+            </button>
+            <button class="action-btn" onclick="exportUsers()">
+                <i class="bi bi-download"></i>
+                Exporter CSV
+            </button>
+            <button class="action-btn" onclick="checkSystem()">
+                <i class="bi bi-gear-fill"></i>
+                Vérifier Système
+            </button>
+            <button class="action-btn" onclick="viewLogs()">
+                <i class="bi bi-terminal-fill"></i>
+                Logs Système
+            </button>
+            <a class="action-btn" href="/admin/sessions">
+                <i class="bi bi-person-badge"></i>
+                Sessions Actives
+            </a>
         </div>
 
-        <!-- Liste des utilisateurs -->
-        <div class="row">
-            <div class="col-12">
-                <div class="user-table">
-                    <div class="card-header bg-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">
-                                <i class="bi bi-person-lines-fill text-primary me-2"></i>
-                                Gestion des Utilisateurs
-                            </h5>
-                            <div class="input-group" style="width: 300px;">
-                                <input type="text" class="form-control" placeholder="Rechercher..." id="searchUser">
-                                <button class="btn btn-outline-secondary" type="button">
-                                    <i class="bi bi-search"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Utilisateur</th>
-                                        <th>Email</th>
-                                        <th>Type</th>
-                                        <th>Statut</th>
-                                        <th>Inscription</th>
-                                        <th>Dernière Activité</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for user in users %}
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
-                                                    {{ user.email[0]|upper }}
-                                                </div>
-                                                <div>
-                                                    <strong>{{ user.username or 'Utilisateur' }}</strong>
-                                                    <br>
-                                                    <small class="text-muted">ID: {{ user.id }}</small>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>{{ user.email }}</td>
-                                        <td>
-                                            {% if user.subscription_type == 'trial' %}
-                                                <span class="badge bg-warning">Essai 7j</span>
-                                            {% elif user.subscription_type == 'basic' %}
-                                                <span class="badge bg-info">Basic 35€</span>
-                                            {% elif user.subscription_type == 'professional' %}
-                                                <span class="badge bg-success">Pro 199€</span>
-                                            {% elif user.subscription_type == 'team' %}
-                                                <span class="badge bg-primary">Team 299€</span>
-                                            {% elif user.subscription_type == 'enterprise' %}
-                                                <span class="badge bg-dark">Entreprise</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">Gratuit</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if user.is_active %}
-                                                <span class="badge bg-success status-badge">Actif</span>
-                                            {% else %}
-                                                <span class="badge bg-danger status-badge">Inactif</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <small>{{ user.created_at.strftime('%d/%m/%Y') if user.created_at else 'N/A' }}</small>
-                                        </td>
-                                        <td>
-                                            <small>{{ user.last_login.strftime('%d/%m/%Y %H:%M') if user.last_login else 'Jamais' }}</small>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-outline-primary btn-sm" onclick="viewUser({{ user.id }})">
-                                                    <i class="bi bi-eye"></i>
-                                                </button>
-                                                <button class="btn btn-outline-warning btn-sm" onclick="editUser({{ user.id }})">
-                                                    <i class="bi bi-pencil"></i>
-                                                </button>
-                                                {% if user.email not in ['admin@test.com', 'demo@test.com'] %}
-                                                <button class="btn btn-outline-danger btn-sm" onclick="deleteUser({{ user.id }})">
-                                                    <i class="bi bi-trash"></i>
-                                                </button>
-                                                {% endif %}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+        <!-- USER TABLE -->
+        <div class="panel user-table-wrap">
+            <div class="panel-header">
+                <h3><i class="bi bi-person-lines-fill"></i> Gestion des Utilisateurs</h3>
+                <div class="search-box">
+                    <i class="bi bi-search"></i>
+                    <input type="text" id="searchUser" placeholder="Rechercher un utilisateur...">
                 </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="table-dark-custom">
+                    <thead>
+                        <tr>
+                            <th>Utilisateur</th>
+                            <th>Email</th>
+                            <th>Plan</th>
+                            <th>Statut</th>
+                            <th>Inscription</th>
+                            <th>Dernière Activité</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        {% for user in users %}
+                        <tr>
+                            <td>
+                                <div class="user-cell">
+                                    <div class="user-avatar {% if loop.index % 4 == 1 %}avatar-blue{% elif loop.index % 4 == 2 %}avatar-green{% elif loop.index % 4 == 3 %}avatar-purple{% else %}avatar-orange{% endif %}">
+                                        {{ user.email[0]|upper }}
+                                    </div>
+                                    <div>
+                                        <div class="user-name">{{ user.username or 'Utilisateur' }}</div>
+                                        <div class="user-id">ID: {{ user.id }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                {% if user.subscription_plan == 'basic' %}
+                                    <span class="badge-pill badge-basic">Basic 35€</span>
+                                {% elif user.subscription_plan == 'professional' %}
+                                    <span class="badge-pill badge-pro">Pro 199€</span>
+                                {% elif user.subscription_plan == 'team' %}
+                                    <span class="badge-pill badge-team">Team 299€</span>
+                                {% elif user.subscription_plan == 'enterprise' %}
+                                    <span class="badge-pill badge-enterprise">Entreprise</span>
+                                {% else %}
+                                    <span class="badge-pill badge-free">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if user.subscription_status == 'active' %}
+                                    <span class="badge-pill badge-active"><span class="status-dot dot-active"></span> Actif</span>
+                                {% elif user.subscription_status == 'trial' %}
+                                    <span class="badge-pill badge-trial"><span class="status-dot dot-active"></span> Essai</span>
+                                {% elif user.subscription_status == 'cancelled' %}
+                                    <span class="badge-pill badge-cancelled"><span class="status-dot dot-inactive"></span> Annulé</span>
+                                {% else %}
+                                    <span class="badge-pill badge-pending"><span class="status-dot dot-inactive"></span> {{ user.subscription_status or 'Inconnu' }}</span>
+                                {% endif %}
+                            </td>
+                            <td style="color: var(--c-text-secondary); font-size: 0.8rem;">
+                                {{ user.created_at.strftime('%d/%m/%Y') if user.created_at else 'N/A' }}
+                            </td>
+                            <td style="color: var(--c-text-secondary); font-size: 0.8rem;">
+                                {{ user.last_login.strftime('%d/%m/%Y %H:%M') if user.last_login else 'Jamais' }}
+                            </td>
+                            <td>
+                                <div class="actions-cell">
+                                    <button class="act-btn" title="Voir" onclick="viewUser({{ user.id }})">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button class="act-btn" title="Modifier" onclick="editUser({{ user.id }})">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    {% if user.email not in ['admin@test.com', 'demo@test.com'] %}
+                                    <button class="act-btn act-danger" title="Supprimer" onclick="deleteUser({{ user.id }}, '{{ user.email }}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if users|length == 0 %}
+            <div style="text-align: center; padding: 40px; color: var(--c-text-3);">
+                <i class="bi bi-inbox" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                Aucun utilisateur trouvé
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- CREATE USER MODAL -->
+    <div class="modal-overlay" id="createUserModal">
+        <div class="modal-card">
+            <div class="modal-head">
+                <h3><i class="bi bi-person-plus-fill"></i> Créer un utilisateur</h3>
+                <button class="modal-close" onclick="closeCreateUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="createUserForm" onsubmit="return submitCreateUser(event)">
+                    <div class="form-group">
+                        <label>Nom complet *</label>
+                        <input type="text" class="form-input" id="newUserName" placeholder="Jean Dupont" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Adresse email *</label>
+                        <input type="email" class="form-input" id="newUserEmail" placeholder="jean@exemple.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Entreprise</label>
+                        <input type="text" class="form-input" id="newUserCompany" placeholder="Mon Entreprise SAS">
+                    </div>
+                    <div class="form-group">
+                        <label>Mot de passe *</label>
+                        <input type="password" class="form-input" id="newUserPassword" placeholder="Minimum 8 caractères" minlength="8" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Rôle / Type de compte</label>
+                        <select class="form-input form-select" id="newUserRole">
+                            <option value="trial">Essai gratuit (7 jours)</option>
+                            <option value="active">Abonné actif</option>
+                            <option value="admin">Administrateur</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary-custom" onclick="closeCreateUserModal()">Annuler</button>
+                <button class="btn-success-custom" onclick="submitCreateUser(event)">
+                    <i class="bi bi-check-lg me-1"></i> Créer l'utilisateur
+                </button>
             </div>
         </div>
     </div>
 
+    <!-- TOAST -->
+    <div class="toast-notification" id="toastNotif"></div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Configuration commune pour tous les graphiques
+        // ====== CHARTS ======
         Chart.defaults.responsive = true;
         Chart.defaults.maintainAspectRatio = false;
-        Chart.defaults.resizeDelay = 0;
-        
-        // Graphique des utilisateurs
-        const usersCtx = document.getElementById('usersChart').getContext('2d');
-        const usersChart = new Chart(usersCtx, {
+        Chart.defaults.color = '#9ba1b0';
+        Chart.defaults.borderColor = 'rgba(42,45,58,0.5)';
+
+        const chartGridColor = 'rgba(42,45,58,0.6)';
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: chartGridColor }, ticks: { maxTicksLimit: 6, font: { size: 11 } } },
+                x: { grid: { color: chartGridColor }, ticks: { maxTicksLimit: 8, font: { size: 11 } } }
+            },
+            interaction: { intersect: false }
+        };
+
+        // Users chart
+        new Chart(document.getElementById('usersChart').getContext('2d'), {
             type: 'line',
             data: {
                 labels: {{ chart_data.users_labels|safe }},
                 datasets: [{
                     label: 'Nouveaux utilisateurs',
                     data: {{ chart_data.users_data|safe }},
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59,130,246,0.08)',
                     tension: 0.4,
-                    fill: true
+                    fill: true,
+                    pointRadius: 4,
+                    pointBackgroundColor: '#3b82f6',
+                    pointBorderColor: '#1a1d27',
+                    pointBorderWidth: 2
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            maxTicksLimit: 6
-                        }
-                    },
-                    x: {
-                        ticks: {
-                            maxTicksLimit: 8
-                        }
-                    }
-                },
-                interaction: {
-                    intersect: false
-                }
-            }
+            options: chartOptions
         });
 
-        // Graphique des revenus
-        const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-        const revenueChart = new Chart(revenueCtx, {
+        // Revenue chart
+        new Chart(document.getElementById('revenueChart').getContext('2d'), {
             type: 'bar',
             data: {
                 labels: {{ chart_data.revenue_labels|safe }},
                 datasets: [{
                     label: 'Revenus (€)',
                     data: {{ chart_data.revenue_data|safe }},
-                    backgroundColor: '#4facfe',
-                    borderColor: '#00f2fe',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(16,185,129,0.3)',
+                    borderColor: '#10b981',
+                    borderWidth: 1,
+                    borderRadius: 6
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            maxTicksLimit: 6
-                        }
-                    },
-                    x: {
-                        ticks: {
-                            maxTicksLimit: 8
-                        }
-                    }
-                },
-                interaction: {
-                    intersect: false
-                }
-            }
+            options: chartOptions
         });
-        
-        // Forcer le redimensionnement des graphiques
-        function resizeCharts() {
-            usersChart.resize();
-            revenueChart.resize();
-        }
-        
-        // Redimensionner quand la fenêtre change
-        window.addEventListener('resize', resizeCharts);
-        
-        // Redimensionner au chargement
-        setTimeout(resizeCharts, 100);
 
-        // Fonctions d'administration
+        // ====== TOAST ======
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toastNotif');
+            toast.className = `toast-notification toast-${type}`;
+            toast.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i> ${message}`;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 4000);
+        }
+
+        // ====== CREATE USER MODAL ======
+        function openCreateUserModal() {
+            document.getElementById('createUserModal').classList.add('active');
+            setTimeout(() => document.getElementById('newUserName').focus(), 100);
+        }
+        function closeCreateUserModal() {
+            document.getElementById('createUserModal').classList.remove('active');
+            document.getElementById('createUserForm').reset();
+        }
+
+        // Close modal on overlay click
+        document.getElementById('createUserModal').addEventListener('click', function(e) {
+            if (e.target === this) closeCreateUserModal();
+        });
+
+        // Close modal on Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeCreateUserModal();
+        });
+
+        function submitCreateUser(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('newUserName').value.trim();
+            const email = document.getElementById('newUserEmail').value.trim();
+            const company = document.getElementById('newUserCompany').value.trim();
+            const password = document.getElementById('newUserPassword').value;
+            const role = document.getElementById('newUserRole').value;
+
+            if (!name || !email || !password) {
+                showToast('Veuillez remplir tous les champs obligatoires', 'error');
+                return false;
+            }
+            if (password.length < 8) {
+                showToast('Le mot de passe doit faire au moins 8 caractères', 'error');
+                return false;
+            }
+
+            // Disable button
+            const btn = document.querySelector('.modal-footer .btn-success-custom');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat me-1 spin-icon"></i> Création...';
+
+            fetch('/admin/user/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, company, password, role })
+            })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                if (data.success) {
+                    showToast(data.message, 'success');
+                    closeCreateUserModal();
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(data.error || 'Erreur lors de la création', 'error');
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                showToast('Erreur réseau', 'error');
+            });
+
+            return false;
+        }
+
+        // ====== ADMIN FUNCTIONS ======
         function viewUser(userId) {
             window.location.href = `/admin/user/${userId}`;
         }
 
         function editUser(userId) {
-            window.location.href = `/admin/user/${userId}/edit`;
+            window.location.href = `/admin/user/${userId}`;
         }
 
-        function deleteUser(userId) {
-            if (confirm('Êtes-vous sûr de vouloir supprimer cet utilisateur ?')) {
-                fetch(`/admin/user/${userId}/delete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                }).then(() => {
-                    location.reload();
-                });
-            }
+        function deleteUser(userId, userEmail) {
+            if (!confirm(`Supprimer l'utilisateur ${userEmail} ?\nCette action est irréversible.`)) return;
+            
+            fetch(`/admin/user/${userId}/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Utilisateur supprimé', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showToast(data.error || 'Erreur', 'error');
+                }
+            })
+            .catch(() => showToast('Erreur réseau', 'error'));
         }
 
         function exportUsers() {
             window.open('/admin/export/users', '_blank');
-        }
-
-        function sendNewsletter() {
-            alert('Fonctionnalité newsletter à implémenter');
+            showToast('Export CSV lancé', 'info');
         }
 
         function checkSystem() {
+            showToast('Vérification du système...', 'info');
             fetch('/admin/system/check')
-                .then(response => response.json())
+                .then(r => r.json())
                 .then(data => {
-                    alert(`Système: ${data.status}\nServeurs: ${data.servers}\nBase de données: ${data.database}`);
-                });
+                    showToast(`Système: ${data.status || 'OK'} — DB: ${data.database || 'OK'}`, 'success');
+                })
+                .catch(() => showToast('Erreur lors de la vérification', 'error'));
         }
 
         function viewLogs() {
             window.open('/admin/logs', '_blank');
         }
 
-        // Recherche d'utilisateurs
+        // ====== SEARCH ======
         document.getElementById('searchUser').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            const rows = document.querySelectorAll('tbody tr');
-            
+            const term = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#userTableBody tr');
             rows.forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(searchTerm) ? '' : 'none';
+                row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
             });
         });
+
+        // ====== SPIN ANIMATION ======
+        const style = document.createElement('style');
+        style.textContent = '@keyframes spin { to { transform: rotate(360deg); } } .spin-icon { animation: spin 1s linear infinite; }';
+        document.head.appendChild(style);
     </script>
 </body>
 </html>

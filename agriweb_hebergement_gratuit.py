@@ -16222,6 +16222,53 @@ def admin_view_user(user_id):
     </html>
     """, user=user, sessions=sessions)
 
+@app.route("/admin/user/create", methods=["POST"])
+@require_admin
+def admin_create_user():
+    """Créer un nouvel utilisateur depuis le panel admin"""
+    try:
+        data = request.get_json() if request.is_json else request.form
+        
+        email = data.get('email', '').strip().lower()
+        name = data.get('name', '').strip()
+        company = data.get('company', '').strip()
+        password = data.get('password', '').strip()
+        role = data.get('role', 'trial')  # trial, active, admin
+        
+        if not email or not name or not password:
+            return jsonify({'success': False, 'error': 'Email, nom et mot de passe requis'}), 400
+        
+        # Utiliser auth_system pour créer l'utilisateur
+        from auth_system_improved import auth_system
+        success, message = auth_system.register_user(email, name, company, password)
+        
+        if not success:
+            return jsonify({'success': False, 'error': message}), 400
+        
+        # Si succès, mettre à jour le statut selon le rôle choisi
+        conn = get_auth_db()
+        cursor = conn.cursor()
+        
+        if role == 'active':
+            cursor.execute("UPDATE users SET subscription_status = 'active', is_email_verified = 1 WHERE email = ?", (email,))
+        elif role == 'admin':
+            cursor.execute("UPDATE users SET subscription_status = 'active', is_admin = 1, is_email_verified = 1 WHERE email = ?", (email,))
+        else:
+            # trial par défaut - juste vérifier l'email
+            cursor.execute("UPDATE users SET is_email_verified = 1 WHERE email = ?", (email,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Utilisateur {name} ({email}) créé avec succès en mode {role}'
+        })
+        
+    except Exception as e:
+        print(f"❌ Erreur création utilisateur admin: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route("/admin/user/<int:user_id>/delete", methods=["POST"])
 @require_admin
 def admin_delete_user(user_id):
