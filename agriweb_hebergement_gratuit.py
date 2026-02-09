@@ -16057,15 +16057,20 @@ def admin_dashboard():
     
     users = []
     for row in cursor.fetchall():
+        def _to_dt(val):
+            if val is None: return None
+            if isinstance(val, datetime): return val
+            if isinstance(val, str): return datetime.fromisoformat(val)
+            return val
         user = {
             'id': row[0],
             'email': row[1],
             'username': row[2],
             'subscription_status': row[3],
             'subscription_plan': row[4] or 'Aucun',
-            'created_at': datetime.fromisoformat(row[5]) if row[5] else None,
-            'last_login': datetime.fromisoformat(row[6]) if row[6] else None,
-            'trial_end_date': datetime.fromisoformat(row[7]) if row[7] else None,
+            'created_at': _to_dt(row[5]),
+            'last_login': _to_dt(row[6]),
+            'trial_end_date': _to_dt(row[7]),
             'stripe_customer_id': row[8],
             'is_active': bool(row[9])
         }
