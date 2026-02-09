@@ -55,7 +55,7 @@ def verify_prospect_ownership(prospect_id, user_id, is_admin):
         'SELECT user_id FROM agriweb_prospects WHERE id = %s',
         (prospect_id,), fetch_one=True
     )
-    return result and result.get('user_id') == user_id
+    return result and str(result.get('user_id')) == str(user_id)
 
 def verify_project_ownership(project_id, user_id, is_admin):
     """Vérifie qu'un projet appartient à l'utilisateur courant"""
@@ -65,7 +65,7 @@ def verify_project_ownership(project_id, user_id, is_admin):
         'SELECT user_id FROM project_fiches WHERE id = %s',
         (project_id,), fetch_one=True
     )
-    return result and result.get('user_id') == user_id
+    return result and str(result.get('user_id')) == str(user_id)
 
 def user_filter_clause(user_id, is_admin, table_alias=''):
     """
@@ -76,7 +76,7 @@ def user_filter_clause(user_id, is_admin, table_alias=''):
     prefix = f"{table_alias}." if table_alias else ''
     if is_admin:
         return '', ()
-    return f' AND {prefix}user_id = %s', (user_id,)
+    return f' AND {prefix}user_id = %s', (str(user_id),)
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -104,7 +104,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             adresse,
             'etude',
             '{}',
-            user_id
+            str(user_id) if user_id is not None else None
         ), fetch_one=True)
         
         if result:
@@ -608,7 +608,7 @@ def register_crm_routes(app):
                     parking.get('lien_streetview'), parking.get('lien_annuaire'), json.dumps(parking),
                     parking.get('amenity'), parking.get('shop'), parking.get('building'),
                     parking.get('landuse'), parking.get('office'), parking.get('industrial'),
-                    user_id
+                    str(user_id) if user_id is not None else None
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
@@ -653,7 +653,7 @@ def register_crm_routes(app):
                     toiture.get('lien_streetview'), toiture.get('lien_annuaire'), json.dumps(toiture),
                     toiture.get('amenity'), toiture.get('shop'), toiture.get('building'),
                     toiture.get('landuse'), toiture.get('office'), toiture.get('industrial'),
-                    user_id
+                    str(user_id) if user_id is not None else None
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
@@ -698,7 +698,7 @@ def register_crm_routes(app):
                     friche.get('lien_streetview'), friche.get('lien_annuaire'), json.dumps(friche),
                     friche.get('amenity'), friche.get('shop'), friche.get('building'),
                     friche.get('landuse'), friche.get('office'), friche.get('industrial'),
-                    user_id
+                    str(user_id) if user_id is not None else None
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
@@ -739,7 +739,7 @@ def register_crm_routes(app):
                     poste_hta.get('commune'), poste_hta.get('code_commune'), poste_hta.get('epci'), poste_hta.get('code_epci'),
                     poste_hta.get('departement'), poste_hta.get('code_departement'), poste_hta.get('region'), poste_hta.get('code_region'),
                     json.dumps(rpg),
-                    user_id
+                    str(user_id) if user_id is not None else None
                 ), fetch_one=True)
                 
                 if result and result.get('id'):
@@ -1154,7 +1154,7 @@ def register_crm_routes(app):
                         data.get('parcelle_cadastrale'),
                         'etude',
                         json.dumps(data_json_to_save) if data_json_to_save else '{}',
-                        user_id
+                        str(user_id) if user_id is not None else None
                     ), fetch_one=True)
                     
                     print(f"🔍 [PROJECT CREATE] Résultat INSERT: {result}")
@@ -1223,7 +1223,7 @@ def register_crm_routes(app):
             if is_admin:
                 execute_query('DELETE FROM agriweb_prospects WHERE id = %s', (prospect_id,))
             else:
-                execute_query('DELETE FROM agriweb_prospects WHERE id = %s AND user_id = %s', (prospect_id, user_id))
+                execute_query('DELETE FROM agriweb_prospects WHERE id = %s AND user_id = %s', (prospect_id, str(user_id)))
             
             return jsonify({
                 'success': True,
@@ -1530,7 +1530,7 @@ def register_crm_routes(app):
                 data.get('commune') or prospect_info.get('commune'),
                 data.get('surface_totale') or prospect_info.get('surface_m2'),
                 'etude',  # statut_projet par défaut
-                user_id
+                str(user_id) if user_id is not None else None
             ), fetch_one=True)
             
             print(f"[CREATE_PROJECT] INSERT result={result}")
