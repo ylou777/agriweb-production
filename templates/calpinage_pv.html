@@ -465,6 +465,54 @@
                 <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
                 <div class="module-selector" id="ombriereParams" style="display: block;">
                     <h5>🅿️ Paramètres Ombrière de Parking</h5>
+
+                    <!-- Catalogue de modèles ombrières -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label"><strong>📋 Modèle d'ombrière</strong></label>
+                            <select class="form-select" id="ombriereModele" onchange="onOmbriereModeleChange()">
+                                <option value="custom">🔧 Personnalisé (saisie libre)</option>
+                                <optgroup label="🚗 Barconnier — Ombrières VL (Véhicule Léger)">
+                                    <option value="O4">O4 — 9.28m × 4 places — Mono-pente</option>
+                                    <option value="O5">O5 — 11.53m × 5 places — Mono-pente</option>
+                                </optgroup>
+                            </select>
+                            <small class="text-muted" id="ombriereModeleInfo">Saisie manuelle des dimensions</small>
+                        </div>
+                        <div class="col-md-6" id="ombriereFicheResume" style="display:none;">
+                            <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:8px; padding:10px 14px; font-size:0.85rem;">
+                                <div style="font-weight:600; color:#3b82f6; margin-bottom:4px;" id="ficheModeleTitre"></div>
+                                <div id="ficheModeleDetails" style="line-height:1.6;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Résumé travée (visible quand un modèle catalogue est sélectionné) -->
+                    <div class="row mb-3" id="ombriereTraveeInfo" style="display:none;">
+                        <div class="col-12">
+                            <div style="background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(59,130,246,0.08)); border:1px solid rgba(245,158,11,0.3); border-radius:8px; padding:12px 16px;">
+                                <div class="row text-center">
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#f59e0b;" id="traveeModulesCount">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">Modules / travée</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#3b82f6;" id="traveePuissance">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">kWc / travée</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#10b981;" id="traveePlaces">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">Places couvertes</div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div style="font-size:1.4rem; font-weight:700; color:#8b5cf6;" id="traveeSurface">—</div>
+                                        <div style="font-size:0.78rem; color:#94a3b8;">m² toiture</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-3">
                             <label class="form-label"><strong>Largeur place (m)</strong></label>
@@ -1147,6 +1195,12 @@
             
             // Recalculer toutes les zones avec le nouveau module
             updateAllZones();
+            
+            // Mettre à jour le calcul modules/travée ombrière si applicable
+            const ombModele = document.getElementById('ombriereModele')?.value;
+            if (ombModele && OMBRIERE_CATALOGUE[ombModele]) {
+                onOmbriereModeleChange();
+            }
             
             console.log(`✅ Module chargé: ${module.fabricant} ${module.modele} - ${module.puissance}Wc (Voc: ${module.voc}V, Vmpp: ${module.vmpp}V, Isc: ${module.isc}A, Impp: ${module.impp}A)`);
         }
@@ -3510,6 +3564,161 @@
             zone.moduleGroup = moduleGroup;
         }
 
+        // ============================================
+        // CATALOGUE OMBRIÈRES
+        // ============================================
+        const OMBRIERE_CATALOGUE = {
+            'O4': {
+                ref: 'O4',
+                fabricant: 'Barconnier',
+                gamme: 'Ombrières VL (Véhicule Léger)',
+                type: 'Mono-pente',
+                // Dimensions en mètres (depuis fiche technique)
+                largeurToiture: 9.280,      // Largeur couverture (mm → m)
+                empriseAuSol: 9.139,         // Emprise au sol totale (3668 + 1700 + 3771)
+                hauteurCoteHaut: 4.886,      // Hauteur côté haut
+                hauteurCoteBas: 3.274,       // Hauteur côté bas
+                hauteurPilier: 4.611,        // Hauteur du pilier
+                hauteurLibre: 3.000,         // Passage libre minimal
+                espacementPiliers: 2.250,    // Entre-axe piliers longitudinal
+                entraxePiliers: 1.700,       // Espacement entre les 2 files de piliers
+                penteToiture: null,          // Calculée auto
+                nbPlaces: 4,                 // Places de parking couvertes
+                largeurPlace: 2.5,           // Largeur standard VL
+                profondeurPlace: 5.0,
+                // Structure
+                diametrePilier: 15,          // cm
+                sectionPanne: 10,            // cm
+                sectionFerme: 8,             // cm
+                // Dérivé
+                get surfaceToiture() { return this.largeurToiture * this.espacementPiliers; },
+                get pente() { return Math.atan2(this.hauteurCoteHaut - this.hauteurCoteBas, this.empriseAuSol) * 180 / Math.PI; }
+            },
+            'O5': {
+                ref: 'O5',
+                fabricant: 'Barconnier',
+                gamme: 'Ombrières VL (Véhicule Léger)',
+                type: 'Mono-pente',
+                largeurToiture: 11.530,
+                empriseAuSol: 11.355,        // 4776 + 1700 + 4879
+                hauteurCoteHaut: 5.111,
+                hauteurCoteBas: 3.109,
+                hauteurPilier: 4.736,
+                hauteurLibre: 2.200,         // Côté bas
+                espacementPiliers: 2.250,
+                entraxePiliers: 1.700,
+                nbPlaces: 5,
+                largeurPlace: 2.5,
+                profondeurPlace: 5.0,
+                diametrePilier: 15,
+                sectionPanne: 10,
+                sectionFerme: 8,
+                get surfaceToiture() { return this.largeurToiture * this.espacementPiliers; },
+                get pente() { return Math.atan2(this.hauteurCoteHaut - this.hauteurCoteBas, this.empriseAuSol) * 180 / Math.PI; }
+            }
+        };
+
+        /**
+         * Calcule le nombre de modules PV qui rentrent sur une travée d'ombrière
+         * @param {object} modele - Entrée du catalogue
+         * @returns {object} {nbModulesLargeur, nbModulesLong, totalModules, puissanceKwc, surfaceOccupee}
+         */
+        function calculerModulesParTravee(modele) {
+            if (!modele) return null;
+            // Dimensions module en m
+            const modL_mm = parseFloat(document.getElementById('moduleLongueur').value) || 2278;
+            const modW_mm = parseFloat(document.getElementById('moduleLargeur').value) || 1134;
+            const modPuissance = parseFloat(document.getElementById('modulePuissance').value) || 550;
+            const modL = modL_mm / 1000;
+            const modW = modW_mm / 1000;
+            const espacement = 0.02; // 2cm entre modules
+
+            // Orientation paysage sur la largeur de toiture
+            const nbLargeurPaysage = Math.floor(modele.largeurToiture / (modL + espacement));
+            const nbLongPaysage = Math.floor(modele.espacementPiliers / (modW + espacement));
+            const totalPaysage = nbLargeurPaysage * nbLongPaysage;
+
+            // Orientation portrait sur la largeur de toiture
+            const nbLargeurPortrait = Math.floor(modele.largeurToiture / (modW + espacement));
+            const nbLongPortrait = Math.floor(modele.espacementPiliers / (modL + espacement));
+            const totalPortrait = nbLargeurPortrait * nbLongPortrait;
+
+            // Choisir la meilleure orientation
+            const best = totalPaysage >= totalPortrait ? 'paysage' : 'portrait';
+            const nbModules = Math.max(totalPaysage, totalPortrait);
+            const nbLargeur = best === 'paysage' ? nbLargeurPaysage : nbLargeurPortrait;
+            const nbLong = best === 'paysage' ? nbLongPaysage : nbLongPortrait;
+
+            return {
+                orientationOptimale: best,
+                nbModulesLargeur: nbLargeur,
+                nbModulesLongueur: nbLong,
+                totalModules: nbModules,
+                puissanceKwc: (nbModules * modPuissance / 1000).toFixed(2),
+                surfaceOccupee: (nbModules * modL * modW).toFixed(1),
+                surfaceToiture: modele.surfaceToiture.toFixed(1)
+            };
+        }
+
+        /**
+         * Appelé quand l'utilisateur change le modèle d'ombrière
+         */
+        function onOmbriereModeleChange() {
+            const sel = document.getElementById('ombriereModele').value;
+            const modele = OMBRIERE_CATALOGUE[sel];
+            const ficheResume = document.getElementById('ombriereFicheResume');
+            const traveeInfo = document.getElementById('ombriereTraveeInfo');
+            const infoText = document.getElementById('ombriereModeleInfo');
+            const inputs = document.querySelectorAll('#ombriereParams input[type="number"]');
+
+            if (!modele) {
+                // Mode personnalisé
+                ficheResume.style.display = 'none';
+                traveeInfo.style.display = 'none';
+                infoText.textContent = 'Saisie manuelle des dimensions';
+                inputs.forEach(inp => inp.removeAttribute('readonly'));
+                return;
+            }
+
+            // Verrouiller les champs en mode catalogue
+            inputs.forEach(inp => inp.setAttribute('readonly', 'readonly'));
+
+            // Remplir les champs
+            document.getElementById('ombriereLargeurPlace').value = modele.largeurPlace;
+            document.getElementById('ombriereProfondeurPlace').value = modele.profondeurPlace;
+            document.getElementById('ombriereHauteur').value = modele.hauteurLibre;
+            document.getElementById('ombriereHauteurFerme').value = parseFloat((modele.hauteurCoteHaut - modele.hauteurCoteBas).toFixed(2));
+            document.getElementById('ombriereDiametrePilier').value = modele.diametrePilier;
+            document.getElementById('ombriereSectionPanne').value = modele.sectionPanne;
+            document.getElementById('ombriereSectionFerme').value = modele.sectionFerme;
+
+            // Info texte
+            infoText.textContent = `${modele.fabricant} ${modele.ref} — ${modele.gamme}`;
+
+            // Fiche résumé
+            document.getElementById('ficheModeleTitre').textContent =
+                `${modele.fabricant} — ${modele.ref} (${modele.type})`;
+            document.getElementById('ficheModeleDetails').innerHTML =
+                `Toiture: <b>${modele.largeurToiture}m</b> × ${modele.espacementPiliers}m ` +
+                `= <b>${modele.surfaceToiture.toFixed(1)} m²</b>/travée<br>` +
+                `Emprise: ${modele.empriseAuSol}m | Haut: ${modele.hauteurCoteHaut}m → Bas: ${modele.hauteurCoteBas}m<br>` +
+                `Passage libre: ${modele.hauteurLibre}m | Pente: ${modele.pente.toFixed(1)}° | ${modele.nbPlaces} places VL`;
+            ficheResume.style.display = 'block';
+
+            // Calcul modules/travée
+            const calc = calculerModulesParTravee(modele);
+            if (calc) {
+                document.getElementById('traveeModulesCount').textContent = calc.totalModules;
+                document.getElementById('traveePuissance').textContent = calc.puissanceKwc + ' kWc';
+                document.getElementById('traveePlaces').textContent = modele.nbPlaces;
+                document.getElementById('traveeSurface').textContent = calc.surfaceToiture + ' m²';
+                traveeInfo.style.display = 'block';
+            }
+
+            // Mettre à jour les zones existantes
+            updateAllZones();
+        }
+
         // Mettre à jour le type d'installation
         function updateTypeInstallation() {
             const type = document.getElementById('typeInstallation').value;
@@ -4031,6 +4240,28 @@
                     vmpp: document.getElementById('moduleVmpp').value,
                     isc: document.getElementById('moduleIsc').value,
                     impp: document.getElementById('moduleImpp').value
+                },
+                typeInstallation: document.getElementById('typeInstallation').value,
+                ombriere_config: {
+                    modele: document.getElementById('ombriereModele')?.value || 'custom',
+                    largeurPlace: parseFloat(document.getElementById('ombriereLargeurPlace')?.value) || 2.5,
+                    profondeurPlace: parseFloat(document.getElementById('ombriereProfondeurPlace')?.value) || 5.0,
+                    hauteurLibre: parseFloat(document.getElementById('ombriereHauteur')?.value) || 4.5,
+                    hauteurFerme: parseFloat(document.getElementById('ombriereHauteurFerme')?.value) || 0.8,
+                    diametrePilier: parseFloat(document.getElementById('ombriereDiametrePilier')?.value) || 15,
+                    sectionPanne: parseFloat(document.getElementById('ombriereSectionPanne')?.value) || 10,
+                    sectionFerme: parseFloat(document.getElementById('ombriereSectionFerme')?.value) || 8,
+                    typeParking: document.getElementById('ombriereTypeParking')?.value || 'bataille',
+                    // Données catalogue si modèle sélectionné
+                    catalogue: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele')?.value] ? {
+                        ref: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value].ref,
+                        fabricant: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value].fabricant,
+                        largeurToiture: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value].largeurToiture,
+                        empriseAuSol: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value].empriseAuSol,
+                        espacementPiliers: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value].espacementPiliers,
+                        nbPlaces: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value].nbPlaces,
+                        modulesParTravee: calculerModulesParTravee(OMBRIERE_CATALOGUE[document.getElementById('ombriereModele').value])
+                    } : null
                 },
                 totaux: {
                     puissanceTotale: zones.reduce((sum, z) => sum + z.puissanceKw, 0),
@@ -4568,6 +4799,32 @@
         // Fonction pour charger le calpinage sauvegardé
         function loadSavedCalpinage() {
             console.log('Chargement du calpinage sauvegardé:', savedCalpinage);
+            
+            // Restaurer le type d'installation
+            if (savedCalpinage.typeInstallation) {
+                document.getElementById('typeInstallation').value = savedCalpinage.typeInstallation;
+                updateTypeInstallation();
+            }
+            
+            // Restaurer la config ombrière (modèle catalogue + paramètres)
+            if (savedCalpinage.ombriere_config) {
+                const oc = savedCalpinage.ombriere_config;
+                if (oc.modele && document.getElementById('ombriereModele')) {
+                    document.getElementById('ombriereModele').value = oc.modele;
+                    onOmbriereModeleChange();
+                }
+                // Si personnalisé, restaurer les valeurs manuelles
+                if (oc.modele === 'custom') {
+                    if (oc.largeurPlace) document.getElementById('ombriereLargeurPlace').value = oc.largeurPlace;
+                    if (oc.profondeurPlace) document.getElementById('ombriereProfondeurPlace').value = oc.profondeurPlace;
+                    if (oc.hauteurLibre) document.getElementById('ombriereHauteur').value = oc.hauteurLibre;
+                    if (oc.hauteurFerme) document.getElementById('ombriereHauteurFerme').value = oc.hauteurFerme;
+                    if (oc.diametrePilier) document.getElementById('ombriereDiametrePilier').value = oc.diametrePilier;
+                    if (oc.sectionPanne) document.getElementById('ombriereSectionPanne').value = oc.sectionPanne;
+                    if (oc.sectionFerme) document.getElementById('ombriereSectionFerme').value = oc.sectionFerme;
+                }
+                if (oc.typeParking) document.getElementById('ombriereTypeParking').value = oc.typeParking;
+            }
             
             // Restaurer les paramètres du module si sauvegardés
             if (savedCalpinage.module) {
