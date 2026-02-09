@@ -1566,9 +1566,10 @@
                 
                 // Si c'est un rectangle et qu'on est en mode Zone PV
                 if (layerType === 'rectangle' && currentTool === 'rectangle') {
-                    // Appliquer les contraintes ombrière AVANT d'ajouter la zone
-                    constrainZoneToOmbriere(layer);
+                    // Ajouter d'abord au map pour que setBounds/redraw fonctionne
                     drawnItems.addLayer(layer);
+                    // Appliquer les contraintes ombrière APRÈS ajout à la carte
+                    constrainZoneToOmbriere(layer);
                     // Rendre le rectangle invisible (seuls les modules seront visibles)
                     if (layer._path) {
                         layer._path.style.opacity = 0;
@@ -1669,13 +1670,14 @@
             // Événement de fin d'édition - rendre invisible et arrêter suivi
             map.on(L.Draw.Event.EDITSTOP, function() {
                 drawnItems.eachLayer(function(layer) {
+                    // Appliquer les contraintes ombrière AVANT tout recalcul
+                    constrainZoneToOmbriere(layer);
+                    
+                    // Masquer le rectangle
                     if (layer._path) {
                         layer._path.style.opacity = 0;
                         layer._path.style.fillOpacity = 0;
                     }
-                    
-                    // Appliquer les contraintes ombrière après édition
-                    constrainZoneToOmbriere(layer);
                     
                     // Recalculer et mettre à jour chaque zone après édition
                     const zone = zones.find(z => z.id === layer._leaflet_id);
@@ -1689,6 +1691,7 @@
                         
                         recalculerZone(zone);
                         dessinerModulesDansZone(zone);
+                        afficherZone(zone);
                     }
                 });
                 
@@ -2975,14 +2978,14 @@
             const sel = document.getElementById('ombriereModele').value;
             if (!sel || sel === 'custom' || !OMBRIERE_CATALOGUE[sel]) return '';
             const modele = OMBRIERE_CATALOGUE[sel];
-            const nbTravees = Math.max(1, Math.round(zone.hauteurM / modele.espacementPiliers));
+            const nbTravees = Math.max(1, Math.round(zone.longueurMetres / modele.espacementPiliers));
             const placesTotal = nbTravees * modele.nbPlaces;
             return `
                 <div class="mb-2 p-2" style="background:rgba(52,152,219,0.1);border-radius:6px;border-left:3px solid #3498db;">
                     <small class="text-muted d-block mb-1">Configuration ombrière</small>
                     <div style="font-size:0.85em;">
-                        <strong>${modele.reference}</strong> — ${nbTravees} travée${nbTravees>1?'s':''}<br>
-                        <span class="text-muted">${placesTotal} place${placesTotal>1?'s':''} VL • ${(zone.largeurM).toFixed(1)}m × ${(zone.hauteurM).toFixed(1)}m</span>
+                        <strong>${modele.ref}</strong> — ${nbTravees} travée${nbTravees>1?'s':''}<br>
+                        <span class="text-muted">${placesTotal} place${placesTotal>1?'s':''} VL • ${(zone.largeurMetres).toFixed(1)}m × ${(zone.longueurMetres).toFixed(1)}m</span>
                     </div>
                 </div>`;
         }
@@ -3022,12 +3025,16 @@
             const newNE = L.latLng(center.lat + halfHeightDeg, center.lng + halfWidthDeg);
 
             layer.setBounds(L.latLngBounds(newSW, newNE));
+            // Forcer le rafraîchissement visuel
+            if (layer._map) layer.redraw();
+
+            console.log(`[OMBRIERE CONSTRAINT] Modèle: ${modele.ref}, Travées: ${nbTravees}, Target: ${targetWidth.toFixed(1)}m × ${targetHeight.toFixed(1)}m`);
 
             // Message feedback à l'utilisateur (uniquement si l'ajustement est significatif)
             const widthDiff = Math.abs(currentWidth - targetWidth);
             const heightDiff = Math.abs(currentHeight - targetHeight);
             if (widthDiff > 0.5 || heightDiff > 0.5) {
-                const msg = `📐 Zone ajustée au modèle ${modele.reference} : ${targetWidth.toFixed(1)}m × ${targetHeight.toFixed(1)}m (${nbTravees} travée${nbTravees > 1 ? 's' : ''})`;
+                const msg = `📐 Zone ajustée au modèle ${modele.ref} : ${targetWidth.toFixed(1)}m × ${targetHeight.toFixed(1)}m (${nbTravees} travée${nbTravees > 1 ? 's' : ''})`;            
                 console.log(msg);
                 // Toast visuel
                 const toast = document.createElement('div');
