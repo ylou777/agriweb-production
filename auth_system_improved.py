@@ -479,16 +479,12 @@ class AuthSystem:
             
             # Vérifier que l'email est confirmé
             if not is_verified:
-                # Si SMTP n'est pas configuré, auto-vérifier au login
-                smtp_ok = EMAIL_CONFIG['password'] and EMAIL_CONFIG['password'] not in ['votre_mot_de_passe_app', '']
-                if not smtp_ok:
-                    cursor.execute("UPDATE users SET is_email_verified = 1 WHERE id = ?", (user_id,))
-                    conn.commit()
-                    print(f"⚠️ Auto-vérification email au login pour {email} (SMTP non configuré)")
-                    is_verified = True
-                else:
-                    conn.close()
-                    return False, None, "Veuillez d'abord confirmer votre email avant de vous connecter"
+                # Auto-vérifier au login — ne pas bloquer l'utilisateur
+                # L'email de confirmation est un bonus, pas un prérequis
+                cursor.execute("UPDATE users SET is_email_verified = 1 WHERE id = ?", (user_id,))
+                conn.commit()
+                print(f"⚠️ Auto-vérification email au login pour {email}")
+                is_verified = True
             
             # Vérifier le mot de passe
             if not self.verify_password(password, stored_hash, salt):
