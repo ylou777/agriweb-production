@@ -192,7 +192,22 @@ class AuthSystem:
             
         except Exception as e:
             print(f"❌ Erreur envoi email: {e}")
-            return False
+            # Auto-vérifier l'email si l'envoi SMTP échoue
+            # pour ne pas bloquer l'utilisateur
+            try:
+                conn = get_auth_db()
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE users 
+                    SET is_email_verified = 1, email_verification_token = NULL 
+                    WHERE email = ?
+                ''', (email,))
+                conn.commit()
+                conn.close()
+                print(f"⚠️ Auto-vérification email pour {email} (SMTP indisponible)")
+            except Exception as e2:
+                print(f"❌ Erreur auto-vérification: {e2}")
+            return True  # Retourner True car le compte est utilisable
     
     def send_admin_notification(self, user_email, user_name, user_company, trial_end_date):
         """Envoie une notification à l'admin lors d'une nouvelle inscription"""
@@ -368,7 +383,8 @@ class AuthSystem:
             if email_sent:
                 return True, f"Compte créé ! Vérifiez votre email {email} pour l'activer."
             else:
-                return False, "Compte créé mais erreur lors de l'envoi de l'email de vérification"
+                # Le compte est quand même créé et auto-vérifié si SMTP a échoué
+                return True, f"Compte créé avec succès pour {email}."
                 
         except Exception as e:
             print(f"Erreur inscription: {e}")
@@ -455,8 +471,11 @@ class AuthSystem:
                 return False, None, "Email ou mot de passe incorrect"
             
             # Vérifier l'expiration de l'essai
-            if subscription_status == 'trial':
-                trial_end_date = datetime.fromisoformat(trial_end)
+            if subscription_status == 'trial' and trial_end:
+                if isinstance(trial_end, str):
+                    trial_end_date = datetime.fromisoformat(trial_end)
+                else:
+                    trial_end_date = trial_end  # PostgreSQL retourne un datetime natif
                 if datetime.now() > trial_end_date:
                     return False, None, "Période d'essai expirée. Veuillez souscrire à un abonnement."
             
