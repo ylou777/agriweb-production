@@ -36,6 +36,21 @@ class AuthSystem:
         """Initialise la base de données avec les tables nécessaires"""
         init_auth_tables()
         print("✅ Base de données d'authentification initialisée")
+        
+        # Migration: auto-vérifier les comptes si SMTP non configuré
+        smtp_ok = EMAIL_CONFIG['password'] and EMAIL_CONFIG['password'] not in ['votre_mot_de_passe_app', '']
+        if not smtp_ok:
+            try:
+                conn = get_auth_db()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE users SET is_email_verified = 1 WHERE is_email_verified = 0")
+                affected = cursor.rowcount
+                conn.commit()
+                conn.close()
+                if affected and affected > 0:
+                    print(f"⚠️ Migration: {affected} compte(s) auto-vérifié(s) (SMTP non configuré)")
+            except Exception as e:
+                print(f"⚠️ Migration auto-verify: {e}")
     
     def hash_password(self, password, salt=None):
         """Hash sécurisé d'un mot de passe avec sel"""
@@ -464,7 +479,16 @@ class AuthSystem:
             
             # Vérifier que l'email est confirmé
             if not is_verified:
-                return False, None, "Veuillez d'abord confirmer votre email avant de vous connecter"
+                # Si SMTP n'est pas configuré, auto-vérifier au login
+                smtp_ok = EMAIL_CONFIG['password'] and EMAIL_CONFIG['password'] not in ['votre_mot_de_passe_app', '']
+                if not smtp_ok:
+                    cursor.execute("UPDATE users SET is_email_verified = 1 WHERE id = ?", (user_id,))
+                    conn.commit()
+                    print(f"⚠️ Auto-vérification email au login pour {email} (SMTP non configuré)")
+                    is_verified = True
+                else:
+                    conn.close()
+                    return False, None, "Veuillez d'abord confirmer votre email avant de vous connecter"
             
             # Vérifier le mot de passe
             if not self.verify_password(password, stored_hash, salt):
