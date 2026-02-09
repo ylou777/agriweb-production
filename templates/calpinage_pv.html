@@ -1566,6 +1566,8 @@
                 
                 // Si c'est un rectangle et qu'on est en mode Zone PV
                 if (layerType === 'rectangle' && currentTool === 'rectangle') {
+                    // Appliquer les contraintes ombrière AVANT d'ajouter la zone
+                    constrainZoneToOmbriere(layer);
                     drawnItems.addLayer(layer);
                     // Rendre le rectangle invisible (seuls les modules seront visibles)
                     if (layer._path) {
@@ -1671,6 +1673,9 @@
                         layer._path.style.opacity = 0;
                         layer._path.style.fillOpacity = 0;
                     }
+                    
+                    // Appliquer les contraintes ombrière après édition
+                    constrainZoneToOmbriere(layer);
                     
                     // Recalculer et mettre à jour chaque zone après édition
                     const zone = zones.find(z => z.id === layer._leaflet_id);
@@ -2956,6 +2961,84 @@
 
 
         // Ajouter une zone PV
+        /**
+         * Contraint un rectangle (L.Rectangle) aux dimensions du modèle d'ombrière sélectionné :
+         *   - Largeur (est-ouest) forcée à largeurToiture du modèle
+         *   - Longueur (nord-sud) arrondie au multiple de espacementPiliers le plus proche
+         * Le centre du rectangle est conservé, seuls les bords sont ajustés.
+         * En mode "Personnalisé", aucune contrainte n'est appliquée.
+         */
+        
+        function getOmbriereZoneInfo(zone) {
+            const typeInstall = document.getElementById('typeInstallation').value;
+            if (typeInstall !== 'ombriere') return '';
+            const sel = document.getElementById('ombriereModele').value;
+            if (!sel || sel === 'custom' || !OMBRIERE_CATALOGUE[sel]) return '';
+            const modele = OMBRIERE_CATALOGUE[sel];
+            const nbTravees = Math.max(1, Math.round(zone.hauteurM / modele.espacementPiliers));
+            const placesTotal = nbTravees * modele.nbPlaces;
+            return `
+                <div class="mb-2 p-2" style="background:rgba(52,152,219,0.1);border-radius:6px;border-left:3px solid #3498db;">
+                    <small class="text-muted d-block mb-1">Configuration ombrière</small>
+                    <div style="font-size:0.85em;">
+                        <strong>${modele.reference}</strong> — ${nbTravees} travée${nbTravees>1?'s':''}<br>
+                        <span class="text-muted">${placesTotal} place${placesTotal>1?'s':''} VL • ${(zone.largeurM).toFixed(1)}m × ${(zone.hauteurM).toFixed(1)}m</span>
+                    </div>
+                </div>`;
+        }
+
+        function constrainZoneToOmbriere(layer) {
+            const typeInstall = document.getElementById('typeInstallation').value;
+            if (typeInstall !== 'ombriere') return;
+
+            const sel = document.getElementById('ombriereModele').value;
+            const modele = OMBRIERE_CATALOGUE[sel];
+            if (!modele) return; // Personnalisé → pas de contrainte
+
+            const bounds = layer.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            const center = bounds.getCenter();
+
+            // Mesurer les dimensions actuelles en mètres
+            const currentWidth = map.distance(sw, [sw.lat, ne.lng]);   // est-ouest = largeur
+            const currentHeight = map.distance(sw, [ne.lat, sw.lng]);  // nord-sud = longueur (travées)
+
+            // 1) LARGEUR → forcée à largeurToiture du modèle
+            const targetWidth = modele.largeurToiture;
+
+            // 2) LONGUEUR → arrondie au multiple de espacementPiliers le plus proche (min 1 travée)
+            const travee = modele.espacementPiliers;
+            const nbTravees = Math.max(1, Math.round(currentHeight / travee));
+            const targetHeight = nbTravees * travee;
+
+            // Convertir mètres → degrés à cette latitude
+            // 1 degré de latitude ≈ 111320 m, 1 degré de longitude ≈ 111320 × cos(lat)
+            const cosLat = Math.cos(center.lat * Math.PI / 180);
+            const halfWidthDeg = (targetWidth / 2) / (111320 * cosLat);
+            const halfHeightDeg = (targetHeight / 2) / 111320;
+
+            const newSW = L.latLng(center.lat - halfHeightDeg, center.lng - halfWidthDeg);
+            const newNE = L.latLng(center.lat + halfHeightDeg, center.lng + halfWidthDeg);
+
+            layer.setBounds(L.latLngBounds(newSW, newNE));
+
+            // Message feedback à l'utilisateur (uniquement si l'ajustement est significatif)
+            const widthDiff = Math.abs(currentWidth - targetWidth);
+            const heightDiff = Math.abs(currentHeight - targetHeight);
+            if (widthDiff > 0.5 || heightDiff > 0.5) {
+                const msg = `📐 Zone ajustée au modèle ${modele.reference} : ${targetWidth.toFixed(1)}m × ${targetHeight.toFixed(1)}m (${nbTravees} travée${nbTravees > 1 ? 's' : ''})`;
+                console.log(msg);
+                // Toast visuel
+                const toast = document.createElement('div');
+                toast.className = 'alert alert-info';
+                toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:380px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                toast.innerHTML = `<i class="fas fa-ruler-combined me-2"></i>${msg}`;
+                document.body.appendChild(toast);
+                setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3500);
+            }
+        }
+
         function ajouterZone(layer) {
             // Calculer le prochain numéro de zone (basé sur le nombre de zones existantes)
             const nouveauNumero = zones.length + 1;
@@ -3064,6 +3147,8 @@
                     <small class="text-muted">Puissance installée</small>
                     <div><strong class="text-primary" id="puissance-${zone.id}">${zone.puissanceKw.toFixed(2)} kWc</strong></div>
                 </div>
+                
+                ${getOmbriereZoneInfo(zone)}
                 
                 <div class="row g-2">
                     <div class="col-12">
