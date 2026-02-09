@@ -473,6 +473,8 @@
                             <select class="form-select" id="ombriereModele" onchange="onOmbriereModeleChange()">
                                 <option value="custom">🔧 Personnalisé (saisie libre)</option>
                                 <optgroup label="🚗 Barconnier — Ombrières VL (Véhicule Léger)">
+                                    <option value="O3D">O3D — 7.03m × 3 places — Bi-pente</option>
+                                    <option value="O3M">O3M — 7.03m × 3 places — Mono-pente</option>
                                     <option value="O4">O4 — 9.28m × 4 places — Mono-pente</option>
                                     <option value="O5">O5 — 11.53m × 5 places — Mono-pente</option>
                                 </optgroup>
@@ -3568,6 +3570,50 @@
         // CATALOGUE OMBRIÈRES
         // ============================================
         const OMBRIERE_CATALOGUE = {
+            'O3D': {
+                ref: 'O3D',
+                fabricant: 'Barconnier',
+                gamme: 'Ombrières VL (Véhicule Léger)',
+                type: 'Bi-pente',
+                largeurToiture: 7.030,
+                empriseAuSol: 6.923,         // 1053 + 1700 + 4170
+                hauteurCoteHaut: 4.425,      // Symétrique des 2 côtés
+                hauteurCoteBas: 3.204,       // Symétrique des 2 côtés
+                hauteurPilier: 4.425,
+                hauteurLibre: 2.930,         // Passage libre
+                espacementPiliers: 2.250,
+                entraxePiliers: 1.700,
+                nbPlaces: 3,
+                largeurPlace: 2.5,
+                profondeurPlace: 5.0,
+                diametrePilier: 15,
+                sectionPanne: 10,
+                sectionFerme: 8,
+                get surfaceToiture() { return this.largeurToiture * this.espacementPiliers; },
+                get pente() { return Math.atan2(this.hauteurCoteHaut - this.hauteurCoteBas, this.empriseAuSol / 2) * 180 / Math.PI; }
+            },
+            'O3M': {
+                ref: 'O3M',
+                fabricant: 'Barconnier',
+                gamme: 'Ombrières VL (Véhicule Léger)',
+                type: 'Mono-pente',
+                largeurToiture: 7.030,
+                empriseAuSol: 6.923,         // 4068 + 1700 + 1156
+                hauteurCoteHaut: 4.956,
+                hauteurCoteBas: 3.735,
+                hauteurPilier: 4.682,
+                hauteurLibre: 3.735,         // Côté bas = passage libre
+                espacementPiliers: 2.250,
+                entraxePiliers: 1.700,
+                nbPlaces: 3,
+                largeurPlace: 2.5,
+                profondeurPlace: 5.0,
+                diametrePilier: 15,
+                sectionPanne: 10,
+                sectionFerme: 8,
+                get surfaceToiture() { return this.largeurToiture * this.espacementPiliers; },
+                get pente() { return Math.atan2(this.hauteurCoteHaut - this.hauteurCoteBas, this.empriseAuSol) * 180 / Math.PI; }
+            },
             'O4': {
                 ref: 'O4',
                 fabricant: 'Barconnier',
