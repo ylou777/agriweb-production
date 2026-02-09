@@ -539,6 +539,16 @@
                     </div>
                     <div class="row mt-2">
                         <div class="col-md-3">
+                            <label class="form-label"><strong>Espacement travées (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereEspacementPiliers" value="2.25" step="0.05" min="1.5" max="5.0">
+                            <small class="text-muted">Entre-axe longitudinal</small>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label"><strong>Entraxe piliers (m)</strong></label>
+                            <input type="number" class="form-control" id="ombriereEntraxePiliers" value="1.70" step="0.05" min="1.0" max="5.0">
+                            <small class="text-muted">Entre files de piliers</small>
+                        </div>
+                        <div class="col-md-3">
                             <label class="form-label"><strong>Diamètre pilier (cm)</strong></label>
                             <input type="number" class="form-control" id="ombriereDiametrePilier" value="15" step="1" min="10" max="30">
                             <small class="text-muted">Standard: 15cm (Ø)</small>
@@ -548,6 +558,8 @@
                             <input type="number" class="form-control" id="ombriereSectionPanne" value="10" step="1" min="8" max="20">
                             <small class="text-muted">Poutre horizontale</small>
                         </div>
+                    </div>
+                    <div class="row mt-2">
                         <div class="col-md-3">
                             <label class="form-label"><strong>Section ferme (cm)</strong></label>
                             <input type="number" class="form-control" id="ombriereSectionFerme" value="8" step="1" min="6" max="15">
@@ -3829,6 +3841,8 @@
             document.getElementById('ombriereDiametrePilier').value = modele.diametrePilier;
             document.getElementById('ombriereSectionPanne').value = modele.sectionPanne;
             document.getElementById('ombriereSectionFerme').value = modele.sectionFerme;
+            document.getElementById('ombriereEspacementPiliers').value = modele.espacementPiliers;
+            document.getElementById('ombriereEntraxePiliers').value = modele.entraxePiliers;
 
             // Info texte
             infoText.textContent = `${modele.fabricant} ${modele.ref} — ${modele.gamme}`;
@@ -4389,6 +4403,8 @@
                     diametrePilier: parseFloat(document.getElementById('ombriereDiametrePilier')?.value) || 15,
                     sectionPanne: parseFloat(document.getElementById('ombriereSectionPanne')?.value) || 10,
                     sectionFerme: parseFloat(document.getElementById('ombriereSectionFerme')?.value) || 8,
+                    espacementPiliers: parseFloat(document.getElementById('ombriereEspacementPiliers')?.value) || 2.25,
+                    entraxePiliers: parseFloat(document.getElementById('ombriereEntraxePiliers')?.value) || 1.70,
                     typeParking: document.getElementById('ombriereTypeParking')?.value || 'bataille',
                     // Données catalogue si modèle sélectionné
                     catalogue: OMBRIERE_CATALOGUE[document.getElementById('ombriereModele')?.value] ? {
@@ -4960,6 +4976,8 @@
                     if (oc.diametrePilier) document.getElementById('ombriereDiametrePilier').value = oc.diametrePilier;
                     if (oc.sectionPanne) document.getElementById('ombriereSectionPanne').value = oc.sectionPanne;
                     if (oc.sectionFerme) document.getElementById('ombriereSectionFerme').value = oc.sectionFerme;
+                    if (oc.espacementPiliers) document.getElementById('ombriereEspacementPiliers').value = oc.espacementPiliers;
+                    if (oc.entraxePiliers) document.getElementById('ombriereEntraxePiliers').value = oc.entraxePiliers;
                 }
                 if (oc.typeParking) document.getElementById('ombriereTypeParking').value = oc.typeParking;
             }
