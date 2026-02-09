@@ -1648,41 +1648,61 @@
 
             // Événement de début d'édition - rendre visible et activer suivi temps réel
             map.on(L.Draw.Event.EDITSTART, function() {
+                const typeInstall = document.getElementById('typeInstallation').value;
+                const sel = document.getElementById('ombriereModele')?.value;
+                const isOmbriereCatalogue = (typeInstall === 'ombriere' && sel && sel !== 'custom' && OMBRIERE_CATALOGUE[sel]);
+                
                 drawnItems.eachLayer(function(layer) {
-                    if (layer._path) {
-                        layer._path.style.opacity = 0.5;
-                        layer._path.style.fillOpacity = 0.1;
+                    if (isOmbriereCatalogue) {
+                        // Ombrière catalogue → désactiver le redimensionnement libre
+                        if (layer.editing && layer.editing.enabled()) {
+                            layer.editing.disable();
+                        }
+                        // Garder le rectangle visible pour repère
+                        if (layer._path) {
+                            layer._path.style.opacity = 0.3;
+                            layer._path.style.fillOpacity = 0.05;
+                            layer._path.style.stroke = '#3498db';
+                        }
+                    } else {
+                        // Toiture / Sol / Personnalisé → édition libre
+                        if (layer._path) {
+                            layer._path.style.opacity = 0.5;
+                            layer._path.style.fillOpacity = 0.1;
+                        }
                     }
                 });
                 
                 // Afficher les poignées de rotation
                 toggleRotationHandles(true);
                 
-                // Mettre à jour les modules pendant le déplacement
-                dragUpdateInterval = setInterval(() => {
-                    drawnItems.eachLayer(function(layer) {
-                        const zone = zones.find(z => z.id === layer._leaflet_id);
-                        if (zone && layer.editing && layer.editing.enabled()) {
-                            const bounds = layer.getBounds();
-                            const ne = bounds.getNorthEast();
-                            const sw = bounds.getSouthWest();
-                            zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
-                            zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
-                            dessinerModulesDansZone(zone);
-                            
-                            // Mettre à jour la position de la poignée de rotation
-                            if (rotationHandles[zone.id]) {
-                                rotationHandles[zone.id].setLatLng(ne);
+                // Mettre à jour les modules pendant le déplacement (toiture/sol uniquement)
+                if (!isOmbriereCatalogue) {
+                    dragUpdateInterval = setInterval(() => {
+                        drawnItems.eachLayer(function(layer) {
+                            const zone = zones.find(z => z.id === layer._leaflet_id);
+                            if (zone && layer.editing && layer.editing.enabled()) {
+                                const bounds = layer.getBounds();
+                                const ne = bounds.getNorthEast();
+                                const sw = bounds.getSouthWest();
+                                zone.largeurMetres = map.distance(sw, [sw.lat, ne.lng]);
+                                zone.longueurMetres = map.distance(sw, [ne.lat, sw.lng]);
+                                dessinerModulesDansZone(zone);
+                                
+                                // Mettre à jour la position de la poignée de rotation
+                                if (rotationHandles[zone.id]) {
+                                    rotationHandles[zone.id].setLatLng(ne);
+                                }
                             }
-                        }
-                    });
-                }, 50); // Mise à jour toutes les 50ms pendant le drag
+                        });
+                    }, 50);
+                }
             });
 
             // Événement de fin d'édition - rendre invisible et arrêter suivi
             map.on(L.Draw.Event.EDITSTOP, function() {
                 drawnItems.eachLayer(function(layer) {
-                    // Appliquer les contraintes ombrière AVANT tout recalcul
+                    // Pour toiture/sol : appliquer la contrainte ombrière (snapping si applicable)
                     constrainZoneToOmbriere(layer);
                     
                     // Masquer le rectangle
@@ -2996,10 +3016,82 @@
                 <div class="mb-2 p-2" style="background:rgba(52,152,219,0.1);border-radius:6px;border-left:3px solid #3498db;">
                     <small class="text-muted d-block mb-1">Configuration ombrière</small>
                     <div style="font-size:0.85em;">
-                        <strong>${modele.ref}</strong> — ${nbTravees} travée${nbTravees>1?'s':''}<br>
+                        <strong>${modele.ref}</strong> — 
+                        <span id="travees-count-${zone.id}">${nbTravees}</span> travée${nbTravees>1?'s':''}<br>
                         <span class="text-muted">${placesTotal} place${placesTotal>1?'s':''} VL • ${(zone.largeurMetres).toFixed(1)}m × ${(zone.longueurMetres).toFixed(1)}m</span>
                     </div>
+                    <div class="mt-2 d-flex align-items-center gap-2">
+                        <button class="btn btn-sm btn-outline-danger" onclick="ajusterTravees(${zone.id}, -1)" title="Retirer une travée"
+                            style="width:32px;height:32px;padding:0;font-size:1.1em;font-weight:bold;">−</button>
+                        <span style="font-size:0.9em;min-width:80px;text-align:center;">
+                            <strong id="travees-display-${zone.id}">${nbTravees}</strong> travée${nbTravees>1?'s':''}
+                        </span>
+                        <button class="btn btn-sm btn-outline-success" onclick="ajusterTravees(${zone.id}, +1)" title="Ajouter une travée"
+                            style="width:32px;height:32px;padding:0;font-size:1.1em;font-weight:bold;">+</button>
+                    </div>
                 </div>`;
+        }
+
+        /**
+         * Ajuster le nombre de travées d'une zone ombrière.
+         * delta = +1 pour ajouter, -1 pour retirer.
+         * Redimensionne le rectangle sur la carte et recalcule tout.
+         */
+        function ajusterTravees(zoneId, delta) {
+            const zone = zones.find(z => z.id === zoneId);
+            if (!zone || !zone.layer) return;
+
+            const sel = document.getElementById('ombriereModele').value;
+            const modele = OMBRIERE_CATALOGUE[sel];
+            if (!modele) return;
+
+            // Calculer le nombre actuel de travées et le nouveau
+            const currentTravees = Math.max(1, Math.round(zone.longueurMetres / modele.espacementPiliers));
+            const newTravees = Math.max(1, currentTravees + delta);
+            if (newTravees === currentTravees && delta < 0) return; // déjà au minimum
+
+            const targetHeight = newTravees * modele.espacementPiliers;
+            const targetWidth = modele.largeurToiture;
+
+            // Recalculer les bounds depuis le centre actuel
+            const bounds = zone.layer.getBounds();
+            const center = bounds.getCenter();
+            const cosLat = Math.cos(center.lat * Math.PI / 180);
+            const halfWidthDeg = (targetWidth / 2) / (111320 * cosLat);
+            const halfHeightDeg = (targetHeight / 2) / 111320;
+
+            const newSW = L.latLng(center.lat - halfHeightDeg, center.lng - halfWidthDeg);
+            const newNE = L.latLng(center.lat + halfHeightDeg, center.lng + halfWidthDeg);
+            zone.layer.setBounds(L.latLngBounds(newSW, newNE));
+            if (zone.layer._map) zone.layer.redraw();
+
+            // Recalculer les dimensions de la zone
+            const sw = zone.layer.getBounds().getSouthWest();
+            const ne2 = zone.layer.getBounds().getNorthEast();
+            zone.largeurMetres = map.distance(sw, [sw.lat, ne2.lng]);
+            zone.longueurMetres = map.distance(sw, [ne2.lat, sw.lng]);
+            zone.surfaceM2 = zone.largeurMetres * zone.longueurMetres;
+
+            // Recalculer modules et rafraîchir
+            recalculerZone(zone);
+            dessinerModulesDansZone(zone);
+            afficherZone(zone);
+            calculerTotaux();
+
+            // Mettre à jour la poignée de rotation
+            if (rotationHandles[zone.id]) {
+                rotationHandles[zone.id].setLatLng(ne2);
+            }
+
+            // Toast de confirmation
+            const placesTotal = newTravees * modele.nbPlaces;
+            const msg = `📐 ${modele.ref} : ${newTravees} travée${newTravees > 1 ? 's' : ''} — ${placesTotal} places VL — ${targetWidth.toFixed(1)}m × ${targetHeight.toFixed(1)}m`;
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-info';
+            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+            toast.innerHTML = `<i class="fas fa-ruler-combined me-2"></i>${msg}`;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 3000);
         }
 
         function constrainZoneToOmbriere(layer) {
