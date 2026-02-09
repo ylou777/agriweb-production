@@ -52,6 +52,15 @@ def _adapt_sql(sql):
     sql = sql.replace("datetime('now')", "NOW()")
     sql = sql.replace("date('now')", "CURRENT_DATE")
     
+    # datetime(column) → column::timestamp (SQLite cast → PostgreSQL cast)
+    sql = re.sub(r"datetime\((\w+)\)", r"\1::timestamp", sql)
+    
+    # date('now', '-N days') → CURRENT_DATE - INTERVAL 'N days'
+    sql = re.sub(r"date\('now',\s*'-(\d+)\s+days?'\)", r"CURRENT_DATE - INTERVAL '\1 days'", sql)
+    
+    # date(column) → column::date
+    sql = re.sub(r"date\((\w+)\)", r"\1::date", sql)
+    
     # INSERT OR IGNORE → INSERT ... ON CONFLICT DO NOTHING
     if re.search(r'INSERT\s+OR\s+IGNORE', sql, re.IGNORECASE):
         sql = re.sub(r'INSERT\s+OR\s+IGNORE\s+INTO', 'INSERT INTO', sql, flags=re.IGNORECASE)
