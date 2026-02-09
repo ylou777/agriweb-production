@@ -1160,9 +1160,9 @@
             
             if (moduleType === 'custom') {
                 // Mode personnalisé : rendre les champs éditables
-                document.getElementById('moduleLongueur').disabled = false;
-                document.getElementById('moduleLargeur').disabled = false;
-                document.getElementById('modulePuissance').disabled = false;
+                document.getElementById('moduleLongueur').readOnly = false;
+                document.getElementById('moduleLargeur').readOnly = false;
+                document.getElementById('modulePuissance').readOnly = false;
                 document.getElementById('moduleVoc').readOnly = false;
                 document.getElementById('moduleVmpp').readOnly = false;
                 document.getElementById('moduleIsc').readOnly = false;
@@ -1186,10 +1186,10 @@
             document.getElementById('moduleIsc').value = module.isc;
             document.getElementById('moduleImpp').value = module.impp;
             
-            // Désactiver les champs pour modules prédéfinis
-            document.getElementById('moduleLongueur').disabled = true;
-            document.getElementById('moduleLargeur').disabled = true;
-            document.getElementById('modulePuissance').disabled = true;
+            // Verrouiller les champs pour modules prédéfinis (readOnly conserve le style)
+            document.getElementById('moduleLongueur').readOnly = true;
+            document.getElementById('moduleLargeur').readOnly = true;
+            document.getElementById('modulePuissance').readOnly = true;
             document.getElementById('moduleVoc').readOnly = true;
             document.getElementById('moduleVmpp').readOnly = true;
             document.getElementById('moduleIsc').readOnly = true;
