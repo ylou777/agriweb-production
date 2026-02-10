@@ -652,6 +652,7 @@
       if (communeInput) {
         new Autocomplete(communeInput, {
           type: 'commune',
+          placeholder: 'Rechercher une commune...',
           minChars: 2,
           onSelect: function(suggestion) {
             console.log('🏘️ Commune sélectionnée:', suggestion);
