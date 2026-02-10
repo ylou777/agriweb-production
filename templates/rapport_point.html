@@ -385,10 +385,12 @@
         }
 
         /* === SCROLLBAR === */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: var(--c-bg); }
-        ::-webkit-scrollbar-thumb { background: var(--c-border-light); border-radius: 3px; }
+        ::-webkit-scrollbar { width: 16px; height: 16px; }
+        ::-webkit-scrollbar-track { background: var(--c-surface); border-radius: 8px; }
+        ::-webkit-scrollbar-thumb { background: var(--c-border-light); border-radius: 8px; min-height: 40px; }
         ::-webkit-scrollbar-thumb:hover { background: var(--c-text-3); }
+        /* Firefox */
+        * { scrollbar-width: auto; scrollbar-color: var(--c-border-light) var(--c-surface); }
 
         /* === FOOTER === */
         footer { color: var(--c-text-3); }
