@@ -4911,11 +4911,17 @@ def flatten_gpu_dict_to_featurecollection(gpu_dict):
 # Appels API (cadastre, nature, GPU)
 ########################################
 
+# Cache global pour les données bâtiments (évite les appels Overpass doublons)
+# Clé = hash du contour, Valeur = {"data": FeatureCollection, "timestamp": float}
+_batiments_cache = {}
+_BATIMENTS_CACHE_TTL = 300  # 5 minutes
+
 
 def get_batiments_data(geom):
     """
     Récupère les empreintes de bâtiments via OpenStreetMap Overpass API.
     L'API Cadastre bâtiment n'existant pas, nous utilisons directement OSM.
+    Utilise un cache en mémoire (5 min TTL) pour éviter les doublons Overpass.
     
     Args:
         geom: Géométrie GeoJSON (Point, Polygon, etc.)
@@ -4923,6 +4929,20 @@ def get_batiments_data(geom):
     Returns:
         dict: FeatureCollection des bâtiments ou None si erreur
     """
+    import hashlib, json as _json
+    global _batiments_cache
+
+    # --- Cache lookup ---
+    try:
+        cache_key = hashlib.md5(_json.dumps(geom, sort_keys=True).encode()).hexdigest()
+        cached = _batiments_cache.get(cache_key)
+        if cached and (time.time() - cached["timestamp"] < _BATIMENTS_CACHE_TTL):
+            nb = len(cached["data"].get("features", [])) if cached["data"] else 0
+            print(f"✅ [BATIMENTS-CACHE] Réutilisation du cache ({nb} bâtiments, âge {int(time.time()-cached['timestamp'])}s)")
+            return cached["data"]
+    except Exception:
+        cache_key = None
+
     # Méthode 1: OpenStreetMap Overpass API (source principale pour les bâtiments)
     try:
         from shapely.geometry import shape
@@ -5041,8 +5061,16 @@ def get_batiments_data(geom):
                                 features.append(feature)
                     
                     if features:
+                        result = {"type": "FeatureCollection", "features": features}
                         print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
-                        return {"type": "FeatureCollection", "features": features}
+                        # Stocker en cache
+                        if cache_key:
+                            _batiments_cache[cache_key] = {"data": result, "timestamp": time.time()}
+                            # Nettoyage des entrées périmées
+                            stale = [k for k, v in _batiments_cache.items() if time.time() - v["timestamp"] > _BATIMENTS_CACHE_TTL * 2]
+                            for k in stale:
+                                del _batiments_cache[k]
+                        return result
                     break
                 elif response.status_code in [429, 502, 503]:
                     if attempt < max_retries - 1:
@@ -14207,11 +14235,15 @@ def generate_integrated_commune_report(commune_name, filters=None):
             return filtered
         
         # Récupération des données
+        print(f"📊 [RAPPORT_INTÉGRÉ] Étape 3a: RPG...")
         rpg_data = get_rpg_info_by_polygon(contour) if filters.get("filter_rpg", True) else []
+        print(f"📊 [RAPPORT_INTÉGRÉ] Étape 3b: Postes BT/HTA...")
         postes_bt_data = filter_in_commune(fetch_wfs_data(POSTE_LAYER, bbox))
         postes_hta_data = filter_in_commune(fetch_wfs_data(HT_POSTE_LAYER, bbox))
+        print(f"📊 [RAPPORT_INTÉGRÉ] Étape 3c: Parkings/Friches...")
         parkings_data = get_parkings_info_by_polygon(contour) if filters.get("filter_parkings", False) else []
         friches_data = get_friches_info_by_polygon(contour) if filters.get("filter_friches", False) else []
+        print(f"📊 [RAPPORT_INTÉGRÉ] Données de base récupérées (RPG={len(rpg_data)}, BT={len(postes_bt_data)}, HTA={len(postes_hta_data)}, Parkings={len(parkings_data)}, Friches={len(friches_data)})")
         
         # Récupération des données Enedis pour la commune
         code_commune = commune_info.get("code", "")
@@ -14337,10 +14369,11 @@ def generate_integrated_commune_report(commune_name, filters=None):
                 max_distance_hta = float(filters.get("max_distance_hta", 2000.0))
                 poste_type_filter = str(filters.get("poste_type_filter", "ALL")).upper()
 
-                # Bâtiments via OSM (Overpass) sur le polygone communal
+                print(f"    🏠 [RAPPORT-TOITURES] Récupération bâtiments OSM (min_surface={min_surface}m²)...")
+                # Bâtiments via OSM (Overpass) sur le polygone communal — le cache évite le doublon
                 batiments_fc = get_batiments_data(contour) or {"type": "FeatureCollection", "features": []}
                 batiments = batiments_fc.get("features", [])
-                print(f"    🏠 Bâtiments OSM bruts: {len(batiments)}")
+                print(f"    🏠 [RAPPORT-TOITURES] Bâtiments OSM bruts: {len(batiments)}, min_surface={min_surface}m²")
 
                 for b in batiments:
                     try:
