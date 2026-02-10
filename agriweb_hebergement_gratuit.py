@@ -555,21 +555,12 @@ def generate_secure_filename(prefix, description="", extension=".html"):
     
     return filename
 
-# --- Utility: Save Folium map to static/cartes/ and return relative path ---
-def save_map_html(map_obj, filename):
+# --- Utility: Injection du gestionnaire de calques custom dans un fichier HTML carte ---
+def inject_custom_layer_control(filepath):
     """
-    Save a Folium map object to static/cartes/ and return the relative path for use in the app.
-    Injecte automatiquement le gestionnaire de calques custom (dark mode, groupé, avec recherche).
+    Injecte le CSS + JS du gestionnaire de calques custom (dark mode, groupé, recherche)
+    dans un fichier HTML de carte Folium déjà sauvegardé.
     """
-    import os
-    # Ensure the directory exists
-    cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
-    os.makedirs(cartes_dir, exist_ok=True)
-    # Save the map
-    filepath = os.path.join(cartes_dir, filename)
-    map_obj.save(filepath)
-
-    # --- Injection du gestionnaire de calques custom (CSS + JS) ---
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             html = f.read()
@@ -583,10 +574,25 @@ def save_map_html(map_obj, filename):
 
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html)
-            print(f"🎛️ [LC] Custom layer control injecté dans {filename}")
+            print(f"🎛️ [LC] Custom layer control injecté dans {os.path.basename(filepath)}")
     except Exception as e:
-        print(f"⚠️ [LC] Injection custom layer control échouée pour {filename}: {e}")
+        print(f"⚠️ [LC] Injection custom layer control échouée pour {os.path.basename(filepath)}: {e}")
 
+# --- Utility: Save Folium map to static/cartes/ and return relative path ---
+def save_map_html(map_obj, filename):
+    """
+    Save a Folium map object to static/cartes/ and return the relative path for use in the app.
+    Injecte automatiquement le gestionnaire de calques custom.
+    """
+    import os
+    # Ensure the directory exists
+    cartes_dir = os.path.join(os.path.dirname(__file__), "static", "cartes")
+    os.makedirs(cartes_dir, exist_ok=True)
+    # Save the map
+    filepath = os.path.join(cartes_dir, filename)
+    map_obj.save(filepath)
+    # Injecter le gestionnaire de calques custom
+    inject_custom_layer_control(filepath)
     # Return the relative path from /static/
     return f"cartes/{filename}"
 
@@ -11261,6 +11267,7 @@ def rapport_map_point():
             
             carte_fullpath = os.path.join(carte_path, carte_filename)
             map_obj.save(carte_fullpath)
+            inject_custom_layer_control(carte_fullpath)
             
             report_data["carte_url"] = f"/static/cartes/{carte_filename}"
             save_map_to_cache(map_obj, report_data)
@@ -17176,6 +17183,7 @@ def save_dept_map():
         filename = generate_secure_filename("departement", department)
         filepath = os.path.join(cartes_dir, filename)
         map_obj.save(filepath)
+        inject_custom_layer_control(filepath)
         
         print(f"✅ [SAVE_DEPT] Carte sauvegardée: {filename}")
         
