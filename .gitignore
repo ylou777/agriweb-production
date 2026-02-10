@@ -50,6 +50,9 @@ logs/
 static/cartes/*.html
 static/cartes/
 
+# Cache IA
+data/ai_analysis_cache/
+
 # Données temporaires
 temp/
 tmp/
