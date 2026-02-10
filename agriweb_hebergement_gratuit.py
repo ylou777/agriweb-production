@@ -6132,12 +6132,17 @@ def build_map(
     capacites_reseau=None,
     ppri_data=None,  # Ajout PPRI
     hta_lignes_data=None,  # Ajout lignes HTA
-    enedis_data=None  # Ajout consommations Enedis
+    enedis_data=None,  # Ajout consommations Enedis
+    mode="default"  # "default" = commune (tout visible), "rapport" = 3 calques seulement
 ):
     import folium
     from folium.plugins import MarkerCluster
     from pyproj import Transformer
     from shapely.geometry import shape, mapping, MultiPolygon
+
+    # Mode rapport: seulement Satellite + API Cadastre IGN + Zone urba
+    # Mode default: tout visible (recherche commune)
+    is_rapport = (mode == "rapport")
     from utils import decode_rpg_feature, bbox_to_polygon, shp_transform
 
     # --- PATCH ROBUSTESSE ENTRÉES ---
@@ -6191,7 +6196,7 @@ def build_map(
     
     # --- PPRI ---
     if ppri_data.get("features"):
-        ppri_group = folium.FeatureGroup(name="PPRI", show=True)
+        ppri_group = folium.FeatureGroup(name="PPRI", show=(not is_rapport))
         for feat in ppri_data["features"]:
             geom = feat.get("geometry")
             valid_geom = False
@@ -6220,7 +6225,7 @@ def build_map(
     # Draw et MeasureControl retirés — interface épurée
 
     # Cadastre
-    cadastre_group = folium.FeatureGroup(name="Cadastre (WFS)", show=False)
+    cadastre_group = folium.FeatureGroup(name="Cadastre (WFS)", show=False)  # Toujours caché par défaut
     if parcelle_props and parcelle_props.get("geometry"):
         tooltip = "<br>".join(f"{k}: {v}" for k, v in parcelle_props.items() if k != "geometry")
         geom = parcelle_props["geometry"]
@@ -6270,7 +6275,7 @@ def build_map(
         seen_bt.add(key)
         filtered_bt.append(poste)
 
-    bt_group = folium.FeatureGroup(name="Postes BT", show=True)
+    bt_group = folium.FeatureGroup(name="Postes BT", show=(not is_rapport))
     for poste in filtered_bt:
         props = poste.get("properties", {})
         dist_m = poste.get("distance")
@@ -6299,7 +6304,7 @@ def build_map(
         seen_hta.add(key)
         filtered_hta.append(poste)
 
-    hta_group = folium.FeatureGroup(name="Postes HTA (capacité)", show=True)
+    hta_group = folium.FeatureGroup(name="Postes HTA (capacité)", show=(not is_rapport))
     for poste in filtered_hta:
         props = poste.get("properties", {})
         dist_m = poste.get("distance")
@@ -6320,7 +6325,7 @@ def build_map(
     map_obj.add_child(hta_group)
 
     # --- Éleveurs avec liens hypertexte ---
-    eleveurs_group = folium.FeatureGroup(name="Éleveurs", show=True)
+    eleveurs_group = folium.FeatureGroup(name="Éleveurs", show=(not is_rapport))
     if eleveurs_data:  # Vérification que eleveurs_data n'est pas None
         for eleveur in eleveurs_data:
             props = eleveur.get("properties", {})
@@ -6406,7 +6411,7 @@ def build_map(
     map_obj.add_child(eleveurs_group)
 
     # --- Consommation Enedis ---
-    enedis_group = folium.FeatureGroup(name="Consommation Enedis", show=True)
+    enedis_group = folium.FeatureGroup(name="Consommation Enedis", show=(not is_rapport))
     if enedis_data:
         import json, base64
         print(f"🔌 [ENEDIS_FOLIUM] Ajout de {len(enedis_data)} points de consommation à la carte")
@@ -6490,7 +6495,7 @@ def build_map(
     map_obj.add_child(enedis_group)
 
     # PLU
-    plu_group = folium.FeatureGroup(name="PLU", show=True)
+    plu_group = folium.FeatureGroup(name="PLU", show=(not is_rapport))
     for item in plu_info:
         if item.get("geometry"):
             # Créer une pop-up améliorée pour les zones PLU
@@ -6571,7 +6576,7 @@ def build_map(
 
     for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
         # print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")  # Optimisé pour performance
-        group = folium.FeatureGroup(name=name, show=True)
+        group = folium.FeatureGroup(name=name, show=(not is_rapport))
         
         for f in data:
             geom = f.get("geometry")
@@ -6823,7 +6828,7 @@ def build_map(
         # print(f"[CARTE] Couche cadastre: {len(parking_friches_cadastre)} références affichées")  # Optimisé pour performance
 
     # RPG
-    rpg_group = folium.FeatureGroup(name="RPG", show=True)
+    rpg_group = folium.FeatureGroup(name="RPG", show=(not is_rapport))
     valid_rpg_count = 0
     invalid_rpg_count = 0
     # Optimisé pour performance
@@ -6892,7 +6897,7 @@ def build_map(
     # print(f"🌾 [DEBUG_MAP] Nombre total d'enfants dans map_obj après ajout: {len(map_obj._children)}")  # Optimisé pour performance
 
     # Capacités réseau HTA
-    caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=True)
+    caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=(not is_rapport))
     for item in capacites_reseau:
         props = item.get('properties', {})
         
@@ -6953,7 +6958,7 @@ def build_map(
     map_obj.add_child(caps_group)
 
     # Sirene - Couche décochée par défaut pour éviter l'encombrement
-    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=False)
+    sir_group = folium.FeatureGroup(name="Entreprises Sirene", show=False)  # Toujours caché par défaut
     for feat in sirene_data:
         if feat.get('geometry', {}).get('type') == 'Point':
             lon_s, lat_s = feat['geometry']['coordinates']
@@ -6988,7 +6993,7 @@ def build_map(
             continue
         layer_label = ep.replace("-", " ").capitalize()
         color = COLOR_GPU.get(ep, "#3333CC")
-        group = folium.FeatureGroup(name=f"Urbanisme - {layer_label}", show=(ep == "zone-urba"))
+        group = folium.FeatureGroup(name=f"Urbanisme - {layer_label}", show=(ep == "zone-urba"))  # Zone urba toujours visible
 
         for feat in features:
             geom = feat.get('geometry')
@@ -7027,7 +7032,7 @@ def build_map(
     nat5 = api_nature or {"type": "FeatureCollection", "features": []}
     
     # Cadastre (masqué par défaut)
-    cad_grp = folium.FeatureGroup(name="API Cadastre IGN (5km)", show=False)
+    cad_grp = folium.FeatureGroup(name="API Cadastre IGN (5km)", show=True)
     for f in cad5.get('features', []):
         if f.get('geometry'):
             folium.GeoJson(
@@ -7039,7 +7044,7 @@ def build_map(
     
     # Zones naturelles protégées (affichées par défaut)
     if nat5.get('features'):
-        nat_grp = folium.FeatureGroup(name="🌿 Zones Naturelles Protégées", show=True)
+        nat_grp = folium.FeatureGroup(name="🌿 Zones Naturelles Protégées", show=(not is_rapport))
         
         # Couleurs par type de protection
         protection_colors = {
@@ -7086,8 +7091,8 @@ def build_map(
 
     # --- Placeholders HTA (affichés immédiatement dans LayerControl) ---
     try:
-        hta_a_fg = folium.FeatureGroup(name="HTA Aériennes", show=True)
-        hta_s_fg = folium.FeatureGroup(name="HTA Souterraines", show=True)
+        hta_a_fg = folium.FeatureGroup(name="HTA Aériennes", show=(not is_rapport))
+        hta_s_fg = folium.FeatureGroup(name="HTA Souterraines", show=(not is_rapport))
         map_obj.add_child(hta_a_fg)
         map_obj.add_child(hta_s_fg)
         
@@ -11241,7 +11246,8 @@ def rapport_map_point():
                 report_data.get("api_nature"),
                 report_data.get("api_urbanisme"),
                 eleveurs_data=report_data.get("eleveurs", []),
-                ppri_data=ppri_data
+                ppri_data=ppri_data,
+                mode="rapport"
             )
             
             # 🧹 NETTOYAGE: Supprimer les anciens rapports pour cette adresse
