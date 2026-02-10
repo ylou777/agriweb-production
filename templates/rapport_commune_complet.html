@@ -479,13 +479,8 @@
 
                 <!-- Analyse RPG -->
                 {% if filters and filters.get('filter_rpg', True) and rapport.rpg_analysis %}
-                <div class="section-header d-flex justify-content-between align-items-center">
+                <div class="section-header">
                     <h3><i class="bi bi-grid"></i> Analyse RPG (Registre Parcellaire Graphique)</h3>
-                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
-                            data-section="rpg"
-                            title="Zoom sur une parcelle RPG">
-                        <i class="bi bi-zoom-in"></i> Voir sur carte
-                    </button>
                 </div>
                 
                 <div class="row">
@@ -543,7 +538,6 @@
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -614,17 +608,6 @@
                                             <small>{{ "%.5f"|format(props.coords[0]) }}, {{ "%.5f"|format(props.coords[1]) }}</small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if props.coords and props.coords|length >= 2 and props.coords[0] and props.coords[1] %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur cette parcelle"
-                                                onclick="zoomToLocation({{ props.coords[0] }}, {{ props.coords[1] }}, 'Parcelle agricole')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -740,13 +723,8 @@
                 {% set parkings = rapport.get('parkings_analysis', {}) %}
                 {% set park_rs = parkings.get('resume_executif', {}) %}
                 {% if park_rs.get('total_parkings', 0) > 0 %}
-                <div class="section-header d-flex justify-content-between align-items-center">
+                <div class="section-header">
                     <h3><i class="bi bi-car-front"></i> Analyse Parkings</h3>
-                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
-                            data-section="parkings"
-                            title="Zoom sur un parking">
-                        <i class="bi bi-zoom-in"></i> Voir sur carte
-                    </button>
                 </div>
                 
                 <div class="row">
@@ -881,11 +859,6 @@
                                     <td>
                                         {% if d.lat and d.lon %}
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <button class="btn btn-outline-primary" 
-                                                    title="Zoomer sur ce parking"
-                                                    onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Parking')">
-                                                <i class="bi bi-zoom-in"></i>
-                                            </button>
                                             <a href="{{ d.lien_streetview }}" 
                                                target="_blank" 
                                                class="btn btn-outline-info" 
@@ -915,13 +888,8 @@
 
                 <!-- Analyse Friches -->
                 {% if filters and filters.get('filter_friches', True) and rapport.friches_analysis and rapport.friches_analysis.resume_executif.total_friches > 0 %}
-                <div class="section-header d-flex justify-content-between align-items-center">
+                <div class="section-header">
                     <h3><i class="bi bi-building"></i> Analyse Friches</h3>
-                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
-                            data-section="friches"
-                            title="Zoom sur une friche">
-                        <i class="bi bi-zoom-in"></i> Voir sur carte
-                    </button>
                 </div>
                 
                 <div class="analysis-detail">
@@ -946,7 +914,6 @@
                                     <th>BT le plus proche</th>
                                     <th>HTA le plus proche</th>
                                     <th>Position</th>
-                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -999,17 +966,6 @@
                                         {% endif %}
                                     </td>
                                     <td><small>{{ '%.5f'|format(d.lat) }}, {{ '%.5f'|format(d.lon) }}</small></td>
-                                    <td>
-                                        {% if d.lat and d.lon %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur cette friche"
-                                                onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Friche')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -1033,13 +989,8 @@
                 </div>
                 {% endif %}
                 {% if toits_rs.get('total_toitures', 0) > 0 %}
-                <div class="section-header d-flex justify-content-between align-items-center">
+                <div class="section-header">
                     <h3><i class="bi bi-house"></i> Analyse Toitures</h3>
-                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
-                            data-section="toitures"
-                            title="Zoom sur une toiture">
-                        <i class="bi bi-zoom-in"></i> Voir sur carte
-                    </button>
                 </div>
                 
                 <div class="row">
@@ -1204,11 +1155,6 @@
                                     <td>
                                         {% if d.lat and d.lon %}
                                         <div class="btn-group btn-group-sm" role="group">
-                                            <button class="btn btn-outline-primary" 
-                                                    title="Zoomer sur cette toiture"
-                                                    onclick="zoomToLocation({{ d.lat }}, {{ d.lon }}, 'Toiture')">
-                                                <i class="bi bi-zoom-in"></i>
-                                            </button>
                                             <a href="{{ d.lien_streetview }}" 
                                                target="_blank" 
                                                class="btn btn-outline-info" 
@@ -1241,13 +1187,8 @@
                 {% set zones = rapport.get('zones_analysis', {}) %}
                 {% set zones_rs = zones.get('resume_executif', {}) %}
                 {% if zones_rs.get('total_zones', 0) > 0 %}
-                <div class="section-header d-flex justify-content-between align-items-center">
+                <div class="section-header">
                     <h3><i class="bi bi-map"></i> Analyse Zones d'urbanisme</h3>
-                    <button class="btn btn-sm btn-outline-primary section-zoom-btn" 
-                            data-section="zones"
-                            title="Zoom sur une zone d'urbanisme">
-                        <i class="bi bi-zoom-in"></i> Voir sur carte
-                    </button>
                 </div>
                 
                 <div class="row">
@@ -1294,7 +1235,6 @@
                                     <th>Distance BT</th>
                                     <th>Distance HTA</th>
                                     <th>Position</th>
-                                    <th>Zoom</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1347,17 +1287,6 @@
                                             <small>{{ "%.5f"|format(props.coords[0]) }}, {{ "%.5f"|format(props.coords[1]) }}</small>
                                         {% else %}
                                             <span class="text-muted">N/A</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if props.coords and props.coords|length >= 2 and props.coords[0] and props.coords[1] %}
-                                        <button class="btn btn-sm btn-outline-primary" 
-                                                title="Zoomer sur cette zone"
-                                                onclick="zoomToLocation({{ props.coords[0] }}, {{ props.coords[1] }}, 'Zone urbanisme')">
-                                            <i class="fas fa-search-plus"></i>
-                                        </button>
-                                        {% else %}
-                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                 </tr>
