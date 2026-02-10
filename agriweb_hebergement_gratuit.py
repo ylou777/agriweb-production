@@ -559,6 +559,7 @@ def generate_secure_filename(prefix, description="", extension=".html"):
 def save_map_html(map_obj, filename):
     """
     Save a Folium map object to static/cartes/ and return the relative path for use in the app.
+    Injecte automatiquement le gestionnaire de calques custom (dark mode, groupé, avec recherche).
     """
     import os
     # Ensure the directory exists
@@ -567,6 +568,25 @@ def save_map_html(map_obj, filename):
     # Save the map
     filepath = os.path.join(cartes_dir, filename)
     map_obj.save(filepath)
+
+    # --- Injection du gestionnaire de calques custom (CSS + JS) ---
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            html = f.read()
+
+        css_tag = '<link rel="stylesheet" href="/static/css/layer-control-dark.css">'
+        js_tag  = '<script src="/static/js/layer-control-dark.js"></script>'
+
+        if 'layer-control-dark' not in html:
+            html = html.replace('</head>', f'    {css_tag}\n</head>', 1)
+            html = html.replace('</body>', f'    {js_tag}\n</body>', 1)
+
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(html)
+            print(f"🎛️ [LC] Custom layer control injecté dans {filename}")
+    except Exception as e:
+        print(f"⚠️ [LC] Injection custom layer control échouée pour {filename}: {e}")
+
     # Return the relative path from /static/
     return f"cartes/{filename}"
 
