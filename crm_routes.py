@@ -4,7 +4,7 @@ Toutes les connexions SQLite ont été converties pour utiliser database_adapter
 Multi-tenant: chaque utilisateur ne voit que ses propres prospects/projets (admin voit tout)
 """
 
-from flask import render_template, jsonify, request, send_file, session as flask_session
+from flask import render_template, jsonify, request, send_file, session as flask_session, redirect
 from datetime import datetime
 from database_adapter import execute_query, get_db_connection
 import json
@@ -188,11 +188,15 @@ def register_crm_routes(app):
     @app.route('/crm')
     def crm_dashboard():
         """Page de lancement du CRM AgriWeb - Version web"""
-        return render_template('crm_web.html')
+        user_id, is_admin = get_current_crm_user()
+        return render_template('crm_web.html', is_admin=is_admin)
 
     @app.route('/crm/stats')
     def crm_stats_page():
-        """Page de statistiques et KPI du CRM"""
+        """Page de statistiques et KPI du CRM - Admin seulement"""
+        user_id, is_admin = get_current_crm_user()
+        if not is_admin:
+            return redirect('/crm')
         return render_template('crm_dashboard.html')
 
     @app.route('/crm/desktop')
@@ -203,7 +207,8 @@ def register_crm_routes(app):
     @app.route('/crm/calendrier')
     def crm_calendrier():
         """Interface calendrier des rendez-vous"""
-        return render_template('crm_calendrier.html')
+        user_id, is_admin = get_current_crm_user()
+        return render_template('crm_calendrier.html', is_admin=is_admin)
 
     # ============================================================================
     # ROUTES API - STATISTIQUES
@@ -211,9 +216,11 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/stats')
     def crm_stats():
-        """Statistiques CRM pour la page d'accueil"""
+        """Statistiques CRM pour la page d'accueil - Admin seulement"""
         try:
             user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Accès réservé aux administrateurs'}), 403
             filter_clause, filter_params = user_filter_clause(user_id, is_admin)
 
             stats = execute_query(f'''
@@ -251,9 +258,11 @@ def register_crm_routes(app):
 
     @app.route('/api/crm/dashboard/stats')
     def get_dashboard_stats():
-        """Récupère toutes les statistiques pour le dashboard CRM KPI"""
+        """Récupère toutes les statistiques pour le dashboard CRM KPI - Admin seulement"""
         try:
             user_id, is_admin = get_current_crm_user()
+            if not is_admin:
+                return jsonify({'success': False, 'error': 'Accès réservé aux administrateurs'}), 403
             filter_clause, filter_params = user_filter_clause(user_id, is_admin)
 
             print("\n" + "="*70)

@@ -499,13 +499,16 @@
         <div class="topbar-nav">
             <a href="/api/crm/parametrage" target="_blank" class="topbar-link"><i class="bi bi-gear"></i> Paramétrage</a>
             <a href="/crm/calendrier" class="topbar-link"><i class="bi bi-calendar3"></i> Calendrier</a>
+            {% if is_admin %}
             <a href="/crm/stats" class="topbar-link"><i class="bi bi-bar-chart-line"></i> Dashboard & KPI</a>
+            {% endif %}
             <a href="/" class="topbar-link"><i class="bi bi-house"></i> Accueil</a>
         </div>
     </div>
 
     <div class="crm-content">
-        <!-- Stats -->
+        <!-- Stats (admin only) -->
+        {% if is_admin %}
         <div class="stats-row">
             <div class="stat-card">
                 <div class="stat-value c-blue" id="stat-total">0</div>
@@ -532,6 +535,7 @@
                 <div class="stat-label">Enrichissement</div>
             </div>
         </div>
+        {% endif %}
         <!-- Filters -->
         <div class="filters-bar">
             <div class="filter-loading" id="filterLoading">
@@ -1405,7 +1409,9 @@
 
         function updateStats(stats) {
             if (!stats) stats = {total: 0, parkings: 0, toitures: 0, friches: 0};
-            document.getElementById('stat-total').textContent = stats.total || 0;
+            const el = document.getElementById('stat-total');
+            if (!el) return; // Stats masquées pour non-admin
+            el.textContent = stats.total || 0;
             document.getElementById('stat-parkings').textContent = stats.parkings || 0;
             document.getElementById('stat-toitures').textContent = stats.toitures || 0;
             document.getElementById('stat-friches').textContent = stats.friches || 0;

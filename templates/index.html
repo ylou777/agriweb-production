@@ -421,7 +421,9 @@
       <!-- Navigation pills -->
       <div class="nav-pills-row">
         <a href="/crm" target="_blank" class="nav-pill"><i class="bi bi-people"></i> Prospects</a>
+        {% if is_admin %}
         <a href="/crm/stats" target="_blank" class="nav-pill"><i class="bi bi-bar-chart-line"></i> KPI</a>
+        {% endif %}
         {% if is_admin %}
         <a href="/admin" target="_blank" class="nav-pill" style="border-color:rgba(241,196,15,0.4);color:#f1c40f;"><i class="bi bi-shield-lock"></i> Admin</a>
         {% endif %}
