@@ -86,9 +86,17 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
     """
     Crée automatiquement une fiche projet et ses étapes pour un nouveau prospect
     Cette fonction est appelée automatiquement à chaque création de prospect
+    L'étape 1 (Rapport) est marquée comme terminée car l'export vient d'un rapport
     """
     try:
         print(f"🆕 [AUTO PROJECT] Création automatique du projet pour prospect {prospect_id}")
+        
+        # Récupérer data_json du prospect pour le copier dans le projet
+        prospect_data = execute_query(
+            'SELECT data_json FROM agriweb_prospects WHERE id = %s',
+            (prospect_id,), fetch_one=True
+        )
+        prospect_data_json = prospect_data.get('data_json', '{}') if prospect_data else '{}'
         
         # Créer la fiche projet
         result = execute_query('''
@@ -103,7 +111,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             commune,
             adresse,
             'etude',
-            '{}',
+            prospect_data_json,
             str(user_id) if user_id is not None else None
         ), fetch_one=True)
         
@@ -112,6 +120,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             print(f"✅ [AUTO PROJECT] Fiche projet {project_id} créée")
             
             # Créer les 11 étapes du workflow
+            # L'étape 1 (Rapport) est marquée comme terminée car l'export provient d'un rapport
             etapes_autoconso = [
                 ('Rapport de recherche AgriWeb', 1),
                 ('Visite technique', 2),
@@ -127,14 +136,15 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             ]
             
             for nom_etape, ordre in etapes_autoconso:
+                statut = 'termine' if ordre == 1 else 'a_faire'
                 execute_query('''
                     INSERT INTO project_etapes (
                         project_id, nom_etape, ordre, statut,
                         date_debut_prevue, date_fin_prevue
                     ) VALUES (%s, %s, %s, %s, CURRENT_DATE, CURRENT_DATE + INTERVAL '30 days')
-                ''', (project_id, nom_etape, ordre, 'a_faire'))
+                ''', (project_id, nom_etape, ordre, statut))
             
-            print(f"✅ [AUTO PROJECT] 11 étapes créées pour projet {project_id}")
+            print(f"✅ [AUTO PROJECT] 11 étapes créées pour projet {project_id} (étape 1 Rapport = terminée)")
             return project_id
         else:
             print(f"❌ [AUTO PROJECT] Échec de création du projet pour prospect {prospect_id}")
