@@ -6533,7 +6533,7 @@ def build_map(
     map_obj.add_child(enedis_group)
 
     # PLU
-    plu_group = folium.FeatureGroup(name="PLU", show=(not is_rapport))
+    plu_group = folium.FeatureGroup(name="PLU", show=False)
     for item in plu_info:
         if item.get("geometry"):
             # Créer une pop-up améliorée pour les zones PLU
@@ -7031,7 +7031,7 @@ def build_map(
             continue
         layer_label = ep.replace("-", " ").capitalize()
         color = COLOR_GPU.get(ep, "#3333CC")
-        group = folium.FeatureGroup(name=f"Urbanisme - {layer_label}", show=(ep == "zone-urba"))  # Zone urba toujours visible
+        group = folium.FeatureGroup(name=f"Urbanisme - {layer_label}", show=False)  # Décochés par défaut
 
         for feat in features:
             geom = feat.get('geometry')
