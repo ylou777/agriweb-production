@@ -10887,6 +10887,29 @@ def rapport_map_point():
                         report_data["commune_name"] = cadastre_props.get('nom_com')
                     if cadastre_props.get('code_postal'):
                         report_data["code_postal"] = cadastre_props.get('code_postal')
+                    # Extraire le département depuis le code_dep du cadastre
+                    if cadastre_props.get('code_dep'):
+                        report_data["departement"] = cadastre_props.get('code_dep')
+                    # Récupérer code postal et nom département via geo.api.gouv.fr si code_insee disponible
+                    code_insee_commune = cadastre_props.get('code_insee') or cadastre_props.get('code_com')
+                    if code_insee_commune:
+                        try:
+                            geo_url = f"https://geo.api.gouv.fr/communes/{code_insee_commune}?fields=codesPostaux,departement"
+                            geo_resp = requests.get(geo_url, timeout=5)
+                            if geo_resp.status_code == 200:
+                                geo_data = geo_resp.json()
+                                # Code postal
+                                if not report_data.get("code_postal") or report_data["code_postal"] == "N/A":
+                                    cp_list = geo_data.get('codesPostaux', [])
+                                    if cp_list:
+                                        report_data["code_postal"] = cp_list[0]
+                                # Département (nom + code)
+                                dep_info = geo_data.get('departement', {})
+                                if dep_info and dep_info.get('nom'):
+                                    report_data["departement"] = f"{dep_info.get('nom')} ({dep_info.get('code', '')})"
+                                log_step("CONTEXT", f"✅ Geo API: CP={report_data.get('code_postal')}, Dept={report_data.get('departement')}", "SUCCESS")
+                        except Exception as geo_e:
+                            log_step("CONTEXT", f"⚠️ Geo API commune enrichissement: {geo_e}", "WARNING")
                     
                     # Structure pour template
                     api_details["cadastre"]["success"] = True
@@ -11215,7 +11238,15 @@ def rapport_map_point():
                             props = data['features'][0].get('properties', {})
                             report_data["commune_name"] = props.get('city', 'Commune inconnue')
                             report_data["code_postal"] = props.get('postcode', 'N/A')
-                            log_step("CONTEXT", f"Géocodage inverse: {report_data['commune_name']}", "SUCCESS")
+                            # Extraire département depuis le champ context (format: "77, Seine-et-Marne, Île-de-France")
+                            context = props.get('context', '')
+                            if context and not report_data.get("departement") or report_data.get("departement") == "N/A":
+                                parts = [p.strip() for p in context.split(',')]
+                                if len(parts) >= 2:
+                                    report_data["departement"] = f"{parts[1]} ({parts[0]})"
+                                elif parts:
+                                    report_data["departement"] = parts[0]
+                            log_step("CONTEXT", f"Géocodage inverse: {report_data['commune_name']} - Dept: {report_data.get('departement')}", "SUCCESS")
                 except:
                     pass
             
