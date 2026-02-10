@@ -381,16 +381,16 @@
                                 <h1><i class="bi bi-geo-alt"></i> {{ rapport.commune_info.caracteristiques_generales.nom }}</h1>
                                 <div class="btn-group">
                                     <button id="exportCrmBtn" class="btn btn-success btn-lg" onclick="exportToCRM()" disabled>
-                                        <i class="bi bi-upload"></i> Exporter vers CRM
+                                        <i class="bi bi-upload"></i> Exporter vers Projets
                                         <span class="badge bg-light text-dark ms-2" id="exportCount" style="display: none;">0</span>
                                     </button>
-                                    <a href="/crm" target="_blank" class="btn btn-primary btn-lg" title="Ouvrir l'interface CRM">
-                                        <i class="bi bi-window"></i> Ouvrir CRM
+                                    <a href="/crm" target="_blank" class="btn btn-primary btn-lg" title="Ouvrir l'interface Projets">
+                                        <i class="bi bi-window"></i> Ouvrir Projets
                                     </a>
                                 </div>
                             </div>
                             <div class="alert alert-info alert-sm py-2 mb-3" role="alert">
-                                <i class="bi bi-info-circle"></i> Sélectionnez des parkings, toitures ou friches dans les tableaux ci-dessous, puis cliquez sur "Exporter vers CRM" pour les ajouter à votre CRM.
+                                <i class="bi bi-info-circle"></i> Sélectionnez des parkings, toitures ou friches dans les tableaux ci-dessous, puis cliquez sur "Exporter vers Projets" pour les ajouter à vos Projets.
                             </div>
                             <p class="mb-2">
                                 <strong>Superficie:</strong> {{ "%.2f"|format(rapport.commune_info.superficie_total_ha) }} ha<br>
@@ -792,7 +792,7 @@
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th width="40" title="Sélectionner pour export CRM">
+                                    <th width="40" title="Sélectionner pour export Projets">
                                         <i class="bi bi-check-square"></i>
                                     </th>
                                     <th>#</th>
@@ -1089,7 +1089,7 @@
                         <table class="table table-sm table-striped align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th width="40" title="Sélectionner pour export CRM">
+                                    <th width="40" title="Sélectionner pour export Projets">
                                         <i class="bi bi-check-square"></i>
                                     </th>
                                     <th>#</th>
@@ -1500,7 +1500,7 @@
                 return;
             }
             
-            if (!confirm(`📤 Exporter ${totalSelected} élément(s) vers le CRM ?\n\n` +
+            if (!confirm(`📤 Exporter ${totalSelected} élément(s) vers Projets ?\n\n` +
                 `- Parkings : ${selectedItems.parkings.size}\n` +
                 `- Toitures : ${selectedItems.toitures.size}\n` +
                 `- Friches : ${selectedItems.friches.size}\n` +
@@ -1626,7 +1626,7 @@
                 
                 if (result.success) {
                     let message = `✅ Export réussi !\n\n` +
-                        `${result.total_exported} élément(s) ajouté(s) au CRM\n\n` +
+                        `${result.total_exported} élément(s) ajouté(s) aux Projets\n\n` +
                         `📊 Détails :\n` +
                         `- Parkings : ${result.details.parkings}\n` +
                         `- Toitures : ${result.details.toitures}\n` +
@@ -1638,7 +1638,7 @@
                         message += `\n\n📁 Les fiches projets ont été mises à jour automatiquement.\n✅ L'étape "Rapport de recherche AgriWeb" a été marquée comme terminée.`;
                     }
                     
-                    alert(message + '\n\n🔗 Ouvrir le CRM pour voir les prospects');
+                    alert(message + '\n\n🔗 Ouvrir Projets pour voir les prospects');
                     
                     // Si on est dans une fenêtre enfant, informer la fenêtre parent
                     if (window.opener && !window.opener.closed) {
@@ -1659,8 +1659,8 @@
                     document.querySelectorAll('input[type="checkbox"][data-type]').forEach(cb => cb.checked = false);
                     updateExportButton();
                     
-                    // Proposer d'ouvrir le CRM
-                    if (confirm('📋 Voulez-vous ouvrir le CRM pour gérer ces prospects ?')) {
+                    // Proposer d'ouvrir Projets
+                    if (confirm('📋 Voulez-vous ouvrir Projets pour gérer ces prospects ?')) {
                         window.open('/crm', '_blank');
                     }
                 } else {
@@ -1678,7 +1678,7 @@
                     errorMessage = error.message;
                 }
                 
-                alert(`❌ Erreur lors de l'export CRM :\n\n${errorMessage}`);
+                alert(`❌ Erreur lors de l'export Projets :\n\n${errorMessage}`);
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;

@@ -6275,7 +6275,7 @@ def build_map(
         seen_bt.add(key)
         filtered_bt.append(poste)
 
-    bt_group = folium.FeatureGroup(name="Postes BT", show=(not is_rapport))
+    bt_group = folium.FeatureGroup(name="Postes BT", show=False)  # Décoché par défaut partout
     for poste in filtered_bt:
         props = poste.get("properties", {})
         dist_m = poste.get("distance")
@@ -6304,7 +6304,7 @@ def build_map(
         seen_hta.add(key)
         filtered_hta.append(poste)
 
-    hta_group = folium.FeatureGroup(name="Postes HTA (capacité)", show=(not is_rapport))
+    hta_group = folium.FeatureGroup(name="Postes HTA (capacité)", show=False)  # Décoché par défaut partout
     for poste in filtered_hta:
         props = poste.get("properties", {})
         dist_m = poste.get("distance")
@@ -6897,7 +6897,7 @@ def build_map(
     # print(f"🌾 [DEBUG_MAP] Nombre total d'enfants dans map_obj après ajout: {len(map_obj._children)}")  # Optimisé pour performance
 
     # Capacités réseau HTA
-    caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=(not is_rapport))
+    caps_group = folium.FeatureGroup(name="Postes HTA (Capacités)", show=False)  # Décoché par défaut partout
     for item in capacites_reseau:
         props = item.get('properties', {})
         
