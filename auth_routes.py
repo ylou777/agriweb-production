@@ -381,17 +381,19 @@ def login_form():
             <p class="auth-subtitle">Connectez-vous à votre espace</p>
         </div>
         <form method="POST" action="/auth/login">
-            <div style="margin-bottom:0.9rem">
-                <label class="form-label">Email</label>
+            <div style="margin-bottom:1rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
+                    <label class="form-label" style="margin-bottom:0">Email</label>
+                </div>
                 <input type="email" class="form-control" name="email" placeholder="vous@entreprise.fr" required>
             </div>
             <div style="margin-bottom:1.3rem">
-                <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
-                    Mot de passe
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.35rem">
+                    <label class="form-label" style="margin-bottom:0">Mot de passe</label>
                     <a href="/auth/reset-password" class="auth-link-muted" style="font-size:0.78rem">
                         <i class="bi bi-key"></i> Oublié ?
                     </a>
-                </label>
+                </div>
                 <input type="password" class="form-control" name="password" placeholder="Votre mot de passe" required>
             </div>
             <button type="submit" class="btn-agri">
