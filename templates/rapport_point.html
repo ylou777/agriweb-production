@@ -1934,33 +1934,101 @@
                         <i class="bi bi-clipboard-data"></i> Synthèse technique
                     </div>
                     <div class="card-body">
-                        <h6><i class="bi bi-check2-square"></i> Recommandations :</h6>
+                        
+                        {# === Détection périmètre monument historique (AC1) dans les couches GPU === #}
+                        {% set mh_found = namespace(count=0, details=[]) %}
+                        {% if report.api_details and report.api_details.gpu.success and report.api_details.gpu.details %}
+                            {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
+                                {% if layer_info.features %}
+                                    {% for feat in layer_info.features %}
+                                        {% set suptype = feat.get('Suptype', feat.get('suptype', '')) %}
+                                        {% set libelle = feat.get('Libelle', feat.get('libelle', '')) %}
+                                        {% if suptype and suptype|lower == 'ac1' %}
+                                            {% set mh_found.count = mh_found.count + 1 %}
+                                        {% elif 'AC1' in (libelle|string) or 'monument' in (libelle|string|lower) or 'abords' in (libelle|string|lower) %}
+                                            {% set mh_found.count = mh_found.count + 1 %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        
+                        {# === Détection SPR / ZPPAUP / Site patrimonial (AC4) === #}
+                        {% set spr_found = namespace(count=0) %}
+                        {% if report.api_details and report.api_details.gpu.success and report.api_details.gpu.details %}
+                            {% for layer_name, layer_info in report.api_details.gpu.details.items() %}
+                                {% if layer_info.features %}
+                                    {% for feat in layer_info.features %}
+                                        {% set suptype = feat.get('Suptype', feat.get('suptype', '')) %}
+                                        {% set libelle = feat.get('Libelle', feat.get('libelle', '')) %}
+                                        {% if suptype and suptype|lower == 'ac4' %}
+                                            {% set spr_found.count = spr_found.count + 1 %}
+                                        {% elif 'SPR' in (libelle|string) or 'ZPPAUP' in (libelle|string) or 'patrimonial remarquable' in (libelle|string|lower) %}
+                                            {% set spr_found.count = spr_found.count + 1 %}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+
+                        {# ==================== ALERTE MONUMENT HISTORIQUE ==================== #}
+                        {% if mh_found.count > 0 or spr_found.count > 0 %}
+                        <div class="p-3 mb-3 rounded" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3)">
+                            <h6 class="text-danger mb-2"><i class="bi bi-exclamation-octagon-fill me-2"></i>Périmètre de protection Monument Historique</h6>
+                            <p class="mb-1" style="font-size:0.88rem">
+                                <i class="bi bi-building me-1"></i>
+                                Ce point se situe <strong>dans le périmètre de 500 m d'un ou plusieurs bâtiments classés ou inscrits</strong>.
+                            </p>
+                            {% if mh_found.count > 0 %}
+                            <p class="mb-1" style="font-size:0.85rem">
+                                <span class="badge bg-danger">{{ mh_found.count }}</span> périmètre(s) AC1 (abords de monuments historiques) identifié(s).
+                            </p>
+                            {% endif %}
+                            {% if spr_found.count > 0 %}
+                            <p class="mb-1" style="font-size:0.85rem">
+                                <span class="badge bg-danger">{{ spr_found.count }}</span> site(s) patrimonial(aux) remarquable(s) (SPR/ZPPAUP) identifié(s).
+                            </p>
+                            {% endif %}
+                            <p class="mb-0 text-danger" style="font-size:0.85rem">
+                                <i class="bi bi-arrow-right me-1"></i><strong>Impact installation :</strong> Autorisation de l'Architecte des Bâtiments de France (ABF) obligatoire pour tout projet visible depuis ou en co-visibilité avec le monument.
+                            </p>
+                        </div>
+                        {% else %}
+                        <div class="p-3 mb-3 rounded" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.25)">
+                            <p class="mb-0 text-success" style="font-size:0.88rem">
+                                <i class="bi bi-check-circle-fill me-2"></i><strong>Hors périmètre Monument Historique</strong> — Pas de contrainte ABF identifiée sur ce point.
+                            </p>
+                        </div>
+                        {% endif %}
+
+                        {# ==================== RECOMMANDATIONS ==================== #}
+                        <h6><i class="bi bi-check2-square"></i> Points favorables :</h6>
                         <ul class="list-unstyled">
                             {% set bt_distances = report.postes_bt|selectattr('distance')|map(attribute='distance')|list if report.postes_bt else [] %}
                             {% if bt_distances|length > 0 and bt_distances|min < 500 %}
                             <li><i class="bi bi-check-circle text-success"></i> Raccordement BT favorable ({{ (bt_distances|min)|round }}m)</li>
-                            {% endif %}
-                            {% if report.parcelle and report.parcelle.get('properties', {}).get('surface', 0)|float > 5 %}
-                            <li><i class="bi bi-check-circle text-success"></i> Surface suffisante ({{ report.parcelle.get('properties', {}).get('surface', 0) }} ha)</li>
+                            {% elif bt_distances|length > 0 %}
+                            <li><i class="bi bi-dash-circle text-warning"></i> Poste BT le plus proche à {{ (bt_distances|min)|round }}m (> 500m)</li>
                             {% endif %}
                             {% if report.road_access %}
                             <li><i class="bi bi-check-circle text-success"></i> Accès routier disponible</li>
                             {% endif %}
-
                             {% if report.api_details and report.api_details.cadastre.success %}
                             <li><i class="bi bi-check-circle text-success"></i> Données cadastrales officielles (IGN)</li>
                             {% endif %}
-                            <!-- NOUVEAU: Bilan GeoRisques positif -->
+                            {% if mh_found.count == 0 and spr_found.count == 0 %}
+                            <li><i class="bi bi-check-circle text-success"></i> Hors périmètre de protection patrimoniale</li>
+                            {% endif %}
                             {% if report.georisques_risks and ((report.georisques_risks.catnat|length == 0) and (report.georisques_risks.mvt|length == 0) and (report.georisques_risks.sismique|length == 0)) %}
                             <li><i class="bi bi-check-circle text-success"></i> Aucun risque naturel majeur identifié</li>
                             {% endif %}
                         </ul>
                         
-                        <!-- NOUVEAU: Points d'attention enrichis -->
+                        {# ==================== POINTS D'ATTENTION ==================== #}
                         {% set has_warnings = false %}
                         {% if (report.georisques_risks and (report.georisques_risks.catnat|length > 0 or report.georisques_risks.mvt|length > 0 or report.georisques_risks.sismique|length > 0)) or 
                               (report.api_details and report.api_details.nature.success and report.api_details.nature.count > 0) or
-                              (report.api_details and report.api_details.gpu.success and report.api_details.gpu.features_count > 0) or
+                              (mh_found.count > 0 or spr_found.count > 0) or
                               not report.road_access or report.protected_area %}
                             {% set has_warnings = true %}
                         {% endif %}
@@ -1968,7 +2036,13 @@
                         {% if has_warnings %}
                         <h6 class="mt-3 text-warning"><i class="bi bi-exclamation-triangle"></i> Points d'attention :</h6>
                         <ul class="list-unstyled">
-                            <!-- Risques GeoRisques -->
+                            {% if mh_found.count > 0 %}
+                            <li><i class="bi bi-exclamation-octagon text-danger"></i> <strong>Périmètre ABF</strong> — {{ mh_found.count }} monument(s) historique(s) à proximité (< 500m)</li>
+                            {% endif %}
+                            {% if spr_found.count > 0 %}
+                            <li><i class="bi bi-exclamation-octagon text-danger"></i> <strong>Site patrimonial remarquable (SPR)</strong> — Réglementation renforcée</li>
+                            {% endif %}
+                            
                             {% if report.georisques_risks %}
                                 {% if report.georisques_risks.catnat and report.georisques_risks.catnat|length > 0 %}
                                 <li><i class="bi bi-exclamation-triangle text-warning"></i> {{ report.georisques_risks.catnat|length }} arrêté(s) catastrophe naturelle</li>
@@ -1981,22 +2055,15 @@
                                 {% endif %}
                             {% endif %}
                             
-                            <!-- Espaces naturels protégés -->
                             {% if report.api_details and report.api_details.nature.success and report.api_details.nature.count > 0 %}
-                            <li><i class="bi bi-exclamation-triangle text-warning"></i> {{ report.api_details.nature.count }} espace(s) naturel(s) protégé(s) - réglementation stricte</li>
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> {{ report.api_details.nature.count }} espace(s) naturel(s) protégé(s)</li>
                             {% endif %}
                             
-                            <!-- Contraintes d'urbanisme -->
-                            {% if report.api_details and report.api_details.gpu.success and report.api_details.gpu.features_count > 0 %}
-                            <li><i class="bi bi-exclamation-triangle text-warning"></i> {{ report.api_details.gpu.features_count }} contrainte(s) urbanisme à étudier</li>
-                            {% endif %}
-                            
-                            <!-- Autres contraintes -->
                             {% if not report.road_access %}
                             <li><i class="bi bi-exclamation-triangle text-warning"></i> Accès routier limité</li>
                             {% endif %}
                             {% if report.protected_area %}
-                            <li><i class="bi bi-exclamation-triangle text-warning"></i> Zone protégée - réglementation à vérifier</li>
+                            <li><i class="bi bi-exclamation-triangle text-warning"></i> Zone protégée — réglementation à vérifier</li>
                             {% endif %}
                         </ul>
                         {% endif %}
@@ -2005,14 +2072,21 @@
                         {% set score = 0 %}
                         {% set bt_dist_score = report.postes_bt|selectattr('distance')|map(attribute='distance')|list if report.postes_bt else [] %}
                         {% if bt_dist_score|length > 0 and bt_dist_score|min < 500 %}{% set score = score + 1 %}{% endif %}
-                        {% if report.parcelle and report.parcelle.get('properties', {}).get('surface', 0)|float > 5 %}{% set score = score + 1 %}{% endif %}
+                        {% if mh_found.count == 0 and spr_found.count == 0 %}{% set score = score + 1 %}{% endif %}
+                        {% if report.road_access %}{% set score = score + 1 %}{% endif %}
+                        {% if report.georisques_risks and report.georisques_risks.catnat|length == 0 and report.georisques_risks.mvt|length == 0 %}{% set score = score + 1 %}{% endif %}
                         
                         <div class="mt-3 p-2 rounded bg-light">
                             <small class="text-muted">
-                                <strong>Évaluation globale: </strong>
-                                {% if score >= 4 %}Site très favorable
-                                {% elif score >= 2 %}Site avec potentiel
-                                {% else %}Site nécessitant des études approfondies
+                                <strong>Évaluation installation : </strong>
+                                {% if mh_found.count > 0 or spr_found.count > 0 %}
+                                    <span class="text-danger"><i class="bi bi-exclamation-octagon"></i> Soumis à avis ABF (périmètre MH)</span>
+                                {% elif score >= 3 %}
+                                    <span class="text-success"><i class="bi bi-check-circle-fill"></i> Site favorable — pas de contrainte patrimoniale</span>
+                                {% elif score >= 2 %}
+                                    <span class="text-warning">Site avec potentiel — quelques points à vérifier</span>
+                                {% else %}
+                                    Site nécessitant des études approfondies
                                 {% endif %}
                             </small>
                         </div>
