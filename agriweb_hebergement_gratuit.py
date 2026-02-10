@@ -5025,77 +5025,86 @@ def get_batiments_data(geom):
                     return None
         
         overpass_url = "https://overpass-api.de/api/interpreter"
+        overpass_mirrors = [
+            "https://overpass-api.de/api/interpreter",
+            "https://overpass.kumi.systems/api/interpreter",
+        ]
         
         # Retry avec délai exponentiel pour gérer les erreurs 429 et 502
         max_retries = 3
-        retry_delay = 2
+        retry_delay = 3
         
-        for attempt in range(max_retries):
-            try:
-                response = requests.post(overpass_url, data=overpass_query, timeout=30)
-                
-                if response.status_code == 200:
-                    osm_data = response.json()
-                    # Convertir les données OSM en GeoJSON
-                    features = []
-                    for element in osm_data.get("elements", []):
-                        if element.get("type") == "way" and element.get("geometry"):
-                            coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
-                            if len(coords) > 2:
-                                # Fermer le polygone si nécessaire
-                                if coords[0] != coords[-1]:
-                                    coords.append(coords[0])
-                                
-                                feature = {
-                                    "type": "Feature",
-                                    "geometry": {
-                                        "type": "Polygon",
-                                        "coordinates": [coords]
-                                    },
-                                    "properties": {
-                                        "source": "OpenStreetMap",
-                                        "building": element.get("tags", {}).get("building", "yes"),
-                                        "osm_id": element.get("id")
-                                    }
-                                }
-                                features.append(feature)
+        for mirror_idx, overpass_url in enumerate(overpass_mirrors):
+            success = False
+            for attempt in range(max_retries):
+                try:
+                    response = requests.post(overpass_url, data=overpass_query, timeout=45)
                     
-                    if features:
-                        result = {"type": "FeatureCollection", "features": features}
-                        print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap")
-                        # Stocker en cache
-                        if cache_key:
-                            _batiments_cache[cache_key] = {"data": result, "timestamp": time.time()}
-                            # Nettoyage des entrées périmées
-                            stale = [k for k, v in _batiments_cache.items() if time.time() - v["timestamp"] > _BATIMENTS_CACHE_TTL * 2]
-                            for k in stale:
-                                del _batiments_cache[k]
-                        return result
-                    break
-                elif response.status_code in [429, 502, 503]:
+                    if response.status_code == 200:
+                        osm_data = response.json()
+                        # Convertir les données OSM en GeoJSON
+                        features = []
+                        for element in osm_data.get("elements", []):
+                            if element.get("type") == "way" and element.get("geometry"):
+                                coords = [[node["lon"], node["lat"]] for node in element["geometry"]]
+                                if len(coords) > 2:
+                                    # Fermer le polygone si nécessaire
+                                    if coords[0] != coords[-1]:
+                                        coords.append(coords[0])
+                                    
+                                    feature = {
+                                        "type": "Feature",
+                                        "geometry": {
+                                            "type": "Polygon",
+                                            "coordinates": [coords]
+                                        },
+                                        "properties": {
+                                            "source": "OpenStreetMap",
+                                            "building": element.get("tags", {}).get("building", "yes"),
+                                            "osm_id": element.get("id")
+                                        }
+                                    }
+                                    features.append(feature)
+                        
+                        if features:
+                            result = {"type": "FeatureCollection", "features": features}
+                            print(f"✅ [BATIMENTS] {len(features)} bâtiments trouvés via OpenStreetMap (miroir {mirror_idx})")
+                            # Stocker en cache
+                            if cache_key:
+                                _batiments_cache[cache_key] = {"data": result, "timestamp": time.time()}
+                                # Nettoyage des entrées périmées
+                                stale = [k for k, v in _batiments_cache.items() if time.time() - v["timestamp"] > _BATIMENTS_CACHE_TTL * 2]
+                                for k in stale:
+                                    del _batiments_cache[k]
+                            return result
+                        success = True
+                        break
+                    elif response.status_code in [429, 502, 503]:
+                        if attempt < max_retries - 1:
+                            wait_time = retry_delay * (2 ** attempt)
+                            print(f"⚠️ [BATIMENTS] Erreur {response.status_code} (miroir {mirror_idx}), retry dans {wait_time}s...")
+                            time.sleep(wait_time)
+                            continue
+                        else:
+                            print(f"⚠️ [BATIMENTS] Miroir {mirror_idx}: {max_retries} tentatives échouées ({response.status_code})")
+                            break
+                    else:
+                        print(f"⚠️ [BATIMENTS] Miroir {mirror_idx}: Overpass API status {response.status_code}")
+                        break
+                except requests.exceptions.Timeout:
                     if attempt < max_retries - 1:
                         wait_time = retry_delay * (2 ** attempt)
-                        print(f"⚠️ [BATIMENTS] Erreur {response.status_code}, retry dans {wait_time}s...")
+                        print(f"⚠️ [BATIMENTS] Timeout miroir {mirror_idx}, retry dans {wait_time}s...")
                         time.sleep(wait_time)
                         continue
                     else:
-                        print(f"⚠️ [BATIMENTS] Overpass API après {max_retries} tentatives: {response.status_code}")
+                        print(f"⚠️ [BATIMENTS] Timeout miroir {mirror_idx} après {max_retries} tentatives")
                         break
-                else:
-                    print(f"⚠️ [BATIMENTS] Overpass API: {response.status_code}")
+                except Exception as e:
+                    print(f"⚠️ [BATIMENTS] Erreur miroir {mirror_idx}: {e}")
                     break
-            except requests.exceptions.Timeout:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (2 ** attempt)
-                    print(f"⚠️ [BATIMENTS] Timeout, retry dans {wait_time}s...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    print(f"⚠️ [BATIMENTS] Timeout après {max_retries} tentatives")
-                    break
-            except Exception as e:
-                print(f"⚠️ [BATIMENTS] Erreur requête: {e}")
-                break
+            if success:
+                break  # Pas de features mais pas d'erreur, ne pas essayer un autre miroir
     except Exception as e:
         print(f"⚠️ [BATIMENTS] Erreur OpenStreetMap: {e}")
     
