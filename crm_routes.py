@@ -200,11 +200,6 @@ def register_crm_routes(app):
         """Page de lancement du CRM AgriWeb - Version desktop (Tkinter)"""
         return render_template('crm_redirect.html')
 
-    @app.route('/crm/projets')
-    def crm_projets():
-        """Interface de gestion des fiches projets"""
-        return render_template('crm_projets.html')
-
     @app.route('/crm/calendrier')
     def crm_calendrier():
         """Interface calendrier des rendez-vous"""
