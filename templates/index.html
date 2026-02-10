@@ -420,14 +420,12 @@
 
       <!-- Navigation pills -->
       <div class="nav-pills-row">
+        <a href="/" class="nav-pill"><i class="bi bi-house"></i> Accueil</a>
         <a href="/crm" target="_blank" class="nav-pill"><i class="bi bi-folder2-open"></i> Projets</a>
         {% if is_admin %}
         <a href="/crm/stats" target="_blank" class="nav-pill"><i class="bi bi-bar-chart-line"></i> KPI</a>
-        {% endif %}
-        {% if is_admin %}
         <a href="/admin" target="_blank" class="nav-pill" style="border-color:rgba(241,196,15,0.4);color:#f1c40f;"><i class="bi bi-shield-lock"></i> Admin</a>
         {% endif %}
-        <a href="/" class="nav-pill"><i class="bi bi-house"></i> Accueil</a>
         <a href="/logout" class="nav-pill pill-danger"><i class="bi bi-box-arrow-right"></i> Quitter</a>
       </div>
 
