@@ -6133,7 +6133,8 @@ def build_map(
     ppri_data=None,  # Ajout PPRI
     hta_lignes_data=None,  # Ajout lignes HTA
     enedis_data=None,  # Ajout consommations Enedis
-    mode="default"  # "default" = commune (tout visible), "rapport" = 3 calques seulement
+    mode="default",  # "default" = commune (tout visible), "rapport" = 3 calques seulement
+    use_toitures_label=False  # True = renomme "Potentiel Solaire" en "Toitures"
 ):
     import folium
     from folium.plugins import MarkerCluster
@@ -6574,7 +6575,7 @@ def build_map(
     def style_zaer(feature):
         return {"color": "cyan", "weight": 3, "fillColor": "cyan", "fillOpacity": 0.4, "opacity": 0.8}
 
-    for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
+    for name, data, color in [("Parkings", parkings_data, "orange"), ("Friches", friches_data, "brown"), ("Toitures" if use_toitures_label else "Potentiel Solaire", potentiel_solaire_data, "gold"), ("ZAER", zaer_data, "cyan")]:
         # print(f"🎨 [COUCHE {name}] Affichage {len(data)} éléments en couleur {color}")  # Optimisé pour performance
         group = folium.FeatureGroup(name=name, show=(not is_rapport))
         
@@ -6608,7 +6609,7 @@ def build_map(
                             street_view_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={lat_center},{lon_center}"
                             
                             # Emoji différent selon le type
-                            if name == "Potentiel Solaire":  # Toitures
+                            if name in ["Potentiel Solaire", "Toitures"]:  # Toitures
                                 icon = "🏠"
                                 text = "Voir la toiture"
                                 
@@ -6658,7 +6659,7 @@ def build_map(
                         # 📍 ADRESSE (priorité 1) - Essayer plusieurs clés possibles
                         adresse = props.get("adresse") or props.get("addr:full") or props.get("addr:street")
                         if adresse and adresse not in ["Adresse non trouvée", "Erreur géocodage", "", "N/A"]:
-                            emoji = "🏠" if name == "Potentiel Solaire" else ("🅿️" if name == "Parkings" else "🌾")
+                            emoji = "🏠" if name in ["Potentiel Solaire", "Toitures"] else ("🅿️" if name == "Parkings" else "🌾")
                             tooltip_lines.append(f"<b>{emoji} Adresse:</b> {adresse}")
                             
                             # Informations complémentaires sur l'adresse
@@ -6680,8 +6681,8 @@ def build_map(
                         # 📐 SURFACE (priorité 2)
                         surface = props.get("area") or props.get("surface") or props.get("surface_m2")
                         if surface:
-                            type_label = "toiture" if name == "Potentiel Solaire" else ("parking" if name == "Parkings" else "terrain")
-                            emoji = "🏠" if name == "Potentiel Solaire" else ("🅿️" if name == "Parkings" else "🌾")
+                            type_label = "toiture" if name in ["Potentiel Solaire", "Toitures"] else ("parking" if name == "Parkings" else "terrain")
+                            emoji = "🏠" if name in ["Potentiel Solaire", "Toitures"] else ("🅿️" if name == "Parkings" else "🌾")
                             tooltip_lines.append(f"<b>{emoji} Surface {type_label}:</b> {surface:.0f} m²")
                         
                         # 🏛️ RÉFÉRENCES CADASTRALES (priorité 3)
@@ -6752,7 +6753,7 @@ def build_map(
                         style_func = style_parkings
                     elif name == "Friches":
                         style_func = style_friches
-                    elif name == "Potentiel Solaire":
+                    elif name in ["Potentiel Solaire", "Toitures"]:
                         style_func = style_solaire
                     else:  # ZAER
                         style_func = style_zaer
@@ -6761,7 +6762,7 @@ def build_map(
                         geom, 
                         style_function=style_func,
                         tooltip=tooltip_text,
-                        popup=safe_folium_popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire"] else None
+                        popup=safe_folium_popup(popup_content, max_width=400) if name in ["Parkings", "Friches", "Potentiel Solaire", "Toitures"] else None
                     ).add_to(group)
                 except Exception as e:
                     print(f"[ERROR] Exception while adding {name} geometry: {e}\nGeom: {geom}")
@@ -7031,8 +7032,8 @@ def build_map(
     cad5 = api_cadastre or {"type": "FeatureCollection", "features": []}
     nat5 = api_nature or {"type": "FeatureCollection", "features": []}
     
-    # Cadastre (masqué par défaut)
-    cad_grp = folium.FeatureGroup(name="API Cadastre IGN (5km)", show=True)
+    # Cadastre (masqué par défaut en commune, visible en rapport)
+    cad_grp = folium.FeatureGroup(name="API Cadastre IGN (5km)", show=is_rapport)
     for f in cad5.get('features', []):
         if f.get('geometry'):
             folium.GeoJson(
@@ -9391,7 +9392,7 @@ def search_by_commune():
             plu_info=plu_info,
             parkings_data=filtered_parkings,
             friches_data=filtered_friches,
-            potentiel_solaire_data=toitures_data if filter_toitures else solaire_data,  # Remplacer temporairement par les toitures
+            potentiel_solaire_data=toitures_data if filter_toitures else solaire_data,
             zaer_data=zaer_data,
             rpg_data=final_rpg,
             sirene_data=sirene_data,
@@ -9403,7 +9404,8 @@ def search_by_commune():
             eleveurs_data=eleveurs_data,
             ppri_data=ppri_data,
             hta_lignes_data=hta_lignes_data,  # Ajout des lignes HTA
-            enedis_data=enedis_data  # Ajout consommations Enedis
+            enedis_data=enedis_data,  # Ajout consommations Enedis
+            use_toitures_label=filter_toitures  # Renommer "Potentiel Solaire" en "Toitures" si filtre actif
         )
         # Optimisé pour performance
         # print(f"🎯 [DEBUG] APRÈS appel build_map - Résultat: {type(map_obj)} / {map_obj is not None}")

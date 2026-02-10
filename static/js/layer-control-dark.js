@@ -14,7 +14,7 @@
     { icon: "\u26A1",     title: "\u00C9nergie & R\u00E9seau",   re: /poste|bt(?!\s*\w)|hta|capac|potentiel solaire|enedis|consommation/i },
     { icon: "\uD83C\uDF3F", title: "Environnement",              re: /natur|ppri|georisques|zaer/i },
     { icon: "\uD83D\uDC04", title: "Agriculture",                re: /rpg|\u00e9leveur|agri/i },
-    { icon: "\uD83C\uDFE2", title: "Activit\u00E9s & Commerce", re: /sirene|entreprise|parking|friche/i }
+    { icon: "\uD83C\uDFE2", title: "Activit\u00E9s & Commerce", re: /sirene|entreprise|parking|friche|toiture/i }
   ];
 
   /* ===================== DOT COLORS ===================== */
@@ -37,6 +37,7 @@
     if (/sirene|entreprise/i.test(n))  return "#3b82f6";
     if (/parking/i.test(n))            return "#64748b";
     if (/friche/i.test(n))             return "#78716c";
+    if (/toiture/i.test(n))            return "#f59e0b";
     if (/consommation|enedis/i.test(n))return "#06b6d4";
     return "#94a3b8";
   }
