@@ -4951,7 +4951,7 @@ def get_batiments_data(geom):
             lon, lat = geom["coordinates"]
             # Requête Overpass pour les bâtiments dans un rayon de 500m
             overpass_query = f"""
-            [out:json][timeout:25];
+            [out:json];
             (
               way["building"](around:500,{lat},{lon});
               relation["building"](around:500,{lat},{lon});
@@ -4994,7 +4994,7 @@ def get_batiments_data(geom):
                     raise ValueError("Polygone trop complexe")
                 
                 overpass_query = f"""
-                [out:json][timeout:30];
+                [out:json];
                 (
                   way["building"](poly:"{poly_string}");
                   relation["building"](poly:"{poly_string}");
@@ -5013,7 +5013,7 @@ def get_batiments_data(geom):
                     print(f"🔍 [BATIMENTS] Utilisation bbox: {minx:.4f},{miny:.4f},{maxx:.4f},{maxy:.4f}")
                     
                     overpass_query = f"""
-                    [out:json][timeout:30];
+                    [out:json];
                     (
                       way["building"]({miny},{minx},{maxy},{maxx});
                       relation["building"]({miny},{minx},{maxy},{maxx});
@@ -5038,7 +5038,7 @@ def get_batiments_data(geom):
             success = False
             for attempt in range(max_retries):
                 try:
-                    response = requests.post(overpass_url, data=overpass_query, timeout=45)
+                    response = requests.post(overpass_url, data=overpass_query, timeout=None)
                     
                     if response.status_code == 200:
                         osm_data = response.json()
