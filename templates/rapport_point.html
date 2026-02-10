@@ -1736,55 +1736,7 @@
                 </div>
                 {% endif %}
 
-                <!-- Analyse des éleveurs/exploitants (identique) -->
-                {% if report.eleveurs %}
-                <div class="card mb-3">
-                    <div class="card-header header-eleveurs">
-                        <i class="bi bi-people-fill"></i> Éleveurs et exploitants agricoles
-                        <span class="badge bg-light text-dark ms-2">{{ report.eleveurs|length }}</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Nom/Dénomination</th>
-                                        <th>Activité</th>
-                                        <th>Adresse</th>
-                                        <th>Distance</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for eleveur in report.eleveurs %}
-                                    <tr>
-                                        <td>
-                                            <strong>{{ eleveur.get('properties', {}).get('denomination', '') or (eleveur.get('properties', {}).get('nom', '') + ' ' + eleveur.get('properties', {}).get('prenom', '')) }}</strong>
-                                        </td>
-                                        <td>{{ eleveur.get('properties', {}).get('activite', 'N/A') }}</td>
-                                        <td>{{ eleveur.get('properties', {}).get('adresse', 'N/A') }}</td>
-                                        <td>
-                                            {% if eleveur.get('distance') is not none %}
-                                                <span class="distance-badge">{{ "%.0f"|format(eleveur.get('distance', 0)) }} m</span>
-                                            {% else %}
-                                                <span class="text-muted">N/A</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if eleveur.get('properties', {}).get('lien_entreprise') %}
-                                                <a href="{{ eleveur.get('properties', {}).get('lien_entreprise') }}" target="_blank" class="btn btn-sm btn-outline-primary" title="Voir les détails de l'entreprise" aria-label="Voir les détails de l'entreprise">
-                                                    <i class="bi bi-box-arrow-up-right"></i>
-                                                </a>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
+
             </div>
 
             <!-- Colonne droite - Informations complémentaires enrichies -->
@@ -1994,9 +1946,7 @@
                             {% if report.road_access %}
                             <li><i class="bi bi-check-circle text-success"></i> Accès routier disponible</li>
                             {% endif %}
-                            {% if report.eleveurs and report.eleveurs|length > 0 %}
-                            <li><i class="bi bi-check-circle text-success"></i> {{ report.eleveurs|length }} éleveur(s) dans la zone</li>
-                            {% endif %}
+
                             {% if report.api_details and report.api_details.cadastre.success %}
                             <li><i class="bi bi-check-circle text-success"></i> Données cadastrales officielles (IGN)</li>
                             {% endif %}
