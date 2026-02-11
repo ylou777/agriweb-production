@@ -1113,27 +1113,36 @@ class SchemaUnifilaire:
         nb_strings_total = len(self.configuration_strings)
         puissance_totale_strings = sum(s['puissance_wc'] for s in self.configuration_strings) / 1000
         
-        # Afficher 3 strings représentatifs en parallèle (pour illustration)
-        # Espacement horizontal entre strings
-        espacement_strings = 2.5*cm
-        nb_strings_affichés = min(3, nb_strings_total)  # Afficher max 3 strings
+        # Dessiner tous les strings (max 10 pour lisibilité)
+        nb_strings_affichés = min(10, nb_strings_total)
+        
+        # Espacement dynamique selon le nombre de strings
+        largeur_disponible = schema_width - 8*cm  # Laisser de la place pour les textes à droite
+        if nb_strings_affichés > 1:
+            espacement_strings = min(2.5*cm, largeur_disponible / (nb_strings_affichés - 1))
+        else:
+            espacement_strings = 2.5*cm
         
         # Position de départ (centrer les strings affichés)
         start_x = strings_x - ((nb_strings_affichés - 1) * espacement_strings / 2)
         
+        # Position des textes d'info : après le dernier string dessiné
+        last_string_x = start_x + (nb_strings_affichés - 1) * espacement_strings
+        texte_info_x = max(strings_x + 3*cm, last_string_x + 1.5*cm)
+        
         c.setFont("Helvetica-Bold", 7)
-        c.drawString(strings_x + 3*cm, strings_y + 0.8*cm, 
+        c.drawString(texte_info_x, strings_y + 0.8*cm, 
                     f"{nb_strings_total} String{'s' if nb_strings_total > 1 else ''} en parallèle")
         c.setFont("Helvetica", 6)
-        c.drawString(strings_x + 3*cm, strings_y + 0.3*cm, 
+        c.drawString(texte_info_x, strings_y + 0.3*cm, 
                     f"{self.nb_modules_total}×{int(self.module_puissance)}Wc = {puissance_totale_strings:.2f}kWc")
         
         if self.configuration_strings:
             v_mpp_moy = sum(s['v_mpp'] for s in self.configuration_strings) / len(self.configuration_strings)
             i_sc_total = sum(s['i_sc'] for s in self.configuration_strings)
-            c.drawString(strings_x + 3*cm, strings_y - 0.2*cm, 
+            c.drawString(texte_info_x, strings_y - 0.2*cm, 
                         f"Vmpp:{v_mpp_moy:.1f}V")
-            c.drawString(strings_x + 3*cm, strings_y - 0.7*cm, 
+            c.drawString(texte_info_x, strings_y - 0.7*cm, 
                         f"Isc:{i_sc_total:.1f}A")
         
         # Dessiner chaque string avec son fusible
@@ -1143,7 +1152,7 @@ class SchemaUnifilaire:
             
             # Symbole string (module PV)
             SymbolesElectriques.string_pv(c, string_x, strings_y, 
-                                         nb_modules=self.configuration_strings[0]['nb_modules'], 
+                                         nb_modules=self.configuration_strings[i]['nb_modules'], 
                                          compact=True)
             
             # Annotation nombre de modules au-dessus
@@ -1174,10 +1183,10 @@ class SchemaUnifilaire:
                 c.line(string_x, strings_y - 0.8*cm, string_x, strings_y - 2*cm)
                 strings_y_bottom.append((string_x, strings_y - 2*cm))
         
-        # Points de suspension si plus de 3 strings
-        if nb_strings_total > 3:
+        # Points de suspension si plus de strings que ce qui est affiché
+        if nb_strings_total > nb_strings_affichés:
             c.setFont("Helvetica-Bold", 10)
-            c.drawString(start_x + 3 * espacement_strings, strings_y - 1*cm, "...")
+            c.drawString(last_string_x + 0.8*cm, strings_y - 1*cm, "...")
         
         # Regroupement des strings vers la boîte DC (collecteur horizontal)
         c.setStrokeColor(colors.red)
