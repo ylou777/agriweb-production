@@ -936,6 +936,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js"></script>
+    <script src="/static/js/calpinage_3d.js"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -4991,8 +4992,12 @@
                 mapCard.style.display = 'none';
                 viewer3D.toggle();
                 
-                // Mettre à jour avec les zones actuelles
-                update3DFromZones();
+                // Charger les données LiDAR 3D réelles
+                console.log('🌍 Chargement LiDAR 3D pour', prospectLat, prospectLon);
+                viewer3D.loadLidarData(prospectLat, prospectLon, 120).then(() => {
+                    // Mettre à jour avec les zones actuelles
+                    update3DFromZones();
+                });
             }
         }
         
@@ -5345,7 +5350,7 @@
                     return;
                 }
                 
-                viewer3D.updateSunPosition(hour, 6); // Mois de juin
+                viewer3D.setSunPosition(hour); // Animation soleil
                 hour += 0.5;
                 
                 if (hour > 20) {
