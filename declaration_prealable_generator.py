@@ -167,7 +167,7 @@ class DeclarationPrealableGenerator:
         
         # Type de demandeur
         is_personne_physique = True  # Par défaut
-        siret = self.data.get('siret') or self.data.get('proprietaire_siren') or ''
+        siret = self.data.get('siret') or self.data.get('proprietaire_siren') or self.data.get('siren') or ''
         if siret:
             is_personne_physique = False
         
@@ -177,9 +177,14 @@ class DeclarationPrealableGenerator:
         self._checkbox(c, 7*cm, y, not is_personne_physique)
         c.drawString(7.7*cm, y - 0.15*cm, "Personne morale")
         
-        # Nom/Raison sociale
+        # Nom/Raison sociale (fallback chain)
         y -= 0.8*cm
-        nom = self.data.get('nom_prospect') or self.data.get('proprietaire_denomination') or self.data.get('contact_nom') or ''
+        nom = (self.data.get('nom_prospect') 
+               or self.data.get('proprietaire_denomination') 
+               or self.data.get('nom_entreprise') 
+               or self.data.get('dirigeant_nom') 
+               or self.data.get('contact_nom') 
+               or '')
         self._field_labeled(c, 2*cm, y, "Nom ou raison sociale :", nom, width=14*cm)
         
         # Prénom (si personne physique)
@@ -188,21 +193,25 @@ class DeclarationPrealableGenerator:
             prenom = self.data.get('prenom_prospect') or self.data.get('dirigeant_prenom') or ''
             self._field_labeled(c, 2*cm, y, "Prénom :", prenom, width=14*cm)
         
-        # Adresse
+        # Adresse du demandeur (fallback: adresse du terrain)
         y -= 0.7*cm
-        adresse = self.data.get('proprietaire_adresse') or ''
+        adresse = (self.data.get('proprietaire_adresse') 
+                   or self.data.get('adresse') 
+                   or '')
         self._field_labeled(c, 2*cm, y, "Adresse :", adresse, width=14*cm)
         
         y -= 0.7*cm
-        cp = self.data.get('proprietaire_code_postal') or ''
-        ville = self.data.get('proprietaire_ville') or ''
+        cp = self.data.get('proprietaire_code_postal') or self.data.get('departement') or ''
+        ville = self.data.get('proprietaire_ville') or self.data.get('commune') or ''
         self._field_labeled(c, 2*cm, y, "Code postal :", cp, width=3*cm)
         self._field_labeled(c, 7*cm, y, "Commune :", ville, width=9*cm)
         
         # Contact
         y -= 0.7*cm
-        tel = self.data.get('contact_tel') or self.data.get('dirigeant_tel') or ''
-        email = self.data.get('contact_email') or self.data.get('dirigeant_email') or ''
+        tel = (self.data.get('contact_tel') or self.data.get('contact_telephone') 
+               or self.data.get('dirigeant_tel') or self.data.get('representant_tel') or '')
+        email = (self.data.get('contact_email') or self.data.get('dirigeant_email') 
+                 or self.data.get('representant_email') or '')
         self._field_labeled(c, 2*cm, y, "Téléphone :", tel, width=5*cm)
         self._field_labeled(c, 9*cm, y, "Email :", email, width=7*cm)
         

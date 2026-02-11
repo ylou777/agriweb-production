@@ -3910,10 +3910,11 @@ def register_crm_routes(app):
             
             # Convertir en dictionnaire
             prospect_data = dict(row)
-            print(f"✓ Prospect récupéré: {prospect_data.get('nom_entreprise', prospect_data.get('nom', 'N/A'))}")
+            print(f"✓ Prospect récupéré: {prospect_data.get('nom_entreprise', prospect_data.get('nom_prospect', 'N/A'))}")
             
-            # 2. Extraire le calpinage depuis data_json
+            # 2. Extraire le calpinage et fusionner data_json dans prospect_data
             calpinage_data = None
+            data_json = {}
             if prospect_data.get('data_json'):
                 # Parser si c'est une chaîne JSON
                 if isinstance(prospect_data['data_json'], str):
@@ -3924,7 +3925,22 @@ def register_crm_routes(app):
                         print(f"⚠️ [GÉNÉRATION DP] Erreur parsing data_json: {e}")
                 # Sinon c'est déjà un dict (PostgreSQL JSONB)
                 elif isinstance(prospect_data['data_json'], dict):
-                    calpinage_data = prospect_data['data_json'].get('calpinage')
+                    data_json = prospect_data['data_json']
+                    calpinage_data = data_json.get('calpinage')
+            
+            # Fusionner les champs enrichis de data_json dans prospect_data
+            # (propriétaire, SIRENE, etc.) sans écraser les colonnes existantes non-nulles
+            enrichment_keys = [
+                'proprietaire_denomination', 'proprietaire_adresse', 'proprietaire_code_postal',
+                'proprietaire_ville', 'proprietaire_siren', 'prenom_prospect',
+                'nom_entreprise', 'type_raccordement'
+            ]
+            for key in enrichment_keys:
+                if key not in prospect_data or not prospect_data.get(key):
+                    val = data_json.get(key)
+                    if val:
+                        prospect_data[key] = val
+                        print(f"  ✓ Enrichi depuis data_json: {key} = {str(val)[:50]}")
             
             if calpinage_data:
                 nb_modules = sum(zone.get('nbModules', 0) for zone in calpinage_data.get('zones', []))
