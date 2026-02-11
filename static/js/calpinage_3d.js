@@ -22,6 +22,8 @@ class Calpinage3DViewer {
         this.ground = null;
         this.buildings = [];
         this.modules3D = [];
+        this.roads = [];
+        this.vegetationMeshes = [];
         this.sunLight = null;
         this.lidarData = null;
         this.terrainMesh = null;
@@ -177,7 +179,9 @@ class Calpinage3DViewer {
                     mnhMax: this.lidarData.terrain.mnh_max + 'm'
                 } : 'N/A',
                 bdtopo: this.lidarData.buildings_bdtopo?.length || 0,
-                osm: this.lidarData.buildings_osm?.length || 0
+                osm: this.lidarData.buildings_osm?.length || 0,
+                roads: this.lidarData.roads?.length || 0,
+                vegetation: this.lidarData.vegetation?.length || 0
             });
             
             if (this.lidarData.buildings_bdtopo?.length > 0) {
@@ -201,6 +205,12 @@ class Calpinage3DViewer {
             
             // Construire les bâtiments
             this._buildBuildings(this.lidarData);
+            
+            // Construire les routes
+            this._buildRoads(this.lidarData);
+            
+            // Construire la végétation
+            this._buildVegetation(this.lidarData);
             
             // Ajuster la caméra
             this._fitCamera(radius || 100);
@@ -898,6 +908,466 @@ class Calpinage3DViewer {
         this.buildings.push(roofMesh);
     }
     
+    // ═══════════════════════════════════════════════════════════════
+    //  ROUTES
+    // ═══════════════════════════════════════════════════════════════
+    
+    /**
+     * Construit les routes 3D depuis les données OSM
+     */
+    _buildRoads(data) {
+        // Supprimer les anciennes routes
+        this.roads.forEach(r => {
+            this.scene.remove(r);
+            if (r.geometry) r.geometry.dispose();
+            if (r.material) r.material.dispose();
+        });
+        this.roads = [];
+        
+        if (!data.roads || data.roads.length === 0) {
+            console.log('🛣️ Aucune route à afficher');
+            return;
+        }
+        
+        console.log(`🛣️ Construction ${data.roads.length} routes...`);
+        
+        let successCount = 0;
+        data.roads.forEach((road, i) => {
+            try {
+                this._createRoad3D(road);
+                successCount++;
+            } catch(err) {
+                console.warn(`⚠ Route ${i} échouée:`, err.message);
+            }
+        });
+        
+        console.log(`✅ ${successCount}/${data.roads.length} routes créées`);
+    }
+    
+    /**
+     * Crée un segment de route 3D comme un ruban plat sur le terrain
+     */
+    _createRoad3D(roadData) {
+        const coords = roadData.coords;
+        if (!coords || coords.length < 2) return;
+        
+        const halfWidth = (roadData.width || 4) / 2;
+        
+        // Couleur selon le type de route
+        const roadColors = {
+            'motorway': 0x444444, 'trunk': 0x555555, 'primary': 0x666666,
+            'secondary': 0x777777, 'tertiary': 0x888888, 'residential': 0x999999,
+            'service': 0x999999, 'unclassified': 0x999999, 'living_street': 0xAAAAAA,
+            'pedestrian': 0xBBBBBB, 'footway': 0xC0A882, 'cycleway': 0x88AA88,
+            'path': 0xB09060, 'track': 0xA08050,
+        };
+        const color = roadColors[roadData.type] || 0x888888;
+        
+        // Créer les vertices du ruban
+        const vertices = [];
+        const indices = [];
+        
+        for (let i = 0; i < coords.length; i++) {
+            const local = this._geoToLocal(coords[i][1], coords[i][0]);
+            const terrainH = this._getTerrainHeight(local.x, local.z) + 0.15; // Légèrement au-dessus du terrain
+            
+            // Direction perpendiculaire
+            let dx, dz;
+            if (i < coords.length - 1) {
+                const next = this._geoToLocal(coords[i+1][1], coords[i+1][0]);
+                dx = next.x - local.x;
+                dz = next.z - local.z;
+            } else {
+                const prev = this._geoToLocal(coords[i-1][1], coords[i-1][0]);
+                dx = local.x - prev.x;
+                dz = local.z - prev.z;
+            }
+            
+            const len = Math.sqrt(dx*dx + dz*dz) || 1;
+            const nx = -dz / len * halfWidth;
+            const nz = dx / len * halfWidth;
+            
+            // 2 vertices par point (gauche et droite)
+            vertices.push(
+                local.x + nx, terrainH, local.z + nz,
+                local.x - nx, terrainH, local.z - nz
+            );
+            
+            if (i < coords.length - 1) {
+                const vi = i * 2;
+                indices.push(vi, vi+1, vi+2, vi+1, vi+3, vi+2);
+            }
+        }
+        
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        
+        // Texture procédurale pour la route
+        const mat = new THREE.MeshLambertMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+        });
+        
+        // Ajouter les marquages pour les routes principales
+        if (['motorway','trunk','primary','secondary','tertiary','residential'].includes(roadData.type)) {
+            mat.map = this._getRoadTexture(roadData.type);
+        }
+        
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.receiveShadow = true;
+        this.scene.add(mesh);
+        this.roads.push(mesh);
+        
+        // Bordures pour les routes principales
+        if (['motorway','trunk','primary','secondary','tertiary'].includes(roadData.type)) {
+            this._createRoadCurb(coords, halfWidth);
+        }
+    }
+    
+    /**
+     * Texture procédurale pour route avec marquages
+     */
+    _getRoadTexture(roadType) {
+        const cacheKey = `road_${roadType}`;
+        if (this._textureCache[cacheKey]) return this._textureCache[cacheKey];
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        
+        // Fond asphalte
+        const baseGrey = roadType === 'motorway' ? 80 : (roadType === 'primary' ? 100 : 120);
+        ctx.fillStyle = `rgb(${baseGrey},${baseGrey},${baseGrey})`;
+        ctx.fillRect(0, 0, 128, 256);
+        
+        // Bruit asphalte
+        const imageData = ctx.getImageData(0, 0, 128, 256);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const n = (Math.random() - 0.5) * 12;
+            data[i] += n; data[i+1] += n; data[i+2] += n;
+        }
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Ligne centrale blanche pointillée
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([20, 15]);
+        ctx.beginPath();
+        ctx.moveTo(64, 0);
+        ctx.lineTo(64, 256);
+        ctx.stroke();
+        
+        const tex = new THREE.CanvasTexture(canvas);
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(1, 4);
+        this._textureCache[cacheKey] = tex;
+        return tex;
+    }
+    
+    /**
+     * Crée les bordures de trottoir
+     */
+    _createRoadCurb(coords, halfWidth) {
+        const curbHeight = 0.15;
+        const curbWidth = 0.2;
+        
+        for (let side = -1; side <= 1; side += 2) {
+            const positions = [];
+            for (let i = 0; i < coords.length; i++) {
+                const local = this._geoToLocal(coords[i][1], coords[i][0]);
+                const terrainH = this._getTerrainHeight(local.x, local.z) + 0.15;
+                
+                let dx, dz;
+                if (i < coords.length - 1) {
+                    const next = this._geoToLocal(coords[i+1][1], coords[i+1][0]);
+                    dx = next.x - local.x; dz = next.z - local.z;
+                } else {
+                    const prev = this._geoToLocal(coords[i-1][1], coords[i-1][0]);
+                    dx = local.x - prev.x; dz = local.z - prev.z;
+                }
+                
+                const len = Math.sqrt(dx*dx + dz*dz) || 1;
+                const nx = -dz / len * (halfWidth + curbWidth * 0.5) * side;
+                const nz = dx / len * (halfWidth + curbWidth * 0.5) * side;
+                
+                positions.push(new THREE.Vector3(local.x + nx, terrainH, local.z + nz));
+            }
+            
+            if (positions.length < 2) continue;
+            
+            // Dessiner la bordure comme des petits box le long de la route
+            for (let i = 0; i < positions.length - 1; i++) {
+                const p1 = positions[i];
+                const p2 = positions[i + 1];
+                const dx = p2.x - p1.x, dz = p2.z - p1.z;
+                const length = Math.sqrt(dx*dx + dz*dz);
+                if (length < 0.1) continue;
+                
+                const geo = new THREE.BoxGeometry(length, curbHeight, curbWidth);
+                const mat = new THREE.MeshLambertMaterial({ color: 0xCCCCCC });
+                const mesh = new THREE.Mesh(geo, mat);
+                
+                mesh.position.set(
+                    (p1.x + p2.x) / 2,
+                    (p1.y + p2.y) / 2 + curbHeight / 2,
+                    (p1.z + p2.z) / 2
+                );
+                mesh.rotation.y = -Math.atan2(dz, dx);
+                mesh.castShadow = true;
+                this.scene.add(mesh);
+                this.roads.push(mesh);
+            }
+        }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    //  VEGETATION
+    // ═══════════════════════════════════════════════════════════════
+    
+    /**
+     * Construit la végétation 3D (arbres, forêts, haies...)
+     */
+    _buildVegetation(data) {
+        // Supprimer l'ancienne végétation
+        this.vegetation.forEach(v => {
+            this.scene.remove(v);
+            if (v.geometry) v.geometry.dispose();
+            if (Array.isArray(v.material)) {
+                v.material.forEach(m => m.dispose());
+            } else if (v.material) {
+                v.material.dispose();
+            }
+        });
+        this.vegetation = [];
+        
+        if (!data.vegetation || data.vegetation.length === 0) {
+            console.log('🌳 Aucune végétation à afficher');
+            return;
+        }
+        
+        console.log(`🌳 Construction végétation: ${data.vegetation.length} éléments...`);
+        
+        let treeCount = 0, zoneCount = 0;
+        
+        data.vegetation.forEach((veg, i) => {
+            try {
+                if (veg.type === 'tree') {
+                    this._createTree3D(veg);
+                    treeCount++;
+                } else if (veg.coords) {
+                    this._createVegetationZone(veg);
+                    zoneCount++;
+                }
+            } catch(err) {
+                console.warn(`⚠ Végétation ${i} échouée:`, err.message);
+            }
+        });
+        
+        console.log(`✅ Végétation: ${treeCount} arbres, ${zoneCount} zones`);
+    }
+    
+    /**
+     * Crée un arbre 3D procédural (tronc + couronne)
+     */
+    _createTree3D(treeData) {
+        const local = this._geoToLocal(treeData.lat, treeData.lon);
+        const terrainH = this._getTerrainHeight(local.x, local.z);
+        const height = treeData.height || 8;
+        const leafType = treeData.leaf_type || 'broadleaved';
+        
+        const group = new THREE.Group();
+        
+        // Tronc
+        const trunkH = height * 0.35;
+        const trunkR = Math.max(0.15, height * 0.04);
+        const trunkGeo = new THREE.CylinderGeometry(trunkR * 0.7, trunkR, trunkH, 6);
+        const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5A3A1A });
+        const trunk = new THREE.Mesh(trunkGeo, trunkMat);
+        trunk.position.y = trunkH / 2;
+        trunk.castShadow = true;
+        group.add(trunk);
+        
+        // Couronne
+        const crownH = height * 0.65;
+        const crownR = Math.max(1.5, height * 0.25);
+        
+        if (leafType === 'needleleaved') {
+            // Conifère : forme de cône
+            const coneGeo = new THREE.ConeGeometry(crownR, crownH, 8);
+            const coneMat = new THREE.MeshLambertMaterial({ color: 0x1A5A1A });
+            const cone = new THREE.Mesh(coneGeo, coneMat);
+            cone.position.y = trunkH + crownH / 2;
+            cone.castShadow = true;
+            cone.receiveShadow = true;
+            group.add(cone);
+        } else {
+            // Feuillu : forme sphérique (2-3 sphères pour un aspect naturel)
+            const crownColor = 0x2D6B2D + Math.floor(Math.random() * 0x001500);
+            
+            // Sphère principale
+            const mainGeo = new THREE.SphereGeometry(crownR, 8, 6);
+            const mainMat = new THREE.MeshLambertMaterial({ color: crownColor });
+            const mainSphere = new THREE.Mesh(mainGeo, mainMat);
+            mainSphere.position.y = trunkH + crownR * 0.8;
+            mainSphere.scale.y = 0.8; // Aplatie
+            mainSphere.castShadow = true;
+            mainSphere.receiveShadow = true;
+            group.add(mainSphere);
+            
+            // Sphère secondaire (décalée) pour un aspect moins parfait
+            if (crownR > 2) {
+                const sec = new THREE.Mesh(
+                    new THREE.SphereGeometry(crownR * 0.7, 6, 5),
+                    mainMat
+                );
+                sec.position.set(crownR * 0.3, trunkH + crownR * 1.1, crownR * 0.2);
+                sec.castShadow = true;
+                group.add(sec);
+            }
+        }
+        
+        group.position.set(local.x, terrainH, local.z);
+        
+        // Petite rotation aléatoire pour varier
+        group.rotation.y = Math.random() * Math.PI * 2;
+        
+        this.scene.add(group);
+        this.vegetation.push(group);
+    }
+    
+    /**
+     * Crée une zone de végétation (forêt, haie, verger...) avec des arbres distribués
+     */
+    _createVegetationZone(vegData) {
+        const coords = vegData.coords;
+        if (!coords || coords.length < 3) return;
+        
+        const vegType = vegData.type;
+        const height = vegData.height || 6;
+        
+        // Calculer le centre et l'étendue
+        const center = this._polygonCenter(coords);
+        const local = this._geoToLocal(center.y, center.x);
+        
+        let lats = coords.map(c => c[1]);
+        let lons = coords.map(c => c[0]);
+        const dx = (Math.max(...lons) - Math.min(...lons)) * this.LNG_TO_M;
+        const dz = (Math.max(...lats) - Math.min(...lats)) * this.LAT_TO_M;
+        
+        // Pour les types linéaires (haie, rangée d'arbres), créer le long du tracé
+        if (vegType === 'hedge' || vegType === 'tree_row') {
+            this._createLinearVegetation(coords, vegType, height);
+            return;
+        }
+        
+        // Pour les zones : remplir avec des arbres semi-aléatoires
+        const area = dx * dz;
+        
+        // Densité d'arbres selon le type
+        const density = {
+            'forest': 0.08,    // 1 arbre / 12m²
+            'wood': 0.08,
+            'orchard': 0.04,   // 1 arbre / 25m²
+            'vineyard': 0.02,  // symbolique
+            'scrub': 0.05,
+        };
+        const treeDensity = density[vegType] || 0.05;
+        const numTrees = Math.min(80, Math.max(3, Math.floor(area * treeDensity)));
+        
+        const leafType = vegType === 'vineyard' ? 'broadleaved' : 
+                         (Math.random() > 0.7 ? 'needleleaved' : 'broadleaved');
+        
+        const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+        const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+        
+        for (let i = 0; i < numTrees; i++) {
+            const tLon = minLon + Math.random() * (maxLon - minLon);
+            const tLat = minLat + Math.random() * (maxLat - minLat);
+            
+            // Hauteur avec variation
+            const treeH = height * (0.7 + Math.random() * 0.6);
+            
+            this._createTree3D({
+                lat: tLat,
+                lon: tLon,
+                height: treeH,
+                leaf_type: leafType,
+            });
+        }
+        
+        // Pour les forêts : ajouter un sol vert foncé pour densifier l'effet
+        if (vegType === 'forest' || vegType === 'wood') {
+            const groundGeo = new THREE.PlaneGeometry(dx, dz);
+            const groundMat = new THREE.MeshLambertMaterial({
+                color: 0x1A4A1A,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.6
+            });
+            const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+            groundMesh.rotation.x = -Math.PI / 2;
+            const terrainH = this._getTerrainHeight(local.x, local.z);
+            groundMesh.position.set(local.x, terrainH + 0.05, local.z);
+            groundMesh.receiveShadow = true;
+            this.scene.add(groundMesh);
+            this.vegetation.push(groundMesh);
+        }
+    }
+    
+    /**
+     * Crée une végétation linéaire (haie, rangée d'arbres)
+     */
+    _createLinearVegetation(coords, vegType, height) {
+        if (coords.length < 2) return;
+        
+        const isHedge = vegType === 'hedge';
+        const spacing = isHedge ? 1.5 : 5; // espacement entre éléments
+        
+        for (let i = 0; i < coords.length - 1; i++) {
+            const p1 = this._geoToLocal(coords[i][1], coords[i][0]);
+            const p2 = this._geoToLocal(coords[i+1][1], coords[i+1][0]);
+            
+            const dx = p2.x - p1.x, dz = p2.z - p1.z;
+            const segLen = Math.sqrt(dx*dx + dz*dz);
+            if (segLen < 0.5) continue;
+            
+            const steps = Math.max(1, Math.floor(segLen / spacing));
+            
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                const x = p1.x + dx * t;
+                const z = p1.z + dz * t;
+                const terrainH = this._getTerrainHeight(x, z);
+                
+                if (isHedge) {
+                    // Haie : petite boîte verte
+                    const hh = height * (0.8 + Math.random() * 0.4);
+                    const geo = new THREE.BoxGeometry(1.2, hh, 1.0);
+                    const mat = new THREE.MeshLambertMaterial({ color: 0x2A5A2A });
+                    const mesh = new THREE.Mesh(geo, mat);
+                    mesh.position.set(x, terrainH + hh / 2, z);
+                    mesh.rotation.y = Math.atan2(dz, dx);
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    this.scene.add(mesh);
+                    this.vegetation.push(mesh);
+                } else {
+                    // Rangée d'arbres
+                    const treeH = height * (0.8 + Math.random() * 0.4);
+                    // Reconvertir en lat/lon
+                    const lat = this.centerLat - z / this.LAT_TO_M;
+                    const lon = this.centerLon + x / this.LNG_TO_M;
+                    this._createTree3D({ lat, lon, height: treeH, leaf_type: 'broadleaved' });
+                }
+            }
+        }
+    }
+    
     /**
      * Crée les bâtiments depuis les zones de calpinage (mode sans LiDAR)
      */
@@ -1165,8 +1635,8 @@ class Calpinage3DViewer {
         
         window.removeEventListener('resize', this._resizeHandler);
         
-        // Supprimer tous les meshes
-        [...this.buildings, ...this.modules3D].forEach(m => {
+        // Supprimer tous les meshes (bâtiments, modules, routes, végétation)
+        [...this.buildings, ...this.modules3D, ...this.roads, ...this.vegetation].forEach(m => {
             this.scene.remove(m);
             if (m.geometry) m.geometry.dispose();
             if (Array.isArray(m.material)) {
@@ -1178,9 +1648,18 @@ class Calpinage3DViewer {
                 if (m.material.map) m.material.map.dispose();
                 m.material.dispose();
             }
+            // Groups (arbres)
+            if (m.children) {
+                m.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
         });
         this.buildings = [];
         this.modules3D = [];
+        this.roads = [];
+        this.vegetation = [];
         
         // Vider le cache de textures
         Object.values(this._textureCache).forEach(tex => tex.dispose());

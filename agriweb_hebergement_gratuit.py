@@ -686,6 +686,8 @@ def api_lidar_3d_data():
     - Heightmap surface (MNS) : grille avec bâtiments/arbres
     - Bâtiments BD TOPO : emprise + hauteur + altitudes
     - Bâtiments OSM : emprise polygone
+    - Routes OSM : tracé polylignes
+    - Végétation/arbres OSM : positions et dimensions
     
     Params: lat, lon, radius (m, default 100)
     """
@@ -703,6 +705,8 @@ def api_lidar_3d_data():
         "terrain": None,
         "buildings_bdtopo": [],
         "buildings_osm": [],
+        "roads": [],
+        "vegetation": [],
     }
     
     # === 1. LiDAR WMS : MNS et MNT (heightmaps) ===
@@ -713,7 +717,7 @@ def api_lidar_3d_data():
         bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
         
         wms_url = "https://data.geopf.fr/wms-r/wms"
-        tile_size = 64  # Résolution de la grille
+        tile_size = 128  # Résolution de la grille (haute résolution)
         
         wms_common = {
             "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
@@ -825,11 +829,17 @@ def api_lidar_3d_data():
     except Exception as e:
         print(f"⚠ BD TOPO 3D error: {e}")
     
-    # === 3. OSM Overpass : bâtiments avec emprise polygone ===
+    # === 3. OSM Overpass : bâtiments + routes + végétation ===
     try:
         overpass_query = f"""
-        [out:json][timeout:10];
-        (way["building"](around:{radius},{lat},{lon}););
+        [out:json][timeout:15];
+        (
+          way["building"](around:{radius},{lat},{lon});
+          way["highway"](around:{radius},{lat},{lon});
+          node["natural"="tree"](around:{radius},{lat},{lon});
+          way["landuse"~"forest|orchard|vineyard"](around:{radius},{lat},{lon});
+          way["natural"~"wood|scrub|tree_row|hedge"](around:{radius},{lat},{lon});
+        );
         out geom tags;
         """
         r_osm = requests.post("https://overpass-api.de/api/interpreter",
@@ -837,12 +847,71 @@ def api_lidar_3d_data():
         if r_osm.status_code == 200:
             data_osm = r_osm.json()
             for elem in data_osm.get("elements", []):
-                geom_pts = elem.get("geometry", [])
                 tags = elem.get("tags", {})
+                elem_type = elem.get("type")
+                
+                # --- Arbres individuels (nodes) ---
+                if elem_type == "node" and tags.get("natural") == "tree":
+                    tree_h = 8  # hauteur par défaut
+                    try:
+                        h = tags.get("height")
+                        if h:
+                            tree_h = float(h.replace('m', '').strip())
+                    except:
+                        pass
+                    result["vegetation"].append({
+                        "type": "tree",
+                        "lat": elem["lat"],
+                        "lon": elem["lon"],
+                        "height": tree_h,
+                        "species": tags.get("species", tags.get("genus", tags.get("leaf_type", ""))),
+                        "leaf_type": tags.get("leaf_type", "broadleaved"),
+                    })
+                    continue
+                
+                geom_pts = elem.get("geometry", [])
                 if not geom_pts:
                     continue
                 
                 coords = [[round(p["lon"], 7), round(p["lat"], 7)] for p in geom_pts]
+                
+                # --- Routes ---
+                highway = tags.get("highway")
+                if highway:
+                    # Largeur selon le type de route
+                    road_widths = {
+                        'motorway': 12, 'trunk': 10, 'primary': 8, 'secondary': 7,
+                        'tertiary': 6, 'residential': 5, 'service': 3.5,
+                        'unclassified': 4, 'living_street': 4, 'pedestrian': 3,
+                        'footway': 1.5, 'cycleway': 2, 'path': 1.2, 'track': 3,
+                    }
+                    result["roads"].append({
+                        "coords": coords,
+                        "type": highway,
+                        "name": tags.get("name", ""),
+                        "width": road_widths.get(highway, 4),
+                        "surface": tags.get("surface", "asphalt"),
+                    })
+                    continue
+                
+                # --- Zones de végétation (forêt, haie, verger...) ---
+                landuse = tags.get("landuse", "")
+                natural = tags.get("natural", "")
+                if landuse in ("forest", "orchard", "vineyard") or natural in ("wood", "scrub", "tree_row", "hedge"):
+                    veg_type = landuse or natural
+                    # Hauteur par défaut selon le type
+                    default_h = {"forest": 12, "wood": 12, "orchard": 5, "vineyard": 2,
+                                 "scrub": 3, "tree_row": 10, "hedge": 2}
+                    result["vegetation"].append({
+                        "type": veg_type,
+                        "coords": coords,
+                        "height": default_h.get(veg_type, 6),
+                    })
+                    continue
+                
+                # --- Bâtiments ---
+                if not tags.get("building"):
+                    continue
                 
                 height = None
                 try:
@@ -872,7 +941,7 @@ def api_lidar_3d_data():
                 }
                 result["buildings_osm"].append(building)
             
-            print(f"✓ OSM 3D: {len(result['buildings_osm'])} bâtiments")
+            print(f"✓ OSM 3D: {len(result['buildings_osm'])} bâtiments, {len(result['roads'])} routes, {len(result['vegetation'])} végétation")
     except Exception as e:
         print(f"⚠ OSM 3D error: {e}")
     
