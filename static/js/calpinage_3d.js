@@ -1384,6 +1384,7 @@ class Calpinage3DViewer {
     
     /**
      * Ajoute les modules PV en 3D sur le toit
+     * Tous les modules d'une même zone partagent un plan de toiture unique
      */
     addModules3D(zones) {
         // Supprimer les anciens modules
@@ -1402,10 +1403,33 @@ class Calpinage3DViewer {
             const pente = (zone.pente || 30) * Math.PI / 180;
             const azimut = (zone.azimut || 180) * Math.PI / 180;
             
+            // === Calculer UN SEUL plan de toit pour toute la zone ===
+            // 1. Centre de la zone = moyenne de tous les centres de modules
+            let sumLat = 0, sumLng = 0;
+            zone.modulesPositions.forEach(m => { sumLat += m.lat; sumLng += m.lng; });
+            const zoneCenterLat = sumLat / zone.modulesPositions.length;
+            const zoneCenterLng = sumLng / zone.modulesPositions.length;
+            
+            const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
+            
+            // 2. Altitude de référence : terrain + hauteur du bâtiment au centre de la zone
+            const terrainHRef = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const buildingHRef = this._findBuildingHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const roofBaseY = terrainHRef + buildingHRef + 0.15;
+            
+            // 3. Vecteurs du plan de toiture incliné
+            //    Le plan part de roofBaseY et monte selon la pente et l'azimut
+            //    Azimut = direction face au sud par défaut (180°)
+            //    La "montée" est dans la direction opposée à l'azimut
+            const slopeDir = {
+                x: Math.sin(azimut),
+                z: Math.cos(azimut)
+            };
+            
             zone.modulesPositions.forEach(modPos => {
                 if (!modPos.corners || modPos.corners.length < 4) return;
                 
-                // Calculer les dimensions du module depuis les coins
+                // Dimensions du module
                 const c = modPos.corners;
                 const w = this._distGeo(c[0].lat, c[0].lng, c[1].lat, c[1].lng);
                 const h = this._distGeo(c[0].lat, c[0].lng, c[3].lat, c[3].lng);
@@ -1414,8 +1438,8 @@ class Calpinage3DViewer {
                 
                 const panelGeo = new THREE.BoxGeometry(w, 0.04, h);
                 const panelMat = new THREE.MeshPhongMaterial({
-                    color: 0x1a237e,        // Bleu très foncé
-                    specular: 0x4444ff,      // Reflet bleuté
+                    color: 0x1a237e,
+                    specular: 0x4444ff,
                     shininess: 80,
                     transparent: true,
                     opacity: 0.92
@@ -1423,18 +1447,27 @@ class Calpinage3DViewer {
                 
                 const panel = new THREE.Mesh(panelGeo, panelMat);
                 
-                // Position
+                // Position locale du module
                 const local = this._geoToLocal(modPos.lat, modPos.lng);
-                const terrainH = this._getTerrainHeight(local.x, local.z);
                 
-                // Chercher le bâtiment sous ce module
-                let buildingH = this._findBuildingHeight(local.x, local.z);
+                // Décalage par rapport au centre de la zone (en mètres)
+                const dx = local.x - zoneLocalCenter.x;
+                const dz = local.z - zoneLocalCenter.z;
                 
-                panel.position.set(local.x, terrainH + buildingH + 0.15, local.z);
+                // Projection du décalage sur la direction de pente
+                // = combien ce module est "haut" ou "bas" sur le toit
+                const distAlongSlope = dx * slopeDir.x + dz * slopeDir.z;
                 
-                // Rotation : inclinaison du panneau
-                panel.rotation.x = -pente;
+                // Hauteur Y sur le plan de toiture incliné
+                const moduleY = roofBaseY + distAlongSlope * Math.tan(pente);
+                
+                panel.position.set(local.x, moduleY, local.z);
+                
+                // Rotation : le plan entier est incliné
+                // Rotation autour de l'axe perpendiculaire à la pente
+                panel.rotation.order = 'YXZ';
                 panel.rotation.y = azimut - Math.PI;
+                panel.rotation.x = -pente;
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
@@ -1444,7 +1477,7 @@ class Calpinage3DViewer {
             });
         });
         
-        console.log(`✅ ${this.modules3D.length} modules PV 3D ajoutés`);
+        console.log(`✅ ${this.modules3D.length} modules PV 3D ajoutés (plan de toit unifié par zone)`);
     }
     
     /**
