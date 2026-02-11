@@ -17329,12 +17329,12 @@ def import_existing_users():
                     INSERT OR IGNORE INTO users 
                     (id, email, name, company, password_hash, salt, created_at, 
                      last_login, subscription_status, is_active, login_count)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 
                             CASE WHEN ? IS NULL THEN 0 ELSE 1 END)
                 ''', (
                     user['id'], user['email'], user['name'], user['company'],
                     password_hash, salt, user['created_at'], user['last_login'],
-                    user['subscription_status'], user['last_login']
+                    user['subscription_status'], True, user['last_login']
                 ))
                 
                 print(f"✅ Utilisateur importé: {user['name']} ({user['email']})")

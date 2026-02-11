@@ -207,6 +207,7 @@ def init_database():
                     ("taux_autoconso_pct", "REAL"),
                     ("nombre_panneaux", "INTEGER"),
                     ("productible_mwh", "REAL"),
+                    ("user_id", "INTEGER"),
                 ]
                 for col_name, col_type in migration_columns:
                     try:
