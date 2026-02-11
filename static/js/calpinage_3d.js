@@ -531,6 +531,222 @@ class Calpinage3DViewer {
     }
     
     /**
+     * Teste si un point (px, py) est dans un polygone 2D (ray casting)
+     */
+    _pointInPolygon2D(px, py, poly) {
+        let inside = false;
+        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+            const xi = poly[i].x, yi = poly[i].y;
+            const xj = poly[j].x, yj = poly[j].y;
+            if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+    
+    /**
+     * Échantillonne les altitudes MNS LiDAR sur l'emprise d'un bâtiment.
+     * Retourne les points 3D du toit {x_local, z_local, altitude_mns, hauteur_mnh}
+     * permettant de reconstituer la forme réelle du toit.
+     */
+    _sampleMNSOnBuilding(geoCoords) {
+        if (!this.lidarData || !this.lidarData.terrain || !this.lidarData.terrain.mns) return null;
+        
+        const terrain = this.lidarData.terrain;
+        const mns = terrain.mns;
+        const mnt = terrain.mnt;
+        const mnh = terrain.mnh;
+        const gridSize = terrain.grid_size;
+        const bbox = terrain.bbox;
+        
+        // Polygone en coordonnées lat/lon
+        const polyGeo = geoCoords.map(c => ({x: c[0], y: c[1]}));
+        
+        // Bounding box du bâtiment en lat/lon
+        const lons = geoCoords.map(c => c[0]);
+        const lats = geoCoords.map(c => c[1]);
+        const bMinLon = Math.min(...lons), bMaxLon = Math.max(...lons);
+        const bMinLat = Math.min(...lats), bMaxLat = Math.max(...lats);
+        
+        // Indices de grille correspondant au bbox du bâtiment
+        const ixMin = Math.max(0, Math.floor((bMinLon - bbox.west) / (bbox.east - bbox.west) * gridSize));
+        const ixMax = Math.min(gridSize - 1, Math.ceil((bMaxLon - bbox.west) / (bbox.east - bbox.west) * gridSize));
+        const iyMin = Math.max(0, Math.floor((bbox.north - bMaxLat) / (bbox.north - bbox.south) * gridSize));
+        const iyMax = Math.min(gridSize - 1, Math.ceil((bbox.north - bMinLat) / (bbox.north - bbox.south) * gridSize));
+        
+        const roofPoints = [];
+        
+        for (let iy = iyMin; iy <= iyMax; iy++) {
+            for (let ix = ixMin; ix <= ixMax; ix++) {
+                // Position géographique du pixel
+                const pxLon = bbox.west + (ix + 0.5) / gridSize * (bbox.east - bbox.west);
+                const pxLat = bbox.north - (iy + 0.5) / gridSize * (bbox.north - bbox.south);
+                
+                // Test d'inclusion dans le polygone du bâtiment
+                if (!this._pointInPolygon2D(pxLon, pxLat, polyGeo)) continue;
+                
+                const mnhVal = mnh[iy] ? (mnh[iy][ix] || 0) : 0;
+                if (mnhVal < 1.5) continue; // Pas sur un bâtiment (trop bas)
+                
+                const mnsVal = mns[iy] ? (mns[iy][ix] || 0) : 0;
+                const mntVal = mnt[iy] ? (mnt[iy][ix] || 0) : 0;
+                
+                const local = this._geoToLocal(pxLat, pxLon);
+                roofPoints.push({
+                    x: local.x,
+                    z: local.z,
+                    mns: mnsVal,
+                    mnt: mntVal,
+                    mnh: mnhVal,
+                });
+            }
+        }
+        
+        return roofPoints.length >= 4 ? roofPoints : null;
+    }
+    
+    /**
+     * Analyse la forme du toit à partir des points MNS LiDAR échantillonnés.
+     * Détecte :
+     * - La ligne de faîtage (direction + position) via analyse en composantes principales
+     * - Le type de toit (gable/bi-pan, hip/4-pan, flat, mono-pente)
+     * - La pente réelle et la hauteur du faîtage
+     *
+     * @param {Array} roofPoints - Points {x, z, mns, mnt, mnh}
+     * @param {Object} obb - Oriented bounding box {cx, cz, angle, longDim, shortDim}
+     * @returns {Object} Analyse du toit
+     */
+    _analyzeRoofShape(roofPoints, obb) {
+        if (!roofPoints || roofPoints.length < 4) return null;
+        
+        // Centrer les points sur le centre du bâtiment
+        const cx = obb.cx;
+        const cz = obb.cz;
+        
+        // Altitudes toit relatives (MNS - base MNT moyen)
+        const mntMean = roofPoints.reduce((s, p) => s + p.mnt, 0) / roofPoints.length;
+        const relativeH = roofPoints.map(p => p.mns - mntMean);
+        
+        const hMin = Math.min(...relativeH);
+        const hMax = Math.max(...relativeH);
+        const hRange = hMax - hMin;
+        
+        // Si le toit est quasi-plat (< 0.3m de variation), c'est un toit plat
+        if (hRange < 0.3) {
+            return { type: 'flat', ridgeExtra: 0 };
+        }
+        
+        // === Projeter les points sur le repère orienté du bâtiment ===
+        const cosA = Math.cos(-obb.angle);
+        const sinA = Math.sin(-obb.angle);
+        
+        const projected = roofPoints.map((p, i) => {
+            const dx = p.x - cx;
+            const dz = p.z - cz;
+            return {
+                along: dx * cosA - dz * sinA,  // le long de l'axe principal (faîtage probable)
+                across: dx * sinA + dz * cosA,  // perpendiculaire (pente probable)
+                h: relativeH[i],
+            };
+        });
+        
+        // === Détecter la forme du toit via profil transversal (across) ===
+        // Diviser en bandes transversales et calculer le profil moyen
+        const nBands = 7;
+        const acrossMin = Math.min(...projected.map(p => p.across));
+        const acrossMax = Math.max(...projected.map(p => p.across));
+        const acrossRange = acrossMax - acrossMin;
+        
+        if (acrossRange < 0.5) return { type: 'flat', ridgeExtra: 0 };
+        
+        const profile = [];
+        for (let b = 0; b < nBands; b++) {
+            const bStart = acrossMin + (b / nBands) * acrossRange;
+            const bEnd = acrossMin + ((b + 1) / nBands) * acrossRange;
+            const bandPts = projected.filter(p => p.across >= bStart && p.across < bEnd);
+            if (bandPts.length > 0) {
+                const meanH = bandPts.reduce((s, p) => s + p.h, 0) / bandPts.length;
+                const meanAcross = (bStart + bEnd) / 2;
+                profile.push({ pos: (meanAcross - acrossMin) / acrossRange, h: meanH });
+            }
+        }
+        
+        if (profile.length < 3) return { type: 'flat', ridgeExtra: 0 };
+        
+        // Trouver le point le plus haut du profil
+        let maxProfileH = -Infinity, maxIdx = 0;
+        profile.forEach((p, i) => {
+            if (p.h > maxProfileH) { maxProfileH = p.h; maxIdx = i; }
+        });
+        
+        // Position relative du faîtage sur l'axe transversal (0 = bord, 0.5 = centre, 1 = autre bord)
+        const ridgePos = profile[maxIdx].pos;
+        
+        // Calculer la hauteur du faîtage par rapport aux bords
+        const edgeH = (profile[0].h + profile[profile.length - 1].h) / 2;
+        const ridgeExtra = maxProfileH - edgeH;
+        
+        if (ridgeExtra < 0.3) return { type: 'flat', ridgeExtra: 0 };
+        
+        // === Détecter le type : gable vs hip vs mono ===
+        // Vérifier si le faîtage est centré (bi-pan/gable ou 4-pan/hip)
+        // ou décalé (mono-pente/shed)
+        
+        let roofType;
+        let ridgeOffset = ridgePos - 0.5; // < 0 = décalé vers bord 0
+        
+        if (Math.abs(ridgeOffset) > 0.3) {
+            // Le point haut est très décalé → mono-pente (shed)
+            roofType = 'shed';
+        } else {
+            // Faîtage centré → gable ou hip
+            // Vérifier les extrémités longitudinales (le long de l'axe principal)
+            const alongMin = Math.min(...projected.map(p => p.along));
+            const alongMax = Math.max(...projected.map(p => p.along));
+            const alongRange = alongMax - alongMin;
+            
+            // Prendre les points aux 2 extrémités (10% de chaque côté)
+            const endMargin = Math.max(0.1 * alongRange, 1.0);
+            const leftEnd = projected.filter(p => p.along < alongMin + endMargin);
+            const rightEnd = projected.filter(p => p.along > alongMax - endMargin);
+            const centerPts = projected.filter(p => 
+                p.along > alongMin + 0.25 * alongRange && 
+                p.along < alongMax - 0.25 * alongRange
+            );
+            
+            // Si les extrémités ont un profil similaire au centre (altitude max similaire)
+            // → bi-pan. Si les extrémités sont plus basses → 4 pans (hip/croupe)
+            const centerMaxH = centerPts.length > 0 ? Math.max(...centerPts.map(p => p.h)) : maxProfileH;
+            const leftMaxH = leftEnd.length > 0 ? Math.max(...leftEnd.map(p => p.h)) : centerMaxH;
+            const rightMaxH = rightEnd.length > 0 ? Math.max(...rightEnd.map(p => p.h)) : centerMaxH;
+            
+            const endDrop = centerMaxH - Math.min(leftMaxH, rightMaxH);
+            
+            if (endDrop > ridgeExtra * 0.3) {
+                // Les extrémités sont significativement plus basses → 4 pans (hip)
+                roofType = 'hip';
+            } else {
+                // Le faîtage s'étend jusqu'aux extrémités → bi-pan (gable)
+                roofType = 'gable';
+            }
+        }
+        
+        // Pente réelle (angle en degrés) depuis le bord au faîtage
+        const halfWidth = obb.shortDim / 2;
+        const slopeDeg = Math.atan2(ridgeExtra, halfWidth) * 180 / Math.PI;
+        
+        return {
+            type: roofType,
+            ridgeExtra: ridgeExtra,
+            ridgeOffset: ridgeOffset,
+            slopeDeg: slopeDeg,
+            hMin: hMin,
+            hMax: hMax,
+        };
+    }
+    
+    /**
      * Crée un bâtiment 3D depuis ses données.
      * Utilise l'emprise polygonale réelle (ExtrudeGeometry) avec fallback BoxGeometry orientée.
      * Toit bi-pan (gable) par défaut pour les bâtiments résidentiels.
@@ -626,34 +842,64 @@ class Calpinage3DViewer {
         this.scene.add(mesh);
         this.buildings.push(mesh);
         
-        // === Toit : détermine bi-pan (gable) vs plat ===
+        // === Toit : analyse LiDAR MNS pour forme réaliste ===
+        let roofAnalysis = null;
         let hasPitchedRoof = false;
         let ridgeExtra = 0;
+        let roofShape = 'flat'; // gable, hip, shed, flat
         
-        if (buildingData.alt_toit_min && buildingData.alt_toit_max &&
+        // 1. Essayer l'analyse LiDAR MNS (la plus précise)
+        const roofPoints = this._sampleMNSOnBuilding(coords);
+        if (roofPoints) {
+            roofAnalysis = this._analyzeRoofShape(roofPoints, obb);
+            if (roofAnalysis && roofAnalysis.type !== 'flat') {
+                roofShape = roofAnalysis.type;
+                ridgeExtra = roofAnalysis.ridgeExtra;
+                hasPitchedRoof = true;
+                console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m`);
+            }
+        }
+        
+        // 2. Fallback : données BD TOPO altitudes toit
+        if (!hasPitchedRoof && buildingData.alt_toit_min && buildingData.alt_toit_max &&
             (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
-            // Données BD TOPO avec altitudes toit
             hasPitchedRoof = true;
             ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-        } else if (buildingData.roof_shape === 'gabled' || buildingData.roof_shape === 'hipped') {
-            // Tag OSM roof:shape
-            hasPitchedRoof = true;
-            ridgeExtra = obb.shortDim * 0.3;
-        } else if (buildingData.roof_shape !== 'flat') {
-            // Par défaut, toit en pente pour les bâtiments résidentiels
-            const isResidential = !buildingData.usage || 
-                buildingData.usage === 'Résidentiel' ||
-                ['house', 'residential', 'detached', 'semidetached_house', 'terrace', 'apartments', 'yes'].includes(buildingData.type);
-            if (isResidential && bh < 15) {
+            roofShape = 'gable'; // defaut pour BD TOPO
+        }
+        
+        // 3. Fallback : tags OSM roof:shape
+        if (!hasPitchedRoof) {
+            if (buildingData.roof_shape === 'gabled') {
                 hasPitchedRoof = true;
-                ridgeExtra = obb.shortDim * 0.25; // pente modérée ~27°
+                roofShape = 'gable';
+                ridgeExtra = obb.shortDim * 0.3;
+            } else if (buildingData.roof_shape === 'hipped') {
+                hasPitchedRoof = true;
+                roofShape = 'hip';
+                ridgeExtra = obb.shortDim * 0.3;
+            } else if (buildingData.roof_shape !== 'flat') {
+                // Par défaut, toit en pente pour les bâtiments résidentiels
+                const isResidential = !buildingData.usage || 
+                    buildingData.usage === 'Résidentiel' ||
+                    ['house', 'residential', 'detached', 'semidetached_house', 'terrace', 'apartments', 'yes'].includes(buildingData.type);
+                if (isResidential && bh < 15) {
+                    hasPitchedRoof = true;
+                    roofShape = 'gable';
+                    ridgeExtra = obb.shortDim * 0.25;
+                }
             }
         }
         
         if (hasPitchedRoof) {
-            // Limiter la hauteur du faîtage proportionnellement
             ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
-            this._createGableRoof(obb, bh, terrainH, ridgeExtra, roofType);
+            if (roofShape === 'hip') {
+                this._createHipRoof(obb, bh, terrainH, ridgeExtra, roofType);
+            } else if (roofShape === 'shed') {
+                this._createShedRoof(obb, bh, terrainH, ridgeExtra, roofType, roofAnalysis?.ridgeOffset || 0);
+            } else {
+                this._createGableRoof(obb, bh, terrainH, ridgeExtra, roofType);
+            }
         } else {
             this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
         }
@@ -1030,6 +1276,139 @@ class Calpinage3DViewer {
             side: THREE.DoubleSide,
             specular: 0x222222,
             shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
+        });
+        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+        roofMesh.castShadow = true;
+        roofMesh.receiveShadow = true;
+        this.scene.add(roofMesh);
+        this.buildings.push(roofMesh);
+    }
+    
+    /**
+     * Crée un toit 4 pans (hip/croupe) avec faîtage raccourci au centre.
+     * 4 pans inclinés, le faîtage ne s'étend que sur ~50% de la longueur du bâtiment.
+     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     */
+    _createHipRoof(obb, bh, terrainH, ridgeExtra, roofType) {
+        const roofBaseY = terrainH + bh;
+        const halfLong = obb.longDim / 2;
+        const halfShort = obb.shortDim / 2;
+        const ridgeY = roofBaseY + ridgeExtra;
+        
+        // Le faîtage ne va que sur ~50% de la longueur (le reste = croupes)
+        const ridgeHalfLen = halfLong * 0.45;
+        
+        const cosA = Math.cos(obb.angle);
+        const sinA = Math.sin(obb.angle);
+        const toWorld = (rl, rs) => ({
+            x: obb.cx + rl * cosA - rs * sinA,
+            z: obb.cz + rl * sinA + rs * cosA,
+        });
+        
+        // 4 coins base
+        const c00 = toWorld(-halfLong, -halfShort);
+        const c10 = toWorld(+halfLong, -halfShort);
+        const c11 = toWorld(+halfLong, +halfShort);
+        const c01 = toWorld(-halfLong, +halfShort);
+        
+        // 2 extrémités du faîtage raccourci
+        const r0 = toWorld(-ridgeHalfLen, 0);
+        const r1 = toWorld(+ridgeHalfLen, 0);
+        
+        const vertices = new Float32Array([
+            // Pan avant (+short) : c01 → c11 → r1, c01 → r1 → r0
+            c01.x, roofBaseY, c01.z,  c11.x, roofBaseY, c11.z,  r1.x, ridgeY, r1.z,
+            c01.x, roofBaseY, c01.z,  r1.x, ridgeY, r1.z,       r0.x, ridgeY, r0.z,
+            
+            // Pan arrière (-short) : c10 → c00 → r0, c10 → r0 → r1
+            c10.x, roofBaseY, c10.z,  c00.x, roofBaseY, c00.z,  r0.x, ridgeY, r0.z,
+            c10.x, roofBaseY, c10.z,  r0.x, ridgeY, r0.z,       r1.x, ridgeY, r1.z,
+            
+            // Croupe gauche : c00 → c01 → r0 (triangle)
+            c00.x, roofBaseY, c00.z,  c01.x, roofBaseY, c01.z,  r0.x, ridgeY, r0.z,
+            
+            // Croupe droite : c11 → c10 → r1 (triangle)
+            c11.x, roofBaseY, c11.z,  c10.x, roofBaseY, c10.z,  r1.x, ridgeY, r1.z,
+        ]);
+        
+        const uvs = new Float32Array([
+            0,0, 1,0, 1,1,   0,0, 1,1, 0,1,
+            0,0, 1,0, 1,1,   0,0, 1,1, 0,1,
+            0,0, 1,0, 0.5,1,
+            0,0, 1,0, 0.5,1,
+        ]);
+        
+        const roofGeo = new THREE.BufferGeometry();
+        roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        roofGeo.computeVertexNormals();
+        
+        const roofTex = this._getRoofTexture(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: roofTex, side: THREE.DoubleSide,
+            specular: 0x222222,
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
+        });
+        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+        roofMesh.castShadow = true;
+        roofMesh.receiveShadow = true;
+        this.scene.add(roofMesh);
+        this.buildings.push(roofMesh);
+    }
+    
+    /**
+     * Crée un toit mono-pente (shed/appentis).
+     * Un côté est plus haut que l'autre.
+     * @param {number} ridgeOffset - décalage du faîtage (-0.5 à 0.5), négatif = vers côté 0
+     */
+    _createShedRoof(obb, bh, terrainH, ridgeExtra, roofType, ridgeOffset) {
+        const roofBaseY = terrainH + bh;
+        const halfLong = obb.longDim / 2;
+        const halfShort = obb.shortDim / 2;
+        
+        const cosA = Math.cos(obb.angle);
+        const sinA = Math.sin(obb.angle);
+        const toWorld = (rl, rs) => ({
+            x: obb.cx + rl * cosA - rs * sinA,
+            z: obb.cz + rl * sinA + rs * cosA,
+        });
+        
+        // 4 coins — un côté est plus haut
+        const highSide = ridgeOffset < 0 ? -1 : 1;
+        const c00 = toWorld(-halfLong, -halfShort);
+        const c10 = toWorld(+halfLong, -halfShort);
+        const c11 = toWorld(+halfLong, +halfShort);
+        const c01 = toWorld(-halfLong, +halfShort);
+        
+        const yLow = roofBaseY;
+        const yHigh = roofBaseY + ridgeExtra;
+        
+        // Côté +short est haut si ridgeOffset > 0
+        const y00 = highSide < 0 ? yHigh : yLow;
+        const y10 = highSide < 0 ? yHigh : yLow;
+        const y11 = highSide > 0 ? yHigh : yLow;
+        const y01 = highSide > 0 ? yHigh : yLow;
+        
+        const vertices = new Float32Array([
+            c00.x, y00, c00.z,  c10.x, y10, c10.z,  c11.x, y11, c11.z,
+            c00.x, y00, c00.z,  c11.x, y11, c11.z,  c01.x, y01, c01.z,
+        ]);
+        
+        const uvs = new Float32Array([
+            0,0, 1,0, 1,1,
+            0,0, 1,1, 0,1,
+        ]);
+        
+        const roofGeo = new THREE.BufferGeometry();
+        roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        roofGeo.computeVertexNormals();
+        
+        const roofTex = this._getRoofTexture(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: roofTex, side: THREE.DoubleSide,
+            specular: 0x222222,
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
         });
         const roofMesh = new THREE.Mesh(roofGeo, roofMat);
         roofMesh.castShadow = true;
