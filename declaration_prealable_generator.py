@@ -53,15 +53,15 @@ class DeclarationPrealableGenerator:
     def generate_complete_dossier(self):
         """Génère le dossier DP complet (formulaire + tous les plans DP1 à DP8)"""
         dossier = {
-            'formulaire': self.generate_formulaire_cerfa(),
-            'plan_dp1': self.generate_plan_situation(),
-            'plan_dp2': self.generate_plan_masse(),
-            'plan_dp3': self.generate_plan_coupe(),
-            'plan_dp4': self.generate_plan_facades_actuel(),
-            'plan_dp5': self.generate_plan_facades_projet(),
-            'plan_dp6': self.generate_insertion_paysagere(),
-            'plan_dp7': self.generate_photo_environnement_proche(),
-            'plan_dp8': self.generate_photo_environnement_lointain(),
+            'CERFA_13703_Formulaire.pdf': self.generate_formulaire_cerfa(),
+            'DP1_Plan_de_Situation.pdf': self.generate_plan_situation(),
+            'DP2_Plan_de_Masse.pdf': self.generate_plan_masse(),
+            'DP3_Plan_en_Coupe.pdf': self.generate_plan_coupe(),
+            'DP4_Facades_Etat_Actuel.pdf': self.generate_plan_facades_actuel(),
+            'DP5_Facades_Etat_Projete.pdf': self.generate_plan_facades_projet(),
+            'DP6_Insertion_Paysagere.pdf': self.generate_insertion_paysagere(),
+            'DP7_Photo_Environnement_Proche.pdf': self.generate_photo_environnement_proche(),
+            'DP8_Photo_Environnement_Lointain.pdf': self.generate_photo_environnement_lointain(),
         }
         return dossier
     
