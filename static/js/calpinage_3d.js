@@ -167,9 +167,26 @@ class Calpinage3DViewer {
             this.lidarData = await response.json();
             console.log('✅ Données 3D reçues:', {
                 terrain: !!this.lidarData.terrain,
+                terrainInfo: this.lidarData.terrain ? {
+                    gridSize: this.lidarData.terrain.grid_size,
+                    altBase: this.lidarData.terrain.altitude_base,
+                    mntRange: `${this.lidarData.terrain.mnt_min}-${this.lidarData.terrain.mnt_max}m`,
+                    mnhMax: this.lidarData.terrain.mnh_max + 'm'
+                } : 'N/A',
                 bdtopo: this.lidarData.buildings_bdtopo?.length || 0,
                 osm: this.lidarData.buildings_osm?.length || 0
             });
+            
+            if (this.lidarData.buildings_bdtopo?.length > 0) {
+                const b0 = this.lidarData.buildings_bdtopo[0];
+                console.log('🏠 Premier bâtiment BD TOPO:', {
+                    hauteur: b0.hauteur,
+                    usage: b0.usage,
+                    nature: b0.nature,
+                    coords: b0.coords?.length + ' points',
+                    firstCoord: b0.coords?.[0]
+                });
+            }
             
             // Construire la scène 3D
             if (this.lidarData.terrain) {
@@ -212,7 +229,16 @@ class Calpinage3DViewer {
         
         const gridSize = terrain.grid_size;
         const mnt = terrain.mnt; // Grille 2D altitudes relatives
-        const cellSize = (radiusM * 2) / gridSize;
+        
+        console.log(`🗺️ Terrain: gridSize=${gridSize}, radiusM=${radiusM}`);
+        console.log(`🗺️ MNT range: min=${terrain.mnt_min}m, max=${terrain.mnt_max}m, delta=${(terrain.mnt_max - terrain.mnt_min).toFixed(1)}m`);
+        
+        // Exagération verticale pour rendre le relief visible
+        const altDelta = terrain.mnt_max - terrain.mnt_min;
+        // Plus le terrain est plat, plus on exagère
+        const verticalExaggeration = altDelta < 5 ? 5.0 : (altDelta < 15 ? 3.0 : 1.5);
+        this._verticalExaggeration = verticalExaggeration;
+        console.log(`🗺️ Exagération verticale: x${verticalExaggeration} (delta=${altDelta.toFixed(1)}m)`);
         
         // Créer la géométrie du terrain
         const geo = new THREE.PlaneGeometry(
@@ -220,24 +246,30 @@ class Calpinage3DViewer {
             gridSize - 1, gridSize - 1
         );
         
-        // Appliquer les altitudes
+        // Appliquer les altitudes avec exagération
         const positions = geo.attributes.position.array;
         let maxZ = 0;
+        let minZ = Infinity;
+        let nonZeroCount = 0;
         
         for (let iy = 0; iy < gridSize; iy++) {
             for (let ix = 0; ix < gridSize; ix++) {
                 const idx = (iy * gridSize + ix) * 3;
-                // MNT est en row-major et Y est inversé (du nord vers le sud)
                 const altitude = mnt[iy] ? (mnt[iy][ix] || 0) : 0;
-                positions[idx + 2] = altitude; // Z = altitude
-                if (altitude > maxZ) maxZ = altitude;
+                const exaggeratedAlt = altitude * verticalExaggeration;
+                positions[idx + 2] = exaggeratedAlt; // Z = altitude (→ Y after rotation)
+                if (exaggeratedAlt > maxZ) maxZ = exaggeratedAlt;
+                if (exaggeratedAlt < minZ) minZ = exaggeratedAlt;
+                if (altitude !== 0) nonZeroCount++;
             }
         }
         
         geo.attributes.position.needsUpdate = true;
         geo.computeVertexNormals();
         
-        // Matériau terrain avec couleur basée sur l'altitude
+        console.log(`🗺️ Terrain vertices: ${nonZeroCount}/${gridSize*gridSize} non-zero, Z range: ${minZ.toFixed(1)} - ${maxZ.toFixed(1)}m (exagéré)`);
+        
+        // Matériau terrain
         const mat = new THREE.MeshLambertMaterial({
             color: 0x5a8f4a,
             wireframe: false,
@@ -255,29 +287,35 @@ class Calpinage3DViewer {
         const bigGroundMat = new THREE.MeshLambertMaterial({ color: 0x4a7c3f });
         this.ground = new THREE.Mesh(bigGroundGeo, bigGroundMat);
         this.ground.rotation.x = -Math.PI / 2;
-        this.ground.position.y = -0.1;
+        this.ground.position.y = -0.5;
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
         
-        console.log(`✅ Terrain LiDAR: ${gridSize}x${gridSize}, max altitude relative: ${maxZ.toFixed(1)}m`);
+        console.log(`✅ Terrain LiDAR: ${gridSize}x${gridSize}, max altitude exagérée: ${maxZ.toFixed(1)}m`);
     }
     
     /**
-     * Charge la texture satellite IGN sur le terrain
+     * Charge la texture satellite IGN sur le terrain (via proxy serveur pour CORS)
      */
     async _loadSatelliteTexture(lat, lon, radiusM) {
         try {
-            const latDeg = radiusM / this.LAT_TO_M;
-            const lonDeg = radiusM / this.LNG_TO_M;
+            // Utiliser notre proxy pour éviter les problèmes CORS
+            const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${radiusM}`;
+            console.log('🛰️ Chargement texture satellite via proxy:', proxyUrl);
             
-            // Tuile satellite IGN (WMTS)
-            const bbox = `${lon - lonDeg},${lat - latDeg},${lon + lonDeg},${lat + latDeg}`;
-            const url = `https://data.geopf.fr/wms-r/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap` +
-                `&LAYERS=HR.ORTHOIMAGERY.ORTHOPHOTOS&CRS=EPSG:4326` +
-                `&BBOX=${lat - latDeg},${lon - lonDeg},${lat + latDeg},${lon + lonDeg}` +
-                `&WIDTH=512&HEIGHT=512&FORMAT=image/jpeg&STYLES=`;
+            // Fetch via proxy (même domaine = pas de CORS)
+            const response = await fetch(proxyUrl);
+            if (!response.ok) {
+                console.warn(`⚠ Satellite proxy HTTP ${response.status}`);
+                return;
+            }
             
-            const texture = new THREE.TextureLoader().load(url, 
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            console.log('🛰️ Image satellite reçue:', (blob.size / 1024).toFixed(0), 'Ko');
+            
+            const loader = new THREE.TextureLoader();
+            loader.load(objectUrl,
                 (tex) => {
                     tex.wrapS = THREE.ClampToEdgeWrapping;
                     tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -288,11 +326,14 @@ class Calpinage3DViewer {
                         this.terrainMesh.material.color.set(0xffffff);
                         this.terrainMesh.material.needsUpdate = true;
                     }
-                    console.log('✅ Texture satellite chargée');
+                    console.log('✅ Texture satellite appliquée au terrain');
+                    // Libérer l'object URL
+                    URL.revokeObjectURL(objectUrl);
                 },
                 undefined,
                 (err) => {
-                    console.warn('⚠ Texture satellite non chargée:', err);
+                    console.warn('⚠ Erreur chargement texture blob:', err);
+                    URL.revokeObjectURL(objectUrl);
                 }
             );
         } catch (e) {
@@ -311,7 +352,7 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Récupère l'altitude du terrain à une position locale
+     * Récupère l'altitude du terrain à une position locale (avec exagération)
      */
     _getTerrainHeight(x, z) {
         if (!this.lidarData || !this.lidarData.terrain) return 0;
@@ -326,7 +367,8 @@ class Calpinage3DViewer {
         const iy = Math.floor((-z + radiusM) / (radiusM * 2) * gridSize);
         
         if (ix >= 0 && ix < gridSize && iy >= 0 && iy < gridSize) {
-            return terrain.mnt[iy] ? (terrain.mnt[iy][ix] || 0) : 0;
+            const alt = terrain.mnt[iy] ? (terrain.mnt[iy][ix] || 0) : 0;
+            return alt * (this._verticalExaggeration || 1);
         }
         return 0;
     }
@@ -390,9 +432,17 @@ class Calpinage3DViewer {
         
         console.log(`🏗️ Construction ${allBuildings.length} bâtiments 3D...`);
         
-        allBuildings.forEach(b => {
-            this._createBuilding3D(b);
+        let successCount = 0;
+        allBuildings.forEach((b, i) => {
+            try {
+                this._createBuilding3D(b);
+                successCount++;
+            } catch(err) {
+                console.warn(`⚠ Bâtiment ${i} échoué:`, err.message);
+            }
         });
+        
+        console.log(`✅ ${successCount}/${allBuildings.length} bâtiments créés`);
     }
     
     /**
@@ -405,214 +455,111 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Crée un bâtiment 3D extrudé depuis son polygone
+     * Crée un bâtiment 3D depuis ses données
+     * Stratégie : BoxGeometry robuste en priorité, ExtrudeGeometry si polygone simple
      */
     _createBuilding3D(buildingData) {
         const coords = buildingData.coords;
-        if (!coords || coords.length < 3) return;
+        if (!coords || coords.length < 3) {
+            console.warn('⚠ Bâtiment ignoré: < 3 coords');
+            return;
+        }
         
         const height = buildingData.height || 6;
         
-        // Convertir les coordonnées en positions locales
-        const points2D = coords.map(c => {
-            const local = this._geoToLocal(c[1], c[0]); // [lon, lat] → geoToLocal(lat, lon)
-            return new THREE.Vector2(local.x, local.z);
-        });
+        // Couleur selon le type/matériaux
+        let wallColor = 0xE8DCC8; // Crépi beige par défaut
+        if (buildingData.materiaux_murs === 'Brique') wallColor = 0xB5651D;
+        else if (buildingData.materiaux_murs === 'Pierre') wallColor = 0xA09080;
+        else if (buildingData.usage === 'Commercial et services') wallColor = 0xCCCCCC;
+        else if (buildingData.usage === 'Industriel') wallColor = 0x999999;
+        else if (buildingData.source === 'osm' && buildingData.type === 'garage') wallColor = 0xAAAAAA;
         
-        // Fermer le polygone si pas déjà fermé
-        const first = points2D[0];
-        const last = points2D[points2D.length - 1];
-        if (first.distanceTo(last) > 0.1) {
-            points2D.push(first.clone());
-        }
+        // Calculer le centre et dimensions du bâtiment
+        const center = this._polygonCenter(coords);
+        const local = this._geoToLocal(center.y, center.x);
         
-        // Créer la shape 2D
-        const shape = new THREE.Shape(points2D);
+        let lats = coords.map(c => c[1]);
+        let lons = coords.map(c => c[0]);
+        const dx = (Math.max(...lons) - Math.min(...lons)) * this.LNG_TO_M;
+        const dz = (Math.max(...lats) - Math.min(...lats)) * this.LAT_TO_M;
         
-        // Déterminer si c'est un toit en pente
-        const hasPitchedRoof = buildingData.alt_toit_min && buildingData.alt_toit_max &&
-            (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5;
+        const terrainH = this._getTerrainHeight(local.x, local.z);
         
-        // Hauteur murs (jusqu'à l'égout)
-        let wallHeight = height;
-        let ridgeExtra = 0;
-        if (hasPitchedRoof) {
-            wallHeight = buildingData.alt_toit_min - (buildingData.altitude_sol_min || 0);
-            if (wallHeight <= 0) wallHeight = height * 0.65;
-            ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-        }
+        // Utiliser BoxGeometry (toujours fonctionne, forme rectangulaire approchée)
+        const bx = Math.max(dx, 2);
+        const bz = Math.max(dz, 2);
+        const bh = Math.max(height, 2);
         
-        // Extrusion murs
-        const extrudeSettings = {
-            depth: wallHeight,
-            bevelEnabled: false,
-        };
+        const geo = new THREE.BoxGeometry(bx, bh, bz);
+        const mat = new THREE.MeshLambertMaterial({ color: wallColor });
+        const mesh = new THREE.Mesh(geo, mat);
         
-        try {
-            const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-            
-            // Couleur selon le type/matériaux
-            let wallColor = 0xE8DCC8; // Crépi beige par défaut
-            if (buildingData.materiaux_murs === 'Brique') wallColor = 0xB5651D;
-            else if (buildingData.materiaux_murs === 'Pierre') wallColor = 0xA09080;
-            else if (buildingData.usage === 'Commercial et services') wallColor = 0xCCCCCC;
-            else if (buildingData.usage === 'Industriel') wallColor = 0x999999;
-            else if (buildingData.source === 'osm' && buildingData.type === 'garage') wallColor = 0xAAAAAA;
-            
-            const mat = new THREE.MeshLambertMaterial({ color: wallColor });
-            const mesh = new THREE.Mesh(geo, mat);
-            
-            // Rotation pour que l'extrusion soit vers le haut (Y)
-            mesh.rotation.x = -Math.PI / 2;
-            
-            // Position au niveau du terrain
-            const center = this._polygonCenter(coords);
-            const terrainH = this._getTerrainHeight(
-                (center.x - this.centerLon) * this.LNG_TO_M,
-                -(center.y - this.centerLat) * this.LAT_TO_M
-            );
-            mesh.position.y = terrainH;
-            
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            this.scene.add(mesh);
-            this.buildings.push(mesh);
-            
-            // Toit
-            this._createRoof(points2D, wallHeight + terrainH, ridgeExtra, buildingData);
-            
-        } catch (e) {
-            // Fallback: box simple si le polygone est complexe
-            this._createBuildingBox(buildingData);
-        }
-    }
-    
-    /**
-     * Crée le toit d'un bâtiment
-     */
-    _createRoof(points2D, baseY, ridgeExtra, buildingData) {
-        // Calculer le bounding box
-        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        points2D.forEach(p => {
-            if (p.x < minX) minX = p.x;
-            if (p.x > maxX) maxX = p.x;
-            if (p.y < minZ) minZ = p.y;
-            if (p.y > maxZ) maxZ = p.y;
-        });
+        mesh.position.set(local.x, terrainH + bh / 2, local.z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         
-        const dx = maxX - minX;
-        const dz = maxZ - minZ;
-        const cx = (minX + maxX) / 2;
-        const cz = (minZ + maxZ) / 2;
+        this.scene.add(mesh);
+        this.buildings.push(mesh);
         
-        // Couleur toit
+        // Toit
         let roofColor = 0x8B4513; // Tuiles terre cuite par défaut
         if (buildingData.materiaux_toit === 'Ardoise') roofColor = 0x4a4a4a;
         else if (buildingData.materiaux_toit === 'Zinc') roofColor = 0x777777;
         else if (buildingData.materiaux_toit === 'Béton') roofColor = 0x999999;
         else if (buildingData.materiaux_toit === 'Tôle') roofColor = 0x888888;
         
-        if (ridgeExtra > 0.5) {
-            // Toit en pente (gable)
+        const hasPitchedRoof = buildingData.alt_toit_min && buildingData.alt_toit_max &&
+            (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5;
+        
+        if (hasPitchedRoof) {
+            const ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
+            const roofBaseY = terrainH + bh;
+            
+            // Toit à 2 pans
+            const isLongX = bx > bz;
             const roofGeo = new THREE.BufferGeometry();
             
-            // Déterminer l'orientation du faîtage (le côté le plus long)
-            const isLongX = dx > dz;
+            const hx = bx / 2, hz = bz / 2;
+            const rx = local.x, rz = local.z;
             
             let vertices;
             if (isLongX) {
-                // Faîtage le long de X
                 vertices = new Float32Array([
-                    // Pan avant
-                    minX, baseY, minZ,
-                    maxX, baseY, minZ,
-                    cx, baseY + ridgeExtra, cz,
-                    // Pan arrière
-                    maxX, baseY, maxZ,
-                    minX, baseY, maxZ,
-                    cx, baseY + ridgeExtra, cz,
-                    // Pignon gauche
-                    minX, baseY, minZ,
-                    cx, baseY + ridgeExtra, cz,
-                    minX, baseY, maxZ,
-                    // Pignon droit
-                    maxX, baseY, minZ,
-                    maxX, baseY, maxZ,
-                    cx, baseY + ridgeExtra, cz,
+                    rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
+                    rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+                    rx-hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx-hx, roofBaseY, rz+hz,
+                    rx+hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
                 ]);
             } else {
-                // Faîtage le long de Z
                 vertices = new Float32Array([
-                    minX, baseY, minZ,
-                    maxX, baseY, minZ,
-                    cx, baseY + ridgeExtra, cz,
-                    maxX, baseY, maxZ,
-                    minX, baseY, maxZ,
-                    cx, baseY + ridgeExtra, cz,
-                    minX, baseY, minZ,
-                    minX, baseY, maxZ,
-                    cx, baseY + ridgeExtra, cz,
-                    maxX, baseY, minZ,
-                    cx, baseY + ridgeExtra, cz,
-                    maxX, baseY, maxZ,
+                    rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
+                    rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+                    rx-hx, roofBaseY, rz-hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+                    rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx+hx, roofBaseY, rz+hz,
                 ]);
             }
             
             roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
             roofGeo.computeVertexNormals();
             
-            const roofMat = new THREE.MeshLambertMaterial({ 
-                color: roofColor,
-                side: THREE.DoubleSide 
-            });
+            const roofMat = new THREE.MeshLambertMaterial({ color: roofColor, side: THREE.DoubleSide });
             const roofMesh = new THREE.Mesh(roofGeo, roofMat);
             roofMesh.castShadow = true;
             roofMesh.receiveShadow = true;
             this.scene.add(roofMesh);
             this.buildings.push(roofMesh);
         } else {
-            // Toit plat (dalle simple)
-            const roofShape = new THREE.Shape(points2D);
-            const roofGeo = new THREE.ShapeGeometry(roofShape);
-            const roofMat = new THREE.MeshLambertMaterial({ 
-                color: roofColor,
-                side: THREE.DoubleSide 
-            });
+            // Toit plat
+            const roofGeo = new THREE.PlaneGeometry(bx, bz);
+            const roofMat = new THREE.MeshLambertMaterial({ color: roofColor, side: THREE.DoubleSide });
             const roofMesh = new THREE.Mesh(roofGeo, roofMat);
             roofMesh.rotation.x = -Math.PI / 2;
-            roofMesh.position.y = baseY + 0.05;
+            roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
             roofMesh.castShadow = true;
             this.scene.add(roofMesh);
             this.buildings.push(roofMesh);
         }
-    }
-    
-    /**
-     * Fallback: bâtiment simple en box
-     */
-    _createBuildingBox(buildingData) {
-        const coords = buildingData.coords;
-        const center = this._polygonCenter(coords);
-        const local = this._geoToLocal(center.y, center.x);
-        
-        // Calculer dimensions approximatives
-        let lats = coords.map(c => c[1]);
-        let lons = coords.map(c => c[0]);
-        const dx = (Math.max(...lons) - Math.min(...lons)) * this.LNG_TO_M;
-        const dz = (Math.max(...lats) - Math.min(...lats)) * this.LAT_TO_M;
-        const height = buildingData.height || 6;
-        
-        const geo = new THREE.BoxGeometry(Math.max(dx, 2), height, Math.max(dz, 2));
-        const mat = new THREE.MeshLambertMaterial({ color: 0xE8DCC8 });
-        const mesh = new THREE.Mesh(geo, mat);
-        
-        const terrainH = this._getTerrainHeight(local.x, local.z);
-        mesh.position.set(local.x, terrainH + height / 2, local.z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        
-        this.scene.add(mesh);
-        this.buildings.push(mesh);
     }
     
     /**
@@ -712,18 +659,18 @@ class Calpinage3DViewer {
             
             if (ix >= 0 && ix < gridSize && iy >= 0 && iy < gridSize) {
                 const mnh = terrain.mnh[iy] ? terrain.mnh[iy][ix] : 0;
-                if (mnh > 1.5) return mnh;
+                if (mnh > 1.5) return mnh; // Pas d'exagération pour la hauteur des bâtiments
             }
         }
         
-        // Fallback: chercher dans les bâtiments BD TOPO
+        // Fallback: chercher dans les bâtiments BD TOPO/OSM
         let closestH = 5;
         let closestDist = Infinity;
         
         const allB = (this.lidarData.buildings_bdtopo || []).concat(this.lidarData.buildings_osm || []);
         allB.forEach(b => {
-            const center = this._polygonCenter(b.coords);
-            const bLocal = this._geoToLocal(center.y, center.x);
+            const bCenter = this._polygonCenter(b.coords);
+            const bLocal = this._geoToLocal(bCenter.y, bCenter.x);
             const dist = Math.sqrt(Math.pow(bLocal.x - x, 2) + Math.pow(bLocal.z - z, 2));
             if (dist < closestDist && dist < 30) {
                 closestDist = dist;

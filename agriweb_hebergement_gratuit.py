@@ -879,6 +879,60 @@ def api_lidar_3d_data():
     return jsonify(result)
 
 
+# API: Proxy satellite IGN (évite CORS pour Three.js)
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/satellite-tile', methods=['GET'])
+def api_satellite_tile():
+    """Proxy pour tuile satellite IGN orthoimagery — évite les problèmes CORS avec Three.js"""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    radius = request.args.get('radius', type=int, default=100)
+    
+    if not lat or not lon:
+        return jsonify({"error": "Paramètres lat, lon requis"}), 400
+    
+    try:
+        lat_deg = radius / 111320.0
+        lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
+        
+        # IGN Géoplateforme WMS - orthoimagery
+        wms_url = "https://data.geopf.fr/wms-r/wms"
+        params = {
+            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+            "CRS": "EPSG:4326",
+            "BBOX": f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}",
+            "WIDTH": "512", "HEIGHT": "512",
+            "FORMAT": "image/jpeg", "STYLES": ""
+        }
+        
+        r = requests.get(wms_url, params=params, timeout=15)
+        
+        if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
+            resp = app.response_class(
+                response=r.content,
+                status=200,
+                mimetype='image/jpeg'
+            )
+            resp.headers['Cache-Control'] = 'public, max-age=86400'
+            return resp
+        else:
+            print(f"⚠ Satellite tile: status={r.status_code}, type={r.headers.get('content-type')}")
+            # Fallback : essayer l'ancien endpoint wxs.ign.fr
+            wms_url2 = "https://wxs.ign.fr/ortho/geoportail/r/wms"
+            r2 = requests.get(wms_url2, params=params, timeout=15)
+            if r2.status_code == 200 and 'image' in r2.headers.get('content-type', ''):
+                resp = app.response_class(response=r2.content, status=200, mimetype='image/jpeg')
+                resp.headers['Cache-Control'] = 'public, max-age=86400'
+                return resp
+            
+            return jsonify({"error": f"WMS returned {r.status_code}"}), 502
+    
+    except Exception as e:
+        print(f"⚠ Satellite tile error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # ──────────────────────────────────────────────────────────────
 # API: Lignes HTA (aériennes / souterraines) Enedis Open Data
 # ──────────────────────────────────────────────────────────────
