@@ -33,6 +33,9 @@ class Calpinage3DViewer {
         this.centerLon = 0;
         this.LNG_TO_M = 0;
         
+        // Cache de textures procédurales
+        this._textureCache = {};
+        
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
     
@@ -455,25 +458,13 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Crée un bâtiment 3D depuis ses données
-     * Stratégie : BoxGeometry robuste en priorité, ExtrudeGeometry si polygone simple
+     * Crée un bâtiment 3D texturé depuis ses données
      */
     _createBuilding3D(buildingData) {
         const coords = buildingData.coords;
-        if (!coords || coords.length < 3) {
-            console.warn('⚠ Bâtiment ignoré: < 3 coords');
-            return;
-        }
+        if (!coords || coords.length < 3) return;
         
         const height = buildingData.height || 6;
-        
-        // Couleur selon le type/matériaux
-        let wallColor = 0xE8DCC8; // Crépi beige par défaut
-        if (buildingData.materiaux_murs === 'Brique') wallColor = 0xB5651D;
-        else if (buildingData.materiaux_murs === 'Pierre') wallColor = 0xA09080;
-        else if (buildingData.usage === 'Commercial et services') wallColor = 0xCCCCCC;
-        else if (buildingData.usage === 'Industriel') wallColor = 0x999999;
-        else if (buildingData.source === 'osm' && buildingData.type === 'garage') wallColor = 0xAAAAAA;
         
         // Calculer le centre et dimensions du bâtiment
         const center = this._polygonCenter(coords);
@@ -486,80 +477,425 @@ class Calpinage3DViewer {
         
         const terrainH = this._getTerrainHeight(local.x, local.z);
         
-        // Utiliser BoxGeometry (toujours fonctionne, forme rectangulaire approchée)
         const bx = Math.max(dx, 2);
         const bz = Math.max(dz, 2);
         const bh = Math.max(height, 2);
         
-        const geo = new THREE.BoxGeometry(bx, bh, bz);
-        const mat = new THREE.MeshLambertMaterial({ color: wallColor });
-        const mesh = new THREE.Mesh(geo, mat);
+        // Déterminer le type de façade et toit
+        const wallType = this._getWallType(buildingData);
+        const roofType = this._getRoofType(buildingData);
         
+        // Créer la géométrie du bâtiment avec matériaux par face
+        const geo = new THREE.BoxGeometry(bx, bh, bz);
+        
+        // 6 faces du cube : +x, -x, +y (toit plat), -y (sol), +z, -z
+        // Indices: 0=droite, 1=gauche, 2=haut, 3=bas, 4=avant, 5=arrière
+        const facadeTex = this._getFacadeTexture(wallType, bx, bh, bz);
+        const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
+        
+        const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
+        const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
+        const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 }); // dessus (sera couvert par le toit)
+        const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 }); // dessous
+        
+        const materials = [
+            facadeMatSide, // droite
+            facadeMatSide, // gauche
+            topMat,        // haut
+            bottomMat,     // bas
+            facadeMat,     // avant
+            facadeMat,     // arrière
+        ];
+        
+        const mesh = new THREE.Mesh(geo, materials);
         mesh.position.set(local.x, terrainH + bh / 2, local.z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
-        
         this.scene.add(mesh);
         this.buildings.push(mesh);
         
         // Toit
-        let roofColor = 0x8B4513; // Tuiles terre cuite par défaut
-        if (buildingData.materiaux_toit === 'Ardoise') roofColor = 0x4a4a4a;
-        else if (buildingData.materiaux_toit === 'Zinc') roofColor = 0x777777;
-        else if (buildingData.materiaux_toit === 'Béton') roofColor = 0x999999;
-        else if (buildingData.materiaux_toit === 'Tôle') roofColor = 0x888888;
-        
         const hasPitchedRoof = buildingData.alt_toit_min && buildingData.alt_toit_max &&
             (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5;
         
         if (hasPitchedRoof) {
             const ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-            const roofBaseY = terrainH + bh;
-            
-            // Toit à 2 pans
-            const isLongX = bx > bz;
-            const roofGeo = new THREE.BufferGeometry();
-            
-            const hx = bx / 2, hz = bz / 2;
-            const rx = local.x, rz = local.z;
-            
-            let vertices;
-            if (isLongX) {
-                vertices = new Float32Array([
-                    rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
-                    rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                    rx-hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx-hx, roofBaseY, rz+hz,
-                    rx+hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                ]);
-            } else {
-                vertices = new Float32Array([
-                    rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
-                    rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                    rx-hx, roofBaseY, rz-hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                    rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx+hx, roofBaseY, rz+hz,
-                ]);
-            }
-            
-            roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-            roofGeo.computeVertexNormals();
-            
-            const roofMat = new THREE.MeshLambertMaterial({ color: roofColor, side: THREE.DoubleSide });
-            const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-            roofMesh.castShadow = true;
-            roofMesh.receiveShadow = true;
-            this.scene.add(roofMesh);
-            this.buildings.push(roofMesh);
+            this._createPitchedRoof(local, bx, bz, bh, terrainH, ridgeExtra, roofType);
         } else {
-            // Toit plat
-            const roofGeo = new THREE.PlaneGeometry(bx, bz);
-            const roofMat = new THREE.MeshLambertMaterial({ color: roofColor, side: THREE.DoubleSide });
-            const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-            roofMesh.rotation.x = -Math.PI / 2;
-            roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
-            roofMesh.castShadow = true;
-            this.scene.add(roofMesh);
-            this.buildings.push(roofMesh);
+            this._createFlatRoof(local, bx, bz, bh, terrainH, roofType);
         }
+    }
+    
+    /**
+     * Détermine le type de mur
+     */
+    _getWallType(b) {
+        if (b.materiaux_murs === 'Brique') return 'brick';
+        if (b.materiaux_murs === 'Pierre') return 'stone';
+        if (b.materiaux_murs === 'Béton') return 'concrete';
+        if (b.usage === 'Industriel') return 'industrial';
+        if (b.usage === 'Commercial et services') return 'commercial';
+        if (b.source === 'osm' && b.type === 'garage') return 'industrial';
+        if (b.source === 'osm' && b.type === 'house') return 'plaster';
+        return 'plaster'; // crépi par défaut
+    }
+    
+    /**
+     * Détermine le type de toit
+     */
+    _getRoofType(b) {
+        if (b.materiaux_toit === 'Ardoise') return 'slate';
+        if (b.materiaux_toit === 'Zinc') return 'zinc';
+        if (b.materiaux_toit === 'Béton') return 'concrete';
+        if (b.materiaux_toit === 'Tôle') return 'metal';
+        if (b.roof_shape === 'flat') return 'concrete';
+        return 'tile'; // tuiles terre cuite par défaut
+    }
+    
+    /**
+     * Génère une texture procédurale de façade avec fenêtres
+     */
+    _getFacadeTexture(wallType, width, height, depth) {
+        const cacheKey = `facade_${wallType}_${Math.round(width)}_${Math.round(height)}`;
+        if (this._textureCache[cacheKey]) return this._textureCache[cacheKey];
+        
+        const canvas = document.createElement('canvas');
+        const res = 512;
+        canvas.width = res;
+        canvas.height = res;
+        const ctx = canvas.getContext('2d');
+        
+        // Couleur de fond selon le type de mur
+        const wallColors = {
+            plaster:    { base: '#E8DCC8', var1: '#DED0BA', var2: '#F0E4D0', joint: null },
+            brick:      { base: '#B5651D', var1: '#A05518', var2: '#C47030', joint: '#D4C4A0' },
+            stone:      { base: '#A09080', var1: '#8A7A6A', var2: '#B8A898', joint: '#C8C0B0' },
+            concrete:   { base: '#B0B0B0', var1: '#A0A0A0', var2: '#C0C0C0', joint: null },
+            industrial: { base: '#888888', var1: '#777777', var2: '#999999', joint: null },
+            commercial: { base: '#D0D0D0', var1: '#C0C0C0', var2: '#E0E0E0', joint: null },
+        };
+        const wc = wallColors[wallType] || wallColors.plaster;
+        
+        // Fond
+        ctx.fillStyle = wc.base;
+        ctx.fillRect(0, 0, res, res);
+        
+        // Texture de mur
+        if (wallType === 'brick') {
+            this._drawBrickPattern(ctx, res, wc);
+        } else if (wallType === 'stone') {
+            this._drawStonePattern(ctx, res, wc);
+        } else {
+            // Crépi / béton — bruit subtil
+            this._drawPlasterNoise(ctx, res, wc);
+        }
+        
+        // Fenêtres
+        const floors = Math.max(1, Math.round(height / 3));
+        const windowsPerFloor = Math.max(1, Math.round(width / 3));
+        
+        const floorH = res / floors;
+        const winW = res / windowsPerFloor * 0.45;
+        const winH = floorH * 0.45;
+        
+        for (let f = 0; f < floors; f++) {
+            for (let w = 0; w < windowsPerFloor; w++) {
+                const wx = (w + 0.5) * (res / windowsPerFloor) - winW / 2;
+                const wy = (f + 0.25) * floorH;
+                
+                // Encadrement
+                ctx.fillStyle = '#7A7060';
+                ctx.fillRect(wx - 2, wy - 2, winW + 4, winH + 4);
+                
+                // Vitre
+                const gradient = ctx.createLinearGradient(wx, wy, wx + winW, wy + winH);
+                gradient.addColorStop(0, '#5577AA');
+                gradient.addColorStop(0.3, '#88AACC');
+                gradient.addColorStop(0.6, '#6688AA');
+                gradient.addColorStop(1, '#446688');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(wx, wy, winW, winH);
+                
+                // Croisillons de fenêtre
+                ctx.strokeStyle = '#6A6050';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(wx + winW / 2, wy);
+                ctx.lineTo(wx + winW / 2, wy + winH);
+                ctx.moveTo(wx, wy + winH * 0.4);
+                ctx.lineTo(wx + winW, wy + winH * 0.4);
+                ctx.stroke();
+                
+                // Rebord de fenêtre
+                ctx.fillStyle = '#9A9080';
+                ctx.fillRect(wx - 3, wy + winH, winW + 6, 3);
+            }
+        }
+        
+        // Porte au rez-de-chaussée (face principale)
+        if (floors >= 2 && windowsPerFloor >= 1) {
+            const doorW = winW * 0.8;
+            const doorH = floorH * 0.7;
+            const doorX = res / 2 - doorW / 2;
+            const doorY = (floors - 1) * floorH + floorH * 0.15;
+            
+            // Encadrement porte
+            ctx.fillStyle = '#5A5040';
+            ctx.fillRect(doorX - 3, doorY - 3, doorW + 6, doorH + 6);
+            
+            // Porte
+            ctx.fillStyle = '#6B4226';
+            ctx.fillRect(doorX, doorY, doorW, doorH);
+            
+            // Ligne centrale porte
+            ctx.strokeStyle = '#5A3520';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(doorX + doorW / 2, doorY);
+            ctx.lineTo(doorX + doorW / 2, doorY + doorH);
+            ctx.stroke();
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.minFilter = THREE.LinearFilter;
+        this._textureCache[cacheKey] = texture;
+        return texture;
+    }
+    
+    /**
+     * Motif briques
+     */
+    _drawBrickPattern(ctx, res, wc) {
+        const brickH = 12;
+        const brickW = 28;
+        const jointW = 2;
+        
+        for (let y = 0; y < res; y += brickH + jointW) {
+            const offset = (Math.floor(y / (brickH + jointW)) % 2) * (brickW / 2);
+            
+            // Joint horizontal
+            ctx.fillStyle = wc.joint;
+            ctx.fillRect(0, y + brickH, res, jointW);
+            
+            for (let x = -brickW; x < res + brickW; x += brickW + jointW) {
+                // Joint vertical
+                ctx.fillStyle = wc.joint;
+                ctx.fillRect(x + offset + brickW, y, jointW, brickH);
+                
+                // Brique avec variation
+                const shade = Math.random() * 0.12 - 0.06;
+                const r = parseInt(wc.base.slice(1, 3), 16);
+                const g = parseInt(wc.base.slice(3, 5), 16);
+                const b = parseInt(wc.base.slice(5, 7), 16);
+                ctx.fillStyle = `rgb(${Math.min(255, r + shade * 255)}, ${Math.min(255, g + shade * 255)}, ${Math.min(255, b + shade * 255)})`;
+                ctx.fillRect(x + offset + 1, y + 1, brickW - 2, brickH - 2);
+            }
+        }
+    }
+    
+    /**
+     * Motif pierre
+     */
+    _drawStonePattern(ctx, res, wc) {
+        // Pierres de tailles irrégulières
+        for (let i = 0; i < 60; i++) {
+            const sx = Math.random() * res;
+            const sy = Math.random() * res;
+            const sw = 30 + Math.random() * 50;
+            const sh = 20 + Math.random() * 35;
+            
+            // Joint
+            ctx.fillStyle = wc.joint;
+            ctx.fillRect(sx - 1, sy - 1, sw + 2, sh + 2);
+            
+            // Pierre avec variation de couleur
+            const shade = Math.random();
+            ctx.fillStyle = shade > 0.5 ? wc.var1 : (shade > 0.25 ? wc.base : wc.var2);
+            ctx.fillRect(sx, sy, sw, sh);
+        }
+    }
+    
+    /**
+     * Bruit de crépi/béton
+     */
+    _drawPlasterNoise(ctx, res, wc) {
+        const imageData = ctx.getImageData(0, 0, res, res);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+            const noise = (Math.random() - 0.5) * 15;
+            data[i] = Math.min(255, Math.max(0, data[i] + noise));
+            data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+            data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+        }
+        ctx.putImageData(imageData, 0, 0);
+    }
+    
+    /**
+     * Génère une texture procédurale de toit
+     */
+    _getRoofTexture(roofType) {
+        const cacheKey = `roof_${roofType}`;
+        if (this._textureCache[cacheKey]) return this._textureCache[cacheKey];
+        
+        const canvas = document.createElement('canvas');
+        const res = 256;
+        canvas.width = res;
+        canvas.height = res;
+        const ctx = canvas.getContext('2d');
+        
+        if (roofType === 'tile') {
+            // Tuiles terre cuite
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(0, 0, res, res);
+            
+            const tileH = 16, tileW = 24;
+            for (let y = 0; y < res; y += tileH) {
+                const offset = (Math.floor(y / tileH) % 2) * (tileW / 2);
+                for (let x = -tileW; x < res + tileW; x += tileW) {
+                    const shade = Math.random() * 0.2 - 0.1;
+                    const r = 139 + shade * 80, g = 69 + shade * 40, b = 19 + shade * 20;
+                    ctx.fillStyle = `rgb(${r},${g},${b})`;
+                    ctx.beginPath();
+                    ctx.arc(x + offset + tileW / 2, y + tileH / 2, tileW / 2, 0, Math.PI, true);
+                    ctx.rect(x + offset, y, tileW, tileH / 2);
+                    ctx.fill();
+                    // Ligne séparation
+                    ctx.strokeStyle = '#6B3010';
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    ctx.arc(x + offset + tileW / 2, y + tileH * 0.6, tileW / 2.2, 0, Math.PI, true);
+                    ctx.stroke();
+                }
+            }
+        } else if (roofType === 'slate') {
+            // Ardoise
+            ctx.fillStyle = '#3a3a3a';
+            ctx.fillRect(0, 0, res, res);
+            
+            const slateH = 14, slateW = 10;
+            for (let y = 0; y < res; y += slateH) {
+                const offset = (Math.floor(y / slateH) % 2) * (slateW / 2);
+                for (let x = 0; x < res; x += slateW) {
+                    const shade = Math.random() * 30;
+                    ctx.fillStyle = `rgb(${50 + shade}, ${50 + shade}, ${55 + shade})`;
+                    ctx.fillRect(x + offset, y, slateW - 1, slateH - 1);
+                }
+            }
+        } else if (roofType === 'zinc' || roofType === 'metal') {
+            // Zinc / tôle
+            ctx.fillStyle = roofType === 'zinc' ? '#8899AA' : '#777777';
+            ctx.fillRect(0, 0, res, res);
+            
+            // Joints de tôle verticaux
+            ctx.strokeStyle = roofType === 'zinc' ? '#667788' : '#666666';
+            ctx.lineWidth = 2;
+            for (let x = 0; x < res; x += 32) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, res);
+                ctx.stroke();
+            }
+            // Bruit léger
+            const imageData = ctx.getImageData(0, 0, res, res);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const n = (Math.random() - 0.5) * 8;
+                data[i] += n; data[i+1] += n; data[i+2] += n;
+            }
+            ctx.putImageData(imageData, 0, 0);
+        } else {
+            // Béton / toit plat
+            ctx.fillStyle = '#999999';
+            ctx.fillRect(0, 0, res, res);
+            const imageData = ctx.getImageData(0, 0, res, res);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const n = (Math.random() - 0.5) * 20;
+                data[i] += n; data[i+1] += n; data[i+2] += n;
+            }
+            ctx.putImageData(imageData, 0, 0);
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        this._textureCache[cacheKey] = texture;
+        return texture;
+    }
+    
+    /**
+     * Crée un toit en pente texturé
+     */
+    _createPitchedRoof(local, bx, bz, bh, terrainH, ridgeExtra, roofType) {
+        const roofBaseY = terrainH + bh;
+        const isLongX = bx > bz;
+        const roofGeo = new THREE.BufferGeometry();
+        
+        const hx = bx / 2, hz = bz / 2;
+        const rx = local.x, rz = local.z;
+        
+        let vertices;
+        if (isLongX) {
+            vertices = new Float32Array([
+                rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
+                rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+                rx-hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx-hx, roofBaseY, rz+hz,
+                rx+hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+            ]);
+        } else {
+            vertices = new Float32Array([
+                rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
+                rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+                rx-hx, roofBaseY, rz-hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
+                rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx+hx, roofBaseY, rz+hz,
+            ]);
+        }
+        
+        // UVs pour la texture
+        const uvs = new Float32Array([
+            0,0, 1,0, 0.5,1,
+            1,0, 0,0, 0.5,1,
+            0,0, 0.5,1, 0,0,
+            1,0, 1,0, 0.5,1,
+        ]);
+        
+        roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        roofGeo.computeVertexNormals();
+        
+        const roofTex = this._getRoofTexture(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: roofTex,
+            side: THREE.DoubleSide,
+            specular: 0x222222,
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
+        });
+        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+        roofMesh.castShadow = true;
+        roofMesh.receiveShadow = true;
+        this.scene.add(roofMesh);
+        this.buildings.push(roofMesh);
+    }
+    
+    /**
+     * Crée un toit plat texturé
+     */
+    _createFlatRoof(local, bx, bz, bh, terrainH, roofType) {
+        const roofGeo = new THREE.PlaneGeometry(bx, bz);
+        const roofTex = this._getRoofTexture(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: roofTex,
+            side: THREE.DoubleSide,
+            specular: 0x111111
+        });
+        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+        roofMesh.rotation.x = -Math.PI / 2;
+        roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
+        roofMesh.castShadow = true;
+        this.scene.add(roofMesh);
+        this.buildings.push(roofMesh);
     }
     
     /**
@@ -833,13 +1169,22 @@ class Calpinage3DViewer {
         [...this.buildings, ...this.modules3D].forEach(m => {
             this.scene.remove(m);
             if (m.geometry) m.geometry.dispose();
-            if (m.material) {
+            if (Array.isArray(m.material)) {
+                m.material.forEach(mat => {
+                    if (mat.map) mat.map.dispose();
+                    mat.dispose();
+                });
+            } else if (m.material) {
                 if (m.material.map) m.material.map.dispose();
                 m.material.dispose();
             }
         });
         this.buildings = [];
         this.modules3D = [];
+        
+        // Vider le cache de textures
+        Object.values(this._textureCache).forEach(tex => tex.dispose());
+        this._textureCache = {};
         
         if (this.terrainMesh) {
             this.scene.remove(this.terrainMesh);
