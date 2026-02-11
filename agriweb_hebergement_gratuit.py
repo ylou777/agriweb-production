@@ -894,42 +894,50 @@ def api_satellite_tile():
     try:
         lat_deg = radius / 111320.0
         lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
+        bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
         
-        # IGN Géoplateforme WMS - orthoimagery
-        wms_url = "https://data.geopf.fr/wms-r/wms"
-        params = {
+        # Liste d'endpoints WMS à tester (orthoimagerie IGN)
+        wms_endpoints = [
+            ("https://data.geopf.fr/wms-v/wms", "HR.ORTHOIMAGERY.ORTHOPHOTOS"),
+            ("https://data.geopf.fr/wms-r/wms", "HR.ORTHOIMAGERY.ORTHOPHOTOS"),
+            ("https://wxs.ign.fr/decouverte/geoportail/r/wms", "ORTHOIMAGERY.ORTHOPHOTOS"),
+        ]
+        
+        params_base = {
             "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-            "CRS": "EPSG:4326",
-            "BBOX": f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}",
+            "CRS": "EPSG:4326", "BBOX": bbox,
             "WIDTH": "512", "HEIGHT": "512",
             "FORMAT": "image/jpeg", "STYLES": ""
         }
         
-        r = requests.get(wms_url, params=params, timeout=15)
+        for wms_url, layer_name in wms_endpoints:
+            try:
+                params = {**params_base, "LAYERS": layer_name}
+                r = requests.get(wms_url, params=params, timeout=12)
+                
+                content_type = r.headers.get('content-type', '')
+                if r.status_code == 200 and 'image' in content_type:
+                    print(f"✅ Satellite tile OK via {wms_url} ({len(r.content)} bytes)")
+                    resp = app.response_class(
+                        response=r.content,
+                        status=200,
+                        mimetype='image/jpeg'
+                    )
+                    resp.headers['Cache-Control'] = 'public, max-age=86400'
+                    return resp
+                else:
+                    print(f"⚠ Satellite {wms_url}: status={r.status_code}, type={content_type}")
+            except Exception as e2:
+                print(f"⚠ Satellite {wms_url}: {e2}")
+                continue
         
-        if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
-            resp = app.response_class(
-                response=r.content,
-                status=200,
-                mimetype='image/jpeg'
-            )
-            resp.headers['Cache-Control'] = 'public, max-age=86400'
-            return resp
-        else:
-            print(f"⚠ Satellite tile: status={r.status_code}, type={r.headers.get('content-type')}")
-            # Fallback : essayer l'ancien endpoint wxs.ign.fr
-            wms_url2 = "https://wxs.ign.fr/ortho/geoportail/r/wms"
-            r2 = requests.get(wms_url2, params=params, timeout=15)
-            if r2.status_code == 200 and 'image' in r2.headers.get('content-type', ''):
-                resp = app.response_class(response=r2.content, status=200, mimetype='image/jpeg')
-                resp.headers['Cache-Control'] = 'public, max-age=86400'
-                return resp
-            
-            return jsonify({"error": f"WMS returned {r.status_code}"}), 502
+        # Aucun endpoint n'a fonctionné
+        return jsonify({"error": "Tous les endpoints WMS ortho ont échoué"}), 502
     
     except Exception as e:
         print(f"⚠ Satellite tile error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
