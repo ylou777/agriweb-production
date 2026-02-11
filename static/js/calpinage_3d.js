@@ -468,7 +468,72 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Crée un bâtiment 3D texturé depuis ses données
+     * Calcule l'orientation et les dimensions du bâtiment depuis son polygone.
+     * Retourne l'angle de l'axe principal, les dimensions long/court, et le centre.
+     */
+    _computeBuildingOrientation(localCoords) {
+        // Trouver l'arête la plus longue du polygone = axe principal du bâtiment
+        let maxLen = 0;
+        let bestAngle = 0;
+        
+        for (let i = 0; i < localCoords.length; i++) {
+            const j = (i + 1) % localCoords.length;
+            const dx = localCoords[j].x - localCoords[i].x;
+            const dz = localCoords[j].z - localCoords[i].z;
+            const len = Math.sqrt(dx * dx + dz * dz);
+            if (len > maxLen) {
+                maxLen = len;
+                bestAngle = Math.atan2(dz, dx);
+            }
+        }
+        
+        // Centre du polygone
+        const cx = localCoords.reduce((s, c) => s + c.x, 0) / localCoords.length;
+        const cz = localCoords.reduce((s, c) => s + c.z, 0) / localCoords.length;
+        
+        // Projeter tous les points sur le repère orienté pour les dimensions
+        const cosA = Math.cos(-bestAngle);
+        const sinA = Math.sin(-bestAngle);
+        
+        let minL = Infinity, maxL = -Infinity;
+        let minS = Infinity, maxS = -Infinity;
+        
+        for (const c of localCoords) {
+            const dx = c.x - cx;
+            const dz = c.z - cz;
+            const projL = dx * cosA - dz * sinA; // le long de l'axe principal
+            const projS = dx * sinA + dz * cosA; // perpendiculaire
+            minL = Math.min(minL, projL);
+            maxL = Math.max(maxL, projL);
+            minS = Math.min(minS, projS);
+            maxS = Math.max(maxS, projS);
+        }
+        
+        return {
+            cx, cz,
+            angle: bestAngle,
+            longDim: Math.max(maxL - minL, 2),
+            shortDim: Math.max(maxS - minS, 2),
+        };
+    }
+    
+    /**
+     * Aire signée 2D d'un polygone (positif = sens antihoraire)
+     */
+    _signedArea2D(points) {
+        let area = 0;
+        for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            area += points[i].x * points[j].y;
+            area -= points[j].x * points[i].y;
+        }
+        return area / 2;
+    }
+    
+    /**
+     * Crée un bâtiment 3D depuis ses données.
+     * Utilise l'emprise polygonale réelle (ExtrudeGeometry) avec fallback BoxGeometry orientée.
+     * Toit bi-pan (gable) par défaut pour les bâtiments résidentiels.
      */
     _createBuilding3D(buildingData) {
         const coords = buildingData.coords;
@@ -476,63 +541,121 @@ class Calpinage3DViewer {
         
         const height = buildingData.height || 6;
         
-        // Calculer le centre et dimensions du bâtiment
-        const center = this._polygonCenter(coords);
-        const local = this._geoToLocal(center.y, center.x);
+        // Convertir toutes les coordonnées en espace local 3D
+        let localCoords = coords.map(c => this._geoToLocal(c[1], c[0]));
         
-        let lats = coords.map(c => c[1]);
-        let lons = coords.map(c => c[0]);
-        const dx = (Math.max(...lons) - Math.min(...lons)) * this.LNG_TO_M;
-        const dz = (Math.max(...lats) - Math.min(...lats)) * this.LAT_TO_M;
+        // Supprimer le point de fermeture s'il duplique le premier
+        if (localCoords.length > 3) {
+            const first = localCoords[0], last = localCoords[localCoords.length - 1];
+            if (Math.abs(first.x - last.x) < 0.01 && Math.abs(first.z - last.z) < 0.01) {
+                localCoords.pop();
+            }
+        }
+        if (localCoords.length < 3) return;
         
-        const terrainH = this._getTerrainHeight(local.x, local.z);
-        
-        const bx = Math.max(dx, 2);
-        const bz = Math.max(dz, 2);
+        // Calculer l'orientation et les dimensions orientées du bâtiment
+        const obb = this._computeBuildingOrientation(localCoords);
+        const terrainH = this._getTerrainHeight(obb.cx, obb.cz);
         const bh = Math.max(height, 2);
-        
-        // Déterminer le type de façade et toit
         const wallType = this._getWallType(buildingData);
         const roofType = this._getRoofType(buildingData);
         
-        // Créer la géométrie du bâtiment avec matériaux par face
-        const geo = new THREE.BoxGeometry(bx, bh, bz);
+        // === Méthode 1 : ExtrudeGeometry depuis l'emprise polygonale réelle ===
+        let mesh = null;
+        try {
+            // THREE.Shape: x = local.x, y = -local.z (compensé par rotateX(-π/2))
+            const shapeCoords = localCoords.map(c => ({x: c.x, y: -c.z}));
+            
+            // Vérifier le sens d'enroulement (THREE.Shape attend antihoraire)
+            if (this._signedArea2D(shapeCoords) < 0) {
+                shapeCoords.reverse();
+            }
+            
+            const shape = new THREE.Shape();
+            shape.moveTo(shapeCoords[0].x, shapeCoords[0].y);
+            for (let i = 1; i < shapeCoords.length; i++) {
+                shape.lineTo(shapeCoords[i].x, shapeCoords[i].y);
+            }
+            shape.closePath();
+            
+            const geo = new THREE.ExtrudeGeometry(shape, {
+                steps: 1,
+                depth: bh,
+                bevelEnabled: false,
+            });
+            
+            // Rotation pour que l'extrusion monte le long de Y (haut)
+            geo.rotateX(-Math.PI / 2);
+            
+            // Materials: group 0 = faces haut/bas, group 1 = murs latéraux
+            const facadeTex = this._getFacadeTexture(wallType, 10, bh, 10);
+            const shapeMat = new THREE.MeshLambertMaterial({ color: 0x777777 });
+            const wallMat = new THREE.MeshPhongMaterial({
+                map: facadeTex,
+                specular: 0x111111,
+                shininess: 5,
+            });
+            
+            mesh = new THREE.Mesh(geo, [shapeMat, wallMat]);
+            mesh.position.set(0, terrainH, 0);
+        } catch(err) {
+            console.warn('⚠ ExtrudeGeometry fallback pour bâtiment:', err.message);
+            mesh = null;
+        }
         
-        // 6 faces du cube : +x, -x, +y (toit plat), -y (sol), +z, -z
-        // Indices: 0=droite, 1=gauche, 2=haut, 3=bas, 4=avant, 5=arrière
-        const facadeTex = this._getFacadeTexture(wallType, bx, bh, bz);
-        const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
+        // === Fallback : BoxGeometry orientée selon l'axe principal ===
+        if (!mesh) {
+            const bx = obb.longDim;
+            const bz = obb.shortDim;
+            const geo = new THREE.BoxGeometry(bx, bh, bz);
+            
+            const facadeTex = this._getFacadeTexture(wallType, bx, bh, bz);
+            const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
+            const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
+            const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
+            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+            
+            mesh = new THREE.Mesh(geo, [facadeMatSide, facadeMatSide, topMat, bottomMat, facadeMat, facadeMat]);
+            mesh.position.set(obb.cx, terrainH + bh / 2, obb.cz);
+            mesh.rotation.y = -obb.angle;
+        }
         
-        const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
-        const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
-        const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 }); // dessus (sera couvert par le toit)
-        const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 }); // dessous
-        
-        const materials = [
-            facadeMatSide, // droite
-            facadeMatSide, // gauche
-            topMat,        // haut
-            bottomMat,     // bas
-            facadeMat,     // avant
-            facadeMat,     // arrière
-        ];
-        
-        const mesh = new THREE.Mesh(geo, materials);
-        mesh.position.set(local.x, terrainH + bh / 2, local.z);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         this.scene.add(mesh);
         this.buildings.push(mesh);
         
-        // Toit
-        const hasPitchedRoof = buildingData.alt_toit_min && buildingData.alt_toit_max &&
-            (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5;
+        // === Toit : détermine bi-pan (gable) vs plat ===
+        let hasPitchedRoof = false;
+        let ridgeExtra = 0;
+        
+        if (buildingData.alt_toit_min && buildingData.alt_toit_max &&
+            (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
+            // Données BD TOPO avec altitudes toit
+            hasPitchedRoof = true;
+            ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
+        } else if (buildingData.roof_shape === 'gabled' || buildingData.roof_shape === 'hipped') {
+            // Tag OSM roof:shape
+            hasPitchedRoof = true;
+            ridgeExtra = obb.shortDim * 0.3;
+        } else if (buildingData.roof_shape !== 'flat') {
+            // Par défaut, toit en pente pour les bâtiments résidentiels
+            const isResidential = !buildingData.usage || 
+                buildingData.usage === 'Résidentiel' ||
+                ['house', 'residential', 'detached', 'semidetached_house', 'terrace', 'apartments', 'yes'].includes(buildingData.type);
+            if (isResidential && bh < 15) {
+                hasPitchedRoof = true;
+                ridgeExtra = obb.shortDim * 0.25; // pente modérée ~27°
+            }
+        }
         
         if (hasPitchedRoof) {
-            const ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-            this._createPitchedRoof(local, bx, bz, bh, terrainH, ridgeExtra, roofType);
+            // Limiter la hauteur du faîtage proportionnellement
+            ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
+            this._createGableRoof(obb, bh, terrainH, ridgeExtra, roofType);
         } else {
-            this._createFlatRoof(local, bx, bz, bh, terrainH, roofType);
+            this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
         }
     }
     
@@ -836,41 +959,67 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Crée un toit en pente texturé
+     * Crée un toit bi-pan (gable/pignon) avec faîtage le long de l'axe principal.
+     * Le faîtage est une LIGNE (pas un point) → 2 pans + 2 pignons triangulaires.
+     * @param {Object} obb - Oriented bounding box {cx, cz, angle, longDim, shortDim}
      */
-    _createPitchedRoof(local, bx, bz, bh, terrainH, ridgeExtra, roofType) {
+    _createGableRoof(obb, bh, terrainH, ridgeExtra, roofType) {
         const roofBaseY = terrainH + bh;
-        const isLongX = bx > bz;
-        const roofGeo = new THREE.BufferGeometry();
+        const halfLong = obb.longDim / 2;
+        const halfShort = obb.shortDim / 2;
+        const ridgeY = roofBaseY + ridgeExtra;
         
-        const hx = bx / 2, hz = bz / 2;
-        const rx = local.x, rz = local.z;
+        const cosA = Math.cos(obb.angle);
+        const sinA = Math.sin(obb.angle);
         
-        let vertices;
-        if (isLongX) {
-            vertices = new Float32Array([
-                rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
-                rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                rx-hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx-hx, roofBaseY, rz+hz,
-                rx+hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-            ]);
-        } else {
-            vertices = new Float32Array([
-                rx-hx, roofBaseY, rz-hz,  rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,
-                rx+hx, roofBaseY, rz+hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                rx-hx, roofBaseY, rz-hz,  rx-hx, roofBaseY, rz+hz,  rx, roofBaseY+ridgeExtra, rz,
-                rx+hx, roofBaseY, rz-hz,  rx, roofBaseY+ridgeExtra, rz,  rx+hx, roofBaseY, rz+hz,
-            ]);
-        }
+        // Transformation du repère orienté (long, short) vers le repère monde (x, z)
+        const toWorld = (rl, rs) => ({
+            x: obb.cx + rl * cosA - rs * sinA,
+            z: obb.cz + rl * sinA + rs * cosA,
+        });
         
-        // UVs pour la texture
-        const uvs = new Float32Array([
-            0,0, 1,0, 0.5,1,
-            1,0, 0,0, 0.5,1,
-            0,0, 0.5,1, 0,0,
-            1,0, 1,0, 0.5,1,
+        // 4 coins de la base du toit
+        const c00 = toWorld(-halfLong, -halfShort); // arrière-gauche
+        const c10 = toWorld(+halfLong, -halfShort); // arrière-droite
+        const c11 = toWorld(+halfLong, +halfShort); // avant-droite
+        const c01 = toWorld(-halfLong, +halfShort); // avant-gauche
+        
+        // 2 points du faîtage (ligne centrale le long de l'axe principal)
+        const r0 = toWorld(-halfLong, 0);
+        const r1 = toWorld(+halfLong, 0);
+        
+        // Géométrie : 2 pans (chaque = 1 quad = 2 triangles) + 2 pignons (triangles)
+        const vertices = new Float32Array([
+            // Pan 1 (côté +short) : c01 → c11 → r1, c01 → r1 → r0
+            c01.x, roofBaseY, c01.z,  c11.x, roofBaseY, c11.z,  r1.x, ridgeY, r1.z,
+            c01.x, roofBaseY, c01.z,  r1.x, ridgeY, r1.z,       r0.x, ridgeY, r0.z,
+            
+            // Pan 2 (côté -short) : c10 → c00 → r0, c10 → r0 → r1
+            c10.x, roofBaseY, c10.z,  c00.x, roofBaseY, c00.z,  r0.x, ridgeY, r0.z,
+            c10.x, roofBaseY, c10.z,  r0.x, ridgeY, r0.z,       r1.x, ridgeY, r1.z,
+            
+            // Pignon gauche (triangle mur) : c00 → c01 → r0
+            c00.x, roofBaseY, c00.z,  c01.x, roofBaseY, c01.z,  r0.x, ridgeY, r0.z,
+            
+            // Pignon droit (triangle mur) : c11 → c10 → r1
+            c11.x, roofBaseY, c11.z,  c10.x, roofBaseY, c10.z,  r1.x, ridgeY, r1.z,
         ]);
         
+        // UVs pour la texture de toit
+        const uvs = new Float32Array([
+            // Pan 1 (quad via 2 triangles)
+            0,0, 1,0, 1,1,
+            0,0, 1,1, 0,1,
+            // Pan 2 (quad via 2 triangles)
+            0,0, 1,0, 1,1,
+            0,0, 1,1, 0,1,
+            // Pignon gauche
+            0,0, 1,0, 0.5,1,
+            // Pignon droit
+            0,0, 1,0, 0.5,1,
+        ]);
+        
+        const roofGeo = new THREE.BufferGeometry();
         roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
         roofGeo.computeVertexNormals();
@@ -1400,8 +1549,8 @@ class Calpinage3DViewer {
         zones.forEach(zone => {
             if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
             
-            const pente = (zone.pente || 30) * Math.PI / 180;
-            const azimut = (zone.azimut || 180) * Math.PI / 180;
+            const pente = (zone.inclinaison || zone.pente || 30) * Math.PI / 180;
+            const azimut = (zone.orientation || zone.azimut || 180) * Math.PI / 180;
             
             // === Calculer UN SEUL plan de toit pour toute la zone ===
             // 1. Centre de la zone = moyenne de tous les centres de modules

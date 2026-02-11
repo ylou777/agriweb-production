@@ -732,6 +732,9 @@
                                 </button>
                             </div>
                             <div class="vr mx-2"></div>
+                            <button type="button" class="btn btn-sm btn-outline-info" id="toolLidarDetect" title="Auto-détecter pente/orientation/dimensions d'un toit par LiDAR">
+                                🏠 Auto-détection toiture
+                            </button>
                             <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
                         </div>
                         
@@ -935,8 +938,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
-    <script src="/static/js/calpinage_3d_bundled.js?v=8"></script>
-    <script src="/static/js/calpinage_3d.js?v=8"></script>
+    <script src="/static/js/calpinage_3d_bundled.js?v=9"></script>
+    <script src="/static/js/calpinage_3d.js?v=9"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -969,6 +972,8 @@
         let zones = [];
         let zoneCounter = 0;
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
+        let lidarDetecting = false; // Mode auto-détection toiture LiDAR
+        let lidarClickHandler = null; // Handler click map pour détection
         
         // Tile layers (globaux pour capture screenshot)
         let tileLayerSatellite;
@@ -2562,6 +2567,251 @@
             
             map.on('click', clickHandler);
         });
+        
+        // === Auto-détection toiture LiDAR ===
+        document.getElementById('toolLidarDetect').addEventListener('click', function() {
+            if (lidarDetecting) {
+                stopLidarDetection();
+                return;
+            }
+            startLidarDetection();
+        });
+        
+        function startLidarDetection() {
+            lidarDetecting = true;
+            if (typeof activeDrawHandler !== 'undefined' && activeDrawHandler) activeDrawHandler.disable();
+            
+            document.getElementById('toolLidarDetect').classList.remove('btn-outline-info');
+            document.getElementById('toolLidarDetect').classList.add('btn-info', 'active');
+            document.getElementById('currentToolInfo').innerHTML = '🏠 <strong>Cliquez sur un bâtiment</strong> pour auto-détecter la toiture par LiDAR';
+            map.getContainer().style.cursor = 'crosshair';
+            
+            lidarClickHandler = function(e) {
+                analyserToitureLiDAR(e.latlng.lat, e.latlng.lng);
+            };
+            map.on('click', lidarClickHandler);
+        }
+        
+        function stopLidarDetection() {
+            lidarDetecting = false;
+            if (lidarClickHandler) {
+                map.off('click', lidarClickHandler);
+                lidarClickHandler = null;
+            }
+            document.getElementById('toolLidarDetect').classList.remove('btn-info', 'active');
+            document.getElementById('toolLidarDetect').classList.add('btn-outline-info');
+            document.getElementById('currentToolInfo').innerHTML = '📐 Mode Zone PV - Dessinez un rectangle';
+            map.getContainer().style.cursor = '';
+        }
+        
+        async function analyserToitureLiDAR(lat, lon) {
+            const toolInfo = document.getElementById('currentToolInfo');
+            toolInfo.innerHTML = '⏳ <strong>Analyse LiDAR en cours...</strong> Détection pente, orientation, dimensions...';
+            
+            try {
+                const response = await fetch(`/api/lidar/roof-analysis?lat=${lat}&lon=${lon}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    toolInfo.innerHTML = `❌ Erreur: ${data.error}`;
+                    setTimeout(() => { if (lidarDetecting) toolInfo.innerHTML = '🏠 Cliquez sur un bâtiment pour auto-détecter'; }, 3000);
+                    return;
+                }
+                
+                if (!data.building) {
+                    toolInfo.innerHTML = '⚠️ Aucun bâtiment trouvé à cet emplacement. Essayez de cliquer plus près du toit.';
+                    setTimeout(() => { if (lidarDetecting) toolInfo.innerHTML = '🏠 Cliquez sur un bâtiment pour auto-détecter'; }, 3000);
+                    return;
+                }
+                
+                const building = data.building;
+                const roofs = data.roofs || [];
+                
+                if (roofs.length === 0) {
+                    toolInfo.innerHTML = '⚠️ Pas assez de données LiDAR sur ce toit. Essayez un autre bâtiment.';
+                    setTimeout(() => { if (lidarDetecting) toolInfo.innerHTML = '🏠 Cliquez sur un bâtiment pour auto-détecter'; }, 3000);
+                    return;
+                }
+                
+                // Multi-pans : dialogue de sélection ; sinon zone directe
+                const roofChoices = roofs.length > 1 ? roofs.slice(1) : roofs;
+                const selectedRoofs = roofChoices.length > 1
+                    ? await showRoofSelectionDialog(building, roofChoices, roofs[0])
+                    : roofChoices;
+                
+                if (!selectedRoofs || selectedRoofs.length === 0) {
+                    if (lidarDetecting) toolInfo.innerHTML = '🏠 Cliquez sur un bâtiment pour auto-détecter';
+                    return;
+                }
+                
+                let createdCount = 0;
+                for (const roof of selectedRoofs) {
+                    createZoneFromRoof(building, roof);
+                    createdCount++;
+                }
+                
+                toolInfo.innerHTML = `✅ ${createdCount} zone(s) créée(s) ! Pente: ${selectedRoofs[0].slope_deg}°, Orientation: ${selectedRoofs[0].azimut_deg}° (${getOrientationLabel(selectedRoofs[0].azimut_deg)})`;
+                
+                setTimeout(() => {
+                    if (lidarDetecting) toolInfo.innerHTML = '🏠 Cliquez sur un autre bâtiment ou désactivez l\'outil';
+                }, 4000);
+                
+            } catch (err) {
+                console.error('Erreur analyse LiDAR:', err);
+                toolInfo.innerHTML = `❌ Erreur réseau: ${err.message}`;
+                setTimeout(() => { if (lidarDetecting) toolInfo.innerHTML = '🏠 Cliquez sur un bâtiment pour auto-détecter'; }, 3000);
+            }
+        }
+        
+        function createZoneFromRoof(building, roof) {
+            const centerLat = roof.center ? roof.center.lat : building.center.lat;
+            const centerLon = roof.center ? roof.center.lon : building.center.lon;
+            const halfW = (roof.width_m / 2) / (111320 * Math.cos(centerLat * Math.PI / 180));
+            const halfH = (roof.length_m / 2) / 111320;
+            
+            const bounds = L.latLngBounds(
+                [centerLat - halfH, centerLon - halfW],
+                [centerLat + halfH, centerLon + halfW]
+            );
+            
+            const layer = L.rectangle(bounds, {
+                color: '#ff7800', weight: 2, fillOpacity: 0, opacity: 0
+            });
+            drawnItems.addLayer(layer);
+            
+            if (layer._path) {
+                layer._path.style.opacity = 0;
+                layer._path.style.fillOpacity = 0;
+            }
+            
+            ajouterZone(layer);
+            
+            const zone = zones.find(z => z.id === layer._leaflet_id);
+            if (zone) {
+                zone.orientation = Math.round(roof.azimut_deg);
+                zone.inclinaison = Math.round(roof.slope_deg);
+                zone.lidarDetected = true;
+                zone.lidarConfidence = roof.confidence;
+                
+                // Mettre à jour les sliders
+                const orientSlider = document.getElementById(`orientSlider_${zone.id}`);
+                const inclinSlider = document.getElementById(`inclinSlider_${zone.id}`);
+                
+                if (orientSlider) {
+                    orientSlider.value = zone.orientation;
+                    const orientVal = document.getElementById(`orientVal_${zone.id}`);
+                    if (orientVal) orientVal.textContent = `${zone.orientation}° (${getOrientationLabel(zone.orientation)})`;
+                }
+                if (inclinSlider) {
+                    inclinSlider.value = zone.inclinaison;
+                    const inclinVal = document.getElementById(`inclinVal_${zone.id}`);
+                    if (inclinVal) inclinVal.textContent = `${zone.inclinaison}°`;
+                }
+                
+                // Badge LiDAR sur la carte de zone
+                const zoneCard = document.getElementById(`zone-${zone.id}`);
+                if (zoneCard) {
+                    const header = zoneCard.querySelector('.d-flex');
+                    if (header) {
+                        const badge = document.createElement('span');
+                        badge.className = `badge bg-${roof.confidence === 'high' ? 'success' : (roof.confidence === 'medium' ? 'warning' : 'secondary')} ms-2`;
+                        badge.innerHTML = `🛰️ LiDAR ${roof.confidence}`;
+                        badge.title = `${roof.nb_lidar_points} pts LiDAR, RMSE=${roof.rmse}m`;
+                        header.appendChild(badge);
+                    }
+                }
+                
+                calculerProductibleZone(zone.id);
+                if (typeof update3DFromZones === 'function') update3DFromZones();
+            }
+            
+            ajouterPoigneeRotation(layer);
+        }
+        
+        function getOrientationLabel(deg) {
+            if (deg >= 337.5 || deg < 22.5) return 'Nord';
+            if (deg < 67.5) return 'Nord-Est';
+            if (deg < 112.5) return 'Est';
+            if (deg < 157.5) return 'Sud-Est';
+            if (deg < 202.5) return 'Sud';
+            if (deg < 247.5) return 'Sud-Ouest';
+            if (deg < 292.5) return 'Ouest';
+            return 'Nord-Ouest';
+        }
+        
+        async function showRoofSelectionDialog(building, pans, globalRoof) {
+            return new Promise((resolve) => {
+                const modal = document.createElement('div');
+                modal.className = 'modal fade show';
+                modal.style.cssText = 'display:block;background:rgba(0,0,0,0.5);z-index:10000;';
+                modal.innerHTML = `
+                    <div class="modal-dialog modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-info text-white">
+                                <h5 class="modal-title">🏠 Toiture détectée par LiDAR</h5>
+                                <button type="button" class="btn-close btn-close-white" id="roofModalClose"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <strong>Bâtiment:</strong> ${building.width_m}m × ${building.length_m}m
+                                    ${building.hauteur ? `, hauteur ${building.hauteur}m` : ''}
+                                    ${building.usage ? ` (${building.usage})` : ''}
+                                </div>
+                                <div class="mb-3">
+                                    <strong>Toit global:</strong> Pente ${globalRoof.slope_deg}°,
+                                    Azimut ${globalRoof.azimut_deg}° (${getOrientationLabel(globalRoof.azimut_deg)})
+                                </div>
+                                <hr>
+                                <p class="mb-2"><strong>Pans de toiture détectés :</strong></p>
+                                ${pans.map((pan, i) => `
+                                    <div class="form-check mb-2 p-2 border rounded">
+                                        <input class="form-check-input" type="checkbox" id="roofPan${i}" value="${i}"
+                                            ${pan.azimut_deg >= 90 && pan.azimut_deg <= 270 ? 'checked' : ''}>
+                                        <label class="form-check-label" for="roofPan${i}">
+                                            <strong>${pan.name || 'Pan ' + (i+1)}</strong> —
+                                            Pente <span class="badge bg-primary">${pan.slope_deg}°</span>,
+                                            Orient. <span class="badge bg-success">${pan.azimut_deg}° ${getOrientationLabel(pan.azimut_deg)}</span>,
+                                            ${pan.width_m}m × ${pan.length_m}m
+                                            <span class="badge bg-${pan.confidence === 'high' ? 'success' : 'warning'}">${pan.confidence}</span>
+                                        </label>
+                                    </div>
+                                `).join('')}
+                                <div class="form-check mb-2 p-2 border rounded bg-light">
+                                    <input class="form-check-input" type="checkbox" id="roofPanGlobal" value="global">
+                                    <label class="form-check-label" for="roofPanGlobal">
+                                        <strong>Toit entier</strong> (plan unique) —
+                                        Pente <span class="badge bg-primary">${globalRoof.slope_deg}°</span>,
+                                        Orient. <span class="badge bg-success">${globalRoof.azimut_deg}° ${getOrientationLabel(globalRoof.azimut_deg)}</span>,
+                                        ${globalRoof.width_m}m × ${globalRoof.length_m}m
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" id="roofModalCancel">Annuler</button>
+                                <button type="button" class="btn btn-primary" id="roofModalCreate">
+                                    ✅ Créer les zones sélectionnées
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(modal);
+                const closeModal = () => { document.body.removeChild(modal); };
+                
+                document.getElementById('roofModalClose').addEventListener('click', () => { closeModal(); resolve([]); });
+                document.getElementById('roofModalCancel').addEventListener('click', () => { closeModal(); resolve([]); });
+                document.getElementById('roofModalCreate').addEventListener('click', () => {
+                    const selected = [];
+                    pans.forEach((pan, i) => {
+                        if (document.getElementById(`roofPan${i}`).checked) selected.push(pan);
+                    });
+                    if (document.getElementById('roofPanGlobal').checked) selected.push(globalRoof);
+                    closeModal();
+                    resolve(selected);
+                });
+            });
+        }
         
         // Placer un onduleur
         function placeOnduleur(latlng) {

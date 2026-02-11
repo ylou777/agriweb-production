@@ -948,6 +948,326 @@ def api_lidar_3d_data():
     return jsonify(result)
 
 
+# API: Analyse de toiture par LiDAR (pente, orientation, dimensions)
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/lidar/roof-analysis', methods=['GET'])
+def api_lidar_roof_analysis():
+    """
+    Analyse une toiture par LiDAR pour détecter automatiquement :
+    - Pente (inclinaison en degrés)
+    - Orientation/azimut (0=Nord, 180=Sud)
+    - Dimensions du toit (largeur x longueur en mètres)
+    - Coordonnées du bâtiment (emprise polygone)
+    
+    Params: lat, lon (point cliqué sur la carte)
+    """
+    import numpy as np
+    
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({"error": "Paramètres lat, lon requis"}), 400
+    
+    result = {
+        "lat": lat, "lon": lon,
+        "building": None,
+        "roofs": [],
+    }
+    
+    # === 1. Trouver le bâtiment BD TOPO le plus proche ===
+    building_data = None
+    building_coords = None
+    try:
+        from pyproj import Transformer
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+        x_l93, y_l93 = transformer.transform(lon, lat)
+        
+        url_wfs = "https://data.geopf.fr/wfs/ows"
+        params_wfs = {
+            "service": "WFS", "version": "2.0.0",
+            "request": "GetFeature",
+            "typeName": "BDTOPO_V3:batiment",
+            "outputFormat": "application/json",
+            "bbox": f"{x_l93 - 50},{y_l93 - 50},{x_l93 + 50},{y_l93 + 50},EPSG:2154",
+            "srsName": "EPSG:4326",
+            "count": "20"
+        }
+        r_bd = requests.get(url_wfs, params=params_wfs, timeout=15)
+        if r_bd.status_code == 200:
+            data_bd = r_bd.json()
+            
+            # Trouver le bâtiment le plus proche du point cliqué
+            best_dist = float('inf')
+            for feat in data_bd.get("features", []):
+                geom = feat.get("geometry", {})
+                gtype = geom.get("type", "")
+                props = feat.get("properties", {})
+                
+                if gtype == "MultiPolygon":
+                    coords = geom["coordinates"][0][0]
+                elif gtype == "Polygon":
+                    coords = geom["coordinates"][0]
+                else:
+                    continue
+                
+                # Centre du polygone
+                cx = sum(c[0] for c in coords) / len(coords)
+                cy = sum(c[1] for c in coords) / len(coords)
+                dist = math.sqrt((cx - lon)**2 + (cy - lat)**2) * 111320
+                
+                if dist < best_dist:
+                    best_dist = dist
+                    building_coords = coords
+                    building_data = props
+            
+            if building_coords and best_dist < 30:
+                # Calculer les dimensions du bâtiment
+                lons_b = [c[0] for c in building_coords]
+                lats_b = [c[1] for c in building_coords]
+                
+                lng_to_m = 111320 * math.cos(math.radians(lat))
+                width_m = (max(lons_b) - min(lons_b)) * lng_to_m
+                length_m = (max(lats_b) - min(lats_b)) * 111320
+                
+                result["building"] = {
+                    "coords": [[round(c[0], 7), round(c[1], 7)] for c in building_coords],
+                    "center": {"lat": round(sum(lats_b)/len(lats_b), 7), "lon": round(sum(lons_b)/len(lons_b), 7)},
+                    "width_m": round(width_m, 1),
+                    "length_m": round(length_m, 1),
+                    "hauteur": building_data.get("hauteur"),
+                    "nb_etages": building_data.get("nombre_d_etages"),
+                    "usage": building_data.get("usage_1"),
+                    "nature": building_data.get("nature"),
+                    "materiaux_toit": building_data.get("materiaux_de_la_toiture"),
+                    "alt_toit_min": building_data.get("altitude_minimale_toit"),
+                    "alt_toit_max": building_data.get("altitude_maximale_toit"),
+                    "distance_click_m": round(best_dist, 1),
+                }
+                
+                print(f"✓ Bâtiment trouvé: {width_m:.0f}x{length_m:.0f}m, h={building_data.get('hauteur')}m, dist={best_dist:.0f}m")
+            else:
+                print(f"⚠ Aucun bâtiment trouvé à moins de 30m du clic")
+    except Exception as e:
+        print(f"⚠ BD TOPO roof error: {e}")
+    
+    # === 2. Analyse LiDAR haute résolution sur le bâtiment ===
+    if building_coords:
+        try:
+            lons_b = [c[0] for c in building_coords]
+            lats_b = [c[1] for c in building_coords]
+            
+            # Bbox centrée sur le bâtiment avec marge
+            b_center_lat = sum(lats_b) / len(lats_b)
+            b_center_lon = sum(lons_b) / len(lons_b)
+            
+            margin = max(
+                (max(lons_b) - min(lons_b)) * 0.3,
+                (max(lats_b) - min(lats_b)) * 0.3
+            )
+            
+            lat_min = min(lats_b) - margin
+            lat_max = max(lats_b) + margin
+            lon_min = min(lons_b) - margin
+            lon_max = max(lons_b) + margin
+            
+            bbox = f"{lat_min},{lon_min},{lat_max},{lon_max}"
+            
+            wms_url = "https://data.geopf.fr/wms-r/wms"
+            tile_size = 64  # Haute résolution sur une petite zone
+            
+            wms_common = {
+                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                "CRS": "EPSG:4326", "BBOX": bbox,
+                "WIDTH": str(tile_size), "HEIGHT": str(tile_size),
+                "FORMAT": "image/tiff", "STYLES": ""
+            }
+            
+            # MNS et MNT
+            r_mns = requests.get(wms_url, params={
+                **wms_common,
+                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+            }, timeout=10)
+            
+            r_mnt = requests.get(wms_url, params={
+                **wms_common,
+                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+            }, timeout=10)
+            
+            if r_mns.status_code == 200 and r_mnt.status_code == 200 and \
+               'image' in r_mns.headers.get('content-type', ''):
+                from PIL import Image as PILImage
+                
+                mns_arr = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                mnt_arr = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                
+                # MNH = hauteur au-dessus du sol
+                mnh_arr = mns_arr - mnt_arr
+                
+                lng_to_m = 111320 * math.cos(math.radians(b_center_lat))
+                
+                # Masquer les pixels qui sont DANS le bâtiment (MNH > 2m)
+                # et extraire les points du toit
+                roof_points = []  # (x_m, y_m, altitude_mns)
+                
+                for iy in range(tile_size):
+                    for ix in range(tile_size):
+                        # Position GPS de ce pixel
+                        px_lat = lat_max - (iy / tile_size) * (lat_max - lat_min)
+                        px_lon = lon_min + (ix / tile_size) * (lon_max - lon_min)
+                        
+                        # Vérifier si ce pixel est dans le polygone du bâtiment
+                        if _point_in_polygon(px_lon, px_lat, building_coords):
+                            alt_mns = float(mns_arr[iy, ix])
+                            mnh_val = float(mnh_arr[iy, ix])
+                            
+                            if mnh_val > 2.0:  # Au-dessus du sol = sur le toit
+                                x_m = (px_lon - b_center_lon) * lng_to_m
+                                y_m = (px_lat - b_center_lat) * 111320
+                                roof_points.append((x_m, y_m, alt_mns))
+                
+                print(f"✓ Points toit LiDAR: {len(roof_points)} pixels sur le bâtiment")
+                
+                if len(roof_points) >= 6:
+                    # === Ajustement de plan (moindres carrés) ===
+                    # z = a*x + b*y + c
+                    pts = np.array(roof_points)
+                    x = pts[:, 0]
+                    y = pts[:, 1]
+                    z = pts[:, 2]
+                    
+                    # Matrice A = [x, y, 1]
+                    A = np.column_stack([x, y, np.ones(len(x))])
+                    
+                    # Résolution par moindres carrés
+                    try:
+                        coeffs, residuals, rank, sv = np.linalg.lstsq(A, z, rcond=None)
+                        a, b, c = coeffs
+                        
+                        # Calcul de la pente : tan(pente) = sqrt(a² + b²)
+                        slope_rad = math.atan(math.sqrt(a**2 + b**2))
+                        slope_deg = math.degrees(slope_rad)
+                        
+                        # Calcul de l'azimut : direction de la plus grande pente
+                        # atan2(dz/dx, dz/dy) = direction de descente
+                        # Convention : 0=Nord, 90=Est, 180=Sud, 270=Ouest
+                        azimut_rad = math.atan2(a, b)  # a = dz/dx (Est), b = dz/dy (Nord)
+                        azimut_deg = math.degrees(azimut_rad)
+                        
+                        # L'azimut pointe vers le bas de la pente ; pour un panneau PV
+                        # on veut la direction face au soleil = côté descendant
+                        # Normaliser 0-360
+                        azimut_deg = azimut_deg % 360
+                        
+                        # Résidus : écart type pour détecter si c'est un toit 2 pans
+                        if len(residuals) > 0:
+                            rmse = math.sqrt(float(residuals[0]) / len(x))
+                        else:
+                            rmse = float(np.std(z - (a*x + b*y + c)))
+                        
+                        # Dimensions utilisables du toit (emprise bâtiment)
+                        width_m = result["building"]["width_m"]
+                        length_m = result["building"]["length_m"]
+                        
+                        # Orientation principale du bâtiment (longest axis)
+                        building_is_ew = width_m > length_m  # Plus large que long = axe E-O
+                        
+                        roof_info = {
+                            "slope_deg": round(slope_deg, 1),
+                            "azimut_deg": round(azimut_deg, 0),
+                            "width_m": round(width_m, 1),
+                            "length_m": round(length_m, 1),
+                            "area_m2": round(width_m * length_m, 1),
+                            "altitude_avg": round(float(np.mean(z)), 1),
+                            "rmse": round(rmse, 2),
+                            "nb_lidar_points": len(roof_points),
+                            "confidence": "high" if len(roof_points) > 20 and rmse < 1.0 else ("medium" if len(roof_points) > 10 else "low"),
+                        }
+                        
+                        result["roofs"].append(roof_info)
+                        
+                        # Détecter un toit 2 pans (RMSE élevé = le plan unique ne colle pas)
+                        if rmse > 0.8 and slope_deg > 5:
+                            # Séparer les points en 2 groupes selon la médiane
+                            if building_is_ew:
+                                median_split = np.median(y)
+                                mask_a = y < median_split
+                                mask_b = y >= median_split
+                            else:
+                                median_split = np.median(x)
+                                mask_a = x < median_split
+                                mask_b = x >= median_split
+                            
+                            for pan_name, mask in [("Pan A", mask_a), ("Pan B", mask_b)]:
+                                if np.sum(mask) >= 4:
+                                    xp = x[mask]; yp = y[mask]; zp = z[mask]
+                                    Ap = np.column_stack([xp, yp, np.ones(len(xp))])
+                                    try:
+                                        cp, _, _, _ = np.linalg.lstsq(Ap, zp, rcond=None)
+                                        ap, bp, _ = cp
+                                        s = math.degrees(math.atan(math.sqrt(ap**2 + bp**2)))
+                                        az = math.degrees(math.atan2(ap, bp)) % 360
+                                        
+                                        # Dimensions du demi-toit
+                                        if building_is_ew:
+                                            pw = width_m
+                                            pl = length_m / 2
+                                        else:
+                                            pw = width_m / 2
+                                            pl = length_m
+                                        
+                                        pan_rmse = float(np.std(zp - (ap*xp + bp*yp + cp[2])))
+                                        
+                                        # Centre du pan
+                                        pan_center_x = float(np.mean(xp))
+                                        pan_center_y = float(np.mean(yp))
+                                        pan_center_lat = b_center_lat + pan_center_y / 111320
+                                        pan_center_lon = b_center_lon + pan_center_x / lng_to_m
+                                        
+                                        result["roofs"].append({
+                                            "name": pan_name,
+                                            "slope_deg": round(s, 1),
+                                            "azimut_deg": round(az, 0),
+                                            "width_m": round(pw, 1),
+                                            "length_m": round(pl, 1),
+                                            "area_m2": round(pw * pl, 1),
+                                            "center": {"lat": round(pan_center_lat, 7), "lon": round(pan_center_lon, 7)},
+                                            "rmse": round(pan_rmse, 2),
+                                            "nb_lidar_points": int(np.sum(mask)),
+                                            "confidence": "high" if np.sum(mask) > 10 and pan_rmse < 0.6 else "medium",
+                                        })
+                                    except:
+                                        pass
+                        
+                        print(f"✓ Analyse toit: pente={slope_deg:.1f}°, azimut={azimut_deg:.0f}°, RMSE={rmse:.2f}, {len(result['roofs'])} pan(s)")
+                    
+                    except Exception as e:
+                        print(f"⚠ Fitting plan toit error: {e}")
+                else:
+                    print(f"⚠ Pas assez de points LiDAR sur le toit ({len(roof_points)})")
+            else:
+                print(f"⚠ LiDAR WMS error: MNS={r_mns.status_code}, MNT={r_mnt.status_code}")
+        
+        except Exception as e:
+            print(f"⚠ LiDAR roof analysis error: {e}")
+    
+    return jsonify(result)
+
+
+def _point_in_polygon(x, y, polygon):
+    """Test point-dans-polygone (ray casting)"""
+    n = len(polygon)
+    inside = False
+    j = n - 1
+    for i in range(n):
+        xi, yi = polygon[i][0], polygon[i][1]
+        xj, yj = polygon[j][0], polygon[j][1]
+        if ((yi > y) != (yj > y)) and (x < (xj - xi) * (y - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
 # API: Proxy satellite IGN (évite CORS pour Three.js)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/satellite-tile', methods=['GET'])

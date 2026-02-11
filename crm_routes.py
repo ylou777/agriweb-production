@@ -4675,3 +4675,167 @@ def register_autoconso_routes(app):
             traceback.print_exc()
             return jsonify({'error': str(e)}), 500
 
+    # ========== API LiDAR 3D pour visualisation bâtiment ==========
+    
+    @app.route('/api/lidar/3d-data')
+    def api_lidar_3d_data():
+        """
+        Retourne les données 3D complètes pour un point GPS :
+        - Terrain heightmap (MNS-MNT via WMS GeoTIFF)
+        - Bâtiments BD TOPO (hauteur, altitudes, géométrie)
+        - Emprise OSM (footprint polygones)
+        """
+        import numpy as np
+        from PIL import Image as PILImage
+        
+        lat = request.args.get('lat', type=float)
+        lon = request.args.get('lon', type=float)
+        radius = request.args.get('radius', 80, type=int)
+        resolution = request.args.get('resolution', 128, type=int)
+        
+        if not lat or not lon:
+            return jsonify({'error': 'lat et lon requis'}), 400
+        
+        result = {
+            'terrain': None,
+            'buildings': [],
+            'footprints': [],
+            'center': {'lat': lat, 'lon': lon},
+            'radius_m': radius,
+            'resolution': resolution
+        }
+        
+        # ---- 1. Terrain MNS + MNT via WMS-R (GeoTIFF) ----
+        try:
+            lat_deg = radius / 111320
+            lon_deg = radius / (111320 * math.cos(math.radians(lat)))
+            
+            bbox_str = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
+            
+            wms_url = "https://data.geopf.fr/wms-r/wms"
+            wms_common = {
+                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                "CRS": "EPSG:4326", "BBOX": bbox_str,
+                "WIDTH": str(resolution), "HEIGHT": str(resolution),
+                "FORMAT": "image/tiff", "STYLES": ""
+            }
+            
+            r_mns = requests.get(wms_url, params={
+                **wms_common,
+                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+            }, timeout=12)
+            
+            r_mnt = requests.get(wms_url, params={
+                **wms_common,
+                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+            }, timeout=12)
+            
+            if r_mns.status_code == 200 and r_mnt.status_code == 200 and \
+               r_mns.headers.get('content-type', '').startswith('image'):
+                mns_img = PILImage.open(io.BytesIO(r_mns.content))
+                mnt_img = PILImage.open(io.BytesIO(r_mnt.content))
+                
+                mns_arr = np.array(mns_img, dtype=np.float32)
+                mnt_arr = np.array(mnt_img, dtype=np.float32)
+                mnh_arr = mns_arr - mnt_arr
+                
+                step = max(1, resolution // 64)
+                mns_small = mns_arr[::step, ::step]
+                mnt_small = mnt_arr[::step, ::step]
+                mnh_small = mnh_arr[::step, ::step]
+                
+                result['terrain'] = {
+                    'mns': mns_small.tolist(),
+                    'mnt': mnt_small.tolist(),
+                    'mnh': mnh_small.tolist(),
+                    'width': int(mns_small.shape[1]),
+                    'height': int(mns_small.shape[0]),
+                    'mns_min': float(mns_arr.min()),
+                    'mns_max': float(mns_arr.max()),
+                    'mnt_min': float(mnt_arr.min()),
+                    'mnt_max': float(mnt_arr.max()),
+                    'mnh_max': float(mnh_arr.max()),
+                    'bbox': {
+                        'south': lat - lat_deg,
+                        'north': lat + lat_deg,
+                        'west': lon - lon_deg,
+                        'east': lon + lon_deg
+                    }
+                }
+                print(f"  ✓ LiDAR terrain: {mns_small.shape}, MNS={float(mns_arr.min()):.1f}-{float(mns_arr.max()):.1f}m")
+        except Exception as e:
+            print(f"  ⚠ LiDAR terrain: {e}")
+        
+        # ---- 2. BD TOPO bâtiments via WFS (Lambert-93) ----
+        try:
+            from pyproj import Transformer
+            transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+            x_l93, y_l93 = transformer.transform(lon, lat)
+            
+            url_wfs = "https://data.geopf.fr/wfs/ows"
+            params_wfs = {
+                "service": "WFS", "version": "2.0.0",
+                "request": "GetFeature",
+                "typeName": "BDTOPO_V3:batiment",
+                "outputFormat": "application/json",
+                "bbox": f"{x_l93 - radius},{y_l93 - radius},{x_l93 + radius},{y_l93 + radius},EPSG:2154",
+                "srsName": "EPSG:4326",
+                "count": "100"
+            }
+            r_wfs = requests.get(url_wfs, params=params_wfs, timeout=15)
+            if r_wfs.status_code == 200:
+                data_wfs = r_wfs.json()
+                features = data_wfs.get("features", [])
+                for feat in features:
+                    props = feat.get("properties", {})
+                    geom = feat.get("geometry", {})
+                    gtype = geom.get("type", "")
+                    
+                    if gtype == "MultiPolygon":
+                        coords = geom["coordinates"][0][0]
+                    elif gtype == "Polygon":
+                        coords = geom["coordinates"][0]
+                    else:
+                        continue
+                    
+                    result['buildings'].append({
+                        'coordinates': coords,
+                        'hauteur': float(props.get('hauteur', 0) or 0),
+                        'altitude_sol_min': float(props.get('altitude_minimale_sol', 0) or 0),
+                        'altitude_sol_max': float(props.get('altitude_maximale_sol', 0) or 0),
+                        'altitude_toit_min': float(props.get('altitude_minimale_toit', 0) or 0),
+                        'altitude_toit_max': float(props.get('altitude_maximale_toit', 0) or 0),
+                        'nb_etages': int(props.get('nombre_d_etages', 0) or 0),
+                        'usage': props.get('usage_1', ''),
+                        'nature': props.get('nature', ''),
+                        'materiaux_toit': props.get('materiaux_de_la_toiture', ''),
+                        'materiaux_murs': props.get('materiaux_des_murs', '')
+                    })
+                print(f"  ✓ BD TOPO: {len(result['buildings'])} bâtiments")
+        except Exception as e:
+            print(f"  ⚠ BD TOPO: {e}")
+        
+        # ---- 3. OSM footprints via Overpass ----
+        try:
+            overpass_query = f"""
+            [out:json][timeout:10];
+            (way["building"](around:{radius},{lat},{lon}););
+            out geom tags;
+            """
+            r_osm = requests.post("https://overpass-api.de/api/interpreter",
+                                 data=overpass_query, timeout=15)
+            if r_osm.status_code == 200:
+                data_osm = r_osm.json()
+                for elem in data_osm.get("elements", []):
+                    geom_pts = elem.get("geometry", [])
+                    tags = elem.get("tags", {})
+                    if geom_pts:
+                        result['footprints'].append({
+                            'points': [{'lat': p['lat'], 'lon': p['lon']} for p in geom_pts],
+                            'tags': tags
+                        })
+                print(f"  ✓ OSM: {len(result['footprints'])} emprises")
+        except Exception as e:
+            print(f"  ⚠ OSM: {e}")
+        
+        return jsonify(result)
