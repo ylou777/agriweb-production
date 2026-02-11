@@ -917,6 +917,9 @@
                     <button class="btn btn-outline-secondary" id="genererPlanMasse">
                         <i class="bi bi-rulers"></i> Plan de Masse Cadastral
                     </button>
+                    <button class="btn btn-danger" id="genererDeclarationPrealable">
+                        <i class="bi bi-file-earmark-pdf"></i> Déclaration Préalable (CERFA)
+                    </button>
                     <button class="btn btn-primary" id="sauvegarderCalpinage">
                         <i class="bi bi-save"></i> Sauvegarder le calpinage
                     </button>
@@ -4842,6 +4845,93 @@
             });
         } else {
             console.error('❌ [DEBUG] Bouton genererPlanMasse introuvable!');
+        }
+
+        // ============================================
+        // BOUTON DÉCLARATION PRÉALABLE (CERFA 13703*09)
+        // ============================================
+        const btnDP = document.getElementById('genererDeclarationPrealable');
+        if (btnDP) {
+            btnDP.addEventListener('click', async () => {
+                console.log('📄 [DP] Bouton Déclaration Préalable cliqué');
+                
+                // Vérifier qu'il y a au moins une zone
+                if (zones.length === 0) {
+                    alert('⚠️ Veuillez d\'abord créer au moins une zone avec des modules.');
+                    return;
+                }
+                
+                // Préparer les données du calpinage
+                const calData = prepareCalepinageData();
+                
+                try {
+                    // 1. Sauvegarder d'abord le calpinage
+                    btnDP.disabled = true;
+                    btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Sauvegarde du calpinage...';
+                    
+                    const saveResponse = await fetch(`/api/crm/prospects/${prospectId}/calpinage`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(calData)
+                    });
+                    
+                    if (!saveResponse.ok) {
+                        alert('❌ Erreur sauvegarde calpinage');
+                        btnDP.disabled = false;
+                        btnDP.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Déclaration Préalable (CERFA)';
+                        return;
+                    }
+                    
+                    console.log('✅ Calpinage sauvegardé');
+                    
+                    // Attendre le commit DB
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    // 2. Générer la Déclaration Préalable complète
+                    btnDP.innerHTML = '<i class="bi bi-hourglass-split"></i> Génération CERFA + Plans DP1-DP8...';
+                    
+                    const dpResponse = await fetch(`/api/crm/prospect/${prospectId}/generer-dp`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (!dpResponse.ok) {
+                        let errorMsg = 'Erreur inconnue';
+                        try {
+                            const errorData = await dpResponse.json();
+                            errorMsg = errorData.error || errorMsg;
+                        } catch(e) {}
+                        alert(`❌ Erreur génération DP: ${errorMsg}`);
+                        btnDP.disabled = false;
+                        btnDP.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Déclaration Préalable (CERFA)';
+                        return;
+                    }
+                    
+                    // 3. Télécharger le ZIP
+                    const blob = await dpResponse.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Declaration_Prealable_${prospectId}.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    btnDP.disabled = false;
+                    btnDP.innerHTML = '<i class="bi bi-check-circle"></i> Dossier DP téléchargé !';
+                    
+                    setTimeout(() => {
+                        btnDP.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Déclaration Préalable (CERFA)';
+                    }, 4000);
+                    
+                } catch (error) {
+                    console.error('❌ Erreur:', error);
+                    alert('❌ Erreur réseau: ' + error.message);
+                    btnDP.disabled = false;
+                    btnDP.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Déclaration Préalable (CERFA)';
+                }
+            });
         }
 
         initMap();

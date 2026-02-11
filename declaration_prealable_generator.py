@@ -354,17 +354,19 @@ class DeclarationPrealableGenerator:
         y -= 0.5*cm
         c.setFont("Helvetica", 8)
         
-        # Calculer puissance
-        surface_m2 = float(self.data.get('surface_m2', 0) or 0)
-        surface_ha = float(self.data.get('surface_ha', 0) or 0)
-        if surface_ha > 0:
-            surface_m2 = surface_ha * 10000
-        
-        puissance_kwc = round(surface_m2 * 0.15, 2) if surface_m2 > 0 else 0
-        nb_modules_estime = int(surface_m2 / 2) if surface_m2 > 0 else 0
+        # Calculer puissance - utiliser calpinage si disponible
+        puissance_kwc = self._get_puissance()
+        nb_modules = self._get_nb_modules()
+        surface_pv = self._get_surface_panneaux()
         
         description = f"Installation d'une centrale photovoltaïque d'une puissance de {puissance_kwc:.2f} kWc, "
-        description += f"composée d'environ {nb_modules_estime} modules photovoltaïques.\n"
+        
+        # Description précise si calpinage disponible
+        if hasattr(self, 'total_modules') and self.total_modules > 0:
+            description += f"composée de {nb_modules} modules photovoltaïques "
+            description += f"de {int(self.module_puissance)} Wc ({self.module_longueur*1000:.0f}x{self.module_largeur*1000:.0f}mm).\n"
+        else:
+            description += f"composée d'environ {nb_modules} modules photovoltaïques.\n"
         
         if is_toiture:
             description += "Les panneaux seront posés en surimposition sur la toiture existante, "
@@ -388,7 +390,7 @@ class DeclarationPrealableGenerator:
         
         y -= 0.6*cm
         c.setFont("Helvetica", 9)
-        surface_panneaux = round(surface_m2, 2)
+        surface_panneaux = self._get_surface_panneaux()
         self._field_labeled(c, 2*cm, y, "Surface des panneaux PV (m²) :", f"{surface_panneaux:.2f}", width=5*cm)
         self._field_labeled(c, 10*cm, y, "Emprise au sol (m²) :", f"{surface_panneaux:.2f}" if is_sol else "0", width=5*cm)
         
@@ -2163,7 +2165,7 @@ class DeclarationPrealableGenerator:
         specs = [
             f"• Puissance installée : {self._get_puissance():.2f} kWc",
             f"• Surface panneaux : {self._get_surface_panneaux():.1f} m²",
-            f"• Nombre modules estimé : {int(self._get_surface_panneaux() / 2)}",
+            f"• Nombre de modules : {self._get_nb_modules()}",
             f"• Type de pose : Surimposition (GSE, K2, Schletter ou équivalent)",
             f"• Hauteur modules : 150-200 mm au-dessus de la couverture",
             f"• Fixation : Rails aluminium + crochets acier inox sur chevrons",
@@ -2398,18 +2400,27 @@ class DeclarationPrealableGenerator:
             self.total_puissance_kw = 0
             self.nb_cols = 10
             self.nb_rows = 6
+            self.surface_panneaux_calp = 0
             return
         
-        # Récupérer les infos du module
+        # Récupérer les infos du module (compatible les 2 formats de clés)
         module = self.calpinage.get('module', {})
-        self.module_longueur = module.get('longueur_mm', 2278) / 1000  # mm → m
-        self.module_largeur = module.get('largeur_mm', 1134) / 1000    # mm → m
-        self.module_puissance = module.get('puissance_wc', 560)        # Wc
+        # Format calpinage: 'longueur' (string en mm) / Format ancien: 'longueur_mm' (int)
+        longueur_raw = module.get('longueur_mm') or module.get('longueur', 2278)
+        largeur_raw = module.get('largeur_mm') or module.get('largeur', 1134)
+        puissance_raw = module.get('puissance_wc') or module.get('puissance', 560)
+        
+        self.module_longueur = float(longueur_raw) / 1000  # mm → m
+        self.module_largeur = float(largeur_raw) / 1000    # mm → m
+        self.module_puissance = float(puissance_raw)        # Wc
         
         # Calculer totaux depuis toutes les zones
         zones = self.calpinage.get('zones', [])
         self.total_modules = sum(z.get('nbModules', 0) for z in zones)
         self.total_puissance_kw = sum(z.get('puissanceKw', 0) for z in zones)
+        
+        # Surface réelle des panneaux (depuis calpinage)
+        self.surface_panneaux_calp = self.total_modules * self.module_longueur * self.module_largeur
         
         # Prendre l'orientation de la première zone (ou majoritaire)
         if zones:
@@ -2426,7 +2437,13 @@ class DeclarationPrealableGenerator:
             self.nb_cols = 10
             self.nb_rows = 6
         
+        # Récupérer le type d'installation depuis le calpinage
+        type_calp = self.calpinage.get('typeInstallation', '')
+        if type_calp:
+            self.data['type'] = type_calp
+        
         print(f"✓ Calpinage intégré: {self.total_modules} modules {self.module_orientation} ({self.nb_cols}x{self.nb_rows})")
+        print(f"  Puissance: {self.total_puissance_kw:.2f} kWc | Surface panneaux: {self.surface_panneaux_calp:.1f} m²")
     
     
     def _draw_cartouche_plan(self, c, titre_plan):
@@ -2528,7 +2545,12 @@ class DeclarationPrealableGenerator:
         return []
     
     def _get_puissance(self):
-        """Calcule la puissance kWc"""
+        """Calcule la puissance kWc - utilise le calpinage si disponible"""
+        # Priorité 1: données précises du calpinage
+        if hasattr(self, 'total_puissance_kw') and self.total_puissance_kw > 0:
+            return round(self.total_puissance_kw, 2)
+        
+        # Priorité 2: estimation depuis la surface
         surface_m2 = float(self.data.get('surface_m2', 0) or 0)
         surface_ha = float(self.data.get('surface_ha', 0) or 0)
         if surface_ha > 0:
@@ -2537,13 +2559,25 @@ class DeclarationPrealableGenerator:
         return round(surface_m2 * 0.15, 2) if surface_m2 > 0 else 0
     
     def _get_surface_panneaux(self):
-        """Retourne la surface des panneaux"""
+        """Retourne la surface des panneaux - utilise le calpinage si disponible"""
+        # Priorité 1: surface calculée depuis le calpinage
+        if hasattr(self, 'surface_panneaux_calp') and self.surface_panneaux_calp > 0:
+            return round(self.surface_panneaux_calp, 2)
+        
+        # Priorité 2: surface depuis les données prospect
         surface_m2 = float(self.data.get('surface_m2', 0) or 0)
         surface_ha = float(self.data.get('surface_ha', 0) or 0)
         if surface_ha > 0:
             surface_m2 = surface_ha * 10000
         
         return round(surface_m2, 2)
+    
+    def _get_nb_modules(self):
+        """Retourne le nombre exact de modules - utilise le calpinage si disponible"""
+        if hasattr(self, 'total_modules') and self.total_modules > 0:
+            return self.total_modules
+        # Estimation si pas de calpinage
+        return int(self._get_surface_panneaux() / 2) if self._get_surface_panneaux() > 0 else 0
 
 
 # ========== FONCTIONS HELPER ==========
