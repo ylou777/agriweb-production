@@ -23,6 +23,7 @@ import requests
 from PIL import Image as PILImage, ImageDraw, ImageFont
 import base64
 import json
+import numpy as np
 from plan_masse_generator import generate_plan_masse as generate_plan_masse_cadastral
 
 
@@ -46,6 +47,9 @@ class DeclarationPrealableGenerator:
         
         # Récupérer les données cadastrales réelles via API IGN
         self.cadastre_data = self._fetch_cadastre_data()
+        
+        # Récupérer les dimensions réelles du bâtiment via BD TOPO + OSM + LiDAR
+        self._fetch_building_data()
         
         # Intégrer les données du calpinage si disponibles
         self.calpinage = calpinage_data or {}
@@ -1286,10 +1290,13 @@ class DeclarationPrealableGenerator:
             y_pierre = mur_y + soubassement_h * i / 3
             c.line(mur_x, y_pierre, mur_x + mur_width, y_pierre)
         
-        # Toiture - Pan incliné
+        # Toiture - Pan incliné (pente réelle)
         toit_base_y = mur_y + mur_height
-        toit_sommet_y = toit_base_y + height * 0.35
-        pente_toiture = self.data.get('pente_toiture_deg', 30)
+        pente_toiture = self.data.get('pente_toiture_deg', 30) or 30
+        # Hauteur du toit proportionnelle à la pente réelle
+        toit_height_calc = (mur_width / 2) * math.tan(math.radians(pente_toiture))
+        toit_height_max = height * 0.38  # Limite max pour rester dans le cadre
+        toit_sommet_y = toit_base_y + min(toit_height_calc, toit_height_max)
         
         # Calculer largeur débord
         debord = width * 0.05
@@ -1478,26 +1485,46 @@ class DeclarationPrealableGenerator:
         c.rect(x, y, width, height, fill=1, stroke=0)
         
         # Paramètres perspective isométrique
-        angle_iso = 30  # Angle isométrique standard
-        ratio_iso = 0.866  # cos(30°)
+        ratio_iso = 0.5  # sin(30°) pour perspective isométrique standard
+        ratio_iso_x = 0.866  # cos(30°)
         
         longueur = self.data.get('longueur_batiment_m', 15)
         largeur = self.data.get('largeur_batiment_m', 10)
         hauteur_faitage = self.data.get('hauteur_faitage_m', 2.5) or 2.5
         
-        # Échelle
-        echelle = min(width * 0.7 / (longueur + largeur * ratio_iso),
-                     height * 0.7 / (largeur * ratio_iso + hauteur_faitage))
+        # Calculer le bounding box exact de la projection isométrique
+        # iso_x = dx * ratio_iso_x - dy * ratio_iso_x
+        # iso_y = dx * ratio_iso + dy * ratio_iso + dz
+        # Points clés: p1(0,0,0), p2(L,0,0), p3(L,l,0), p4(0,l,0)
+        # faitage(L/2,0,hf), faitage(L/2,l,hf)
+        key_pts_raw = [
+            (0, 0, 0),
+            (longueur, 0, 0),
+            (longueur, largeur, 0),
+            (0, largeur, 0),
+            (longueur/2, 0, hauteur_faitage),
+            (longueur/2, largeur, hauteur_faitage),
+        ]
+        raw_xs = [(dx * ratio_iso_x - dy * ratio_iso_x) for dx, dy, dz in key_pts_raw]
+        raw_ys = [(dx * ratio_iso + dy * ratio_iso + dz) for dx, dy, dz in key_pts_raw]
         
-        # Centre de dessin
-        center_x = x + width / 2
-        center_y = y + height * 0.4
+        min_rx, max_rx = min(raw_xs), max(raw_xs)
+        min_ry, max_ry = min(raw_ys), max(raw_ys)
+        x_range = max_rx - min_rx
+        y_range = max_ry - min_ry
+        
+        # Échelle pour tenir dans 80% du cadre
+        echelle = min(width * 0.80 / x_range, height * 0.75 / y_range) if x_range > 0 and y_range > 0 else 1.0
+        
+        # Centrer le bâtiment dans le cadre
+        center_x = x + width / 2 - (min_rx + max_rx) / 2 * echelle
+        center_y = y + height * 0.42 - (min_ry + max_ry) / 2 * echelle
         
         # Coordonnées 3D → 2D isométrique
         def iso_point(dx, dy, dz):
             """Convertit coordonnées 3D en 2D isométrique"""
-            iso_x = center_x + (dx - dy * ratio_iso) * echelle
-            iso_y = center_y + (dx * ratio_iso + dy + dz * 2) * echelle
+            iso_x = center_x + (dx * ratio_iso_x - dy * ratio_iso_x) * echelle
+            iso_y = center_y + (dx * ratio_iso + dy * ratio_iso + dz) * echelle
             return iso_x, iso_y
         
         # === STRUCTURE TOITURE ===
@@ -1665,15 +1692,18 @@ class DeclarationPrealableGenerator:
         c.setFont("Helvetica", 7)
         c.setFillColor(colors.HexColor('#D32F2F'))
         
-        # Longueur toiture
-        c.drawString(center_x + echelle * longueur / 2, center_y - echelle * 2, f"L = {longueur:.1f} m")
+        # Longueur toiture (sous l'arête avant)
+        mid_front_x = (p1[0] + p2[0]) / 2
+        mid_front_y = min(p1[1], p2[1]) - 0.4*cm
+        c.drawString(mid_front_x - 0.5*cm, mid_front_y, f"L = {longueur:.1f} m")
         
-        # Largeur toiture
-        c.drawString(center_x - echelle * largeur * ratio_iso - 1*cm, center_y + echelle * largeur / 2, f"l = {largeur:.1f} m")
+        # Largeur toiture (à gauche)
+        mid_left_x = min(p1[0], p4[0]) - 1.2*cm
+        mid_left_y = (p1[1] + p4[1]) / 2
+        c.drawString(mid_left_x, mid_left_y, f"l = {largeur:.1f} m")
         
-        # Hauteur faîtage
-        c.drawString(center_x - echelle * largeur * ratio_iso / 2 - 1.5*cm, 
-                    center_y + echelle * hauteur_faitage * 2, 
+        # Hauteur faîtage (au-dessus du faitage)
+        c.drawString(p_faitage_avant[0] - 0.8*cm, p_faitage_avant[1] + 0.3*cm, 
                     f"H = {hauteur_faitage:.1f} m")
         
         # Surface panneaux (si avec panneaux)
@@ -1681,7 +1711,9 @@ class DeclarationPrealableGenerator:
             c.setFillColor(colors.white)
             c.setFont("Helvetica-Bold", 8)
             surface_pv = self._get_surface_panneaux()
-            c.drawString(center_x + echelle * longueur * 0.3, center_y + echelle * 3, f"Surface PV: {surface_pv:.1f} m²")
+            mid_pan_x = (p2[0] + p3[0] + p_faitage_avant[0] + p_faitage_arriere[0]) / 4
+            mid_pan_y = (p2[1] + p3[1] + p_faitage_avant[1] + p_faitage_arriere[1]) / 4
+            c.drawString(mid_pan_x - 1*cm, mid_pan_y, f"Surface PV: {surface_pv:.1f} m²")
     
     def _draw_coupe_transversale(self, c, x, y, width, height, avec_panneaux=False, titre=""):
         """Dessine une coupe transversale du bâtiment montrant la structure et les panneaux"""
@@ -2335,6 +2367,295 @@ class DeclarationPrealableGenerator:
         except Exception as e:
             print(f"Erreur récupération cadastre: {e}")
             return None
+    
+    
+    def _fetch_building_data(self):
+        """
+        Récupère les dimensions réelles du bâtiment via 3 sources :
+        1. BD TOPO WFS (IGN) → hauteur, altitudes sol/toit, nb étages, matériaux
+        2. OSM Overpass → emprise au sol (longueur/largeur depuis polygone)
+        3. LiDAR WMS (IGN MNS-MNT) → pente toiture, hauteur murs/faitage
+        
+        Renseigne self.data avec les clés :
+        - longueur_batiment_m, largeur_batiment_m
+        - hauteur_batiment_m, hauteur_murs_m, hauteur_faitage_m
+        - pente_toiture_deg, nombre_etages
+        """
+        lat = self.data.get('latitude')
+        lon = self.data.get('longitude')
+        
+        if not lat or not lon:
+            print("⚠ Pas de coordonnées GPS → dimensions bâtiment par défaut")
+            return
+        
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except (ValueError, TypeError):
+            print("⚠ Coordonnées GPS invalides → dimensions bâtiment par défaut")
+            return
+        
+        print(f"🏠 Récupération dimensions bâtiment ({lat:.4f}, {lon:.4f})...")
+        radius_m = 50
+        osm_building = None  # Stocké pour le LiDAR
+        
+        # ============================================================
+        # STEP 1: BD TOPO WFS → hauteur, altitudes, étages
+        # ============================================================
+        try:
+            from pyproj import Transformer
+            transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+            x_l93, y_l93 = transformer.transform(lon, lat)
+            
+            url = "https://data.geopf.fr/wfs/ows"
+            params = {
+                "service": "WFS",
+                "version": "2.0.0",
+                "request": "GetFeature",
+                "typeName": "BDTOPO_V3:batiment",
+                "outputFormat": "application/json",
+                "bbox": f"{x_l93 - radius_m},{y_l93 - radius_m},{x_l93 + radius_m},{y_l93 + radius_m},EPSG:2154",
+                "srsName": "EPSG:4326",
+                "count": "50"
+            }
+            r = requests.get(url, params=params, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                features = data.get("features", [])
+                
+                # Trouver le bâtiment le plus proche
+                min_dist = float("inf")
+                nearest = None
+                for feat in features:
+                    geom = feat.get("geometry", {})
+                    gtype = geom.get("type", "")
+                    if gtype == "MultiPolygon":
+                        coords = geom["coordinates"][0][0]
+                    elif gtype == "Polygon":
+                        coords = geom["coordinates"][0]
+                    else:
+                        continue
+                    cx = sum(c[0] for c in coords) / len(coords)
+                    cy = sum(c[1] for c in coords) / len(coords)
+                    d = math.sqrt((cx - lon)**2 + (cy - lat)**2)
+                    if d < min_dist:
+                        min_dist = d
+                        nearest = feat
+                
+                if nearest:
+                    props = nearest.get("properties", {})
+                    hauteur = props.get("hauteur")
+                    alt_sol_min = props.get("altitude_minimale_sol")
+                    alt_toit_min = props.get("altitude_minimale_toit")
+                    alt_toit_max = props.get("altitude_maximale_toit")
+                    nb_etages = props.get("nombre_d_etages")
+                    
+                    if hauteur and not self.data.get('hauteur_batiment_m'):
+                        self.data['hauteur_batiment_m'] = float(hauteur)
+                    
+                    if nb_etages and not self.data.get('nombre_etages'):
+                        self.data['nombre_etages'] = int(nb_etages)
+                    
+                    # Calculer hauteur murs et faitage depuis altitudes
+                    if alt_toit_max and alt_toit_min and alt_sol_min:
+                        hauteur_murs = float(alt_toit_min) - float(alt_sol_min)
+                        hauteur_faitage = float(alt_toit_max) - float(alt_toit_min)
+                        if not self.data.get('hauteur_murs_m'):
+                            self.data['hauteur_murs_m'] = round(hauteur_murs, 1)
+                        if not self.data.get('hauteur_faitage_m'):
+                            self.data['hauteur_faitage_m'] = round(hauteur_faitage, 1)
+                    elif hauteur:
+                        # Estimation : murs = 60%, faitage = 40%
+                        if not self.data.get('hauteur_murs_m'):
+                            self.data['hauteur_murs_m'] = round(float(hauteur) * 0.6, 1)
+                        if not self.data.get('hauteur_faitage_m'):
+                            self.data['hauteur_faitage_m'] = round(float(hauteur) * 0.4, 1)
+                    
+                    print(f"  ✓ BD TOPO: {len(features)} bâtiments, nearest: h={hauteur}m, étages={nb_etages}")
+        except Exception as e:
+            print(f"  ⚠ BD TOPO: {e}")
+        
+        # ============================================================
+        # STEP 2: OSM Overpass → emprise au sol (longueur/largeur)
+        # ============================================================
+        try:
+            overpass_query = f"""
+            [out:json][timeout:10];
+            (way["building"](around:{radius_m},{lat},{lon}););
+            out geom tags;
+            """
+            r = requests.post("https://overpass-api.de/api/interpreter",
+                            data=overpass_query, timeout=15)
+            if r.status_code == 200:
+                data = r.json()
+                elements = data.get("elements", [])
+                
+                # Trouver le bâtiment le plus proche
+                min_dist = float("inf")
+                for elem in elements:
+                    geom_pts = elem.get("geometry", [])
+                    if not geom_pts:
+                        continue
+                    cx = sum(p["lon"] for p in geom_pts) / len(geom_pts)
+                    cy = sum(p["lat"] for p in geom_pts) / len(geom_pts)
+                    d = math.sqrt((cx - lon)**2 + (cy - lat)**2)
+                    if d < min_dist:
+                        min_dist = d
+                        osm_building = elem
+                
+                if osm_building:
+                    geom_pts = osm_building.get("geometry", [])
+                    tags = osm_building.get("tags", {})
+                    
+                    # Calculer dimensions depuis le bounding box du polygone
+                    lats_b = [p["lat"] for p in geom_pts]
+                    lons_b = [p["lon"] for p in geom_pts]
+                    lat_c = sum(lats_b) / len(lats_b)
+                    
+                    lat_m = (max(lats_b) - min(lats_b)) * 111320
+                    lon_m = (max(lons_b) - min(lons_b)) * 111320 * math.cos(math.radians(lat_c))
+                    
+                    longueur = round(max(lat_m, lon_m), 1)
+                    largeur = round(min(lat_m, lon_m), 1)
+                    
+                    if not self.data.get('longueur_batiment_m') and longueur > 2:
+                        self.data['longueur_batiment_m'] = longueur
+                    if not self.data.get('largeur_batiment_m') and largeur > 2:
+                        self.data['largeur_batiment_m'] = largeur
+                    
+                    # Tags OSM comme fallback hauteur
+                    if not self.data.get('hauteur_batiment_m'):
+                        h = tags.get("height")
+                        if h:
+                            try:
+                                self.data['hauteur_batiment_m'] = float(h)
+                            except (ValueError, TypeError):
+                                pass
+                        levels = tags.get("building:levels")
+                        if levels and not self.data.get('nombre_etages'):
+                            try:
+                                self.data['nombre_etages'] = int(levels)
+                                if not self.data.get('hauteur_batiment_m'):
+                                    self.data['hauteur_batiment_m'] = int(levels) * 2.8
+                            except (ValueError, TypeError):
+                                pass
+                    
+                    print(f"  ✓ OSM: {len(elements)} bâtiments, nearest: {longueur}m x {largeur}m")
+        except Exception as e:
+            print(f"  ⚠ OSM Overpass: {e}")
+        
+        # ============================================================
+        # STEP 3: LiDAR WMS (MNS - MNT) → pente toiture
+        # ============================================================
+        if not self.data.get('pente_toiture_deg'):
+            try:
+                # Centrer sur le bâtiment OSM ou le point GPS
+                if osm_building:
+                    geom_pts = osm_building.get("geometry", [])
+                    b_lats = [p["lat"] for p in geom_pts]
+                    b_lons = [p["lon"] for p in geom_pts]
+                    b_lat_c = sum(b_lats) / len(b_lats)
+                    b_lon_c = sum(b_lons) / len(b_lons)
+                    lat_extent = max(b_lats) - min(b_lats)
+                    lon_extent = max(b_lons) - min(b_lons)
+                else:
+                    b_lat_c, b_lon_c = lat, lon
+                    lat_extent = 0.0003  # ~33m
+                    lon_extent = 0.0003
+                
+                margin = 0.00005
+                bbox_str = f"{b_lat_c - lat_extent/2 - margin},{b_lon_c - lon_extent/2 - margin},{b_lat_c + lat_extent/2 + margin},{b_lon_c + lon_extent/2 + margin}"
+                
+                wms_url = "https://data.geopf.fr/wms-r/wms"
+                wms_common = {
+                    "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                    "CRS": "EPSG:4326", "BBOX": bbox_str,
+                    "WIDTH": "128", "HEIGHT": "128",
+                    "FORMAT": "image/tiff", "STYLES": ""
+                }
+                
+                # MNS (surface avec bâtiments)
+                r_mns = requests.get(wms_url, params={
+                    **wms_common,
+                    "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+                }, timeout=10)
+                
+                # MNT (terrain seul)
+                r_mnt = requests.get(wms_url, params={
+                    **wms_common,
+                    "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+                }, timeout=10)
+                
+                if r_mns.status_code == 200 and r_mnt.status_code == 200 and \
+                   r_mns.headers.get('content-type', '').startswith('image'):
+                    mns_img = PILImage.open(io.BytesIO(r_mns.content))
+                    mnt_img = PILImage.open(io.BytesIO(r_mnt.content))
+                    
+                    mns_arr = np.array(mns_img, dtype=np.float32)
+                    mnt_arr = np.array(mnt_img, dtype=np.float32)
+                    
+                    # MNH = MNS - MNT (hauteur au-dessus du sol)
+                    mnh_arr = mns_arr - mnt_arr
+                    
+                    # Profil horizontal au centre du bâtiment
+                    cy = mnh_arr.shape[0] // 2
+                    profile = mnh_arr[cy, :]
+                    
+                    # Pixels du bâtiment (hauteur > 2m)
+                    building_mask = profile > 2
+                    
+                    if building_mask.any():
+                        building_heights = profile[building_mask]
+                        max_h = float(building_heights.max())
+                        min_h = float(building_heights.min())  # Hauteur à l'égout
+                        
+                        # Position du faitage (max)
+                        ridge_pos = int(np.argmax(profile))
+                        building_indices = np.where(building_mask)[0]
+                        eave_left = int(building_indices[0])
+                        
+                        # Calculer la pente
+                        dx_pixels = abs(ridge_pos - eave_left)
+                        pixel_size_m = (lon_extent + margin * 2) * 111320 * math.cos(math.radians(b_lat_c)) / 128
+                        dx_m = dx_pixels * pixel_size_m
+                        dz_m = max_h - min_h
+                        
+                        if dx_m > 0.5:
+                            pente_deg = math.degrees(math.atan2(dz_m, dx_m))
+                            self.data['pente_toiture_deg'] = round(pente_deg, 0)
+                        
+                        # Affiner hauteur murs et faitage depuis LiDAR
+                        if not self.data.get('hauteur_murs_m') or abs(self.data.get('hauteur_murs_m', 0) - min_h) > 1:
+                            self.data['hauteur_murs_m'] = round(min_h, 1)
+                        if not self.data.get('hauteur_faitage_m') or abs(self.data.get('hauteur_faitage_m', 0) - (max_h - min_h)) > 1:
+                            self.data['hauteur_faitage_m'] = round(max_h - min_h, 1)
+                        
+                        print(f"  ✓ LiDAR: pente={self.data.get('pente_toiture_deg')}°, murs={min_h:.1f}m, faitage={max_h-min_h:.1f}m")
+                    else:
+                        print(f"  ⚠ LiDAR: aucun bâtiment détecté (MNH max={float(mnh_arr.max()):.1f}m)")
+                else:
+                    print(f"  ⚠ LiDAR WMS: MNS={r_mns.status_code}, MNT={r_mnt.status_code}")
+            except Exception as e:
+                print(f"  ⚠ LiDAR: {e}")
+        
+        # ============================================================
+        # Résumé et valeurs par défaut
+        # ============================================================
+        defaults = {
+            'longueur_batiment_m': 12.0,
+            'largeur_batiment_m': 8.0,
+            'hauteur_batiment_m': 7.0,
+            'hauteur_murs_m': 3.0,
+            'hauteur_faitage_m': 2.5,
+            'pente_toiture_deg': 30,
+        }
+        for key, default_val in defaults.items():
+            if not self.data.get(key):
+                self.data[key] = default_val
+        
+        print(f"  → Bâtiment: {self.data.get('longueur_batiment_m')}m x {self.data.get('largeur_batiment_m')}m, "
+              f"h_murs={self.data.get('hauteur_murs_m')}m, h_faitage={self.data.get('hauteur_faitage_m')}m, "
+              f"pente={self.data.get('pente_toiture_deg')}°")
     
     
     def _get_parcelle_bounds(self):
