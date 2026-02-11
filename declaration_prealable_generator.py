@@ -23,6 +23,7 @@ import requests
 from PIL import Image as PILImage, ImageDraw, ImageFont
 import base64
 import json
+from plan_masse_generator import generate_plan_masse as generate_plan_masse_cadastral
 
 
 class DeclarationPrealableGenerator:
@@ -821,6 +822,21 @@ class DeclarationPrealableGenerator:
         return buffer
     
     def generate_plan_masse(self):
+        """Génère le plan DP2 : Plan de masse coté en utilisant le générateur de plan de masse cadastral"""
+        try:
+            # Utiliser le vrai générateur de plan de masse cadastral (A3, avec modules PV)
+            pdf_buffer = generate_plan_masse_cadastral(self.data, self.calpinage)
+            if pdf_buffer:
+                print("✓ DP2: Plan de masse généré via plan_masse_generator (cadastral)")
+                pdf_buffer.seek(0)
+                return pdf_buffer
+        except Exception as e:
+            print(f"⚠️ DP2: Erreur plan_masse_generator: {e}, fallback basique")
+        
+        # Fallback: plan basique si le générateur cadastral échoue
+        return self._generate_plan_masse_fallback()
+    
+    def _generate_plan_masse_fallback(self):
         """Génère le plan DP2 : Plan de masse coté (échelle 1/100 à 1/500)"""
         buffer = io.BytesIO()
         c = canvas.Canvas(buffer, pagesize=A4)
@@ -2022,25 +2038,69 @@ class DeclarationPrealableGenerator:
     # ========== HELPERS IMAGES SATELLITE ==========
     
     def _fetch_map_image(self, lat, lon, zoom=13, width=600, height=600):
-        """Récupère une image de carte OpenStreetMap"""
+        """Récupère une image de carte pour le plan de situation via IGN Géoplateforme"""
         try:
-            # API OpenStreetMap via StaticMap
-            url = f"https://staticmap.openstreetmap.de/staticmap.php"
-            params = {
-                'center': f"{lat},{lon}",
-                'zoom': zoom,
-                'size': f"{width}x{height}",
-                'maptype': 'mapnik',
-                'markers': f"{lat},{lon},red"
-            }
+            # Assembler plusieurs tuiles IGN pour couvrir la zone
+            import math
+            lat_rad = math.radians(lat)
+            n = 2.0 ** zoom
+            x_tile = int((lon + 180.0) / 360.0 * n)
+            y_tile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
             
-            response = requests.get(url, params=params, timeout=10)
+            # Grille 3x3 de tuiles pour une couverture large
+            tile_size = 256
+            grid = 3
+            result_img = PILImage.new('RGB', (tile_size * grid, tile_size * grid))
             
-            if response.status_code == 200:
-                return io.BytesIO(response.content)
+            for dx in range(-1, 2):
+                for dy in range(-1, 2):
+                    tx = x_tile + dx
+                    ty = y_tile + dy
+                    
+                    # IGN Géoplateforme - Plan IGN (fiable, gratuit, pas de clé)
+                    tile_url = f"https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={zoom}&TILEROW={ty}&TILECOL={tx}"
+                    
+                    try:
+                        resp = requests.get(tile_url, timeout=8)
+                        if resp.status_code == 200:
+                            tile_img = PILImage.open(io.BytesIO(resp.content))
+                            px = (dx + 1) * tile_size
+                            py = (dy + 1) * tile_size
+                            result_img.paste(tile_img, (px, py))
+                    except:
+                        pass
+            
+            # Redimensionner à la taille demandée
+            result_img = result_img.resize((width, height), PILImage.Resampling.LANCZOS)
+            
+            buf = io.BytesIO()
+            result_img.save(buf, format='PNG')
+            buf.seek(0)
+            return buf
             
         except Exception as e:
-            print(f"Erreur fetch_map_image: {e}")
+            print(f"Erreur fetch_map_image IGN: {e}")
+        
+        # Fallback: tuile OSM simple
+        try:
+            import math
+            lat_rad = math.radians(lat)
+            n = 2.0 ** zoom
+            x_tile = int((lon + 180.0) / 360.0 * n)
+            y_tile = int((1.0 - math.asinh(math.tan(lat_rad)) / math.pi) / 2.0 * n)
+            
+            tile_url = f"https://tile.openstreetmap.org/{zoom}/{x_tile}/{y_tile}.png"
+            headers = {'User-Agent': 'AgriWeb-DP-Generator/1.0'}
+            resp = requests.get(tile_url, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                img = PILImage.open(io.BytesIO(resp.content))
+                img = img.resize((width, height), PILImage.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                buf.seek(0)
+                return buf
+        except Exception as e:
+            print(f"Erreur fallback OSM: {e}")
         
         return None
     
