@@ -10360,8 +10360,20 @@ def rapport_map_point():
         if prospect_id:
             log_step("VALIDATION", f"Prospect ID: {prospect_id}", "SUCCESS")
         
+        # === REVERSE GEOCODING si pas d'adresse fournie ===
         if not address:
-            address = f"{lat_float}, {lon_float}"
+            log_step("ADRESSE", "Aucune adresse fournie, tentative de reverse geocoding...", "INFO")
+            try:
+                addr_result = get_address_from_coordinates(lat_float, lon_float)
+                if addr_result and addr_result.get('address'):
+                    address = addr_result['address']
+                    log_step("ADRESSE", f"✅ Adresse trouvée par reverse geocoding: {address}", "SUCCESS")
+                else:
+                    address = f"{lat_float}, {lon_float}"
+                    log_step("ADRESSE", "⚠️ Reverse geocoding n'a pas retourné d'adresse, utilisation des coordonnées", "WARNING")
+            except Exception as addr_e:
+                address = f"{lat_float}, {lon_float}"
+                log_step("ADRESSE", f"⚠️ Erreur reverse geocoding: {addr_e}, utilisation des coordonnées", "WARNING")
             
     except ValueError as e:
         log_step("VALIDATION", f"Erreur conversion coordonnées: {e}", "ERROR")
@@ -10380,6 +10392,7 @@ def rapport_map_point():
         "lat": lat_float,
         "lon": lon_float,
         "address": address,
+        "adresse": address,
         "prospect_id": prospect_id,
         "timestamp": timestamp,
         "version": "3.2.1",

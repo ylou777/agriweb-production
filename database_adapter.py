@@ -216,6 +216,24 @@ def init_database():
                     except Exception:
                         pass  # Colonne existe déjà ou table pas encore créée
                 
+                # Ajouter les colonnes manquantes à project_etapes si elles n'existent pas
+                etapes_migration_columns = [
+                    ("date_debut", "TIMESTAMP"),
+                    ("date_debut_prevue", "TIMESTAMP"),
+                    ("date_fin_prevue", "TIMESTAMP"),
+                    ("date_fin_reelle", "TIMESTAMP"),
+                    ("responsable", "TEXT"),
+                    ("notes", "TEXT"),
+                    ("ordre", "INTEGER DEFAULT 0"),
+                ]
+                for col_name, col_type in etapes_migration_columns:
+                    try:
+                        cursor.execute(f"""
+                            ALTER TABLE project_etapes ADD COLUMN IF NOT EXISTS {col_name} {col_type}
+                        """)
+                    except Exception:
+                        pass  # Colonne existe déjà ou table pas encore créée
+
                 # Ajouter les colonnes manquantes à project_documents pour la dataroom
                 doc_migration_columns = [
                     ("prospect_id", "INTEGER"),

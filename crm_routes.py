@@ -96,7 +96,7 @@ def auto_create_project_for_prospect(prospect_id, commune=None, adresse=None, us
             'SELECT data_json FROM agriweb_prospects WHERE id = %s',
             (prospect_id,), fetch_one=True
         )
-        prospect_data_json = prospect_data.get('data_json', '{}') if prospect_data else '{}'
+        prospect_data_json = (prospect_data.get('data_json') or '{}') if prospect_data else '{}'
         
         # Créer la fiche projet
         result = execute_query('''
@@ -1006,6 +1006,10 @@ def register_crm_routes(app):
                 update_fields.append('commune = %s')
                 params.append(data['commune'])
             
+            if 'adresse' in data and data['adresse']:
+                update_fields.append('adresse = %s')
+                params.append(data['adresse'])
+            
             if 'parcelle_cadastrale' in data:
                 update_fields.append('parcelles_cadastrales = %s')
                 params.append(data['parcelle_cadastrale'])
@@ -1135,7 +1139,7 @@ def register_crm_routes(app):
                     ''', (
                         json.dumps(data_json_to_save) if data_json_to_save else None,
                         data.get('commune'),
-                        data.get('commune'),
+                        data.get('adresse') or data.get('commune'),
                         data.get('parcelle_cadastrale'),
                         project_id
                     ))
@@ -1162,9 +1166,9 @@ def register_crm_routes(app):
                         RETURNING id
                     ''', (
                         prospect_id,
-                        f"Rapport {data.get('commune', 'inconnu')}",
+                        f"Projet {data.get('adresse') or data.get('commune', 'inconnu')}",
                         data.get('commune'),
-                        data.get('commune'),
+                        data.get('adresse') or data.get('commune'),
                         data.get('parcelle_cadastrale'),
                         'etude',
                         json.dumps(data_json_to_save) if data_json_to_save else '{}',
@@ -1408,7 +1412,8 @@ def register_crm_routes(app):
                         pf.responsable,
                         pf.surface_totale,
                         pf.parcelles_cadastrales,
-                        pf.commune
+                        pf.commune,
+                        pf.adresse_projet
                     FROM project_fiches pf
                     WHERE pf.prospect_id = %s{filter_clause}
                     ORDER BY pf.date_creation DESC
@@ -1427,7 +1432,8 @@ def register_crm_routes(app):
                         pf.responsable,
                         pf.surface_totale,
                         pf.parcelles_cadastrales,
-                        pf.commune
+                        pf.commune,
+                        pf.adresse_projet
                     FROM project_fiches pf
                     WHERE 1=1{filter_clause}
                     ORDER BY pf.date_creation DESC
@@ -1507,6 +1513,7 @@ def register_crm_routes(app):
                     # Récupérer les infos du prospect pour pré-remplir
                     prospect_info = {
                         'commune': prospect.get('commune'),
+                        'adresse': prospect.get('adresse'),
                         'surface_m2': prospect.get('surface_m2'),
                         'surface_ha': prospect.get('surface_ha'),
                         'latitude': prospect.get('latitude'),
@@ -1534,7 +1541,7 @@ def register_crm_routes(app):
                 data.get('client_email'),
                 data.get('client_telephone'),
                 data.get('client_adresse'),
-                data.get('adresse_projet') or prospect_info.get('commune'),
+                data.get('adresse_projet') or prospect_info.get('adresse') or prospect_info.get('commune'),
                 data.get('parcelles_cadastrales') or prospect_info.get('parcelles_cadastrales'),
                 'en_cours',
                 data.get('date_fin_prevue') or None,
