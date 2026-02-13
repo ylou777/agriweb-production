@@ -984,11 +984,11 @@ class Calpinage3DViewer {
         if (hasPitchedRoof) {
             ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
             if (roofShape === 'hip') {
-                this._createHipRoof(obb, bh, terrainH, ridgeExtra, roofType);
+                this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
             } else if (roofShape === 'shed') {
-                this._createShedRoof(obb, bh, terrainH, ridgeExtra, roofType, roofAnalysis?.ridgeOffset || 0);
+                this._createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, roofAnalysis?.ridgeOffset || 0);
             } else {
-                this._createGableRoof(obb, bh, terrainH, ridgeExtra, roofType);
+                this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
             }
         } else {
             this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
@@ -1307,221 +1307,209 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Crée un toit bi-pan (gable/pignon) avec faîtage le long de l'axe principal.
-     * Le faîtage est une LIGNE (pas un point) → 2 pans + 2 pignons triangulaires.
-     * @param {Object} obb - Oriented bounding box {cx, cz, angle, longDim, shortDim}
+     * Génère un toit depuis le vrai polygone du bâtiment (pas l'OBB).
+     * Chaque sommet du polygone est élevé selon la fonction de hauteur (heightFunc).
+     * Insère des sommets sur la ligne de faîtage pour conserver l'arête vive.
+     * Crée aussi les murs pignons (skirt) entre le toit et le haut des murs.
+     * 
+     * @param {Array} localCoords - Sommets du polygone [{x, z}]
+     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     * @param {number} roofBaseY - Y du haut des murs
+     * @param {Function} heightFunc - (across, along) => hauteur additionnelle au-dessus de roofBaseY
+     * @param {string} roofType - Type de couverture
+     * @param {string} wallType - Type de mur
      */
-    _createGableRoof(obb, bh, terrainH, ridgeExtra, roofType) {
-        const roofBaseY = terrainH + bh; // Flush avec le haut des murs
-        // Débord de toit (0.3m) pour couvrir les murs et éviter les décalages
-        const overhang = 0.3;
-        const halfLong = obb.longDim / 2 + overhang;
-        const halfShort = obb.shortDim / 2 + overhang;
-        const ridgeY = roofBaseY + ridgeExtra;
+    _createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType) {
+        if (!localCoords || localCoords.length < 3) return;
         
-        const cosA = Math.cos(obb.angle);
-        const sinA = Math.sin(obb.angle);
+        // Axes du repère orienté (rotation inverse pour projection)
+        const cosA = Math.cos(-obb.angle);
+        const sinA = Math.sin(-obb.angle);
         
-        // Transformation du repère orienté (long, short) vers le repère monde (x, z)
-        const toWorld = (rl, rs) => ({
-            x: obb.cx + rl * cosA - rs * sinA,
-            z: obb.cz + rl * sinA + rs * cosA,
-        });
+        // Étape 1 : Construire le polygone augmenté (sommets originaux + intersections faîtage)
+        const augmented = [];
+        const n = localCoords.length;
         
-        // 4 coins de la base du toit
-        const c00 = toWorld(-halfLong, -halfShort); // arrière-gauche
-        const c10 = toWorld(+halfLong, -halfShort); // arrière-droite
-        const c11 = toWorld(+halfLong, +halfShort); // avant-droite
-        const c01 = toWorld(-halfLong, +halfShort); // avant-gauche
-        
-        // 2 points du faîtage (ligne centrale le long de l'axe principal)
-        const r0 = toWorld(-halfLong, 0);
-        const r1 = toWorld(+halfLong, 0);
-        
-        // Géométrie : 2 pans (chaque = 1 quad = 2 triangles) + 2 pignons (triangles)
-        const vertices = new Float32Array([
-            // Pan 1 (côté +short) : c01 → c11 → r1, c01 → r1 → r0
-            c01.x, roofBaseY, c01.z,  c11.x, roofBaseY, c11.z,  r1.x, ridgeY, r1.z,
-            c01.x, roofBaseY, c01.z,  r1.x, ridgeY, r1.z,       r0.x, ridgeY, r0.z,
+        for (let i = 0; i < n; i++) {
+            const curr = localCoords[i];
+            const next = localCoords[(i + 1) % n];
             
-            // Pan 2 (côté -short) : c10 → c00 → r0, c10 → r0 → r1
-            c10.x, roofBaseY, c10.z,  c00.x, roofBaseY, c00.z,  r0.x, ridgeY, r0.z,
-            c10.x, roofBaseY, c10.z,  r0.x, ridgeY, r0.z,       r1.x, ridgeY, r1.z,
+            const currDx = curr.x - obb.cx;
+            const currDz = curr.z - obb.cz;
+            const currAcross = currDx * sinA + currDz * cosA;
+            const currAlong = currDx * cosA - currDz * sinA;
+            const currH = heightFunc(currAcross, currAlong);
             
-            // Pignon gauche (triangle mur) : c00 → c01 → r0
-            c00.x, roofBaseY, c00.z,  c01.x, roofBaseY, c01.z,  r0.x, ridgeY, r0.z,
+            augmented.push({
+                x: curr.x, z: curr.z,
+                y: roofBaseY + currH,
+                across: currAcross
+            });
             
-            // Pignon droit (triangle mur) : c11 → c10 → r1
-            c11.x, roofBaseY, c11.z,  c10.x, roofBaseY, c10.z,  r1.x, ridgeY, r1.z,
-        ]);
+            // Insérer un sommet sur le faîtage si l'arête traverse la ligne across=0
+            const nextDx = next.x - obb.cx;
+            const nextDz = next.z - obb.cz;
+            const nextAcross = nextDx * sinA + nextDz * cosA;
+            
+            if (currAcross * nextAcross < 0 && Math.abs(currAcross) > 0.1 && Math.abs(nextAcross) > 0.1) {
+                const t = Math.abs(currAcross) / (Math.abs(currAcross) + Math.abs(nextAcross));
+                const ix = curr.x + t * (next.x - curr.x);
+                const iz = curr.z + t * (next.z - curr.z);
+                const iDx = ix - obb.cx;
+                const iDz = iz - obb.cz;
+                const iAlong = iDx * cosA - iDz * sinA;
+                const iH = heightFunc(0, iAlong);
+                augmented.push({ x: ix, z: iz, y: roofBaseY + iH, across: 0 });
+            }
+        }
         
-        // UVs pour la texture de toit
-        const uvs = new Float32Array([
-            // Pan 1 (quad via 2 triangles)
-            0,0, 1,0, 1,1,
-            0,0, 1,1, 0,1,
-            // Pan 2 (quad via 2 triangles)
-            0,0, 1,0, 1,1,
-            0,0, 1,1, 0,1,
-            // Pignon gauche
-            0,0, 1,0, 0.5,1,
-            // Pignon droit
-            0,0, 1,0, 0.5,1,
-        ]);
+        if (augmented.length < 3) return;
         
-        const roofGeo = new THREE.BufferGeometry();
-        roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-        roofGeo.computeVertexNormals();
+        // Étape 2 : Trianguler le polygone (projection 2D plan XZ)
+        const pts2D = augmented.map(v => new THREE.Vector2(v.x, -v.z));
+        
+        // Vérifier l'enroulement (CCW requis pour ShapeUtils)
+        let areaSign = 0;
+        for (let i = 0; i < pts2D.length; i++) {
+            const j = (i + 1) % pts2D.length;
+            areaSign += pts2D[i].x * pts2D[j].y - pts2D[j].x * pts2D[i].y;
+        }
+        if (areaSign < 0) {
+            pts2D.reverse();
+            augmented.reverse();
+        }
+        
+        let triangles;
+        try {
+            triangles = THREE.ShapeUtils.triangulateShape(pts2D, []);
+        } catch (e) {
+            console.warn('⚠ Triangulation toit échouée:', e.message);
+            return;
+        }
+        if (!triangles || triangles.length === 0) return;
+        
+        // Étape 3 : Géométrie du toit
+        const positions = [];
+        const uvs = [];
+        for (const v of augmented) {
+            positions.push(v.x, v.y, v.z);
+            const dx = v.x - obb.cx;
+            const dz = v.z - obb.cz;
+            const along = dx * cosA - dz * sinA;
+            uvs.push(along / 4.0, (v.across || 0) / 4.0);
+        }
+        
+        const indices = [];
+        for (const tri of triangles) {
+            indices.push(tri[0], tri[1], tri[2]);
+        }
+        
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
         
         const roofTex = this._getRoofTexture(roofType);
         const roofMat = new THREE.MeshPhongMaterial({
-            map: roofTex,
-            side: THREE.DoubleSide,
+            map: roofTex, side: THREE.DoubleSide,
             specular: 0x222222,
             shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
         });
-        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+        const roofMesh = new THREE.Mesh(geo, roofMat);
         roofMesh.castShadow = true;
         roofMesh.receiveShadow = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
+        
+        // Étape 4 : Murs pignon ("jupe" entre le toit et le haut des murs)
+        const wallColorMap = {
+            plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
+            concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
+        };
+        const wallColor = wallColorMap[wallType] || 0xE8DCC8;
+        
+        for (let i = 0; i < augmented.length; i++) {
+            const curr = augmented[i];
+            const next = augmented[(i + 1) % augmented.length];
+            const currAbove = curr.y - roofBaseY;
+            const nextAbove = next.y - roofBaseY;
+            
+            if (currAbove > 0.05 || nextAbove > 0.05) {
+                const wallVerts = new Float32Array([
+                    curr.x, curr.y, curr.z,  next.x, next.y, next.z,  next.x, roofBaseY, next.z,
+                    curr.x, curr.y, curr.z,  next.x, roofBaseY, next.z,  curr.x, roofBaseY, curr.z,
+                ]);
+                const wallGeo = new THREE.BufferGeometry();
+                wallGeo.setAttribute('position', new THREE.BufferAttribute(wallVerts, 3));
+                wallGeo.computeVertexNormals();
+                const wallMat = new THREE.MeshPhongMaterial({
+                    color: wallColor, side: THREE.DoubleSide,
+                    specular: 0x111111, shininess: 5
+                });
+                const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+                wallMesh.castShadow = true;
+                this.scene.add(wallMesh);
+                this.buildings.push(wallMesh);
+            }
+        }
     }
     
     /**
-     * Crée un toit 4 pans (hip/croupe) avec faîtage raccourci au centre.
-     * 4 pans inclinés, le faîtage ne s'étend que sur ~50% de la longueur du bâtiment.
-     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     * Toit bi-pan (gable) depuis le polygone réel du bâtiment.
+     * Profil en V : hauteur maximale au faîtage (across=0), zéro aux bords.
      */
-    _createHipRoof(obb, bh, terrainH, ridgeExtra, roofType) {
-        const roofBaseY = terrainH + bh; // Flush avec le haut des murs
-        // Débord de toit pour couvrir les murs
-        const overhang = 0.3;
-        const halfLong = obb.longDim / 2 + overhang;
-        const halfShort = obb.shortDim / 2 + overhang;
-        const ridgeY = roofBaseY + ridgeExtra;
+    _createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType) {
+        const roofBaseY = terrainH + bh;
+        const halfShort = obb.shortDim / 2;
         
-        // Le faîtage ne va que sur ~50% de la longueur (le reste = croupes)
+        const heightFunc = (across, along) => {
+            const t = Math.min(Math.abs(across) / Math.max(halfShort, 0.5), 1.0);
+            return ridgeExtra * (1 - t);
+        };
+        
+        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+    }
+    
+    /**
+     * Toit 4 pans (hip/croupe) depuis le polygone réel.
+     * Faîtage raccourci au centre, croupes aux extrémités.
+     */
+    _createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType) {
+        const roofBaseY = terrainH + bh;
+        const halfShort = obb.shortDim / 2;
+        const halfLong = obb.longDim / 2;
         const ridgeHalfLen = halfLong * 0.45;
         
-        const cosA = Math.cos(obb.angle);
-        const sinA = Math.sin(obb.angle);
-        const toWorld = (rl, rs) => ({
-            x: obb.cx + rl * cosA - rs * sinA,
-            z: obb.cz + rl * sinA + rs * cosA,
-        });
+        const heightFunc = (across, along) => {
+            const tAcross = Math.min(Math.abs(across) / Math.max(halfShort, 0.5), 1.0);
+            const alongAbs = Math.abs(along);
+            let tAlong = 0;
+            if (alongAbs > ridgeHalfLen) {
+                tAlong = Math.min((alongAbs - ridgeHalfLen) / Math.max(halfLong - ridgeHalfLen, 0.5), 1.0);
+            }
+            return ridgeExtra * Math.max(0, 1 - Math.max(tAcross, tAlong));
+        };
         
-        // 4 coins base
-        const c00 = toWorld(-halfLong, -halfShort);
-        const c10 = toWorld(+halfLong, -halfShort);
-        const c11 = toWorld(+halfLong, +halfShort);
-        const c01 = toWorld(-halfLong, +halfShort);
-        
-        // 2 extrémités du faîtage raccourci
-        const r0 = toWorld(-ridgeHalfLen, 0);
-        const r1 = toWorld(+ridgeHalfLen, 0);
-        
-        const vertices = new Float32Array([
-            // Pan avant (+short) : c01 → c11 → r1, c01 → r1 → r0
-            c01.x, roofBaseY, c01.z,  c11.x, roofBaseY, c11.z,  r1.x, ridgeY, r1.z,
-            c01.x, roofBaseY, c01.z,  r1.x, ridgeY, r1.z,       r0.x, ridgeY, r0.z,
-            
-            // Pan arrière (-short) : c10 → c00 → r0, c10 → r0 → r1
-            c10.x, roofBaseY, c10.z,  c00.x, roofBaseY, c00.z,  r0.x, ridgeY, r0.z,
-            c10.x, roofBaseY, c10.z,  r0.x, ridgeY, r0.z,       r1.x, ridgeY, r1.z,
-            
-            // Croupe gauche : c00 → c01 → r0 (triangle)
-            c00.x, roofBaseY, c00.z,  c01.x, roofBaseY, c01.z,  r0.x, ridgeY, r0.z,
-            
-            // Croupe droite : c11 → c10 → r1 (triangle)
-            c11.x, roofBaseY, c11.z,  c10.x, roofBaseY, c10.z,  r1.x, ridgeY, r1.z,
-        ]);
-        
-        const uvs = new Float32Array([
-            0,0, 1,0, 1,1,   0,0, 1,1, 0,1,
-            0,0, 1,0, 1,1,   0,0, 1,1, 0,1,
-            0,0, 1,0, 0.5,1,
-            0,0, 1,0, 0.5,1,
-        ]);
-        
-        const roofGeo = new THREE.BufferGeometry();
-        roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-        roofGeo.computeVertexNormals();
-        
-        const roofTex = this._getRoofTexture(roofType);
-        const roofMat = new THREE.MeshPhongMaterial({
-            map: roofTex, side: THREE.DoubleSide,
-            specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
-        });
-        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-        roofMesh.castShadow = true;
-        roofMesh.receiveShadow = true;
-        this.scene.add(roofMesh);
-        this.buildings.push(roofMesh);
+        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
     /**
-     * Crée un toit mono-pente (shed/appentis).
+     * Toit mono-pente (shed) depuis le polygone réel.
      * Un côté est plus haut que l'autre.
-     * @param {number} ridgeOffset - décalage du faîtage (-0.5 à 0.5), négatif = vers côté 0
      */
-    _createShedRoof(obb, bh, terrainH, ridgeExtra, roofType, ridgeOffset) {
-        const roofBaseY = terrainH + bh; // Flush avec le haut des murs
-        const overhang = 0.3;
-        const halfLong = obb.longDim / 2 + overhang;
-        const halfShort = obb.shortDim / 2 + overhang;
-        
-        const cosA = Math.cos(obb.angle);
-        const sinA = Math.sin(obb.angle);
-        const toWorld = (rl, rs) => ({
-            x: obb.cx + rl * cosA - rs * sinA,
-            z: obb.cz + rl * sinA + rs * cosA,
-        });
-        
-        // 4 coins — un côté est plus haut
+    _createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, ridgeOffset) {
+        const roofBaseY = terrainH + bh;
+        const halfShort = obb.shortDim / 2;
         const highSide = ridgeOffset < 0 ? -1 : 1;
-        const c00 = toWorld(-halfLong, -halfShort);
-        const c10 = toWorld(+halfLong, -halfShort);
-        const c11 = toWorld(+halfLong, +halfShort);
-        const c01 = toWorld(-halfLong, +halfShort);
         
-        const yLow = roofBaseY;
-        const yHigh = roofBaseY + ridgeExtra;
+        const heightFunc = (across, along) => {
+            const normalizedPos = across / Math.max(halfShort, 0.5);
+            const t = Math.min(Math.max((normalizedPos * highSide + 1) / 2, 0), 1);
+            return ridgeExtra * t;
+        };
         
-        // Côté +short est haut si ridgeOffset > 0
-        const y00 = highSide < 0 ? yHigh : yLow;
-        const y10 = highSide < 0 ? yHigh : yLow;
-        const y11 = highSide > 0 ? yHigh : yLow;
-        const y01 = highSide > 0 ? yHigh : yLow;
-        
-        const vertices = new Float32Array([
-            c00.x, y00, c00.z,  c10.x, y10, c10.z,  c11.x, y11, c11.z,
-            c00.x, y00, c00.z,  c11.x, y11, c11.z,  c01.x, y01, c01.z,
-        ]);
-        
-        const uvs = new Float32Array([
-            0,0, 1,0, 1,1,
-            0,0, 1,1, 0,1,
-        ]);
-        
-        const roofGeo = new THREE.BufferGeometry();
-        roofGeo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        roofGeo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-        roofGeo.computeVertexNormals();
-        
-        const roofTex = this._getRoofTexture(roofType);
-        const roofMat = new THREE.MeshPhongMaterial({
-            map: roofTex, side: THREE.DoubleSide,
-            specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
-        });
-        const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-        roofMesh.castShadow = true;
-        roofMesh.receiveShadow = true;
-        this.scene.add(roofMesh);
-        this.buildings.push(roofMesh);
+        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
     /**
