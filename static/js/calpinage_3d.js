@@ -828,7 +828,21 @@ class Calpinage3DViewer {
         
         // Calculer l'orientation et les dimensions orientées du bâtiment
         const obb = this._computeBuildingOrientation(localCoords);
-        const terrainH = this._getTerrainHeight(obb.cx, obb.cz);
+        
+        // Échantillonner la hauteur du terrain à plusieurs points (centre + coins)
+        // pour éviter que les bâtiments s'enfoncent sous le relief
+        const terrainSamples = [this._getTerrainHeight(obb.cx, obb.cz)];
+        const cosObb = Math.cos(obb.angle);
+        const sinObb = Math.sin(obb.angle);
+        const hlObb = obb.longDim / 2;
+        const hsObb = obb.shortDim / 2;
+        for (const [rl, rs] of [[-hlObb,-hsObb],[hlObb,-hsObb],[hlObb,hsObb],[-hlObb,hsObb]]) {
+            const cx2 = obb.cx + rl * cosObb - rs * sinObb;
+            const cz2 = obb.cz + rl * sinObb + rs * cosObb;
+            terrainSamples.push(this._getTerrainHeight(cx2, cz2));
+        }
+        const terrainH = Math.max(...terrainSamples);
+        
         const bh = Math.max(height, 2);
         const wallType = this._getWallType(buildingData);
         const roofType = this._getRoofType(buildingData);
@@ -866,7 +880,14 @@ class Calpinage3DViewer {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
             };
-            const capMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            // Cap : transparent pour que le toit en pente ne montre pas
+            // de panneau gris parasite en dessous
+            const capMat = new THREE.MeshLambertMaterial({
+                color: 0x666666,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+            });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
                 specular: 0x111111,
@@ -1280,9 +1301,11 @@ class Calpinage3DViewer {
      * @param {Object} obb - Oriented bounding box {cx, cz, angle, longDim, shortDim}
      */
     _createGableRoof(obb, bh, terrainH, ridgeExtra, roofType) {
-        const roofBaseY = terrainH + bh + 0.1; // +0.1 pour éviter le z-fighting avec le cap
-        const halfLong = obb.longDim / 2;
-        const halfShort = obb.shortDim / 2;
+        const roofBaseY = terrainH + bh; // Flush avec le haut des murs
+        // Débord de toit (0.3m) pour couvrir les murs et éviter les décalages
+        const overhang = 0.3;
+        const halfLong = obb.longDim / 2 + overhang;
+        const halfShort = obb.shortDim / 2 + overhang;
         const ridgeY = roofBaseY + ridgeExtra;
         
         const cosA = Math.cos(obb.angle);
@@ -1360,9 +1383,11 @@ class Calpinage3DViewer {
      * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
      */
     _createHipRoof(obb, bh, terrainH, ridgeExtra, roofType) {
-        const roofBaseY = terrainH + bh + 0.1; // +0.1 pour éviter le z-fighting avec le cap
-        const halfLong = obb.longDim / 2;
-        const halfShort = obb.shortDim / 2;
+        const roofBaseY = terrainH + bh; // Flush avec le haut des murs
+        // Débord de toit pour couvrir les murs
+        const overhang = 0.3;
+        const halfLong = obb.longDim / 2 + overhang;
+        const halfShort = obb.shortDim / 2 + overhang;
         const ridgeY = roofBaseY + ridgeExtra;
         
         // Le faîtage ne va que sur ~50% de la longueur (le reste = croupes)
@@ -1432,9 +1457,10 @@ class Calpinage3DViewer {
      * @param {number} ridgeOffset - décalage du faîtage (-0.5 à 0.5), négatif = vers côté 0
      */
     _createShedRoof(obb, bh, terrainH, ridgeExtra, roofType, ridgeOffset) {
-        const roofBaseY = terrainH + bh + 0.1; // +0.1 pour éviter le z-fighting avec le cap
-        const halfLong = obb.longDim / 2;
-        const halfShort = obb.shortDim / 2;
+        const roofBaseY = terrainH + bh; // Flush avec le haut des murs
+        const overhang = 0.3;
+        const halfLong = obb.longDim / 2 + overhang;
+        const halfShort = obb.shortDim / 2 + overhang;
         
         const cosA = Math.cos(obb.angle);
         const sinA = Math.sin(obb.angle);
