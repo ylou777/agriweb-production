@@ -877,7 +877,7 @@ class Calpinage3DViewer {
             (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
             hasPitchedRoof = true;
             ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-            roofShape = 'gable'; // defaut pour BD TOPO
+            roofShape = 'gable';
         }
         
         // 3. Fallback : tags OSM roof:shape
@@ -890,17 +890,14 @@ class Calpinage3DViewer {
                 hasPitchedRoof = true;
                 roofShape = 'hip';
                 ridgeExtra = obb.shortDim * 0.3;
-            } else if (buildingData.roof_shape !== 'flat') {
-                // Par défaut, toit en pente pour les bâtiments résidentiels
-                const isResidential = !buildingData.usage || 
-                    buildingData.usage === 'Résidentiel' ||
-                    ['house', 'residential', 'detached', 'semidetached_house', 'terrace', 'apartments', 'yes'].includes(buildingData.type);
-                if (isResidential && bh < 15) {
-                    hasPitchedRoof = true;
-                    roofShape = 'gable';
-                    ridgeExtra = obb.shortDim * 0.25;
-                }
             }
+        }
+        
+        // 4. Fallback universel : toit gable par défaut pour tout bâtiment < 15m
+        if (!hasPitchedRoof && buildingData.roof_shape !== 'flat' && bh < 15) {
+            hasPitchedRoof = true;
+            roofShape = 'gable';
+            ridgeExtra = obb.shortDim * 0.25;
         }
         
         if (hasPitchedRoof) {
