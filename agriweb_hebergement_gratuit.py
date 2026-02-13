@@ -695,10 +695,12 @@ def api_lidar_3d_data():
     
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
-    radius = request.args.get('radius', type=int, default=100)
+    radius = request.args.get('radius', type=float, default=100)
     
     if not lat or not lon:
         return jsonify({"error": "Paramètres lat, lon requis"}), 400
+    
+    radius = max(5, int(round(radius)))
     
     result = {
         "lat": lat, "lon": lon, "radius": radius,
@@ -1283,12 +1285,14 @@ def api_satellite_tile():
     """Proxy pour tuile satellite IGN orthoimagery — évite les problèmes CORS avec Three.js"""
     lat = request.args.get('lat', type=float)
     lon = request.args.get('lon', type=float)
-    radius = request.args.get('radius', type=int, default=100)
+    radius = request.args.get('radius', type=float, default=100)
     
     if not lat or not lon:
         return jsonify({"error": "Paramètres lat, lon requis"}), 400
     
     try:
+        # Arrondir le rayon pour le WMS
+        radius = max(5, int(round(radius)))
         lat_deg = radius / 111320.0
         lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
         bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"

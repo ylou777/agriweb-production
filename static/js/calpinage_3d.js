@@ -811,22 +811,30 @@ class Calpinage3DViewer {
             // Rotation pour que l'extrusion monte le long de Y (haut)
             geo.rotateX(-Math.PI / 2);
             
-            // Materials: group 0 = faces haut/bas (caps), group 1 = murs latéraux
-            const facadeTex = this._getFacadeTexture(wallType, 10, bh, 10);
-            // Caps transparentes pour éviter le double-toit
-            const shapeMat = new THREE.MeshLambertMaterial({
-                color: 0x777777,
-                transparent: true,
-                opacity: 0,
-                depthWrite: false
-            });
+            // Supprimer les caps (faces haut/bas) pour éviter le double-toit
+            // Les caps sont dans le group 0, les murs dans le group 1
+            const groups = geo.groups;
+            if (groups.length >= 2) {
+                // Ne garder que le group des murs latéraux (group index 1)
+                const wallGroup = groups.find(g => g.materialIndex === 1);
+                if (wallGroup) {
+                    geo.clearGroups();
+                    geo.addGroup(wallGroup.start, wallGroup.count, 0);
+                }
+            }
+            
+            // Mur : couleur unie avec teinte selon le type (pas de texture UV)
+            const wallColors = {
+                plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
+                concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
+            };
             const wallMat = new THREE.MeshPhongMaterial({
-                map: facadeTex,
+                color: wallColors[wallType] || 0xE8DCC8,
                 specular: 0x111111,
                 shininess: 5,
             });
             
-            mesh = new THREE.Mesh(geo, [shapeMat, wallMat]);
+            mesh = new THREE.Mesh(geo, [wallMat]);
             mesh.position.set(0, terrainH, 0);
         } catch(err) {
             console.warn('⚠ ExtrudeGeometry fallback pour bâtiment:', err.message);
