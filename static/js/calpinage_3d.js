@@ -248,8 +248,16 @@ class Calpinage3DViewer {
         
         // Exagération verticale pour rendre le relief visible
         const altDelta = terrain.mnt_max - terrain.mnt_min;
-        // Plus le terrain est plat, plus on exagère
-        const verticalExaggeration = altDelta < 5 ? 5.0 : (altDelta < 15 ? 3.0 : 1.5);
+        // Plus le terrain est plat, plus on exagère — mais avec petit rayon, réduire l'exagération
+        let verticalExaggeration;
+        if (radiusM <= 40) {
+            // Vue proche : exagération très faible pour réalisme
+            verticalExaggeration = altDelta < 2 ? 2.0 : (altDelta < 5 ? 1.5 : 1.0);
+        } else if (radiusM <= 80) {
+            verticalExaggeration = altDelta < 3 ? 3.0 : (altDelta < 10 ? 2.0 : 1.2);
+        } else {
+            verticalExaggeration = altDelta < 5 ? 5.0 : (altDelta < 15 ? 3.0 : 1.5);
+        }
         this._verticalExaggeration = verticalExaggeration;
         console.log(`🗺️ Exagération verticale: x${verticalExaggeration} (delta=${altDelta.toFixed(1)}m)`);
         

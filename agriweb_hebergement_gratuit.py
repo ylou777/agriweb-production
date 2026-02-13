@@ -717,7 +717,15 @@ def api_lidar_3d_data():
         bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
         
         wms_url = "https://data.geopf.fr/wms-r/wms"
-        tile_size = 128  # Résolution de la grille (haute résolution)
+        # Résolution adaptative : plus le rayon est petit, plus la résolution est fine
+        if radius <= 50:
+            tile_size = 512   # Très haute résolution pour vue proche
+        elif radius <= 100:
+            tile_size = 384   # Haute résolution
+        elif radius <= 150:
+            tile_size = 256   # Résolution moyenne
+        else:
+            tile_size = 192   # Grande zone
         
         wms_common = {
             "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
@@ -1287,11 +1295,13 @@ def api_satellite_tile():
         
         # wms-r est le seul endpoint qui sert HR.ORTHOIMAGERY.ORTHOPHOTOS en image/jpeg
         wms_url = "https://data.geopf.fr/wms-r/wms"
+        # Résolution satellite adaptative selon le rayon
+        sat_size = "1024" if radius <= 60 else ("768" if radius <= 120 else "512")
         params = {
             "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
             "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
             "CRS": "EPSG:4326", "BBOX": bbox,
-            "WIDTH": "512", "HEIGHT": "512",
+            "WIDTH": sat_size, "HEIGHT": sat_size,
             "FORMAT": "image/jpeg", "STYLES": ""
         }
         

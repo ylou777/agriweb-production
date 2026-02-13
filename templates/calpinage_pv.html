@@ -938,8 +938,8 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
-    <script src="/static/js/calpinage_3d_bundled.js?v=9"></script>
-    <script src="/static/js/calpinage_3d.js?v=9"></script>
+    <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
+    <script src="/static/js/calpinage_3d.js?v=10"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -5242,10 +5242,40 @@
                 mapCard.style.display = 'none';
                 viewer3D.toggle();
                 
-                // Charger les données LiDAR 3D réelles
-                console.log('🌍 Chargement LiDAR 3D pour', prospectLat, prospectLon);
-                viewer3D.loadLidarData(prospectLat, prospectLon, 120).then(() => {
-                    // Mettre à jour avec les zones actuelles
+                // Calculer le centre et rayon depuis la bbox des modules PV
+                let centerLat3D = prospectLat;
+                let centerLon3D = prospectLon;
+                let radius3D = 40; // Défaut petit si pas de zones
+                
+                if (zones && zones.length > 0) {
+                    let minLat = Infinity, maxLat = -Infinity;
+                    let minLon = Infinity, maxLon = -Infinity;
+                    let hasModules = false;
+                    
+                    zones.forEach(zone => {
+                        if (zone.layer) {
+                            const bounds = zone.layer.getBounds();
+                            minLat = Math.min(minLat, bounds.getSouthWest().lat);
+                            maxLat = Math.max(maxLat, bounds.getNorthEast().lat);
+                            minLon = Math.min(minLon, bounds.getSouthWest().lng);
+                            maxLon = Math.max(maxLon, bounds.getNorthEast().lng);
+                            hasModules = true;
+                        }
+                    });
+                    
+                    if (hasModules) {
+                        centerLat3D = (minLat + maxLat) / 2;
+                        centerLon3D = (minLon + maxLon) / 2;
+                        // Rayon = demi-diagonale de la bbox des modules + 20m de marge
+                        const dLat = (maxLat - minLat) * 111320;
+                        const dLon = (maxLon - minLon) * 111320 * Math.cos(centerLat3D * Math.PI / 180);
+                        const halfDiag = Math.sqrt(dLat * dLat + dLon * dLon) / 2;
+                        radius3D = Math.max(20, Math.ceil(halfDiag + 20));
+                    }
+                }
+                
+                console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
+                viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {
                     update3DFromZones();
                 });
             }
