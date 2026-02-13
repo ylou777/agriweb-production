@@ -1335,17 +1335,32 @@ class Calpinage3DViewer {
     _createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType) {
         if (!localCoords || localCoords.length < 3) return;
         
-        // Axes du repère orienté (rotation inverse pour projection)
         const cosA = Math.cos(-obb.angle);
         const sinA = Math.sin(-obb.angle);
+        const OVERHANG = 0.30; // débord de toiture (m)
         
-        // Étape 1 : Construire le polygone augmenté (sommets originaux + intersections faîtage)
+        // === Étape 1 : Étendre le polygone pour le débord de toiture ===
+        const centX = localCoords.reduce((s, c) => s + c.x, 0) / localCoords.length;
+        const centZ = localCoords.reduce((s, c) => s + c.z, 0) / localCoords.length;
+        
+        const extCoords = localCoords.map(c => {
+            const dx = c.x - centX;
+            const dz = c.z - centZ;
+            const d = Math.sqrt(dx * dx + dz * dz);
+            if (d < 0.01) return { x: c.x, z: c.z };
+            return {
+                x: c.x + (dx / d) * OVERHANG,
+                z: c.z + (dz / d) * OVERHANG
+            };
+        });
+        
+        // === Étape 2 : Construire le polygone augmenté (sommets étendus + intersections faîtage) ===
         const augmented = [];
-        const n = localCoords.length;
+        const n = extCoords.length;
         
         for (let i = 0; i < n; i++) {
-            const curr = localCoords[i];
-            const next = localCoords[(i + 1) % n];
+            const curr = extCoords[i];
+            const next = extCoords[(i + 1) % n];
             
             const currDx = curr.x - obb.cx;
             const currDz = curr.z - obb.cz;
@@ -1359,7 +1374,7 @@ class Calpinage3DViewer {
                 across: currAcross
             });
             
-            // Insérer un sommet sur le faîtage si l'arête traverse la ligne across=0
+            // Insérer un sommet sur le faîtage si l'arête traverse across=0
             const nextDx = next.x - obb.cx;
             const nextDz = next.z - obb.cz;
             const nextAcross = nextDx * sinA + nextDz * cosA;
@@ -1378,30 +1393,92 @@ class Calpinage3DViewer {
         
         if (augmented.length < 3) return;
         
-        // Étape 2 : Trianguler le polygone (projection 2D plan XZ)
-        const pts2D = augmented.map(v => new THREE.Vector2(v.x, -v.z));
-        
-        // Vérifier l'enroulement (CCW requis pour ShapeUtils)
-        let areaSign = 0;
-        for (let i = 0; i < pts2D.length; i++) {
-            const j = (i + 1) % pts2D.length;
-            areaSign += pts2D[i].x * pts2D[j].y - pts2D[j].x * pts2D[i].y;
-        }
-        if (areaSign < 0) {
-            pts2D.reverse();
-            augmented.reverse();
+        // === Étape 3 : Trouver les sommets de faîtage et séparer en 2 demi-toitures ===
+        // La triangulation ear-clipping sur le polygone entier crée des triangles
+        // diagonaux qui traversent le faîtage, causant des décalages visuels.
+        // En séparant en 2, chaque pan est triangulé indépendamment → faces planes correctes.
+        const ridgeIndices = [];
+        for (let i = 0; i < augmented.length; i++) {
+            if (Math.abs(augmented[i].across) < 0.05) {
+                ridgeIndices.push(i);
+            }
         }
         
-        let triangles;
-        try {
-            triangles = THREE.ShapeUtils.triangulateShape(pts2D, []);
-        } catch (e) {
-            console.warn('⚠ Triangulation toit échouée:', e.message);
-            return;
-        }
-        if (!triangles || triangles.length === 0) return;
+        let allTriangles = [];
         
-        // Étape 3 : Géométrie du toit
+        const triangulatePoly = (poly) => {
+            if (poly.length < 3) return [];
+            const pts = poly.map(v => new THREE.Vector2(v.x, -v.z));
+            let area = 0;
+            for (let k = 0; k < pts.length; k++) {
+                const k1 = (k + 1) % pts.length;
+                area += pts[k].x * pts[k1].y - pts[k1].x * pts[k].y;
+            }
+            const rev = area < 0;
+            if (rev) pts.reverse();
+            try {
+                const tris = THREE.ShapeUtils.triangulateShape(pts, []);
+                if (rev) {
+                    const pn = poly.length;
+                    return tris.map(t => [pn - 1 - t[0], pn - 1 - t[1], pn - 1 - t[2]]);
+                }
+                return tris;
+            } catch(e) {
+                return [];
+            }
+        };
+        
+        if (ridgeIndices.length === 2) {
+            const [r1, r2] = ridgeIndices;
+            
+            // Demi-toiture 1 : sommets de r1 à r2 (sens direct dans le polygone)
+            const half1 = [], map1 = [];
+            for (let i = r1; ; ) {
+                map1.push(i);
+                half1.push(augmented[i]);
+                if (i === r2) break;
+                i = (i + 1) % augmented.length;
+            }
+            
+            // Demi-toiture 2 : sommets de r2 à r1 (sens direct, wrap)
+            const half2 = [], map2 = [];
+            for (let i = r2; ; ) {
+                map2.push(i);
+                half2.push(augmented[i]);
+                if (i === r1) break;
+                i = (i + 1) % augmented.length;
+            }
+            
+            // Trianguler chaque demi-toiture séparément
+            for (const t of triangulatePoly(half1)) {
+                allTriangles.push([map1[t[0]], map1[t[1]], map1[t[2]]]);
+            }
+            for (const t of triangulatePoly(half2)) {
+                allTriangles.push([map2[t[0]], map2[t[1]], map2[t[2]]]);
+            }
+        } else {
+            // Fallback : trianguler le polygone entier
+            const pts2D = augmented.map(v => new THREE.Vector2(v.x, -v.z));
+            let areaSign = 0;
+            for (let i = 0; i < pts2D.length; i++) {
+                const j = (i + 1) % pts2D.length;
+                areaSign += pts2D[i].x * pts2D[j].y - pts2D[j].x * pts2D[i].y;
+            }
+            if (areaSign < 0) {
+                pts2D.reverse();
+                augmented.reverse();
+            }
+            try {
+                const tris = THREE.ShapeUtils.triangulateShape(pts2D, []);
+                for (const t of tris) {
+                    allTriangles.push([t[0], t[1], t[2]]);
+                }
+            } catch(e) { return; }
+        }
+        
+        if (allTriangles.length === 0) return;
+        
+        // === Étape 4 : Géométrie du toit ===
         const positions = [];
         const uvs = [];
         for (const v of augmented) {
@@ -1413,7 +1490,7 @@ class Calpinage3DViewer {
         }
         
         const indices = [];
-        for (const tri of triangles) {
+        for (const tri of allTriangles) {
             indices.push(tri[0], tri[1], tri[2]);
         }
         
@@ -1435,47 +1512,50 @@ class Calpinage3DViewer {
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
         
-        // Étape 4 : Murs pignon UNIQUEMENT aux extrémités (pas sur les longs pans)
-        // On ne crée un pignon que pour les arêtes qui sont proches de l'axe
-        // perpendiculaire au faîtage (= les murs pignons, pas les longs côtés).
+        // === Étape 5 : Murs pignon (sur les coords originales, pas étendues) ===
         const wallColorMap2 = {
             plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
             concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
         };
         const wallColor = wallColorMap2[wallType] || 0xE8DCC8;
         
-        // Direction le long du faîtage (axe long du bâtiment)
         const alongDirX = Math.cos(obb.angle);
         const alongDirZ = Math.sin(obb.angle);
         
+        // Construire les murs pignon depuis les coords originales du bâtiment
         const pignonVerts = [];
-        
-        for (let i = 0; i < augmented.length; i++) {
-            const curr = augmented[i];
-            const next = augmented[(i + 1) % augmented.length];
-            const currAbove = curr.y - roofBaseY;
-            const nextAbove = next.y - roofBaseY;
+        for (let i = 0; i < localCoords.length; i++) {
+            const curr = localCoords[i];
+            const next = localCoords[(i + 1) % localCoords.length];
             
-            // Seulement si au moins un sommet est significativement élevé
-            if (currAbove < 0.15 && nextAbove < 0.15) continue;
+            // Calculer la hauteur du toit aux deux extrémités de cette arête murale
+            const cDx = curr.x - obb.cx, cDz = curr.z - obb.cz;
+            const cAcross = cDx * sinA + cDz * cosA;
+            const cAlong = cDx * cosA - cDz * sinA;
+            const currRoofH = heightFunc(cAcross, cAlong);
             
-            // Vérifier que l'arête est perpendiculaire au faîtage (= pignon)
-            // Pour cela, calculer l'angle entre l'arête et la direction du faîtage
+            const nDx = next.x - obb.cx, nDz = next.z - obb.cz;
+            const nAcross = nDx * sinA + nDz * cosA;
+            const nAlong = nDx * cosA - nDz * sinA;
+            const nextRoofH = heightFunc(nAcross, nAlong);
+            
+            // Seulement si au moins un sommet a une surélévation significative
+            if (currRoofH < 0.15 && nextRoofH < 0.15) continue;
+            
+            // Ne créer un pignon que pour les arêtes perpendiculaires au faîtage
             const edgeX = next.x - curr.x;
             const edgeZ = next.z - curr.z;
             const edgeLen = Math.sqrt(edgeX * edgeX + edgeZ * edgeZ);
             if (edgeLen < 0.01) continue;
             
-            // Produit scalaire normalisé avec la direction du faîtage
             const dotAlong = Math.abs((edgeX * alongDirX + edgeZ * alongDirZ) / edgeLen);
+            if (dotAlong > 0.5) continue; // parallèle au faîtage → pas un pignon
             
-            // Si l'arête est quasi-parallèle au faîtage (long pan), on ne fait PAS de pignon
-            // dotAlong ≈ 1 = parallèle au faîtage, dotAlong ≈ 0 = perpendiculaire
-            if (dotAlong > 0.5) continue; // seuil : arête à < 60° du faîtage = pas un pignon
-            
+            const cy = roofBaseY + currRoofH;
+            const ny = roofBaseY + nextRoofH;
             pignonVerts.push(
-                curr.x, curr.y, curr.z,  next.x, next.y, next.z,  next.x, roofBaseY, next.z,
-                curr.x, curr.y, curr.z,  next.x, roofBaseY, next.z,  curr.x, roofBaseY, curr.z
+                curr.x, cy, curr.z,  next.x, ny, next.z,  next.x, roofBaseY, next.z,
+                curr.x, cy, curr.z,  next.x, roofBaseY, next.z,  curr.x, roofBaseY, curr.z
             );
         }
         
