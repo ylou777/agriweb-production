@@ -320,11 +320,11 @@ class Calpinage3DViewer {
      */
     async _loadSatelliteTexture(lat, lon, radiusM) {
         try {
-            // Utiliser notre proxy pour éviter les problèmes CORS
-            const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${radiusM}`;
+            // Demander une image satellite couvrant 50% de plus que le terrain
+            const satRadius = Math.ceil(radiusM * 1.5);
+            const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${satRadius}`;
             console.log('🛰️ Chargement texture satellite via proxy:', proxyUrl);
             
-            // Fetch via proxy (même domaine = pas de CORS)
             const response = await fetch(proxyUrl);
             if (!response.ok) {
                 console.warn(`⚠ Satellite proxy HTTP ${response.status}`);
@@ -335,28 +335,70 @@ class Calpinage3DViewer {
             const objectUrl = URL.createObjectURL(blob);
             console.log('🛰️ Image satellite reçue:', (blob.size / 1024).toFixed(0), 'Ko');
             
-            const loader = new THREE.TextureLoader();
-            loader.load(objectUrl,
-                (tex) => {
-                    tex.wrapS = THREE.ClampToEdgeWrapping;
-                    tex.wrapT = THREE.ClampToEdgeWrapping;
-                    tex.minFilter = THREE.LinearFilter;
+            // Charger l'image pour appliquer contraste/saturation
+            const img = new Image();
+            img.onload = () => {
+                // Créer un canvas pour booster le contraste
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                
+                // Dessiner l'image originale
+                ctx.drawImage(img, 0, 0);
+                
+                // Booster le contraste et la saturation
+                ctx.globalCompositeOperation = 'source-over';
+                // Augmenter le contraste via courbe S
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = imageData.data;
+                const contrast = 1.3; // 1.0 = normal, 1.3 = +30%
+                const satBoost = 1.25; // +25% saturation
+                for (let i = 0; i < d.length; i += 4) {
+                    // Contraste
+                    let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
+                    let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
+                    let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
                     
-                    if (this.terrainMesh) {
-                        this.terrainMesh.material.map = tex;
-                        this.terrainMesh.material.color.set(0xffffff);
-                        this.terrainMesh.material.needsUpdate = true;
-                    }
-                    console.log('✅ Texture satellite appliquée au terrain');
-                    // Libérer l'object URL
-                    URL.revokeObjectURL(objectUrl);
-                },
-                undefined,
-                (err) => {
-                    console.warn('⚠ Erreur chargement texture blob:', err);
-                    URL.revokeObjectURL(objectUrl);
+                    // Saturation
+                    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                    r = gray + (r - gray) * satBoost;
+                    g = gray + (g - gray) * satBoost;
+                    b = gray + (b - gray) * satBoost;
+                    
+                    d[i]   = Math.max(0, Math.min(255, r));
+                    d[i+1] = Math.max(0, Math.min(255, g));
+                    d[i+2] = Math.max(0, Math.min(255, b));
                 }
-            );
+                ctx.putImageData(imageData, 0, 0);
+                
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.minFilter = THREE.LinearFilter;
+                
+                if (this.terrainMesh) {
+                    this.terrainMesh.material.map = tex;
+                    this.terrainMesh.material.color.set(0xffffff);
+                    this.terrainMesh.material.needsUpdate = true;
+                }
+                
+                // Aussi appliquer au sol secondaire pour couvrir plus large
+                if (this.ground) {
+                    const groundTex = tex.clone();
+                    this.ground.material.map = groundTex;
+                    this.ground.material.color.set(0xffffff);
+                    this.ground.material.needsUpdate = true;
+                }
+                
+                console.log('✅ Texture satellite contrastée appliquée au terrain');
+                URL.revokeObjectURL(objectUrl);
+            };
+            img.onerror = () => {
+                console.warn('⚠ Erreur chargement image satellite');
+                URL.revokeObjectURL(objectUrl);
+            };
+            img.src = objectUrl;
         } catch (e) {
             console.warn('⚠ Erreur texture satellite:', e);
         }
