@@ -23,7 +23,7 @@ class Calpinage3DViewer {
         this.buildings = [];
         this.modules3D = [];
         this.roads = [];
-        this.vegetationMeshes = [];
+        this.vegetation = [];
         this.sunLight = null;
         this.lidarData = null;
         this.terrainMesh = null;
@@ -811,9 +811,15 @@ class Calpinage3DViewer {
             // Rotation pour que l'extrusion monte le long de Y (haut)
             geo.rotateX(-Math.PI / 2);
             
-            // Materials: group 0 = faces haut/bas, group 1 = murs latéraux
+            // Materials: group 0 = faces haut/bas (caps), group 1 = murs latéraux
             const facadeTex = this._getFacadeTexture(wallType, 10, bh, 10);
-            const shapeMat = new THREE.MeshLambertMaterial({ color: 0x777777 });
+            // Caps transparentes pour éviter le double-toit
+            const shapeMat = new THREE.MeshLambertMaterial({
+                color: 0x777777,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false
+            });
             const wallMat = new THREE.MeshPhongMaterial({
                 map: facadeTex,
                 specular: 0x111111,
@@ -977,18 +983,27 @@ class Calpinage3DViewer {
             this._drawPlasterNoise(ctx, res, wc);
         }
         
-        // Fenêtres
+        // Fenêtres — correction d'aspect (la texture carrée est mappée sur un mur non-carré)
+        // Pixels/m dans chaque axe pour dessiner des fenêtres aux bonnes proportions
+        const pxPerMX = res / Math.max(width, 0.5);
+        const pxPerMY = res / Math.max(height, 0.5);
+        
         const floors = Math.max(1, Math.round(height / 3));
         const windowsPerFloor = Math.max(1, Math.round(width / 3));
         
-        const floorH = res / floors;
-        const winW = res / windowsPerFloor * 0.45;
-        const winH = floorH * 0.45;
+        // Dimensions réelles fenêtre : ~1.0m × 1.4m
+        const realWinW = 1.0;
+        const realWinH = 1.4;
+        const winW = realWinW * pxPerMX;
+        const winH = realWinH * pxPerMY;
+        const realFloorH = height / floors;
+        const floorH = realFloorH * pxPerMY;
+        const cellW = (width / windowsPerFloor) * pxPerMX;
         
         for (let f = 0; f < floors; f++) {
             for (let w = 0; w < windowsPerFloor; w++) {
-                const wx = (w + 0.5) * (res / windowsPerFloor) - winW / 2;
-                const wy = (f + 0.25) * floorH;
+                const wx = (w + 0.5) * cellW - winW / 2;
+                const wy = f * floorH + (floorH - winH) * 0.4;
                 
                 // Encadrement
                 ctx.fillStyle = '#7A7060';
@@ -1019,12 +1034,15 @@ class Calpinage3DViewer {
             }
         }
         
-        // Porte au rez-de-chaussée (face principale)
-        if (floors >= 2 && windowsPerFloor >= 1) {
-            const doorW = winW * 0.8;
-            const doorH = floorH * 0.7;
+        // Porte au rez-de-chaussée (face principale) — ~0.95m × 2.2m réels
+        if (floors >= 1 && windowsPerFloor >= 1) {
+            const realDoorW = 0.95;
+            const realDoorH = 2.15;
+            const doorW = realDoorW * pxPerMX;
+            const doorH = realDoorH * pxPerMY;
             const doorX = res / 2 - doorW / 2;
-            const doorY = (floors - 1) * floorH + floorH * 0.15;
+            // Porte au rez-de-chaussée (dernier étage dans le canvas = bas du mur)
+            const doorY = (floors - 1) * floorH + (floorH - doorH) * 0.75;
             
             // Encadrement porte
             ctx.fillStyle = '#5A5040';
