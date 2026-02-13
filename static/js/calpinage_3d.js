@@ -490,19 +490,32 @@ class Calpinage3DViewer {
             });
         }
         
-        console.log(`🏗️ Construction ${allBuildings.length} bâtiments 3D...`);
-        
-        let successCount = 0;
+        // === Ne garder que le bâtiment le plus proche du centre (celui qui porte la centrale PV) ===
+        let closestIdx = 0;
+        let closestDist = Infinity;
         allBuildings.forEach((b, i) => {
-            try {
-                this._createBuilding3D(b);
-                successCount++;
-            } catch(err) {
-                console.warn(`⚠ Bâtiment ${i} échoué:`, err.message);
+            const c = this._polygonCenter(b.coords);
+            const dx = (c.x - this.centerLon) * this.LNG_TO_M;
+            const dy = (c.y - this.centerLat) * this.LAT_TO_M;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < closestDist) {
+                closestDist = dist;
+                closestIdx = i;
             }
         });
+
+        const pvBuilding = allBuildings[closestIdx];
+        console.log(`🏗️ Construction du bâtiment PV (le plus proche du centre, dist=${closestDist.toFixed(1)}m)...`);
         
-        console.log(`✅ ${successCount}/${allBuildings.length} bâtiments créés`);
+        let successCount = 0;
+        try {
+            this._createBuilding3D(pvBuilding);
+            successCount = 1;
+        } catch(err) {
+            console.warn(`⚠ Bâtiment PV échoué:`, err.message);
+        }
+        
+        console.log(`✅ ${successCount}/1 bâtiment PV créé`);
     }
     
     /**
