@@ -1337,30 +1337,19 @@ class Calpinage3DViewer {
         
         const cosA = Math.cos(-obb.angle);
         const sinA = Math.sin(-obb.angle);
-        const OVERHANG = 0.30; // débord de toiture (m)
         
-        // === Étape 1 : Étendre le polygone pour le débord de toiture ===
-        const centX = localCoords.reduce((s, c) => s + c.x, 0) / localCoords.length;
-        const centZ = localCoords.reduce((s, c) => s + c.z, 0) / localCoords.length;
+        // Abaisser la base du toit de 0.15m pour qu'il pénètre dans le haut des murs
+        // → élimine tous les interstices entre toit et murs
+        const roofBaseAdj = roofBaseY - 0.15;
         
-        const extCoords = localCoords.map(c => {
-            const dx = c.x - centX;
-            const dz = c.z - centZ;
-            const d = Math.sqrt(dx * dx + dz * dz);
-            if (d < 0.01) return { x: c.x, z: c.z };
-            return {
-                x: c.x + (dx / d) * OVERHANG,
-                z: c.z + (dz / d) * OVERHANG
-            };
-        });
-        
-        // === Étape 2 : Construire le polygone augmenté (sommets étendus + intersections faîtage) ===
+        // === Étape 1 : Construire le polygone augmenté (sommets + intersections faîtage) ===
+        // Utilise les coords EXACTES du bâtiment (pas d'expansion centroïde)
         const augmented = [];
-        const n = extCoords.length;
+        const n = localCoords.length;
         
         for (let i = 0; i < n; i++) {
-            const curr = extCoords[i];
-            const next = extCoords[(i + 1) % n];
+            const curr = localCoords[i];
+            const next = localCoords[(i + 1) % n];
             
             const currDx = curr.x - obb.cx;
             const currDz = curr.z - obb.cz;
@@ -1370,7 +1359,7 @@ class Calpinage3DViewer {
             
             augmented.push({
                 x: curr.x, z: curr.z,
-                y: roofBaseY + currH,
+                y: roofBaseAdj + currH,
                 across: currAcross
             });
             
@@ -1387,7 +1376,7 @@ class Calpinage3DViewer {
                 const iDz = iz - obb.cz;
                 const iAlong = iDx * cosA - iDz * sinA;
                 const iH = heightFunc(0, iAlong);
-                augmented.push({ x: ix, z: iz, y: roofBaseY + iH, across: 0 });
+                augmented.push({ x: ix, z: iz, y: roofBaseAdj + iH, across: 0 });
             }
         }
         
@@ -1551,11 +1540,11 @@ class Calpinage3DViewer {
             const dotAlong = Math.abs((edgeX * alongDirX + edgeZ * alongDirZ) / edgeLen);
             if (dotAlong > 0.5) continue; // parallèle au faîtage → pas un pignon
             
-            const cy = roofBaseY + currRoofH;
-            const ny = roofBaseY + nextRoofH;
+            const cy = roofBaseAdj + currRoofH;
+            const ny = roofBaseAdj + nextRoofH;
             pignonVerts.push(
-                curr.x, cy, curr.z,  next.x, ny, next.z,  next.x, roofBaseY, next.z,
-                curr.x, cy, curr.z,  next.x, roofBaseY, next.z,  curr.x, roofBaseY, curr.z
+                curr.x, cy, curr.z,  next.x, ny, next.z,  next.x, roofBaseAdj, next.z,
+                curr.x, cy, curr.z,  next.x, roofBaseAdj, next.z,  curr.x, roofBaseAdj, curr.z
             );
         }
         
