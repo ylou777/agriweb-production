@@ -811,19 +811,25 @@ class Calpinage3DViewer {
             // Rotation pour que l'extrusion monte le long de Y (haut)
             geo.rotateX(-Math.PI / 2);
             
-            // Supprimer les caps (faces haut/bas) pour éviter le double-toit
-            // Les caps sont dans le group 0, les murs dans le group 1
-            const groups = geo.groups;
-            if (groups.length >= 2) {
-                // Ne garder que le group des murs latéraux (group index 1)
-                const wallGroup = groups.find(g => g.materialIndex === 1);
-                if (wallGroup) {
+            // Physiquement supprimer les caps (group 0) pour ne garder que les murs (group 1)
+            // ExtrudeGeometry crée 2 groups : group 0 = caps haut/bas, group 1 = murs latéraux
+            const geoGroups = geo.groups;
+            if (geoGroups.length >= 2) {
+                const wallGroup = geoGroups.find(g => g.materialIndex === 1);
+                if (wallGroup && geo.index) {
+                    // Extraire uniquement les indices des murs
+                    const oldIndex = geo.index.array;
+                    const newIndex = new Uint32Array(wallGroup.count);
+                    for (let gi = 0; gi < wallGroup.count; gi++) {
+                        newIndex[gi] = oldIndex[wallGroup.start + gi];
+                    }
+                    geo.setIndex(new THREE.BufferAttribute(newIndex, 1));
                     geo.clearGroups();
-                    geo.addGroup(wallGroup.start, wallGroup.count, 0);
+                    geo.addGroup(0, wallGroup.count, 0);
                 }
             }
             
-            // Mur : couleur unie avec teinte selon le type (pas de texture UV)
+            // Mur : couleur unie avec teinte selon le type
             const wallColors = {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0

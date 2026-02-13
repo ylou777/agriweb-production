@@ -1,6 +1,7 @@
 # --- GeoRisques API: fetch risks for a point ---
 import requests
 import os
+import math
 from datetime import datetime
 
 # Fonction utilitaire pour logging sécurisé (évite les erreurs WinError 233)
