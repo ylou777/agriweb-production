@@ -811,36 +811,20 @@ class Calpinage3DViewer {
             // Rotation pour que l'extrusion monte le long de Y (haut)
             geo.rotateX(-Math.PI / 2);
             
-            // Physiquement supprimer les caps (group 0) pour ne garder que les murs (group 1)
-            // ExtrudeGeometry crée 2 groups : group 0 = caps haut/bas, group 1 = murs latéraux
-            const geoGroups = geo.groups;
-            if (geoGroups.length >= 2) {
-                const wallGroup = geoGroups.find(g => g.materialIndex === 1);
-                if (wallGroup && geo.index) {
-                    // Extraire uniquement les indices des murs
-                    const oldIndex = geo.index.array;
-                    const newIndex = new Uint32Array(wallGroup.count);
-                    for (let gi = 0; gi < wallGroup.count; gi++) {
-                        newIndex[gi] = oldIndex[wallGroup.start + gi];
-                    }
-                    geo.setIndex(new THREE.BufferAttribute(newIndex, 1));
-                    geo.clearGroups();
-                    geo.addGroup(0, wallGroup.count, 0);
-                }
-            }
-            
-            // Mur : couleur unie avec teinte selon le type
-            const wallColors = {
+            // Materials: group 0 = caps (haut/bas), group 1 = murs latéraux
+            // Cap couleur toiture (sera cachée par le toit en pente)
+            const wallColorMap = {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
             };
+            const capMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
             const wallMat = new THREE.MeshPhongMaterial({
-                color: wallColors[wallType] || 0xE8DCC8,
+                color: wallColorMap[wallType] || 0xE8DCC8,
                 specular: 0x111111,
                 shininess: 5,
             });
             
-            mesh = new THREE.Mesh(geo, [wallMat]);
+            mesh = new THREE.Mesh(geo, [capMat, wallMat]);
             mesh.position.set(0, terrainH, 0);
         } catch(err) {
             console.warn('⚠ ExtrudeGeometry fallback pour bâtiment:', err.message);
@@ -1250,7 +1234,7 @@ class Calpinage3DViewer {
      * @param {Object} obb - Oriented bounding box {cx, cz, angle, longDim, shortDim}
      */
     _createGableRoof(obb, bh, terrainH, ridgeExtra, roofType) {
-        const roofBaseY = terrainH + bh;
+        const roofBaseY = terrainH + bh + 0.1; // +0.1 pour éviter le z-fighting avec le cap
         const halfLong = obb.longDim / 2;
         const halfShort = obb.shortDim / 2;
         const ridgeY = roofBaseY + ridgeExtra;
@@ -1330,7 +1314,7 @@ class Calpinage3DViewer {
      * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
      */
     _createHipRoof(obb, bh, terrainH, ridgeExtra, roofType) {
-        const roofBaseY = terrainH + bh;
+        const roofBaseY = terrainH + bh + 0.1; // +0.1 pour éviter le z-fighting avec le cap
         const halfLong = obb.longDim / 2;
         const halfShort = obb.shortDim / 2;
         const ridgeY = roofBaseY + ridgeExtra;
@@ -1402,7 +1386,7 @@ class Calpinage3DViewer {
      * @param {number} ridgeOffset - décalage du faîtage (-0.5 à 0.5), négatif = vers côté 0
      */
     _createShedRoof(obb, bh, terrainH, ridgeExtra, roofType, ridgeOffset) {
-        const roofBaseY = terrainH + bh;
+        const roofBaseY = terrainH + bh + 0.1; // +0.1 pour éviter le z-fighting avec le cap
         const halfLong = obb.longDim / 2;
         const halfShort = obb.shortDim / 2;
         
