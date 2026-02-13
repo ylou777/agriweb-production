@@ -320,8 +320,9 @@ class Calpinage3DViewer {
      */
     async _loadSatelliteTexture(lat, lon, radiusM) {
         try {
-            // Demander une image satellite couvrant 50% de plus que le terrain
-            const satRadius = Math.ceil(radiusM * 1.5);
+            // Demander une image satellite couvrant exactement le même rayon que le terrain
+            // pour un alignement pixel-parfait avec les bâtiments
+            const satRadius = Math.ceil(radiusM);
             const proxyUrl = `/api/satellite-tile?lat=${lat}&lon=${lon}&radius=${satRadius}`;
             console.log('🛰️ Chargement texture satellite via proxy:', proxyUrl);
             
@@ -533,9 +534,9 @@ class Calpinage3DViewer {
             }
         }
         
-        // Centre du polygone
-        const cx = localCoords.reduce((s, c) => s + c.x, 0) / localCoords.length;
-        const cz = localCoords.reduce((s, c) => s + c.z, 0) / localCoords.length;
+        // Centroïde initial du polygone (pour la projection)
+        const cxInit = localCoords.reduce((s, c) => s + c.x, 0) / localCoords.length;
+        const czInit = localCoords.reduce((s, c) => s + c.z, 0) / localCoords.length;
         
         // Projeter tous les points sur le repère orienté pour les dimensions
         const cosA = Math.cos(-bestAngle);
@@ -545,8 +546,8 @@ class Calpinage3DViewer {
         let minS = Infinity, maxS = -Infinity;
         
         for (const c of localCoords) {
-            const dx = c.x - cx;
-            const dz = c.z - cz;
+            const dx = c.x - cxInit;
+            const dz = c.z - czInit;
             const projL = dx * cosA - dz * sinA; // le long de l'axe principal
             const projS = dx * sinA + dz * cosA; // perpendiculaire
             minL = Math.min(minL, projL);
@@ -554,6 +555,16 @@ class Calpinage3DViewer {
             minS = Math.min(minS, projS);
             maxS = Math.max(maxS, projS);
         }
+        
+        // Centre VRAI de la boîte orientée (milieu des projections),
+        // reconverti en coordonnées monde. C'est ce centre qui aligne
+        // le toit OBB avec l'emprise réelle du polygone.
+        const midL = (minL + maxL) / 2;
+        const midS = (minS + maxS) / 2;
+        const cosB = Math.cos(bestAngle);
+        const sinB = Math.sin(bestAngle);
+        const cx = cxInit + midL * cosB - midS * sinB;
+        const cz = czInit + midL * sinB + midS * cosB;
         
         return {
             cx, cz,
