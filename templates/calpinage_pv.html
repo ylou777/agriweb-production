@@ -4003,6 +4003,7 @@
                 dashArray: '5, 5',
                 interactive: false
             });
+            zoneOutline._isZoneOutline = true; // Marquer pour exclure de l'extraction 3D
             moduleGroup.addLayer(zoneOutline);
             
             // Ajouter le label au centre
@@ -4664,7 +4665,8 @@
                 zone.modulesPositions = [];
                 if (zone.moduleGroup) {
                     zone.moduleGroup.eachLayer(layer => {
-                        if (layer instanceof L.Polygon) {
+                        // Exclure le contour de zone et les labels (seuls les modules PV)
+                        if (layer instanceof L.Polygon && !layer._isZoneOutline) {
                             const latlngs = layer.getLatLngs()[0];
                             if (latlngs && latlngs.length >= 4) {
                                 // 🔥 Centre du module avec PRÉCISION MAXIMALE (12 décimales = ~0.1mm)
@@ -5357,7 +5359,8 @@
                     let moduleCount = 0;
                     zone.moduleGroup.eachLayer(layer => {
                         moduleCount++;
-                        if (layer instanceof L.Polygon) {
+                        // Exclure le contour de zone et les labels (seuls les modules PV)
+                        if (layer instanceof L.Polygon && !layer._isZoneOutline) {
                             const latlngs = layer.getLatLngs()[0];
                             if (latlngs && latlngs.length >= 4) {
                                 // Centre du module

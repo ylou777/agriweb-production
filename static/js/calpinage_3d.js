@@ -2367,9 +2367,16 @@ class Calpinage3DViewer {
      * Tous les modules d'une même zone partagent un plan de toiture unique
      */
     addModules3D(zones) {
-        // Supprimer les anciens modules
+        // Supprimer les anciens modules (groupes ou meshes individuels)
         this.modules3D.forEach(m => {
             this.scene.remove(m);
+            // Si c'est un groupe (pan de modules), nettoyer les enfants
+            if (m.children && m.children.length > 0) {
+                m.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
             if (m.geometry) m.geometry.dispose();
             if (m.material) m.material.dispose();
         });
@@ -2377,13 +2384,15 @@ class Calpinage3DViewer {
         
         if (!zones) return;
         
+        let totalModules = 0;
+        
         zones.forEach(zone => {
             if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
             
             const pente = (zone.inclinaison || zone.pente || 30) * Math.PI / 180;
             const azimut = (zone.orientation || zone.azimut || 180) * Math.PI / 180;
             
-            // === Calculer UN SEUL plan de toit pour toute la zone ===
+            // === PAN UNIFIÉ : tous les modules d'une zone forment UN SEUL plan de toiture ===
             // 1. Centre de la zone = moyenne de tous les centres de modules
             let sumLat = 0, sumLng = 0;
             zone.modulesPositions.forEach(m => { sumLat += m.lat; sumLng += m.lng; });
@@ -2397,14 +2406,25 @@ class Calpinage3DViewer {
             const buildingHRef = this._findBuildingHeight(zoneLocalCenter.x, zoneLocalCenter.z);
             const roofBaseY = terrainHRef + buildingHRef + 0.15;
             
-            // 3. Vecteurs du plan de toiture incliné
-            //    Le plan part de roofBaseY et monte selon la pente et l'azimut
-            //    Azimut = direction face au sud par défaut (180°)
-            //    La "montée" est dans la direction opposée à l'azimut
-            const slopeDir = {
-                x: Math.sin(azimut),
-                z: Math.cos(azimut)
-            };
+            // 3. Créer un THREE.Group pour le pan entier
+            //    Le groupe est positionné au centre de la zone, à la hauteur du toit
+            //    La rotation (azimut + pente) est appliquée au GROUPE,
+            //    pas à chaque module individuellement → les modules restent coplanaires
+            const panGroup = new THREE.Group();
+            panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
+            
+            // Rotation du pan entier : d'abord azimut (Y), puis inclinaison (X)
+            panGroup.rotation.order = 'YXZ';
+            panGroup.rotation.y = azimut - Math.PI;
+            panGroup.rotation.x = -pente;
+            
+            // 4. Rotation inverse pour convertir les positions GPS (monde) en coordonnées locales du groupe
+            //    Les positions GPS incluent déjà la rotation 2D de la zone.
+            //    Le groupe va réappliquer cette rotation via rotation.y,
+            //    donc on doit "dé-rotater" les offsets pour les placer dans le repère local du groupe.
+            const groupRotY = azimut - Math.PI;
+            const cosInv = Math.cos(-groupRotY);
+            const sinInv = Math.sin(-groupRotY);
             
             zone.modulesPositions.forEach(modPos => {
                 if (!modPos.corners || modPos.corners.length < 4) return;
@@ -2427,37 +2447,38 @@ class Calpinage3DViewer {
                 
                 const panel = new THREE.Mesh(panelGeo, panelMat);
                 
-                // Position locale du module
+                // Position mondiale du module
                 const local = this._geoToLocal(modPos.lat, modPos.lng);
                 
-                // Décalage par rapport au centre de la zone (en mètres)
+                // Décalage par rapport au centre de la zone (en mètres dans l'espace monde)
                 const dx = local.x - zoneLocalCenter.x;
                 const dz = local.z - zoneLocalCenter.z;
                 
-                // Projection du décalage sur la direction de pente
-                // = combien ce module est "haut" ou "bas" sur le toit
-                const distAlongSlope = dx * slopeDir.x + dz * slopeDir.z;
+                // Convertir dans le repère LOCAL du groupe (dé-rotater par l'azimut du groupe)
+                // Le groupe va ré-appliquer cette rotation, donc le résultat final sera correct
+                const localX = dx * cosInv - dz * sinInv;
+                const localZ = dx * sinInv + dz * cosInv;
                 
-                // Hauteur Y sur le plan de toiture incliné
-                const moduleY = roofBaseY + distAlongSlope * Math.tan(pente);
+                // Position dans le groupe : Y=0 car tous les modules sont sur le MÊME plan
+                // C'est la rotation du GROUPE qui crée l'inclinaison, pas le Y individuel
+                panel.position.set(localX, 0, localZ);
                 
-                panel.position.set(local.x, moduleY, local.z);
-                
-                // Rotation : le plan entier est incliné
-                // Rotation autour de l'axe perpendiculaire à la pente
-                panel.rotation.order = 'YXZ';
-                panel.rotation.y = azimut - Math.PI;
-                panel.rotation.x = -pente;
+                // PAS de rotation individuelle ! Le groupe gère l'orientation et l'inclinaison
+                // → Les modules restent parfaitement coplanaires (pan unifié)
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
                 
-                this.scene.add(panel);
-                this.modules3D.push(panel);
+                panGroup.add(panel);
+                totalModules++;
             });
+            
+            // Ajouter le pan (groupe) à la scène
+            this.scene.add(panGroup);
+            this.modules3D.push(panGroup);
         });
         
-        console.log(`✅ ${this.modules3D.length} modules PV 3D ajoutés (plan de toit unifié par zone)`);
+        console.log(`✅ ${totalModules} modules PV 3D ajoutés en ${this.modules3D.length} pan(s) unifié(s)`);
     }
     
     /**
