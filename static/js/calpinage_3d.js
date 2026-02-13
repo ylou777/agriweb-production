@@ -41,6 +41,9 @@ class Calpinage3DViewer {
         // Informations sur les pans de toiture du bâtiment principal
         this.roofPanelsInfo = null;
         
+        // Coordonnées géo du bâtiment PV principal (pour matching zone→pan)
+        this.pvBuildingCoords = null;
+        
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
     
@@ -508,6 +511,8 @@ class Calpinage3DViewer {
         });
 
         const pvBuilding = allBuildings[closestIdx];
+        // Stocker les coordonnées géo du bâtiment PV pour le matching zone→pan
+        this.pvBuildingCoords = pvBuilding ? pvBuilding.coords : null;
         console.log(`🏗️ Construction du bâtiment PV (le plus proche du centre, dist=${closestDist.toFixed(1)}m)...`);
         
         let successCount = 0;
@@ -1012,6 +1017,20 @@ class Calpinage3DViewer {
         
         // === Calculer et stocker les informations des pans de toiture ===
         this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType);
+        
+        // Stocker l'OBB et les infos géométriques pour le matching zone→pan
+        this.roofPanelsInfo.buildingOBB = {
+            cx: obb.cx, cz: obb.cz,
+            angle: obb.angle,
+            longDim: obb.longDim,
+            shortDim: obb.shortDim
+        };
+        // Centre géo du bâtiment (lat/lon) pour comparaison avec les zones 2D
+        if (this.pvBuildingCoords) {
+            const bCenter = this._polygonCenter(this.pvBuildingCoords);
+            this.roofPanelsInfo.buildingCenterGeo = { lat: bCenter.y, lng: bCenter.x };
+        }
+        
         console.log('📐 Pans de toiture:', this.roofPanelsInfo);
     }
     
@@ -2360,6 +2379,103 @@ class Calpinage3DViewer {
             this.loadLidarData(center.lat, center.lng, 120);
             return;
         }
+    }
+    
+    /**
+     * Associe chaque zone PV au pan de toiture le plus proche.
+     * Pour chaque zone, détermine le meilleur pan en comparant la position
+     * du centre de la zone par rapport aux panels du bâtiment.
+     * 
+     * @param {Array} zones - Les zones PV avec .layer (Leaflet), .orientation, .inclinaison
+     * @returns {Array} Tableau d'ajustements [{zoneId, panelName, orientation, inclinaison, matched}]
+     */
+    matchZonesToRoofPanels(zones) {
+        if (!this.roofPanelsInfo || !this.roofPanelsInfo.panels || this.roofPanelsInfo.panels.length === 0) {
+            console.warn('⚠️ Pas d\'info de toiture disponible pour le matching');
+            return [];
+        }
+        
+        const panels = this.roofPanelsInfo.panels;
+        const obb = this.roofPanelsInfo.buildingOBB;
+        
+        if (!obb) {
+            console.warn('⚠️ Pas d\'OBB bâtiment disponible');
+            return [];
+        }
+        
+        const results = [];
+        
+        zones.forEach(zone => {
+            // Centre géo de la zone
+            let zoneCenterLat, zoneCenterLng;
+            if (zone.layer && zone.layer.getBounds) {
+                const center = zone.layer.getBounds().getCenter();
+                zoneCenterLat = center.lat;
+                zoneCenterLng = center.lng;
+            } else if (zone.modulesPositions && zone.modulesPositions.length > 0) {
+                let sLat = 0, sLng = 0;
+                zone.modulesPositions.forEach(m => { sLat += m.lat; sLng += m.lng; });
+                zoneCenterLat = sLat / zone.modulesPositions.length;
+                zoneCenterLng = sLng / zone.modulesPositions.length;
+            } else {
+                return; // Pas de position exploitable
+            }
+            
+            // Convertir le centre de la zone en coordonnées locales 3D
+            const zoneLocal = this._geoToLocal(zoneCenterLat, zoneCenterLng);
+            
+            // Projeter sur le repère OBB du bâtiment (along = faîtage, across = pente)
+            const cosA = Math.cos(-obb.angle);
+            const sinA = Math.sin(-obb.angle);
+            const dxFromBldg = zoneLocal.x - obb.cx;
+            const dzFromBldg = zoneLocal.z - obb.cz;
+            const projAlong = dxFromBldg * cosA - dzFromBldg * sinA;  // le long du faîtage
+            const projAcross = dxFromBldg * sinA + dzFromBldg * cosA; // perpendiculaire (pente)
+            
+            const roofType = this.roofPanelsInfo.type;
+            let bestPanel = null;
+            
+            if (roofType === 'flat') {
+                // Toit plat : un seul pan
+                bestPanel = panels[0];
+            } else if (roofType === 'gable') {
+                // 2 pans : côté positif (across > 0) = Pan 1, négatif = Pan 2
+                bestPanel = projAcross >= 0 ? panels[0] : panels[1];
+            } else if (roofType === 'hip') {
+                // 4 pans : 2 principaux (comme gable) + 2 croupes aux extrémités
+                const halfLong = obb.longDim / 2;
+                const ridgeHalfLen = halfLong * 0.45;
+                
+                if (Math.abs(projAlong) > ridgeHalfLen) {
+                    // Aux extrémités → croupes
+                    bestPanel = projAlong > 0 ? panels[2] : panels[3];
+                } else {
+                    // Au centre → pans principaux
+                    bestPanel = projAcross >= 0 ? panels[0] : panels[1];
+                }
+            } else if (roofType === 'shed') {
+                // Mono-pente : un seul pan
+                bestPanel = panels[0];
+            }
+            
+            if (bestPanel) {
+                results.push({
+                    zoneId: zone.id,
+                    zoneNumero: zone.numero,
+                    panelName: bestPanel.name,
+                    orientation: bestPanel.orientation_deg,
+                    orientationLabel: bestPanel.orientation_label,
+                    inclinaison: bestPanel.pente_deg,
+                    surface: bestPanel.surface,
+                    longueur: bestPanel.longueur,
+                    largeur: bestPanel.largeur,
+                    matched: true
+                });
+                console.log(`🎯 Zone ${zone.numero} → ${bestPanel.name} (${bestPanel.orientation_label}, pente ${bestPanel.pente_deg}°)`);
+            }
+        });
+        
+        return results;
     }
     
     /**

@@ -5295,7 +5295,115 @@
                     update3DFromZones();
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
+                    
+                    // === AUTO-AJUSTEMENT : associer les zones aux pans de toiture détectés ===
+                    ajusterZonesDepuisToiture3D();
                 });
+            }
+        }
+        
+        /**
+         * Auto-ajuste les zones PV en fonction des pans de toiture détectés en 3D.
+         * Pour chaque zone dessinée en 2D, le système :
+         * 1. Identifie sur quel pan de toiture elle se trouve
+         * 2. Ajuste l'orientation (azimut) et l'inclinaison (pente) selon les données réelles
+         * 3. Met à jour les sliders 2D et redessine les modules
+         * 4. Rafraîchit la vue 3D avec les valeurs corrigées
+         */
+        function ajusterZonesDepuisToiture3D() {
+            if (!viewer3D || !viewer3D.roofPanelsInfo) {
+                console.log('⚠️ Pas d\'info toiture 3D pour l\'ajustement');
+                return;
+            }
+            
+            // Vérifier que c'est une installation en toiture
+            const typeInstall = document.getElementById('typeInstallation').value;
+            if (typeInstall !== 'toiture') {
+                console.log('ℹ️ Type installation "' + typeInstall + '" : pas d\'ajustement toiture');
+                return;
+            }
+            
+            const adjustments = viewer3D.matchZonesToRoofPanels(zones);
+            if (!adjustments || adjustments.length === 0) {
+                console.log('⚠️ Aucune correspondance zone ↔ pan trouvée');
+                return;
+            }
+            
+            let adjustedCount = 0;
+            const messages = [];
+            
+            adjustments.forEach(adj => {
+                const zone = zones.find(z => z.id === adj.zoneId);
+                if (!zone) return;
+                
+                const oldOrientation = zone.orientation;
+                const oldInclinaison = zone.inclinaison;
+                
+                // Appliquer l'orientation du pan de toiture
+                zone.orientation = adj.orientation;
+                zone.rotationAngle = 180 - adj.orientation;
+                if (zone.rotationAngle > 180) zone.rotationAngle -= 360;
+                if (zone.rotationAngle < -180) zone.rotationAngle += 360;
+                
+                // Appliquer l'inclinaison du pan de toiture
+                zone.inclinaison = adj.inclinaison;
+                
+                // Marquer la zone comme ajustée par la 3D
+                zone.ajuste3D = true;
+                zone.panToiture = adj.panelName;
+                
+                // Mettre à jour le slider d'orientation
+                const orientSlider = document.getElementById(`orientation-slider-${zone.id}`);
+                const orientValue = document.getElementById(`orientation-value-${zone.id}`);
+                if (orientSlider) orientSlider.value = adj.orientation;
+                if (orientValue) orientValue.textContent = `${adj.orientation}° (${adj.orientationLabel})`;
+                
+                // Mettre à jour le slider d'inclinaison
+                const inclinSlider = document.getElementById(`inclinaison-slider-${zone.id}`);
+                const inclinValue = document.getElementById(`inclinaison-value-${zone.id}`);
+                if (inclinSlider) inclinSlider.value = adj.inclinaison;
+                if (inclinValue) inclinValue.textContent = `${adj.inclinaison}`;
+                
+                // Mettre à jour la position de la poignée de rotation
+                if (rotationHandles[zone.id]) {
+                    updateHandlePosition(zone, rotationHandles[zone.id]);
+                }
+                
+                // Redessiner les modules avec la nouvelle orientation
+                dessinerModulesDansZone(zone);
+                
+                // Recalculer le productible
+                calculerProductibleZone(zone.id);
+                
+                adjustedCount++;
+                const orientChanged = Math.abs(oldOrientation - adj.orientation) > 1;
+                const inclinChanged = Math.abs(oldInclinaison - adj.inclinaison) > 1;
+                if (orientChanged || inclinChanged) {
+                    messages.push(`Zone ${zone.numero} → ${adj.panelName} : ${adj.orientationLabel} ${adj.orientation}°, pente ${adj.inclinaison}°`);
+                }
+            });
+            
+            // Recalculer les totaux
+            calculerTotaux();
+            
+            // Rafraîchir la vue 3D avec les nouvelles orientations
+            if (adjustedCount > 0 && viewer3D && viewer3D.isActive) {
+                update3DFromZones();
+            }
+            
+            // Notification utilisateur
+            if (messages.length > 0) {
+                const toast = document.createElement('div');
+                toast.className = 'alert alert-success';
+                toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
+                toast.innerHTML = `<i class="fas fa-magic me-2"></i><strong>🏠 Toiture détectée — Zones ajustées :</strong><br>` + 
+                    messages.map(m => `• ${m}`).join('<br>');
+                document.body.appendChild(toast);
+                setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 6000);
+                
+                console.log(`✅ ${adjustedCount} zone(s) ajustée(s) depuis la toiture 3D`);
+            } else {
+                console.log(`ℹ️ ${adjustedCount} zone(s) déjà correctement orientée(s)`);
             }
         }
         
