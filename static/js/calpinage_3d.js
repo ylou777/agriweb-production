@@ -383,13 +383,9 @@ class Calpinage3DViewer {
                     this.terrainMesh.material.needsUpdate = true;
                 }
                 
-                // Aussi appliquer au sol secondaire pour couvrir plus large
-                if (this.ground) {
-                    const groundTex = tex.clone();
-                    this.ground.material.map = groundTex;
-                    this.ground.material.color.set(0xffffff);
-                    this.ground.material.needsUpdate = true;
-                }
+                // Ne PAS appliquer au sol secondaire (600x600) :
+                // la même image satellite étirée sur un plan 3x plus grand
+                // crée un doublon flou et hors échelle
                 
                 console.log('✅ Texture satellite contrastée appliquée au terrain');
                 URL.revokeObjectURL(objectUrl);
@@ -756,30 +752,39 @@ class Calpinage3DViewer {
             const alongMax = Math.max(...projected.map(p => p.along));
             const alongRange = alongMax - alongMin;
             
-            // Prendre les points aux 2 extrémités (10% de chaque côté)
-            const endMargin = Math.max(0.1 * alongRange, 1.0);
+            // Prendre les points aux 2 extrémités (15% de chaque côté)
+            // Marge plus large pour réduire le bruit LiDAR aux bords du bâtiment
+            const endMargin = Math.max(0.15 * alongRange, 1.5);
             const leftEnd = projected.filter(p => p.along < alongMin + endMargin);
             const rightEnd = projected.filter(p => p.along > alongMax - endMargin);
             const centerPts = projected.filter(p => 
-                p.along > alongMin + 0.25 * alongRange && 
-                p.along < alongMax - 0.25 * alongRange
+                p.along > alongMin + 0.3 * alongRange && 
+                p.along < alongMax - 0.3 * alongRange
             );
             
             // Si les extrémités ont un profil similaire au centre (altitude max similaire)
             // → bi-pan. Si les extrémités sont plus basses → 4 pans (hip/croupe)
-            const centerMaxH = centerPts.length > 0 ? Math.max(...centerPts.map(p => p.h)) : maxProfileH;
-            const leftMaxH = leftEnd.length > 0 ? Math.max(...leftEnd.map(p => p.h)) : centerMaxH;
-            const rightMaxH = rightEnd.length > 0 ? Math.max(...rightEnd.map(p => p.h)) : centerMaxH;
+            // Utiliser le 90ème percentile au lieu du max pour réduire le bruit
+            const percentile90 = (arr) => {
+                if (arr.length === 0) return 0;
+                const sorted = arr.map(p => p.h).sort((a, b) => a - b);
+                return sorted[Math.floor(sorted.length * 0.9)];
+            };
+            const centerMaxH = centerPts.length > 2 ? percentile90(centerPts) : maxProfileH;
+            const leftMaxH = leftEnd.length > 2 ? percentile90(leftEnd) : centerMaxH;
+            const rightMaxH = rightEnd.length > 2 ? percentile90(rightEnd) : centerMaxH;
             
             const endDrop = centerMaxH - Math.min(leftMaxH, rightMaxH);
             
-            if (endDrop > ridgeExtra * 0.3) {
-                // Les extrémités sont plus basses — pourrait être hip,
-                // mais le LiDAR basse résolution est souvent imprécis aux bords
-                // → on garde gable sauf si le ratio est très élevé (> 0.6)
-                roofType = endDrop > ridgeExtra * 0.6 ? 'hip' : 'gable';
+            // Seuils relevés : le LiDAR basse résolution a beaucoup de bruit aux bords.
+            // Les bâtiments en bi-pan perdent souvent 30-50% du signal aux extrémités
+            // à cause de l'échantillonnage qui capture le sol près des pignons.
+            // → On ne classe en hip que si la chute est vraiment marquée (> 75% du ridgeExtra)
+            // ET que le endDrop absolu est significatif (> 1.5m)
+            if (endDrop > ridgeExtra * 0.75 && endDrop > 1.5) {
+                roofType = 'hip';
             } else {
-                // Le faîtage s'étend jusqu'aux extrémités → bi-pan (gable)
+                // Par défaut → bi-pan (gable), beaucoup plus fréquent en France
                 roofType = 'gable';
             }
         }
