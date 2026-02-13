@@ -1422,12 +1422,20 @@ class Calpinage3DViewer {
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
         
-        // Étape 4 : Murs pignon ("jupe" entre le toit et le haut des murs)
-        const wallColorMap = {
+        // Étape 4 : Murs pignon UNIQUEMENT aux extrémités (pas sur les longs pans)
+        // On ne crée un pignon que pour les arêtes qui sont proches de l'axe
+        // perpendiculaire au faîtage (= les murs pignons, pas les longs côtés).
+        const wallColorMap2 = {
             plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
             concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
         };
-        const wallColor = wallColorMap[wallType] || 0xE8DCC8;
+        const wallColor = wallColorMap2[wallType] || 0xE8DCC8;
+        
+        // Direction le long du faîtage (axe long du bâtiment)
+        const alongDirX = Math.cos(obb.angle);
+        const alongDirZ = Math.sin(obb.angle);
+        
+        const pignonVerts = [];
         
         for (let i = 0; i < augmented.length; i++) {
             const curr = augmented[i];
@@ -1435,23 +1443,41 @@ class Calpinage3DViewer {
             const currAbove = curr.y - roofBaseY;
             const nextAbove = next.y - roofBaseY;
             
-            if (currAbove > 0.05 || nextAbove > 0.05) {
-                const wallVerts = new Float32Array([
-                    curr.x, curr.y, curr.z,  next.x, next.y, next.z,  next.x, roofBaseY, next.z,
-                    curr.x, curr.y, curr.z,  next.x, roofBaseY, next.z,  curr.x, roofBaseY, curr.z,
-                ]);
-                const wallGeo = new THREE.BufferGeometry();
-                wallGeo.setAttribute('position', new THREE.BufferAttribute(wallVerts, 3));
-                wallGeo.computeVertexNormals();
-                const wallMat = new THREE.MeshPhongMaterial({
-                    color: wallColor, side: THREE.DoubleSide,
-                    specular: 0x111111, shininess: 5
-                });
-                const wallMesh = new THREE.Mesh(wallGeo, wallMat);
-                wallMesh.castShadow = true;
-                this.scene.add(wallMesh);
-                this.buildings.push(wallMesh);
-            }
+            // Seulement si au moins un sommet est significativement élevé
+            if (currAbove < 0.15 && nextAbove < 0.15) continue;
+            
+            // Vérifier que l'arête est perpendiculaire au faîtage (= pignon)
+            // Pour cela, calculer l'angle entre l'arête et la direction du faîtage
+            const edgeX = next.x - curr.x;
+            const edgeZ = next.z - curr.z;
+            const edgeLen = Math.sqrt(edgeX * edgeX + edgeZ * edgeZ);
+            if (edgeLen < 0.01) continue;
+            
+            // Produit scalaire normalisé avec la direction du faîtage
+            const dotAlong = Math.abs((edgeX * alongDirX + edgeZ * alongDirZ) / edgeLen);
+            
+            // Si l'arête est quasi-parallèle au faîtage (long pan), on ne fait PAS de pignon
+            // dotAlong ≈ 1 = parallèle au faîtage, dotAlong ≈ 0 = perpendiculaire
+            if (dotAlong > 0.5) continue; // seuil : arête à < 60° du faîtage = pas un pignon
+            
+            pignonVerts.push(
+                curr.x, curr.y, curr.z,  next.x, next.y, next.z,  next.x, roofBaseY, next.z,
+                curr.x, curr.y, curr.z,  next.x, roofBaseY, next.z,  curr.x, roofBaseY, curr.z
+            );
+        }
+        
+        if (pignonVerts.length > 0) {
+            const wallGeo = new THREE.BufferGeometry();
+            wallGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pignonVerts), 3));
+            wallGeo.computeVertexNormals();
+            const wallMat = new THREE.MeshPhongMaterial({
+                color: wallColor, side: THREE.DoubleSide,
+                specular: 0x111111, shininess: 5
+            });
+            const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+            wallMesh.castShadow = true;
+            this.scene.add(wallMesh);
+            this.buildings.push(wallMesh);
         }
     }
     
