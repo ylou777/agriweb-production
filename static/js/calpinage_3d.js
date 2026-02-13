@@ -732,8 +732,10 @@ class Calpinage3DViewer {
             const endDrop = centerMaxH - Math.min(leftMaxH, rightMaxH);
             
             if (endDrop > ridgeExtra * 0.3) {
-                // Les extrémités sont significativement plus basses → 4 pans (hip)
-                roofType = 'hip';
+                // Les extrémités sont plus basses — pourrait être hip,
+                // mais le LiDAR basse résolution est souvent imprécis aux bords
+                // → on garde gable sauf si le ratio est très élevé (> 0.6)
+                roofType = endDrop > ridgeExtra * 0.6 ? 'hip' : 'gable';
             } else {
                 // Le faîtage s'étend jusqu'aux extrémités → bi-pan (gable)
                 roofType = 'gable';
