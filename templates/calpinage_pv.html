@@ -806,6 +806,9 @@
                                 <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
                                     ☀️ Soleil
                                 </button>
+                                <button class="btn btn-sm btn-light me-1" onclick="toggleRoofPanelsInfo()" title="Infos pans de toiture">
+                                    📐 Toiture
+                                </button>
                                 <button class="btn btn-sm btn-secondary" onclick="toggle3DView()" title="Retour vue 2D">
                                     🗺️ Retour 2D
                                 </button>
@@ -818,6 +821,17 @@
                                 <small class="d-block">🖱️ <strong>Souris gauche:</strong> Rotation</small>
                                 <small class="d-block">🖱️ <strong>Roulette:</strong> Zoom</small>
                                 <small class="d-block">🖱️ <strong>Souris droite:</strong> Déplacer</small>
+                            </div>
+                            <!-- Panneau informations pans de toiture -->
+                            <div id="roofPanelsInfoPanel" style="display:none; position:absolute; top:10px; left:10px; z-index:10; 
+                                 background:rgba(255,255,255,0.93); border-radius:8px; padding:10px 14px; 
+                                 box-shadow:0 2px 12px rgba(0,0,0,0.18); max-width:520px; max-height:280px; overflow-y:auto;
+                                 backdrop-filter:blur(6px); border:1px solid rgba(0,0,0,0.1);">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong style="font-size:0.85rem;">📐 Pans de toiture</strong>
+                                    <button class="btn btn-sm btn-link p-0" onclick="document.getElementById('roofPanelsInfoPanel').style.display='none'" title="Fermer">✕</button>
+                                </div>
+                                <div id="roofPanelsInfoContent"></div>
                             </div>
                         </div>
                         <div class="card-footer">
@@ -5277,7 +5291,38 @@
                 console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
                 viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {
                     update3DFromZones();
+                    // Afficher les infos des pans de toiture
+                    updateRoofPanelsInfoPanel();
                 });
+            }
+        }
+        
+        /**
+         * Afficher/masquer le panneau d'informations des pans de toiture
+         */
+        function toggleRoofPanelsInfo() {
+            const panel = document.getElementById('roofPanelsInfoPanel');
+            if (!panel) return;
+            if (panel.style.display === 'none') {
+                updateRoofPanelsInfoPanel();
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+        
+        /**
+         * Met à jour le contenu du panneau d'infos toiture
+         */
+        function updateRoofPanelsInfoPanel() {
+            const content = document.getElementById('roofPanelsInfoContent');
+            const panel = document.getElementById('roofPanelsInfoPanel');
+            if (!content || !viewer3D) return;
+            
+            const html = viewer3D.getRoofPanelsHTML();
+            content.innerHTML = html;
+            if (panel && viewer3D.roofPanelsInfo) {
+                panel.style.display = 'block';
             }
         }
         

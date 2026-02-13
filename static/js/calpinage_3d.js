@@ -38,6 +38,9 @@ class Calpinage3DViewer {
         // Cache de textures procédurales
         this._textureCache = {};
         
+        // Informations sur les pans de toiture du bâtiment principal
+        this.roofPanelsInfo = null;
+        
         console.log('✅ Calpinage3DViewer créé pour:', containerId);
     }
     
@@ -1006,6 +1009,216 @@ class Calpinage3DViewer {
         } else {
             this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
         }
+        
+        // === Calculer et stocker les informations des pans de toiture ===
+        this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType);
+        console.log('📐 Pans de toiture:', this.roofPanelsInfo);
+    }
+    
+    /**
+     * Calcule les informations détaillées des pans de toiture.
+     * @returns {Object} { type, panels: [{name, longueur, largeur, surface, pente_deg, orientation_deg, orientation_label}] }
+     */
+    _computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType) {
+        const halfShort = obb.shortDim / 2;
+        const halfLong = obb.longDim / 2;
+        
+        // Angle du bâtiment en degrés (0=Est, 90=Nord dans le repère local)
+        // Convertir en azimut géographique (0=Nord, 90=Est, 180=Sud, 270=Ouest)
+        // obb.angle est l'angle de l'axe principal (le plus long côté) par rapport à l'axe X local
+        // L'axe X local = Est, Z local = -Nord (car Z est inversé)
+        // Donc obb.angle 0 = axe principal vers Est
+        // Le faîtage suit l'axe principal. Les pans descendent perpendiculairement.
+        // Pan 1 descend vers across > 0, Pan 2 vers across < 0
+        
+        // Direction perpendiculaire au faîtage (direction de descente du pan)
+        // across positif = sinA * dx + cosA * dz  (dans le repère inversé Z)
+        const ridgeAngleRad = obb.angle;
+        // Perpendiculaire au faîtage : ridgeAngle + 90° et ridgeAngle - 90°
+        // Convertir en azimut géographique (depuis le Nord, sens horaire)
+        // Dans le repère local: X=Est, Z=-Nord
+        // angle 0 du bâtiment = faîtage vers Est → pans vers Nord et Sud
+        const perpAngle1 = ridgeAngleRad + Math.PI / 2; // un côté
+        const perpAngle2 = ridgeAngleRad - Math.PI / 2; // autre côté
+        
+        // Convertir angle local en azimut géo (0=Nord, sens horaire)
+        const toAzimut = (localAngle) => {
+            // localAngle: 0=Est, +PI/2=Sud (car Z inversé)
+            // azimut: 0=Nord, PI/2=Est, PI=Sud
+            let az = 90 - (localAngle * 180 / Math.PI);
+            az = ((az % 360) + 360) % 360;
+            return Math.round(az);
+        };
+        
+        const getOrientLabel = (deg) => {
+            const dirs = ['Nord', 'Nord-Est', 'Est', 'Sud-Est', 'Sud', 'Sud-Ouest', 'Ouest', 'Nord-Ouest'];
+            return dirs[Math.round(((deg % 360 + 360) % 360) / 45) % 8];
+        };
+        
+        const result = {
+            type: roofShape,
+            typeLabel: roofShape === 'gable' ? 'Bi-pan (2 versants)' :
+                       roofShape === 'hip' ? '4 pans (croupe)' :
+                       roofShape === 'shed' ? 'Mono-pente' : 'Toit plat',
+            hauteurMurs: bh,
+            hauteurFaitageRelatif: ridgeExtra,
+            couverture: roofType,
+            panels: []
+        };
+        
+        if (!hasPitchedRoof || roofShape === 'flat') {
+            // Toit plat : 1 seul pan
+            result.panels.push({
+                name: 'Toit plat',
+                longueur: Math.round(obb.longDim * 10) / 10,
+                largeur: Math.round(obb.shortDim * 10) / 10,
+                surface: Math.round(obb.longDim * obb.shortDim * 10) / 10,
+                pente_deg: 0,
+                orientation_deg: 0,
+                orientation_label: '—'
+            });
+        } else if (roofShape === 'gable') {
+            // 2 pans symétriques
+            const slopeDeg = Math.round(Math.atan2(ridgeExtra, halfShort) * 180 / Math.PI * 10) / 10;
+            const rampantWidth = Math.round(Math.sqrt(halfShort * halfShort + ridgeExtra * ridgeExtra) * 10) / 10;
+            const panLength = Math.round(obb.longDim * 10) / 10;
+            const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
+            
+            const az1 = toAzimut(perpAngle1);
+            const az2 = toAzimut(perpAngle2);
+            
+            result.panels.push({
+                name: 'Pan 1',
+                longueur: panLength,
+                largeur: rampantWidth,
+                surface: panSurface,
+                pente_deg: slopeDeg,
+                orientation_deg: az1,
+                orientation_label: getOrientLabel(az1)
+            });
+            result.panels.push({
+                name: 'Pan 2',
+                longueur: panLength,
+                largeur: rampantWidth,
+                surface: panSurface,
+                pente_deg: slopeDeg,
+                orientation_deg: az2,
+                orientation_label: getOrientLabel(az2)
+            });
+        } else if (roofShape === 'hip') {
+            // 4 pans : 2 principaux (trapézoïdaux) + 2 croupes (triangulaires)
+            const slopeDeg = Math.round(Math.atan2(ridgeExtra, halfShort) * 180 / Math.PI * 10) / 10;
+            const rampantWidth = Math.round(Math.sqrt(halfShort * halfShort + ridgeExtra * ridgeExtra) * 10) / 10;
+            const ridgeHalfLen = halfLong * 0.45;
+            const panMainLength = Math.round(ridgeHalfLen * 2 * 10) / 10;
+            // Surface trapèze : (base_haute + base_basse) / 2 * hauteur
+            const trapezeSurface = Math.round((panMainLength + obb.longDim) / 2 * rampantWidth * 10) / 10;
+            
+            const az1 = toAzimut(perpAngle1);
+            const az2 = toAzimut(perpAngle2);
+            
+            result.panels.push({
+                name: 'Pan principal 1',
+                longueur: Math.round(obb.longDim * 10) / 10,
+                largeur: rampantWidth,
+                surface: trapezeSurface,
+                pente_deg: slopeDeg,
+                orientation_deg: az1,
+                orientation_label: getOrientLabel(az1)
+            });
+            result.panels.push({
+                name: 'Pan principal 2',
+                longueur: Math.round(obb.longDim * 10) / 10,
+                largeur: rampantWidth,
+                surface: trapezeSurface,
+                pente_deg: slopeDeg,
+                orientation_deg: az2,
+                orientation_label: getOrientLabel(az2)
+            });
+            
+            // Croupes (triangles aux extrémités)
+            const croupeSlope = Math.round(Math.atan2(ridgeExtra, halfLong - ridgeHalfLen) * 180 / Math.PI * 10) / 10;
+            const croupeRampant = Math.sqrt(Math.pow(halfLong - ridgeHalfLen, 2) + ridgeExtra * ridgeExtra);
+            const croupeSurface = Math.round(obb.shortDim * croupeRampant / 2 * 10) / 10;
+            
+            const azCroupe1 = toAzimut(ridgeAngleRad);
+            const azCroupe2 = toAzimut(ridgeAngleRad + Math.PI);
+            
+            result.panels.push({
+                name: 'Croupe 1',
+                longueur: Math.round(obb.shortDim * 10) / 10,
+                largeur: Math.round(croupeRampant * 10) / 10,
+                surface: croupeSurface,
+                pente_deg: croupeSlope,
+                orientation_deg: azCroupe1,
+                orientation_label: getOrientLabel(azCroupe1)
+            });
+            result.panels.push({
+                name: 'Croupe 2',
+                longueur: Math.round(obb.shortDim * 10) / 10,
+                largeur: Math.round(croupeRampant * 10) / 10,
+                surface: croupeSurface,
+                pente_deg: croupeSlope,
+                orientation_deg: azCroupe2,
+                orientation_label: getOrientLabel(azCroupe2)
+            });
+        } else if (roofShape === 'shed') {
+            // Mono-pente : 1 seul pan
+            const slopeDeg = Math.round(Math.atan2(ridgeExtra, obb.shortDim) * 180 / Math.PI * 10) / 10;
+            const rampantWidth = Math.round(Math.sqrt(obb.shortDim * obb.shortDim + ridgeExtra * ridgeExtra) * 10) / 10;
+            const panLength = Math.round(obb.longDim * 10) / 10;
+            
+            const az1 = toAzimut(perpAngle2);
+            
+            result.panels.push({
+                name: 'Pan unique',
+                longueur: panLength,
+                largeur: rampantWidth,
+                surface: Math.round(rampantWidth * panLength * 10) / 10,
+                pente_deg: slopeDeg,
+                orientation_deg: az1,
+                orientation_label: getOrientLabel(az1)
+            });
+        }
+        
+        // Surface totale
+        result.surfaceTotale = Math.round(result.panels.reduce((s, p) => s + p.surface, 0) * 10) / 10;
+        
+        return result;
+    }
+    
+    /**
+     * Retourne un bloc HTML formaté avec les informations des pans de toiture
+     */
+    getRoofPanelsHTML() {
+        if (!this.roofPanelsInfo) return '<small class="text-muted">Aucune information de toiture</small>';
+        
+        const info = this.roofPanelsInfo;
+        let html = `<div style="font-size:0.82rem;">`;
+        html += `<div class="mb-2"><strong>🏠 ${info.typeLabel}</strong>`;
+        html += ` <span class="badge bg-secondary">${info.couverture}</span></div>`;
+        html += `<table class="table table-sm table-bordered mb-1" style="font-size:0.78rem;">`;
+        html += `<thead><tr style="background:#f0f4ff;"><th>Pan</th><th>Long.</th><th>Larg.</th><th>Surface</th><th>Pente</th><th>Orientation</th></tr></thead><tbody>`;
+        
+        for (const p of info.panels) {
+            const orientBadge = p.pente_deg > 0 
+                ? `<span class="badge bg-info">${p.orientation_deg}° ${p.orientation_label}</span>`
+                : '—';
+            html += `<tr>`;
+            html += `<td><strong>${p.name}</strong></td>`;
+            html += `<td>${p.longueur} m</td>`;
+            html += `<td>${p.largeur} m</td>`;
+            html += `<td>${p.surface} m²</td>`;
+            html += `<td>${p.pente_deg}°</td>`;
+            html += `<td>${orientBadge}</td>`;
+            html += `</tr>`;
+        }
+        
+        html += `</tbody></table>`;
+        html += `<div class="text-end"><strong>Surface totale : ${info.surfaceTotale} m²</strong></div>`;
+        html += `</div>`;
+        
+        return html;
     }
     
     /**
@@ -1512,6 +1725,9 @@ class Calpinage3DViewer {
         const alongDirZ = Math.sin(obb.angle);
         
         // Construire les murs pignon depuis les coords originales du bâtiment
+        // IMPORTANT : pour les arêtes qui traversent le faîtage (across change de signe),
+        // il faut insérer le point d'intersection avec le faîtage pour que le pignon
+        // suive exactement le profil du toit (pic au faîtage).
         const pignonVerts = [];
         for (let i = 0; i < localCoords.length; i++) {
             const curr = localCoords[i];
@@ -1528,9 +1744,6 @@ class Calpinage3DViewer {
             const nAlong = nDx * cosA - nDz * sinA;
             const nextRoofH = heightFunc(nAcross, nAlong);
             
-            // Seulement si au moins un sommet a une surélévation significative
-            if (currRoofH < 0.15 && nextRoofH < 0.15) continue;
-            
             // Ne créer un pignon que pour les arêtes perpendiculaires au faîtage
             const edgeX = next.x - curr.x;
             const edgeZ = next.z - curr.z;
@@ -1540,12 +1753,48 @@ class Calpinage3DViewer {
             const dotAlong = Math.abs((edgeX * alongDirX + edgeZ * alongDirZ) / edgeLen);
             if (dotAlong > 0.5) continue; // parallèle au faîtage → pas un pignon
             
-            const cy = roofBaseAdj + currRoofH;
-            const ny = roofBaseAdj + nextRoofH;
-            pignonVerts.push(
-                curr.x, cy, curr.z,  next.x, ny, next.z,  next.x, roofBaseAdj, next.z,
-                curr.x, cy, curr.z,  next.x, roofBaseAdj, next.z,  curr.x, roofBaseAdj, curr.z
-            );
+            // Vérifier si cette arête traverse le faîtage (across change de signe)
+            const crossesRidge = (cAcross * nAcross < 0) && Math.abs(cAcross) > 0.05 && Math.abs(nAcross) > 0.05;
+            
+            if (crossesRidge) {
+                // Interpoler le point d'intersection avec le faîtage (across=0)
+                const t = Math.abs(cAcross) / (Math.abs(cAcross) + Math.abs(nAcross));
+                const ridgeX = curr.x + t * (next.x - curr.x);
+                const ridgeZ = curr.z + t * (next.z - curr.z);
+                const ridgeDx = ridgeX - obb.cx, ridgeDz = ridgeZ - obb.cz;
+                const ridgeAlong = ridgeDx * cosA - ridgeDz * sinA;
+                const ridgeH = heightFunc(0, ridgeAlong);
+                const ridgeY = roofBaseAdj + ridgeH;
+                
+                const cy = roofBaseAdj + currRoofH;
+                const ny = roofBaseAdj + nextRoofH;
+                
+                // Demi-pignon 1 : curr → point faîtage
+                if (ridgeH > 0.05 || currRoofH > 0.05) {
+                    pignonVerts.push(
+                        curr.x, cy, curr.z,  ridgeX, ridgeY, ridgeZ,  ridgeX, roofBaseAdj, ridgeZ,
+                        curr.x, cy, curr.z,  ridgeX, roofBaseAdj, ridgeZ,  curr.x, roofBaseAdj, curr.z
+                    );
+                }
+                
+                // Demi-pignon 2 : point faîtage → next
+                if (ridgeH > 0.05 || nextRoofH > 0.05) {
+                    pignonVerts.push(
+                        ridgeX, ridgeY, ridgeZ,  next.x, ny, next.z,  next.x, roofBaseAdj, next.z,
+                        ridgeX, ridgeY, ridgeZ,  next.x, roofBaseAdj, next.z,  ridgeX, roofBaseAdj, ridgeZ
+                    );
+                }
+            } else {
+                // Arête qui ne traverse pas le faîtage : mur pignon simple
+                if (currRoofH < 0.15 && nextRoofH < 0.15) continue;
+                
+                const cy = roofBaseAdj + currRoofH;
+                const ny = roofBaseAdj + nextRoofH;
+                pignonVerts.push(
+                    curr.x, cy, curr.z,  next.x, ny, next.z,  next.x, roofBaseAdj, next.z,
+                    curr.x, cy, curr.z,  next.x, roofBaseAdj, next.z,  curr.x, roofBaseAdj, curr.z
+                );
+            }
         }
         
         if (pignonVerts.length > 0) {
