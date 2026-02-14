@@ -1157,7 +1157,20 @@ class Calpinage3DViewer {
             
             const ridgePos = profile[maxIdx].pos;
             const edgeH = (smoothH[0] + smoothH[smoothH.length - 1]) / 2;
-            const ridgeExtra = maxProfileH - edgeH;
+            const ridgeExtra = Math.max(0, maxProfileH - edgeH);
+            
+            // Si le profil est essentiellement plat, retourner directement
+            if (ridgeExtra < 0.2) {
+                return {
+                    profile, projected, ridgePos, ridgeExtra,
+                    ridgeOffset: ridgePos - 0.5, acrossRange,
+                    score: ridgeExtra * 0.1,
+                    leftDrop: 0, rightDrop: 0,
+                    peaks: [{ idx: maxIdx, pos: ridgePos, h: maxProfileH, prominence: ridgeExtra }],
+                    valleys: [],
+                    sawtoothScore: 0, signChanges: 0, nDetectedRidges: 1
+                };
+            }
             
             // ── Gradient du profil lissé ──
             const grad = [];
@@ -1561,7 +1574,12 @@ class Calpinage3DViewer {
         const roofPoints = this._sampleMNSOnBuilding(coords);
         if (roofPoints) {
             console.log(`📡 MNS: ${roofPoints.length} points échantillonnés sur le toit`);
-            roofAnalysis = this._analyzeRoofShape(roofPoints, obb);
+            try {
+                roofAnalysis = this._analyzeRoofShape(roofPoints, obb);
+            } catch (err) {
+                console.error('⚠️ Erreur analyse forme toit:', err);
+                roofAnalysis = null;
+            }
             if (roofAnalysis && roofAnalysis.type !== 'flat') {
                 roofShape = roofAnalysis.type;
                 ridgeExtra = roofAnalysis.ridgeExtra;
@@ -1616,16 +1634,26 @@ class Calpinage3DViewer {
         
         if (hasPitchedRoof) {
             ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
-            if (roofShape === 'multi-gable') {
-                this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges);
-            } else if (roofShape === 'multi-shed') {
-                this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges);
-            } else if (roofShape === 'hip') {
-                this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-            } else if (roofShape === 'shed') {
-                this._createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, roofAnalysis?.ridgeOffset || 0);
-            } else {
-                this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+            try {
+                if (roofShape === 'multi-gable') {
+                    this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges);
+                } else if (roofShape === 'multi-shed') {
+                    this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges);
+                } else if (roofShape === 'hip') {
+                    this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+                } else if (roofShape === 'shed') {
+                    this._createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, roofAnalysis?.ridgeOffset || 0);
+                } else {
+                    this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+                }
+            } catch (roofErr) {
+                console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr);
+                try {
+                    this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+                } catch (e2) {
+                    console.error('⚠️ Fallback gable échoué aussi:', e2);
+                    this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                }
             }
         } else {
             this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
