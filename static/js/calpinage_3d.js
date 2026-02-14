@@ -577,7 +577,7 @@ class Calpinage3DViewer {
             // Le pivot est au faîtage (eaveY + ridgeExtra) pour que la rotation
             // fasse descendre les modules correctement vers l'égout au lieu de "rentrer" dans le bâtiment
             const panGroup = new THREE.Group();
-            panGroup.position.set(obb.cx, eaveY + ridgeExtra + 0.08, obb.cz);
+            panGroup.position.set(obb.cx, eaveY + ridgeExtra, obb.cz);
             
             const modules = [];
             
@@ -600,7 +600,8 @@ class Calpinage3DViewer {
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
                         panelMat
                     );
-                    panel3d.position.set(localX, 0, localZ);
+                    // Y = 0.15m au-dessus de la surface du groupe (normal au toit après rotation)
+                    panel3d.position.set(localX, 0.15, localZ);
                     panel3d.rotation.y = -obb.angle;
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
