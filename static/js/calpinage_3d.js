@@ -1309,9 +1309,10 @@ class Calpinage3DViewer {
         
         // Convertir angle local en azimut géo (0=Nord, sens horaire)
         const toAzimut = (localAngle) => {
-            // localAngle: 0=Est, +PI/2=Sud (car Z inversé)
-            // azimut: 0=Nord, PI/2=Est, PI=Sud
-            let az = 90 - (localAngle * 180 / Math.PI);
+            // localAngle: 0=Est, +PI/2=Sud (car Z pointe vers le sud dans notre repère)
+            // azimut: 0=Nord, 90=Est, 180=Sud, 270=Ouest
+            // => az = 90 + angle_en_degrés
+            let az = 90 + (localAngle * 180 / Math.PI);
             az = ((az % 360) + 360) % 360;
             return Math.round(az);
         };
