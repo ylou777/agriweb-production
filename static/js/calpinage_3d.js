@@ -1109,8 +1109,9 @@ class Calpinage3DViewer {
                 };
             });
             
-            // Profil transversal avec plus de bandes pour meilleure résolution
-            const nBands = 11;
+            // Profil transversal adaptatif : ~1 bande par 1.2m pour détecter multi-sections
+            // Un bâtiment de 42m → ~35 bandes (vs 11 avant) : résolution suffisante pour 7 sections
+            const nBands = Math.max(15, Math.min(50, Math.round(acrossRange / 1.2)));
             let acrossMin = Infinity, acrossMax = -Infinity;
             for (let i = 0; i < projected.length; i++) {
                 if (projected[i].across < acrossMin) acrossMin = projected[i].across;
@@ -1142,55 +1143,120 @@ class Calpinage3DViewer {
             
             if (profile.length < 3) return null;
             
-            // ── Trouver le pic principal ──
+            // ── Lisser le profil pour réduire le bruit LiDAR ──
+            const smoothH = profile.map((p, i) => {
+                if (i === 0 || i === profile.length - 1) return p.h;
+                return (profile[i - 1].h + 2 * p.h + profile[i + 1].h) / 4;
+            });
+            
+            // ── Trouver le pic global ──
             let maxProfileH = -Infinity, maxIdx = 0;
-            profile.forEach((p, i) => {
-                if (p.h > maxProfileH) { maxProfileH = p.h; maxIdx = i; }
+            smoothH.forEach((h, i) => {
+                if (h > maxProfileH) { maxProfileH = h; maxIdx = i; }
             });
             
             const ridgePos = profile[maxIdx].pos;
-            const edgeH = (profile[0].h + profile[profile.length - 1].h) / 2;
+            const edgeH = (smoothH[0] + smoothH[smoothH.length - 1]) / 2;
             const ridgeExtra = maxProfileH - edgeH;
             
-            // ── Détecter les pics multiples (multi-gable / multi-shed) ──
+            // ── Gradient du profil lissé ──
+            const grad = [];
+            for (let i = 1; i < smoothH.length; i++) {
+                grad.push(smoothH[i] - smoothH[i - 1]);
+            }
+            
+            // ── Détecter pics et vallées par maximum/minimum local ──
             const peaks = [];
-            for (let i = 1; i < profile.length - 1; i++) {
-                if (profile[i].h > profile[i - 1].h && profile[i].h > profile[i + 1].h) {
-                    const peakHeight = profile[i].h - Math.min(profile[i - 1].h, profile[i + 1].h);
-                    if (peakHeight > ridgeExtra * 0.3 && peakHeight > 0.4) {
-                        peaks.push({
-                            idx: i,
-                            pos: profile[i].pos,
-                            h: profile[i].h,
-                            prominence: peakHeight
-                        });
+            const valleys = [];
+            const minDrop = Math.max(0.15, ridgeExtra * 0.08);
+            
+            for (let i = 1; i < smoothH.length - 1; i++) {
+                // Pic : plus haut que les 2 voisins immédiats
+                if (smoothH[i] > smoothH[i - 1] && smoothH[i] > smoothH[i + 1]) {
+                    // Proéminence : hauteur au-dessus de la plus haute vallée adjacente
+                    const drop = smoothH[i] - Math.max(smoothH[i - 1], smoothH[i + 1]);
+                    if (drop > minDrop * 0.5) {
+                        peaks.push({ idx: i, pos: profile[i].pos, h: smoothH[i], prominence: drop });
+                    }
+                }
+                // Vallée : plus bas que les 2 voisins immédiats
+                if (smoothH[i] < smoothH[i - 1] && smoothH[i] < smoothH[i + 1]) {
+                    const depth = Math.min(smoothH[i - 1] - smoothH[i], smoothH[i + 1] - smoothH[i]);
+                    if (depth > minDrop * 0.5) {
+                        valleys.push({ idx: i, pos: profile[i].pos, h: smoothH[i], depth });
                     }
                 }
             }
-            // Ajouter le pic principal s'il est aux bords
-            if (peaks.length === 0 && ridgeExtra > 0.3) {
-                peaks.push({ idx: maxIdx, pos: ridgePos, h: maxProfileH, prominence: ridgeExtra });
+            
+            // Fusionner les pics trop proches (même section)
+            if (peaks.length >= 2) {
+                const minSpacing = 1.0 / (peaks.length + 1) * 0.4;
+                const merged = [peaks[0]];
+                for (let i = 1; i < peaks.length; i++) {
+                    if (peaks[i].pos - merged[merged.length - 1].pos < minSpacing) {
+                        if (peaks[i].h > merged[merged.length - 1].h) {
+                            merged[merged.length - 1] = peaks[i];
+                        }
+                    } else {
+                        merged.push(peaks[i]);
+                    }
+                }
+                peaks.length = 0;
+                peaks.push(...merged);
+            }
+            
+            // Valider les pics par proéminence (relative aux vallées voisines)
+            const validPeaks = peaks.filter(pk => {
+                const leftVals = valleys.filter(v => v.idx < pk.idx);
+                const rightVals = valleys.filter(v => v.idx > pk.idx);
+                const leftRef = leftVals.length > 0 ? leftVals[leftVals.length - 1].h : smoothH[0];
+                const rightRef = rightVals.length > 0 ? rightVals[0].h : smoothH[smoothH.length - 1];
+                pk.prominence = pk.h - Math.max(leftRef, rightRef);
+                return pk.prominence > 0.15 && pk.prominence > ridgeExtra * 0.06;
+            });
+            
+            // Fallback : si aucun pic mais ridgeExtra significatif
+            if (validPeaks.length === 0 && ridgeExtra > 0.3) {
+                validPeaks.push({ idx: maxIdx, pos: ridgePos, h: maxProfileH, prominence: ridgeExtra });
+            }
+            
+            // ── Comptage des changements de signe du gradient ──
+            let signChanges = 0;
+            const minGrad = Math.max(0.03, ridgeExtra * 0.02);
+            for (let i = 0; i < grad.length - 1; i++) {
+                if ((grad[i] > minGrad && grad[i + 1] < -minGrad) ||
+                    (grad[i] < -minGrad && grad[i + 1] > minGrad)) {
+                    signChanges++;
+                }
             }
             
             // ── Détecter le profil en dents de scie (multi-shed) ──
-            // Gradient monotone dans chaque section entre les vallées
             let sawtoothScore = 0;
-            if (profile.length >= 5) {
-                let rises = 0, falls = 0;
-                for (let i = 1; i < profile.length; i++) {
-                    const delta = profile[i].h - profile[i - 1].h;
-                    if (delta > 0.2) rises++;
-                    if (delta < -0.2) falls++;
+            if (grad.length >= 4) {
+                let totalRiseMag = 0, totalFallMag = 0;
+                let riseCount = 0, fallCount = 0;
+                for (const g of grad) {
+                    if (g > minGrad) { totalRiseMag += g; riseCount++; }
+                    if (g < -minGrad) { totalFallMag += Math.abs(g); fallCount++; }
                 }
-                // Profil en dents de scie = alternance montée/descente brutale
-                if (rises >= 2 && falls >= 2) {
-                    sawtoothScore = Math.min(rises, falls) / Math.max(rises, falls);
+                if (riseCount > 0 && fallCount > 0) {
+                    const avgRise = totalRiseMag / riseCount;
+                    const avgFall = totalFallMag / fallCount;
+                    const asymmetry = Math.abs(avgRise - avgFall) / Math.max(avgRise + avgFall, 0.01);
+                    if (signChanges >= 3) {
+                        sawtoothScore = asymmetry * Math.min(signChanges / 4, 1.5);
+                    }
                 }
             }
             
+            // Nombre de faîtages estimé
+            const nDetectedRidges = Math.max(validPeaks.length, valleys.length + 1);
+            
+            console.log(`📊 Profil [${(angle * 180 / Math.PI).toFixed(0)}°]: ${profile.length} bandes, across=${acrossRange.toFixed(1)}m, ridgeExtra=${ridgeExtra.toFixed(2)}m, peaks=${validPeaks.length}, valleys=${valleys.length}, signChanges=${signChanges}, sawtooth=${sawtoothScore.toFixed(2)}, nRidges=${nDetectedRidges}`);
+            
             // ── Score de qualité du profil en tant que faîtage ──
-            const leftDrop = maxProfileH - profile[0].h;
-            const rightDrop = maxProfileH - profile[profile.length - 1].h;
+            const leftDrop = maxProfileH - smoothH[0];
+            const rightDrop = maxProfileH - smoothH[smoothH.length - 1];
             const symmetry = 1 - Math.abs(leftDrop - rightDrop) / Math.max(leftDrop + rightDrop, 0.1);
             const centeredness = 1 - Math.abs(ridgePos - 0.5) * 2;
             const contrast = ridgeExtra / Math.max(acrossRange * 0.08, 0.3);
@@ -1208,8 +1274,11 @@ class Calpinage3DViewer {
                 score,
                 leftDrop,
                 rightDrop,
-                peaks,
-                sawtoothScore
+                peaks: validPeaks,
+                valleys,
+                sawtoothScore,
+                signChanges,
+                nDetectedRidges
             };
         };
         
@@ -1239,7 +1308,7 @@ class Calpinage3DViewer {
         
         if (bestDir.ridgeExtra < 0.3) return { type: 'flat', ridgeExtra: 0 };
         
-        const { projected, ridgePos, ridgeExtra, ridgeOffset, peaks, sawtoothScore } = bestDir;
+        const { projected, ridgePos, ridgeExtra, ridgeOffset, peaks, valleys, sawtoothScore, signChanges, nDetectedRidges } = bestDir;
         
         // ═══════════════════════════════════════════════════════════
         // DÉTECTION DU TYPE DE TOIT
@@ -1248,17 +1317,23 @@ class Calpinage3DViewer {
         let nRidges = 1;
         
         // ── Multi-faîtage ? ──
-        if (peaks.length >= 2) {
-            // Plusieurs pics significatifs → multi-gable ou multi-shed
-            nRidges = peaks.length;
-            if (sawtoothScore > 0.5) {
-                roofType = 'multi-shed';
-                console.log(`🏭 Multi-shed détecté : ${nRidges} faîtages, sawtooth=${sawtoothScore.toFixed(2)}`);
-            } else {
-                roofType = 'multi-gable';
-                console.log(`🏠 Multi-gable détecté : ${nRidges} faîtages`);
+        // Utiliser peaks, valleys ET nDetectedRidges pour décision robuste
+        const effectiveRidges = nDetectedRidges || Math.max(peaks.length, (valleys ? valleys.length : 0) + 1);
+        
+        if (effectiveRidges >= 2 || (valleys && valleys.length >= 1 && ridgeExtra > 0.3)) {
+            nRidges = Math.max(effectiveRidges, peaks.length);
+            if (nRidges >= 2) {
+                if (sawtoothScore > 0.25) {
+                    roofType = 'multi-shed';
+                    console.log(`🏭 Multi-shed détecté : ${nRidges} sections, sawtooth=${sawtoothScore.toFixed(2)}, valleys=${valleys ? valleys.length : 0}, signChanges=${signChanges || 0}`);
+                } else {
+                    roofType = 'multi-gable';
+                    console.log(`🏠 Multi-gable détecté : ${nRidges} faîtages, valleys=${valleys ? valleys.length : 0}, peaks=${peaks.length}`);
+                }
             }
-        } else if (Math.abs(ridgeOffset) > 0.3) {
+        }
+        
+        if (!roofType && Math.abs(ridgeOffset) > 0.3) {
             // ── Mono-pente (shed) ──
             // Vérifier que c'est un vrai gradient monotone, pas juste du bruit
             const prof = bestDir.profile;
@@ -1277,7 +1352,7 @@ class Calpinage3DViewer {
                 roofType = 'gable';
                 console.log(`🏠 Gable asymétrique détecté (offset=${ridgeOffset.toFixed(2)}, non monotone)`);
             }
-        } else {
+        } else if (!roofType) {
             // ── Faîtage centré → gable ou hip ──
             let alongMin = Infinity, alongMax = -Infinity;
             for (let i = 0; i < projected.length; i++) {
@@ -1477,6 +1552,7 @@ class Calpinage3DViewer {
         // 1. Essayer l'analyse LiDAR MNS (la plus précise)
         const roofPoints = this._sampleMNSOnBuilding(coords);
         if (roofPoints) {
+            console.log(`📡 MNS: ${roofPoints.length} points échantillonnés sur le toit`);
             roofAnalysis = this._analyzeRoofShape(roofPoints, obb);
             if (roofAnalysis && roofAnalysis.type !== 'flat') {
                 roofShape = roofAnalysis.type;
@@ -1579,10 +1655,6 @@ class Calpinage3DViewer {
     _computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges) {
         const halfShort = obb.shortDim / 2;
         const halfLong = obb.longDim / 2;
-        nRidges = nRidges || 1;
-        nRidges = nRidges || 1;
-        nRidges = nRidges || 1;
-        nRidges = nRidges || 1;
         nRidges = nRidges || 1;
         nRidges = nRidges || 1;
         
