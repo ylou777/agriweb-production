@@ -254,37 +254,67 @@ class Calpinage3DViewer {
         
         // Exagération verticale pour rendre le relief visible
         const altDelta = terrain.mnt_max - terrain.mnt_min;
-        // Plus le terrain est plat, plus on exagère — mais avec petit rayon, réduire l'exagération
+        // Exagération modérée pour réalisme — trop d'exagération crée des escaliers
+        // et des bâtiments flottants
         let verticalExaggeration;
         if (radiusM <= 40) {
-            // Vue proche : exagération très faible pour réalisme
-            verticalExaggeration = altDelta < 2 ? 2.0 : (altDelta < 5 ? 1.5 : 1.0);
+            verticalExaggeration = altDelta < 2 ? 1.5 : (altDelta < 5 ? 1.2 : 1.0);
         } else if (radiusM <= 80) {
-            verticalExaggeration = altDelta < 3 ? 3.0 : (altDelta < 10 ? 2.0 : 1.2);
+            verticalExaggeration = altDelta < 3 ? 1.8 : (altDelta < 10 ? 1.3 : 1.0);
         } else {
-            verticalExaggeration = altDelta < 5 ? 5.0 : (altDelta < 15 ? 3.0 : 1.5);
+            verticalExaggeration = altDelta < 5 ? 2.5 : (altDelta < 15 ? 1.8 : 1.2);
         }
         this._verticalExaggeration = verticalExaggeration;
         console.log(`🗺️ Exagération verticale: x${verticalExaggeration} (delta=${altDelta.toFixed(1)}m)`);
         
-        // Créer la géométrie du terrain
+        // ═══════════════════════════════════════════════════════════
+        // TERRAIN SUBDIVISÉ : interpolation bilinéaire pour éliminer
+        // l'effet d'escalier dans la couche satellite
+        // ═══════════════════════════════════════════════════════════
+        const subdivFactor = 3; // 3x plus de vertices que la grille MNT
+        const meshRes = (gridSize - 1) * subdivFactor; // nombre de segments
+        const meshVerts = meshRes + 1;                  // nombre de vertices par axe
+        
         const geo = new THREE.PlaneGeometry(
             radiusM * 2, radiusM * 2,
-            gridSize - 1, gridSize - 1
+            meshRes, meshRes
         );
         
-        // Appliquer les altitudes avec exagération
+        // Fonction d'interpolation bilinéaire sur la grille MNT
+        const sampleMNT = (fx, fy) => {
+            // fx, fy en coordonnées continues de grille [0, gridSize-1]
+            const x0 = Math.max(0, Math.min(gridSize - 2, Math.floor(fx)));
+            const y0 = Math.max(0, Math.min(gridSize - 2, Math.floor(fy)));
+            const x1 = x0 + 1;
+            const y1 = y0 + 1;
+            const tx = fx - x0;
+            const ty = fy - y0;
+            
+            const v00 = mnt[y0] ? (mnt[y0][x0] || 0) : 0;
+            const v10 = mnt[y0] ? (mnt[y0][x1] || 0) : 0;
+            const v01 = mnt[y1] ? (mnt[y1][x0] || 0) : 0;
+            const v11 = mnt[y1] ? (mnt[y1][x1] || 0) : 0;
+            
+            return v00 * (1 - tx) * (1 - ty) + v10 * tx * (1 - ty)
+                 + v01 * (1 - tx) * ty       + v11 * tx * ty;
+        };
+        this._sampleMNTBilinear = sampleMNT; // stocker pour _getTerrainHeight
+        
+        // Appliquer les altitudes interpolées
         const positions = geo.attributes.position.array;
         let maxZ = 0;
         let minZ = Infinity;
         let nonZeroCount = 0;
         
-        for (let iy = 0; iy < gridSize; iy++) {
-            for (let ix = 0; ix < gridSize; ix++) {
-                const idx = (iy * gridSize + ix) * 3;
-                const altitude = mnt[iy] ? (mnt[iy][ix] || 0) : 0;
+        for (let iy = 0; iy < meshVerts; iy++) {
+            for (let ix = 0; ix < meshVerts; ix++) {
+                const idx = (iy * meshVerts + ix) * 3;
+                // Coordonnées continues dans la grille MNT
+                const gx = ix / meshRes * (gridSize - 1);
+                const gy = iy / meshRes * (gridSize - 1);
+                const altitude = sampleMNT(gx, gy);
                 const exaggeratedAlt = altitude * verticalExaggeration;
-                positions[idx + 2] = exaggeratedAlt; // Z = altitude (→ Y after rotation)
+                positions[idx + 2] = exaggeratedAlt;
                 if (exaggeratedAlt > maxZ) maxZ = exaggeratedAlt;
                 if (exaggeratedAlt < minZ) minZ = exaggeratedAlt;
                 if (altitude !== 0) nonZeroCount++;
@@ -294,7 +324,7 @@ class Calpinage3DViewer {
         geo.attributes.position.needsUpdate = true;
         geo.computeVertexNormals();
         
-        console.log(`🗺️ Terrain vertices: ${nonZeroCount}/${gridSize*gridSize} non-zero, Z range: ${minZ.toFixed(1)} - ${maxZ.toFixed(1)}m (exagéré)`);
+        console.log(`🗺️ Terrain: ${meshVerts}x${meshVerts} vertices (MNT ${gridSize}x${gridSize}, subdiv x${subdivFactor}), Z range: ${minZ.toFixed(1)} - ${maxZ.toFixed(1)}m`);
         
         // Matériau terrain
         const mat = new THREE.MeshLambertMaterial({
@@ -318,7 +348,7 @@ class Calpinage3DViewer {
         this.ground.receiveShadow = true;
         this.scene.add(this.ground);
         
-        console.log(`✅ Terrain LiDAR: ${gridSize}x${gridSize}, max altitude exagérée: ${maxZ.toFixed(1)}m`);
+        console.log(`✅ Terrain LiDAR: MNT ${gridSize}x${gridSize} → mesh ${meshVerts}x${meshVerts}, exagération x${verticalExaggeration}`);
     }
     
     /**
@@ -382,7 +412,9 @@ class Calpinage3DViewer {
                 const tex = new THREE.CanvasTexture(canvas);
                 tex.wrapS = THREE.ClampToEdgeWrapping;
                 tex.wrapT = THREE.ClampToEdgeWrapping;
-                tex.minFilter = THREE.LinearFilter;
+                tex.minFilter = THREE.LinearMipMapLinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                tex.anisotropy = 4; // Meilleur rendu en perspective
                 
                 if (this.terrainMesh) {
                     this.terrainMesh.material.map = tex;
@@ -753,7 +785,9 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Récupère l'altitude du terrain à une position locale (avec exagération)
+     * Récupère l'altitude du terrain à une position locale (avec exagération).
+     * Utilise l'interpolation bilinéaire pour correspondre exactement au mesh terrain
+     * et éviter les bâtiments flottants.
      */
     _getTerrainHeight(x, z) {
         if (!this.lidarData || !this.lidarData.terrain) return 0;
@@ -762,13 +796,20 @@ class Calpinage3DViewer {
         const bbox = terrain.bbox;
         const gridSize = terrain.grid_size;
         
-        // Convertir x, z en coordonnées de grille
-        // x: -radiusM (west) → 0, +radiusM (east) → gridSize-1
-        // z: -radiusM (north) → 0, +radiusM (south) → gridSize-1
+        // Convertir x, z en coordonnées continues de grille
         const radiusM = (bbox.north - bbox.south) * this.LAT_TO_M / 2;
-        const ix = Math.min(gridSize - 1, Math.max(0, Math.floor((x + radiusM) / (radiusM * 2) * (gridSize - 1))));
-        const iy = Math.min(gridSize - 1, Math.max(0, Math.floor((z + radiusM) / (radiusM * 2) * (gridSize - 1))));
+        const fx = (x + radiusM) / (radiusM * 2) * (gridSize - 1);
+        const fy = (z + radiusM) / (radiusM * 2) * (gridSize - 1);
         
+        // Interpolation bilinéaire (même fonction que le terrain mesh)
+        if (this._sampleMNTBilinear) {
+            const alt = this._sampleMNTBilinear(fx, fy);
+            return alt * (this._verticalExaggeration || 1);
+        }
+        
+        // Fallback : nearest-neighbor
+        const ix = Math.min(gridSize - 1, Math.max(0, Math.round(fx)));
+        const iy = Math.min(gridSize - 1, Math.max(0, Math.round(fy)));
         const alt = terrain.mnt[iy] ? (terrain.mnt[iy][ix] || 0) : 0;
         return alt * (this._verticalExaggeration || 1);
     }
