@@ -2539,10 +2539,13 @@ class Calpinage3DViewer {
             const zoneCenterLng = sumLng / zone.modulesPositions.length;
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
             
-            // === HAUTEUR : terrain + bâtiment + 10cm au-dessus du toit ===
+            // === HAUTEUR : terrain + hauteur murs du bâtiment + 8cm au-dessus ===
+            // On utilise la hauteur des MURS (pas MNH qui inclut le faîtage)
+            // pour poser les modules à l'égout du toit ; la pente du groupe
+            // les placera naturellement le long de la pente du pan.
             const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const buildingH = this._findBuildingHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const roofBaseY = terrainH + buildingH + 0.10;
+            const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const roofBaseY = terrainH + wallH + 0.08; // 8cm au-dessus de l'égout
             
             // === GROUPE : positionné au centre, SANS rotation Y ===
             // Les positions des modules (converties depuis lat/lng) encodent déjà
@@ -2674,7 +2677,34 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Trouve la hauteur du bâtiment le plus proche d'un point
+     * Trouve la hauteur des MURS (égout) du bâtiment le plus proche.
+     * C'est la hauteur à laquelle le toit commence (pas le faîtage).
+     * Utilisé pour poser les modules PV à l'égout + 8cm.
+     */
+    _findBuildingWallHeight(x, z) {
+        if (!this.lidarData) return 5;
+        
+        // Chercher le bâtiment BD TOPO/OSM le plus proche
+        let closestH = 5;
+        let closestDist = Infinity;
+        
+        const allB = (this.lidarData.buildings_bdtopo || []).concat(this.lidarData.buildings_osm || []);
+        allB.forEach(b => {
+            const bCenter = this._polygonCenter(b.coords);
+            const bLocal = this._geoToLocal(bCenter.y, bCenter.x);
+            const dist = Math.sqrt(Math.pow(bLocal.x - x, 2) + Math.pow(bLocal.z - z, 2));
+            if (dist < closestDist && dist < 30) {
+                closestDist = dist;
+                // hauteur = hauteur des murs (hors toit) telle que définie dans BD TOPO
+                closestH = Math.max(b.hauteur || 6, 2);
+            }
+        });
+        
+        return closestH;
+    }
+    
+    /**
+     * Trouve la hauteur totale du bâtiment (MNH = jusqu'au faîtage)
      */
     _findBuildingHeight(x, z) {
         if (!this.lidarData) return 5;
