@@ -439,7 +439,7 @@ class Calpinage3DViewer {
      * @param {Array<number>} [panelIndices] - Indices des pans à remplir (null = tous)
      * @returns {Array<Object>} Zones générées [{panelName, orientation, inclinaison, modules: [{lat, lng, corners}]}]
      */
-    autoFillRoofPanels(moduleW, moduleH, espacement, disposition, panelIndices) {
+    autoFillRoofPanels(moduleW, moduleH, espacement, disposition, panelIndices, obstacleRects) {
         if (!this.roofPanelsInfo || !this.roofPanelsInfo.panels.length) {
             console.warn('⚠️ Pas de roofPanelsInfo pour le remplissage auto');
             return [];
@@ -615,6 +615,41 @@ class Calpinage3DViewer {
                             this._pointInPolygon2D(c.x, c.z, buildingPoly.map(p => ({x: p.x, y: p.z})))
                         ).length;
                         if (insideCount < 3) continue; // Module hors emprise → skip
+                    }
+                    
+                    // === Filtrage par obstacles (cheminées, acrotères, trappes...) ===
+                    if (obstacleRects && obstacleRects.length > 0) {
+                        // Convertir le centre du module en lat/lng
+                        const modGeo = this._localToGeo(worldX, worldZ);
+                        // Vérifier si le module ou ses coins chevauchent un obstacle (+ buffer 0.5m)
+                        const halfW2 = modAlong / 2;
+                        const halfH2 = modAcross / 2;
+                        const modCorners = [
+                            this._localToGeo(worldX + (-halfW2)*cosA - (-halfH2)*sinA, worldZ + (-halfW2)*sinA + (-halfH2)*cosA),
+                            this._localToGeo(worldX + ( halfW2)*cosA - (-halfH2)*sinA, worldZ + ( halfW2)*sinA + (-halfH2)*cosA),
+                            this._localToGeo(worldX + ( halfW2)*cosA - ( halfH2)*sinA, worldZ + ( halfW2)*sinA + ( halfH2)*cosA),
+                            this._localToGeo(worldX + (-halfW2)*cosA - ( halfH2)*sinA, worldZ + (-halfW2)*sinA + ( halfH2)*cosA),
+                        ];
+                        
+                        let hitObstacle = false;
+                        for (const obs of obstacleRects) {
+                            // Vérifier si le centre du module est dans le rectangle obstacle
+                            if (modGeo.lat >= obs.minLat && modGeo.lat <= obs.maxLat &&
+                                modGeo.lng >= obs.minLng && modGeo.lng <= obs.maxLng) {
+                                hitObstacle = true;
+                                break;
+                            }
+                            // Vérifier si AUCUN coin du module ne chevauche l'obstacle
+                            for (const c of modCorners) {
+                                if (c.lat >= obs.minLat && c.lat <= obs.maxLat &&
+                                    c.lng >= obs.minLng && c.lng <= obs.maxLng) {
+                                    hitObstacle = true;
+                                    break;
+                                }
+                            }
+                            if (hitObstacle) break;
+                        }
+                        if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
                     
                     // Offset par rapport au centre du groupe
