@@ -943,8 +943,12 @@ class Calpinage3DViewer {
         const mntMean = roofPoints.reduce((s, p) => s + p.mnt, 0) / roofPoints.length;
         const relativeH = roofPoints.map(p => p.mns - mntMean);
         
-        const hMin = Math.min(...relativeH);
-        const hMax = Math.max(...relativeH);
+        // Éviter Math.min/max(...spread) qui cause "Maximum call stack" avec beaucoup de points LiDAR
+        let hMin = Infinity, hMax = -Infinity;
+        for (let i = 0; i < relativeH.length; i++) {
+            if (relativeH[i] < hMin) hMin = relativeH[i];
+            if (relativeH[i] > hMax) hMax = relativeH[i];
+        }
         const hRange = hMax - hMin;
         
         // Si le toit est quasi-plat (< 0.3m de variation), c'est un toit plat
@@ -969,8 +973,11 @@ class Calpinage3DViewer {
         // === Détecter la forme du toit via profil transversal (across) ===
         // Diviser en bandes transversales et calculer le profil moyen
         const nBands = 7;
-        const acrossMin = Math.min(...projected.map(p => p.across));
-        const acrossMax = Math.max(...projected.map(p => p.across));
+        let acrossMin = Infinity, acrossMax = -Infinity;
+        for (let i = 0; i < projected.length; i++) {
+            if (projected[i].across < acrossMin) acrossMin = projected[i].across;
+            if (projected[i].across > acrossMax) acrossMax = projected[i].across;
+        }
         const acrossRange = acrossMax - acrossMin;
         
         if (acrossRange < 0.5) return { type: 'flat', ridgeExtra: 0 };
@@ -1017,8 +1024,11 @@ class Calpinage3DViewer {
         } else {
             // Faîtage centré → gable ou hip
             // Vérifier les extrémités longitudinales (le long de l'axe principal)
-            const alongMin = Math.min(...projected.map(p => p.along));
-            const alongMax = Math.max(...projected.map(p => p.along));
+            let alongMin = Infinity, alongMax = -Infinity;
+            for (let i = 0; i < projected.length; i++) {
+                if (projected[i].along < alongMin) alongMin = projected[i].along;
+                if (projected[i].along > alongMax) alongMax = projected[i].along;
+            }
             const alongRange = alongMax - alongMin;
             
             // Prendre les points aux 2 extrémités (15% de chaque côté)
