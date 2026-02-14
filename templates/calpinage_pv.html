@@ -970,7 +970,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=18"></script>
+    <script src="/static/js/calpinage_3d.js?v=25"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -2162,9 +2162,16 @@
                 obstacles.forEach(obs => {
                     if (obs.layer) obstaclesLayer.removeLayer(obs.layer);
                     if (obs.label) map.removeLayer(obs.label);
+                    _removeObstacleHandles(obs.id);
                 });
                 obstacles = [];
+                selectedObstacleId = null;
                 updateObstacleCount();
+            });
+            
+            // Click sur le fond de carte → désélectionner l'obstacle
+            map.on('click', function() {
+                if (selectedObstacleId !== null) deselectObstacle();
             });
             
             // Bouton Modifier zones
@@ -5511,8 +5518,12 @@
         // OBSTACLES TOITURE
         // ═══════════════════════════════════════════════════════
         
+        let selectedObstacleId = null;   // ID de l'obstacle actuellement sélectionné
+        let obstacleHandles = {};        // { obsId: { resizeMarkers:[], rotationMarker, guideLine } }
+        
         /**
          * Ajoute un obstacle à la liste et affiche un label.
+         * Gère aussi la sélection, le drag, le resize et la rotation.
          */
         function ajouterObstacle(layer, type) {
             const obstacleTypes = ['Cheminée', 'Acrotère', 'Trappe', 'Ventilation', 'Antenne', 'Autre'];
@@ -5547,31 +5558,94 @@
                 heightM: heightM,
                 radiusM: radiusM || null,
                 shapeType: type, // 'rectangle', 'polygon', 'circle'
-                // Pour le filtrage des modules : bounding box étendue de 0.5m
+                rotationAngle: 0,    // degrés de rotation
                 bufferM: 0.5
             };
             
+            // Activer le drag natif sur le layer
+            if (type === 'circle') {
+                // Pour un cercle, on simule le drag via mousedown/mousemove
+                _enableCircleDrag(obs);
+            } else {
+                // Rectangles/polygones : utiliser la méthode de déplacement personnalisée
+                _enableRectDrag(obs);
+            }
+            
             // Ajouter un label au centre
-            const labelText = `🚧 ${widthM.toFixed(1)}×${heightM.toFixed(1)}m`;
-            obs.label = L.marker(center, {
-                icon: L.divIcon({
-                    className: 'obstacle-label',
-                    html: `<div style="background:rgba(220,53,69,0.85);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.72rem;white-space:nowrap;text-align:center;pointer-events:auto;cursor:pointer;">${labelText}</div>`,
-                    iconSize: [100, 22],
-                    iconAnchor: [50, 11]
-                }),
-                interactive: true
+            _updateObstacleLabel(obs);
+            
+            // Click sur le layer → sélectionner et afficher handles
+            layer.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                selectObstacle(obs.id);
             });
-            obs.label.addTo(map);
             
             // Click sur le label → popup pour renommer/supprimer
-            obs.label.on('click', function() {
-                const popup = L.popup({ closeButton: true, autoClose: true, minWidth: 160 })
-                    .setLatLng(center)
+            // (sera attaché dans _updateObstacleLabel)
+            
+            obstacles.push(obs);
+            updateObstacleCount();
+            console.log(`🚧 Obstacle ajouté: ${widthM.toFixed(1)}×${heightM.toFixed(1)}m à (${center.lat.toFixed(6)}, ${center.lng.toFixed(6)})`);
+        }
+        
+        /**
+         * Met à jour le label d'un obstacle (position + texte)
+         */
+        function _updateObstacleLabel(obs) {
+            const obstacleTypes = ['Cheminée', 'Acrotère', 'Trappe', 'Ventilation', 'Antenne', 'Autre'];
+            
+            // Recalculer center & dimensions
+            if (obs.shapeType === 'circle') {
+                obs.center = obs.layer.getLatLng();
+                obs.radiusM = obs.layer.getRadius();
+                obs.widthM = obs.radiusM * 2;
+                obs.heightM = obs.radiusM * 2;
+            } else {
+                const b = obs.layer.getBounds();
+                obs.center = b.getCenter();
+                obs.widthM = map.distance([b.getSouth(), b.getWest()], [b.getSouth(), b.getEast()]);
+                obs.heightM = map.distance([b.getSouth(), b.getWest()], [b.getNorth(), b.getWest()]);
+            }
+            
+            const displayText = obs.obstacleType !== 'Obstacle'
+                ? `🚧 ${obs.obstacleType}`
+                : `🚧 ${obs.widthM.toFixed(1)}×${obs.heightM.toFixed(1)}m`;
+            
+            if (obs.label) {
+                obs.label.setLatLng(obs.center);
+                obs.label.setIcon(L.divIcon({
+                    className: 'obstacle-label',
+                    html: `<div style="background:rgba(220,53,69,0.85);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.72rem;white-space:nowrap;text-align:center;pointer-events:auto;cursor:pointer;">${displayText}</div>`,
+                    iconSize: [100, 22],
+                    iconAnchor: [50, 11]
+                }));
+            } else {
+                obs.label = L.marker(obs.center, {
+                    icon: L.divIcon({
+                        className: 'obstacle-label',
+                        html: `<div style="background:rgba(220,53,69,0.85);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.72rem;white-space:nowrap;text-align:center;pointer-events:auto;cursor:pointer;">${displayText}</div>`,
+                        iconSize: [100, 22],
+                        iconAnchor: [50, 11]
+                    }),
+                    interactive: true
+                });
+                obs.label.addTo(map);
+            }
+            
+            // Unbind old click, rebind
+            obs.label.off('click');
+            obs.label.on('click', function(e) {
+                L.DomEvent.stopPropagation(e);
+                // Si on est en mode édition, sélectionner l'obstacle
+                selectObstacle(obs.id);
+                
+                const popup = L.popup({ closeButton: true, autoClose: true, minWidth: 180 })
+                    .setLatLng(obs.center)
                     .setContent(`
                         <div style="font-size:0.85rem;">
                             <strong>🚧 Obstacle</strong><br>
-                            <span>${obs.widthM.toFixed(1)} × ${obs.heightM.toFixed(1)} m</span><br>
+                            <span>${obs.widthM.toFixed(1)} × ${obs.heightM.toFixed(1)} m</span>
+                            ${obs.rotationAngle ? '<br><span>↻ ' + Math.round(obs.rotationAngle) + '°</span>' : ''}<br>
                             <label class="mt-1 d-block">Type:</label>
                             <select id="obsType_${obs.id}" class="form-select form-select-sm" style="font-size:0.8rem;">
                                 ${obstacleTypes.map(t => `<option value="${t}" ${t === obs.obstacleType ? 'selected' : ''}>${t}</option>`).join('')}
@@ -5583,29 +5657,412 @@
                     `)
                     .openOn(map);
                 
-                // Quand la popup se ferme, sauver le type
                 map.on('popupclose', function onClose() {
                     const sel = document.getElementById('obsType_' + obs.id);
                     if (sel) {
                         obs.obstacleType = sel.value;
-                        // Mettre à jour le label
-                        const icon = obs.label.getIcon();
-                        if (icon) {
-                            obs.label.setIcon(L.divIcon({
-                                className: 'obstacle-label',
-                                html: `<div style="background:rgba(220,53,69,0.85);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.72rem;white-space:nowrap;text-align:center;pointer-events:auto;cursor:pointer;">🚧 ${obs.obstacleType}</div>`,
-                                iconSize: [100, 22],
-                                iconAnchor: [50, 11]
-                            }));
-                        }
+                        _updateObstacleLabel(obs);
                     }
                     map.off('popupclose', onClose);
                 });
             });
+        }
+        
+        /**
+         * Sélectionner un obstacle pour édition (afficher poignées resize + rotation)
+         */
+        function selectObstacle(obsId) {
+            // Désélectionner l'ancien
+            if (selectedObstacleId !== null && selectedObstacleId !== obsId) {
+                deselectObstacle();
+            }
             
-            obstacles.push(obs);
-            updateObstacleCount();
-            console.log(`🚧 Obstacle ajouté: ${widthM.toFixed(1)}×${heightM.toFixed(1)}m à (${center.lat.toFixed(6)}, ${center.lng.toFixed(6)})`);
+            const obs = obstacles.find(o => o.id === obsId);
+            if (!obs) return;
+            
+            selectedObstacleId = obsId;
+            
+            // Style sélection
+            obs.layer.setStyle({
+                color: '#ff0',
+                weight: 3,
+                fillColor: '#dc3545',
+                fillOpacity: 0.45,
+                dashArray: ''
+            });
+            
+            // Créer poignées de redimensionnement (sauf cercle — on utilise le rayon)
+            if (obs.shapeType !== 'circle') {
+                _createResizeHandles(obs);
+            } else {
+                _createRadiusHandle(obs);
+            }
+            
+            // Créer poignée de rotation (sauf cercle)
+            if (obs.shapeType !== 'circle') {
+                _createRotationHandleObstacle(obs);
+            }
+        }
+        
+        /**
+         * Désélectionner l'obstacle courant
+         */
+        function deselectObstacle() {
+            if (selectedObstacleId === null) return;
+            const obs = obstacles.find(o => o.id === selectedObstacleId);
+            if (obs) {
+                obs.layer.setStyle({
+                    color: '#dc3545',
+                    weight: 2,
+                    fillColor: '#dc3545',
+                    fillOpacity: 0.35,
+                    dashArray: '4, 4'
+                });
+            }
+            _removeObstacleHandles(selectedObstacleId);
+            selectedObstacleId = null;
+        }
+        
+        /**
+         * Supprimer les poignées d'un obstacle
+         */
+        function _removeObstacleHandles(obsId) {
+            const h = obstacleHandles[obsId];
+            if (!h) return;
+            if (h.resizeMarkers) h.resizeMarkers.forEach(m => map.removeLayer(m));
+            if (h.rotationMarker) map.removeLayer(h.rotationMarker);
+            if (h.guideLine) map.removeLayer(h.guideLine);
+            if (h.radiusMarker) map.removeLayer(h.radiusMarker);
+            delete obstacleHandles[obsId];
+        }
+        
+        // === DRAG pour rectangles ===
+        function _enableRectDrag(obs) {
+            const layer = obs.layer;
+            let dragging = false, startLatLng = null;
+            
+            layer.on('mousedown', function(e) {
+                if (e.originalEvent.button !== 0) return;
+                // Ne pas drag si on est en train de resize/rotate
+                if (obstacleHandles[obs.id] && obstacleHandles[obs.id]._resizing) return;
+                dragging = true;
+                startLatLng = e.latlng;
+                map.dragging.disable();
+                L.DomEvent.stopPropagation(e);
+                
+                function onMove(ev) {
+                    if (!dragging) return;
+                    const dlat = ev.latlng.lat - startLatLng.lat;
+                    const dlng = ev.latlng.lng - startLatLng.lng;
+                    startLatLng = ev.latlng;
+                    
+                    // Déplacer les coins du rectangle
+                    if (layer instanceof L.Rectangle) {
+                        const b = layer.getBounds();
+                        layer.setBounds(L.latLngBounds(
+                            [b.getSouth() + dlat, b.getWest() + dlng],
+                            [b.getNorth() + dlat, b.getEast() + dlng]
+                        ));
+                    } else {
+                        // Polygone : déplacer chaque sommet
+                        const lls = layer.getLatLngs()[0] || layer.getLatLngs();
+                        const moved = lls.map(ll => L.latLng(ll.lat + dlat, ll.lng + dlng));
+                        layer.setLatLngs(moved);
+                    }
+                    _updateObstacleLabel(obs);
+                    _refreshObstacleHandles(obs);
+                }
+                function onUp() {
+                    dragging = false;
+                    map.dragging.enable();
+                    map.off('mousemove', onMove);
+                    map.off('mouseup', onUp);
+                }
+                map.on('mousemove', onMove);
+                map.on('mouseup', onUp);
+            });
+            
+            // Curseur grab/move
+            layer.on('mouseover', function() {
+                if (layer._path) layer._path.style.cursor = 'move';
+            });
+        }
+        
+        // === DRAG pour cercles ===
+        function _enableCircleDrag(obs) {
+            const layer = obs.layer;
+            let dragging = false, startLatLng = null;
+            
+            layer.on('mousedown', function(e) {
+                if (e.originalEvent.button !== 0) return;
+                dragging = true;
+                startLatLng = e.latlng;
+                map.dragging.disable();
+                L.DomEvent.stopPropagation(e);
+                
+                function onMove(ev) {
+                    if (!dragging) return;
+                    const dlat = ev.latlng.lat - startLatLng.lat;
+                    const dlng = ev.latlng.lng - startLatLng.lng;
+                    startLatLng = ev.latlng;
+                    const c = layer.getLatLng();
+                    layer.setLatLng(L.latLng(c.lat + dlat, c.lng + dlng));
+                    _updateObstacleLabel(obs);
+                    _refreshObstacleHandles(obs);
+                }
+                function onUp() {
+                    dragging = false;
+                    map.dragging.enable();
+                    map.off('mousemove', onMove);
+                    map.off('mouseup', onUp);
+                }
+                map.on('mousemove', onMove);
+                map.on('mouseup', onUp);
+            });
+            
+            layer.on('mouseover', function() {
+                if (layer._path) layer._path.style.cursor = 'move';
+            });
+        }
+        
+        // === POIGNÉES DE REDIMENSIONNEMENT (4 coins) ===
+        function _createResizeHandles(obs) {
+            const h = obstacleHandles[obs.id] = obstacleHandles[obs.id] || {};
+            if (h.resizeMarkers) h.resizeMarkers.forEach(m => map.removeLayer(m));
+            h.resizeMarkers = [];
+            
+            const b = obs.layer.getBounds();
+            const corners = [
+                { pos: b.getSouthWest(), cursor: 'nesw-resize', opp: 'ne' },
+                { pos: b.getSouthEast(), cursor: 'nwse-resize', opp: 'nw' },
+                { pos: b.getNorthEast(), cursor: 'nesw-resize', opp: 'sw' },
+                { pos: b.getNorthWest(), cursor: 'nwse-resize', opp: 'se' },
+            ];
+            
+            corners.forEach(c => {
+                const marker = L.marker(c.pos, {
+                    icon: L.divIcon({
+                        className: 'resize-handle-obstacle',
+                        html: `<div style="width:12px;height:12px;background:#fff;border:2px solid #dc3545;border-radius:2px;cursor:${c.cursor};box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    }),
+                    draggable: true,
+                    zIndexOffset: 3000
+                });
+                marker._oppCorner = c.opp;
+                marker.addTo(map);
+                h.resizeMarkers.push(marker);
+                
+                marker.on('dragstart', function() {
+                    h._resizing = true;
+                    map.dragging.disable();
+                });
+                
+                marker.on('drag', function(e) {
+                    const newPos = e.latlng;
+                    const bb = obs.layer.getBounds();
+                    let sw, ne;
+                    
+                    // L'angle opposé reste fixe, le coin dragué définit le nouveau bound
+                    switch (marker._oppCorner) {
+                        case 'ne': // dragged SW corner
+                            sw = newPos;
+                            ne = bb.getNorthEast();
+                            break;
+                        case 'nw': // dragged SE corner
+                            sw = L.latLng(newPos.lat, bb.getWest());
+                            ne = L.latLng(bb.getNorth(), newPos.lng);
+                            break;
+                        case 'sw': // dragged NE corner
+                            sw = bb.getSouthWest();
+                            ne = newPos;
+                            break;
+                        case 'se': // dragged NW corner
+                            sw = L.latLng(bb.getSouth(), newPos.lng);
+                            ne = L.latLng(newPos.lat, bb.getEast());
+                            break;
+                    }
+                    
+                    // Empêcher l'inversion
+                    if (sw.lat >= ne.lat || sw.lng >= ne.lng) return;
+                    
+                    obs.layer.setBounds(L.latLngBounds(sw, ne));
+                    _updateObstacleLabel(obs);
+                    
+                    // Mettre à jour uniquement les AUTRES coins resize
+                    const newB = obs.layer.getBounds();
+                    const positions = [newB.getSouthWest(), newB.getSouthEast(), newB.getNorthEast(), newB.getNorthWest()];
+                    h.resizeMarkers.forEach((m, i) => {
+                        if (m !== marker) m.setLatLng(positions[i]);
+                    });
+                    
+                    // Repositionner la poignée de rotation
+                    if (h.rotationMarker) {
+                        const rc = newB.getCenter();
+                        const handleLat = newB.getNorth() + (newB.getNorth() - rc.lat) * 0.4;
+                        h.rotationMarker.setLatLng([handleLat, rc.lng]);
+                    }
+                });
+                
+                marker.on('dragend', function() {
+                    h._resizing = false;
+                    map.dragging.enable();
+                });
+            });
+        }
+        
+        // === POIGNÉE DE RAYON (cercle) ===
+        function _createRadiusHandle(obs) {
+            const h = obstacleHandles[obs.id] = obstacleHandles[obs.id] || {};
+            if (h.radiusMarker) map.removeLayer(h.radiusMarker);
+            
+            const c = obs.layer.getLatLng();
+            const r = obs.layer.getRadius();
+            // Poignée à l'est du cercle
+            const edgeLat = c.lat;
+            const edgeLng = c.lng + r / (111320 * Math.cos(c.lat * Math.PI / 180));
+            
+            const marker = L.marker([edgeLat, edgeLng], {
+                icon: L.divIcon({
+                    className: 'radius-handle-obstacle',
+                    html: '<div style="width:12px;height:12px;background:#fff;border:2px solid #dc3545;border-radius:50%;cursor:ew-resize;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>',
+                    iconSize: [12, 12],
+                    iconAnchor: [6, 6]
+                }),
+                draggable: true,
+                zIndexOffset: 3000
+            });
+            marker.addTo(map);
+            h.radiusMarker = marker;
+            
+            marker.on('drag', function(e) {
+                const cc = obs.layer.getLatLng();
+                const newR = map.distance(cc, e.latlng);
+                if (newR < 0.2) return; // min 20cm
+                obs.layer.setRadius(newR);
+                _updateObstacleLabel(obs);
+            });
+        }
+        
+        // === POIGNÉE DE ROTATION ===
+        function _createRotationHandleObstacle(obs) {
+            const h = obstacleHandles[obs.id] = obstacleHandles[obs.id] || {};
+            if (h.rotationMarker) map.removeLayer(h.rotationMarker);
+            
+            const b = obs.layer.getBounds();
+            const center = b.getCenter();
+            const handleLat = b.getNorth() + (b.getNorth() - center.lat) * 0.4;
+            
+            const marker = L.marker([handleLat, center.lng], {
+                icon: L.divIcon({
+                    className: 'rotation-handle-obstacle',
+                    html: '<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:#dc3545;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);font-size:16px;color:white;cursor:grab;">↻</div>',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                }),
+                draggable: true,
+                zIndexOffset: 4000
+            });
+            marker.addTo(map);
+            h.rotationMarker = marker;
+            
+            let startAngle = 0;
+            
+            marker.on('dragstart', function() {
+                const cc = obs.layer.getBounds().getCenter();
+                const hp = marker.getLatLng();
+                startAngle = Math.atan2(hp.lng - cc.lng, hp.lat - cc.lat) * 180 / Math.PI;
+                
+                if (!h.guideLine) {
+                    h.guideLine = L.polyline([cc, hp], {
+                        color: '#dc3545', weight: 2, dashArray: '4, 4', opacity: 0.6
+                    }).addTo(map);
+                }
+            });
+            
+            marker.on('drag', function(e) {
+                const cc = obs.layer.getBounds().getCenter();
+                const hp = e.latlng;
+                
+                if (h.guideLine) h.guideLine.setLatLngs([cc, hp]);
+                
+                const currentAngle = Math.atan2(hp.lng - cc.lng, hp.lat - cc.lat) * 180 / Math.PI;
+                const delta = currentAngle - startAngle;
+                startAngle = currentAngle;
+                
+                obs.rotationAngle = ((obs.rotationAngle || 0) + delta + 360) % 360;
+                
+                // Faire pivoter le polygone autour du centre
+                _rotateObstacleLayer(obs, delta);
+                _updateObstacleLabel(obs);
+            });
+            
+            marker.on('dragend', function() {
+                if (h.guideLine) {
+                    map.removeLayer(h.guideLine);
+                    h.guideLine = null;
+                }
+                // Recréer les handles resize à la nouvelle position
+                _createResizeHandles(obs);
+            });
+        }
+        
+        /**
+         * Fait pivoter les sommets du polygone/rectangle de deltaDeg autour de son centre.
+         */
+        function _rotateObstacleLayer(obs, deltaDeg) {
+            const layer = obs.layer;
+            const b = layer.getBounds();
+            const center = b.getCenter();
+            const rad = deltaDeg * Math.PI / 180;
+            const cosR = Math.cos(rad), sinR = Math.sin(rad);
+            
+            // Utiliser lat/lng directement (approximation locale ok pour petites tailles)
+            const latlngs = layer.getLatLngs();
+            const ring = latlngs[0] || latlngs; // Rectangle aplatit parfois
+            
+            const rotated = ring.map(ll => {
+                const dx = ll.lng - center.lng;
+                const dy = ll.lat - center.lat;
+                return L.latLng(
+                    center.lat + dy * cosR - dx * sinR,
+                    center.lng + dx * cosR + dy * sinR
+                );
+            });
+            
+            layer.setLatLngs(rotated);
+        }
+        
+        /**
+         * Rafraîchir la position des poignées après un drag.
+         */
+        function _refreshObstacleHandles(obs) {
+            if (!obstacleHandles[obs.id]) return;
+            const h = obstacleHandles[obs.id];
+            
+            if (obs.shapeType === 'circle') {
+                if (h.radiusMarker) {
+                    const c = obs.layer.getLatLng();
+                    const r = obs.layer.getRadius();
+                    const edgeLng = c.lng + r / (111320 * Math.cos(c.lat * Math.PI / 180));
+                    h.radiusMarker.setLatLng([c.lat, edgeLng]);
+                }
+            } else {
+                // Mettre à jour la position des coins resize
+                if (h.resizeMarkers && h.resizeMarkers.length === 4) {
+                    const b = obs.layer.getBounds();
+                    const positions = [b.getSouthWest(), b.getSouthEast(), b.getNorthEast(), b.getNorthWest()];
+                    h.resizeMarkers.forEach((m, i) => m.setLatLng(positions[i]));
+                }
+                // Mettre à jour la poignée de rotation
+                if (h.rotationMarker) {
+                    const b = obs.layer.getBounds();
+                    const cc = b.getCenter();
+                    const handleLat = b.getNorth() + (b.getNorth() - cc.lat) * 0.4;
+                    h.rotationMarker.setLatLng([handleLat, cc.lng]);
+                }
+            }
         }
         
         /**
@@ -5617,6 +6074,8 @@
             const obs = obstacles[idx];
             if (obs.layer) obstaclesLayer.removeLayer(obs.layer);
             if (obs.label) map.removeLayer(obs.label);
+            _removeObstacleHandles(obsId);
+            if (selectedObstacleId === obsId) selectedObstacleId = null;
             obstacles.splice(idx, 1);
             updateObstacleCount();
             map.closePopup();
