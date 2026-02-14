@@ -2515,22 +2515,17 @@ class Calpinage3DViewer {
             let penteDeg = 0;
             let penteSource = 'flat';
             
-            // 1) Essayer le matching avec roofPanelsInfo
             if (this.roofPanelsInfo && this.roofPanelsInfo.panels && this.roofPanelsInfo.buildingOBB) {
                 const matchResult = this._matchZoneToPanel(zone);
                 if (matchResult) {
                     penteDeg = matchResult.pente_deg;
                     penteSource = matchResult.name;
-                    
-                    // Mettre à jour la zone avec la pente détectée (pour le productible)
                     zone.inclinaison = penteDeg;
                     zone._detectedPanel = matchResult;
-                    
-                    console.log(`🏠 Zone ${zone.numero} → ${matchResult.name} : pente ${penteDeg}° détectée automatiquement`);
+                    console.log(`🏠 Zone ${zone.numero} → ${matchResult.name} : pente ${penteDeg}° auto`);
                 }
             }
             
-            // 2) Fallback : si pas de roofPanelsInfo, utiliser la zone.inclinaison
             if (penteDeg === 0 && zone.inclinaison && zone.inclinaison > 0) {
                 penteDeg = zone.inclinaison;
                 penteSource = 'zone (fallback)';
@@ -2538,7 +2533,7 @@ class Calpinage3DViewer {
             
             const pente = penteDeg * Math.PI / 180;
             
-            // === CENTRE DE LA ZONE ===
+            // === CENTRE DE LA ZONE (moyenne des positions modules) ===
             let sumLat = 0, sumLng = 0;
             zone.modulesPositions.forEach(m => { sumLat += m.lat; sumLng += m.lng; });
             const zoneCenterLat = sumLat / zone.modulesPositions.length;
@@ -2548,55 +2543,58 @@ class Calpinage3DViewer {
             // === HAUTEUR : terrain + bâtiment + 10cm au-dessus du toit ===
             const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
             const buildingH = this._findBuildingHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const roofBaseY = terrainH + buildingH + 0.10; // 10cm au-dessus
+            const roofBaseY = terrainH + buildingH + 0.10;
             
-            // === GROUPE : un seul groupe = un pan de modules ===
+            // === GROUPE : positionné au centre, SANS rotation Y ===
+            // Les positions des modules (converties depuis lat/lng) encodent déjà
+            // l'orientation 2D. Pas besoin de dé-rotation complexe.
             const panGroup = new THREE.Group();
             panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
             
-            // Rotation du pan :
-            //   rotation.y : orientation (azimut 2D converti en Three.js)
-            //   rotation.x : pente détectée automatiquement
-            panGroup.rotation.order = 'YXZ';
-            panGroup.rotation.y = Math.PI - azimut;
-            panGroup.rotation.x = pente;
-            
-            // Dé-rotation pour placer les modules dans le repère local du groupe
-            const deRotAngle = azimut - Math.PI;
-            const cosD = Math.cos(deRotAngle);
-            const sinD = Math.sin(deRotAngle);
+            // Matériau partagé pour tous les modules de la zone
+            const panelMat = new THREE.MeshPhongMaterial({
+                color: 0x1a237e,
+                specular: 0x4444ff,
+                shininess: 80,
+                transparent: true,
+                opacity: 0.92
+            });
             
             zone.modulesPositions.forEach(modPos => {
                 if (!modPos.corners || modPos.corners.length < 4) return;
                 
                 const c = modPos.corners;
-                const w = this._distGeo(c[0].lat, c[0].lng, c[1].lat, c[1].lng);
-                const h = this._distGeo(c[0].lat, c[0].lng, c[3].lat, c[3].lng);
+                
+                // Coins en coordonnées 3D locales
+                const c0 = this._geoToLocal(c[0].lat, c[0].lng);
+                const c1 = this._geoToLocal(c[1].lat, c[1].lng);
+                const c3 = this._geoToLocal(c[3].lat, c[3].lng);
+                
+                // Dimensions du module depuis les coins réels
+                const w = Math.sqrt(Math.pow(c1.x - c0.x, 2) + Math.pow(c1.z - c0.z, 2));
+                const h = Math.sqrt(Math.pow(c3.x - c0.x, 2) + Math.pow(c3.z - c0.z, 2));
                 
                 if (w < 0.1 || h < 0.1) return;
                 
-                const panelGeo = new THREE.BoxGeometry(w, 0.04, h);
-                const panelMat = new THREE.MeshPhongMaterial({
-                    color: 0x1a237e,
-                    specular: 0x4444ff,
-                    shininess: 80,
-                    transparent: true,
-                    opacity: 0.92
-                });
+                // Centre du module → offset par rapport au centre du groupe
+                const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
+                const dx = modLocal.x - zoneLocalCenter.x;
+                const dz = modLocal.z - zoneLocalCenter.z;
                 
-                const panel = new THREE.Mesh(panelGeo, panelMat);
+                // Angle de l'arête c[0]→c[1] pour aligner le BoxGeometry
+                const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
                 
-                // Position monde → offset relatif au centre → dé-rotation vers local du groupe
-                const local = this._geoToLocal(modPos.lat, modPos.lng);
-                const dx = local.x - zoneLocalCenter.x;
-                const dz = local.z - zoneLocalCenter.z;
+                const panel = new THREE.Mesh(
+                    new THREE.BoxGeometry(w, 0.04, h),
+                    panelMat
+                );
                 
-                const localX = dx * cosD + dz * sinD;
-                const localZ = -dx * sinD + dz * cosD;
+                // Position directe depuis lat/lng (encodent déjà la rotation 2D)
+                panel.position.set(dx, 0, dz);
                 
-                // Y=0 dans le groupe : tous les modules coplanaires
-                // La pente est gérée par la rotation du groupe
-                panel.position.set(localX, 0, localZ);
+                // Rotation individuelle pour aligner les bords du rectangle
+                // BoxGeometry a sa largeur le long de X ; on tourne pour matcher l'arête 2D
+                panel.rotation.y = -edgeAngle;
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
@@ -2604,6 +2602,18 @@ class Calpinage3DViewer {
                 panGroup.add(panel);
                 totalModules++;
             });
+            
+            // === PENTE : appliquée comme rotation autour de l'axe perpendiculaire à l'azimut ===
+            // Direction azimut dans notre repère : (sin(az), 0, -cos(az))
+            //   - N(0°) → (0,0,-1), E(90°) → (1,0,0), S(180°) → (0,0,1), O(270°) → (-1,0,0)
+            // Axe de bascule = cross( up, direction_azimut ) = (-cos(az), 0, -sin(az))
+            // → fait descendre le bord côté azimut et monter le bord opposé ✓
+            if (pente > 0.001) {
+                const tiltAxis = new THREE.Vector3(
+                    -Math.cos(azimut), 0, -Math.sin(azimut)
+                ).normalize();
+                panGroup.rotateOnWorldAxis(tiltAxis, pente);
+            }
             
             this.scene.add(panGroup);
             this.modules3D.push(panGroup);
