@@ -1111,7 +1111,6 @@ class Calpinage3DViewer {
             
             // Profil transversal adaptatif : ~1 bande par 1.2m pour détecter multi-sections
             // Un bâtiment de 42m → ~35 bandes (vs 11 avant) : résolution suffisante pour 7 sections
-            const nBands = Math.max(15, Math.min(50, Math.round(acrossRange / 1.2)));
             let acrossMin = Infinity, acrossMax = -Infinity;
             for (let i = 0; i < projected.length; i++) {
                 if (projected[i].across < acrossMin) acrossMin = projected[i].across;
@@ -1120,6 +1119,8 @@ class Calpinage3DViewer {
             const acrossRange = acrossMax - acrossMin;
             
             if (acrossRange < 0.5) return null;
+            
+            const nBands = Math.max(15, Math.min(50, Math.round(acrossRange / 1.2)));
             
             const profile = [];
             for (let b = 0; b < nBands; b++) {
