@@ -490,6 +490,8 @@ class Calpinage3DViewer {
         const terrainH = this._getTerrainHeight(obb.cx, obb.cz);
         const wallH = this._findBuildingWallHeight(obb.cx, obb.cz);
         const eaveY = terrainH + wallH;
+        // Hauteur du faîtage au-dessus de l'égout (pour positionner le pivot de rotation)
+        const ridgeExtra = info.hauteurFaitageRelatif || 0;
         
         const panels = info.panels;
         const indicesToProcess = panelIndices || panels.map((_, i) => i);
@@ -572,8 +574,10 @@ class Calpinage3DViewer {
                 : panAcrossEnd + (usableAcross - gridAcross) / 2;
             
             // Créer le groupe 3D pour ce pan
+            // Le pivot est au faîtage (eaveY + ridgeExtra) pour que la rotation
+            // fasse descendre les modules correctement vers l'égout au lieu de "rentrer" dans le bâtiment
             const panGroup = new THREE.Group();
-            panGroup.position.set(obb.cx, eaveY + 0.08, obb.cz);
+            panGroup.position.set(obb.cx, eaveY + ridgeExtra + 0.08, obb.cz);
             
             const modules = [];
             
