@@ -428,15 +428,14 @@ class Calpinage3DViewer {
         const gridSize = terrain.grid_size;
         
         // Convertir x, z en coordonnées de grille
+        // x: -radiusM (west) → 0, +radiusM (east) → gridSize-1
+        // z: -radiusM (north) → 0, +radiusM (south) → gridSize-1
         const radiusM = (bbox.north - bbox.south) * this.LAT_TO_M / 2;
-        const ix = Math.floor((x + radiusM) / (radiusM * 2) * gridSize);
-        const iy = Math.floor((-z + radiusM) / (radiusM * 2) * gridSize);
+        const ix = Math.min(gridSize - 1, Math.max(0, Math.floor((x + radiusM) / (radiusM * 2) * (gridSize - 1))));
+        const iy = Math.min(gridSize - 1, Math.max(0, Math.floor((z + radiusM) / (radiusM * 2) * (gridSize - 1))));
         
-        if (ix >= 0 && ix < gridSize && iy >= 0 && iy < gridSize) {
-            const alt = terrain.mnt[iy] ? (terrain.mnt[iy][ix] || 0) : 0;
-            return alt * (this._verticalExaggeration || 1);
-        }
-        return 0;
+        const alt = terrain.mnt[iy] ? (terrain.mnt[iy][ix] || 0) : 0;
+        return alt * (this._verticalExaggeration || 1);
     }
     
     /**
@@ -2687,13 +2686,11 @@ class Calpinage3DViewer {
             const gridSize = terrain.grid_size;
             
             const radiusM = (bbox.north - bbox.south) * this.LAT_TO_M / 2;
-            const ix = Math.floor((x + radiusM) / (radiusM * 2) * gridSize);
-            const iy = Math.floor((-z + radiusM) / (radiusM * 2) * gridSize);
+            const ix = Math.min(gridSize - 1, Math.max(0, Math.floor((x + radiusM) / (radiusM * 2) * (gridSize - 1))));
+            const iy = Math.min(gridSize - 1, Math.max(0, Math.floor((z + radiusM) / (radiusM * 2) * (gridSize - 1))));
             
-            if (ix >= 0 && ix < gridSize && iy >= 0 && iy < gridSize) {
-                const mnh = terrain.mnh[iy] ? terrain.mnh[iy][ix] : 0;
-                if (mnh > 1.5) return mnh; // Pas d'exagération pour la hauteur des bâtiments
-            }
+            const mnh = terrain.mnh[iy] ? terrain.mnh[iy][ix] : 0;
+            if (mnh > 1.5) return mnh; // Pas d'exagération pour la hauteur des bâtiments
         }
         
         // Fallback: chercher dans les bâtiments BD TOPO/OSM
