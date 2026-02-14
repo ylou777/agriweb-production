@@ -3540,13 +3540,18 @@
                             <span>N</span><span>NE</span><span>E</span><span>SE</span><span>S</span><span>SO</span><span>O</span><span>NO</span><span>N</span>
                         </div>
                     </div>
-                    <div class="col-12 mt-2">
-                        <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">30</span>°</small></label>
+                    <div class="col-12 mt-2" id="inclinaison-container-${zone.id}">
+                        <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">30</span>°
+                            ${document.getElementById('typeInstallation').value === 'toiture' ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Détectée automatiquement depuis les données LiDAR 3D">🏠 auto 3D</span>' : ''}
+                        </small></label>
                         <input type="range" class="form-range" min="0" max="90" step="1" value="30"
                                id="inclinaison-slider-${zone.id}"
-                               oninput="updateZoneInclinaisonSlider(${zone.id}, this.value)">
+                               oninput="updateZoneInclinaisonSlider(${zone.id}, this.value)"
+                               ${document.getElementById('typeInstallation').value === 'toiture' ? 'disabled style="opacity:0.5;"' : ''}>
                         <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #666;">
-                            <span>Plat (0°)</span><span>Optimal (30°)</span><span>Vertical (90°)</span>
+                            ${document.getElementById('typeInstallation').value === 'toiture' 
+                                ? '<span>⚡ Pente détectée automatiquement en vue 3D</span>' 
+                                : '<span>Plat (0°)</span><span>Optimal (30°)</span><span>Vertical (90°)</span>'}
                         </div>
                     </div>
                     <div class="col-12 mt-2">
@@ -5304,11 +5309,14 @@
         
         /**
          * Auto-ajuste les zones PV en fonction des pans de toiture détectés en 3D.
-         * Pour chaque zone dessinée en 2D, le système :
-         * 1. Identifie sur quel pan de toiture elle se trouve
-         * 2. Ajuste l'orientation (azimut) et l'inclinaison (pente) selon les données réelles
-         * 3. Met à jour les sliders 2D et redessine les modules
-         * 4. Rafraîchit la vue 3D avec les valeurs corrigées
+         * 
+         * Principe : l'utilisateur dessine l'ORIENTATION en 2D (ce qu'il voit sur la photo satellite),
+         * et le système détecte automatiquement la PENTE (inclinaison) depuis les données 3D LiDAR.
+         * 
+         * 1. Identifie sur quel pan de toiture chaque zone se trouve
+         * 2. Détecte la pente réelle du pan et l'applique à la zone
+         * 3. Conserve l'orientation dessinée en 2D (l'utilisateur la maîtrise)
+         * 4. Met à jour les sliders et recalcule le productible
          */
         function ajusterZonesDepuisToiture3D() {
             if (!viewer3D || !viewer3D.roofPanelsInfo) {
@@ -5316,7 +5324,7 @@
                 return;
             }
             
-            // Vérifier que c'est une installation en toiture
+            // Ne s'applique qu'aux installations en toiture
             const typeInstall = document.getElementById('typeInstallation').value;
             if (typeInstall !== 'toiture') {
                 console.log('ℹ️ Type installation "' + typeInstall + '" : pas d\'ajustement toiture');
@@ -5336,27 +5344,17 @@
                 const zone = zones.find(z => z.id === adj.zoneId);
                 if (!zone) return;
                 
-                const oldOrientation = zone.orientation;
                 const oldInclinaison = zone.inclinaison;
                 
-                // Appliquer l'orientation du pan de toiture
-                zone.orientation = adj.orientation;
-                zone.rotationAngle = 180 - adj.orientation;
-                if (zone.rotationAngle > 180) zone.rotationAngle -= 360;
-                if (zone.rotationAngle < -180) zone.rotationAngle += 360;
-                
-                // Appliquer l'inclinaison du pan de toiture
+                // === PENTE : auto-détectée depuis la toiture 3D ===
                 zone.inclinaison = adj.inclinaison;
                 
                 // Marquer la zone comme ajustée par la 3D
                 zone.ajuste3D = true;
                 zone.panToiture = adj.panelName;
                 
-                // Mettre à jour le slider d'orientation
-                const orientSlider = document.getElementById(`orientation-slider-${zone.id}`);
-                const orientValue = document.getElementById(`orientation-value-${zone.id}`);
-                if (orientSlider) orientSlider.value = adj.orientation;
-                if (orientValue) orientValue.textContent = `${adj.orientation}° (${adj.orientationLabel})`;
+                // === ORIENTATION : conservée telle que dessinée en 2D ===
+                // (l'utilisateur voit la photo satellite et oriente correctement)
                 
                 // Mettre à jour le slider d'inclinaison
                 const inclinSlider = document.getElementById(`inclinaison-slider-${zone.id}`);
@@ -5364,29 +5362,20 @@
                 if (inclinSlider) inclinSlider.value = adj.inclinaison;
                 if (inclinValue) inclinValue.textContent = `${adj.inclinaison}`;
                 
-                // Mettre à jour la position de la poignée de rotation
-                if (rotationHandles[zone.id]) {
-                    updateHandlePosition(zone, rotationHandles[zone.id]);
-                }
-                
-                // Redessiner les modules avec la nouvelle orientation
-                dessinerModulesDansZone(zone);
-                
-                // Recalculer le productible
+                // Recalculer le productible avec la vraie pente
                 calculerProductibleZone(zone.id);
                 
                 adjustedCount++;
-                const orientChanged = Math.abs(oldOrientation - adj.orientation) > 1;
                 const inclinChanged = Math.abs(oldInclinaison - adj.inclinaison) > 1;
-                if (orientChanged || inclinChanged) {
-                    messages.push(`Zone ${zone.numero} → ${adj.panelName} : ${adj.orientationLabel} ${adj.orientation}°, pente ${adj.inclinaison}°`);
+                if (inclinChanged) {
+                    messages.push(`Zone ${zone.numero} → ${adj.panelName} : pente ${adj.inclinaison}° (était ${oldInclinaison}°)`);
                 }
             });
             
             // Recalculer les totaux
             calculerTotaux();
             
-            // Rafraîchir la vue 3D avec les nouvelles orientations
+            // Rafraîchir la vue 3D (les modules sont posés sur le toit avec la pente détectée)
             if (adjustedCount > 0 && viewer3D && viewer3D.isActive) {
                 update3DFromZones();
             }
@@ -5396,14 +5385,15 @@
                 const toast = document.createElement('div');
                 toast.className = 'alert alert-success';
                 toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
-                toast.innerHTML = `<i class="fas fa-magic me-2"></i><strong>🏠 Toiture détectée — Zones ajustées :</strong><br>` + 
-                    messages.map(m => `• ${m}`).join('<br>');
+                toast.innerHTML = `<i class="fas fa-mountain me-2"></i><strong>🏠 Pente de toiture détectée :</strong><br>` + 
+                    messages.map(m => `• ${m}`).join('<br>') +
+                    '<br><small class="text-muted">L\'orientation est conservée depuis votre dessin 2D</small>';
                 document.body.appendChild(toast);
                 setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 6000);
                 
-                console.log(`✅ ${adjustedCount} zone(s) ajustée(s) depuis la toiture 3D`);
+                console.log(`✅ ${adjustedCount} zone(s) : pente auto-détectée depuis la toiture 3D`);
             } else {
-                console.log(`ℹ️ ${adjustedCount} zone(s) déjà correctement orientée(s)`);
+                console.log(`ℹ️ ${adjustedCount} zone(s) : pente déjà correcte`);
             }
         }
         

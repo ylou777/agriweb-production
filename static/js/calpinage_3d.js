@@ -2480,13 +2480,15 @@ class Calpinage3DViewer {
     
     /**
      * Ajoute les modules PV en 3D sur le toit
-     * Tous les modules d'une même zone partagent un plan de toiture unique
+     * Approche simplifiée :
+     *   - L'ORIENTATION (azimut) vient de la zone 2D (dessinée par l'utilisateur)
+     *   - La PENTE est détectée automatiquement depuis le pan de toiture 3D
+     *   - Le champ est posé 10cm au-dessus de la surface du toit
      */
     addModules3D(zones) {
         // Supprimer les anciens modules (groupes ou meshes individuels)
         this.modules3D.forEach(m => {
             this.scene.remove(m);
-            // Si c'est un groupe (pan de modules), nettoyer les enfants
             if (m.children && m.children.length > 0) {
                 m.children.forEach(child => {
                     if (child.geometry) child.geometry.dispose();
@@ -2505,47 +2507,68 @@ class Calpinage3DViewer {
         zones.forEach(zone => {
             if (!zone.modulesPositions || zone.modulesPositions.length === 0) return;
             
-            const pente = (zone.inclinaison || zone.pente || 30) * Math.PI / 180;
-            const azimut = (zone.orientation || zone.azimut || 180) * Math.PI / 180;
+            // === ORIENTATION : celle définie en 2D par l'utilisateur ===
+            const azimutDeg = zone.orientation || zone.azimut || 180;
+            const azimut = azimutDeg * Math.PI / 180;
             
-            // === PAN UNIFIÉ : tous les modules d'une zone forment UN SEUL plan de toiture ===
-            // 1. Centre de la zone = moyenne de tous les centres de modules
+            // === PENTE : détection automatique depuis la toiture 3D ===
+            let penteDeg = 0;
+            let penteSource = 'flat';
+            
+            // 1) Essayer le matching avec roofPanelsInfo
+            if (this.roofPanelsInfo && this.roofPanelsInfo.panels && this.roofPanelsInfo.buildingOBB) {
+                const matchResult = this._matchZoneToPanel(zone);
+                if (matchResult) {
+                    penteDeg = matchResult.pente_deg;
+                    penteSource = matchResult.name;
+                    
+                    // Mettre à jour la zone avec la pente détectée (pour le productible)
+                    zone.inclinaison = penteDeg;
+                    zone._detectedPanel = matchResult;
+                    
+                    console.log(`🏠 Zone ${zone.numero} → ${matchResult.name} : pente ${penteDeg}° détectée automatiquement`);
+                }
+            }
+            
+            // 2) Fallback : si pas de roofPanelsInfo, utiliser la zone.inclinaison
+            if (penteDeg === 0 && zone.inclinaison && zone.inclinaison > 0) {
+                penteDeg = zone.inclinaison;
+                penteSource = 'zone (fallback)';
+            }
+            
+            const pente = penteDeg * Math.PI / 180;
+            
+            // === CENTRE DE LA ZONE ===
             let sumLat = 0, sumLng = 0;
             zone.modulesPositions.forEach(m => { sumLat += m.lat; sumLng += m.lng; });
             const zoneCenterLat = sumLat / zone.modulesPositions.length;
             const zoneCenterLng = sumLng / zone.modulesPositions.length;
-            
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
             
-            // 2. Altitude de référence : terrain + hauteur du bâtiment au centre de la zone
-            const terrainHRef = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const buildingHRef = this._findBuildingHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const roofBaseY = terrainHRef + buildingHRef + 0.15;
+            // === HAUTEUR : terrain + bâtiment + 10cm au-dessus du toit ===
+            const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const buildingH = this._findBuildingHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const roofBaseY = terrainH + buildingH + 0.10; // 10cm au-dessus
             
-            // 3. Créer un THREE.Group pour le pan entier
-            //    Le groupe est positionné au centre de la zone, à la hauteur du toit
-            //    La rotation (azimut + pente) est appliquée au GROUPE,
-            //    pas à chaque module individuellement → les modules restent coplanaires
+            // === GROUPE : un seul groupe = un pan de modules ===
             const panGroup = new THREE.Group();
             panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
             
-            // Rotation du pan entier : d'abord azimut (Y), puis inclinaison (X)
+            // Rotation du pan :
+            //   rotation.y : orientation (azimut 2D converti en Three.js)
+            //   rotation.x : pente détectée automatiquement
             panGroup.rotation.order = 'YXZ';
-            panGroup.rotation.y = azimut - Math.PI;
-            panGroup.rotation.x = -pente;
+            panGroup.rotation.y = Math.PI - azimut;
+            panGroup.rotation.x = pente;
             
-            // 4. Rotation inverse pour convertir les positions GPS (monde) en coordonnées locales du groupe
-            //    Les positions GPS incluent déjà la rotation 2D de la zone.
-            //    Le groupe va réappliquer cette rotation via rotation.y,
-            //    donc on doit "dé-rotater" les offsets pour les placer dans le repère local du groupe.
-            const groupRotY = azimut - Math.PI;
-            const cosInv = Math.cos(-groupRotY);
-            const sinInv = Math.sin(-groupRotY);
+            // Dé-rotation pour placer les modules dans le repère local du groupe
+            const deRotAngle = azimut - Math.PI;
+            const cosD = Math.cos(deRotAngle);
+            const sinD = Math.sin(deRotAngle);
             
             zone.modulesPositions.forEach(modPos => {
                 if (!modPos.corners || modPos.corners.length < 4) return;
                 
-                // Dimensions du module
                 const c = modPos.corners;
                 const w = this._distGeo(c[0].lat, c[0].lng, c[1].lat, c[1].lng);
                 const h = this._distGeo(c[0].lat, c[0].lng, c[3].lat, c[3].lng);
@@ -2563,24 +2586,17 @@ class Calpinage3DViewer {
                 
                 const panel = new THREE.Mesh(panelGeo, panelMat);
                 
-                // Position mondiale du module
+                // Position monde → offset relatif au centre → dé-rotation vers local du groupe
                 const local = this._geoToLocal(modPos.lat, modPos.lng);
-                
-                // Décalage par rapport au centre de la zone (en mètres dans l'espace monde)
                 const dx = local.x - zoneLocalCenter.x;
                 const dz = local.z - zoneLocalCenter.z;
                 
-                // Convertir dans le repère LOCAL du groupe (dé-rotater par l'azimut du groupe)
-                // Le groupe va ré-appliquer cette rotation, donc le résultat final sera correct
-                const localX = dx * cosInv - dz * sinInv;
-                const localZ = dx * sinInv + dz * cosInv;
+                const localX = dx * cosD + dz * sinD;
+                const localZ = -dx * sinD + dz * cosD;
                 
-                // Position dans le groupe : Y=0 car tous les modules sont sur le MÊME plan
-                // C'est la rotation du GROUPE qui crée l'inclinaison, pas le Y individuel
+                // Y=0 dans le groupe : tous les modules coplanaires
+                // La pente est gérée par la rotation du groupe
                 panel.position.set(localX, 0, localZ);
-                
-                // PAS de rotation individuelle ! Le groupe gère l'orientation et l'inclinaison
-                // → Les modules restent parfaitement coplanaires (pan unifié)
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
@@ -2589,12 +2605,63 @@ class Calpinage3DViewer {
                 totalModules++;
             });
             
-            // Ajouter le pan (groupe) à la scène
             this.scene.add(panGroup);
             this.modules3D.push(panGroup);
         });
         
-        console.log(`✅ ${totalModules} modules PV 3D ajoutés en ${this.modules3D.length} pan(s) unifié(s)`);
+        console.log(`✅ ${totalModules} modules PV 3D ajoutés en ${this.modules3D.length} pan(s) — pente auto-détectée`);
+    }
+    
+    /**
+     * Trouve le pan de toiture qui correspond à une zone (usage interne pour addModules3D)
+     * @private
+     */
+    _matchZoneToPanel(zone) {
+        const panels = this.roofPanelsInfo.panels;
+        const obb = this.roofPanelsInfo.buildingOBB;
+        
+        // Centre géo de la zone
+        let zoneCenterLat, zoneCenterLng;
+        if (zone.modulesPositions && zone.modulesPositions.length > 0) {
+            let sLat = 0, sLng = 0;
+            zone.modulesPositions.forEach(m => { sLat += m.lat; sLng += m.lng; });
+            zoneCenterLat = sLat / zone.modulesPositions.length;
+            zoneCenterLng = sLng / zone.modulesPositions.length;
+        } else if (zone.layer && zone.layer.getBounds) {
+            const center = zone.layer.getBounds().getCenter();
+            zoneCenterLat = center.lat;
+            zoneCenterLng = center.lng;
+        } else {
+            return null;
+        }
+        
+        const zoneLocal = this._geoToLocal(zoneCenterLat, zoneCenterLng);
+        
+        // Projeter sur le repère OBB
+        const cosA = Math.cos(-obb.angle);
+        const sinA = Math.sin(-obb.angle);
+        const dxB = zoneLocal.x - obb.cx;
+        const dzB = zoneLocal.z - obb.cz;
+        const projAlong = dxB * cosA - dzB * sinA;
+        const projAcross = dxB * sinA + dzB * cosA;
+        
+        const roofType = this.roofPanelsInfo.type;
+        
+        if (roofType === 'flat' && panels.length >= 1) return panels[0];
+        if (roofType === 'shed' && panels.length >= 1) return panels[0];
+        if (roofType === 'gable' && panels.length >= 2) {
+            return projAcross >= 0 ? panels[0] : panels[1];
+        }
+        if (roofType === 'hip' && panels.length >= 4) {
+            const halfLong = obb.longDim / 2;
+            const ridgeHalfLen = halfLong * 0.45;
+            if (Math.abs(projAlong) > ridgeHalfLen) {
+                return projAlong > 0 ? panels[2] : panels[3];
+            }
+            return projAcross >= 0 ? panels[0] : panels[1];
+        }
+        
+        return panels.length > 0 ? panels[0] : null;
     }
     
     /**
