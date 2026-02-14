@@ -418,6 +418,244 @@ class Calpinage3DViewer {
     }
     
     /**
+     * Convertit coordonnées locales 3D → lat/lon (inverse de _geoToLocal)
+     */
+    _localToGeo(x, z) {
+        return {
+            lat: this.centerLat + (-z) / this.LAT_TO_M,
+            lng: this.centerLon + x / this.LNG_TO_M
+        };
+    }
+    
+    /**
+     * Remplissage automatique des pans de toiture avec des modules PV.
+     * Calcule tout en 3D (position, orientation, pente) et retourne des données
+     * utilisables à la fois pour l'affichage 3D et pour la projection en 2D.
+     *
+     * @param {number} moduleW - Largeur module en m (ex: 1.134)
+     * @param {number} moduleH - Hauteur module en m (ex: 2.278)
+     * @param {number} espacement - Espacement en m (ex: 0.05)
+     * @param {string} disposition - 'paysage' ou 'portrait'
+     * @param {Array<number>} [panelIndices] - Indices des pans à remplir (null = tous)
+     * @returns {Array<Object>} Zones générées [{panelName, orientation, inclinaison, modules: [{lat, lng, corners}]}]
+     */
+    autoFillRoofPanels(moduleW, moduleH, espacement, disposition, panelIndices) {
+        if (!this.roofPanelsInfo || !this.roofPanelsInfo.panels.length) {
+            console.warn('⚠️ Pas de roofPanelsInfo pour le remplissage auto');
+            return [];
+        }
+        
+        const obb = this.roofPanelsInfo.buildingOBB;
+        if (!obb) {
+            console.warn('⚠️ Pas de buildingOBB');
+            return [];
+        }
+        
+        const info = this.roofPanelsInfo;
+        const halfShort = obb.shortDim / 2;
+        const halfLong = obb.longDim / 2;
+        const cosA = Math.cos(obb.angle);
+        const sinA = Math.sin(obb.angle);
+        
+        // Dimensions du module selon la disposition
+        let modAlong, modAcross;
+        if (disposition === 'paysage') {
+            modAlong = Math.max(moduleW, moduleH);
+            modAcross = Math.min(moduleW, moduleH);
+        } else {
+            modAlong = Math.min(moduleW, moduleH);
+            modAcross = Math.max(moduleW, moduleH);
+        }
+        
+        // Marge depuis le bord du toit (acrotère, rive, etc.)
+        const marge = 0.30; // 30cm de marge depuis les bords
+        
+        const generatedZones = [];
+        
+        // Supprimer anciens modules 3D
+        this.modules3D.forEach(m => {
+            this.scene.remove(m);
+            if (m.children) m.children.forEach(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+            if (m.geometry) m.geometry.dispose();
+            if (m.material) m.material.dispose();
+        });
+        this.modules3D = [];
+        
+        const panelMat = new THREE.MeshPhongMaterial({
+            color: 0x1a237e, specular: 0x4444ff, shininess: 80,
+            transparent: true, opacity: 0.92
+        });
+        
+        // Hauteur de pose : terrain + murs du bâtiment
+        const terrainH = this._getTerrainHeight(obb.cx, obb.cz);
+        const wallH = this._findBuildingWallHeight(obb.cx, obb.cz);
+        const eaveY = terrainH + wallH;
+        
+        const panels = info.panels;
+        const indicesToProcess = panelIndices || panels.map((_, i) => i);
+        
+        let totalModules = 0;
+        
+        indicesToProcess.forEach(pi => {
+            const panel = panels[pi];
+            if (!panel) return;
+            
+            const penteDeg = panel.pente_deg;
+            const penteRad = penteDeg * Math.PI / 180;
+            const azimutDeg = panel.orientation_deg;
+            const azimutRad = azimutDeg * Math.PI / 180;
+            
+            // === Calculer le rectangle disponible sur ce pan ===
+            let panAlongStart, panAlongEnd, panAcrossStart, panAcrossEnd;
+            
+            if (info.type === 'gable') {
+                // Pan rectangulaire : longueur = axe principal, largeur = demi-shortDim
+                panAlongStart = -halfLong + marge;
+                panAlongEnd = halfLong - marge;
+                if (pi === 0) {
+                    panAcrossStart = marge;
+                    panAcrossEnd = halfShort - marge;
+                } else {
+                    panAcrossStart = -halfShort + marge;
+                    panAcrossEnd = -marge;
+                }
+            } else if (info.type === 'hip') {
+                if (pi < 2) {
+                    // Pans principaux (trapézoïdaux) — simplification rectangulaire
+                    const ridgeHalfLen = halfLong * 0.45;
+                    panAlongStart = -ridgeHalfLen + marge;
+                    panAlongEnd = ridgeHalfLen - marge;
+                    if (pi === 0) {
+                        panAcrossStart = marge;
+                        panAcrossEnd = halfShort - marge;
+                    } else {
+                        panAcrossStart = -halfShort + marge;
+                        panAcrossEnd = -marge;
+                    }
+                } else {
+                    // Croupes — trop petites en général, skip
+                    console.log(`⏭️ Croupe ${panel.name} ignorée (surface trop petite)`);
+                    return;
+                }
+            } else if (info.type === 'shed') {
+                panAlongStart = -halfLong + marge;
+                panAlongEnd = halfLong - marge;
+                panAcrossStart = -halfShort + marge;
+                panAcrossEnd = halfShort - marge;
+            } else {
+                // Plat
+                panAlongStart = -halfLong + marge;
+                panAlongEnd = halfLong - marge;
+                panAcrossStart = -halfShort + marge;
+                panAcrossEnd = halfShort - marge;
+            }
+            
+            // Dimensions utilisables
+            const usableAlong = panAlongEnd - panAlongStart;
+            const usableAcross = Math.abs(panAcrossEnd - panAcrossStart);
+            
+            // Nombre de modules
+            const nbAlong = Math.floor(usableAlong / (modAlong + espacement));
+            const nbAcross = Math.floor(usableAcross / (modAcross + espacement));
+            
+            if (nbAlong <= 0 || nbAcross <= 0) {
+                console.log(`⏭️ Pan ${panel.name} : pas assez de place (${usableAlong.toFixed(1)}x${usableAcross.toFixed(1)}m)`);
+                return;
+            }
+            
+            // Centrer la grille dans l'espace disponible
+            const gridAlong = nbAlong * (modAlong + espacement) - espacement;
+            const gridAcross = nbAcross * (modAcross + espacement) - espacement;
+            const offsetAlong = panAlongStart + (usableAlong - gridAlong) / 2;
+            const offsetAcross = (panAcrossStart < panAcrossEnd)
+                ? panAcrossStart + (usableAcross - gridAcross) / 2
+                : panAcrossEnd + (usableAcross - gridAcross) / 2;
+            
+            // Créer le groupe 3D pour ce pan
+            const panGroup = new THREE.Group();
+            panGroup.position.set(obb.cx, eaveY + 0.08, obb.cz);
+            
+            const modules = [];
+            
+            for (let iAlong = 0; iAlong < nbAlong; iAlong++) {
+                for (let iAcross = 0; iAcross < nbAcross; iAcross++) {
+                    // Position dans le repère OBB (along = axe principal, across = perpendiculaire)
+                    const along = offsetAlong + iAlong * (modAlong + espacement) + modAlong / 2;
+                    const across = offsetAcross + iAcross * (modAcross + espacement) + modAcross / 2;
+                    
+                    // Convertir en coordonnées locales monde (rotation OBB)
+                    const worldX = obb.cx + along * cosA - across * sinA;
+                    const worldZ = obb.cz + along * sinA + across * cosA;
+                    
+                    // Offset par rapport au centre du groupe
+                    const localX = along * cosA - across * sinA;
+                    const localZ = along * sinA + across * cosA;
+                    
+                    // Créer le mesh du module
+                    const panel3d = new THREE.Mesh(
+                        new THREE.BoxGeometry(modAlong, 0.04, modAcross),
+                        panelMat
+                    );
+                    panel3d.position.set(localX, 0, localZ);
+                    panel3d.rotation.y = -obb.angle;
+                    panel3d.castShadow = true;
+                    panel3d.receiveShadow = true;
+                    panGroup.add(panel3d);
+                    
+                    // Calculer les 4 coins en coordonnées géo (lat/lng) pour la projection 2D
+                    const halfW = modAlong / 2;
+                    const halfH = modAcross / 2;
+                    const cornersLocal = [
+                        { x: worldX + (-halfW) * cosA - (-halfH) * sinA, z: worldZ + (-halfW) * sinA + (-halfH) * cosA },
+                        { x: worldX + ( halfW) * cosA - (-halfH) * sinA, z: worldZ + ( halfW) * sinA + (-halfH) * cosA },
+                        { x: worldX + ( halfW) * cosA - ( halfH) * sinA, z: worldZ + ( halfW) * sinA + ( halfH) * cosA },
+                        { x: worldX + (-halfW) * cosA - ( halfH) * sinA, z: worldZ + (-halfW) * sinA + ( halfH) * cosA },
+                    ];
+                    
+                    const cornersGeo = cornersLocal.map(c => this._localToGeo(c.x, c.z));
+                    const centerGeo = this._localToGeo(worldX, worldZ);
+                    
+                    modules.push({
+                        lat: centerGeo.lat,
+                        lng: centerGeo.lng,
+                        corners: cornersGeo
+                    });
+                    
+                    totalModules++;
+                }
+            }
+            
+            // Appliquer la pente au groupe
+            if (penteRad > 0.001) {
+                const tiltAxis = new THREE.Vector3(
+                    -Math.cos(azimutRad), 0, -Math.sin(azimutRad)
+                ).normalize();
+                panGroup.rotateOnWorldAxis(tiltAxis, penteRad);
+            }
+            
+            this.scene.add(panGroup);
+            this.modules3D.push(panGroup);
+            
+            generatedZones.push({
+                panelIndex: pi,
+                panelName: panel.name,
+                orientation: azimutDeg,
+                inclinaison: penteDeg,
+                orientationLabel: panel.orientation_label,
+                nbModules: modules.length,
+                nbCols: nbAlong,
+                nbRows: nbAcross,
+                modulesPositions: modules
+            });
+            
+            console.log(`✅ Pan ${panel.name} : ${nbAlong}x${nbAcross} = ${modules.length} modules (${azimutDeg}°, pente ${penteDeg}°)`);
+        });
+        
+        console.log(`✅ Remplissage auto toiture: ${totalModules} modules sur ${generatedZones.length} pan(s)`);
+        return generatedZones;
+    }
+    
+    /**
      * Récupère l'altitude du terrain à une position locale (avec exagération)
      */
     _getTerrainHeight(x, z) {

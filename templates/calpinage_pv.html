@@ -803,6 +803,9 @@
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <strong><i class="bi bi-badge-3d"></i> Vue 3D immersive — WebGL</strong>
                             <div>
+                                <button class="btn btn-sm btn-success me-1" id="btnAutoFillRoof" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture avec des modules PV">
+                                    ⚡ Remplissage auto
+                                </button>
                                 <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
                                     ☀️ Soleil
                                 </button>
@@ -5297,12 +5300,17 @@
                 
                 console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
                 viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {
-                    update3DFromZones();
+                    // Si des zones auto-remplies existent déjà, ne pas les écraser
+                    const hasAutoFilled = zones.some(z => z._autoFilled3D);
+                    if (!hasAutoFilled) {
+                        update3DFromZones();
+                        // === AUTO-AJUSTEMENT : associer les zones aux pans de toiture détectés ===
+                        ajusterZonesDepuisToiture3D();
+                    } else {
+                        console.log('ℹ️ Zones auto-remplies détectées, skip update3DFromZones');
+                    }
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
-                    
-                    // === AUTO-AJUSTEMENT : associer les zones aux pans de toiture détectés ===
-                    ajusterZonesDepuisToiture3D();
                 });
             }
         }
@@ -5409,6 +5417,160 @@
             } else {
                 panel.style.display = 'none';
             }
+        }
+        
+        /**
+         * Remplissage automatique intelligent de la toiture.
+         * 1. Détecte les pans de toiture via LiDAR (déjà fait)
+         * 2. Remplit chaque pan avec une grille de modules optimisée
+         * 3. Les modules sont positionnés directement en 3D
+         * 4. Quand on revient en 2D, les zones sont projetées sur la carte
+         */
+        function autoRemplissageToiture() {
+            if (!viewer3D || !viewer3D.roofPanelsInfo || !viewer3D.roofPanelsInfo.panels.length) {
+                alert('⚠️ Aucune information de toiture détectée. Assurez-vous que les données LiDAR sont chargées.');
+                return;
+            }
+            
+            // Récupérer les dimensions du module sélectionné
+            const moduleL = parseFloat(document.getElementById('moduleLongueur').value) / 1000; // mm → m
+            const moduleW = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
+            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100; // cm → m
+            const disposition = document.getElementById('moduleOrientation').value; // 'paysage' ou 'portrait'
+            
+            console.log(`⚡ Remplissage auto toiture: module ${moduleL}x${moduleW}m, esp=${espacement}m, disp=${disposition}`);
+            
+            // Supprimer les anciennes zones
+            zones.forEach(z => {
+                if (z.moduleGroup) map.removeLayer(z.moduleGroup);
+                if (z.layer) map.removeLayer(z.layer);
+            });
+            zones = [];
+            document.getElementById('zonesList').innerHTML = '';
+            
+            // Appeler la méthode 3D pour remplir les pans
+            const generatedZones = viewer3D.autoFillRoofPanels(moduleW, moduleL, espacement, disposition);
+            
+            if (!generatedZones || generatedZones.length === 0) {
+                alert('⚠️ Aucun module n\'a pu être placé sur les pans de toiture.');
+                return;
+            }
+            
+            // Créer les zones 2D correspondantes dans Leaflet
+            generatedZones.forEach((gz, i) => {
+                if (!gz.modulesPositions || gz.modulesPositions.length === 0) return;
+                
+                // Calculer la bounding box des modules pour créer le layer zone
+                let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+                gz.modulesPositions.forEach(m => {
+                    m.corners.forEach(c => {
+                        minLat = Math.min(minLat, c.lat);
+                        maxLat = Math.max(maxLat, c.lat);
+                        minLng = Math.min(minLng, c.lng);
+                        maxLng = Math.max(maxLng, c.lng);
+                    });
+                });
+                
+                // Créer un rectangle zone sur la carte
+                const zoneBounds = L.latLngBounds(
+                    [minLat - 0.000001, minLng - 0.000001],
+                    [maxLat + 0.000001, maxLng + 0.000001]
+                );
+                const zoneLayer = L.rectangle(zoneBounds, {
+                    color: '#ff7800',
+                    weight: 2,
+                    fillOpacity: 0.05,
+                    dashArray: '5,5',
+                    interactive: true
+                });
+                zoneLayer.addTo(drawnItems);
+                
+                // Dimensions réelles
+                const largeurMetres = map.distance(
+                    [minLat, minLng], [minLat, maxLng]
+                );
+                const longueurMetres = map.distance(
+                    [minLat, minLng], [maxLat, minLng]
+                );
+                
+                // Créer l'objet zone
+                const zone = {
+                    id: zoneLayer._leaflet_id,
+                    numero: i + 1,
+                    layer: zoneLayer,
+                    surfaceM2: largeurMetres * longueurMetres,
+                    nbModules: gz.nbModules,
+                    nbCols: gz.nbCols,
+                    nbRows: gz.nbRows,
+                    puissanceKw: (gz.nbModules * modulePuissance) / 1000,
+                    orientation: gz.orientation,
+                    inclinaison: gz.inclinaison,
+                    rotationAngle: 0,
+                    productible: 0,
+                    moduleOrientation: disposition,
+                    largeurMetres: largeurMetres,
+                    longueurMetres: longueurMetres,
+                    typeInstallation: 'toiture',
+                    modulesPositions: gz.modulesPositions,
+                    panToiture: gz.panelName,
+                    ajuste3D: true,
+                    _autoFilled3D: true // Marker pour savoir que c'est un remplissage auto
+                };
+                
+                zones.push(zone);
+                
+                // Créer les polygones de modules sur la carte 2D
+                const moduleGroup = L.layerGroup();
+                gz.modulesPositions.forEach(modPos => {
+                    if (!modPos.corners || modPos.corners.length < 4) return;
+                    const corners = modPos.corners.map(c => L.latLng(c.lat, c.lng));
+                    const modulePolygon = L.polygon(corners, {
+                        color: '#0066cc',
+                        weight: 1,
+                        fillColor: '#4d94ff',
+                        fillOpacity: 0.6,
+                        interactive: false
+                    });
+                    moduleGroup.addLayer(modulePolygon);
+                });
+                
+                // Contour de la zone
+                const zoneOutline = L.rectangle(zoneBounds, {
+                    color: '#ff7800',
+                    weight: 2,
+                    fillOpacity: 0,
+                    dashArray: '5, 5',
+                    interactive: false
+                });
+                zoneOutline._isZoneOutline = true;
+                moduleGroup.addLayer(zoneOutline);
+                
+                moduleGroup.addTo(map);
+                zone.moduleGroup = moduleGroup;
+                
+                // Afficher dans la liste et calculer productible
+                afficherZone(zone);
+                calculerProductibleZone(zone.id);
+            });
+            
+            // Recalculer les totaux
+            calculerTotaux();
+            
+            // Notification
+            const totalMods = generatedZones.reduce((s, gz) => s + gz.nbModules, 0);
+            const totalKwc = (totalMods * modulePuissance / 1000).toFixed(2);
+            const toast = document.createElement('div');
+            toast.className = 'alert alert-success';
+            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
+            toast.innerHTML = `<i class="fas fa-bolt me-2"></i><strong>⚡ Remplissage auto toiture :</strong><br>` + 
+                generatedZones.map(gz => `• ${gz.panelName} : ${gz.nbModules} modules (${gz.orientationLabel} ${gz.orientation}°, pente ${gz.inclinaison}°)`).join('<br>') +
+                `<br><strong>${totalMods} modules — ${totalKwc} kWc</strong>` +
+                `<br><small class="text-muted">Repassez en 2D pour voir le résultat sur la carte</small>`;
+            document.body.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.5s'; setTimeout(() => toast.remove(), 500); }, 8000);
+            
+            console.log(`✅ Remplissage auto terminé: ${totalMods} modules, ${totalKwc} kWc sur ${generatedZones.length} pan(s)`);
         }
         
         /**
