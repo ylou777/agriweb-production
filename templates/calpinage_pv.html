@@ -3577,6 +3577,16 @@
             calculerTotaux();
         }
 
+        /**
+         * Retourne un label d'orientation type "180° (Sud)" depuis un angle en degrés
+         */
+        function _orientationLabel(deg) {
+            deg = Math.round(deg || 180);
+            const dirs = ['Nord', 'Nord-Est', 'Est', 'Sud-Est', 'Sud', 'Sud-Ouest', 'Ouest', 'Nord-Ouest'];
+            const label = dirs[Math.round(((deg % 360 + 360) % 360) / 45) % 8];
+            return `${deg}° (${label})`;
+        }
+
         // Afficher une zone dans la liste
         function afficherZone(zone) {
             const zonesListDiv = document.getElementById('zonesList');
@@ -3630,8 +3640,8 @@
                 
                 <div class="row g-2">
                     <div class="col-12">
-                        <label class="form-label"><small>Orientation : <span id="orientation-value-${zone.id}">180° Sud</span></small></label>
-                        <input type="range" class="form-range" min="0" max="360" step="1" value="180" 
+                        <label class="form-label"><small>Orientation : <span id="orientation-value-${zone.id}">${_orientationLabel(zone.orientation)}</span></small></label>
+                        <input type="range" class="form-range" min="0" max="360" step="1" value="${zone.orientation || 180}" 
                                id="orientation-slider-${zone.id}"
                                oninput="updateZoneOrientationSlider(${zone.id}, this.value)">
                         <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #666;">
@@ -3639,10 +3649,10 @@
                         </div>
                     </div>
                     <div class="col-12 mt-2" id="inclinaison-container-${zone.id}">
-                        <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">30</span>°
+                        <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}</span>°
                             ${document.getElementById('typeInstallation').value === 'toiture' ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Détectée automatiquement depuis les données LiDAR 3D">🏠 auto 3D</span>' : ''}
                         </small></label>
-                        <input type="range" class="form-range" min="0" max="90" step="1" value="30"
+                        <input type="range" class="form-range" min="0" max="90" step="1" value="${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}"
                                id="inclinaison-slider-${zone.id}"
                                oninput="updateZoneInclinaisonSlider(${zone.id}, this.value)"
                                ${document.getElementById('typeInstallation').value === 'toiture' ? 'disabled style="opacity:0.5;"' : ''}>
@@ -3726,8 +3736,11 @@
             calculerTotaux();
             
             // Mettre à jour la vue 3D si active
+            // SEULEMENT si ce ne sont PAS des zones auto-remplies 3D
+            // (les zones auto-remplies gèrent leur propre état 3D)
             try {
-                if (viewer3D && viewer3D.isActive) {
+                const hasAutoFilled = zones.some(z => z._autoFilled3D);
+                if (viewer3D && viewer3D.isActive && !hasAutoFilled) {
                     update3DFromZones();
                 }
             } catch (error) {
