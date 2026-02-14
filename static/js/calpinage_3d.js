@@ -483,15 +483,23 @@ class Calpinage3DViewer {
         
         const panelMat = new THREE.MeshPhongMaterial({
             color: 0x1a237e, specular: 0x4444ff, shininess: 80,
-            transparent: true, opacity: 0.92
+            transparent: true, opacity: 0.92,
+            depthWrite: true,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2,
         });
         
-        // Hauteur de pose : terrain + murs du bâtiment
-        const terrainH = this._getTerrainHeight(obb.cx, obb.cz);
-        const wallH = this._findBuildingWallHeight(obb.cx, obb.cz);
+        // Hauteur de pose : utiliser les MÊMES valeurs que _createBuilding3D
+        // pour éviter un décalage entre le toit 3D et les modules
+        const terrainH = info.buildingTerrainH || this._getTerrainHeight(obb.cx, obb.cz);
+        const wallH = info.buildingWallH || this._findBuildingWallHeight(obb.cx, obb.cz);
         const eaveY = terrainH + wallH;
         // Hauteur du faîtage au-dessus de l'égout (pour positionner le pivot de rotation)
         const ridgeExtra = info.hauteurFaitageRelatif || 0;
+        
+        // Polygone réel du bâtiment pour filtrer les modules hors emprise
+        const buildingPoly = info.buildingLocalCoords || null;
         
         const panels = info.panels;
         const indicesToProcess = panelIndices || panels.map((_, i) => i);
@@ -591,6 +599,24 @@ class Calpinage3DViewer {
                     const worldX = obb.cx + along * cosA - across * sinA;
                     const worldZ = obb.cz + along * sinA + across * cosA;
                     
+                    // === Filtrage par polygone réel du bâtiment ===
+                    // Vérifier que les 4 coins du module sont dans l'emprise réelle
+                    if (buildingPoly) {
+                        const halfW = modAlong / 2;
+                        const halfH = modAcross / 2;
+                        const corners = [
+                            { x: worldX + (-halfW)*cosA - (-halfH)*sinA, z: worldZ + (-halfW)*sinA + (-halfH)*cosA },
+                            { x: worldX + ( halfW)*cosA - (-halfH)*sinA, z: worldZ + ( halfW)*sinA + (-halfH)*cosA },
+                            { x: worldX + ( halfW)*cosA - ( halfH)*sinA, z: worldZ + ( halfW)*sinA + ( halfH)*cosA },
+                            { x: worldX + (-halfW)*cosA - ( halfH)*sinA, z: worldZ + (-halfW)*sinA + ( halfH)*cosA },
+                        ];
+                        // Au moins 3 coins sur 4 doivent être dans le polygone
+                        const insideCount = corners.filter(c => 
+                            this._pointInPolygon2D(c.x, c.z, buildingPoly.map(p => ({x: p.x, y: p.z})))
+                        ).length;
+                        if (insideCount < 3) continue; // Module hors emprise → skip
+                    }
+                    
                     // Offset par rapport au centre du groupe
                     const localX = along * cosA - across * sinA;
                     const localZ = along * sinA + across * cosA;
@@ -605,6 +631,7 @@ class Calpinage3DViewer {
                     panel3d.rotation.y = -obb.angle;
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
+                    panel3d.renderOrder = 10; // S'afficher au-dessus du toit
                     panGroup.add(panel3d);
                     
                     // Calculer les 4 coins en coordonnées géo (lat/lng) pour la projection 2D
@@ -1277,6 +1304,12 @@ class Calpinage3DViewer {
             longDim: obb.longDim,
             shortDim: obb.shortDim
         };
+        // Stocker les valeurs exactes utilisées pour le rendu 3D du bâtiment
+        // pour que autoFillRoofPanels place les modules à la même hauteur
+        this.roofPanelsInfo.buildingTerrainH = terrainH;
+        this.roofPanelsInfo.buildingWallH = bh;
+        // Stocker le polygone réel du bâtiment (coords locales) pour filtrer les modules
+        this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({x: c.x, z: c.z}));
         // Centre géo du bâtiment (lat/lon) pour comparaison avec les zones 2D
         if (this.pvBuildingCoords) {
             const bCenter = this._polygonCenter(this.pvBuildingCoords);
