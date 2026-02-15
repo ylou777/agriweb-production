@@ -1095,9 +1095,9 @@ def api_lidar_roof_analysis():
             "request": "GetFeature",
             "typeName": "BDTOPO_V3:batiment",
             "outputFormat": "application/json",
-            "bbox": f"{x_l93 - 50},{y_l93 - 50},{x_l93 + 50},{y_l93 + 50},EPSG:2154",
+            "bbox": f"{x_l93 - 100},{y_l93 - 100},{x_l93 + 100},{y_l93 + 100},EPSG:2154",
             "srsName": "EPSG:4326",
-            "count": "20"
+            "count": "50"
         }
         r_bd = requests.get(url_wfs, params=params_wfs, timeout=15)
         if r_bd.status_code == 200:
@@ -1127,7 +1127,7 @@ def api_lidar_roof_analysis():
                     building_coords = coords
                     building_data = props
             
-            if building_coords and best_dist < 30:
+            if building_coords and best_dist < 80:
                 # Calculer les dimensions du bâtiment
                 lons_b = [c[0] for c in building_coords]
                 lats_b = [c[1] for c in building_coords]
@@ -1151,9 +1151,9 @@ def api_lidar_roof_analysis():
                     "distance_click_m": round(best_dist, 1),
                 }
                 
-                print(f"✓ Bâtiment trouvé: {width_m:.0f}x{length_m:.0f}m, h={building_data.get('hauteur')}m, dist={best_dist:.0f}m")
+                print(f"✓ Bâtiment trouvé: {width_m:.0f}x{length_m:.0f}m ({width_m*length_m:.0f}m²), h={building_data.get('hauteur')}m, dist={best_dist:.0f}m")
             else:
-                print(f"⚠ Aucun bâtiment trouvé à moins de 30m du clic")
+                print(f"⚠ Aucun bâtiment trouvé à moins de 80m du clic")
     except Exception as e:
         print(f"⚠ BD TOPO roof error: {e}")
     
@@ -1279,143 +1279,330 @@ def api_lidar_roof_analysis():
                 mnh_full = mns_full - mnt_full
                 
                 # Extraire les points du toit dans la grille haute résolution
+                # Seuil adaptatif : pour les grands bâtiments, utiliser un seuil plus bas
+                # car les sheds peuvent avoir des noues proches du sol
+                mnh_threshold = 1.0 if bldg_area_m2 > 500 else 2.0
+                
                 roof_points = []
+                roof_grid_mask = np.zeros((final_h, final_w), dtype=bool)  # masque pour gradient
                 
                 for iy in range(final_h):
                     for ix in range(final_w):
-                        # Position GPS de ce pixel
                         px_lat = lat_max - (iy / final_h) * (lat_max - lat_min)
                         px_lon = lon_min + (ix / final_w) * (lon_max - lon_min)
                         
-                        # Vérifier si ce pixel est dans le polygone du bâtiment
                         if _point_in_polygon(px_lon, px_lat, building_coords):
                             alt_mns = float(mns_full[iy, ix])
                             mnh_val = float(mnh_full[iy, ix])
                             
-                            if mnh_val > 2.0:
+                            if mnh_val > mnh_threshold:
                                 x_m = (px_lon - b_center_lon) * lng_to_m
                                 y_m = (px_lat - b_center_lat) * 111320
-                                roof_points.append((x_m, y_m, alt_mns))
+                                roof_points.append((x_m, y_m, alt_mns, ix, iy))
+                                roof_grid_mask[iy, ix] = True
                 
                 print(f"✓ Points toit LiDAR HD: {len(roof_points)} pixels sur le bâtiment "
-                      f"({bldg_area_m2:.0f}m², {tiles_ok} tuiles, "
+                      f"({bldg_area_m2:.0f}m², {tiles_ok} tuiles, seuil MNH={mnh_threshold}m, "
                       f"résol={actual_res_x:.3f}m/px → {1/actual_res_x**2:.0f} pts/m²)")
                 
                 if len(roof_points) >= 6:
-                    # === Ajustement de plan (moindres carrés) ===
-                    # z = a*x + b*y + c
                     pts = np.array(roof_points)
-                    x = pts[:, 0]
+                    x = pts[:, 0]  # mètres relatifs
                     y = pts[:, 1]
-                    z = pts[:, 2]
+                    z = pts[:, 2]  # altitude MNS
+                    ix_arr = pts[:, 3].astype(int)  # indices grille
+                    iy_arr = pts[:, 4].astype(int)
                     
-                    # Matrice A = [x, y, 1]
-                    A = np.column_stack([x, y, np.ones(len(x))])
+                    width_m = result["building"]["width_m"]
+                    length_m = result["building"]["length_m"]
+                    building_is_ew = width_m > length_m
                     
-                    # Résolution par moindres carrés
+                    # ============================================================
+                    # DÉTECTION MULTI-SHED : gradient + profil transversal
+                    # ============================================================
+                    # Pour les grandes toitures, on cherche les "dents de scie"
+                    # = alternance faîtage / noue dans la direction transversale
+                    
                     try:
-                        coeffs, residuals, rank, sv = np.linalg.lstsq(A, z, rcond=None)
-                        a, b, c = coeffs
-                        
-                        # Calcul de la pente : tan(pente) = sqrt(a² + b²)
-                        slope_rad = math.atan(math.sqrt(a**2 + b**2))
-                        slope_deg = math.degrees(slope_rad)
-                        
-                        # Calcul de l'azimut : direction de la plus grande pente
-                        # atan2(dz/dx, dz/dy) = direction de descente
-                        # Convention : 0=Nord, 90=Est, 180=Sud, 270=Ouest
-                        azimut_rad = math.atan2(a, b)  # a = dz/dx (Est), b = dz/dy (Nord)
-                        azimut_deg = math.degrees(azimut_rad)
-                        
-                        # L'azimut pointe vers le bas de la pente ; pour un panneau PV
-                        # on veut la direction face au soleil = côté descendant
-                        # Normaliser 0-360
-                        azimut_deg = azimut_deg % 360
-                        
-                        # Résidus : écart type pour détecter si c'est un toit 2 pans
-                        if len(residuals) > 0:
-                            rmse = math.sqrt(float(residuals[0]) / len(x))
+                        # 1. Profil transversal moyen (perpendiculaire à l'axe long)
+                        # On découpe la toiture en bandes parallèles à l'axe long
+                        if building_is_ew:
+                            # Bâtiment plus large que long → sheds orientés N-S
+                            # On fait le profil selon Y (Nord-Sud)
+                            profile_coord = y  # coordonnée transversale
+                            long_coord = x     # coordonnée longitudinale
+                            trans_label = "Y (N-S)"
+                            long_label = "X (E-O)"
                         else:
-                            rmse = float(np.std(z - (a*x + b*y + c)))
+                            # Bâtiment plus long que large → sheds orientés E-O
+                            profile_coord = x
+                            long_coord = y
+                            trans_label = "X (E-O)"
+                            long_label = "Y (N-S)"
                         
-                        # Dimensions utilisables du toit (emprise bâtiment)
-                        width_m = result["building"]["width_m"]
-                        length_m = result["building"]["length_m"]
+                        # 2. Créer le profil d'altitude moyen transversal
+                        trans_min = float(profile_coord.min())
+                        trans_max = float(profile_coord.max())
+                        trans_range = trans_max - trans_min
                         
-                        # Orientation principale du bâtiment (longest axis)
-                        building_is_ew = width_m > length_m  # Plus large que long = axe E-O
+                        if trans_range < 1.0:
+                            raise ValueError("Toiture trop étroite pour l'analyse transversale")
                         
-                        roof_info = {
-                            "slope_deg": round(slope_deg, 1),
-                            "azimut_deg": round(azimut_deg, 0),
+                        # Résolution du profil : ~0.3m par bin
+                        nb_bins = max(10, int(trans_range / 0.3))
+                        bin_edges = np.linspace(trans_min, trans_max, nb_bins + 1)
+                        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                        
+                        profile_z = np.zeros(nb_bins)
+                        profile_count = np.zeros(nb_bins)
+                        
+                        for i in range(len(profile_coord)):
+                            bin_idx = int((profile_coord[i] - trans_min) / trans_range * (nb_bins - 1))
+                            bin_idx = max(0, min(nb_bins - 1, bin_idx))
+                            profile_z[bin_idx] += z[i]
+                            profile_count[bin_idx] += 1
+                        
+                        # Moyenne par bin (ignorer les bins vides)
+                        valid = profile_count > 0
+                        profile_z[valid] /= profile_count[valid]
+                        profile_z[~valid] = np.nan
+                        
+                        # Interpoler les bins vides
+                        valid_idx = np.where(valid)[0]
+                        if len(valid_idx) > 2:
+                            profile_z = np.interp(np.arange(nb_bins), valid_idx, profile_z[valid_idx])
+                        
+                        # 3. Détection des faîtages et noues (extrema locaux)
+                        # Lissage léger pour réduire le bruit
+                        kernel_size = max(3, nb_bins // 20)
+                        if kernel_size % 2 == 0:
+                            kernel_size += 1
+                        kernel = np.ones(kernel_size) / kernel_size
+                        profile_smooth = np.convolve(profile_z, kernel, mode='same')
+                        
+                        # Dérivée première
+                        dz = np.diff(profile_smooth)
+                        
+                        # Détection des changements de signe (extrema)
+                        ridges = []   # faîtages (maxima locaux)
+                        valleys = []  # noues (minima locaux)
+                        
+                        for i in range(1, len(dz)):
+                            if dz[i-1] > 0 and dz[i] < 0:  # max local = faîtage
+                                ridges.append(i)
+                            elif dz[i-1] < 0 and dz[i] > 0:  # min local = noue
+                                valleys.append(i)
+                        
+                        # Filtrer les faux extrema (amplitude < 0.5m)
+                        min_amplitude = 0.4  # mètres
+                        if ridges and valleys:
+                            all_extrema = sorted([(r, 'ridge') for r in ridges] + [(v, 'valley') for v in valleys], key=lambda x: x[0])
+                            filtered = []
+                            for i, (idx, typ) in enumerate(all_extrema):
+                                if i > 0:
+                                    prev_idx = filtered[-1][0] if filtered else 0
+                                    amplitude = abs(profile_smooth[idx] - profile_smooth[prev_idx])
+                                    if amplitude >= min_amplitude:
+                                        filtered.append((idx, typ))
+                                else:
+                                    filtered.append((idx, typ))
+                            
+                            ridges = [idx for idx, typ in filtered if typ == 'ridge']
+                            valleys = [idx for idx, typ in filtered if typ == 'valley']
+                        
+                        nb_sheds = max(1, len(ridges))
+                        is_multi_shed = nb_sheds >= 2
+                        
+                        print(f"📊 Profil transversal ({trans_label}): {nb_bins} bins, "
+                              f"{len(ridges)} faîtages, {len(valleys)} noues → "
+                              f"{'MULTI-SHED (' + str(nb_sheds) + ' sheds)' if is_multi_shed else 'toit simple'}")
+                        
+                        # 4. Segmentation des pans
+                        # On coupe au niveau des faîtages ET des noues
+                        # Chaque segment entre deux coupes = un pan
+                        
+                        cut_points = sorted(set(ridges + valleys))
+                        
+                        if not cut_points:
+                            # Pas de faîtage détecté → essayer la médiane
+                            cut_points = [nb_bins // 2]
+                        
+                        # Ajouter les bords
+                        segments = []
+                        all_cuts = [0] + cut_points + [nb_bins - 1]
+                        
+                        for i in range(len(all_cuts) - 1):
+                            bin_start = all_cuts[i]
+                            bin_end = all_cuts[i + 1]
+                            trans_start = bin_centers[bin_start] if bin_start < nb_bins else trans_max
+                            trans_end = bin_centers[min(bin_end, nb_bins - 1)]
+                            
+                            # Points dans ce segment
+                            mask = (profile_coord >= trans_start) & (profile_coord < trans_end)
+                            if i == len(all_cuts) - 2:  # dernier segment → inclure le bord
+                                mask = (profile_coord >= trans_start) & (profile_coord <= trans_end + 0.5)
+                            
+                            nb_pts_seg = int(np.sum(mask))
+                            if nb_pts_seg >= 4:
+                                segments.append({
+                                    'mask': mask,
+                                    'trans_start': trans_start,
+                                    'trans_end': trans_end,
+                                    'nb_points': nb_pts_seg,
+                                    'is_ridge_above': bin_end in ridges,
+                                    'is_ridge_below': bin_start in ridges,
+                                })
+                        
+                        print(f"📐 Segments découpés: {len(segments)} pans potentiels "
+                              f"({', '.join(str(s['nb_points']) + ' pts' for s in segments)})")
+                        
+                        # 5. Fitting de chaque pan individuellement
+                        pan_counter = 0
+                        overall_info_added = False
+                        
+                        for seg_idx, seg in enumerate(segments):
+                            mask = seg['mask']
+                            xp = x[mask]; yp = y[mask]; zp = z[mask]
+                            
+                            if len(xp) < 4:
+                                continue
+                            
+                            # Fitting plan : z = a*x + b*y + c
+                            Ap = np.column_stack([xp, yp, np.ones(len(xp))])
+                            try:
+                                cp_coeffs, residuals_p, _, _ = np.linalg.lstsq(Ap, zp, rcond=None)
+                                ap, bp, cp_c = cp_coeffs
+                                
+                                slope = math.degrees(math.atan(math.sqrt(ap**2 + bp**2)))
+                                azimut = math.degrees(math.atan2(ap, bp)) % 360
+                                
+                                pan_rmse = float(np.std(zp - (ap*xp + bp*yp + cp_c)))
+                                
+                                # Dimensions de ce pan
+                                if building_is_ew:
+                                    pan_w = width_m  # longueur le long de l'axe long
+                                    pan_l = abs(seg['trans_end'] - seg['trans_start'])
+                                else:
+                                    pan_w = abs(seg['trans_end'] - seg['trans_start'])
+                                    pan_l = length_m
+                                
+                                pan_area = pan_w * pan_l
+                                
+                                # Centre du pan
+                                pan_cx = float(np.mean(xp))
+                                pan_cy = float(np.mean(yp))
+                                pan_lat = b_center_lat + pan_cy / 111320
+                                pan_lon = b_center_lon + pan_cx / lng_to_m
+                                
+                                # Altitude min/max sur ce pan
+                                z_min_pan = float(np.min(zp))
+                                z_max_pan = float(np.max(zp))
+                                z_range_pan = z_max_pan - z_min_pan
+                                
+                                # Type de pan détecté
+                                if slope < 3:
+                                    pan_type = "plat"
+                                elif seg.get('is_ridge_above') or seg.get('is_ridge_below'):
+                                    pan_type = "shed"
+                                else:
+                                    pan_type = "incliné"
+                                
+                                pan_counter += 1
+                                pan_name = f"Pan {pan_counter}"
+                                if is_multi_shed:
+                                    pan_name = f"Shed {(pan_counter + 1) // 2} - Pan {'A' if pan_counter % 2 == 1 else 'B'}"
+                                
+                                # Confiance basée sur nb de points et RMSE
+                                if len(xp) > 30 and pan_rmse < 0.4:
+                                    confidence = "high"
+                                elif len(xp) > 10 and pan_rmse < 0.8:
+                                    confidence = "medium"
+                                else:
+                                    confidence = "low"
+                                
+                                result["roofs"].append({
+                                    "name": pan_name,
+                                    "type": pan_type,
+                                    "slope_deg": round(slope, 1),
+                                    "azimut_deg": round(azimut, 0),
+                                    "width_m": round(pan_w, 1),
+                                    "length_m": round(pan_l, 1),
+                                    "area_m2": round(pan_area, 1),
+                                    "center": {"lat": round(pan_lat, 7), "lon": round(pan_lon, 7)},
+                                    "altitude_min": round(z_min_pan, 1),
+                                    "altitude_max": round(z_max_pan, 1),
+                                    "altitude_range": round(z_range_pan, 1),
+                                    "rmse": round(pan_rmse, 2),
+                                    "nb_lidar_points": len(xp),
+                                    "confidence": confidence,
+                                })
+                                
+                            except Exception as e:
+                                print(f"  ⚠ Fitting pan {seg_idx}: {e}")
+                        
+                        # Ajouter un résumé global de la toiture
+                        overall_slope = 0
+                        overall_azimut = 0
+                        total_area = 0
+                        for roof in result["roofs"]:
+                            a = roof.get("area_m2", 0)
+                            overall_slope += roof.get("slope_deg", 0) * a
+                            overall_azimut += roof.get("azimut_deg", 0) * a
+                            total_area += a
+                        
+                        if total_area > 0:
+                            overall_slope /= total_area
+                            overall_azimut /= total_area
+                        
+                        # Insérer le résumé en premier
+                        summary = {
+                            "name": "Toiture complète",
+                            "type": f"multi-shed ({nb_sheds} sheds)" if is_multi_shed else ("2 pans" if len(result["roofs"]) == 2 else "mono-pan"),
+                            "slope_deg_avg": round(overall_slope, 1),
+                            "azimut_deg_avg": round(overall_azimut, 0),
                             "width_m": round(width_m, 1),
                             "length_m": round(length_m, 1),
                             "area_m2": round(width_m * length_m, 1),
                             "altitude_avg": round(float(np.mean(z)), 1),
-                            "rmse": round(rmse, 2),
+                            "nb_pans": len(result["roofs"]),
+                            "nb_sheds": nb_sheds,
+                            "nb_ridges": len(ridges),
+                            "nb_valleys": len(valleys),
                             "nb_lidar_points": len(roof_points),
-                            "confidence": "high" if len(roof_points) > 20 and rmse < 1.0 else ("medium" if len(roof_points) > 10 else "low"),
+                            "resolution_m_per_px": round(actual_res_x, 3),
                         }
+                        result["roofs"].insert(0, summary)
                         
-                        result["roofs"].append(roof_info)
-                        
-                        # Détecter un toit 2 pans (RMSE élevé = le plan unique ne colle pas)
-                        if rmse > 0.8 and slope_deg > 5:
-                            # Séparer les points en 2 groupes selon la médiane
-                            if building_is_ew:
-                                median_split = np.median(y)
-                                mask_a = y < median_split
-                                mask_b = y >= median_split
-                            else:
-                                median_split = np.median(x)
-                                mask_a = x < median_split
-                                mask_b = x >= median_split
-                            
-                            for pan_name, mask in [("Pan A", mask_a), ("Pan B", mask_b)]:
-                                if np.sum(mask) >= 4:
-                                    xp = x[mask]; yp = y[mask]; zp = z[mask]
-                                    Ap = np.column_stack([xp, yp, np.ones(len(xp))])
-                                    try:
-                                        cp, _, _, _ = np.linalg.lstsq(Ap, zp, rcond=None)
-                                        ap, bp, _ = cp
-                                        s = math.degrees(math.atan(math.sqrt(ap**2 + bp**2)))
-                                        az = math.degrees(math.atan2(ap, bp)) % 360
-                                        
-                                        # Dimensions du demi-toit
-                                        if building_is_ew:
-                                            pw = width_m
-                                            pl = length_m / 2
-                                        else:
-                                            pw = width_m / 2
-                                            pl = length_m
-                                        
-                                        pan_rmse = float(np.std(zp - (ap*xp + bp*yp + cp[2])))
-                                        
-                                        # Centre du pan
-                                        pan_center_x = float(np.mean(xp))
-                                        pan_center_y = float(np.mean(yp))
-                                        pan_center_lat = b_center_lat + pan_center_y / 111320
-                                        pan_center_lon = b_center_lon + pan_center_x / lng_to_m
-                                        
-                                        result["roofs"].append({
-                                            "name": pan_name,
-                                            "slope_deg": round(s, 1),
-                                            "azimut_deg": round(az, 0),
-                                            "width_m": round(pw, 1),
-                                            "length_m": round(pl, 1),
-                                            "area_m2": round(pw * pl, 1),
-                                            "center": {"lat": round(pan_center_lat, 7), "lon": round(pan_center_lon, 7)},
-                                            "rmse": round(pan_rmse, 2),
-                                            "nb_lidar_points": int(np.sum(mask)),
-                                            "confidence": "high" if np.sum(mask) > 10 and pan_rmse < 0.6 else "medium",
-                                        })
-                                    except:
-                                        pass
-                        
-                        print(f"✓ Analyse toit: pente={slope_deg:.1f}°, azimut={azimut_deg:.0f}°, RMSE={rmse:.2f}, {len(result['roofs'])} pan(s)")
+                        print(f"✓ Analyse toit: {len(result['roofs'])-1} pan(s), "
+                              f"{'multi-shed ' + str(nb_sheds) if is_multi_shed else 'simple'}, "
+                              f"pente moy={overall_slope:.1f}°, azimut moy={overall_azimut:.0f}°")
                     
                     except Exception as e:
-                        print(f"⚠ Fitting plan toit error: {e}")
+                        # Fallback : fitting plan unique simple
+                        print(f"⚠ Analyse multi-shed échouée ({e}), fallback plan unique")
+                        try:
+                            A = np.column_stack([x, y, np.ones(len(x))])
+                            coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
+                            a, b, c = coeffs
+                            slope_deg = math.degrees(math.atan(math.sqrt(a**2 + b**2)))
+                            azimut_deg = math.degrees(math.atan2(a, b)) % 360
+                            rmse = float(np.std(z - (a*x + b*y + c)))
+                            
+                            result["roofs"].append({
+                                "name": "Toiture complète",
+                                "type": "plan unique (fallback)",
+                                "slope_deg": round(slope_deg, 1),
+                                "azimut_deg": round(azimut_deg, 0),
+                                "width_m": round(width_m, 1),
+                                "length_m": round(length_m, 1),
+                                "area_m2": round(width_m * length_m, 1),
+                                "altitude_avg": round(float(np.mean(z)), 1),
+                                "rmse": round(rmse, 2),
+                                "nb_lidar_points": len(roof_points),
+                                "confidence": "low",
+                            })
+                        except:
+                            pass
                 else:
                     print(f"⚠ Pas assez de points LiDAR sur le toit ({len(roof_points)})")
             else:
