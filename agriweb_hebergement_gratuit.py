@@ -720,7 +720,7 @@ def api_lidar_3d_data():
         "vegetation": [],
     }
     
-    # === 1. LiDAR WMS : MNS et MNT (heightmaps) - TUILAGE HAUTE RÉSOLUTION ===
+    # === 1. LiDAR WMS : MNS et MNT (heightmaps) - TUILAGE + SUPER-RÉSOLUTION ===
     try:
         import numpy as np
         from PIL import Image as PILImage
@@ -733,29 +733,37 @@ def api_lidar_3d_data():
         WMS_MAX = 1024  # limite WMS IGN
         
         # Résolution cible en m/pixel : 0.15m → ~44 pts/m²
-        # Pour les grandes toitures (>5000m² → ~70m côté), on veut du détail fin
         target_res = 0.15  # mètres par pixel
         
         # Zone totale en mètres
         zone_m = radius * 2  # ex: radius=100 → 200m
         
         # Nombre total de pixels nécessaires pour la résolution cible
-        total_pixels_needed = int(zone_m / target_res)  # ex: 200/0.15 ≈ 1333 pixels
+        total_pixels_needed = int(zone_m / target_res)
         
         # Nombre de tuiles nécessaires (arrondi supérieur)
         nb_tiles = max(1, math.ceil(total_pixels_needed / WMS_MAX))
-        tile_pixel_size = min(WMS_MAX, total_pixels_needed)  # taille pixel de chaque tuile
+        tile_pixel_size = min(WMS_MAX, total_pixels_needed)
         
         # Résolution effective par tuile
-        tile_zone_m = zone_m / nb_tiles  # mètres couverts par tuile
-        actual_res = tile_zone_m / tile_pixel_size  # résolution réelle
+        tile_zone_m = zone_m / nb_tiles
+        actual_res = tile_zone_m / tile_pixel_size
         
-        # Grille finale assemblée
-        final_size = tile_pixel_size * nb_tiles  # taille pixel totale
+        # ── Super-résolution par décalage sub-pixel ──
+        # On fait 4 requêtes avec des offsets de 0.5 pixel et on entrelace
+        # pour obtenir 2× la résolution dans chaque axe (4× la densité)
+        use_superres = True  # activer la super-résolution
+        sr_factor = 2 if use_superres else 1
+        
+        # Grille finale assemblée (2× plus grande si super-résolution)
+        base_grid_size = tile_pixel_size * nb_tiles
+        final_size = base_grid_size * sr_factor
+        final_res = actual_res / sr_factor  # résolution effective après super-résolution
         
         print(f"📐 LiDAR Tiling: zone={zone_m}m, cible={target_res}m/px, "
-              f"tuiles={nb_tiles}×{nb_tiles} ({nb_tiles**2} requêtes), "
-              f"résol={actual_res:.3f}m/px ({1/actual_res**2:.0f} pts/m²), "
+              f"tuiles={nb_tiles}×{nb_tiles} ({nb_tiles**2} requêtes/couche), "
+              f"résol base={actual_res:.3f}m/px, "
+              f"super-résol={final_res:.3f}m/px ({1/final_res**2:.0f} pts/m²), "
               f"grille finale={final_size}×{final_size}px")
         
         # Bornes GPS de la zone complète
@@ -764,72 +772,118 @@ def api_lidar_3d_data():
         west = lon - lon_deg
         east = lon + lon_deg
         
-        # Pas en degrés par tuile
+        # Pas en degrés par tuile et par pixel
         lat_step = (north - south) / nb_tiles
         lon_step = (east - west) / nb_tiles
+        half_pixel_lat = lat_step / tile_pixel_size / 2  # décalage 0.5 pixel en lat
+        half_pixel_lon = lon_step / tile_pixel_size / 2  # décalage 0.5 pixel en lon
         
-        # Assemblage des tuiles dans des arrays numpy
-        mns_full = np.zeros((final_size, final_size), dtype=np.float32)
-        mnt_full = np.zeros((final_size, final_size), dtype=np.float32)
-        tiles_ok = 0
-        tiles_total = nb_tiles * nb_tiles
+        # Offsets sub-pixel : (dy, dx) en fraction de pixel
+        # (0,0) = position normale, (0.5,0.5) = décalé d'un demi-pixel
+        if use_superres:
+            sr_offsets = [
+                (0, 0),          # position d'origine
+                (0, half_pixel_lon),   # décalé 0.5px en X
+                (half_pixel_lat, 0),   # décalé 0.5px en Y
+                (half_pixel_lat, half_pixel_lon),  # décalé 0.5px en X+Y
+            ]
+        else:
+            sr_offsets = [(0, 0)]
         
-        for ty in range(nb_tiles):
-            for tx in range(nb_tiles):
-                # Bbox de la tuile
-                t_south = south + ty * lat_step
-                t_north = south + (ty + 1) * lat_step
-                t_west = west + tx * lon_step
-                t_east = west + (tx + 1) * lon_step
-                t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
-                
-                wms_params = {
-                    "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                    "CRS": "EPSG:4326", "BBOX": t_bbox,
-                    "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
-                    "FORMAT": "image/tiff", "STYLES": ""
-                }
-                
-                try:
-                    # MNS
-                    r_mns = requests.get(wms_url, params={
-                        **wms_params,
-                        "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-                    }, timeout=12)
+        # Assemblage : pour chaque offset, on récupère la grille complète
+        mns_grids = []
+        mnt_grids = []
+        
+        for sr_idx, (d_lat, d_lon) in enumerate(sr_offsets):
+            mns_grid = np.zeros((base_grid_size, base_grid_size), dtype=np.float32)
+            mnt_grid = np.zeros((base_grid_size, base_grid_size), dtype=np.float32)
+            tiles_ok_sr = 0
+            
+            for ty in range(nb_tiles):
+                for tx in range(nb_tiles):
+                    t_south = south + ty * lat_step + d_lat
+                    t_north = south + (ty + 1) * lat_step + d_lat
+                    t_west = west + tx * lon_step + d_lon
+                    t_east = west + (tx + 1) * lon_step + d_lon
+                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
                     
-                    # MNT
-                    r_mnt = requests.get(wms_url, params={
-                        **wms_params,
-                        "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-                    }, timeout=12)
+                    wms_params = {
+                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                        "CRS": "EPSG:4326", "BBOX": t_bbox,
+                        "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
+                        "FORMAT": "image/tiff", "STYLES": ""
+                    }
                     
-                    if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
-                        'image' in r_mns.headers.get('content-type', '')):
+                    try:
+                        r_mns = requests.get(wms_url, params={
+                            **wms_params,
+                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+                        }, timeout=12)
                         
-                        mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
-                        mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                        r_mnt = requests.get(wms_url, params={
+                            **wms_params,
+                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+                        }, timeout=12)
                         
-                        # Redimensionner si la tuile n'a pas exactement la bonne taille
-                        if mns_tile.shape != (tile_pixel_size, tile_pixel_size):
-                            mns_tile_img = PILImage.fromarray(mns_tile)
-                            mns_tile = np.array(mns_tile_img.resize((tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
-                        if mnt_tile.shape != (tile_pixel_size, tile_pixel_size):
-                            mnt_tile_img = PILImage.fromarray(mnt_tile)
-                            mnt_tile = np.array(mnt_tile_img.resize((tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
-                        
-                        # Placer dans la grille (Y inversé : le sud en bas)
-                        py = (nb_tiles - 1 - ty) * tile_pixel_size
-                        px = tx * tile_pixel_size
-                        mns_full[py:py+tile_pixel_size, px:px+tile_pixel_size] = mns_tile
-                        mnt_full[py:py+tile_pixel_size, px:px+tile_pixel_size] = mnt_tile
-                        tiles_ok += 1
-                    else:
-                        print(f"  ⚠ Tuile [{ty},{tx}] HTTP {r_mns.status_code}/{r_mnt.status_code}")
-                        
-                except Exception as te:
-                    print(f"  ⚠ Tuile [{ty},{tx}] erreur: {te}")
+                        if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
+                            'image' in r_mns.headers.get('content-type', '')):
+                            
+                            mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                            mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                            
+                            if mns_tile.shape != (tile_pixel_size, tile_pixel_size):
+                                mns_tile = np.array(PILImage.fromarray(mns_tile).resize(
+                                    (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                            if mnt_tile.shape != (tile_pixel_size, tile_pixel_size):
+                                mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize(
+                                    (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                            
+                            py = (nb_tiles - 1 - ty) * tile_pixel_size
+                            px = tx * tile_pixel_size
+                            mns_grid[py:py+tile_pixel_size, px:px+tile_pixel_size] = mns_tile
+                            mnt_grid[py:py+tile_pixel_size, px:px+tile_pixel_size] = mnt_tile
+                            tiles_ok_sr += 1
+                            
+                    except Exception as te:
+                        print(f"  ⚠ Tuile [{ty},{tx}] SR offset {sr_idx} erreur: {te}")
+            
+            if tiles_ok_sr > 0:
+                mns_grids.append(mns_grid)
+                mnt_grids.append(mnt_grid)
+                if sr_idx == 0:
+                    tiles_ok = tiles_ok_sr
+                    tiles_total = nb_tiles * nb_tiles
+            
+            print(f"  📡 SR pass {sr_idx+1}/{len(sr_offsets)}: {tiles_ok_sr}/{nb_tiles**2} tuiles OK")
         
-        if tiles_ok > 0:
+        if len(mns_grids) > 0:
+            if use_superres and len(mns_grids) == 4:
+                # ── Entrelacement sub-pixel → grille 2× ──
+                # Grille (0,0) aux positions paires (2i, 2j)
+                # Grille (0,0.5) aux positions (2i, 2j+1)
+                # Grille (0.5,0) aux positions (2i+1, 2j)
+                # Grille (0.5,0.5) aux positions (2i+1, 2j+1)
+                mns_full = np.zeros((final_size, final_size), dtype=np.float32)
+                mnt_full = np.zeros((final_size, final_size), dtype=np.float32)
+                
+                mns_full[0::2, 0::2] = mns_grids[0]  # (0,0)
+                mns_full[0::2, 1::2] = mns_grids[1]  # (0, +0.5px)
+                mns_full[1::2, 0::2] = mns_grids[2]  # (+0.5px, 0)
+                mns_full[1::2, 1::2] = mns_grids[3]  # (+0.5px, +0.5px)
+                
+                mnt_full[0::2, 0::2] = mnt_grids[0]
+                mnt_full[0::2, 1::2] = mnt_grids[1]
+                mnt_full[1::2, 0::2] = mnt_grids[2]
+                mnt_full[1::2, 1::2] = mnt_grids[3]
+                
+                print(f"✓ Super-résolution: 4 passes entrelacées → {final_size}×{final_size} "
+                      f"({1/final_res**2:.0f} pts/m²)")
+            else:
+                # Pas de super-résolution ou passes insuffisantes
+                mns_full = mns_grids[0]
+                mnt_full = mnt_grids[0]
+                final_size = base_grid_size
+                final_res = actual_res
             # MNH = MNS - MNT (hauteur au-dessus du sol)
             mnh_full = mns_full - mnt_full
             
@@ -864,8 +918,9 @@ def api_lidar_3d_data():
                 "mnh_max": round(float(mnh_full.max()), 1),
                 "grid_size": json_grid_size,
                 "full_resolution": final_size,
-                "resolution_m_per_px": round(actual_res, 3),
-                "pts_per_m2": round(1 / actual_res**2, 1),
+                "resolution_m_per_px": round(final_res, 4),
+                "pts_per_m2": round(1 / final_res**2, 1),
+                "super_resolution": use_superres and len(mns_grids) == 4,
                 "tiles_used": f"{nb_tiles}x{nb_tiles} ({tiles_ok}/{tiles_total} OK)",
                 "bbox": {
                     "south": south,
@@ -877,8 +932,9 @@ def api_lidar_3d_data():
             
             print(f"✓ LiDAR 3D HD: MNT {mnt_full.min():.0f}-{mnt_full.max():.0f}m, "
                   f"MNS max={mns_full.max():.0f}m, MNH max={mnh_full.max():.1f}m, "
-                  f"grille={final_size}×{final_size} ({tiles_ok}/{tiles_total} tuiles), "
-                  f"{1/actual_res**2:.0f} pts/m²")
+                  f"grille={final_size}×{final_size} ({tiles_ok}/{nb_tiles**2} tuiles), "
+                  f"SR={'4x' if use_superres and len(mns_grids)==4 else 'off'}, "
+                  f"{1/final_res**2:.0f} pts/m²")
         else:
             print("⚠ LiDAR 3D: aucune tuile récupérée")
             
