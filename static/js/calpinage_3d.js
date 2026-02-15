@@ -2505,14 +2505,6 @@ class Calpinage3DViewer {
      * @param {string} roofType - Type de couverture
      * @param {string} wallType - Type de mur
      */
-     * 
-     * @param {Array} localCoords - Sommets du polygone [{x, z}]
-     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
-     * @param {number} roofBaseY - Y du haut des murs
-     * @param {Function} heightFunc - (across, along) => hauteur additionnelle au-dessus de roofBaseY
-     * @param {string} roofType - Type de couverture
-     * @param {string} wallType - Type de mur
-     */
     
     /**
      * Crée un toit multi-sections par maillage grillé.
