@@ -1213,7 +1213,7 @@ def api_lidar_roof_analysis():
     except Exception as e:
         print(f"⚠ BD TOPO roof error: {e}")
     
-    # === 2. Analyse LiDAR haute résolution sur le bâtiment (TUILAGE ADAPTATIF) ===
+    # === 2. Analyse LiDAR haute résolution sur le bâtiment (TUILAGE + SUPER-RÉSOLUTION + BLOCS) ===
     if building_coords:
         try:
             lons_b = [c[0] for c in building_coords]
@@ -1246,15 +1246,23 @@ def api_lidar_roof_analysis():
             wms_url = "https://data.geopf.fr/wms-r/wms"
             WMS_MAX = 1024
             
-            # Résolution cible adaptée à la taille de la toiture
-            # Grosse toiture (>5000m²) → on veut toujours 0.15m/px min
-            # Petite toiture → 64px suffisent
-            target_res = 0.15  # m/pixel
+            # ── Résolution cible adaptée à la taille de la toiture ──
+            # Grande toiture → résolution plus fine + super-résolution
+            if bldg_area_m2 > 2000:
+                target_res = 0.10  # 10cm/px pour très grandes toitures
+                use_sr_roof = True
+            elif bldg_area_m2 > 500:
+                target_res = 0.15
+                use_sr_roof = True
+            else:
+                target_res = 0.20
+                use_sr_roof = False
+            
+            sr_factor = 2 if use_sr_roof else 1
             
             # Pixels nécessaires sur chaque axe
             pixels_needed_x = int(zone_width_m / target_res)
             pixels_needed_y = int(zone_height_m / target_res)
-            pixels_needed = max(pixels_needed_x, pixels_needed_y)
             
             # Nombre de tuiles
             nb_tiles_x = max(1, math.ceil(pixels_needed_x / WMS_MAX))
@@ -1262,73 +1270,125 @@ def api_lidar_roof_analysis():
             tile_px_x = min(WMS_MAX, pixels_needed_x)
             tile_px_y = min(WMS_MAX, pixels_needed_y)
             
-            # Taille finale de la grille assemblée
-            final_w = tile_px_x * nb_tiles_x
-            final_h = tile_px_y * nb_tiles_y
+            # Taille de la grille de base (avant SR)
+            base_w = tile_px_x * nb_tiles_x
+            base_h = tile_px_y * nb_tiles_y
             
-            actual_res_x = zone_width_m / final_w
-            actual_res_y = zone_height_m / final_h
+            actual_res_x = zone_width_m / base_w
+            actual_res_y = zone_height_m / base_h
+            
+            # Grille finale avec super-résolution
+            final_w = base_w * sr_factor
+            final_h = base_h * sr_factor
+            final_res_x = zone_width_m / final_w
+            final_res_y = zone_height_m / final_h
             
             print(f"📐 Roof Tiling: bâtiment={bldg_width_m:.0f}×{bldg_height_m:.0f}m ({bldg_area_m2:.0f}m²), "
                   f"zone={zone_width_m:.0f}×{zone_height_m:.0f}m, "
                   f"tuiles={nb_tiles_x}×{nb_tiles_y}, grille={final_w}×{final_h}px, "
-                  f"résol={actual_res_x:.3f}×{actual_res_y:.3f}m/px")
+                  f"SR={'2x' if use_sr_roof else 'off'}, "
+                  f"résol={final_res_x:.3f}×{final_res_y:.3f}m/px ({1/final_res_x**2:.0f} pts/m²)")
             
-            # Pas en degrés par tuile
+            # Pas en degrés par tuile et par pixel
             lat_step = (lat_max - lat_min) / nb_tiles_y
             lon_step = (lon_max - lon_min) / nb_tiles_x
+            half_pixel_lat = lat_step / tile_px_y / 2
+            half_pixel_lon = lon_step / tile_px_x / 2
             
-            # Assemblage
-            mns_full = np.zeros((final_h, final_w), dtype=np.float32)
-            mnt_full = np.zeros((final_h, final_w), dtype=np.float32)
+            # Offsets sub-pixel pour super-résolution
+            if use_sr_roof:
+                sr_offsets = [
+                    (0, 0),
+                    (0, half_pixel_lon),
+                    (half_pixel_lat, 0),
+                    (half_pixel_lat, half_pixel_lon),
+                ]
+            else:
+                sr_offsets = [(0, 0)]
+            
+            mns_grids = []
+            mnt_grids = []
             tiles_ok = 0
             
-            for ty in range(nb_tiles_y):
-                for tx in range(nb_tiles_x):
-                    t_south = lat_min + ty * lat_step
-                    t_north = lat_min + (ty + 1) * lat_step
-                    t_west = lon_min + tx * lon_step
-                    t_east = lon_min + (tx + 1) * lon_step
-                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
-                    
-                    wms_params = {
-                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                        "CRS": "EPSG:4326", "BBOX": t_bbox,
-                        "WIDTH": str(tile_px_x), "HEIGHT": str(tile_px_y),
-                        "FORMAT": "image/tiff", "STYLES": ""
-                    }
-                    
-                    try:
-                        r_mns = requests.get(wms_url, params={
-                            **wms_params,
-                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-                        }, timeout=12)
+            for sr_idx, (d_lat, d_lon) in enumerate(sr_offsets):
+                mns_grid = np.zeros((base_h, base_w), dtype=np.float32)
+                mnt_grid = np.zeros((base_h, base_w), dtype=np.float32)
+                tiles_ok_sr = 0
+                
+                for ty in range(nb_tiles_y):
+                    for tx in range(nb_tiles_x):
+                        t_south = lat_min + ty * lat_step + d_lat
+                        t_north = lat_min + (ty + 1) * lat_step + d_lat
+                        t_west = lon_min + tx * lon_step + d_lon
+                        t_east = lon_min + (tx + 1) * lon_step + d_lon
+                        t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
                         
-                        r_mnt = requests.get(wms_url, params={
-                            **wms_params,
-                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-                        }, timeout=12)
+                        wms_params = {
+                            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                            "CRS": "EPSG:4326", "BBOX": t_bbox,
+                            "WIDTH": str(tile_px_x), "HEIGHT": str(tile_px_y),
+                            "FORMAT": "image/tiff", "STYLES": ""
+                        }
                         
-                        if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
-                            'image' in r_mns.headers.get('content-type', '')):
+                        try:
+                            r_mns = requests.get(wms_url, params={
+                                **wms_params,
+                                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+                            }, timeout=12)
                             
-                            mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
-                            mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                            r_mnt = requests.get(wms_url, params={
+                                **wms_params,
+                                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+                            }, timeout=12)
                             
-                            # Redimensionner si nécessaire
-                            if mns_tile.shape != (tile_px_y, tile_px_x):
-                                mns_tile = np.array(PILImage.fromarray(mns_tile).resize((tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
-                            if mnt_tile.shape != (tile_px_y, tile_px_x):
-                                mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize((tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
-                            
-                            # Placer (Y inversé)
-                            py = (nb_tiles_y - 1 - ty) * tile_px_y
-                            px = tx * tile_px_x
-                            mns_full[py:py+tile_px_y, px:px+tile_px_x] = mns_tile
-                            mnt_full[py:py+tile_px_y, px:px+tile_px_x] = mnt_tile
-                            tiles_ok += 1
-                    except Exception as te:
-                        print(f"  ⚠ Tuile toit [{ty},{tx}] erreur: {te}")
+                            if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
+                                'image' in r_mns.headers.get('content-type', '')):
+                                
+                                mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                                mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                                
+                                if mns_tile.shape != (tile_px_y, tile_px_x):
+                                    mns_tile = np.array(PILImage.fromarray(mns_tile).resize(
+                                        (tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
+                                if mnt_tile.shape != (tile_px_y, tile_px_x):
+                                    mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize(
+                                        (tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
+                                
+                                py = (nb_tiles_y - 1 - ty) * tile_px_y
+                                px = tx * tile_px_x
+                                mns_grid[py:py+tile_px_y, px:px+tile_px_x] = mns_tile
+                                mnt_grid[py:py+tile_px_y, px:px+tile_px_x] = mnt_tile
+                                tiles_ok_sr += 1
+                        except Exception as te:
+                            print(f"  ⚠ Tuile toit [{ty},{tx}] SR{sr_idx} erreur: {te}")
+                
+                if tiles_ok_sr > 0:
+                    mns_grids.append(mns_grid)
+                    mnt_grids.append(mnt_grid)
+                    if sr_idx == 0:
+                        tiles_ok = tiles_ok_sr
+            
+            # Assembler avec super-résolution
+            if len(mns_grids) > 0:
+                if use_sr_roof and len(mns_grids) == 4:
+                    mns_full = np.zeros((final_h, final_w), dtype=np.float32)
+                    mnt_full = np.zeros((final_h, final_w), dtype=np.float32)
+                    mns_full[0::2, 0::2] = mns_grids[0]
+                    mns_full[0::2, 1::2] = mns_grids[1]
+                    mns_full[1::2, 0::2] = mns_grids[2]
+                    mns_full[1::2, 1::2] = mns_grids[3]
+                    mnt_full[0::2, 0::2] = mnt_grids[0]
+                    mnt_full[0::2, 1::2] = mnt_grids[1]
+                    mnt_full[1::2, 0::2] = mnt_grids[2]
+                    mnt_full[1::2, 1::2] = mnt_grids[3]
+                    print(f"  ✓ SR roof: 4 passes → {final_w}×{final_h}px ({1/final_res_x**2:.0f} pts/m²)")
+                else:
+                    mns_full = mns_grids[0]
+                    mnt_full = mnt_grids[0]
+                    final_w = base_w
+                    final_h = base_h
+                    final_res_x = actual_res_x
+                    final_res_y = actual_res_y
             
             if tiles_ok > 0:
                 # MNH = hauteur au-dessus du sol
@@ -1359,7 +1419,7 @@ def api_lidar_roof_analysis():
                 
                 print(f"✓ Points toit LiDAR HD: {len(roof_points)} pixels sur le bâtiment "
                       f"({bldg_area_m2:.0f}m², {tiles_ok} tuiles, seuil MNH={mnh_threshold}m, "
-                      f"résol={actual_res_x:.3f}m/px → {1/actual_res_x**2:.0f} pts/m²)")
+                      f"résol={final_res_x:.3f}m/px → {1/final_res_x**2:.0f} pts/m²)")
                 
                 if len(roof_points) >= 6:
                     pts = np.array(roof_points)
@@ -1374,246 +1434,305 @@ def api_lidar_roof_analysis():
                     building_is_ew = width_m > length_m
                     
                     # ============================================================
-                    # DÉTECTION MULTI-SHED : gradient + profil transversal
+                    # ANALYSE PAR BLOCS pour grandes toitures (>2000m²)
+                    # Découpe la toiture en sections de ~20m dans la direction
+                    # transversale, analyse chaque bloc indépendamment
                     # ============================================================
-                    # Pour les grandes toitures, on cherche les "dents de scie"
-                    # = alternance faîtage / noue dans la direction transversale
+                    block_size_m = 20.0  # taille de bloc en mètres
+                    
+                    if building_is_ew:
+                        trans_dim = bldg_height_m
+                        long_dim = bldg_width_m
+                        profile_coord = y
+                        long_coord = x
+                    else:
+                        trans_dim = bldg_width_m
+                        long_dim = bldg_height_m
+                        profile_coord = x
+                        long_coord = y
+                    
+                    nb_blocks = max(1, int(round(trans_dim / block_size_m)))
+                    if bldg_area_m2 < 2000:
+                        nb_blocks = 1  # pas de découpe pour petites toitures
+                    
+                    trans_min_global = float(profile_coord.min())
+                    trans_max_global = float(profile_coord.max())
+                    trans_range_global = trans_max_global - trans_min_global
+                    block_width = trans_range_global / nb_blocks
+                    
+                    if nb_blocks > 1:
+                        print(f"📦 Analyse par blocs: {nb_blocks} blocs de ~{block_width:.1f}m "
+                              f"dans la direction transversale ({trans_dim:.0f}m)")
+                    
+                    # Stocker les résultats par bloc
+                    blocks_results = []
+                    
+                    # ============================================================
+                    # DÉTECTION MULTI-SHED : profil transversal PAR BLOC
+                    # ============================================================
                     
                     try:
-                        # 1. Profil transversal moyen (perpendiculaire à l'axe long)
-                        # On découpe la toiture en bandes parallèles à l'axe long
-                        if building_is_ew:
-                            # Bâtiment plus large que long → sheds orientés N-S
-                            # On fait le profil selon Y (Nord-Sud)
-                            profile_coord = y  # coordonnée transversale
-                            long_coord = x     # coordonnée longitudinale
-                            trans_label = "Y (N-S)"
-                            long_label = "X (E-O)"
-                        else:
-                            # Bâtiment plus long que large → sheds orientés E-O
-                            profile_coord = x
-                            long_coord = y
-                            trans_label = "X (E-O)"
-                            long_label = "Y (N-S)"
-                        
-                        # 2. Créer le profil d'altitude moyen transversal
-                        trans_min = float(profile_coord.min())
-                        trans_max = float(profile_coord.max())
-                        trans_range = trans_max - trans_min
-                        
-                        if trans_range < 1.0:
-                            raise ValueError("Toiture trop étroite pour l'analyse transversale")
-                        
-                        # Résolution du profil : ~0.3m par bin
-                        nb_bins = max(10, int(trans_range / 0.3))
-                        bin_edges = np.linspace(trans_min, trans_max, nb_bins + 1)
-                        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-                        
-                        profile_z = np.zeros(nb_bins)
-                        profile_count = np.zeros(nb_bins)
-                        
-                        for i in range(len(profile_coord)):
-                            bin_idx = int((profile_coord[i] - trans_min) / trans_range * (nb_bins - 1))
-                            bin_idx = max(0, min(nb_bins - 1, bin_idx))
-                            profile_z[bin_idx] += z[i]
-                            profile_count[bin_idx] += 1
-                        
-                        # Moyenne par bin (ignorer les bins vides)
-                        valid = profile_count > 0
-                        profile_z[valid] /= profile_count[valid]
-                        profile_z[~valid] = np.nan
-                        
-                        # Interpoler les bins vides
-                        valid_idx = np.where(valid)[0]
-                        if len(valid_idx) > 2:
-                            profile_z = np.interp(np.arange(nb_bins), valid_idx, profile_z[valid_idx])
-                        
-                        # 3. Détection des faîtages et noues (extrema locaux)
-                        # Lissage léger pour réduire le bruit
-                        kernel_size = max(3, nb_bins // 20)
-                        if kernel_size % 2 == 0:
-                            kernel_size += 1
-                        kernel = np.ones(kernel_size) / kernel_size
-                        profile_smooth = np.convolve(profile_z, kernel, mode='same')
-                        
-                        # Dérivée première
-                        dz = np.diff(profile_smooth)
-                        
-                        # Détection des changements de signe (extrema)
-                        ridges = []   # faîtages (maxima locaux)
-                        valleys = []  # noues (minima locaux)
-                        
-                        for i in range(1, len(dz)):
-                            if dz[i-1] > 0 and dz[i] < 0:  # max local = faîtage
-                                ridges.append(i)
-                            elif dz[i-1] < 0 and dz[i] > 0:  # min local = noue
-                                valleys.append(i)
-                        
-                        # Filtrer les faux extrema (amplitude < 0.5m)
-                        min_amplitude = 0.4  # mètres
-                        if ridges and valleys:
-                            all_extrema = sorted([(r, 'ridge') for r in ridges] + [(v, 'valley') for v in valleys], key=lambda x: x[0])
-                            filtered = []
-                            for i, (idx, typ) in enumerate(all_extrema):
-                                if i > 0:
-                                    prev_idx = filtered[-1][0] if filtered else 0
-                                    amplitude = abs(profile_smooth[idx] - profile_smooth[prev_idx])
-                                    if amplitude >= min_amplitude:
-                                        filtered.append((idx, typ))
-                                else:
-                                    filtered.append((idx, typ))
-                            
-                            ridges = [idx for idx, typ in filtered if typ == 'ridge']
-                            valleys = [idx for idx, typ in filtered if typ == 'valley']
-                        
-                        nb_sheds = max(1, len(ridges))
-                        is_multi_shed = nb_sheds >= 2
-                        
-                        print(f"📊 Profil transversal ({trans_label}): {nb_bins} bins, "
-                              f"{len(ridges)} faîtages, {len(valleys)} noues → "
-                              f"{'MULTI-SHED (' + str(nb_sheds) + ' sheds)' if is_multi_shed else 'toit simple'}")
-                        
-                        # 4. Segmentation des pans
-                        # On coupe au niveau des faîtages ET des noues
-                        # Chaque segment entre deux coupes = un pan
-                        
-                        cut_points = sorted(set(ridges + valleys))
-                        
-                        if not cut_points:
-                            # Pas de faîtage détecté → essayer la médiane
-                            cut_points = [nb_bins // 2]
-                        
-                        # Ajouter les bords
-                        segments = []
-                        all_cuts = [0] + cut_points + [nb_bins - 1]
-                        
-                        for i in range(len(all_cuts) - 1):
-                            bin_start = all_cuts[i]
-                            bin_end = all_cuts[i + 1]
-                            trans_start = bin_centers[bin_start] if bin_start < nb_bins else trans_max
-                            trans_end = bin_centers[min(bin_end, nb_bins - 1)]
-                            
-                            # Points dans ce segment
-                            mask = (profile_coord >= trans_start) & (profile_coord < trans_end)
-                            if i == len(all_cuts) - 2:  # dernier segment → inclure le bord
-                                mask = (profile_coord >= trans_start) & (profile_coord <= trans_end + 0.5)
-                            
-                            nb_pts_seg = int(np.sum(mask))
-                            if nb_pts_seg >= 4:
-                                segments.append({
-                                    'mask': mask,
-                                    'trans_start': trans_start,
-                                    'trans_end': trans_end,
-                                    'nb_points': nb_pts_seg,
-                                    'is_ridge_above': bin_end in ridges,
-                                    'is_ridge_below': bin_start in ridges,
-                                })
-                        
-                        print(f"📐 Segments découpés: {len(segments)} pans potentiels "
-                              f"({', '.join(str(s['nb_points']) + ' pts' for s in segments)})")
-                        
-                        # 5. Fitting de chaque pan individuellement
                         pan_counter = 0
-                        overall_info_added = False
                         
-                        for seg_idx, seg in enumerate(segments):
-                            mask = seg['mask']
-                            xp = x[mask]; yp = y[mask]; zp = z[mask]
+                        for block_idx in range(nb_blocks):
+                            # Limites du bloc dans la direction transversale
+                            block_trans_min = trans_min_global + block_idx * block_width
+                            block_trans_max = trans_min_global + (block_idx + 1) * block_width
                             
-                            if len(xp) < 4:
+                            # Sélectionner les points dans ce bloc
+                            block_mask = (profile_coord >= block_trans_min) & (profile_coord < block_trans_max)
+                            if block_idx == nb_blocks - 1:
+                                block_mask = (profile_coord >= block_trans_min) & (profile_coord <= block_trans_max + 0.5)
+                            
+                            block_pts = pts[block_mask]
+                            if len(block_pts) < 6:
+                                print(f"  ⚠ Bloc {block_idx+1}/{nb_blocks}: seulement {len(block_pts)} pts, ignoré")
                                 continue
                             
-                            # Fitting plan : z = a*x + b*y + c
-                            Ap = np.column_stack([xp, yp, np.ones(len(xp))])
-                            try:
-                                cp_coeffs, residuals_p, _, _ = np.linalg.lstsq(Ap, zp, rcond=None)
-                                ap, bp, cp_c = cp_coeffs
-                                
-                                slope = math.degrees(math.atan(math.sqrt(ap**2 + bp**2)))
-                                azimut = math.degrees(math.atan2(ap, bp)) % 360
-                                
-                                pan_rmse = float(np.std(zp - (ap*xp + bp*yp + cp_c)))
-                                
-                                # Dimensions de ce pan
-                                if building_is_ew:
-                                    pan_w = width_m  # longueur le long de l'axe long
-                                    pan_l = abs(seg['trans_end'] - seg['trans_start'])
-                                else:
-                                    pan_w = abs(seg['trans_end'] - seg['trans_start'])
-                                    pan_l = length_m
-                                
-                                pan_area = pan_w * pan_l
-                                
-                                # Centre du pan
-                                pan_cx = float(np.mean(xp))
-                                pan_cy = float(np.mean(yp))
-                                pan_lat = b_center_lat + pan_cy / 111320
-                                pan_lon = b_center_lon + pan_cx / lng_to_m
-                                
-                                # Altitude min/max sur ce pan
-                                z_min_pan = float(np.min(zp))
-                                z_max_pan = float(np.max(zp))
-                                z_range_pan = z_max_pan - z_min_pan
-                                
-                                # Type de pan détecté
-                                if slope < 3:
-                                    pan_type = "plat"
-                                elif seg.get('is_ridge_above') or seg.get('is_ridge_below'):
-                                    pan_type = "shed"
-                                else:
-                                    pan_type = "incliné"
-                                
-                                pan_counter += 1
-                                pan_name = f"Pan {pan_counter}"
-                                if is_multi_shed:
-                                    pan_name = f"Shed {(pan_counter + 1) // 2} - Pan {'A' if pan_counter % 2 == 1 else 'B'}"
-                                
-                                # Confiance basée sur nb de points et RMSE
-                                if len(xp) > 30 and pan_rmse < 0.4:
-                                    confidence = "high"
-                                elif len(xp) > 10 and pan_rmse < 0.8:
-                                    confidence = "medium"
-                                else:
-                                    confidence = "low"
-                                
-                                result["roofs"].append({
-                                    "name": pan_name,
-                                    "type": pan_type,
-                                    "slope_deg": round(slope, 1),
-                                    "azimut_deg": round(azimut, 0),
-                                    "width_m": round(pan_w, 1),
-                                    "length_m": round(pan_l, 1),
-                                    "area_m2": round(pan_area, 1),
-                                    "center": {"lat": round(pan_lat, 7), "lon": round(pan_lon, 7)},
-                                    "altitude_min": round(z_min_pan, 1),
-                                    "altitude_max": round(z_max_pan, 1),
-                                    "altitude_range": round(z_range_pan, 1),
-                                    "rmse": round(pan_rmse, 2),
-                                    "nb_lidar_points": len(xp),
-                                    "confidence": confidence,
-                                })
-                                
-                            except Exception as e:
-                                print(f"  ⚠ Fitting pan {seg_idx}: {e}")
+                            bx = block_pts[:, 0]
+                            by = block_pts[:, 1]
+                            bz = block_pts[:, 2]
+                            
+                            if building_is_ew:
+                                b_profile_coord = by
+                                b_long_coord = bx
+                                trans_label = "Y (N-S)"
+                            else:
+                                b_profile_coord = bx
+                                b_long_coord = by
+                                trans_label = "X (E-O)"
                         
-                        # Ajouter un résumé global de la toiture
+                            # Profil d'altitude transversal pour ce bloc
+                            b_trans_min = float(b_profile_coord.min())
+                            b_trans_max = float(b_profile_coord.max())
+                            b_trans_range = b_trans_max - b_trans_min
+                            
+                            if b_trans_range < 0.5:
+                                continue
+                        
+                            # Résolution du profil : ~0.3m par bin (adapté au bloc)
+                            nb_bins = max(10, int(b_trans_range / 0.3))
+                            bin_edges = np.linspace(b_trans_min, b_trans_max, nb_bins + 1)
+                            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+                            
+                            profile_z = np.zeros(nb_bins)
+                            profile_count = np.zeros(nb_bins)
+                            
+                            for i in range(len(b_profile_coord)):
+                                bin_idx = int((b_profile_coord[i] - b_trans_min) / b_trans_range * (nb_bins - 1))
+                                bin_idx = max(0, min(nb_bins - 1, bin_idx))
+                                profile_z[bin_idx] += bz[i]
+                                profile_count[bin_idx] += 1
+                            
+                            # Moyenne par bin (ignorer les bins vides)
+                            valid = profile_count > 0
+                            profile_z[valid] /= profile_count[valid]
+                            profile_z[~valid] = np.nan
+                            
+                            # Interpoler les bins vides
+                            valid_idx = np.where(valid)[0]
+                            if len(valid_idx) > 2:
+                                profile_z = np.interp(np.arange(nb_bins), valid_idx, profile_z[valid_idx])
+                            
+                            # Lissage léger pour réduire le bruit
+                            kernel_size = max(3, nb_bins // 20)
+                            if kernel_size % 2 == 0:
+                                kernel_size += 1
+                            kernel = np.ones(kernel_size) / kernel_size
+                            profile_smooth = np.convolve(profile_z, kernel, mode='same')
+                            
+                            # Dérivée première
+                            dz_prof = np.diff(profile_smooth)
+                            
+                            # Détection des changements de signe (extrema)
+                            ridges = []   # faîtages (maxima locaux)
+                            valleys = []  # noues (minima locaux)
+                        
+                            for i in range(1, len(dz_prof)):
+                                if dz_prof[i-1] > 0 and dz_prof[i] < 0:  # max local = faîtage
+                                    ridges.append(i)
+                                elif dz_prof[i-1] < 0 and dz_prof[i] > 0:  # min local = noue
+                                    valleys.append(i)
+                            
+                            # Filtrer les faux extrema (amplitude < 0.4m)
+                            min_amplitude = 0.4
+                            if ridges and valleys:
+                                all_extrema = sorted([(r, 'ridge') for r in ridges] + [(v, 'valley') for v in valleys], key=lambda e: e[0])
+                                filtered = []
+                                for i, (idx, typ) in enumerate(all_extrema):
+                                    if i > 0:
+                                        prev_idx = filtered[-1][0] if filtered else 0
+                                        amplitude = abs(profile_smooth[idx] - profile_smooth[prev_idx])
+                                        if amplitude >= min_amplitude:
+                                            filtered.append((idx, typ))
+                                    else:
+                                        filtered.append((idx, typ))
+                                ridges = [idx for idx, typ in filtered if typ == 'ridge']
+                                valleys = [idx for idx, typ in filtered if typ == 'valley']
+                            
+                            block_nb_sheds = max(1, len(ridges))
+                            block_is_multi_shed = block_nb_sheds >= 2
+                            
+                            block_label = f"Bloc {block_idx+1}/{nb_blocks}" if nb_blocks > 1 else "Global"
+                            print(f"📊 {block_label} - Profil ({trans_label}): {nb_bins} bins, "
+                                  f"{len(ridges)} faîtages, {len(valleys)} noues → "
+                                  f"{'MULTI-SHED (' + str(block_nb_sheds) + ')' if block_is_multi_shed else 'simple'}")
+                            
+                            # Segmentation des pans dans ce bloc
+                            cut_points = sorted(set(ridges + valleys))
+                            if not cut_points:
+                                cut_points = [nb_bins // 2]
+                            
+                            segments = []
+                            all_cuts = [0] + cut_points + [nb_bins - 1]
+                            
+                            for si in range(len(all_cuts) - 1):
+                                bin_start = all_cuts[si]
+                                bin_end = all_cuts[si + 1]
+                                trans_start = bin_centers[bin_start] if bin_start < nb_bins else b_trans_max
+                                trans_end = bin_centers[min(bin_end, nb_bins - 1)]
+                                
+                                seg_mask = (b_profile_coord >= trans_start) & (b_profile_coord < trans_end)
+                                if si == len(all_cuts) - 2:
+                                    seg_mask = (b_profile_coord >= trans_start) & (b_profile_coord <= trans_end + 0.5)
+                                
+                                nb_pts_seg = int(np.sum(seg_mask))
+                                if nb_pts_seg >= 4:
+                                    segments.append({
+                                        'mask': seg_mask,
+                                        'trans_start': trans_start,
+                                        'trans_end': trans_end,
+                                        'nb_points': nb_pts_seg,
+                                        'is_ridge_above': bin_end in ridges,
+                                        'is_ridge_below': bin_start in ridges,
+                                    })
+                            
+                            print(f"  📐 {len(segments)} pans ({', '.join(str(s['nb_points']) + ' pts' for s in segments)})")
+                            
+                            # Fitting de chaque pan du bloc
+                            block_pans = []
+                            
+                            for seg_idx, seg in enumerate(segments):
+                                seg_mask = seg['mask']
+                                xp = bx[seg_mask]; yp = by[seg_mask]; zp = bz[seg_mask]
+                                
+                                if len(xp) < 4:
+                                    continue
+                                
+                                Ap = np.column_stack([xp, yp, np.ones(len(xp))])
+                                try:
+                                    cp_coeffs, _, _, _ = np.linalg.lstsq(Ap, zp, rcond=None)
+                                    ap, bp, cp_c = cp_coeffs
+                                    
+                                    slope = math.degrees(math.atan(math.sqrt(ap**2 + bp**2)))
+                                    azimut = math.degrees(math.atan2(ap, bp)) % 360
+                                    pan_rmse = float(np.std(zp - (ap*xp + bp*yp + cp_c)))
+                                    
+                                    # Dimensions du pan
+                                    if building_is_ew:
+                                        pan_w = block_width if nb_blocks > 1 else width_m
+                                        pan_l = abs(seg['trans_end'] - seg['trans_start'])
+                                    else:
+                                        pan_w = abs(seg['trans_end'] - seg['trans_start'])
+                                        pan_l = block_width if nb_blocks > 1 else length_m
+                                    
+                                    pan_area = pan_w * pan_l
+                                    
+                                    # Centre du pan
+                                    pan_cx = float(np.mean(xp))
+                                    pan_cy = float(np.mean(yp))
+                                    pan_lat = b_center_lat + pan_cy / 111320
+                                    pan_lon = b_center_lon + pan_cx / lng_to_m
+                                    
+                                    z_min_pan = float(np.min(zp))
+                                    z_max_pan = float(np.max(zp))
+                                    z_range_pan = z_max_pan - z_min_pan
+                                    
+                                    if slope < 3:
+                                        pan_type = "plat"
+                                    elif seg.get('is_ridge_above') or seg.get('is_ridge_below'):
+                                        pan_type = "shed"
+                                    else:
+                                        pan_type = "incliné"
+                                    
+                                    pan_counter += 1
+                                    if nb_blocks > 1:
+                                        pan_name = f"B{block_idx+1}-Pan {seg_idx+1}"
+                                        if block_is_multi_shed:
+                                            pan_name = f"B{block_idx+1}-Shed {(seg_idx+2)//2}-{'A' if seg_idx%2==0 else 'B'}"
+                                    else:
+                                        pan_name = f"Pan {pan_counter}"
+                                        if block_is_multi_shed:
+                                            pan_name = f"Shed {(pan_counter+1)//2} - Pan {'A' if pan_counter%2==1 else 'B'}"
+                                    
+                                    if len(xp) > 30 and pan_rmse < 0.4:
+                                        confidence = "high"
+                                    elif len(xp) > 10 and pan_rmse < 0.8:
+                                        confidence = "medium"
+                                    else:
+                                        confidence = "low"
+                                    
+                                    pan_info = {
+                                        "name": pan_name,
+                                        "type": pan_type,
+                                        "slope_deg": round(slope, 1),
+                                        "azimut_deg": round(azimut, 0),
+                                        "width_m": round(pan_w, 1),
+                                        "length_m": round(pan_l, 1),
+                                        "area_m2": round(pan_area, 1),
+                                        "center": {"lat": round(pan_lat, 7), "lon": round(pan_lon, 7)},
+                                        "altitude_min": round(z_min_pan, 1),
+                                        "altitude_max": round(z_max_pan, 1),
+                                        "altitude_range": round(z_range_pan, 1),
+                                        "rmse": round(pan_rmse, 2),
+                                        "nb_lidar_points": len(xp),
+                                        "confidence": confidence,
+                                    }
+                                    if nb_blocks > 1:
+                                        pan_info["block"] = block_idx + 1
+                                    
+                                    block_pans.append(pan_info)
+                                    result["roofs"].append(pan_info)
+                                    
+                                except Exception as e:
+                                    print(f"  ⚠ Fitting pan {seg_idx} bloc {block_idx+1}: {e}")
+                            
+                            # Stocker le résumé du bloc
+                            blocks_results.append({
+                                'block_idx': block_idx,
+                                'nb_pans': len(block_pans),
+                                'nb_sheds': block_nb_sheds,
+                                'nb_ridges': len(ridges),
+                                'nb_valleys': len(valleys),
+                                'nb_points': len(block_pts),
+                                'pans': block_pans,
+                            })
+                        
+                        # ── Fin boucle blocs ── Résumé global ──
+                        total_ridges = sum(br['nb_ridges'] for br in blocks_results)
+                        total_valleys = sum(br['nb_valleys'] for br in blocks_results)
+                        total_sheds = sum(br['nb_sheds'] for br in blocks_results)
+                        
                         overall_slope = 0
                         overall_azimut = 0
                         total_area = 0
                         for roof in result["roofs"]:
-                            a = roof.get("area_m2", 0)
-                            overall_slope += roof.get("slope_deg", 0) * a
-                            overall_azimut += roof.get("azimut_deg", 0) * a
-                            total_area += a
+                            a_r = roof.get("area_m2", 0)
+                            overall_slope += roof.get("slope_deg", 0) * a_r
+                            overall_azimut += roof.get("azimut_deg", 0) * a_r
+                            total_area += a_r
                         
                         if total_area > 0:
                             overall_slope /= total_area
                             overall_azimut /= total_area
                         
-                        # Insérer le résumé en premier
+                        roof_type_str = f"multi-shed ({total_sheds} sheds)" if total_sheds >= 2 else ("2 pans" if len(result["roofs"]) == 2 else "mono-pan")
+                        if nb_blocks > 1:
+                            roof_type_str += f" / {nb_blocks} blocs"
+                        
                         summary = {
                             "name": "Toiture complète",
-                            "type": f"multi-shed ({nb_sheds} sheds)" if is_multi_shed else ("2 pans" if len(result["roofs"]) == 2 else "mono-pan"),
+                            "type": roof_type_str,
                             "slope_deg_avg": round(overall_slope, 1),
                             "azimut_deg_avg": round(overall_azimut, 0),
                             "width_m": round(width_m, 1),
@@ -1621,28 +1740,31 @@ def api_lidar_roof_analysis():
                             "area_m2": round(width_m * length_m, 1),
                             "altitude_avg": round(float(np.mean(z)), 1),
                             "nb_pans": len(result["roofs"]),
-                            "nb_sheds": nb_sheds,
-                            "nb_ridges": len(ridges),
-                            "nb_valleys": len(valleys),
+                            "nb_sheds": total_sheds,
+                            "nb_blocks": nb_blocks,
+                            "nb_ridges": total_ridges,
+                            "nb_valleys": total_valleys,
                             "nb_lidar_points": len(roof_points),
-                            "resolution_m_per_px": round(actual_res_x, 3),
+                            "resolution_m_per_px": round(final_res_x, 3),
+                            "super_resolution": use_sr,
                         }
                         result["roofs"].insert(0, summary)
                         
-                        print(f"✓ Analyse toit: {len(result['roofs'])-1} pan(s), "
-                              f"{'multi-shed ' + str(nb_sheds) if is_multi_shed else 'simple'}, "
+                        print(f"✓ Analyse toit: {len(result['roofs'])-1} pan(s) sur {nb_blocks} bloc(s), "
                               f"pente moy={overall_slope:.1f}°, azimut moy={overall_azimut:.0f}°")
                     
                     except Exception as e:
                         # Fallback : fitting plan unique simple
-                        print(f"⚠ Analyse multi-shed échouée ({e}), fallback plan unique")
+                        print(f"⚠ Analyse par blocs échouée ({e}), fallback plan unique")
+                        import traceback
+                        traceback.print_exc()
                         try:
                             A = np.column_stack([x, y, np.ones(len(x))])
                             coeffs, _, _, _ = np.linalg.lstsq(A, z, rcond=None)
-                            a, b, c = coeffs
-                            slope_deg = math.degrees(math.atan(math.sqrt(a**2 + b**2)))
-                            azimut_deg = math.degrees(math.atan2(a, b)) % 360
-                            rmse = float(np.std(z - (a*x + b*y + c)))
+                            a_f, b_f, c_f = coeffs
+                            slope_deg = math.degrees(math.atan(math.sqrt(a_f**2 + b_f**2)))
+                            azimut_deg = math.degrees(math.atan2(a_f, b_f)) % 360
+                            rmse = float(np.std(z - (a_f*x + b_f*y + c_f)))
                             
                             result["roofs"].append({
                                 "name": "Toiture complète",
