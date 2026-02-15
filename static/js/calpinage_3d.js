@@ -1167,114 +1167,138 @@ class Calpinage3DViewer {
                     ridgeOffset: ridgePos - 0.5, acrossRange,
                     score: ridgeExtra * 0.1,
                     leftDrop: 0, rightDrop: 0,
-                    peaks: [{ idx: maxIdx, pos: ridgePos, h: maxProfileH, prominence: ridgeExtra }],
-                    valleys: [],
-                    sawtoothScore: 0, signChanges: 0, nDetectedRidges: 1
+                    bestN: 1, bestModel: 'gable', bestR2: 0,
+                    sawtoothScore: 0, nDetectedRidges: 1
                 };
             }
             
-            // ── Gradient du profil lissé ──
-            const grad = [];
-            for (let i = 1; i < smoothH.length; i++) {
-                grad.push(smoothH[i] - smoothH[i - 1]);
+            // ═══════════════════════════════════════════════════════════
+            // AJUSTEMENT TRIGONOMÉTRIQUE : tester N=1..maxN
+            // ═══════════════════════════════════════════════════════════
+            // Positions normalisées [0, 1] et hauteurs lissées
+            const xs = profile.map(p => p.pos);
+            const ys = smoothH.slice();
+            const n = xs.length;
+            
+            // Moyenne et variance totale de y (pour calcul R²)
+            const yMean = ys.reduce((s, y) => s + y, 0) / n;
+            const ssTot = ys.reduce((s, y) => s + (y - yMean) ** 2, 0);
+            
+            if (ssTot < 0.001) {
+                return {
+                    profile, projected, ridgePos, ridgeExtra,
+                    ridgeOffset: ridgePos - 0.5, acrossRange,
+                    score: ridgeExtra * 0.1,
+                    leftDrop: 0, rightDrop: 0,
+                    bestN: 1, bestModel: 'gable', bestR2: 0,
+                    sawtoothScore: 0, nDetectedRidges: 1
+                };
             }
             
-            // ── Détecter pics et vallées par maximum/minimum local ──
-            const peaks = [];
-            const valleys = [];
-            // Seuils adaptatifs : plus bas pour les grands bâtiments (plus de bandes → plus résolu)
-            const minPeakDrop = Math.max(0.08, ridgeExtra * 0.04);
-            const minValleyDepth = Math.max(0.08, ridgeExtra * 0.04);
+            // ── Fonctions modèles ──
+            // Triangle wave (multi-gable) : /\/\/\ avec N pics
+            // Pour N sections, chaque section a un pic au centre
+            const triangleWave = (x, N) => {
+                const xn = ((x * N) % 1 + 1) % 1; // position dans la section [0,1]
+                return 1 - Math.abs(2 * xn - 1);   // 0 aux bords, 1 au centre
+            };
             
-            for (let i = 1; i < smoothH.length - 1; i++) {
-                // Pic : plus haut que les 2 voisins immédiats
-                if (smoothH[i] > smoothH[i - 1] && smoothH[i] > smoothH[i + 1]) {
-                    const drop = smoothH[i] - Math.max(smoothH[i - 1], smoothH[i + 1]);
-                    if (drop > minPeakDrop) {
-                        peaks.push({ idx: i, pos: profile[i].pos, h: smoothH[i], prominence: drop });
+            // Sawtooth wave (multi-shed) : /|/|/| avec N sections
+            const sawtoothWave = (x, N) => {
+                return ((x * N) % 1 + 1) % 1; // rampe 0→1 dans chaque section
+            };
+            
+            // ── Régression linéaire y = a*model(x) + b ──
+            // Minimise sum((yi - a*mi - b)²) → a et b analytiques
+            const fitModel = (modelFunc, N) => {
+                let sumM = 0, sumY = 0, sumMY = 0, sumM2 = 0;
+                for (let i = 0; i < n; i++) {
+                    const m = modelFunc(xs[i], N);
+                    sumM += m;
+                    sumY += ys[i];
+                    sumMY += m * ys[i];
+                    sumM2 += m * m;
+                }
+                const denom = n * sumM2 - sumM * sumM;
+                if (Math.abs(denom) < 1e-10) return { a: 0, b: yMean, r2: 0, ssRes: ssTot };
+                
+                const a = (n * sumMY - sumM * sumY) / denom;
+                const b = (sumY - a * sumM) / n;
+                
+                let ssRes = 0;
+                for (let i = 0; i < n; i++) {
+                    const predicted = a * modelFunc(xs[i], N) + b;
+                    ssRes += (ys[i] - predicted) ** 2;
+                }
+                const r2 = 1 - ssRes / ssTot;
+                return { a, b, r2, ssRes };
+            };
+            
+            // ── Tester N = 1 à maxN pour chaque modèle ──
+            // maxN limité par la résolution du profil (au moins 3 bandes par section)
+            const maxN = Math.min(12, Math.max(1, Math.floor(profile.length / 3)));
+            
+            let bestGable = { N: 1, r2: -1, a: 0, b: 0 };
+            let bestShed = { N: 1, r2: -1, a: 0, b: 0 };
+            
+            for (let N = 1; N <= maxN; N++) {
+                // Tester avec décalage de phase pour le triangle (le faîtage n'est pas
+                // forcément à x=0.5/N)
+                // On teste 3 phases : 0, 0.25/N, 0.5/N
+                for (const phase of [0, 0.25 / N, 0.5 / N]) {
+                    const gableFit = fitModel((x, nn) => triangleWave(x + phase, nn), N);
+                    if (gableFit.r2 > bestGable.r2 && gableFit.a > 0) {
+                        bestGable = { N, r2: gableFit.r2, a: gableFit.a, b: gableFit.b, phase };
                     }
                 }
-                // Vallée : plus bas que les 2 voisins immédiats
-                if (smoothH[i] < smoothH[i - 1] && smoothH[i] < smoothH[i + 1]) {
-                    const depth = Math.min(smoothH[i - 1] - smoothH[i], smoothH[i + 1] - smoothH[i]);
-                    if (depth > minValleyDepth) {
-                        valleys.push({ idx: i, pos: profile[i].pos, h: smoothH[i], depth });
-                    }
+                
+                // Shed : tester aussi la phase inverse (descente au lieu de montée)
+                const shedFit = fitModel(sawtoothWave, N);
+                const shedFitInv = fitModel((x, nn) => 1 - sawtoothWave(x, nn), N);
+                const bestShedFit = shedFit.r2 > shedFitInv.r2 ? shedFit : shedFitInv;
+                if (bestShedFit.r2 > bestShed.r2 && Math.abs(bestShedFit.a) > 0) {
+                    bestShed = { N, r2: bestShedFit.r2, a: bestShedFit.a, b: bestShedFit.b };
                 }
             }
             
-            // Fusionner les pics trop proches (même section)
-            if (peaks.length >= 2) {
-                const minSpacing = 0.06; // 6% de la largeur minimum entre 2 pics
-                const merged = [peaks[0]];
-                for (let i = 1; i < peaks.length; i++) {
-                    if (peaks[i].pos - merged[merged.length - 1].pos < minSpacing) {
-                        if (peaks[i].h > merged[merged.length - 1].h) {
-                            merged[merged.length - 1] = peaks[i];
-                        }
-                    } else {
-                        merged.push(peaks[i]);
-                    }
-                }
-                peaks.length = 0;
-                peaks.push(...merged);
+            // ── Pénalité de complexité (BIC-like) ──
+            // Éviter de surajuster avec trop de sections
+            // Ajuster R² par une pénalité logarithmique : R²_adj = R² - penalty * log(N)
+            const penalty = 0.03;
+            const adjGableR2 = bestGable.r2 - penalty * Math.log(bestGable.N);
+            const adjShedR2 = bestShed.r2 - penalty * Math.log(bestShed.N);
+            
+            // ── Déterminer le meilleur modèle ──
+            let bestN, bestModel, bestR2;
+            if (adjGableR2 >= adjShedR2) {
+                bestN = bestGable.N;
+                bestModel = bestN >= 2 ? 'multi-gable' : 'gable';
+                bestR2 = bestGable.r2;
+            } else {
+                bestN = bestShed.N;
+                bestModel = bestN >= 2 ? 'multi-shed' : 'shed';
+                bestR2 = bestShed.r2;
             }
             
-            // Valider les pics par proéminence relative
-            const validPeaks = peaks.filter(pk => {
-                const leftVals = valleys.filter(v => v.idx < pk.idx);
-                const rightVals = valleys.filter(v => v.idx > pk.idx);
-                const leftRef = leftVals.length > 0 ? leftVals[leftVals.length - 1].h : smoothH[0];
-                const rightRef = rightVals.length > 0 ? rightVals[0].h : smoothH[smoothH.length - 1];
-                const bestDrop = pk.h - Math.max(leftRef, rightRef);
-                pk.prominence = bestDrop;
-                return bestDrop > 0.1;
-            });
-            
-            // Fallback : si aucun pic validé mais ridgeExtra significatif → pic unique
-            if (validPeaks.length === 0 && ridgeExtra > 0.3) {
-                validPeaks.push({ idx: maxIdx, pos: ridgePos, h: maxProfileH, prominence: ridgeExtra });
+            // Vérifier que le N>1 apporte un gain significatif par rapport à N=1
+            const fitN1 = fitModel(triangleWave, 1);
+            const r2Gain = bestR2 - fitN1.r2;
+            if (bestN >= 2 && r2Gain < 0.05) {
+                // Le multi-section n'apporte pas assez → revenir à N=1
+                bestN = 1;
+                bestModel = 'gable';
+                bestR2 = fitN1.r2;
             }
             
-            // ── Comptage des changements de signe du gradient ──
-            let signChanges = 0;
-            const minGrad = Math.max(0.03, ridgeExtra * 0.02);
-            for (let i = 0; i < grad.length - 1; i++) {
-                if ((grad[i] > minGrad && grad[i + 1] < -minGrad) ||
-                    (grad[i] < -minGrad && grad[i + 1] > minGrad)) {
-                    signChanges++;
-                }
-            }
+            // sawtoothScore basé sur le ratio R²(shed) / R²(gable)
+            const sawtoothScore = (bestShed.r2 > 0 && bestGable.r2 > 0) 
+                ? Math.max(0, bestShed.r2 - bestGable.r2) * 3 
+                : 0;
             
-            // ── Détecter le profil en dents de scie (multi-shed) ──
-            let sawtoothScore = 0;
-            if (grad.length >= 4) {
-                let totalRiseMag = 0, totalFallMag = 0;
-                let riseCount = 0, fallCount = 0;
-                for (const g of grad) {
-                    if (g > minGrad) { totalRiseMag += g; riseCount++; }
-                    if (g < -minGrad) { totalFallMag += Math.abs(g); fallCount++; }
-                }
-                if (riseCount > 0 && fallCount > 0) {
-                    const avgRise = totalRiseMag / riseCount;
-                    const avgFall = totalFallMag / fallCount;
-                    const asymmetry = Math.abs(avgRise - avgFall) / Math.max(avgRise + avgFall, 0.01);
-                    if (signChanges >= 3) {
-                        sawtoothScore = asymmetry * Math.min(signChanges / 4, 1.5);
-                    }
-                }
-            }
-            
-            // Nombre de faîtages estimé
-            // Méthode hybride : pics validés OU gradient (signChanges)
-            let nDetectedRidges = 1;
-            
-            if (validPeaks.length >= 2 && valleys.length >= 1) {
-                // Méthode 1 : pics + vallées confirmés
-                nDetectedRidges = validPeaks.length;
-            }
-            
-            console.log(`📊 Profil [${(angle * 180 / Math.PI).toFixed(0)}°]: ${profile.length} bandes, across=${acrossRange.toFixed(1)}m, ridgeExtra=${ridgeExtra.toFixed(2)}m, peaks=${validPeaks.length}, valleys=${valleys.length}, signChanges=${signChanges}, sawtooth=${sawtoothScore.toFixed(2)}, nRidges=${nDetectedRidges}`);
+            console.log(`📊 Profil [${(angle * 180 / Math.PI).toFixed(0)}°]: ${profile.length} bandes, across=${acrossRange.toFixed(1)}m, ridgeExtra=${ridgeExtra.toFixed(2)}m`);
+            console.log(`   📐 Gable: bestN=${bestGable.N}, R²=${bestGable.r2.toFixed(3)}, A=${bestGable.a.toFixed(2)}`);
+            console.log(`   📐 Shed:  bestN=${bestShed.N}, R²=${bestShed.r2.toFixed(3)}, A=${bestShed.a.toFixed(2)}`);
+            console.log(`   ✅ Choix: ${bestModel} N=${bestN}, R²=${bestR2.toFixed(3)}, gain=${r2Gain.toFixed(3)}`);
             
             // ── Score de qualité du profil en tant que faîtage ──
             const leftDrop = maxProfileH - smoothH[0];
@@ -1296,11 +1320,11 @@ class Calpinage3DViewer {
                 score,
                 leftDrop,
                 rightDrop,
-                peaks: validPeaks,
-                valleys,
+                bestN,
+                bestModel,
+                bestR2,
                 sawtoothScore,
-                signChanges,
-                nDetectedRidges
+                nDetectedRidges: bestN
             };
         };
         
@@ -1330,7 +1354,7 @@ class Calpinage3DViewer {
         
         if (bestDir.ridgeExtra < 0.3) return { type: 'flat', ridgeExtra: 0 };
         
-        const { projected, ridgePos, ridgeExtra, ridgeOffset, peaks, valleys, sawtoothScore, signChanges, nDetectedRidges, acrossRange } = bestDir;
+        const { projected, ridgePos, ridgeExtra, ridgeOffset, bestN, bestModel, bestR2, sawtoothScore, nDetectedRidges, acrossRange } = bestDir;
         
         // ═══════════════════════════════════════════════════════════
         // DÉTECTION DU TYPE DE TOIT
@@ -1338,26 +1362,18 @@ class Calpinage3DViewer {
         let roofType;
         let nRidges = 1;
         
-        // ── Multi-faîtage ? ──
-        // Méthode 1 : pics + vallées détectés dans le profil
-        // Méthode 2 : gradient sign changes (détecte même les ondulations faibles)
-        const hasMultiByPeaks = nDetectedRidges >= 2 && acrossRange > 8;
-        const hasMultiByGradient = signChanges >= 4 && acrossRange > 15;
-        
-        if (hasMultiByPeaks || hasMultiByGradient) {
-            if (hasMultiByPeaks) {
-                nRidges = nDetectedRidges;
-            } else {
-                // Estimer le nombre de sections par les changements de gradient
-                // Chaque section = 1 montée + 1 descente = 2 sign changes
-                nRidges = Math.max(2, Math.round(signChanges / 2));
-            }
-            if (sawtoothScore > 0.25) {
+        // ── Type de toit déterminé par ajustement trigonométrique ──
+        // bestModel déjà calculé dans buildProfile (gable, multi-gable, shed, multi-shed)
+        // Mais on doit encore vérifier hip vs gable pour N=1
+        if (bestN >= 2 && bestR2 > 0.3) {
+            // Multi-faîtage confirmé par R² > 0.3
+            nRidges = bestN;
+            if (bestModel === 'multi-shed' || sawtoothScore > 0.15) {
                 roofType = 'multi-shed';
-                console.log(`🏭 Multi-shed détecté : ${nRidges} sections, sawtooth=${sawtoothScore.toFixed(2)}, peaks=${peaks.length}, valleys=${valleys ? valleys.length : 0}, signChanges=${signChanges}`);
+                console.log(`🏭 Multi-shed confirmé : ${nRidges} sections, R²=${bestR2.toFixed(3)}`);
             } else {
                 roofType = 'multi-gable';
-                console.log(`🏠 Multi-gable détecté : ${nRidges} faîtages, peaks=${peaks.length}, valleys=${valleys ? valleys.length : 0}, signChanges=${signChanges}`);
+                console.log(`🏠 Multi-gable confirmé : ${nRidges} faîtages, R²=${bestR2.toFixed(3)}`);
             }
         }
         
@@ -1445,7 +1461,8 @@ class Calpinage3DViewer {
             hMax: hMax,
             ridgeAlongShort: ridgeAlongShort,
             nRidges: nRidges,
-            peaks: bestDir.peaks,
+            bestR2: bestR2,
+            bestModel: bestModel,
         };
     }
     
