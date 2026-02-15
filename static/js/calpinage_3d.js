@@ -501,6 +501,7 @@ class Calpinage3DViewer {
         
         // Marge depuis le bord du toit (acrotère, rive, etc.)
         const marge = 0.30; // 30cm de marge depuis les bords
+        const margeFaitage = 0.50; // 50cm de recul de chaque côté des faîtages
         
         const generatedZones = [];
         
@@ -552,14 +553,15 @@ class Calpinage3DViewer {
             
             if (info.type === 'gable') {
                 // Pan rectangulaire : longueur = axe principal, largeur = demi-shortDim
+                // Le faîtage est à across=0 → recul de 50cm de chaque côté
                 panAlongStart = -halfLong + marge;
                 panAlongEnd = halfLong - marge;
                 if (pi === 0) {
-                    panAcrossStart = marge;
+                    panAcrossStart = margeFaitage; // 50cm du faîtage
                     panAcrossEnd = halfShort - marge;
                 } else {
                     panAcrossStart = -halfShort + marge;
-                    panAcrossEnd = -marge;
+                    panAcrossEnd = -margeFaitage; // 50cm du faîtage
                 }
             } else if (info.type === 'hip') {
                 if (pi < 2) {
@@ -568,11 +570,11 @@ class Calpinage3DViewer {
                     panAlongStart = -ridgeHalfLen + marge;
                     panAlongEnd = ridgeHalfLen - marge;
                     if (pi === 0) {
-                        panAcrossStart = marge;
+                        panAcrossStart = margeFaitage; // 50cm du faîtage
                         panAcrossEnd = halfShort - marge;
                     } else {
                         panAcrossStart = -halfShort + marge;
-                        panAcrossEnd = -marge;
+                        panAcrossEnd = -margeFaitage; // 50cm du faîtage
                     }
                 } else {
                     // Croupes — trop petites en général, skip
@@ -580,12 +582,14 @@ class Calpinage3DViewer {
                     return;
                 }
             } else if (info.type === 'shed') {
+                // Mono-pente : faîtage sur un seul côté
                 panAlongStart = -halfLong + marge;
                 panAlongEnd = halfLong - marge;
                 panAcrossStart = -halfShort + marge;
-                panAcrossEnd = halfShort - marge;
+                panAcrossEnd = halfShort - margeFaitage; // 50cm du faîtage (côté haut)
             } else if (info.type === 'multi-gable') {
                 // Multi-gable : chaque section a 2 pans (A et B)
+                // Le faîtage est au centre de chaque section → recul 50cm de chaque côté
                 const nRidges = info.nRidges || 1;
                 const sectionWidth = obb.shortDim / nRidges;
                 const halfSection = sectionWidth / 2;
@@ -597,14 +601,16 @@ class Calpinage3DViewer {
                 
                 const sectionStart = -halfShort + ridgeIdx * sectionWidth;
                 if (sideIdx === 0) {
+                    // Pan A : du bord de section (noue) au faîtage
                     panAcrossStart = sectionStart + marge;
-                    panAcrossEnd = sectionStart + halfSection - marge;
+                    panAcrossEnd = sectionStart + halfSection - margeFaitage; // 50cm du faîtage
                 } else {
-                    panAcrossStart = sectionStart + halfSection + marge;
+                    // Pan B : du faîtage au bord de section (noue)
+                    panAcrossStart = sectionStart + halfSection + margeFaitage; // 50cm du faîtage
                     panAcrossEnd = sectionStart + sectionWidth - marge;
                 }
             } else if (info.type === 'multi-shed') {
-                // Multi-shed : 1 pan incliné par section
+                // Multi-shed : 1 pan incliné par section, faîtage au bord haut
                 const nRidges = info.nRidges || 1;
                 const sectionWidth = obb.shortDim / nRidges;
                 
@@ -613,7 +619,7 @@ class Calpinage3DViewer {
                 
                 const sectionStart = -halfShort + pi * sectionWidth;
                 panAcrossStart = sectionStart + marge;
-                panAcrossEnd = sectionStart + sectionWidth - marge;
+                panAcrossEnd = sectionStart + sectionWidth - margeFaitage; // 50cm du faîtage
             } else {
                 // Plat
                 panAlongStart = -halfLong + marge;
