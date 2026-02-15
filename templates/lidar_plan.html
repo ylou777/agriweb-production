@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan LiDAR 100m × 100m – AgriWeb</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0e1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 1.6rem;
+            margin-bottom: 6px;
+            background: linear-gradient(90deg, #00e676, #00bcd4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 16px;
+        }
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+        .controls label {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        .controls select, .controls input[type=range] {
+            background: #1a1f30;
+            color: #ccc;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 0.8rem;
+        }
+        .controls input[type=range] { width: 100px; }
+        .ctrl-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .canvas-wrap {
+            position: relative;
+            border: 2px solid #1e2940;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 188, 212, 0.15);
+        }
+        canvas { display: block; cursor: crosshair; }
+        .info-bar {
+            display: flex;
+            gap: 20px;
+            margin-top: 12px;
+            font-size: 0.78rem;
+            color: #999;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .info-bar span { white-space: nowrap; }
+        .info-bar .val { color: #00e676; font-weight: 600; }
+        .legend {
+            display: flex;
+            gap: 14px;
+            margin-top: 14px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            color: #bbb;
+        }
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .tooltip {
+            position: fixed;
+            background: rgba(10,14,26,0.95);
+            border: 1px solid #00bcd4;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.75rem;
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+            color: #ddd;
+            line-height: 1.5;
+        }
+        .btn {
+            background: linear-gradient(135deg, #00796b, #00bcd4);
+            border: none;
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            transition: 0.2s;
+        }
+        .btn:hover { transform: scale(1.05); filter: brightness(1.15); }
+    </style>
+</head>
+<body>
+    <h1>&#x1F4E1; Nuage de Points LiDAR – Vue en Plan</h1>
+    <p class="subtitle">Zone de 100m × 100m — Simulation réaliste de relevé aéroporté</p>
+
+    <div class="controls">
+        <div class="ctrl-group">
+            <label>Densité pts/m²</label>
+            <select id="density">
+                <option value="2">2 pts/m²</option>
+                <option value="5">5 pts/m²</option>
+                <option value="10" selected>10 pts/m²</option>
+                <option value="20">20 pts/m²</option>
+                <option value="40">40 pts/m² (HD)</option>
+            </select>
+        </div>
+        <div class="ctrl-group">
+            <label>Coloration</label>
+            <select id="colorMode">
+                <option value="height" selected>Par altitude (Z)</option>
+                <option value="class">Par classification</option>
+                <option value="intensity">Par intensité</option>
+                <option value="return">Par n° de retour</option>
+            </select>
+        </div>
+        <div class="ctrl-group">
+            <label>Taille point</label>
+            <input type="range" id="pointSize" min="1" max="5" value="2" step="0.5">
+        </div>
+        <div class="ctrl-group">
+            <label>&nbsp;</label>
+            <button class="btn" onclick="regenerate()">⟳ Régénérer</button>
+        </div>
+    </div>
+
+    <div class="canvas-wrap">
+        <canvas id="lidarCanvas" width="800" height="800"></canvas>
+    </div>
+
+    <div class="info-bar" id="infoBar">
+        <span>Points : <span class="val" id="nbPoints">—</span></span>
+        <span>Z min : <span class="val" id="zMin">—</span> m</span>
+        <span>Z max : <span class="val" id="zMax">—</span> m</span>
+        <span>Bâtiments : <span class="val" id="nbBuildings">—</span></span>
+        <span>Arbres : <span class="val" id="nbTrees">—</span></span>
+        <span>Curseur : <span class="val" id="cursorPos">—</span></span>
+    </div>
+
+    <div class="legend" id="legendContainer"></div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+    // =========================================================
+    //  Simulation de LiDAR aéroporté sur 100m × 100m
+    // =========================================================
+    const canvas = document.getElementById('lidarCanvas');
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const ZONE = 100; // mètres
+    const scale = W / ZONE;
+
+    // Classifications LiDAR (ASPRS)
+    const CLASS = {
+        GROUND: 2,
+        LOW_VEG: 3,
+        MED_VEG: 4,
+        HIGH_VEG: 5,
+        BUILDING: 6,
+        NOISE: 7,
+        WATER: 9,
+        ROAD: 11
+    };
+
+    const CLASS_NAMES = {
+        2: 'Sol',
+        3: 'Végétation basse',
+        4: 'Végétation moyenne',
+        5: 'Végétation haute (arbres)',
+        6: 'Bâtiment',
+        7: 'Bruit',
+        9: 'Eau',
+        11: 'Route/chemin'
+    };
+
+    const CLASS_COLORS = {
+        2:  '#8B7355',  // Sol : brun
+        3:  '#7CCD7C',  // Veg basse : vert clair
+        4:  '#3CB371',  // Veg moy : vert
+        5:  '#006400',  // Veg haute : vert foncé
+        6:  '#FF6347',  // Bâtiment : rouge-orange
+        7:  '#555555',  // Bruit : gris
+        9:  '#4169E1',  // Eau : bleu
+        11: '#C0C0C0'   // Route : gris clair
+    };
+
+    // Palettes de couleur par altitude
+    function heightColor(z, zMin, zMax) {
+        const t = Math.max(0, Math.min(1, (z - zMin) / (zMax - zMin + 0.001)));
+        // Gradient : bleu → cyan → vert → jaune → rouge
+        let r, g, b;
+        if (t < 0.25) {
+            const s = t / 0.25;
+            r = 0; g = Math.round(100 * s); b = Math.round(200 + 55 * s);
+        } else if (t < 0.5) {
+            const s = (t - 0.25) / 0.25;
+            r = 0; g = Math.round(100 + 155 * s); b = Math.round(255 - 200 * s);
+        } else if (t < 0.75) {
+            const s = (t - 0.5) / 0.25;
+            r = Math.round(255 * s); g = 255; b = 0;
+        } else {
+            const s = (t - 0.75) / 0.25;
+            r = 255; g = Math.round(255 * (1 - s)); b = 0;
+        }
+        return `rgb(${r},${g},${b})`;
+    }
+
+    function intensityColor(intensity) {
+        const v = Math.round(40 + 215 * intensity);
+        return `rgb(${v},${Math.round(v*0.95)},${Math.round(v*0.85)})`;
+    }
+
+    function returnColor(retNum) {
+        const colors = ['#00ff88','#ffaa00','#ff4466','#aa44ff'];
+        return colors[Math.min(retNum - 1, 3)];
+    }
+
+    // ── Génération du terrain (Perlin simplifié) ──
+    function noise2D(x, y) {
+        const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+        return n - Math.floor(n);
+    }
+
+    function smoothNoise(x, y) {
+        const ix = Math.floor(x), iy = Math.floor(y);
+        const fx = x - ix, fy = y - iy;
+        const sx = fx * fx * (3 - 2 * fx);
+        const sy = fy * fy * (3 - 2 * fy);
+        const n00 = noise2D(ix, iy), n10 = noise2D(ix+1, iy);
+        const n01 = noise2D(ix, iy+1), n11 = noise2D(ix+1, iy+1);
+        return (n00*(1-sx)+n10*sx)*(1-sy) + (n01*(1-sx)+n11*sx)*sy;
+    }
+
+    function terrainHeight(x, y) {
+        // Altitude de base : terrain légèrement vallonné (~145m)
+        let h = 145;
+        h += smoothNoise(x*0.02, y*0.02) * 3.0;
+        h += smoothNoise(x*0.05, y*0.05) * 1.5;
+        h += smoothNoise(x*0.12, y*0.12) * 0.4;
+        return h;
+    }
+
+    // ── Structures : bâtiments et arbres ──
+    let buildings = [];
+    let trees = [];
+    let roads = [];
+    let waterZones = [];
+
+    function generateStructures() {
+        buildings = [];
+        trees = [];
+        roads = [];
+        waterZones = [];
+
+        // Bâtiments (5 à 10)
+        const nbBat = 5 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < nbBat; i++) {
+            const w = 6 + Math.random() * 14;
+            const d = 6 + Math.random() * 12;
+            const cx = 10 + Math.random() * 80;
+            const cy = 10 + Math.random() * 80;
+            const h = 4 + Math.random() * 10;
+            const roofType = Math.random() > 0.5 ? 'gable' : 'flat';
+            buildings.push({ cx, cy, w, d, h, roofType });
+        }
+
+        // Arbres (20 à 50)
+        const nbTree = 20 + Math.floor(Math.random() * 31);
+        for (let i = 0; i < nbTree; i++) {
+            const x = 3 + Math.random() * 94;
+            const y = 3 + Math.random() * 94;
+            const r = 1.5 + Math.random() * 3.5;
+            const h = 4 + Math.random() * 14;
+            trees.push({ x, y, r, h });
+        }
+
+        // Routes (2-3 chemins)
+        const nbRoads = 2 + Math.floor(Math.random() * 2);
+        for (let i = 0; i < nbRoads; i++) {
+            const horizontal = Math.random() > 0.5;
+            if (horizontal) {
+                const y = 15 + Math.random() * 70;
+                const roadW = 3 + Math.random() * 3;
+                roads.push({ x1: 0, y1: y, x2: 100, y2: y + (Math.random()-0.5)*15, w: roadW });
+            } else {
+                const x = 15 + Math.random() * 70;
+                const roadW = 3 + Math.random() * 3;
+                roads.push({ x1: x, y1: 0, x2: x + (Math.random()-0.5)*15, y2: 100, w: roadW });
+            }
+        }
+
+        // Petite mare / eau
+        if (Math.random() > 0.5) {
+            waterZones.push({
+                cx: 20 + Math.random() * 60,
+                cy: 20 + Math.random() * 60,
+                rx: 3 + Math.random() * 6,
+                ry: 2 + Math.random() * 5
+            });
+        }
+    }
+
+    function isOnRoad(x, y) {
+        for (const road of roads) {
+            // Interpolation ligne
+            const dx = road.x2 - road.x1, dy = road.y2 - road.y1;
+            const len = Math.sqrt(dx*dx + dy*dy);
+            const t = Math.max(0, Math.min(1, ((x-road.x1)*dx + (y-road.y1)*dy) / (len*len)));
+            const px = road.x1 + t * dx, py = road.y1 + t * dy;
+            const dist = Math.sqrt((x-px)**2 + (y-py)**2);
+            if (dist < road.w / 2) return true;
+        }
+        return false;
+    }
+
+    function isInWater(x, y) {
+        for (const wz of waterZones) {
+            if (((x-wz.cx)/wz.rx)**2 + ((y-wz.cy)/wz.ry)**2 < 1) return true;
+        }
+        return false;
+    }
+
+    // ── Génération des points LiDAR ──
+    let points = [];
+
+    function classifyPoint(x, y, z) {
+        // Bâtiment ?
+        for (const b of buildings) {
+            if (x > b.cx - b.w/2 && x < b.cx + b.w/2 &&
+                y > b.cy - b.d/2 && y < b.cy + b.d/2) {
+                const groundZ = terrainHeight(x, y);
+                if (z > groundZ + 1.5) return CLASS.BUILDING;
+            }
+        }
+        // Arbre ?
+        for (const t of trees) {
+            const dist = Math.sqrt((x-t.x)**2 + (y-t.y)**2);
+            if (dist < t.r) {
+                const groundZ = terrainHeight(x, y);
+                if (z > groundZ + 0.5) {
+                    if (z - groundZ < 2) return CLASS.LOW_VEG;
+                    if (z - groundZ < 5) return CLASS.MED_VEG;
+                    return CLASS.HIGH_VEG;
+                }
+            }
+        }
+        if (isInWater(x, y)) return CLASS.WATER;
+        if (isOnRoad(x, y)) return CLASS.ROAD;
+        // Végétation basse aléatoire
+        const groundZ = terrainHeight(x, y);
+        if (z - groundZ > 0.2 && z - groundZ < 1.5) return CLASS.LOW_VEG;
+        return CLASS.GROUND;
+    }
+
+    function generatePoints() {
+        points = [];
+        const density = parseInt(document.getElementById('density').value);
+        const totalPts = density * ZONE * ZONE;
+
+        for (let i = 0; i < totalPts; i++) {
+            const x = Math.random() * ZONE;
+            const y = Math.random() * ZONE;
+            let z = terrainHeight(x, y);
+            let returnNum = 1;
+            let maxReturns = 1;
+            let intensity = 0.3 + Math.random() * 0.4;
+
+            // Bâtiment → points sur le toit
+            let onBuilding = false;
+            for (const b of buildings) {
+                if (x > b.cx - b.w/2 && x < b.cx + b.w/2 &&
+                    y > b.cy - b.d/2 && y < b.cy + b.d/2) {
+                    onBuilding = true;
+                    if (Math.random() > 0.15) {
+                        // Point sur le toit
+                        let roofH = b.h;
+                        if (b.roofType === 'gable') {
+                            // Toit à deux pans
+                            const relX = (x - (b.cx - b.w/2)) / b.w;
+                            roofH += (1 - 2 * Math.abs(relX - 0.5)) * 2.5;
+                        }
+                        z += roofH + (Math.random() - 0.5) * 0.15;
+                        intensity = 0.5 + Math.random() * 0.3;
+                        returnNum = 1;
+                    } else {
+                        // Quelques points au sol (multi-retour)
+                        z += Math.random() * 0.1;
+                        returnNum = 2;
+                        maxReturns = 2;
+                        intensity = 0.15 + Math.random() * 0.15;
+                    }
+                    break;
+                }
+            }
+
+            // Arbre → couronne + points au sol
+            if (!onBuilding) {
+                for (const t of trees) {
+                    const dist = Math.sqrt((x - t.x)**2 + (y - t.y)**2);
+                    if (dist < t.r) {
+                        if (Math.random() > 0.3) {
+                            // Point dans la couronne
+                            const crown_factor = 1 - (dist / t.r);
+                            const crown_h = t.h * (0.4 + 0.6 * crown_factor);
+                            z += crown_h + (Math.random() - 0.5) * 1.5;
+                            intensity = 0.25 + Math.random() * 0.35;
+                            returnNum = 1;
+                            maxReturns = Math.random() > 0.5 ? 2 : 1;
+                        } else {
+                            // Retour sol sous arbre
+                            z += Math.random() * 0.2;
+                            returnNum = 2;
+                            maxReturns = 2;
+                            intensity = 0.1 + Math.random() * 0.1;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Eau → intensité faible, quasi pas de retour
+            if (isInWater(x, y) && !onBuilding) {
+                z -= 0.3 + Math.random() * 0.5;
+                intensity = 0.02 + Math.random() * 0.08;
+            }
+
+            // Route → sol plat + bonne intensité
+            if (isOnRoad(x, y) && !onBuilding) {
+                z = terrainHeight(x, y) + (Math.random() - 0.5) * 0.05;
+                intensity = 0.5 + Math.random() * 0.3;
+            }
+
+            // Petite herbe aléatoire
+            if (!onBuilding && Math.random() < 0.08) {
+                z += 0.1 + Math.random() * 0.6;
+            }
+
+            // Bruit LiDAR
+            z += (Math.random() - 0.5) * 0.06;
+
+            const cls = classifyPoint(x, y, z);
+
+            points.push({
+                x, y, z,
+                cls,
+                intensity: Math.max(0, Math.min(1, intensity)),
+                returnNum, maxReturns
+            });
+        }
+
+        // Quelques points de bruit
+        const nbNoise = Math.floor(totalPts * 0.002);
+        for (let i = 0; i < nbNoise; i++) {
+            points.push({
+                x: Math.random() * ZONE,
+                y: Math.random() * ZONE,
+                z: terrainHeight(50,50) + 30 + Math.random() * 20,
+                cls: CLASS.NOISE,
+                intensity: Math.random() * 0.1,
+                returnNum: 1,
+                maxReturns: 1
+            });
+        }
+
+        updateStats();
+    }
+
+    // ── Rendu ──
+    function render() {
+        const mode = document.getElementById('colorMode').value;
+        const ptSize = parseFloat(document.getElementById('pointSize').value);
+
+        ctx.fillStyle = '#0a0e1a';
+        ctx.fillRect(0, 0, W, H);
+
+        // Grille 10m
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i <= 10; i++) {
+            const p = i * (W / 10);
+            ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, H); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(W, p); ctx.stroke();
+        }
+
+        // Graduations
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.font = '10px monospace';
+        for (let i = 0; i <= 10; i++) {
+            ctx.fillText(`${i*10}m`, i * (W/10) + 2, H - 3);
+            ctx.fillText(`${i*10}m`, 2, H - i * (H/10) - 3);
+        }
+
+        // Calculer Z range
+        let zMin = Infinity, zMax = -Infinity;
+        for (const p of points) {
+            if (p.cls !== CLASS.NOISE) {
+                zMin = Math.min(zMin, p.z);
+                zMax = Math.max(zMax, p.z);
+            }
+        }
+
+        // Dessiner les points (sol d'abord, bâtiments ensuite)
+        const sorted = [...points].sort((a, b) => a.z - b.z);
+
+        for (const p of sorted) {
+            const sx = p.x * scale;
+            const sy = H - p.y * scale; // Y inversé
+
+            let color;
+            switch (mode) {
+                case 'height':
+                    color = heightColor(p.z, zMin, zMax);
+                    break;
+                case 'class':
+                    color = CLASS_COLORS[p.cls] || '#888';
+                    break;
+                case 'intensity':
+                    color = intensityColor(p.intensity);
+                    break;
+                case 'return':
+                    color = returnColor(p.returnNum);
+                    break;
+            }
+
+            ctx.fillStyle = color;
+            ctx.fillRect(sx - ptSize/2, sy - ptSize/2, ptSize, ptSize);
+        }
+
+        // Échelle en bas à droite
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px monospace';
+        ctx.fillText('100m × 100m', W - 105, H - 10);
+
+        // Barre d'échelle
+        const barLen = 10 * scale; // 10m
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(W - 20 - barLen, H - 25);
+        ctx.lineTo(W - 20, H - 25);
+        ctx.stroke();
+        ctx.fillStyle = '#ccc';
+        ctx.font = '9px monospace';
+        ctx.fillText('10m', W - 20 - barLen/2 - 8, H - 28);
+
+        // Nord
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText('N ↑', W - 35, 20);
+
+        updateLegend(mode);
+    }
+
+    function updateLegend(mode) {
+        const container = document.getElementById('legendContainer');
+        container.innerHTML = '';
+
+        if (mode === 'class') {
+            for (const [cls, name] of Object.entries(CLASS_NAMES)) {
+                const color = CLASS_COLORS[cls];
+                container.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${color}"></div>${name}</div>`;
+            }
+        } else if (mode === 'height') {
+            const stops = ['#0064FF','#0064C8','#00FF37','#FFFF00','#FF6600','#FF0000'];
+            const labels = ['Z min','','','','','Z max'];
+            for (let i = 0; i < stops.length; i++) {
+                container.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${stops[i]}"></div>${labels[i] || ''}</div>`;
+            }
+        } else if (mode === 'intensity') {
+            container.innerHTML = `<div class="legend-item"><div class="legend-dot" style="background:#333"></div>Faible</div>`;
+            container.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:#aaa"></div>Moyenne</div>`;
+            container.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:#fff"></div>Forte</div>`;
+        } else if (mode === 'return') {
+            container.innerHTML = `<div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div>1er retour</div>`;
+            container.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:#ffaa00"></div>2e retour</div>`;
+            container.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:#ff4466"></div>3e retour</div>`;
+        }
+    }
+
+    function updateStats() {
+        let zMin = Infinity, zMax = -Infinity;
+        const classCounts = {};
+        for (const p of points) {
+            if (p.cls !== CLASS.NOISE) {
+                zMin = Math.min(zMin, p.z);
+                zMax = Math.max(zMax, p.z);
+            }
+            classCounts[p.cls] = (classCounts[p.cls] || 0) + 1;
+        }
+        document.getElementById('nbPoints').textContent = points.length.toLocaleString('fr');
+        document.getElementById('zMin').textContent = zMin.toFixed(1);
+        document.getElementById('zMax').textContent = zMax.toFixed(1);
+        document.getElementById('nbBuildings').textContent = buildings.length;
+        document.getElementById('nbTrees').textContent = trees.length;
+    }
+
+    // ── Tooltip interactif ──
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const worldX = mx / scale;
+        const worldY = (H - my) / scale;
+
+        document.getElementById('cursorPos').textContent =
+            `X=${worldX.toFixed(1)}m  Y=${worldY.toFixed(1)}m`;
+
+        // Trouver le point le plus proche
+        let best = null, bestDist = Infinity;
+        for (const p of points) {
+            const dx = p.x - worldX, dy = p.y - worldY;
+            const d = dx*dx + dy*dy;
+            if (d < bestDist) { bestDist = d; best = p; }
+        }
+
+        const tooltip = document.getElementById('tooltip');
+        if (best && bestDist < 2) {
+            tooltip.style.display = 'block';
+            tooltip.style.left = (e.clientX + 14) + 'px';
+            tooltip.style.top = (e.clientY - 10) + 'px';
+            tooltip.innerHTML = `
+                <b>Point LiDAR</b><br>
+                X : ${best.x.toFixed(2)} m<br>
+                Y : ${best.y.toFixed(2)} m<br>
+                Z : ${best.z.toFixed(2)} m<br>
+                Classe : ${CLASS_NAMES[best.cls] || best.cls}<br>
+                Intensité : ${(best.intensity * 255).toFixed(0)}<br>
+                Retour : ${best.returnNum}/${best.maxReturns}
+            `;
+        } else {
+            tooltip.style.display = 'none';
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        document.getElementById('tooltip').style.display = 'none';
+    });
+
+    // ── Contrôles ──
+    document.getElementById('density').addEventListener('change', regenerate);
+    document.getElementById('colorMode').addEventListener('change', render);
+    document.getElementById('pointSize').addEventListener('input', render);
+
+    function regenerate() {
+        generateStructures();
+        generatePoints();
+        render();
+    }
+
+    // Init
+    regenerate();
+    </script>
+</body>
+</html>

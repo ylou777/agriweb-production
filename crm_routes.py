@@ -4705,44 +4705,94 @@ def register_autoconso_routes(app):
             'resolution': resolution
         }
         
-        # ---- 1. Terrain MNS + MNT via WMS-R (GeoTIFF) ----
+        # ---- 1. Terrain MNS + MNT via WMS-R (GeoTIFF) — TUILAGE HD ----
         try:
             lat_deg = radius / 111320
             lon_deg = radius / (111320 * math.cos(math.radians(lat)))
             
-            bbox_str = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
-            
             wms_url = "https://data.geopf.fr/wms-r/wms"
-            wms_common = {
-                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                "CRS": "EPSG:4326", "BBOX": bbox_str,
-                "WIDTH": str(resolution), "HEIGHT": str(resolution),
-                "FORMAT": "image/tiff", "STYLES": ""
-            }
+            WMS_MAX = 1024  # limite WMS IGN
             
-            r_mns = requests.get(wms_url, params={
-                **wms_common,
-                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-            }, timeout=12)
+            # Résolution cible : 0.15m/pixel → ~44 pts/m²
+            target_res = 0.15
+            zone_m = radius * 2
+            total_pixels_needed = int(zone_m / target_res)
             
-            r_mnt = requests.get(wms_url, params={
-                **wms_common,
-                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-            }, timeout=12)
+            nb_tiles = max(1, math.ceil(total_pixels_needed / WMS_MAX))
+            tile_pixel_size = min(WMS_MAX, total_pixels_needed)
+            tile_zone_m = zone_m / nb_tiles
+            actual_res = tile_zone_m / tile_pixel_size
+            final_size = tile_pixel_size * nb_tiles
             
-            if r_mns.status_code == 200 and r_mnt.status_code == 200 and \
-               r_mns.headers.get('content-type', '').startswith('image'):
-                mns_img = PILImage.open(io.BytesIO(r_mns.content))
-                mnt_img = PILImage.open(io.BytesIO(r_mnt.content))
+            south = lat - lat_deg
+            north = lat + lat_deg
+            west = lon - lon_deg
+            east = lon + lon_deg
+            
+            lat_step = (north - south) / nb_tiles
+            lon_step = (east - west) / nb_tiles
+            
+            mns_full = np.zeros((final_size, final_size), dtype=np.float32)
+            mnt_full = np.zeros((final_size, final_size), dtype=np.float32)
+            tiles_ok = 0
+            
+            print(f"📐 CRM LiDAR Tiling: zone={zone_m}m, tuiles={nb_tiles}×{nb_tiles}, "
+                  f"résol={actual_res:.3f}m/px ({1/actual_res**2:.0f} pts/m²)")
+            
+            for ty in range(nb_tiles):
+                for tx in range(nb_tiles):
+                    t_south = south + ty * lat_step
+                    t_north = south + (ty + 1) * lat_step
+                    t_west = west + tx * lon_step
+                    t_east = west + (tx + 1) * lon_step
+                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
+                    
+                    wms_params = {
+                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                        "CRS": "EPSG:4326", "BBOX": t_bbox,
+                        "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
+                        "FORMAT": "image/tiff", "STYLES": ""
+                    }
+                    
+                    try:
+                        r_mns = requests.get(wms_url, params={
+                            **wms_params,
+                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+                        }, timeout=12)
+                        
+                        r_mnt = requests.get(wms_url, params={
+                            **wms_params,
+                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+                        }, timeout=12)
+                        
+                        if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
+                            r_mns.headers.get('content-type', '').startswith('image')):
+                            
+                            mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                            mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                            
+                            if mns_tile.shape != (tile_pixel_size, tile_pixel_size):
+                                mns_tile = np.array(PILImage.fromarray(mns_tile).resize((tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                            if mnt_tile.shape != (tile_pixel_size, tile_pixel_size):
+                                mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize((tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                            
+                            py = (nb_tiles - 1 - ty) * tile_pixel_size
+                            px = tx * tile_pixel_size
+                            mns_full[py:py+tile_pixel_size, px:px+tile_pixel_size] = mns_tile
+                            mnt_full[py:py+tile_pixel_size, px:px+tile_pixel_size] = mnt_tile
+                            tiles_ok += 1
+                    except Exception as te:
+                        print(f"  ⚠ CRM Tuile [{ty},{tx}] erreur: {te}")
+            
+            if tiles_ok > 0:
+                mnh_full = mns_full - mnt_full
                 
-                mns_arr = np.array(mns_img, dtype=np.float32)
-                mnt_arr = np.array(mnt_img, dtype=np.float32)
-                mnh_arr = mns_arr - mnt_arr
-                
-                step = max(1, resolution // 64)
-                mns_small = mns_arr[::step, ::step]
-                mnt_small = mnt_arr[::step, ::step]
-                mnh_small = mnh_arr[::step, ::step]
+                # Sous-échantillonnage pour le JSON (max 128×128 pour la 3D client)
+                json_max = max(64, resolution)
+                step = max(1, final_size // json_max)
+                mns_small = mns_full[::step, ::step]
+                mnt_small = mnt_full[::step, ::step]
+                mnh_small = mnh_full[::step, ::step]
                 
                 result['terrain'] = {
                     'mns': mns_small.tolist(),
@@ -4750,19 +4800,27 @@ def register_autoconso_routes(app):
                     'mnh': mnh_small.tolist(),
                     'width': int(mns_small.shape[1]),
                     'height': int(mns_small.shape[0]),
-                    'mns_min': float(mns_arr.min()),
-                    'mns_max': float(mns_arr.max()),
-                    'mnt_min': float(mnt_arr.min()),
-                    'mnt_max': float(mnt_arr.max()),
-                    'mnh_max': float(mnh_arr.max()),
+                    'mns_min': float(mns_full.min()),
+                    'mns_max': float(mns_full.max()),
+                    'mnt_min': float(mnt_full.min()),
+                    'mnt_max': float(mnt_full.max()),
+                    'mnh_max': float(mnh_full.max()),
+                    'full_resolution': final_size,
+                    'resolution_m_per_px': round(actual_res, 3),
+                    'pts_per_m2': round(1 / actual_res**2, 1),
+                    'tiles_used': f"{nb_tiles}x{nb_tiles} ({tiles_ok}/{nb_tiles**2} OK)",
                     'bbox': {
-                        'south': lat - lat_deg,
-                        'north': lat + lat_deg,
-                        'west': lon - lon_deg,
-                        'east': lon + lon_deg
+                        'south': south,
+                        'north': north,
+                        'west': west,
+                        'east': east
                     }
                 }
-                print(f"  ✓ LiDAR terrain: {mns_small.shape}, MNS={float(mns_arr.min()):.1f}-{float(mns_arr.max()):.1f}m")
+                print(f"  ✓ LiDAR terrain HD: {mns_small.shape}, "
+                      f"MNS={float(mns_full.min()):.1f}-{float(mns_full.max()):.1f}m, "
+                      f"{tiles_ok} tuiles, {1/actual_res**2:.0f} pts/m²")
+            else:
+                print(f"  ⚠ CRM LiDAR: aucune tuile récupérée")
         except Exception as e:
             print(f"  ⚠ LiDAR terrain: {e}")
         

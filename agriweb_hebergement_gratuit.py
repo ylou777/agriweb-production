@@ -677,6 +677,14 @@ def after_request(response):
     return response
 
 # ──────────────────────────────────────────────────────────────
+# Vue plan LiDAR 100m x 100m (simulation)
+# ──────────────────────────────────────────────────────────────
+@app.route('/lidar/plan')
+def lidar_plan_view():
+    """Affiche la visualisation des points LiDAR sur un plan 100m×100m"""
+    return render_template('lidar_plan.html')
+
+# ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/3d-data', methods=['GET'])
@@ -712,81 +720,168 @@ def api_lidar_3d_data():
         "vegetation": [],
     }
     
-    # === 1. LiDAR WMS : MNS et MNT (heightmaps) ===
+    # === 1. LiDAR WMS : MNS et MNT (heightmaps) - TUILAGE HAUTE RÉSOLUTION ===
     try:
+        import numpy as np
+        from PIL import Image as PILImage
+        
         # Bbox autour du point
         lat_deg = radius / 111320.0
         lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
-        bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
         
         wms_url = "https://data.geopf.fr/wms-r/wms"
-        # Résolution LiDAR adaptative (max 1024 = limite WMS IGN)
-        if radius <= 30:
-            tile_size = 1024  # Ultra haute résolution pour vue très proche
-        elif radius <= 60:
-            tile_size = 768   # Très haute résolution
-        elif radius <= 100:
-            tile_size = 512   # Haute résolution
-        else:
-            tile_size = 384   # Grande zone
+        WMS_MAX = 1024  # limite WMS IGN
         
-        wms_common = {
-            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-            "CRS": "EPSG:4326", "BBOX": bbox,
-            "WIDTH": str(tile_size), "HEIGHT": str(tile_size),
-            "FORMAT": "image/tiff", "STYLES": ""
-        }
+        # Résolution cible en m/pixel : 0.15m → ~44 pts/m²
+        # Pour les grandes toitures (>5000m² → ~70m côté), on veut du détail fin
+        target_res = 0.15  # mètres par pixel
         
-        # MNS (surface - avec bâtiments)
-        r_mns = requests.get(wms_url, params={
-            **wms_common,
-            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-        }, timeout=10)
+        # Zone totale en mètres
+        zone_m = radius * 2  # ex: radius=100 → 200m
         
-        # MNT (terrain seul)
-        r_mnt = requests.get(wms_url, params={
-            **wms_common,
-            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-        }, timeout=10)
+        # Nombre total de pixels nécessaires pour la résolution cible
+        total_pixels_needed = int(zone_m / target_res)  # ex: 200/0.15 ≈ 1333 pixels
         
-        if r_mns.status_code == 200 and r_mnt.status_code == 200 and \
-           'image' in r_mns.headers.get('content-type', ''):
-            from PIL import Image as PILImage
-            import numpy as np
-            
-            mns_img = PILImage.open(io.BytesIO(r_mns.content))
-            mnt_img = PILImage.open(io.BytesIO(r_mnt.content))
-            
-            mns_arr = np.array(mns_img, dtype=np.float32)
-            mnt_arr = np.array(mnt_img, dtype=np.float32)
-            
+        # Nombre de tuiles nécessaires (arrondi supérieur)
+        nb_tiles = max(1, math.ceil(total_pixels_needed / WMS_MAX))
+        tile_pixel_size = min(WMS_MAX, total_pixels_needed)  # taille pixel de chaque tuile
+        
+        # Résolution effective par tuile
+        tile_zone_m = zone_m / nb_tiles  # mètres couverts par tuile
+        actual_res = tile_zone_m / tile_pixel_size  # résolution réelle
+        
+        # Grille finale assemblée
+        final_size = tile_pixel_size * nb_tiles  # taille pixel totale
+        
+        print(f"📐 LiDAR Tiling: zone={zone_m}m, cible={target_res}m/px, "
+              f"tuiles={nb_tiles}×{nb_tiles} ({nb_tiles**2} requêtes), "
+              f"résol={actual_res:.3f}m/px ({1/actual_res**2:.0f} pts/m²), "
+              f"grille finale={final_size}×{final_size}px")
+        
+        # Bornes GPS de la zone complète
+        south = lat - lat_deg
+        north = lat + lat_deg
+        west = lon - lon_deg
+        east = lon + lon_deg
+        
+        # Pas en degrés par tuile
+        lat_step = (north - south) / nb_tiles
+        lon_step = (east - west) / nb_tiles
+        
+        # Assemblage des tuiles dans des arrays numpy
+        mns_full = np.zeros((final_size, final_size), dtype=np.float32)
+        mnt_full = np.zeros((final_size, final_size), dtype=np.float32)
+        tiles_ok = 0
+        tiles_total = nb_tiles * nb_tiles
+        
+        for ty in range(nb_tiles):
+            for tx in range(nb_tiles):
+                # Bbox de la tuile
+                t_south = south + ty * lat_step
+                t_north = south + (ty + 1) * lat_step
+                t_west = west + tx * lon_step
+                t_east = west + (tx + 1) * lon_step
+                t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
+                
+                wms_params = {
+                    "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                    "CRS": "EPSG:4326", "BBOX": t_bbox,
+                    "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
+                    "FORMAT": "image/tiff", "STYLES": ""
+                }
+                
+                try:
+                    # MNS
+                    r_mns = requests.get(wms_url, params={
+                        **wms_params,
+                        "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+                    }, timeout=12)
+                    
+                    # MNT
+                    r_mnt = requests.get(wms_url, params={
+                        **wms_params,
+                        "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+                    }, timeout=12)
+                    
+                    if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
+                        'image' in r_mns.headers.get('content-type', '')):
+                        
+                        mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                        mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                        
+                        # Redimensionner si la tuile n'a pas exactement la bonne taille
+                        if mns_tile.shape != (tile_pixel_size, tile_pixel_size):
+                            mns_tile_img = PILImage.fromarray(mns_tile)
+                            mns_tile = np.array(mns_tile_img.resize((tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                        if mnt_tile.shape != (tile_pixel_size, tile_pixel_size):
+                            mnt_tile_img = PILImage.fromarray(mnt_tile)
+                            mnt_tile = np.array(mnt_tile_img.resize((tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                        
+                        # Placer dans la grille (Y inversé : le sud en bas)
+                        py = (nb_tiles - 1 - ty) * tile_pixel_size
+                        px = tx * tile_pixel_size
+                        mns_full[py:py+tile_pixel_size, px:px+tile_pixel_size] = mns_tile
+                        mnt_full[py:py+tile_pixel_size, px:px+tile_pixel_size] = mnt_tile
+                        tiles_ok += 1
+                    else:
+                        print(f"  ⚠ Tuile [{ty},{tx}] HTTP {r_mns.status_code}/{r_mnt.status_code}")
+                        
+                except Exception as te:
+                    print(f"  ⚠ Tuile [{ty},{tx}] erreur: {te}")
+        
+        if tiles_ok > 0:
             # MNH = MNS - MNT (hauteur au-dessus du sol)
-            mnh_arr = mns_arr - mnt_arr
+            mnh_full = mns_full - mnt_full
             
-            # Convertir en listes (JSON-serializable)
             # Normaliser MNT pour centrer autour de 0
-            mnt_min = float(mnt_arr.min())
-            mnt_relative = mnt_arr - mnt_min
+            mnt_min = float(mnt_full[mnt_full > 0].min()) if np.any(mnt_full > 0) else float(mnt_full.min())
+            mnt_relative = mnt_full - mnt_min
+            
+            # Sous-échantillonner pour le JSON si la grille est trop grande (>1024)
+            # On garde la haute résolution pour le rendu mais on limite le JSON
+            json_max = 1024
+            if final_size > json_max:
+                # Sous-échantillonnage pour l'envoi JSON
+                step = max(1, final_size // json_max)
+                mnt_json = mnt_relative[::step, ::step].tolist()
+                mns_json = (mns_full[::step, ::step] - mnt_min).tolist()
+                mnh_json = mnh_full[::step, ::step].tolist()
+                json_grid_size = len(mnt_json)
+            else:
+                mnt_json = mnt_relative.tolist()
+                mns_json = (mns_full - mnt_min).tolist()
+                mnh_json = mnh_full.tolist()
+                json_grid_size = final_size
             
             result["terrain"] = {
-                "mnt": mnt_relative.tolist(),       # Altitudes terrain relatives
-                "mns": (mns_arr - mnt_min).tolist(), # Altitudes surface relatives
-                "mnh": mnh_arr.tolist(),              # Hauteurs au-dessus du sol
+                "mnt": mnt_json,
+                "mns": mns_json,
+                "mnh": mnh_json,
                 "altitude_base": round(mnt_min, 1),
-                "mnt_min": round(float(mnt_arr.min()), 1),
-                "mnt_max": round(float(mnt_arr.max()), 1),
-                "mns_max": round(float(mns_arr.max()), 1),
-                "mnh_max": round(float(mnh_arr.max()), 1),
-                "grid_size": tile_size,
+                "mnt_min": round(float(mnt_full.min()), 1),
+                "mnt_max": round(float(mnt_full.max()), 1),
+                "mns_max": round(float(mns_full.max()), 1),
+                "mnh_max": round(float(mnh_full.max()), 1),
+                "grid_size": json_grid_size,
+                "full_resolution": final_size,
+                "resolution_m_per_px": round(actual_res, 3),
+                "pts_per_m2": round(1 / actual_res**2, 1),
+                "tiles_used": f"{nb_tiles}x{nb_tiles} ({tiles_ok}/{tiles_total} OK)",
                 "bbox": {
-                    "south": lat - lat_deg,
-                    "north": lat + lat_deg,
-                    "west": lon - lon_deg,
-                    "east": lon + lon_deg
+                    "south": south,
+                    "north": north,
+                    "west": west,
+                    "east": east
                 }
             }
             
-            print(f"✓ LiDAR 3D: MNT {mnt_arr.min():.0f}-{mnt_arr.max():.0f}m, MNS max={mns_arr.max():.0f}m, MNH max={mnh_arr.max():.1f}m")
+            print(f"✓ LiDAR 3D HD: MNT {mnt_full.min():.0f}-{mnt_full.max():.0f}m, "
+                  f"MNS max={mns_full.max():.0f}m, MNH max={mnh_full.max():.1f}m, "
+                  f"grille={final_size}×{final_size} ({tiles_ok}/{tiles_total} tuiles), "
+                  f"{1/actual_res**2:.0f} pts/m²")
+        else:
+            print("⚠ LiDAR 3D: aucune tuile récupérée")
+            
     except Exception as e:
         print(f"⚠ LiDAR 3D error: {e}")
     
@@ -1062,7 +1157,7 @@ def api_lidar_roof_analysis():
     except Exception as e:
         print(f"⚠ BD TOPO roof error: {e}")
     
-    # === 2. Analyse LiDAR haute résolution sur le bâtiment ===
+    # === 2. Analyse LiDAR haute résolution sur le bâtiment (TUILAGE ADAPTATIF) ===
     if building_coords:
         try:
             lons_b = [c[0] for c in building_coords]
@@ -1072,72 +1167,139 @@ def api_lidar_roof_analysis():
             b_center_lat = sum(lats_b) / len(lats_b)
             b_center_lon = sum(lons_b) / len(lons_b)
             
-            margin = max(
-                (max(lons_b) - min(lons_b)) * 0.3,
-                (max(lats_b) - min(lats_b)) * 0.3
-            )
+            lng_to_m = 111320 * math.cos(math.radians(b_center_lat))
             
-            lat_min = min(lats_b) - margin
-            lat_max = max(lats_b) + margin
-            lon_min = min(lons_b) - margin
-            lon_max = max(lons_b) + margin
+            # Dimensions réelles du bâtiment en mètres
+            bldg_width_m = (max(lons_b) - min(lons_b)) * lng_to_m
+            bldg_height_m = (max(lats_b) - min(lats_b)) * 111320
+            bldg_area_m2 = bldg_width_m * bldg_height_m
             
-            bbox = f"{lat_min},{lon_min},{lat_max},{lon_max}"
+            margin_factor = 0.3
+            margin_lon = (max(lons_b) - min(lons_b)) * margin_factor
+            margin_lat = (max(lats_b) - min(lats_b)) * margin_factor
+            
+            lat_min = min(lats_b) - margin_lat
+            lat_max = max(lats_b) + margin_lat
+            lon_min = min(lons_b) - margin_lon
+            lon_max = max(lons_b) + margin_lon
+            
+            # Zone couverte en mètres
+            zone_width_m = (lon_max - lon_min) * lng_to_m
+            zone_height_m = (lat_max - lat_min) * 111320
             
             wms_url = "https://data.geopf.fr/wms-r/wms"
-            tile_size = 64  # Haute résolution sur une petite zone
+            WMS_MAX = 1024
             
-            wms_common = {
-                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                "CRS": "EPSG:4326", "BBOX": bbox,
-                "WIDTH": str(tile_size), "HEIGHT": str(tile_size),
-                "FORMAT": "image/tiff", "STYLES": ""
-            }
+            # Résolution cible adaptée à la taille de la toiture
+            # Grosse toiture (>5000m²) → on veut toujours 0.15m/px min
+            # Petite toiture → 64px suffisent
+            target_res = 0.15  # m/pixel
             
-            # MNS et MNT
-            r_mns = requests.get(wms_url, params={
-                **wms_common,
-                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-            }, timeout=10)
+            # Pixels nécessaires sur chaque axe
+            pixels_needed_x = int(zone_width_m / target_res)
+            pixels_needed_y = int(zone_height_m / target_res)
+            pixels_needed = max(pixels_needed_x, pixels_needed_y)
             
-            r_mnt = requests.get(wms_url, params={
-                **wms_common,
-                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-            }, timeout=10)
+            # Nombre de tuiles
+            nb_tiles_x = max(1, math.ceil(pixels_needed_x / WMS_MAX))
+            nb_tiles_y = max(1, math.ceil(pixels_needed_y / WMS_MAX))
+            tile_px_x = min(WMS_MAX, pixels_needed_x)
+            tile_px_y = min(WMS_MAX, pixels_needed_y)
             
-            if r_mns.status_code == 200 and r_mnt.status_code == 200 and \
-               'image' in r_mns.headers.get('content-type', ''):
-                from PIL import Image as PILImage
-                
-                mns_arr = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
-                mnt_arr = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
-                
+            # Taille finale de la grille assemblée
+            final_w = tile_px_x * nb_tiles_x
+            final_h = tile_px_y * nb_tiles_y
+            
+            actual_res_x = zone_width_m / final_w
+            actual_res_y = zone_height_m / final_h
+            
+            print(f"📐 Roof Tiling: bâtiment={bldg_width_m:.0f}×{bldg_height_m:.0f}m ({bldg_area_m2:.0f}m²), "
+                  f"zone={zone_width_m:.0f}×{zone_height_m:.0f}m, "
+                  f"tuiles={nb_tiles_x}×{nb_tiles_y}, grille={final_w}×{final_h}px, "
+                  f"résol={actual_res_x:.3f}×{actual_res_y:.3f}m/px")
+            
+            # Pas en degrés par tuile
+            lat_step = (lat_max - lat_min) / nb_tiles_y
+            lon_step = (lon_max - lon_min) / nb_tiles_x
+            
+            # Assemblage
+            mns_full = np.zeros((final_h, final_w), dtype=np.float32)
+            mnt_full = np.zeros((final_h, final_w), dtype=np.float32)
+            tiles_ok = 0
+            
+            for ty in range(nb_tiles_y):
+                for tx in range(nb_tiles_x):
+                    t_south = lat_min + ty * lat_step
+                    t_north = lat_min + (ty + 1) * lat_step
+                    t_west = lon_min + tx * lon_step
+                    t_east = lon_min + (tx + 1) * lon_step
+                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
+                    
+                    wms_params = {
+                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                        "CRS": "EPSG:4326", "BBOX": t_bbox,
+                        "WIDTH": str(tile_px_x), "HEIGHT": str(tile_px_y),
+                        "FORMAT": "image/tiff", "STYLES": ""
+                    }
+                    
+                    try:
+                        r_mns = requests.get(wms_url, params={
+                            **wms_params,
+                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
+                        }, timeout=12)
+                        
+                        r_mnt = requests.get(wms_url, params={
+                            **wms_params,
+                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
+                        }, timeout=12)
+                        
+                        if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
+                            'image' in r_mns.headers.get('content-type', '')):
+                            
+                            mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                            mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                            
+                            # Redimensionner si nécessaire
+                            if mns_tile.shape != (tile_px_y, tile_px_x):
+                                mns_tile = np.array(PILImage.fromarray(mns_tile).resize((tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
+                            if mnt_tile.shape != (tile_px_y, tile_px_x):
+                                mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize((tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
+                            
+                            # Placer (Y inversé)
+                            py = (nb_tiles_y - 1 - ty) * tile_px_y
+                            px = tx * tile_px_x
+                            mns_full[py:py+tile_px_y, px:px+tile_px_x] = mns_tile
+                            mnt_full[py:py+tile_px_y, px:px+tile_px_x] = mnt_tile
+                            tiles_ok += 1
+                    except Exception as te:
+                        print(f"  ⚠ Tuile toit [{ty},{tx}] erreur: {te}")
+            
+            if tiles_ok > 0:
                 # MNH = hauteur au-dessus du sol
-                mnh_arr = mns_arr - mnt_arr
+                mnh_full = mns_full - mnt_full
                 
-                lng_to_m = 111320 * math.cos(math.radians(b_center_lat))
+                # Extraire les points du toit dans la grille haute résolution
+                roof_points = []
                 
-                # Masquer les pixels qui sont DANS le bâtiment (MNH > 2m)
-                # et extraire les points du toit
-                roof_points = []  # (x_m, y_m, altitude_mns)
-                
-                for iy in range(tile_size):
-                    for ix in range(tile_size):
+                for iy in range(final_h):
+                    for ix in range(final_w):
                         # Position GPS de ce pixel
-                        px_lat = lat_max - (iy / tile_size) * (lat_max - lat_min)
-                        px_lon = lon_min + (ix / tile_size) * (lon_max - lon_min)
+                        px_lat = lat_max - (iy / final_h) * (lat_max - lat_min)
+                        px_lon = lon_min + (ix / final_w) * (lon_max - lon_min)
                         
                         # Vérifier si ce pixel est dans le polygone du bâtiment
                         if _point_in_polygon(px_lon, px_lat, building_coords):
-                            alt_mns = float(mns_arr[iy, ix])
-                            mnh_val = float(mnh_arr[iy, ix])
+                            alt_mns = float(mns_full[iy, ix])
+                            mnh_val = float(mnh_full[iy, ix])
                             
-                            if mnh_val > 2.0:  # Au-dessus du sol = sur le toit
+                            if mnh_val > 2.0:
                                 x_m = (px_lon - b_center_lon) * lng_to_m
                                 y_m = (px_lat - b_center_lat) * 111320
                                 roof_points.append((x_m, y_m, alt_mns))
                 
-                print(f"✓ Points toit LiDAR: {len(roof_points)} pixels sur le bâtiment")
+                print(f"✓ Points toit LiDAR HD: {len(roof_points)} pixels sur le bâtiment "
+                      f"({bldg_area_m2:.0f}m², {tiles_ok} tuiles, "
+                      f"résol={actual_res_x:.3f}m/px → {1/actual_res_x**2:.0f} pts/m²)")
                 
                 if len(roof_points) >= 6:
                     # === Ajustement de plan (moindres carrés) ===
@@ -1257,7 +1419,7 @@ def api_lidar_roof_analysis():
                 else:
                     print(f"⚠ Pas assez de points LiDAR sur le toit ({len(roof_points)})")
             else:
-                print(f"⚠ LiDAR WMS error: MNS={r_mns.status_code}, MNT={r_mnt.status_code}")
+                print(f"⚠ LiDAR WMS tuilage: aucune tuile récupérée ({nb_tiles_x}×{nb_tiles_y})")
         
         except Exception as e:
             print(f"⚠ LiDAR roof analysis error: {e}")
