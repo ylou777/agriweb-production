@@ -643,11 +643,14 @@ class Calpinage3DViewer {
                 ? panAcrossStart + (usableAcross - gridAcross) / 2
                 : panAcrossEnd + (usableAcross - gridAcross) / 2;
             
-            // Créer le groupe 3D pour ce pan
-            // Le pivot est au faîtage (eaveY + ridgeExtra) pour que la rotation
-            // fasse descendre les modules correctement vers l'égout au lieu de "rentrer" dans le bâtiment
+            // Groupe 3D à l'origine (pas de rotation de groupe — chaque module
+            // est posé individuellement SUR la surface du toit via heightFunc)
             const panGroup = new THREE.Group();
-            panGroup.position.set(obb.cx, eaveY + ridgeExtra, obb.cz);
+            
+            // Utiliser le heightFunc stocké lors de la construction du toit
+            // pour calculer la hauteur exacte de chaque module
+            const hasHeightFunc = typeof this._roofHeightFunc === 'function';
+            const roofBaseY = hasHeightFunc ? this._roofEaveY : eaveY;
             
             const modules = [];
             
@@ -662,7 +665,6 @@ class Calpinage3DViewer {
                     const worldZ = obb.cz + along * sinA + across * cosA;
                     
                     // === Filtrage par polygone réel du bâtiment ===
-                    // Vérifier que les 4 coins du module sont dans l'emprise réelle
                     if (buildingPoly) {
                         const halfW = modAlong / 2;
                         const halfH = modAcross / 2;
@@ -672,18 +674,15 @@ class Calpinage3DViewer {
                             { x: worldX + ( halfW)*cosA - ( halfH)*sinA, z: worldZ + ( halfW)*sinA + ( halfH)*cosA },
                             { x: worldX + (-halfW)*cosA - ( halfH)*sinA, z: worldZ + (-halfW)*sinA + ( halfH)*cosA },
                         ];
-                        // Au moins 3 coins sur 4 doivent être dans le polygone
                         const insideCount = corners.filter(c => 
                             this._pointInPolygon2D(c.x, c.z, buildingPoly.map(p => ({x: p.x, y: p.z})))
                         ).length;
-                        if (insideCount < 3) continue; // Module hors emprise → skip
+                        if (insideCount < 3) continue;
                     }
                     
-                    // === Filtrage par obstacles (cheminées, acrotères, trappes...) ===
+                    // === Filtrage par obstacles ===
                     if (obstacleRects && obstacleRects.length > 0) {
-                        // Convertir le centre du module en lat/lng
                         const modGeo = this._localToGeo(worldX, worldZ);
-                        // Vérifier si le module ou ses coins chevauchent un obstacle (+ buffer 0.5m)
                         const halfW2 = modAlong / 2;
                         const halfH2 = modAcross / 2;
                         const modCorners = [
@@ -692,46 +691,77 @@ class Calpinage3DViewer {
                             this._localToGeo(worldX + ( halfW2)*cosA - ( halfH2)*sinA, worldZ + ( halfW2)*sinA + ( halfH2)*cosA),
                             this._localToGeo(worldX + (-halfW2)*cosA - ( halfH2)*sinA, worldZ + (-halfW2)*sinA + ( halfH2)*cosA),
                         ];
-                        
                         let hitObstacle = false;
                         for (const obs of obstacleRects) {
-                            // Vérifier si le centre du module est dans le rectangle obstacle
                             if (modGeo.lat >= obs.minLat && modGeo.lat <= obs.maxLat &&
                                 modGeo.lng >= obs.minLng && modGeo.lng <= obs.maxLng) {
-                                hitObstacle = true;
-                                break;
+                                hitObstacle = true; break;
                             }
-                            // Vérifier si AUCUN coin du module ne chevauche l'obstacle
                             for (const c of modCorners) {
                                 if (c.lat >= obs.minLat && c.lat <= obs.maxLat &&
                                     c.lng >= obs.minLng && c.lng <= obs.maxLng) {
-                                    hitObstacle = true;
-                                    break;
+                                    hitObstacle = true; break;
                                 }
                             }
                             if (hitObstacle) break;
                         }
-                        if (hitObstacle) continue; // Module touche un obstacle → skip
+                        if (hitObstacle) continue;
                     }
                     
-                    // Offset par rapport au centre du groupe
-                    const localX = along * cosA - across * sinA;
-                    const localZ = along * sinA + across * cosA;
+                    // === Placement individuel SUR la surface du toit ===
+                    let panelY = eaveY + ridgeExtra + 0.05; // fallback = ridge + 5cm
+                    let slopeRad = penteRad;
+                    let slopeAzimutRad = azimutRad;
+                    
+                    if (hasHeightFunc) {
+                        // Hauteur du toit au centre du module
+                        const hCenter = this._roofHeightFunc(across, along);
+                        panelY = roofBaseY + hCenter + 0.05; // 5cm au-dessus de la surface
+                        
+                        // Calculer la pente locale par différence finie
+                        const eps = 0.3;
+                        const hAcrossP = this._roofHeightFunc(across + eps, along);
+                        const hAcrossN = this._roofHeightFunc(across - eps, along);
+                        const dHdAcross = (hAcrossP - hAcrossN) / (2 * eps);
+                        
+                        // Pente locale dans la direction across (perpendiculaire au faîtage)
+                        slopeRad = Math.atan(Math.abs(dHdAcross));
+                        
+                        // Direction de descente : vers across croissant ou décroissant
+                        // dHdAcross > 0 = monte vers across+, donc descend vers across-
+                        // across+ direction in world = (sinA, cosA) from OBB
+                        // Convert to azimut: perpAngle1 = obb.angle + PI/2 (across+) ou perpAngle2 (across-)
+                        if (dHdAcross > 0) {
+                            // Descend vers across négatif
+                            slopeAzimutRad = (90 + (obb.angle - Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
+                        } else {
+                            // Descend vers across positif
+                            slopeAzimutRad = (90 + (obb.angle + Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
+                        }
+                    }
                     
                     // Créer le mesh du module
                     const panel3d = new THREE.Mesh(
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
                         panelMat
                     );
-                    // Y = 0.15m au-dessus de la surface du groupe (normal au toit après rotation)
-                    panel3d.position.set(localX, 0.15, localZ);
+                    panel3d.position.set(worldX, panelY, worldZ);
                     panel3d.rotation.y = -obb.angle;
+                    
+                    // Incliner le module selon la pente locale du toit
+                    if (slopeRad > 0.001) {
+                        const tiltAxis = new THREE.Vector3(
+                            -Math.cos(slopeAzimutRad), 0, -Math.sin(slopeAzimutRad)
+                        ).normalize();
+                        panel3d.rotateOnWorldAxis(tiltAxis, slopeRad);
+                    }
+                    
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
-                    panel3d.renderOrder = 10; // S'afficher au-dessus du toit
+                    panel3d.renderOrder = 10;
                     panGroup.add(panel3d);
                     
-                    // Calculer les 4 coins en coordonnées géo (lat/lng) pour la projection 2D
+                    // Coins en coordonnées géo pour la projection 2D
                     const halfW = modAlong / 2;
                     const halfH = modAcross / 2;
                     const cornersLocal = [
@@ -752,14 +782,6 @@ class Calpinage3DViewer {
                     
                     totalModules++;
                 }
-            }
-            
-            // Appliquer la pente au groupe
-            if (penteRad > 0.001) {
-                const tiltAxis = new THREE.Vector3(
-                    -Math.cos(azimutRad), 0, -Math.sin(azimutRad)
-                ).normalize();
-                panGroup.rotateOnWorldAxis(tiltAxis, penteRad);
             }
             
             this.scene.add(panGroup);
@@ -2627,7 +2649,8 @@ class Calpinage3DViewer {
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex, side: THREE.DoubleSide,
             specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
+            flatShading: true
         });
         const roofMesh = new THREE.Mesh(geo, roofMat);
         roofMesh.castShadow = true;
@@ -2873,7 +2896,8 @@ class Calpinage3DViewer {
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex, side: THREE.DoubleSide,
             specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
+            flatShading: true
         });
         const roofMesh = new THREE.Mesh(geo, roofMat);
         roofMesh.castShadow = true;
@@ -2992,6 +3016,9 @@ class Calpinage3DViewer {
             return ridgeExtra * (1 - t);
         };
         
+        this._roofHeightFunc = heightFunc;
+        this._roofEaveY = roofBaseY;
+        this._roofOBB = obb;
         this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
@@ -3015,6 +3042,9 @@ class Calpinage3DViewer {
             return ridgeExtra * Math.max(0, 1 - Math.max(tAcross, tAlong));
         };
         
+        this._roofHeightFunc = heightFunc;
+        this._roofEaveY = roofBaseY;
+        this._roofOBB = obb;
         this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
@@ -3033,6 +3063,9 @@ class Calpinage3DViewer {
             return ridgeExtra * t;
         };
         
+        this._roofHeightFunc = heightFunc;
+        this._roofEaveY = roofBaseY;
+        this._roofOBB = obb;
         this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
@@ -3044,7 +3077,9 @@ class Calpinage3DViewer {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         
-        // Construire une lookup table depuis le profil LiDAR réel si disponible
+        // Construire un profil SIMPLIFIÉ depuis le profil LiDAR réel :
+        // N'utiliser que les pics (faîtages) et creux (noues) pour des arêtes vives /\/\/\
+        // au lieu d'interpoler à travers 30+ points LiDAR bruités (= arrondis)
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
         let profileMaxH = 0;
@@ -3056,8 +3091,31 @@ class Calpinage3DViewer {
             const hMin = Math.min(...smoothH);
             const hMax = Math.max(...smoothH);
             profileMaxH = hMax - hMin;
-            profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
-            console.log(`📐 Multi-gable profileLookup: ${profileLookup.length} pts, hRange=${profileMaxH.toFixed(2)}m, halfShort=${halfShort.toFixed(1)}m`);
+            
+            // Extraire uniquement les extrema (faîtages et noues)
+            // pour des pans parfaitement PLATS entre les arêtes
+            const dh = [];
+            for (let i = 1; i < smoothH.length; i++) dh.push(smoothH[i] - smoothH[i-1]);
+            
+            const keyPoints = [{pos: profile[0].pos, h: smoothH[0] - hMin}];
+            for (let i = 1; i < dh.length; i++) {
+                if ((dh[i-1] > 0 && dh[i] <= 0) || (dh[i-1] < 0 && dh[i] >= 0)) {
+                    keyPoints.push({pos: profile[i].pos, h: smoothH[i] - hMin});
+                }
+            }
+            keyPoints.push({pos: profile[profile.length-1].pos, h: smoothH[smoothH.length-1] - hMin});
+            
+            // Filtrer les faux extrema (amplitude < 0.3m par rapport au voisin)
+            const filtered = [keyPoints[0]];
+            for (let k = 1; k < keyPoints.length; k++) {
+                const amp = Math.abs(keyPoints[k].h - filtered[filtered.length-1].h);
+                if (amp >= 0.3 || k === keyPoints.length - 1) {
+                    filtered.push(keyPoints[k]);
+                }
+            }
+            
+            profileLookup = filtered;
+            console.log(`📐 Multi-gable profileLookup simplifié: ${profileLookup.length} breakpoints (depuis ${profile.length} pts), hRange=${profileMaxH.toFixed(2)}m`);
         }
         
         // Si le profil LiDAR est quasi-plat, ignorer et utiliser le fallback uniforme
@@ -3070,7 +3128,7 @@ class Calpinage3DViewer {
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
             
             if (useProfile) {
-                // Interpolation linéaire dans le profil LiDAR réel
+                // Interpolation linéaire entre breakpoints → pans PLATS
                 let i = 0;
                 while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
                 if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
@@ -3087,8 +3145,11 @@ class Calpinage3DViewer {
             return ridgeExtra * (1 - t);
         };
         
-        // Résolution de grille proportionnelle à la taille du bâtiment
-        // Au moins 10 subdivisions par faîtage pour un rendu lisse
+        this._roofHeightFunc = heightFunc;
+        this._roofEaveY = roofBaseY;
+        this._roofOBB = obb;
+        
+        // Résolution de grille — au moins 2 subdivisions par segment de profil
         const nSubAcross = Math.max(nRidges * 16, Math.round(obb.shortDim / 1.0));
         console.log(`📐 Multi-gable grid: nAcross=${nSubAcross}, nRidges=${nRidges}, useProfile=${useProfile}`);
         this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nSubAcross);
@@ -3102,7 +3163,7 @@ class Calpinage3DViewer {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         
-        // Utiliser le profil LiDAR réel si disponible
+        // Profil simplifié : uniquement les extrema pour des arêtes vives
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
         let profileMaxH = 0;
@@ -3114,8 +3175,29 @@ class Calpinage3DViewer {
             const hMin = Math.min(...smoothH);
             const hMax = Math.max(...smoothH);
             profileMaxH = hMax - hMin;
-            profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
-            console.log(`📐 Multi-shed profileLookup: ${profileLookup.length} pts, hRange=${profileMaxH.toFixed(2)}m`);
+            
+            // Extraire les extrema pour des dents de scie (arêtes vives)
+            const dh = [];
+            for (let i = 1; i < smoothH.length; i++) dh.push(smoothH[i] - smoothH[i-1]);
+            
+            const keyPoints = [{pos: profile[0].pos, h: smoothH[0] - hMin}];
+            for (let i = 1; i < dh.length; i++) {
+                if ((dh[i-1] > 0 && dh[i] <= 0) || (dh[i-1] < 0 && dh[i] >= 0)) {
+                    keyPoints.push({pos: profile[i].pos, h: smoothH[i] - hMin});
+                }
+            }
+            keyPoints.push({pos: profile[profile.length-1].pos, h: smoothH[smoothH.length-1] - hMin});
+            
+            const filtered = [keyPoints[0]];
+            for (let k = 1; k < keyPoints.length; k++) {
+                const amp = Math.abs(keyPoints[k].h - filtered[filtered.length-1].h);
+                if (amp >= 0.3 || k === keyPoints.length - 1) {
+                    filtered.push(keyPoints[k]);
+                }
+            }
+            
+            profileLookup = filtered;
+            console.log(`📐 Multi-shed profileLookup simplifié: ${profileLookup.length} breakpoints (depuis ${profile.length} pts), hRange=${profileMaxH.toFixed(2)}m`);
         }
         
         const useProfile = profileLookup && profileMaxH > 0.3;
@@ -3138,6 +3220,10 @@ class Calpinage3DViewer {
             const inSection = (normalized % sectionWidth) / sectionWidth;
             return ridgeExtra * inSection;
         };
+        
+        this._roofHeightFunc = heightFunc;
+        this._roofEaveY = roofBaseY;
+        this._roofOBB = obb;
         
         // Résolution de grille proportionnelle
         const nSubAcross = Math.max(nRidges * 16, Math.round(obb.shortDim / 1.0));
@@ -3162,6 +3248,10 @@ class Calpinage3DViewer {
         roofMesh.castShadow = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
+        
+        this._roofHeightFunc = () => 0;
+        this._roofEaveY = terrainH + bh;
+        this._roofOBB = {cx: local.x, cz: local.z, angle: 0, longDim: bx, shortDim: bz};
     }
     
     // ═══════════════════════════════════════════════════════════════
@@ -3797,19 +3887,13 @@ class Calpinage3DViewer {
             const zoneCenterLng = sumLng / zone.modulesPositions.length;
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
             
-            // === HAUTEUR : terrain + hauteur murs du bâtiment + 8cm au-dessus ===
-            // On utilise la hauteur des MURS (pas MNH qui inclut le faîtage)
-            // pour poser les modules à l'égout du toit ; la pente du groupe
-            // les placera naturellement le long de la pente du pan.
-            const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
-            const roofBaseY = terrainH + wallH + 0.08; // 8cm au-dessus de l'égout
+            // === HAUTEUR : utiliser le heightFunc stocké pour poser chaque module
+            // directement SUR la surface du toit ===
+            const hasHeightFunc = typeof this._roofHeightFunc === 'function';
+            const storedOBB = this._roofOBB;
             
-            // === GROUPE : positionné au centre, SANS rotation Y ===
-            // Les positions des modules (converties depuis lat/lng) encodent déjà
-            // l'orientation 2D. Pas besoin de dé-rotation complexe.
+            // === GROUPE : sans position Y, les modules sont positionnés individuellement ===
             const panGroup = new THREE.Group();
-            panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
             
             // Matériau partagé pour tous les modules de la zone
             const panelMat = new THREE.MeshPhongMaterial({
@@ -3836,10 +3920,41 @@ class Calpinage3DViewer {
                 
                 if (w < 0.1 || h < 0.1) return;
                 
-                // Centre du module → offset par rapport au centre du groupe
+                // Centre du module en coordonnées locales
                 const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
-                const dx = modLocal.x - zoneLocalCenter.x;
-                const dz = modLocal.z - zoneLocalCenter.z;
+                
+                // Calculer la hauteur Y par le heightFunc sur la surface du toit
+                let panelY = 0;
+                let slopeRad = pente;
+                let slopeAzimutRad = azimut;
+                
+                if (hasHeightFunc && storedOBB) {
+                    const cosOBB = Math.cos(-storedOBB.angle);
+                    const sinOBB = Math.sin(-storedOBB.angle);
+                    const dxOBB = modLocal.x - storedOBB.cx;
+                    const dzOBB = modLocal.z - storedOBB.cz;
+                    const acrossOBB = dxOBB * sinOBB + dzOBB * cosOBB;
+                    const alongOBB = dxOBB * cosOBB - dzOBB * sinOBB;
+                    
+                    const hCenter = this._roofHeightFunc(acrossOBB, alongOBB);
+                    panelY = this._roofEaveY + hCenter + 0.05;
+                    
+                    // Pente locale
+                    const eps = 0.3;
+                    const hP = this._roofHeightFunc(acrossOBB + eps, alongOBB);
+                    const hN = this._roofHeightFunc(acrossOBB - eps, alongOBB);
+                    const dHdAcross = (hP - hN) / (2 * eps);
+                    slopeRad = Math.atan(Math.abs(dHdAcross));
+                    if (dHdAcross > 0) {
+                        slopeAzimutRad = (90 + (storedOBB.angle - Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
+                    } else {
+                        slopeAzimutRad = (90 + (storedOBB.angle + Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
+                    }
+                } else {
+                    const terrainH = this._getTerrainHeight(modLocal.x, modLocal.z);
+                    const wallH = this._findBuildingWallHeight(modLocal.x, modLocal.z);
+                    panelY = terrainH + wallH + 0.08;
+                }
                 
                 // Angle de l'arête c[0]→c[1] pour aligner le BoxGeometry
                 const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
@@ -3849,12 +3964,17 @@ class Calpinage3DViewer {
                     panelMat
                 );
                 
-                // Position directe depuis lat/lng (encodent déjà la rotation 2D)
-                panel.position.set(dx, 0, dz);
-                
-                // Rotation individuelle pour aligner les bords du rectangle
-                // BoxGeometry a sa largeur le long de X ; on tourne pour matcher l'arête 2D
+                // Position absolue sur la surface du toit
+                panel.position.set(modLocal.x, panelY, modLocal.z);
                 panel.rotation.y = -edgeAngle;
+                
+                // Incliner le module selon la pente locale
+                if (slopeRad > 0.001) {
+                    const tiltAxis = new THREE.Vector3(
+                        -Math.cos(slopeAzimutRad), 0, -Math.sin(slopeAzimutRad)
+                    ).normalize();
+                    panel.rotateOnWorldAxis(tiltAxis, slopeRad);
+                }
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
@@ -3862,18 +3982,6 @@ class Calpinage3DViewer {
                 panGroup.add(panel);
                 totalModules++;
             });
-            
-            // === PENTE : appliquée comme rotation autour de l'axe perpendiculaire à l'azimut ===
-            // Direction azimut dans notre repère : (sin(az), 0, -cos(az))
-            //   - N(0°) → (0,0,-1), E(90°) → (1,0,0), S(180°) → (0,0,1), O(270°) → (-1,0,0)
-            // Axe de bascule = cross( up, direction_azimut ) = (-cos(az), 0, -sin(az))
-            // → fait descendre le bord côté azimut et monter le bord opposé ✓
-            if (pente > 0.001) {
-                const tiltAxis = new THREE.Vector3(
-                    -Math.cos(azimut), 0, -Math.sin(azimut)
-                ).normalize();
-                panGroup.rotateOnWorldAxis(tiltAxis, pente);
-            }
             
             this.scene.add(panGroup);
             this.modules3D.push(panGroup);
