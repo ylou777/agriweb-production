@@ -1463,6 +1463,8 @@ class Calpinage3DViewer {
             nRidges: nRidges,
             bestR2: bestR2,
             bestModel: bestModel,
+            profile: bestDir ? bestDir.profile : null,
+            acrossRange: bestDir ? bestDir.acrossRange : 0,
         };
     }
     
@@ -1660,9 +1662,9 @@ class Calpinage3DViewer {
             ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
             try {
                 if (roofShape === 'multi-gable') {
-                    this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges);
+                    this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
                 } else if (roofShape === 'multi-shed') {
-                    this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges);
+                    this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
                 } else if (roofShape === 'hip') {
                     this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                 } else if (roofShape === 'shed') {
@@ -1684,7 +1686,7 @@ class Calpinage3DViewer {
         }
         
         // === Calculer et stocker les informations des pans de toiture ===
-        this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges);
+        this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges, roofAnalysis);
         
         // Stocker l'OBB et les infos géométriques pour le matching zone→pan
         this.roofPanelsInfo.buildingOBB = {
@@ -1712,10 +1714,9 @@ class Calpinage3DViewer {
      * Calcule les informations détaillées des pans de toiture.
      * @returns {Object} { type, panels: [{name, longueur, largeur, surface, pente_deg, orientation_deg, orientation_label}] }
      */
-    _computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges) {
+    _computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges, roofAnalysis) {
         const halfShort = obb.shortDim / 2;
         const halfLong = obb.longDim / 2;
-        nRidges = nRidges || 1;
         nRidges = nRidges || 1;
         
         // Angle du bâtiment en degrés (0=Est, 90=Nord dans le repère local)
@@ -1884,58 +1885,242 @@ class Calpinage3DViewer {
                 orientation_label: getOrientLabel(az1)
             });
         } else if (roofShape === 'multi-gable') {
-            // Multi-gable : 2 pans par faîtage
-            const sectionWidth = obb.shortDim / nRidges;
-            const halfSection = sectionWidth / 2;
-            const slopeDeg = Math.round(Math.atan2(ridgeExtra, halfSection) * 180 / Math.PI * 10) / 10;
-            const rampantWidth = Math.round(Math.sqrt(halfSection * halfSection + ridgeExtra * ridgeExtra) * 10) / 10;
+            // Multi-gable : 2 pans par faîtage — utiliser le profil LiDAR réel
             const panLength = Math.round(obb.longDim * 10) / 10;
-            const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
-            
             const az1 = toAzimut(perpAngle1);
             const az2 = toAzimut(perpAngle2);
             
-            for (let r = 0; r < nRidges; r++) {
-                const prefix = nRidges > 1 ? `F${r + 1} ` : '';
-                result.panels.push({
-                    name: `${prefix}Pan A`,
-                    longueur: panLength,
-                    largeur: rampantWidth,
-                    surface: panSurface,
-                    pente_deg: slopeDeg,
-                    orientation_deg: az1,
-                    orientation_label: getOrientLabel(az1)
+            // Extraire les positions réelles des faîtages et noues depuis le profil
+            const profile = roofAnalysis && roofAnalysis.profile ? roofAnalysis.profile : null;
+            
+            if (profile && profile.length >= 5) {
+                // Lisser le profil pour trouver les extrema
+                const smoothH = profile.map((p, i) => {
+                    if (i === 0 || i === profile.length - 1) return p.h;
+                    return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
                 });
-                result.panels.push({
-                    name: `${prefix}Pan B`,
-                    longueur: panLength,
-                    largeur: rampantWidth,
-                    surface: panSurface,
-                    pente_deg: slopeDeg,
-                    orientation_deg: az2,
-                    orientation_label: getOrientLabel(az2)
-                });
+                
+                // Détecter les faîtages (maxima) et noues (minima)
+                const ridges = [];  // indices de faîtages
+                const valleys = []; // indices de noues
+                const dh = [];
+                for (let i = 1; i < smoothH.length; i++) {
+                    dh.push(smoothH[i] - smoothH[i-1]);
+                }
+                for (let i = 1; i < dh.length; i++) {
+                    if (dh[i-1] > 0 && dh[i] < 0) {
+                        // Max local = faîtage
+                        ridges.push(i);
+                    } else if (dh[i-1] < 0 && dh[i] > 0) {
+                        // Min local = noue
+                        valleys.push(i);
+                    }
+                }
+                
+                // Filtrer les faux extrema (amplitude < 0.3m)
+                const allExtrema = [...ridges.map(i => ({i, type: 'ridge'})), ...valleys.map(i => ({i, type: 'valley'}))];
+                allExtrema.sort((a, b) => a.i - b.i);
+                const filteredExtrema = [];
+                for (let k = 0; k < allExtrema.length; k++) {
+                    if (k > 0) {
+                        const amp = Math.abs(smoothH[allExtrema[k].i] - smoothH[allExtrema[k-1].i]);
+                        if (amp >= 0.3) filteredExtrema.push(allExtrema[k]);
+                    } else {
+                        filteredExtrema.push(allExtrema[k]);
+                    }
+                }
+                
+                const realRidges = filteredExtrema.filter(e => e.type === 'ridge').map(e => e.i);
+                const realValleys = filteredExtrema.filter(e => e.type === 'valley').map(e => e.i);
+                
+                // Points de coupe : faîtages + noues + bords
+                const cutPoints = [...new Set([0, ...realRidges, ...realValleys, profile.length - 1])].sort((a, b) => a - b);
+                
+                console.log(`📐 Multi-gable profil réel: ${realRidges.length} faîtages, ${realValleys.length} noues, ${cutPoints.length - 1} segments`);
+                
+                // Créer un pan pour chaque segment
+                const acrossRange = roofAnalysis.acrossRange || obb.shortDim;
+                let panCounter = 0;
+                
+                for (let s = 0; s < cutPoints.length - 1; s++) {
+                    const startIdx = cutPoints[s];
+                    const endIdx = cutPoints[s + 1];
+                    
+                    if (endIdx <= startIdx) continue;
+                    
+                    const startPos = profile[startIdx].pos;  // 0..1
+                    const endPos = profile[endIdx].pos;
+                    const startH = smoothH[startIdx];
+                    const endH = smoothH[endIdx];
+                    
+                    // Largeur réelle de ce pan en mètres
+                    const panWidthM = (endPos - startPos) * acrossRange;
+                    if (panWidthM < 0.5) continue;
+                    
+                    // Pente réelle : dénivelé / distance horizontale
+                    const dH = Math.abs(endH - startH);
+                    const realSlopeDeg = Math.round(Math.atan2(dH, panWidthM) * 180 / Math.PI * 10) / 10;
+                    
+                    // Largeur rampant (hypoténuse)
+                    const rampantWidth = Math.round(Math.sqrt(panWidthM * panWidthM + dH * dH) * 10) / 10;
+                    const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
+                    
+                    // Orientation : vers le côté descendant
+                    const descending = endH < startH;
+                    const panAzimut = descending ? az1 : az2;
+                    
+                    // Altitude du pan (base du pan)
+                    const panBaseH = Math.min(startH, endH);
+                    const panTopH = Math.max(startH, endH);
+                    
+                    panCounter++;
+                    const isAtRidge = realRidges.includes(startIdx) || realRidges.includes(endIdx);
+                    const shedNum = Math.ceil(panCounter / 2);
+                    const panLabel = isAtRidge ? 
+                        `F${shedNum} Pan ${panCounter % 2 === 1 ? 'A' : 'B'}` :
+                        `Pan ${panCounter}`;
+                    
+                    result.panels.push({
+                        name: panLabel,
+                        longueur: panLength,
+                        largeur: rampantWidth,
+                        surface: panSurface,
+                        pente_deg: realSlopeDeg,
+                        orientation_deg: panAzimut,
+                        orientation_label: getOrientLabel(panAzimut),
+                        altitude_base: Math.round((terrainH + bh + panBaseH) * 10) / 10,
+                        altitude_faitage: Math.round((terrainH + bh + panTopH) * 10) / 10,
+                        position_across: Math.round((startPos + endPos) / 2 * acrossRange * 10) / 10,
+                        largeur_horizontale: Math.round(panWidthM * 10) / 10,
+                    });
+                }
+                
+                if (result.panels.length === 0) {
+                    // Fallback si aucun pan détecté
+                    console.warn('⚠️ Aucun pan détecté depuis le profil, fallback uniforme');
+                }
+            }
+            
+            // Fallback : division uniforme si le profil n'a pas donné de résultat
+            if (result.panels.length === 0) {
+                const sectionWidth = obb.shortDim / nRidges;
+                const halfSection = sectionWidth / 2;
+                const slopeDeg = Math.round(Math.atan2(ridgeExtra, halfSection) * 180 / Math.PI * 10) / 10;
+                const rampantWidth = Math.round(Math.sqrt(halfSection * halfSection + ridgeExtra * ridgeExtra) * 10) / 10;
+                const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
+                
+                for (let r = 0; r < nRidges; r++) {
+                    const prefix = nRidges > 1 ? `F${r + 1} ` : '';
+                    result.panels.push({
+                        name: `${prefix}Pan A`,
+                        longueur: panLength,
+                        largeur: rampantWidth,
+                        surface: panSurface,
+                        pente_deg: slopeDeg,
+                        orientation_deg: az1,
+                        orientation_label: getOrientLabel(az1)
+                    });
+                    result.panels.push({
+                        name: `${prefix}Pan B`,
+                        longueur: panLength,
+                        largeur: rampantWidth,
+                        surface: panSurface,
+                        pente_deg: slopeDeg,
+                        orientation_deg: az2,
+                        orientation_label: getOrientLabel(az2)
+                    });
+                }
             }
         } else if (roofShape === 'multi-shed') {
-            // Multi-shed (dents de scie) : 1 pan incliné par section
-            const sectionWidth = obb.shortDim / nRidges;
-            const slopeDeg = Math.round(Math.atan2(ridgeExtra, sectionWidth) * 180 / Math.PI * 10) / 10;
-            const rampantWidth = Math.round(Math.sqrt(sectionWidth * sectionWidth + ridgeExtra * ridgeExtra) * 10) / 10;
+            // Multi-shed (dents de scie) : utiliser le profil LiDAR réel
             const panLength = Math.round(obb.longDim * 10) / 10;
-            const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
-            
             const az1 = toAzimut(perpAngle1);
             
-            for (let r = 0; r < nRidges; r++) {
-                result.panels.push({
-                    name: `Section ${r + 1}`,
-                    longueur: panLength,
-                    largeur: rampantWidth,
-                    surface: panSurface,
-                    pente_deg: slopeDeg,
-                    orientation_deg: az1,
-                    orientation_label: getOrientLabel(az1)
+            const profile = roofAnalysis && roofAnalysis.profile ? roofAnalysis.profile : null;
+            
+            if (profile && profile.length >= 5) {
+                const smoothH = profile.map((p, i) => {
+                    if (i === 0 || i === profile.length - 1) return p.h;
+                    return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
                 });
+                
+                // Trouver les discontinuités (chutes brutales = bord vertical du shed)
+                const dh = [];
+                for (let i = 1; i < smoothH.length; i++) {
+                    dh.push(smoothH[i] - smoothH[i-1]);
+                }
+                
+                // Détecter les ruptures : variation > 30% du ridgeExtra
+                const breakThreshold = ridgeExtra * 0.3;
+                const breakPoints = [0];
+                for (let i = 0; i < dh.length; i++) {
+                    if (Math.abs(dh[i]) > breakThreshold) {
+                        breakPoints.push(i + 1);
+                    }
+                }
+                breakPoints.push(profile.length - 1);
+                
+                // Dédupliquer les points de coupe trop proches
+                const cleanBreaks = [breakPoints[0]];
+                for (let i = 1; i < breakPoints.length; i++) {
+                    if (breakPoints[i] - cleanBreaks[cleanBreaks.length - 1] >= 2) {
+                        cleanBreaks.push(breakPoints[i]);
+                    }
+                }
+                
+                const acrossRange = roofAnalysis.acrossRange || obb.shortDim;
+                
+                for (let s = 0; s < cleanBreaks.length - 1; s++) {
+                    const startIdx = cleanBreaks[s];
+                    const endIdx = cleanBreaks[s + 1];
+                    if (endIdx <= startIdx) continue;
+                    
+                    const startPos = profile[startIdx].pos;
+                    const endPos = profile[endIdx].pos;
+                    const startH = smoothH[startIdx];
+                    const endH = smoothH[endIdx];
+                    
+                    const panWidthM = (endPos - startPos) * acrossRange;
+                    if (panWidthM < 0.5) continue;
+                    
+                    const dH = Math.abs(endH - startH);
+                    const realSlopeDeg = Math.round(Math.atan2(dH, panWidthM) * 180 / Math.PI * 10) / 10;
+                    const rampantWidth = Math.round(Math.sqrt(panWidthM * panWidthM + dH * dH) * 10) / 10;
+                    const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
+                    
+                    result.panels.push({
+                        name: `Section ${s + 1}`,
+                        longueur: panLength,
+                        largeur: rampantWidth,
+                        surface: panSurface,
+                        pente_deg: realSlopeDeg,
+                        orientation_deg: az1,
+                        orientation_label: getOrientLabel(az1),
+                        altitude_base: Math.round((terrainH + bh + Math.min(startH, endH)) * 10) / 10,
+                        altitude_faitage: Math.round((terrainH + bh + Math.max(startH, endH)) * 10) / 10,
+                        largeur_horizontale: Math.round(panWidthM * 10) / 10,
+                    });
+                }
+            }
+            
+            // Fallback uniforme
+            if (result.panels.length === 0) {
+                const sectionWidth = obb.shortDim / nRidges;
+                const slopeDeg = Math.round(Math.atan2(ridgeExtra, sectionWidth) * 180 / Math.PI * 10) / 10;
+                const rampantWidth = Math.round(Math.sqrt(sectionWidth * sectionWidth + ridgeExtra * ridgeExtra) * 10) / 10;
+                const panSurface = Math.round(rampantWidth * panLength * 10) / 10;
+                
+                for (let r = 0; r < nRidges; r++) {
+                    result.panels.push({
+                        name: `Section ${r + 1}`,
+                        longueur: panLength,
+                        largeur: rampantWidth,
+                        surface: panSurface,
+                        pente_deg: slopeDeg,
+                        orientation_deg: az1,
+                        orientation_label: getOrientLabel(az1)
+                    });
+                }
             }
         }
         
@@ -1952,11 +2137,19 @@ class Calpinage3DViewer {
         if (!this.roofPanelsInfo) return '<small class="text-muted">Aucune information de toiture</small>';
         
         const info = this.roofPanelsInfo;
+        // Vérifier si des altitudes sont disponibles (profil LiDAR réel)
+        const hasAltitudes = info.panels.some(p => p.altitude_base !== undefined);
+        const hasWidthH = info.panels.some(p => p.largeur_horizontale !== undefined);
+        
         let html = `<div style="font-size:0.82rem;">`;
         html += `<div class="mb-2"><strong>🏠 ${info.typeLabel}</strong>`;
         html += ` <span class="badge bg-secondary">${info.couverture}</span></div>`;
         html += `<table class="table table-sm table-bordered mb-1" style="font-size:0.78rem;">`;
-        html += `<thead><tr style="background:#f0f4ff;"><th>Pan</th><th>Long.</th><th>Larg.</th><th>Surface</th><th>Pente</th><th>Orientation</th></tr></thead><tbody>`;
+        html += `<thead><tr style="background:#f0f4ff;"><th>Pan</th><th>Long.</th><th>Larg.</th>`;
+        if (hasWidthH) html += `<th>Larg.H</th>`;
+        html += `<th>Surface</th><th>Pente</th><th>Orientation</th>`;
+        if (hasAltitudes) html += `<th>Alt.</th>`;
+        html += `</tr></thead><tbody>`;
         
         for (const p of info.panels) {
             const orientBadge = p.pente_deg > 0 
@@ -1966,14 +2159,23 @@ class Calpinage3DViewer {
             html += `<td><strong>${p.name}</strong></td>`;
             html += `<td>${p.longueur} m</td>`;
             html += `<td>${p.largeur} m</td>`;
+            if (hasWidthH) html += `<td>${p.largeur_horizontale !== undefined ? p.largeur_horizontale + ' m' : '—'}</td>`;
             html += `<td>${p.surface} m²</td>`;
             html += `<td>${p.pente_deg}°</td>`;
             html += `<td>${orientBadge}</td>`;
+            if (hasAltitudes) {
+                html += `<td>${p.altitude_base !== undefined ? p.altitude_base + ' m' : '—'}`;
+                if (p.altitude_faitage !== undefined) html += `<br><small>↑${p.altitude_faitage} m</small>`;
+                html += `</td>`;
+            }
             html += `</tr>`;
         }
         
         html += `</tbody></table>`;
-        html += `<div class="text-end"><strong>Surface totale : ${info.surfaceTotale} m²</strong></div>`;
+        
+        // Calcul surface totale
+        const surfaceTotale = info.surfaceTotale || info.panels.reduce((s, p) => s + (p.surface || 0), 0);
+        html += `<div class="text-end"><strong>Surface totale : ${Math.round(surfaceTotale * 10) / 10} m²</strong></div>`;
         html += `</div>`;
         
         return html;
@@ -2631,17 +2833,40 @@ class Calpinage3DViewer {
      * Toit multi-gable (plusieurs faîtages parallèles) depuis le polygone réel.
      * Crée un profil en zigzag /\/\/\ avec N faîtages.
      */
-    _createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges) {
+    _createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis) {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
+        
+        // Construire une lookup table depuis le profil LiDAR réel si disponible
+        const profile = roofAnalysis && roofAnalysis.profile;
+        let profileLookup = null;
+        if (profile && profile.length >= 5) {
+            // Lisser le profil
+            const smoothH = profile.map((p, i) => {
+                if (i === 0 || i === profile.length - 1) return p.h;
+                return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
+            });
+            const hMin = Math.min(...smoothH);
+            profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
+        }
         
         const heightFunc = (across, along) => {
             // Normaliser across en [0, 1]
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
-            // Diviser en N sections, chacune avec un profil en V inversé
+            
+            if (profileLookup) {
+                // Interpoler depuis le profil réel
+                let i = 0;
+                while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
+                if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
+                const t = (normalized - profileLookup[i].pos) / Math.max(profileLookup[i + 1].pos - profileLookup[i].pos, 0.001);
+                return profileLookup[i].h * (1 - t) + profileLookup[i + 1].h * t;
+            }
+            
+            // Fallback : division uniforme
             const sectionWidth = 1 / nRidges;
-            const inSection = (normalized % sectionWidth) / sectionWidth; // 0..1 dans la section
-            const t = Math.abs(2 * inSection - 1); // 0 au centre (faîtage), 1 aux bords
+            const inSection = (normalized % sectionWidth) / sectionWidth;
+            const t = Math.abs(2 * inSection - 1);
             return ridgeExtra * (1 - t);
         };
         
@@ -2652,14 +2877,34 @@ class Calpinage3DViewer {
      * Toit multi-shed (dents de scie) depuis le polygone réel.
      * Crée un profil en dents de scie /|/|/| avec N sections.
      */
-    _createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges) {
+    _createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis) {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         
+        // Utiliser le profil LiDAR réel si disponible
+        const profile = roofAnalysis && roofAnalysis.profile;
+        let profileLookup = null;
+        if (profile && profile.length >= 5) {
+            const smoothH = profile.map((p, i) => {
+                if (i === 0 || i === profile.length - 1) return p.h;
+                return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
+            });
+            const hMin = Math.min(...smoothH);
+            profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
+        }
+        
         const heightFunc = (across, along) => {
-            // Normaliser across en [0, 1]
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
-            // Dents de scie : montée linéaire dans chaque section
+            
+            if (profileLookup) {
+                let i = 0;
+                while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
+                if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
+                const t = (normalized - profileLookup[i].pos) / Math.max(profileLookup[i + 1].pos - profileLookup[i].pos, 0.001);
+                return profileLookup[i].h * (1 - t) + profileLookup[i + 1].h * t;
+            }
+            
+            // Fallback uniforme
             const sectionWidth = 1 / nRidges;
             const inSection = (normalized % sectionWidth) / sectionWidth;
             return ridgeExtra * inSection;
