@@ -2505,6 +2505,210 @@ class Calpinage3DViewer {
      * @param {string} roofType - Type de couverture
      * @param {string} wallType - Type de mur
      */
+     * 
+     * @param {Array} localCoords - Sommets du polygone [{x, z}]
+     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     * @param {number} roofBaseY - Y du haut des murs
+     * @param {Function} heightFunc - (across, along) => hauteur additionnelle au-dessus de roofBaseY
+     * @param {string} roofType - Type de couverture
+     * @param {string} wallType - Type de mur
+     */
+    
+    /**
+     * Crée un toit multi-sections par maillage grillé.
+     * Résout le problème de _createPolygonRoof qui n'a pas assez de sommets
+     * pour représenter les profils zigzag multi-gable/multi-shed.
+     * 
+     * Approche : grille OBB-alignée → heightFunc à chaque noeud → clipping polygonal
+     */
+    _createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nSubdivisionsAcross) {
+        if (!localCoords || localCoords.length < 3) return;
+        
+        const cosA = Math.cos(-obb.angle);
+        const sinA = Math.sin(-obb.angle);
+        const halfShort = obb.shortDim / 2;
+        const halfLong = obb.longDim / 2;
+        
+        // Abaisser légèrement pour pénétrer dans les murs (anti-interstice)
+        const roofBaseAdj = roofBaseY - 0.15;
+        
+        // Résolution de la grille
+        const nAcross = Math.max(nSubdivisionsAcross || 16, 8);
+        const nAlong = Math.max(4, Math.round(obb.longDim / 5)); // ~1 tous les 5m
+        
+        // ── Point-in-polygon test ──
+        const isInPolygon = (wx, wz) => {
+            let inside = false;
+            const n = localCoords.length;
+            for (let i = 0, j = n - 1; i < n; j = i++) {
+                const xi = localCoords[i].x, zi = localCoords[i].z;
+                const xj = localCoords[j].x, zj = localCoords[j].z;
+                if (((zi > wz) !== (zj > wz)) &&
+                    (wx < (xj - xi) * (wz - zi) / (zj - zi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        };
+        
+        // Légère marge intérieure pour que les bords de la grille ne dépassent pas
+        const margin = 0.3; // 30cm de retrait
+        const effHalfShort = halfShort - margin;
+        const effHalfLong = halfLong - margin;
+        
+        // ── Créer la grille de sommets ──
+        const positions = [];
+        const uvs = [];
+        const gridIdx = []; // [i][j] → index dans positions, ou -1 si hors polygone
+        
+        let vertexCount = 0;
+        for (let i = 0; i <= nAcross; i++) {
+            gridIdx[i] = [];
+            const across = -effHalfShort + (i / nAcross) * effHalfShort * 2;
+            
+            for (let j = 0; j <= nAlong; j++) {
+                const along = -effHalfLong + (j / nAlong) * effHalfLong * 2;
+                
+                // Convertir en coordonnées monde
+                const wx = obb.cx + along * cosA + across * sinA;
+                const wz = obb.cz - along * sinA + across * cosA;
+                
+                if (isInPolygon(wx, wz)) {
+                    const h = heightFunc(across, along);
+                    positions.push(wx, roofBaseAdj + h, wz);
+                    uvs.push(along / 4.0, across / 4.0);
+                    gridIdx[i][j] = vertexCount++;
+                } else {
+                    gridIdx[i][j] = -1;
+                }
+            }
+        }
+        
+        if (vertexCount < 3) {
+            // Pas assez de sommets dans le polygone — fallback
+            console.warn('⚠️ _createGridRoof: pas assez de sommets dans le polygone, fallback _createPolygonRoof');
+            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+            return;
+        }
+        
+        // ── Créer les triangles ──
+        const indices = [];
+        for (let i = 0; i < nAcross; i++) {
+            for (let j = 0; j < nAlong; j++) {
+                const i00 = gridIdx[i][j];
+                const i10 = gridIdx[i + 1][j];
+                const i01 = gridIdx[i][j + 1];
+                const i11 = gridIdx[i + 1][j + 1];
+                
+                // Triangle 1 : (i,j) - (i+1,j) - (i,j+1)
+                if (i00 >= 0 && i10 >= 0 && i01 >= 0) {
+                    indices.push(i00, i10, i01);
+                }
+                // Triangle 2 : (i+1,j) - (i+1,j+1) - (i,j+1)
+                if (i10 >= 0 && i11 >= 0 && i01 >= 0) {
+                    indices.push(i10, i11, i01);
+                }
+            }
+        }
+        
+        if (indices.length < 3) return;
+        
+        // ── Créer le mesh ──
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        
+        const roofTex = this._getRoofTexture(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: roofTex, side: THREE.DoubleSide,
+            specular: 0x222222,
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
+        });
+        const roofMesh = new THREE.Mesh(geo, roofMat);
+        roofMesh.castShadow = true;
+        roofMesh.receiveShadow = true;
+        this.scene.add(roofMesh);
+        this.buildings.push(roofMesh);
+        
+        // ── Murs pignons aux extrémités ──
+        // Appliquer heightFunc le long des arêtes du bâtiment qui sont
+        // perpendiculaires au faîtage (les pignons aux 2 bouts)
+        const wallColorMap = {
+            plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
+            concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
+        };
+        const wallColor = wallColorMap[wallType] || 0xE8DCC8;
+        const alongDirX = Math.cos(obb.angle);
+        const alongDirZ = Math.sin(obb.angle);
+        
+        const pignonVerts = [];
+        const nPignonSamples = nAcross; // même résolution que la grille
+        
+        for (let e = 0; e < localCoords.length; e++) {
+            const curr = localCoords[e];
+            const next = localCoords[(e + 1) % localCoords.length];
+            
+            const edgeX = next.x - curr.x;
+            const edgeZ = next.z - curr.z;
+            const edgeLen = Math.sqrt(edgeX * edgeX + edgeZ * edgeZ);
+            if (edgeLen < 0.5) continue;
+            
+            // Ne traiter que les arêtes perpendiculaires au faîtage (pignons)
+            const dotAlong = Math.abs((edgeX * alongDirX + edgeZ * alongDirZ) / edgeLen);
+            if (dotAlong > 0.5) continue;
+            
+            // Subdiviser cette arête et créer des triangles pignon
+            for (let s = 0; s < nPignonSamples; s++) {
+                const t1 = s / nPignonSamples;
+                const t2 = (s + 1) / nPignonSamples;
+                
+                const x1 = curr.x + t1 * edgeX;
+                const z1 = curr.z + t1 * edgeZ;
+                const x2 = curr.x + t2 * edgeX;
+                const z2 = curr.z + t2 * edgeZ;
+                
+                const dx1 = x1 - obb.cx, dz1 = z1 - obb.cz;
+                const ac1 = dx1 * sinA + dz1 * cosA;
+                const al1 = dx1 * cosA - dz1 * sinA;
+                const h1 = heightFunc(ac1, al1);
+                
+                const dx2 = x2 - obb.cx, dz2 = z2 - obb.cz;
+                const ac2 = dx2 * sinA + dz2 * cosA;
+                const al2 = dx2 * cosA - dz2 * sinA;
+                const h2 = heightFunc(ac2, al2);
+                
+                if (h1 < 0.05 && h2 < 0.05) continue;
+                
+                const y1top = roofBaseAdj + h1;
+                const y2top = roofBaseAdj + h2;
+                
+                // Quad : (x1,base) - (x2,base) - (x2,top) - (x1,top) → 2 triangles
+                pignonVerts.push(
+                    x1, roofBaseAdj, z1,  x2, roofBaseAdj, z2,  x2, y2top, z2,
+                    x1, roofBaseAdj, z1,  x2, y2top, z2,      x1, y1top, z1
+                );
+            }
+        }
+        
+        if (pignonVerts.length > 0) {
+            const wallGeo = new THREE.BufferGeometry();
+            wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(pignonVerts), 3));
+            wallGeo.computeVertexNormals();
+            const wallMat = new THREE.MeshPhongMaterial({
+                color: wallColor, side: THREE.DoubleSide,
+                specular: 0x111111, shininess: 5
+            });
+            const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+            wallMesh.castShadow = true;
+            this.scene.add(wallMesh);
+            this.buildings.push(wallMesh);
+        }
+        
+        console.log(`✅ _createGridRoof: ${vertexCount} sommets, ${indices.length / 3} triangles, ${pignonVerts.length / 18} quads pignon`);
+    }
+    
     _createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType) {
         if (!localCoords || localCoords.length < 3) return;
         
@@ -2841,7 +3045,6 @@ class Calpinage3DViewer {
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
         if (profile && profile.length >= 5) {
-            // Lisser le profil
             const smoothH = profile.map((p, i) => {
                 if (i === 0 || i === profile.length - 1) return p.h;
                 return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
@@ -2851,11 +3054,9 @@ class Calpinage3DViewer {
         }
         
         const heightFunc = (across, along) => {
-            // Normaliser across en [0, 1]
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
             
             if (profileLookup) {
-                // Interpoler depuis le profil réel
                 let i = 0;
                 while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
                 if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
@@ -2870,7 +3071,8 @@ class Calpinage3DViewer {
             return ridgeExtra * (1 - t);
         };
         
-        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        // Utiliser le maillage grillé pour bien échantillonner le profil zigzag
+        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nRidges * 8);
     }
     
     /**
@@ -2910,7 +3112,8 @@ class Calpinage3DViewer {
             return ridgeExtra * inSection;
         };
         
-        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        // Utiliser le maillage grillé
+        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nRidges * 8);
     }
     
     /**
