@@ -1673,7 +1673,7 @@ class Calpinage3DViewer {
                     this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                 }
             } catch (roofErr) {
-                console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr);
+                console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr.message, roofErr.stack);
                 try {
                     this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                 } catch (e2) {
@@ -2530,11 +2530,12 @@ class Calpinage3DViewer {
         const halfLong = obb.longDim / 2;
         
         // Abaisser légèrement pour pénétrer dans les murs (anti-interstice)
-        const roofBaseAdj = roofBaseY - 0.15;
+        // Réduit à 0.05m pour éviter que les bords (h=0) ne plongent dans le bâtiment
+        const roofBaseAdj = roofBaseY - 0.05;
         
-        // Résolution de la grille
-        const nAcross = Math.max(nSubdivisionsAcross || 16, 8);
-        const nAlong = Math.max(4, Math.round(obb.longDim / 5)); // ~1 tous les 5m
+        // Résolution de la grille — assez fine pour un profil zigzag lisse
+        const nAcross = Math.max(nSubdivisionsAcross || 16, 12);
+        const nAlong = Math.max(6, Math.round(obb.longDim / 3)); // ~1 tous les 3m
         
         // ── Point-in-polygon test ──
         const isInPolygon = (wx, wz) => {
@@ -2551,8 +2552,9 @@ class Calpinage3DViewer {
             return inside;
         };
         
-        // Légère marge intérieure pour que les bords de la grille ne dépassent pas
-        const margin = 0.3; // 30cm de retrait
+        // Marge intérieure très réduite — le toit doit couvrir jusqu'au bord du mur
+        // pour éviter que les pans extrêmes ne "rentrent" dans le bâtiment
+        const margin = 0.05; // 5cm seulement
         const effHalfShort = halfShort - margin;
         const effHalfLong = halfLong - margin;
         
@@ -2590,6 +2592,15 @@ class Calpinage3DViewer {
             this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
             return;
         }
+        
+        // Diagnostic : vérifier la plage de hauteurs réellement générée
+        let hMinGrid = Infinity, hMaxGrid = -Infinity;
+        for (let k = 1; k < positions.length; k += 3) {
+            const y = positions[k];
+            if (y < hMinGrid) hMinGrid = y;
+            if (y > hMaxGrid) hMaxGrid = y;
+        }
+        console.log(`📐 _createGridRoof: ${vertexCount} sommets, hRange=${(hMaxGrid - hMinGrid).toFixed(2)}m (${hMinGrid.toFixed(1)}-${hMaxGrid.toFixed(1)}), grid ${nAcross}×${nAlong}`);
         
         // ── Créer les triangles ──
         const indices = [];
@@ -3044,35 +3055,51 @@ class Calpinage3DViewer {
         // Construire une lookup table depuis le profil LiDAR réel si disponible
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
+        let profileMaxH = 0;
         if (profile && profile.length >= 5) {
             const smoothH = profile.map((p, i) => {
                 if (i === 0 || i === profile.length - 1) return p.h;
                 return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
             });
             const hMin = Math.min(...smoothH);
+            const hMax = Math.max(...smoothH);
+            profileMaxH = hMax - hMin;
             profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
+            console.log(`📐 Multi-gable profileLookup: ${profileLookup.length} pts, hRange=${profileMaxH.toFixed(2)}m, halfShort=${halfShort.toFixed(1)}m`);
+        }
+        
+        // Si le profil LiDAR est quasi-plat, ignorer et utiliser le fallback uniforme
+        const useProfile = profileLookup && profileMaxH > 0.3;
+        if (profileLookup && !useProfile) {
+            console.warn(`⚠️ Profil LiDAR trop plat (${profileMaxH.toFixed(2)}m), fallback zigzag uniforme`);
         }
         
         const heightFunc = (across, along) => {
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
             
-            if (profileLookup) {
+            if (useProfile) {
+                // Interpolation linéaire dans le profil LiDAR réel
                 let i = 0;
                 while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
                 if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
-                const t = (normalized - profileLookup[i].pos) / Math.max(profileLookup[i + 1].pos - profileLookup[i].pos, 0.001);
+                const segLen = profileLookup[i + 1].pos - profileLookup[i].pos;
+                const rawT = segLen > 0.001 ? (normalized - profileLookup[i].pos) / segLen : 0;
+                const t = Math.max(0, Math.min(1, rawT));
                 return profileLookup[i].h * (1 - t) + profileLookup[i + 1].h * t;
             }
             
-            // Fallback : division uniforme
+            // Fallback : division uniforme en zigzag symétrique
             const sectionWidth = 1 / nRidges;
             const inSection = (normalized % sectionWidth) / sectionWidth;
             const t = Math.abs(2 * inSection - 1);
             return ridgeExtra * (1 - t);
         };
         
-        // Utiliser le maillage grillé pour bien échantillonner le profil zigzag
-        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nRidges * 8);
+        // Résolution de grille proportionnelle à la taille du bâtiment
+        // Au moins 10 subdivisions par faîtage pour un rendu lisse
+        const nSubAcross = Math.max(nRidges * 16, Math.round(obb.shortDim / 1.0));
+        console.log(`📐 Multi-gable grid: nAcross=${nSubAcross}, nRidges=${nRidges}, useProfile=${useProfile}`);
+        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nSubAcross);
     }
     
     /**
@@ -3086,34 +3113,44 @@ class Calpinage3DViewer {
         // Utiliser le profil LiDAR réel si disponible
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
+        let profileMaxH = 0;
         if (profile && profile.length >= 5) {
             const smoothH = profile.map((p, i) => {
                 if (i === 0 || i === profile.length - 1) return p.h;
                 return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
             });
             const hMin = Math.min(...smoothH);
+            const hMax = Math.max(...smoothH);
+            profileMaxH = hMax - hMin;
             profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
+            console.log(`📐 Multi-shed profileLookup: ${profileLookup.length} pts, hRange=${profileMaxH.toFixed(2)}m`);
         }
+        
+        const useProfile = profileLookup && profileMaxH > 0.3;
         
         const heightFunc = (across, along) => {
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
             
-            if (profileLookup) {
+            if (useProfile) {
                 let i = 0;
                 while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
                 if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
-                const t = (normalized - profileLookup[i].pos) / Math.max(profileLookup[i + 1].pos - profileLookup[i].pos, 0.001);
+                const segLen = profileLookup[i + 1].pos - profileLookup[i].pos;
+                const rawT = segLen > 0.001 ? (normalized - profileLookup[i].pos) / segLen : 0;
+                const t = Math.max(0, Math.min(1, rawT));
                 return profileLookup[i].h * (1 - t) + profileLookup[i + 1].h * t;
             }
             
-            // Fallback uniforme
+            // Fallback uniforme dents de scie
             const sectionWidth = 1 / nRidges;
             const inSection = (normalized % sectionWidth) / sectionWidth;
             return ridgeExtra * inSection;
         };
         
-        // Utiliser le maillage grillé
-        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nRidges * 8);
+        // Résolution de grille proportionnelle
+        const nSubAcross = Math.max(nRidges * 16, Math.round(obb.shortDim / 1.0));
+        console.log(`📐 Multi-shed grid: nAcross=${nSubAcross}, nRidges=${nRidges}, useProfile=${useProfile}`);
+        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nSubAcross);
     }
     
     /**
