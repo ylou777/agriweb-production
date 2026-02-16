@@ -271,8 +271,11 @@ class Calpinage3DViewer {
         // TERRAIN SUBDIVISÉ : interpolation bilinéaire pour éliminer
         // l'effet d'escalier dans la couche satellite
         // ═══════════════════════════════════════════════════════════
-        const subdivFactor = 3; // 3x plus de vertices que la grille MNT
-        const meshRes = (gridSize - 1) * subdivFactor; // nombre de segments
+        // Limiter meshRes à 256 max pour éviter RangeError sur grandes grilles
+        // (une grille 1024x1024 avec subdivFactor=3 donnerait 3069² = 9.4M vertices)
+        const maxMeshRes = 256;
+        const subdivFactor = 3;
+        const meshRes = Math.min((gridSize - 1) * subdivFactor, maxMeshRes);
         const meshVerts = meshRes + 1;                  // nombre de vertices par axe
         
         const geo = new THREE.PlaneGeometry(
