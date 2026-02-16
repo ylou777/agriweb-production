@@ -1437,24 +1437,32 @@ class Calpinage3DViewer {
             }
         }
         
-        if (!roofType && Math.abs(ridgeOffset) > 0.3) {
+        if (!roofType && Math.abs(ridgeOffset) > 0.38) {
             // ── Mono-pente (shed) ──
-            // Vérifier que c'est un vrai gradient monotone, pas juste du bruit
+            // Le pic doit être très proche d'un bord (offset > 0.38 → pic à pos > 0.88 ou < 0.12)
+            // ET le profil doit être strictement monotone (pas de creux/bosses)
             const prof = bestDir.profile;
             let monotoneRise = 0, monotoneFall = 0;
             for (let i = 1; i < prof.length; i++) {
-                if (prof[i].h >= prof[i - 1].h - 0.1) monotoneRise++;
-                if (prof[i].h <= prof[i - 1].h + 0.1) monotoneFall++;
+                // Tolérance réduite : seulement le bruit LiDAR réel (~5cm), pas 10cm
+                if (prof[i].h >= prof[i - 1].h - 0.05) monotoneRise++;
+                if (prof[i].h <= prof[i - 1].h + 0.05) monotoneFall++;
             }
             const totalSteps = prof.length - 1;
-            const isMonotone = (monotoneRise / totalSteps > 0.75) || (monotoneFall / totalSteps > 0.75);
+            // Exiger 85% de monotonie (plus strict que 75%)
+            const isMonotone = (monotoneRise / totalSteps > 0.85) || (monotoneFall / totalSteps > 0.85);
             
-            if (isMonotone) {
+            // Vérification supplémentaire : le R² du modèle shed doit être bon
+            const shedFitGood = bestDir.sawtoothScore > 0.05 || 
+                (bestDir.bestModel === 'shed' && bestDir.bestR2 > 0.5);
+            
+            if (isMonotone && shedFitGood) {
                 roofType = 'shed';
+                console.log(`🏠 Shed confirmé: offset=${ridgeOffset.toFixed(2)}, monotone=${(Math.max(monotoneRise, monotoneFall) / totalSteps * 100).toFixed(0)}%, R²=${bestDir.bestR2?.toFixed(3)}`);
             } else {
-                // Pic décalé mais pas monotone → gable asymétrique (traiter comme gable)
+                // Pic décalé mais pas vraiment monotone → gable asymétrique
                 roofType = 'gable';
-                console.log(`🏠 Gable asymétrique détecté (offset=${ridgeOffset.toFixed(2)}, non monotone)`);
+                console.log(`🏠 Gable asymétrique détecté (offset=${ridgeOffset.toFixed(2)}, monotone=${(Math.max(monotoneRise, monotoneFall) / totalSteps * 100).toFixed(0)}%, shedFitGood=${shedFitGood})`);
             }
         } else if (!roofType) {
             // ── Faîtage centré → gable ou hip ──
