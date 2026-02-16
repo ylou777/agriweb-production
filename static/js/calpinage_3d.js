@@ -272,7 +272,10 @@ class Calpinage3DViewer {
         // l'effet d'escalier dans la couche satellite
         // ═══════════════════════════════════════════════════════════
         const subdivFactor = 3; // 3x plus de vertices que la grille MNT
-        const meshRes = (gridSize - 1) * subdivFactor; // nombre de segments
+        // Limiter la résolution du mesh terrain pour éviter les dépassements mémoire
+        // (gridSize peut atteindre 1024+ avec super-résolution → 3069² = crash)
+        const rawMeshRes = (gridSize - 1) * subdivFactor;
+        const meshRes = Math.min(rawMeshRes, 512); // max 512 segments = 513² = ~790K vertices
         const meshVerts = meshRes + 1;                  // nombre de vertices par axe
         
         const geo = new THREE.PlaneGeometry(
