@@ -814,20 +814,36 @@
                 <!-- Visualisation 3D WebGL -->
                 <div id="viewer3DContainer">
                     <div class="card">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <strong><i class="bi bi-badge-3d"></i> Vue 3D immersive — WebGL</strong>
-                            <div>
-                                <button class="btn btn-sm btn-success me-1" id="btnAutoFillRoof" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture avec des modules PV">
-                                    ⚡ Remplissage auto
-                                </button>
-                                <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
-                                    ☀️ Soleil
-                                </button>
-                                <button class="btn btn-sm btn-light me-1" onclick="toggleRoofPanelsInfo()" title="Infos pans de toiture">
-                                    📐 Toiture
-                                </button>
-                                <button class="btn btn-sm btn-secondary" onclick="toggle3DView()" title="Retour vue 2D">
-                                    🗺️ Retour 2D
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <strong><i class="bi bi-badge-3d"></i> Vue 3D immersive — WebGL</strong>
+                                <div>
+                                    <button class="btn btn-sm btn-success me-1" id="btnAutoFillRoof" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture avec des modules PV">
+                                        ⚡ Remplissage auto
+                                    </button>
+                                    <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
+                                        ☀️ Soleil
+                                    </button>
+                                    <button class="btn btn-sm btn-light me-1" onclick="toggleRoofPanelsInfo()" title="Infos pans de toiture">
+                                        📐 Toiture
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" onclick="toggle3DView()" title="Retour vue 2D">
+                                        🗺️ Retour 2D
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center mt-2" style="gap:8px;">
+                                <label class="text-muted mb-0" style="font-size:0.8rem; white-space:nowrap;">🏠 Type de toiture :</label>
+                                <select class="form-select form-select-sm" id="roofTypeOverride" style="max-width:240px; font-size:0.8rem;">
+                                    <option value="auto">🔍 Auto (détection LiDAR)</option>
+                                    <option value="gable">🏠 2 pans (résidentiel)</option>
+                                    <option value="hip">🏠 4 pans / croupe</option>
+                                    <option value="shed">🏭 Mono-pente (shed)</option>
+                                    <option value="flat">⬜ Toit plat (terrasse)</option>
+                                    <option value="multi-gable">🏭 Multi-pans (industriel)</option>
+                                </select>
+                                <button class="btn btn-sm btn-outline-primary" onclick="reloadRoof3D()" title="Recharger la toiture avec le type sélectionné" style="font-size:0.8rem;">
+                                    🔄 Recharger
                                 </button>
                             </div>
                         </div>
@@ -5410,7 +5426,11 @@
                 // pour que la carte satellite couvre l'ensemble du bâtiment + contexte
                 radius3D = Math.min(radius3D, 250); // Cap à 250m pour limiter le temps de chargement
                 
-                console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
+                // Passer le type de toiture sélectionné
+                const roofOverride = document.getElementById('roofTypeOverride').value;
+                viewer3D.roofTypeOverride = (roofOverride !== 'auto') ? roofOverride : null;
+                
+                console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m, toiture=${roofOverride}`);
                 viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {
                     // Si des zones auto-remplies existent déjà, ne pas les écraser
                     const hasAutoFilled = zones.some(z => z._autoFilled3D);
@@ -5425,6 +5445,27 @@
                     updateRoofPanelsInfoPanel();
                 });
             }
+        }
+        
+        /**
+         * Recharger la toiture 3D avec le type sélectionné dans le dropdown
+         */
+        function reloadRoof3D() {
+            if (!viewer3D || !viewer3D.lidarData) {
+                alert('⚠️ Chargez d\'abord la vue 3D');
+                return;
+            }
+            const roofOverride = document.getElementById('roofTypeOverride').value;
+            viewer3D.roofTypeOverride = (roofOverride !== 'auto') ? roofOverride : null;
+            console.log(`🔄 Rechargement toiture: type=${roofOverride}`);
+            
+            // Reconstruire les bâtiments avec le nouveau type
+            viewer3D._buildBuildings(viewer3D.lidarData);
+            
+            // Mettre à jour l'affichage
+            update3DFromZones();
+            ajusterZonesDepuisToiture3D();
+            updateRoofPanelsInfoPanel();
         }
         
         /**
