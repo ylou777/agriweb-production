@@ -272,10 +272,7 @@ class Calpinage3DViewer {
         // l'effet d'escalier dans la couche satellite
         // ═══════════════════════════════════════════════════════════
         const subdivFactor = 3; // 3x plus de vertices que la grille MNT
-        // Limiter la résolution du mesh terrain pour éviter les dépassements mémoire
-        // (gridSize peut atteindre 1024+ avec super-résolution → 3069² = crash)
-        const rawMeshRes = (gridSize - 1) * subdivFactor;
-        const meshRes = Math.min(rawMeshRes, 512); // max 512 segments = 513² = ~790K vertices
+        const meshRes = (gridSize - 1) * subdivFactor; // nombre de segments
         const meshVerts = meshRes + 1;                  // nombre de vertices par axe
         
         const geo = new THREE.PlaneGeometry(
@@ -375,81 +372,68 @@ class Calpinage3DViewer {
             const objectUrl = URL.createObjectURL(blob);
             console.log('🛰️ Image satellite reçue:', (blob.size / 1024).toFixed(0), 'Ko');
             
-            // Charger l'image via Promise pour attendre le décodage complet
-            await new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    // Créer un canvas pour booster le contraste
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
+            // Charger l'image pour appliquer contraste/saturation
+            const img = new Image();
+            img.onload = () => {
+                // Créer un canvas pour booster le contraste
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                
+                // Dessiner l'image originale
+                ctx.drawImage(img, 0, 0);
+                
+                // Booster le contraste et la saturation
+                ctx.globalCompositeOperation = 'source-over';
+                // Augmenter le contraste via courbe S
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = imageData.data;
+                const contrast = 1.3; // 1.0 = normal, 1.3 = +30%
+                const satBoost = 1.25; // +25% saturation
+                for (let i = 0; i < d.length; i += 4) {
+                    // Contraste
+                    let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
+                    let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
+                    let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
                     
-                    // Dessiner l'image originale
-                    ctx.drawImage(img, 0, 0);
+                    // Saturation
+                    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                    r = gray + (r - gray) * satBoost;
+                    g = gray + (g - gray) * satBoost;
+                    b = gray + (b - gray) * satBoost;
                     
-                    // Booster le contraste et la saturation
-                    ctx.globalCompositeOperation = 'source-over';
-                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    const d = imageData.data;
-                    const contrast = 1.3;
-                    const satBoost = 1.25;
-
-                    // Stocker le niveau de gris BRUT (avant boost) pour l'analyse de faîtages
-                    const grayArr = new Float32Array(canvas.width * canvas.height);
-                    for (let i = 0; i < d.length; i += 4) {
-                        grayArr[i / 4] = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
-                    }
-                    this._satGray  = grayArr;
-                    this._satW     = canvas.width;
-                    this._satH     = canvas.height;
-                    const latDeg   = radiusM / 111320.0;
-                    const lonDeg   = radiusM / (111320.0 * Math.cos(lat * Math.PI / 180));
-                    this._satBbox  = {
-                        south: lat - latDeg, north: lat + latDeg,
-                        west:  lon - lonDeg, east:  lon + lonDeg
-                    };
-
-                    for (let i = 0; i < d.length; i += 4) {
-                        let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
-                        let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
-                        let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
-                        
-                        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                        r = gray + (r - gray) * satBoost;
-                        g = gray + (g - gray) * satBoost;
-                        b = gray + (b - gray) * satBoost;
-                        
-                        d[i]   = Math.max(0, Math.min(255, r));
-                        d[i+1] = Math.max(0, Math.min(255, g));
-                        d[i+2] = Math.max(0, Math.min(255, b));
-                    }
-                    ctx.putImageData(imageData, 0, 0);
-                    
-                    const tex = new THREE.CanvasTexture(canvas);
-                    tex.wrapS = THREE.ClampToEdgeWrapping;
-                    tex.wrapT = THREE.ClampToEdgeWrapping;
-                    tex.minFilter = THREE.LinearMipMapLinearFilter;
-                    tex.magFilter = THREE.LinearFilter;
-                    tex.anisotropy = 4;
-                    
-                    if (this.terrainMesh) {
-                        this.terrainMesh.material.map = tex;
-                        this.terrainMesh.material.color.set(0xffffff);
-                        this.terrainMesh.material.needsUpdate = true;
-                    }
-                    
-                    console.log(`✅ Texture satellite ${canvas.width}×${canvas.height} + grayscale stocké pour analyse`);
-                    URL.revokeObjectURL(objectUrl);
-                    resolve();
-                };
-                img.onerror = () => {
-                    console.warn('⚠ Erreur chargement image satellite');
-                    URL.revokeObjectURL(objectUrl);
-                    resolve();  // ne pas bloquer le pipeline
-                };
-                img.src = objectUrl;
-            });
+                    d[i]   = Math.max(0, Math.min(255, r));
+                    d[i+1] = Math.max(0, Math.min(255, g));
+                    d[i+2] = Math.max(0, Math.min(255, b));
+                }
+                ctx.putImageData(imageData, 0, 0);
+                
+                const tex = new THREE.CanvasTexture(canvas);
+                tex.wrapS = THREE.ClampToEdgeWrapping;
+                tex.wrapT = THREE.ClampToEdgeWrapping;
+                tex.minFilter = THREE.LinearMipMapLinearFilter;
+                tex.magFilter = THREE.LinearFilter;
+                tex.anisotropy = 4; // Meilleur rendu en perspective
+                
+                if (this.terrainMesh) {
+                    this.terrainMesh.material.map = tex;
+                    this.terrainMesh.material.color.set(0xffffff);
+                    this.terrainMesh.material.needsUpdate = true;
+                }
+                
+                // Ne PAS appliquer au sol secondaire (600x600) :
+                // la même image satellite étirée sur un plan 3x plus grand
+                // crée un doublon flou et hors échelle
+                
+                console.log('✅ Texture satellite contrastée appliquée au terrain');
+                URL.revokeObjectURL(objectUrl);
+            };
+            img.onerror = () => {
+                console.warn('⚠ Erreur chargement image satellite');
+                URL.revokeObjectURL(objectUrl);
+            };
+            img.src = objectUrl;
         } catch (e) {
             console.warn('⚠ Erreur texture satellite:', e);
         }
@@ -517,7 +501,6 @@ class Calpinage3DViewer {
         
         // Marge depuis le bord du toit (acrotère, rive, etc.)
         const marge = 0.30; // 30cm de marge depuis les bords
-        const margeFaitage = 0.50; // 50cm de recul de chaque côté des faîtages
         
         const generatedZones = [];
         
@@ -569,15 +552,14 @@ class Calpinage3DViewer {
             
             if (info.type === 'gable') {
                 // Pan rectangulaire : longueur = axe principal, largeur = demi-shortDim
-                // Le faîtage est à across=0 → recul de 50cm de chaque côté
                 panAlongStart = -halfLong + marge;
                 panAlongEnd = halfLong - marge;
                 if (pi === 0) {
-                    panAcrossStart = margeFaitage; // 50cm du faîtage
+                    panAcrossStart = marge;
                     panAcrossEnd = halfShort - marge;
                 } else {
                     panAcrossStart = -halfShort + marge;
-                    panAcrossEnd = -margeFaitage; // 50cm du faîtage
+                    panAcrossEnd = -marge;
                 }
             } else if (info.type === 'hip') {
                 if (pi < 2) {
@@ -586,11 +568,11 @@ class Calpinage3DViewer {
                     panAlongStart = -ridgeHalfLen + marge;
                     panAlongEnd = ridgeHalfLen - marge;
                     if (pi === 0) {
-                        panAcrossStart = margeFaitage; // 50cm du faîtage
+                        panAcrossStart = marge;
                         panAcrossEnd = halfShort - marge;
                     } else {
                         panAcrossStart = -halfShort + marge;
-                        panAcrossEnd = -margeFaitage; // 50cm du faîtage
+                        panAcrossEnd = -marge;
                     }
                 } else {
                     // Croupes — trop petites en général, skip
@@ -598,14 +580,12 @@ class Calpinage3DViewer {
                     return;
                 }
             } else if (info.type === 'shed') {
-                // Mono-pente : faîtage sur un seul côté
                 panAlongStart = -halfLong + marge;
                 panAlongEnd = halfLong - marge;
                 panAcrossStart = -halfShort + marge;
-                panAcrossEnd = halfShort - margeFaitage; // 50cm du faîtage (côté haut)
+                panAcrossEnd = halfShort - marge;
             } else if (info.type === 'multi-gable') {
                 // Multi-gable : chaque section a 2 pans (A et B)
-                // Le faîtage est au centre de chaque section → recul 50cm de chaque côté
                 const nRidges = info.nRidges || 1;
                 const sectionWidth = obb.shortDim / nRidges;
                 const halfSection = sectionWidth / 2;
@@ -617,16 +597,14 @@ class Calpinage3DViewer {
                 
                 const sectionStart = -halfShort + ridgeIdx * sectionWidth;
                 if (sideIdx === 0) {
-                    // Pan A : du bord de section (noue) au faîtage
                     panAcrossStart = sectionStart + marge;
-                    panAcrossEnd = sectionStart + halfSection - margeFaitage; // 50cm du faîtage
+                    panAcrossEnd = sectionStart + halfSection - marge;
                 } else {
-                    // Pan B : du faîtage au bord de section (noue)
-                    panAcrossStart = sectionStart + halfSection + margeFaitage; // 50cm du faîtage
+                    panAcrossStart = sectionStart + halfSection + marge;
                     panAcrossEnd = sectionStart + sectionWidth - marge;
                 }
             } else if (info.type === 'multi-shed') {
-                // Multi-shed : 1 pan incliné par section, faîtage au bord haut
+                // Multi-shed : 1 pan incliné par section
                 const nRidges = info.nRidges || 1;
                 const sectionWidth = obb.shortDim / nRidges;
                 
@@ -635,7 +613,7 @@ class Calpinage3DViewer {
                 
                 const sectionStart = -halfShort + pi * sectionWidth;
                 panAcrossStart = sectionStart + marge;
-                panAcrossEnd = sectionStart + sectionWidth - margeFaitage; // 50cm du faîtage
+                panAcrossEnd = sectionStart + sectionWidth - marge;
             } else {
                 // Plat
                 panAlongStart = -halfLong + marge;
@@ -665,14 +643,11 @@ class Calpinage3DViewer {
                 ? panAcrossStart + (usableAcross - gridAcross) / 2
                 : panAcrossEnd + (usableAcross - gridAcross) / 2;
             
-            // Groupe 3D à l'origine (pas de rotation de groupe — chaque module
-            // est posé individuellement SUR la surface du toit via heightFunc)
+            // Créer le groupe 3D pour ce pan
+            // Le pivot est au faîtage (eaveY + ridgeExtra) pour que la rotation
+            // fasse descendre les modules correctement vers l'égout au lieu de "rentrer" dans le bâtiment
             const panGroup = new THREE.Group();
-            
-            // Utiliser le heightFunc stocké lors de la construction du toit
-            // pour calculer la hauteur exacte de chaque module
-            const hasHeightFunc = typeof this._roofHeightFunc === 'function';
-            const roofBaseY = hasHeightFunc ? this._roofEaveY : eaveY;
+            panGroup.position.set(obb.cx, eaveY + ridgeExtra, obb.cz);
             
             const modules = [];
             
@@ -687,6 +662,7 @@ class Calpinage3DViewer {
                     const worldZ = obb.cz + along * sinA + across * cosA;
                     
                     // === Filtrage par polygone réel du bâtiment ===
+                    // Vérifier que les 4 coins du module sont dans l'emprise réelle
                     if (buildingPoly) {
                         const halfW = modAlong / 2;
                         const halfH = modAcross / 2;
@@ -696,15 +672,18 @@ class Calpinage3DViewer {
                             { x: worldX + ( halfW)*cosA - ( halfH)*sinA, z: worldZ + ( halfW)*sinA + ( halfH)*cosA },
                             { x: worldX + (-halfW)*cosA - ( halfH)*sinA, z: worldZ + (-halfW)*sinA + ( halfH)*cosA },
                         ];
+                        // Au moins 3 coins sur 4 doivent être dans le polygone
                         const insideCount = corners.filter(c => 
                             this._pointInPolygon2D(c.x, c.z, buildingPoly.map(p => ({x: p.x, y: p.z})))
                         ).length;
-                        if (insideCount < 3) continue;
+                        if (insideCount < 3) continue; // Module hors emprise → skip
                     }
                     
-                    // === Filtrage par obstacles ===
+                    // === Filtrage par obstacles (cheminées, acrotères, trappes...) ===
                     if (obstacleRects && obstacleRects.length > 0) {
+                        // Convertir le centre du module en lat/lng
                         const modGeo = this._localToGeo(worldX, worldZ);
+                        // Vérifier si le module ou ses coins chevauchent un obstacle (+ buffer 0.5m)
                         const halfW2 = modAlong / 2;
                         const halfH2 = modAcross / 2;
                         const modCorners = [
@@ -713,77 +692,46 @@ class Calpinage3DViewer {
                             this._localToGeo(worldX + ( halfW2)*cosA - ( halfH2)*sinA, worldZ + ( halfW2)*sinA + ( halfH2)*cosA),
                             this._localToGeo(worldX + (-halfW2)*cosA - ( halfH2)*sinA, worldZ + (-halfW2)*sinA + ( halfH2)*cosA),
                         ];
+                        
                         let hitObstacle = false;
                         for (const obs of obstacleRects) {
+                            // Vérifier si le centre du module est dans le rectangle obstacle
                             if (modGeo.lat >= obs.minLat && modGeo.lat <= obs.maxLat &&
                                 modGeo.lng >= obs.minLng && modGeo.lng <= obs.maxLng) {
-                                hitObstacle = true; break;
+                                hitObstacle = true;
+                                break;
                             }
+                            // Vérifier si AUCUN coin du module ne chevauche l'obstacle
                             for (const c of modCorners) {
                                 if (c.lat >= obs.minLat && c.lat <= obs.maxLat &&
                                     c.lng >= obs.minLng && c.lng <= obs.maxLng) {
-                                    hitObstacle = true; break;
+                                    hitObstacle = true;
+                                    break;
                                 }
                             }
                             if (hitObstacle) break;
                         }
-                        if (hitObstacle) continue;
+                        if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
                     
-                    // === Placement individuel SUR la surface du toit ===
-                    let panelY = eaveY + ridgeExtra + 0.05; // fallback = ridge + 5cm
-                    let slopeRad = penteRad;
-                    let slopeAzimutRad = azimutRad;
-                    
-                    if (hasHeightFunc) {
-                        // Hauteur du toit au centre du module
-                        const hCenter = this._roofHeightFunc(across, along);
-                        panelY = roofBaseY + hCenter + 0.05; // 5cm au-dessus de la surface
-                        
-                        // Calculer la pente locale par différence finie
-                        const eps = 0.3;
-                        const hAcrossP = this._roofHeightFunc(across + eps, along);
-                        const hAcrossN = this._roofHeightFunc(across - eps, along);
-                        const dHdAcross = (hAcrossP - hAcrossN) / (2 * eps);
-                        
-                        // Pente locale dans la direction across (perpendiculaire au faîtage)
-                        slopeRad = Math.atan(Math.abs(dHdAcross));
-                        
-                        // Direction de descente : vers across croissant ou décroissant
-                        // dHdAcross > 0 = monte vers across+, donc descend vers across-
-                        // across+ direction in world = (sinA, cosA) from OBB
-                        // Convert to azimut: perpAngle1 = obb.angle + PI/2 (across+) ou perpAngle2 (across-)
-                        if (dHdAcross > 0) {
-                            // Descend vers across négatif
-                            slopeAzimutRad = (90 + (obb.angle - Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
-                        } else {
-                            // Descend vers across positif
-                            slopeAzimutRad = (90 + (obb.angle + Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
-                        }
-                    }
+                    // Offset par rapport au centre du groupe
+                    const localX = along * cosA - across * sinA;
+                    const localZ = along * sinA + across * cosA;
                     
                     // Créer le mesh du module
                     const panel3d = new THREE.Mesh(
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
                         panelMat
                     );
-                    panel3d.position.set(worldX, panelY, worldZ);
+                    // Y = 0.15m au-dessus de la surface du groupe (normal au toit après rotation)
+                    panel3d.position.set(localX, 0.15, localZ);
                     panel3d.rotation.y = -obb.angle;
-                    
-                    // Incliner le module selon la pente locale du toit
-                    if (slopeRad > 0.001) {
-                        const tiltAxis = new THREE.Vector3(
-                            -Math.cos(slopeAzimutRad), 0, -Math.sin(slopeAzimutRad)
-                        ).normalize();
-                        panel3d.rotateOnWorldAxis(tiltAxis, slopeRad);
-                    }
-                    
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
-                    panel3d.renderOrder = 10;
+                    panel3d.renderOrder = 10; // S'afficher au-dessus du toit
                     panGroup.add(panel3d);
                     
-                    // Coins en coordonnées géo pour la projection 2D
+                    // Calculer les 4 coins en coordonnées géo (lat/lng) pour la projection 2D
                     const halfW = modAlong / 2;
                     const halfH = modAcross / 2;
                     const cornersLocal = [
@@ -804,6 +752,14 @@ class Calpinage3DViewer {
                     
                     totalModules++;
                 }
+            }
+            
+            // Appliquer la pente au groupe
+            if (penteRad > 0.001) {
+                const tiltAxis = new THREE.Vector3(
+                    -Math.cos(azimutRad), 0, -Math.sin(azimutRad)
+                ).normalize();
+                panGroup.rotateOnWorldAxis(tiltAxis, penteRad);
             }
             
             this.scene.add(panGroup);
@@ -874,11 +830,12 @@ class Calpinage3DViewer {
         
         // BD TOPO buildings (prioritaire - ont hauteur réelle)
         if (data.buildings_bdtopo) {
-            data.buildings_bdtopo.forEach(b => {
+            data.buildings_bdtopo.forEach((b, idx) => {
                 allBuildings.push({
                     coords: b.coords,
                     height: b.hauteur || 6,
                     source: 'bdtopo',
+                    _bdtopoIdx: idx,
                     usage: b.usage,
                     nature: b.nature,
                     materiaux_toit: b.materiaux_toit,
@@ -1047,9 +1004,20 @@ class Calpinage3DViewer {
      * Retourne les points 3D du toit {x_local, z_local, altitude_mns, hauteur_mnh}
      * permettant de reconstituer la forme réelle du toit.
      */
-    _sampleMNSOnBuilding(geoCoords) {
+    _sampleMNSOnBuilding(geoCoords, buildingIndex) {
         if (!this.lidarData || !this.lidarData.terrain || !this.lidarData.terrain.mns) return null;
         
+        // ── Essayer d'abord la grille LiDAR HD (50cm) si disponible ──
+        const hdData = this.lidarData.building_hd;
+        if (hdData && hdData.building_index === buildingIndex) {
+            const hdPoints = this._sampleFromHDGrid(geoCoords, hdData);
+            if (hdPoints && hdPoints.length >= 4) {
+                console.log(`✓ LiDAR HD sampling: ${hdPoints.length} pts à ${hdData.resolution}m/px`);
+                return hdPoints;
+            }
+        }
+        
+        // ── Fallback : grille terrain WMS (1m) ──
         const terrain = this.lidarData.terrain;
         const mns = terrain.mns;
         const mnt = terrain.mnt;
@@ -1104,162 +1072,47 @@ class Calpinage3DViewer {
     }
     
     /**
-     * Analyse l'image satellite pour détecter les lignes de faîtage par gradient transversal.
-     * L'image montre les faîtages comme des lignes de contraste (ombres, matériaux).
-     * Retourne les positions normalisées (0-1) des faîtages à travers la largeur du bâtiment.
-     *
-     * @param {Array} geoCoords - Coordonnées [[lon,lat], ...] du polygone
-     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
-     * @returns {Object|null} {count, positions[], strengths[], profile[]}
+     * Échantillonne les points MNS/MNT/MNH depuis la grille LiDAR HD (50cm)
+     * retournée par l'API altimétrie IGN.
+     * @param {Array} geoCoords - [[lon, lat], ...] polygone bâtiment
+     * @param {Object} hdData - {mns, mnt, mnh, grid_w, grid_h, bbox, altitude_base}
+     * @returns {Array|null} Points {x, z, mns, mnt, mnh}
      */
-    _analyzeSatelliteRidges(geoCoords, obb) {
-        if (!this._satGray || !this._satBbox) return null;
-
-        const bbox = this._satBbox;
-        const sw = this._satW, sh = this._satH;
-        const gray = this._satGray;
-
-        // Coordonnées lon/lat du bâtiment
-        const lons = geoCoords.map(c => c[0]);
-        const lats = geoCoords.map(c => c[1]);
-        const bMinLon = Math.min(...lons), bMaxLon = Math.max(...lons);
-        const bMinLat = Math.min(...lats), bMaxLat = Math.max(...lats);
-
-        // Pixel bounds du bâtiment dans l'image satellite
-        const pxMin = Math.max(0, Math.floor((bMinLon - bbox.west) / (bbox.east - bbox.west) * sw) - 2);
-        const pxMax = Math.min(sw - 1, Math.ceil((bMaxLon - bbox.west) / (bbox.east - bbox.west) * sw) + 2);
-        const pyMin = Math.max(0, Math.floor((bbox.north - bMaxLat) / (bbox.north - bbox.south) * sh) - 2);
-        const pyMax = Math.min(sh - 1, Math.ceil((bbox.north - bMinLat) / (bbox.north - bbox.south) * sh) + 2);
-
-        if (pxMax - pxMin < 10 || pyMax - pyMin < 10) return null;
-
+    _sampleFromHDGrid(geoCoords, hdData) {
+        const { mns, mnt, mnh, grid_w, grid_h, bbox } = hdData;
+        if (!mns || !mnt || !mnh) return null;
+        
         const polyGeo = geoCoords.map(c => ({x: c[0], y: c[1]}));
-
-        // Direction transversale (perpendiculaire au faîtage)
-        const ridgeAngle = obb.angle;
-        const cosPerp = -Math.sin(ridgeAngle);  // perpendiculaire en 3D local (x=east)
-        const sinPerp =  Math.cos(ridgeAngle);
-
-        const centerLat = (bMinLat + bMaxLat) / 2;
-        const centerLon = (bMinLon + bMaxLon) / 2;
-        const lngToM = 111320 * Math.cos(centerLat * Math.PI / 180);
-
-        // Collecter gradient et coordonnée transversale pour chaque pixel du toit
-        const acrossVals = [];
-        const gradVals = [];
-
-        for (let py = pyMin + 1; py < pyMax - 1; py++) {
-            for (let px = pxMin + 1; px < pxMax - 1; px++) {
-                // Coordonnée géo du pixel
-                const pLon = bbox.west + (px + 0.5) / sw * (bbox.east - bbox.west);
-                const pLat = bbox.north - (py + 0.5) / sh * (bbox.north - bbox.south);
-
-                if (!this._pointInPolygon2D(pLon, pLat, polyGeo)) continue;
-
-                // Gradient central (Sobel simplifié)
-                const idx = py * sw + px;
-                const gx = (gray[idx + 1] - gray[idx - 1]) / 2;        // ∂I/∂col (→ east)
-                const gy = (gray[idx + sw] - gray[idx - sw]) / 2;       // ∂I/∂row (↓ = south)
-
-                // Projeter le gradient sur la direction transversale
-                // gx → composante east, gy → composante sud (car row↓=sud)
-                const mx = (pLon - centerLon) * lngToM;
-                const my = (pLat - centerLat) * 111320;
-                const across = mx * cosPerp + my * sinPerp;
-                const gradTrans = Math.abs(gx * cosPerp - gy * sinPerp);
-
-                acrossVals.push(across);
-                gradVals.push(gradTrans);
+        
+        const roofPoints = [];
+        for (let iy = 0; iy < grid_h; iy++) {
+            if (!mns[iy] || !mnt[iy] || !mnh[iy]) continue;
+            for (let ix = 0; ix < grid_w; ix++) {
+                // Position géographique du pixel HD
+                const pxLon = bbox.west + (ix + 0.5) / grid_w * (bbox.east - bbox.west);
+                const pxLat = bbox.north - (iy + 0.5) / grid_h * (bbox.north - bbox.south);
+                
+                // Test d'inclusion dans le polygone du bâtiment
+                if (!this._pointInPolygon2D(pxLon, pxLat, polyGeo)) continue;
+                
+                const mnhVal = mnh[iy][ix] || 0;
+                if (mnhVal < 1.5) continue; // Pas sur un bâtiment
+                
+                const mnsVal = mns[iy][ix] || 0;
+                const mntVal = mnt[iy][ix] || 0;
+                
+                const local = this._geoToLocal(pxLat, pxLon);
+                roofPoints.push({
+                    x: local.x,
+                    z: local.z,
+                    mns: mnsVal,
+                    mnt: mntVal,
+                    mnh: mnhVal,
+                });
             }
         }
-
-        if (acrossVals.length < 30) return null;
-
-        // Profil 1D : gradient moyen par bin transversal (~0.3m/bin)
-        let aMin = Infinity, aMax = -Infinity;
-        for (let i = 0; i < acrossVals.length; i++) {
-            if (acrossVals[i] < aMin) aMin = acrossVals[i];
-            if (acrossVals[i] > aMax) aMax = acrossVals[i];
-        }
-        const aRange = aMax - aMin;
-        if (aRange < 1) return null;
-
-        const nbBins = Math.max(15, Math.round(aRange / 0.3));
-        const profile = new Float32Array(nbBins);
-        const counts  = new Float32Array(nbBins);
-
-        for (let i = 0; i < acrossVals.length; i++) {
-            let b = Math.floor((acrossVals[i] - aMin) / aRange * (nbBins - 1));
-            b = Math.max(0, Math.min(nbBins - 1, b));
-            profile[b] += gradVals[i];
-            counts[b]  += 1;
-        }
-        for (let i = 0; i < nbBins; i++) {
-            if (counts[i] > 0) profile[i] /= counts[i];
-        }
-
-        // Interpoler les bins vides
-        for (let i = 0; i < nbBins; i++) {
-            if (counts[i] === 0) {
-                let lo = i - 1, hi = i + 1;
-                while (lo >= 0 && counts[lo] === 0) lo--;
-                while (hi < nbBins && counts[hi] === 0) hi++;
-                if (lo >= 0 && hi < nbBins) {
-                    profile[i] = profile[lo] + (profile[hi] - profile[lo]) * (i - lo) / (hi - lo);
-                } else if (lo >= 0) profile[i] = profile[lo];
-                else if (hi < nbBins) profile[i] = profile[hi];
-            }
-        }
-
-        // Lissage (noyau [1,2,3,2,1]/9)
-        const smooth = new Float32Array(nbBins);
-        const k = [1, 2, 3, 2, 1];
-        for (let i = 0; i < nbBins; i++) {
-            let s = 0, w = 0;
-            for (let j = -2; j <= 2; j++) {
-                const idx = i + j;
-                if (idx >= 0 && idx < nbBins) { s += profile[idx] * k[j + 2]; w += k[j + 2]; }
-            }
-            smooth[i] = s / w;
-        }
-
-        // Détection des pics (maxima locaux > seuil adaptatif)
-        let meanG = 0, sumG2 = 0;
-        for (let i = 0; i < nbBins; i++) { meanG += smooth[i]; sumG2 += smooth[i] * smooth[i]; }
-        meanG /= nbBins;
-        const stdG = Math.sqrt(sumG2 / nbBins - meanG * meanG);
-        const threshold = meanG + 1.0 * stdG;
-
-        const ridgePositions = [];  // 0-1 normalized
-        const ridgeStrengths = [];
-
-        for (let i = 2; i < nbBins - 2; i++) {
-            if (smooth[i] > smooth[i-1] && smooth[i] > smooth[i+1] && smooth[i] > threshold) {
-                // Sub-bin précision (parabole)
-                const alpha = smooth[i-1], beta = smooth[i], gamma = smooth[i+1];
-                const denom = 2 * (2*beta - alpha - gamma);
-                const p = Math.abs(denom) > 1e-6 ? (alpha - gamma) / denom : 0;
-                const pos01 = (i + p) / (nbBins - 1);  // 0-1
-
-                // Ignorer les bords (< 8% ou > 92%)
-                if (pos01 > 0.08 && pos01 < 0.92) {
-                    ridgePositions.push(pos01);
-                    ridgeStrengths.push(Math.min(1, (smooth[i] - meanG) / (stdG * 3 + 0.001)));
-                }
-            }
-        }
-
-        console.log(`🛰️ Satellite ridges: ${ridgePositions.length} detected ` +
-                     `(${sw}×${sh}px, ${acrossVals.length} roof px, ` +
-                     `positions: ${ridgePositions.map(p => p.toFixed(2)).join(', ')})`);
-
-        return ridgePositions.length > 0 ? {
-            count: ridgePositions.length,
-            positions: ridgePositions,     // 0-1 across building
-            strengths: ridgeStrengths,
-            profile: Array.from(smooth),
-            acrossRange: aRange,
-        } : null;
+        
+        return roofPoints.length >= 4 ? roofPoints : null;
     }
     
     /**
@@ -1800,7 +1653,7 @@ class Calpinage3DViewer {
         let nRidges = 1;
         
         // 1. Essayer l'analyse LiDAR MNS (la plus précise)
-        const roofPoints = this._sampleMNSOnBuilding(coords);
+        const roofPoints = this._sampleMNSOnBuilding(coords, buildingData._bdtopoIdx);
         if (roofPoints) {
             console.log(`📡 MNS: ${roofPoints.length} points échantillonnés sur le toit`);
             try {
@@ -1831,63 +1684,6 @@ class Calpinage3DViewer {
                 
                 console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m, ridges=${nRidges}`);
             }
-        }
-        
-        // 1b. Analyse satellite : lignes de force (faîtages) par gradient d'image
-        // L'image satellite montre les faîtages comme des ombres/contrastes visibles.
-        // On les détecte par gradient transversal et on fusionne avec le LiDAR.
-        try {
-            const satRidges = this._analyzeSatelliteRidges(coords, obb);
-            if (satRidges && roofAnalysis) {
-                // Le satellite a trouvé plus de faîtages que le LiDAR ?
-                if (satRidges.count >= 2 && satRidges.count > nRidges) {
-                    console.log(`🛰️ Satellite détecte ${satRidges.count} faîtages (LiDAR: ${nRidges})`);
-                    
-                    // Vérifier que les positions satellite sont cohérentes avec le profil LiDAR
-                    const lidarProfile = roofAnalysis.profile;
-                    if (lidarProfile && lidarProfile.length >= 3) {
-                        // Vérifier chaque position satellite dans le profil LiDAR
-                        let confirmed = 0;
-                        for (const sPos of satRidges.positions) {
-                            // Position dans le profil LiDAR
-                            const pIdx = Math.floor(sPos * (lidarProfile.length - 1));
-                            const lo = Math.max(0, pIdx - 1);
-                            const hi = Math.min(lidarProfile.length - 1, pIdx + 1);
-                            const localH = lidarProfile.slice(lo, hi + 1).map(p => p.h);
-                            const localMax = Math.max(...localH);
-                            const neighbors = [
-                                lo > 0 ? lidarProfile[lo - 1]?.h : localMax,
-                                hi < lidarProfile.length - 1 ? lidarProfile[hi + 1]?.h : localMax
-                            ].filter(v => v !== undefined);
-                            const avgNeighbor = neighbors.reduce((s, v) => s + v, 0) / (neighbors.length || 1);
-                            
-                            // Un extremum même faible (0.15m) suffit car confirmé par satellite
-                            if (localMax - avgNeighbor > 0.15 || avgNeighbor - Math.min(...localH) > 0.15) {
-                                confirmed++;
-                            }
-                        }
-                        
-                        // Si au moins la moitié des faîtages satellite sont confirmés par LiDAR
-                        if (confirmed >= satRidges.count / 2) {
-                            nRidges = satRidges.count;
-                            roofAnalysis.nRidges = nRidges;
-                            // Déterminer le type : shed si profil en dent de scie, gable sinon
-                            const prevType = roofShape;
-                            if (roofShape !== 'multi-shed' && roofShape !== 'multi-gable') {
-                                roofShape = roofAnalysis.bestModel === 'multi-shed' ? 'multi-shed' : 'multi-gable';
-                                roofAnalysis.type = roofShape;
-                            }
-                            console.log(`🛰️ Fusion sat+LiDAR: ${confirmed}/${satRidges.count} confirmés → ${roofShape} (${nRidges} ridges) [était: ${prevType}]`);
-                        }
-                    }
-                }
-                // Le satellite confirme le LiDAR → plus de confiance
-                if (satRidges.count === nRidges) {
-                    console.log(`🛰️ Satellite confirme LiDAR: ${nRidges} faîtage(s) ✓`);
-                }
-            }
-        } catch (e) {
-            console.warn('⚠ Satellite ridge analysis:', e);
         }
         
         // 2. Fallback : données BD TOPO altitudes toit
@@ -1933,7 +1729,7 @@ class Calpinage3DViewer {
                     this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                 }
             } catch (roofErr) {
-                console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr.message, roofErr.stack);
+                console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr);
                 try {
                     this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                 } catch (e2) {
@@ -2765,6 +2561,14 @@ class Calpinage3DViewer {
      * @param {string} roofType - Type de couverture
      * @param {string} wallType - Type de mur
      */
+     * 
+     * @param {Array} localCoords - Sommets du polygone [{x, z}]
+     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     * @param {number} roofBaseY - Y du haut des murs
+     * @param {Function} heightFunc - (across, along) => hauteur additionnelle au-dessus de roofBaseY
+     * @param {string} roofType - Type de couverture
+     * @param {string} wallType - Type de mur
+     */
     
     /**
      * Crée un toit multi-sections par maillage grillé.
@@ -2782,12 +2586,11 @@ class Calpinage3DViewer {
         const halfLong = obb.longDim / 2;
         
         // Abaisser légèrement pour pénétrer dans les murs (anti-interstice)
-        // Réduit à 0.05m pour éviter que les bords (h=0) ne plongent dans le bâtiment
-        const roofBaseAdj = roofBaseY - 0.05;
+        const roofBaseAdj = roofBaseY - 0.15;
         
-        // Résolution de la grille — assez fine pour un profil zigzag lisse
-        const nAcross = Math.max(nSubdivisionsAcross || 16, 12);
-        const nAlong = Math.max(6, Math.round(obb.longDim / 3)); // ~1 tous les 3m
+        // Résolution de la grille
+        const nAcross = Math.max(nSubdivisionsAcross || 16, 8);
+        const nAlong = Math.max(4, Math.round(obb.longDim / 5)); // ~1 tous les 5m
         
         // ── Point-in-polygon test ──
         const isInPolygon = (wx, wz) => {
@@ -2804,9 +2607,8 @@ class Calpinage3DViewer {
             return inside;
         };
         
-        // Marge intérieure très réduite — le toit doit couvrir jusqu'au bord du mur
-        // pour éviter que les pans extrêmes ne "rentrent" dans le bâtiment
-        const margin = 0.05; // 5cm seulement
+        // Légère marge intérieure pour que les bords de la grille ne dépassent pas
+        const margin = 0.3; // 30cm de retrait
         const effHalfShort = halfShort - margin;
         const effHalfLong = halfLong - margin;
         
@@ -2845,15 +2647,6 @@ class Calpinage3DViewer {
             return;
         }
         
-        // Diagnostic : vérifier la plage de hauteurs réellement générée
-        let hMinGrid = Infinity, hMaxGrid = -Infinity;
-        for (let k = 1; k < positions.length; k += 3) {
-            const y = positions[k];
-            if (y < hMinGrid) hMinGrid = y;
-            if (y > hMaxGrid) hMaxGrid = y;
-        }
-        console.log(`📐 _createGridRoof: ${vertexCount} sommets, hRange=${(hMaxGrid - hMinGrid).toFixed(2)}m (${hMinGrid.toFixed(1)}-${hMaxGrid.toFixed(1)}), grid ${nAcross}×${nAlong}`);
-        
         // ── Créer les triangles ──
         const indices = [];
         for (let i = 0; i < nAcross; i++) {
@@ -2887,8 +2680,7 @@ class Calpinage3DViewer {
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex, side: THREE.DoubleSide,
             specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
-            flatShading: true
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
         });
         const roofMesh = new THREE.Mesh(geo, roofMat);
         roofMesh.castShadow = true;
@@ -3134,8 +2926,7 @@ class Calpinage3DViewer {
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex, side: THREE.DoubleSide,
             specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
-            flatShading: true
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
         });
         const roofMesh = new THREE.Mesh(geo, roofMat);
         roofMesh.castShadow = true;
@@ -3254,9 +3045,6 @@ class Calpinage3DViewer {
             return ridgeExtra * (1 - t);
         };
         
-        this._roofHeightFunc = heightFunc;
-        this._roofEaveY = roofBaseY;
-        this._roofOBB = obb;
         this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
@@ -3280,9 +3068,6 @@ class Calpinage3DViewer {
             return ridgeExtra * Math.max(0, 1 - Math.max(tAcross, tAlong));
         };
         
-        this._roofHeightFunc = heightFunc;
-        this._roofEaveY = roofBaseY;
-        this._roofOBB = obb;
         this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
@@ -3301,9 +3086,6 @@ class Calpinage3DViewer {
             return ridgeExtra * t;
         };
         
-        this._roofHeightFunc = heightFunc;
-        this._roofEaveY = roofBaseY;
-        this._roofOBB = obb;
         this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
     }
     
@@ -3315,82 +3097,38 @@ class Calpinage3DViewer {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         
-        // Construire un profil SIMPLIFIÉ depuis le profil LiDAR réel :
-        // N'utiliser que les pics (faîtages) et creux (noues) pour des arêtes vives /\/\/\
-        // au lieu d'interpoler à travers 30+ points LiDAR bruités (= arrondis)
+        // Construire une lookup table depuis le profil LiDAR réel si disponible
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
-        let profileMaxH = 0;
         if (profile && profile.length >= 5) {
             const smoothH = profile.map((p, i) => {
                 if (i === 0 || i === profile.length - 1) return p.h;
                 return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
             });
             const hMin = Math.min(...smoothH);
-            const hMax = Math.max(...smoothH);
-            profileMaxH = hMax - hMin;
-            
-            // Extraire uniquement les extrema (faîtages et noues)
-            // pour des pans parfaitement PLATS entre les arêtes
-            const dh = [];
-            for (let i = 1; i < smoothH.length; i++) dh.push(smoothH[i] - smoothH[i-1]);
-            
-            const keyPoints = [{pos: profile[0].pos, h: smoothH[0] - hMin}];
-            for (let i = 1; i < dh.length; i++) {
-                if ((dh[i-1] > 0 && dh[i] <= 0) || (dh[i-1] < 0 && dh[i] >= 0)) {
-                    keyPoints.push({pos: profile[i].pos, h: smoothH[i] - hMin});
-                }
-            }
-            keyPoints.push({pos: profile[profile.length-1].pos, h: smoothH[smoothH.length-1] - hMin});
-            
-            // Filtrer les faux extrema (amplitude < 0.3m par rapport au voisin)
-            const filtered = [keyPoints[0]];
-            for (let k = 1; k < keyPoints.length; k++) {
-                const amp = Math.abs(keyPoints[k].h - filtered[filtered.length-1].h);
-                if (amp >= 0.3 || k === keyPoints.length - 1) {
-                    filtered.push(keyPoints[k]);
-                }
-            }
-            
-            profileLookup = filtered;
-            console.log(`📐 Multi-gable profileLookup simplifié: ${profileLookup.length} breakpoints (depuis ${profile.length} pts), hRange=${profileMaxH.toFixed(2)}m`);
-        }
-        
-        // Si le profil LiDAR est quasi-plat, ignorer et utiliser le fallback uniforme
-        const useProfile = profileLookup && profileMaxH > 0.3;
-        if (profileLookup && !useProfile) {
-            console.warn(`⚠️ Profil LiDAR trop plat (${profileMaxH.toFixed(2)}m), fallback zigzag uniforme`);
+            profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
         }
         
         const heightFunc = (across, along) => {
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
             
-            if (useProfile) {
-                // Interpolation linéaire entre breakpoints → pans PLATS
+            if (profileLookup) {
                 let i = 0;
                 while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
                 if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
-                const segLen = profileLookup[i + 1].pos - profileLookup[i].pos;
-                const rawT = segLen > 0.001 ? (normalized - profileLookup[i].pos) / segLen : 0;
-                const t = Math.max(0, Math.min(1, rawT));
+                const t = (normalized - profileLookup[i].pos) / Math.max(profileLookup[i + 1].pos - profileLookup[i].pos, 0.001);
                 return profileLookup[i].h * (1 - t) + profileLookup[i + 1].h * t;
             }
             
-            // Fallback : division uniforme en zigzag symétrique
+            // Fallback : division uniforme
             const sectionWidth = 1 / nRidges;
             const inSection = (normalized % sectionWidth) / sectionWidth;
             const t = Math.abs(2 * inSection - 1);
             return ridgeExtra * (1 - t);
         };
         
-        this._roofHeightFunc = heightFunc;
-        this._roofEaveY = roofBaseY;
-        this._roofOBB = obb;
-        
-        // Résolution de grille — au moins 2 subdivisions par segment de profil
-        const nSubAcross = Math.max(nRidges * 16, Math.round(obb.shortDim / 1.0));
-        console.log(`📐 Multi-gable grid: nAcross=${nSubAcross}, nRidges=${nRidges}, useProfile=${useProfile}`);
-        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nSubAcross);
+        // Utiliser le maillage grillé pour bien échantillonner le profil zigzag
+        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nRidges * 8);
     }
     
     /**
@@ -3401,72 +3139,37 @@ class Calpinage3DViewer {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         
-        // Profil simplifié : uniquement les extrema pour des arêtes vives
+        // Utiliser le profil LiDAR réel si disponible
         const profile = roofAnalysis && roofAnalysis.profile;
         let profileLookup = null;
-        let profileMaxH = 0;
         if (profile && profile.length >= 5) {
             const smoothH = profile.map((p, i) => {
                 if (i === 0 || i === profile.length - 1) return p.h;
                 return (profile[i-1].h + 2 * p.h + profile[i+1].h) / 4;
             });
             const hMin = Math.min(...smoothH);
-            const hMax = Math.max(...smoothH);
-            profileMaxH = hMax - hMin;
-            
-            // Extraire les extrema pour des dents de scie (arêtes vives)
-            const dh = [];
-            for (let i = 1; i < smoothH.length; i++) dh.push(smoothH[i] - smoothH[i-1]);
-            
-            const keyPoints = [{pos: profile[0].pos, h: smoothH[0] - hMin}];
-            for (let i = 1; i < dh.length; i++) {
-                if ((dh[i-1] > 0 && dh[i] <= 0) || (dh[i-1] < 0 && dh[i] >= 0)) {
-                    keyPoints.push({pos: profile[i].pos, h: smoothH[i] - hMin});
-                }
-            }
-            keyPoints.push({pos: profile[profile.length-1].pos, h: smoothH[smoothH.length-1] - hMin});
-            
-            const filtered = [keyPoints[0]];
-            for (let k = 1; k < keyPoints.length; k++) {
-                const amp = Math.abs(keyPoints[k].h - filtered[filtered.length-1].h);
-                if (amp >= 0.3 || k === keyPoints.length - 1) {
-                    filtered.push(keyPoints[k]);
-                }
-            }
-            
-            profileLookup = filtered;
-            console.log(`📐 Multi-shed profileLookup simplifié: ${profileLookup.length} breakpoints (depuis ${profile.length} pts), hRange=${profileMaxH.toFixed(2)}m`);
+            profileLookup = profile.map((p, i) => ({ pos: p.pos, h: smoothH[i] - hMin }));
         }
-        
-        const useProfile = profileLookup && profileMaxH > 0.3;
         
         const heightFunc = (across, along) => {
             const normalized = Math.min(Math.max((across / Math.max(halfShort, 0.5) + 1) / 2, 0), 1);
             
-            if (useProfile) {
+            if (profileLookup) {
                 let i = 0;
                 while (i < profileLookup.length - 1 && profileLookup[i + 1].pos < normalized) i++;
                 if (i >= profileLookup.length - 1) return profileLookup[profileLookup.length - 1].h;
-                const segLen = profileLookup[i + 1].pos - profileLookup[i].pos;
-                const rawT = segLen > 0.001 ? (normalized - profileLookup[i].pos) / segLen : 0;
-                const t = Math.max(0, Math.min(1, rawT));
+                const t = (normalized - profileLookup[i].pos) / Math.max(profileLookup[i + 1].pos - profileLookup[i].pos, 0.001);
                 return profileLookup[i].h * (1 - t) + profileLookup[i + 1].h * t;
             }
             
-            // Fallback uniforme dents de scie
+            // Fallback uniforme
             const sectionWidth = 1 / nRidges;
             const inSection = (normalized % sectionWidth) / sectionWidth;
             return ridgeExtra * inSection;
         };
         
-        this._roofHeightFunc = heightFunc;
-        this._roofEaveY = roofBaseY;
-        this._roofOBB = obb;
-        
-        // Résolution de grille proportionnelle
-        const nSubAcross = Math.max(nRidges * 16, Math.round(obb.shortDim / 1.0));
-        console.log(`📐 Multi-shed grid: nAcross=${nSubAcross}, nRidges=${nRidges}, useProfile=${useProfile}`);
-        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nSubAcross);
+        // Utiliser le maillage grillé
+        this._createGridRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType, nRidges * 8);
     }
     
     /**
@@ -3486,10 +3189,6 @@ class Calpinage3DViewer {
         roofMesh.castShadow = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
-        
-        this._roofHeightFunc = () => 0;
-        this._roofEaveY = terrainH + bh;
-        this._roofOBB = {cx: local.x, cz: local.z, angle: 0, longDim: bx, shortDim: bz};
     }
     
     // ═══════════════════════════════════════════════════════════════
@@ -4125,13 +3824,19 @@ class Calpinage3DViewer {
             const zoneCenterLng = sumLng / zone.modulesPositions.length;
             const zoneLocalCenter = this._geoToLocal(zoneCenterLat, zoneCenterLng);
             
-            // === HAUTEUR : utiliser le heightFunc stocké pour poser chaque module
-            // directement SUR la surface du toit ===
-            const hasHeightFunc = typeof this._roofHeightFunc === 'function';
-            const storedOBB = this._roofOBB;
+            // === HAUTEUR : terrain + hauteur murs du bâtiment + 8cm au-dessus ===
+            // On utilise la hauteur des MURS (pas MNH qui inclut le faîtage)
+            // pour poser les modules à l'égout du toit ; la pente du groupe
+            // les placera naturellement le long de la pente du pan.
+            const terrainH = this._getTerrainHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const wallH = this._findBuildingWallHeight(zoneLocalCenter.x, zoneLocalCenter.z);
+            const roofBaseY = terrainH + wallH + 0.08; // 8cm au-dessus de l'égout
             
-            // === GROUPE : sans position Y, les modules sont positionnés individuellement ===
+            // === GROUPE : positionné au centre, SANS rotation Y ===
+            // Les positions des modules (converties depuis lat/lng) encodent déjà
+            // l'orientation 2D. Pas besoin de dé-rotation complexe.
             const panGroup = new THREE.Group();
+            panGroup.position.set(zoneLocalCenter.x, roofBaseY, zoneLocalCenter.z);
             
             // Matériau partagé pour tous les modules de la zone
             const panelMat = new THREE.MeshPhongMaterial({
@@ -4158,41 +3863,10 @@ class Calpinage3DViewer {
                 
                 if (w < 0.1 || h < 0.1) return;
                 
-                // Centre du module en coordonnées locales
+                // Centre du module → offset par rapport au centre du groupe
                 const modLocal = this._geoToLocal(modPos.lat, modPos.lng);
-                
-                // Calculer la hauteur Y par le heightFunc sur la surface du toit
-                let panelY = 0;
-                let slopeRad = pente;
-                let slopeAzimutRad = azimut;
-                
-                if (hasHeightFunc && storedOBB) {
-                    const cosOBB = Math.cos(-storedOBB.angle);
-                    const sinOBB = Math.sin(-storedOBB.angle);
-                    const dxOBB = modLocal.x - storedOBB.cx;
-                    const dzOBB = modLocal.z - storedOBB.cz;
-                    const acrossOBB = dxOBB * sinOBB + dzOBB * cosOBB;
-                    const alongOBB = dxOBB * cosOBB - dzOBB * sinOBB;
-                    
-                    const hCenter = this._roofHeightFunc(acrossOBB, alongOBB);
-                    panelY = this._roofEaveY + hCenter + 0.05;
-                    
-                    // Pente locale
-                    const eps = 0.3;
-                    const hP = this._roofHeightFunc(acrossOBB + eps, alongOBB);
-                    const hN = this._roofHeightFunc(acrossOBB - eps, alongOBB);
-                    const dHdAcross = (hP - hN) / (2 * eps);
-                    slopeRad = Math.atan(Math.abs(dHdAcross));
-                    if (dHdAcross > 0) {
-                        slopeAzimutRad = (90 + (storedOBB.angle - Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
-                    } else {
-                        slopeAzimutRad = (90 + (storedOBB.angle + Math.PI/2) * 180 / Math.PI) * Math.PI / 180;
-                    }
-                } else {
-                    const terrainH = this._getTerrainHeight(modLocal.x, modLocal.z);
-                    const wallH = this._findBuildingWallHeight(modLocal.x, modLocal.z);
-                    panelY = terrainH + wallH + 0.08;
-                }
+                const dx = modLocal.x - zoneLocalCenter.x;
+                const dz = modLocal.z - zoneLocalCenter.z;
                 
                 // Angle de l'arête c[0]→c[1] pour aligner le BoxGeometry
                 const edgeAngle = Math.atan2(c1.z - c0.z, c1.x - c0.x);
@@ -4202,17 +3876,12 @@ class Calpinage3DViewer {
                     panelMat
                 );
                 
-                // Position absolue sur la surface du toit
-                panel.position.set(modLocal.x, panelY, modLocal.z);
-                panel.rotation.y = -edgeAngle;
+                // Position directe depuis lat/lng (encodent déjà la rotation 2D)
+                panel.position.set(dx, 0, dz);
                 
-                // Incliner le module selon la pente locale
-                if (slopeRad > 0.001) {
-                    const tiltAxis = new THREE.Vector3(
-                        -Math.cos(slopeAzimutRad), 0, -Math.sin(slopeAzimutRad)
-                    ).normalize();
-                    panel.rotateOnWorldAxis(tiltAxis, slopeRad);
-                }
+                // Rotation individuelle pour aligner les bords du rectangle
+                // BoxGeometry a sa largeur le long de X ; on tourne pour matcher l'arête 2D
+                panel.rotation.y = -edgeAngle;
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
@@ -4220,6 +3889,18 @@ class Calpinage3DViewer {
                 panGroup.add(panel);
                 totalModules++;
             });
+            
+            // === PENTE : appliquée comme rotation autour de l'axe perpendiculaire à l'azimut ===
+            // Direction azimut dans notre repère : (sin(az), 0, -cos(az))
+            //   - N(0°) → (0,0,-1), E(90°) → (1,0,0), S(180°) → (0,0,1), O(270°) → (-1,0,0)
+            // Axe de bascule = cross( up, direction_azimut ) = (-cos(az), 0, -sin(az))
+            // → fait descendre le bord côté azimut et monter le bord opposé ✓
+            if (pente > 0.001) {
+                const tiltAxis = new THREE.Vector3(
+                    -Math.cos(azimut), 0, -Math.sin(azimut)
+                ).normalize();
+                panGroup.rotateOnWorldAxis(tiltAxis, pente);
+            }
             
             this.scene.add(panGroup);
             this.modules3D.push(panGroup);

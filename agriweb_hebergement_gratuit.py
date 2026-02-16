@@ -685,6 +685,230 @@ def lidar_plan_view():
     return render_template('lidar_plan.html')
 
 # ──────────────────────────────────────────────────────────────
+# HELPER : Requête altimétrie LiDAR HD via API IGN (50cm)
+# ──────────────────────────────────────────────────────────────
+def _query_lidar_hd_grid(building_coords, resolution=0.5, resource="ign_lidar_hd_mnx_mono_wld"):
+    """
+    Interroge l'API altimétrique IGN avec la ressource LiDAR HD
+    pour obtenir MNT, MNS et MNH sur un bâtiment.
+    
+    Ressource par défaut : ign_lidar_hd_mnx_mono_wld
+    = LiDAR HD France entière (MNT+MNS+MNH) avec interpolation.
+    Précision : altimétrique 10cm, planimétrique 50cm.
+    
+    Args:
+        building_coords: liste de [lon, lat] du polygone bâtiment
+        resolution: espacement en mètres entre les points de la grille
+        resource: identifiant de la ressource IGN
+    
+    Returns:
+        dict avec 'mns_grid', 'mnt_grid', 'mnh_grid',
+        'grid_w', 'grid_h', 'bbox', 'resolution' ou None si échec
+    """
+    import numpy as np
+    
+    lons_b = [c[0] for c in building_coords]
+    lats_b = [c[1] for c in building_coords]
+    
+    center_lat = sum(lats_b) / len(lats_b)
+    center_lon = sum(lons_b) / len(lons_b)
+    lng_to_m = 111320 * math.cos(math.radians(center_lat))
+    
+    # Bbox avec marge 30%
+    margin = 0.3
+    lon_range = max(lons_b) - min(lons_b)
+    lat_range = max(lats_b) - min(lats_b)
+    lon_min = min(lons_b) - lon_range * margin
+    lon_max = max(lons_b) + lon_range * margin
+    lat_min = min(lats_b) - lat_range * margin
+    lat_max = max(lats_b) + lat_range * margin
+    
+    # Dimensions en mètres
+    width_m = (lon_max - lon_min) * lng_to_m
+    height_m = (lat_max - lat_min) * 111320
+    
+    # Grille de points à la résolution demandée
+    grid_w = max(3, int(math.ceil(width_m / resolution)))
+    grid_h = max(3, int(math.ceil(height_m / resolution)))
+    
+    # Limiter à 5000 points par requête API (limite IGN)
+    MAX_PTS = 5000
+    total_pts = grid_w * grid_h
+    if total_pts > MAX_PTS:
+        # Réduire la résolution pour tenir dans la limite
+        scale = math.sqrt(total_pts / MAX_PTS)
+        grid_w = max(3, int(grid_w / scale))
+        grid_h = max(3, int(grid_h / scale))
+        total_pts = grid_w * grid_h
+        actual_res_x = width_m / grid_w
+        actual_res_y = height_m / grid_h
+        print(f"  ⚠ Grille réduite pour API: {grid_w}×{grid_h} ({total_pts} pts, "
+              f"résol={actual_res_x:.2f}×{actual_res_y:.2f}m)")
+    
+    # Générer les coordonnées lat/lon pour chaque point de la grille
+    all_lons = []
+    all_lats = []
+    for iy in range(grid_h):
+        for ix in range(grid_w):
+            px_lon = lon_min + (ix + 0.5) / grid_w * (lon_max - lon_min)
+            px_lat = lat_min + (iy + 0.5) / grid_h * (lat_max - lat_min)
+            all_lons.append(px_lon)
+            all_lats.append(px_lat)
+    
+    # Appeler l'API altimétrie IGN en batch (POST)
+    # L'API attend les coordonnées comme chaînes séparées par "|"
+    api_url = "https://data.geopf.fr/altimetrie/1.0/calcul/alti/rest/elevation.json"
+    
+    # Découper en sous-requêtes de max 5000 points
+    mns_values = []
+    mnt_values = []
+    mnh_values = []
+    
+    batch_size = MAX_PTS
+    nb_batches = math.ceil(total_pts / batch_size)
+    
+    for batch_idx in range(nb_batches):
+        start = batch_idx * batch_size
+        end = min(start + batch_size, total_pts)
+        
+        batch_lons = all_lons[start:end]
+        batch_lats = all_lats[start:end]
+        
+        lon_str = "|".join(f"{v:.8f}" for v in batch_lons)
+        lat_str = "|".join(f"{v:.8f}" for v in batch_lats)
+        
+        try:
+            r = requests.post(api_url, json={
+                "lon": lon_str,
+                "lat": lat_str,
+                "resource": resource,
+                "delimiter": "|",
+                "indent": "false",
+                "measures": "true",
+                "zonly": "false"
+            }, timeout=30)
+            
+            if r.status_code != 200:
+                print(f"  ⚠ API altimétrie HTTP {r.status_code}: {r.text[:200]}")
+                return None
+            
+            data = r.json()
+            elevations = data.get("elevations", [])
+            
+            for elev in elevations:
+                measures = elev.get("measures", [])
+                # Avec ign_lidar_hd_mnx_mono_wld, measures contient [MNT, MNS, MNH]
+                # L'ordre dépend de la config de la ressource
+                z_default = elev.get("z", -99999)
+                
+                if len(measures) >= 2:
+                    # Identifier MNT et MNS par leur titre
+                    mnt_z = None
+                    mns_z = None
+                    mnh_z = None
+                    for m in measures:
+                        title = m.get("title", "").lower()
+                        z_val = m.get("z", -99999)
+                        if z_val == -99999:
+                            continue
+                        if "mnt" in title:
+                            mnt_z = z_val
+                        elif "mns" in title:
+                            mns_z = z_val
+                        elif "mnh" in title:
+                            mnh_z = z_val
+                    
+                    if mnt_z is not None and mns_z is not None:
+                        mnt_values.append(mnt_z)
+                        mns_values.append(mns_z)
+                        mnh_values.append(mnh_z if mnh_z is not None else mns_z - mnt_z)
+                    elif mnt_z is not None:
+                        mnt_values.append(mnt_z)
+                        mns_values.append(z_default)
+                        mnh_values.append(z_default - mnt_z if z_default != -99999 else 0)
+                    else:
+                        mnt_values.append(z_default)
+                        mns_values.append(z_default)
+                        mnh_values.append(0)
+                elif len(measures) == 1:
+                    z_val = measures[0].get("z", z_default)
+                    mnt_values.append(z_val)
+                    mns_values.append(z_default)
+                    mnh_values.append(z_default - z_val if z_default != -99999 and z_val != -99999 else 0)
+                else:
+                    mnt_values.append(z_default)
+                    mns_values.append(z_default)
+                    mnh_values.append(0)
+            
+            print(f"  📡 API altimétrie batch {batch_idx+1}/{nb_batches}: "
+                  f"{len(elevations)} pts OK (resource={resource})")
+            
+        except Exception as e:
+            print(f"  ⚠ API altimétrie batch {batch_idx+1} erreur: {e}")
+            return None
+    
+    if len(mns_values) != total_pts:
+        print(f"  ⚠ API altimétrie: {len(mns_values)} pts reçus vs {total_pts} attendus")
+        return None
+    
+    # Reshape en grilles 2D
+    mns_grid = np.array(mns_values, dtype=np.float32).reshape(grid_h, grid_w)
+    mnt_grid = np.array(mnt_values, dtype=np.float32).reshape(grid_h, grid_w)
+    mnh_grid = np.array(mnh_values, dtype=np.float32).reshape(grid_h, grid_w)
+    
+    # Remplacer les -99999 (no data) par NaN
+    mns_grid[mns_grid < -9000] = np.nan
+    mnt_grid[mnt_grid < -9000] = np.nan
+    mnh_grid[mnh_grid < -9000] = np.nan
+    
+    # Si trop de NaN (>50%), le LiDAR HD n'est pas disponible dans cette zone
+    valid_ratio = np.sum(~np.isnan(mns_grid)) / total_pts
+    if valid_ratio < 0.5:
+        print(f"  ⚠ LiDAR HD: seulement {valid_ratio*100:.0f}% de couverture → fallback WMS")
+        return None
+    
+    # Interpoler les NaN isolés
+    try:
+        from scipy import ndimage
+        for grid in [mns_grid, mnt_grid, mnh_grid]:
+            mask = np.isnan(grid)
+            if np.any(mask) and np.any(~mask):
+                grid[mask] = ndimage.generic_filter(
+                    np.where(mask, 0, grid), 
+                    lambda x: np.nanmean(x) if np.any(x != 0) else 0,
+                    size=3
+                )[mask]
+    except ImportError:
+        # Fallback simple sans scipy : remplacer NaN par la moyenne des valides
+        for grid in [mns_grid, mnt_grid, mnh_grid]:
+            mask = np.isnan(grid)
+            if np.any(mask) and np.any(~mask):
+                grid[mask] = np.nanmean(grid)
+    
+    actual_res = max(width_m / grid_w, height_m / grid_h)
+    print(f"✓ LiDAR HD API: grille {grid_w}×{grid_h} ({total_pts} pts), "
+          f"résol={actual_res:.2f}m/px, couverture={valid_ratio*100:.0f}%, "
+          f"MNS={np.nanmin(mns_grid):.1f}-{np.nanmax(mns_grid):.1f}m, "
+          f"MNH max={np.nanmax(mnh_grid):.1f}m")
+    
+    return {
+        'mns_grid': mns_grid,
+        'mnt_grid': mnt_grid,
+        'mnh_grid': mnh_grid,
+        'grid_w': grid_w,
+        'grid_h': grid_h,
+        'bbox': {
+            'south': lat_min, 'north': lat_max,
+            'west': lon_min, 'east': lon_max,
+        },
+        'resolution': actual_res,
+        'center_lat': center_lat,
+        'center_lon': center_lon,
+        'valid_ratio': valid_ratio,
+    }
+
+
+# ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/3d-data', methods=['GET'])
@@ -1107,6 +1331,58 @@ def api_lidar_3d_data():
     except Exception as e:
         print(f"⚠ OSM 3D error: {e}")
     
+    # === 4. LiDAR HD API pour le bâtiment principal (50cm) ===
+    # Enrichir le bâtiment le plus proche du clic avec un MNS/MNT/MNH
+    # haute résolution depuis l'API altimétrie IGN (resource=ALTIMETRIE)
+    try:
+        if result["buildings_bdtopo"]:
+            import numpy as np
+            # Trouver le bâtiment le plus proche du point cliqué
+            best_idx = 0
+            best_dist = float('inf')
+            for idx, bldg in enumerate(result["buildings_bdtopo"]):
+                coords_b = bldg["coords"]
+                cx = sum(c[0] for c in coords_b) / len(coords_b)
+                cy = sum(c[1] for c in coords_b) / len(coords_b)
+                d = ((cx - lon)**2 + (cy - lat)**2)
+                if d < best_dist:
+                    best_dist = d
+                    best_idx = idx
+            
+            main_bldg = result["buildings_bdtopo"][best_idx]
+            building_coords = main_bldg["coords"]
+            
+            print(f"📡 LiDAR HD API pour bâtiment principal #{best_idx}...")
+            hd = _query_lidar_hd_grid(building_coords, resolution=0.5)
+            
+            if hd is not None:
+                # Normaliser par rapport au MNT de base (même référence que le terrain WMS)
+                terrain = result.get("terrain")
+                alt_base = terrain["altitude_base"] if terrain else float(np.nanmin(hd['mnt_grid']))
+                
+                mns_hd_rel = (hd['mns_grid'] - alt_base).tolist()
+                mnt_hd_rel = (hd['mnt_grid'] - alt_base).tolist()
+                mnh_hd = hd['mnh_grid'].tolist()
+                
+                result["building_hd"] = {
+                    "building_index": best_idx,
+                    "mns": mns_hd_rel,
+                    "mnt": mnt_hd_rel,
+                    "mnh": mnh_hd,
+                    "grid_w": hd['grid_w'],
+                    "grid_h": hd['grid_h'],
+                    "resolution": round(hd['resolution'], 3),
+                    "bbox": hd['bbox'],
+                    "altitude_base": round(alt_base, 1),
+                    "valid_ratio": round(hd['valid_ratio'], 2),
+                    "data_source": "lidar_hd",
+                }
+                print(f"✓ LiDAR HD bâtiment: {hd['grid_w']}×{hd['grid_h']} à {hd['resolution']:.2f}m/px")
+            else:
+                print("  ⚠ LiDAR HD non disponible pour ce bâtiment, fallback WMS terrain")
+    except Exception as e:
+        print(f"⚠ LiDAR HD building error: {e}")
+    
     return jsonify(result)
 
 
@@ -1213,9 +1489,13 @@ def api_lidar_roof_analysis():
     except Exception as e:
         print(f"⚠ BD TOPO roof error: {e}")
     
-    # === 2. Analyse LiDAR haute résolution sur le bâtiment (TUILAGE + SUPER-RÉSOLUTION + BLOCS) ===
+    # === 2. Analyse LiDAR haute résolution sur le bâtiment ===
+    # Stratégie : essayer l'API altimétrie LiDAR HD (50cm) d'abord, fallback WMS (1m)
     if building_coords:
         try:
+            import numpy as np
+            from PIL import Image as PILImage
+            
             lons_b = [c[0] for c in building_coords]
             lats_b = [c[1] for c in building_coords]
             
@@ -1230,169 +1510,161 @@ def api_lidar_roof_analysis():
             bldg_height_m = (max(lats_b) - min(lats_b)) * 111320
             bldg_area_m2 = bldg_width_m * bldg_height_m
             
-            margin_factor = 0.3
-            margin_lon = (max(lons_b) - min(lons_b)) * margin_factor
-            margin_lat = (max(lats_b) - min(lats_b)) * margin_factor
+            # ── Essayer LiDAR HD (API altimétrie IGN, 50cm) ──
+            lidar_hd = None
+            mns_full = None
+            mnt_full = None
+            mnh_full = None
+            data_source = "wms"
             
-            lat_min = min(lats_b) - margin_lat
-            lat_max = max(lats_b) + margin_lat
-            lon_min = min(lons_b) - margin_lon
-            lon_max = max(lons_b) + margin_lon
-            
-            # Zone couverte en mètres
-            zone_width_m = (lon_max - lon_min) * lng_to_m
-            zone_height_m = (lat_max - lat_min) * 111320
-            
-            wms_url = "https://data.geopf.fr/wms-r/wms"
-            WMS_MAX = 1024
-            
-            # ── Résolution cible adaptée à la taille de la toiture ──
-            # Grande toiture → résolution plus fine + super-résolution
-            if bldg_area_m2 > 2000:
-                target_res = 0.10  # 10cm/px pour très grandes toitures
-                use_sr_roof = True
-            elif bldg_area_m2 > 500:
-                target_res = 0.15
-                use_sr_roof = True
-            else:
-                target_res = 0.20
-                use_sr_roof = False
-            
-            sr_factor = 2 if use_sr_roof else 1
-            
-            # Pixels nécessaires sur chaque axe
-            pixels_needed_x = int(zone_width_m / target_res)
-            pixels_needed_y = int(zone_height_m / target_res)
-            
-            # Nombre de tuiles
-            nb_tiles_x = max(1, math.ceil(pixels_needed_x / WMS_MAX))
-            nb_tiles_y = max(1, math.ceil(pixels_needed_y / WMS_MAX))
-            tile_px_x = min(WMS_MAX, pixels_needed_x)
-            tile_px_y = min(WMS_MAX, pixels_needed_y)
-            
-            # Taille de la grille de base (avant SR)
-            base_w = tile_px_x * nb_tiles_x
-            base_h = tile_px_y * nb_tiles_y
-            
-            actual_res_x = zone_width_m / base_w
-            actual_res_y = zone_height_m / base_h
-            
-            # Grille finale avec super-résolution
-            final_w = base_w * sr_factor
-            final_h = base_h * sr_factor
-            final_res_x = zone_width_m / final_w
-            final_res_y = zone_height_m / final_h
-            
-            print(f"📐 Roof Tiling: bâtiment={bldg_width_m:.0f}×{bldg_height_m:.0f}m ({bldg_area_m2:.0f}m²), "
-                  f"zone={zone_width_m:.0f}×{zone_height_m:.0f}m, "
-                  f"tuiles={nb_tiles_x}×{nb_tiles_y}, grille={final_w}×{final_h}px, "
-                  f"SR={'2x' if use_sr_roof else 'off'}, "
-                  f"résol={final_res_x:.3f}×{final_res_y:.3f}m/px ({1/final_res_x**2:.0f} pts/m²)")
-            
-            # Pas en degrés par tuile et par pixel
-            lat_step = (lat_max - lat_min) / nb_tiles_y
-            lon_step = (lon_max - lon_min) / nb_tiles_x
-            half_pixel_lat = lat_step / tile_px_y / 2
-            half_pixel_lon = lon_step / tile_px_x / 2
-            
-            # Offsets sub-pixel pour super-résolution
-            if use_sr_roof:
-                sr_offsets = [
-                    (0, 0),
-                    (0, half_pixel_lon),
-                    (half_pixel_lat, 0),
-                    (half_pixel_lat, half_pixel_lon),
-                ]
-            else:
-                sr_offsets = [(0, 0)]
-            
-            mns_grids = []
-            mnt_grids = []
-            tiles_ok = 0
-            
-            for sr_idx, (d_lat, d_lon) in enumerate(sr_offsets):
-                mns_grid = np.zeros((base_h, base_w), dtype=np.float32)
-                mnt_grid = np.zeros((base_h, base_w), dtype=np.float32)
-                tiles_ok_sr = 0
+            try:
+                print(f"📡 Tentative LiDAR HD API pour bâtiment {bldg_width_m:.0f}×{bldg_height_m:.0f}m...")
+                lidar_hd = _query_lidar_hd_grid(building_coords, resolution=0.5)
                 
-                for ty in range(nb_tiles_y):
-                    for tx in range(nb_tiles_x):
-                        t_south = lat_min + ty * lat_step + d_lat
-                        t_north = lat_min + (ty + 1) * lat_step + d_lat
-                        t_west = lon_min + tx * lon_step + d_lon
-                        t_east = lon_min + (tx + 1) * lon_step + d_lon
-                        t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
-                        
-                        wms_params = {
-                            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                            "CRS": "EPSG:4326", "BBOX": t_bbox,
-                            "WIDTH": str(tile_px_x), "HEIGHT": str(tile_px_y),
-                            "FORMAT": "image/tiff", "STYLES": ""
-                        }
-                        
-                        try:
-                            r_mns = requests.get(wms_url, params={
-                                **wms_params,
-                                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-                            }, timeout=12)
-                            
-                            r_mnt = requests.get(wms_url, params={
-                                **wms_params,
-                                "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-                            }, timeout=12)
-                            
-                            if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
-                                'image' in r_mns.headers.get('content-type', '')):
-                                
-                                mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
-                                mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
-                                
-                                if mns_tile.shape != (tile_px_y, tile_px_x):
-                                    mns_tile = np.array(PILImage.fromarray(mns_tile).resize(
-                                        (tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
-                                if mnt_tile.shape != (tile_px_y, tile_px_x):
-                                    mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize(
-                                        (tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
-                                
-                                py = (nb_tiles_y - 1 - ty) * tile_px_y
-                                px = tx * tile_px_x
-                                mns_grid[py:py+tile_px_y, px:px+tile_px_x] = mns_tile
-                                mnt_grid[py:py+tile_px_y, px:px+tile_px_x] = mnt_tile
-                                tiles_ok_sr += 1
-                        except Exception as te:
-                            print(f"  ⚠ Tuile toit [{ty},{tx}] SR{sr_idx} erreur: {te}")
-                
-                if tiles_ok_sr > 0:
-                    mns_grids.append(mns_grid)
-                    mnt_grids.append(mnt_grid)
-                    if sr_idx == 0:
-                        tiles_ok = tiles_ok_sr
+                if lidar_hd is not None:
+                    mns_full = lidar_hd['mns_grid']
+                    mnt_full = lidar_hd['mnt_grid']
+                    mnh_full = lidar_hd['mnh_grid']
+                    final_w = lidar_hd['grid_w']
+                    final_h = lidar_hd['grid_h']
+                    final_res_x = lidar_hd['resolution']
+                    final_res_y = lidar_hd['resolution']
+                    lon_min = lidar_hd['bbox']['west']
+                    lon_max = lidar_hd['bbox']['east']
+                    lat_min = lidar_hd['bbox']['south']
+                    lat_max = lidar_hd['bbox']['north']
+                    data_source = "lidar_hd"
+                    use_sr_roof = False
+                    tiles_ok = 1
+                    print(f"✓ LiDAR HD disponible: {final_w}×{final_h} à {final_res_x:.2f}m/px")
+            except Exception as e:
+                print(f"  ⚠ LiDAR HD API indisponible: {e}")
+                lidar_hd = None
             
-            # Assembler avec super-résolution
-            if len(mns_grids) > 0:
-                if use_sr_roof and len(mns_grids) == 4:
-                    mns_full = np.zeros((final_h, final_w), dtype=np.float32)
-                    mnt_full = np.zeros((final_h, final_w), dtype=np.float32)
-                    mns_full[0::2, 0::2] = mns_grids[0]
-                    mns_full[0::2, 1::2] = mns_grids[1]
-                    mns_full[1::2, 0::2] = mns_grids[2]
-                    mns_full[1::2, 1::2] = mns_grids[3]
-                    mnt_full[0::2, 0::2] = mnt_grids[0]
-                    mnt_full[0::2, 1::2] = mnt_grids[1]
-                    mnt_full[1::2, 0::2] = mnt_grids[2]
-                    mnt_full[1::2, 1::2] = mnt_grids[3]
-                    print(f"  ✓ SR roof: 4 passes → {final_w}×{final_h}px ({1/final_res_x**2:.0f} pts/m²)")
+            # ── Fallback WMS (1m RGE ALTI) si LiDAR HD indisponible ──
+            if lidar_hd is None:
+                print(f"📐 Fallback WMS pour toit {bldg_width_m:.0f}×{bldg_height_m:.0f}m...")
+                margin_factor = 0.3
+                margin_lon = (max(lons_b) - min(lons_b)) * margin_factor
+                margin_lat = (max(lats_b) - min(lats_b)) * margin_factor
+                
+                lat_min = min(lats_b) - margin_lat
+                lat_max = max(lats_b) + margin_lat
+                lon_min = min(lons_b) - margin_lon
+                lon_max = max(lons_b) + margin_lon
+                
+                zone_width_m = (lon_max - lon_min) * lng_to_m
+                zone_height_m = (lat_max - lat_min) * 111320
+                
+                wms_url = "https://data.geopf.fr/wms-r/wms"
+                WMS_MAX = 1024
+                
+                if bldg_area_m2 > 2000:
+                    target_res = 0.10
+                    use_sr_roof = True
+                elif bldg_area_m2 > 500:
+                    target_res = 0.15
+                    use_sr_roof = True
                 else:
-                    mns_full = mns_grids[0]
-                    mnt_full = mnt_grids[0]
-                    final_w = base_w
-                    final_h = base_h
-                    final_res_x = actual_res_x
-                    final_res_y = actual_res_y
+                    target_res = 0.20
+                    use_sr_roof = False
+                
+                sr_factor = 2 if use_sr_roof else 1
+                pixels_needed_x = int(zone_width_m / target_res)
+                pixels_needed_y = int(zone_height_m / target_res)
+                nb_tiles_x = max(1, math.ceil(pixels_needed_x / WMS_MAX))
+                nb_tiles_y = max(1, math.ceil(pixels_needed_y / WMS_MAX))
+                tile_px_x = min(WMS_MAX, pixels_needed_x)
+                tile_px_y = min(WMS_MAX, pixels_needed_y)
+                base_w = tile_px_x * nb_tiles_x
+                base_h = tile_px_y * nb_tiles_y
+                actual_res_x = zone_width_m / base_w
+                actual_res_y = zone_height_m / base_h
+                final_w = base_w * sr_factor
+                final_h = base_h * sr_factor
+                final_res_x = zone_width_m / final_w
+                final_res_y = zone_height_m / final_h
+                
+                lat_step = (lat_max - lat_min) / nb_tiles_y
+                lon_step = (lon_max - lon_min) / nb_tiles_x
+                half_pixel_lat = lat_step / tile_px_y / 2
+                half_pixel_lon = lon_step / tile_px_x / 2
+                
+                if use_sr_roof:
+                    sr_offsets = [(0, 0), (0, half_pixel_lon), (half_pixel_lat, 0), (half_pixel_lat, half_pixel_lon)]
+                else:
+                    sr_offsets = [(0, 0)]
+                
+                mns_grids = []
+                mnt_grids = []
+                tiles_ok = 0
+                
+                for sr_idx, (d_lat, d_lon) in enumerate(sr_offsets):
+                    mns_grid = np.zeros((base_h, base_w), dtype=np.float32)
+                    mnt_grid = np.zeros((base_h, base_w), dtype=np.float32)
+                    tiles_ok_sr = 0
+                    
+                    for ty in range(nb_tiles_y):
+                        for tx in range(nb_tiles_x):
+                            t_south = lat_min + ty * lat_step + d_lat
+                            t_north = lat_min + (ty + 1) * lat_step + d_lat
+                            t_west = lon_min + tx * lon_step + d_lon
+                            t_east = lon_min + (tx + 1) * lon_step + d_lon
+                            t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
+                            
+                            wms_params = {
+                                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                                "CRS": "EPSG:4326", "BBOX": t_bbox,
+                                "WIDTH": str(tile_px_x), "HEIGHT": str(tile_px_y),
+                                "FORMAT": "image/tiff", "STYLES": ""
+                            }
+                            
+                            try:
+                                r_mns = requests.get(wms_url, params={**wms_params, "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"}, timeout=12)
+                                r_mnt = requests.get(wms_url, params={**wms_params, "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"}, timeout=12)
+                                
+                                if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
+                                    'image' in r_mns.headers.get('content-type', '')):
+                                    mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
+                                    mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
+                                    if mns_tile.shape != (tile_px_y, tile_px_x):
+                                        mns_tile = np.array(PILImage.fromarray(mns_tile).resize((tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
+                                    if mnt_tile.shape != (tile_px_y, tile_px_x):
+                                        mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize((tile_px_x, tile_px_y), PILImage.BILINEAR), dtype=np.float32)
+                                    py = (nb_tiles_y - 1 - ty) * tile_px_y
+                                    px = tx * tile_px_x
+                                    mns_grid[py:py+tile_px_y, px:px+tile_px_x] = mns_tile
+                                    mnt_grid[py:py+tile_px_y, px:px+tile_px_x] = mnt_tile
+                                    tiles_ok_sr += 1
+                            except Exception as te:
+                                print(f"  ⚠ Tuile toit [{ty},{tx}] SR{sr_idx} erreur: {te}")
+                    
+                    if tiles_ok_sr > 0:
+                        mns_grids.append(mns_grid)
+                        mnt_grids.append(mnt_grid)
+                        if sr_idx == 0:
+                            tiles_ok = tiles_ok_sr
+                
+                if len(mns_grids) > 0:
+                    if use_sr_roof and len(mns_grids) == 4:
+                        mns_full = np.zeros((final_h, final_w), dtype=np.float32)
+                        mnt_full = np.zeros((final_h, final_w), dtype=np.float32)
+                        mns_full[0::2, 0::2] = mns_grids[0]; mns_full[0::2, 1::2] = mns_grids[1]
+                        mns_full[1::2, 0::2] = mns_grids[2]; mns_full[1::2, 1::2] = mns_grids[3]
+                        mnt_full[0::2, 0::2] = mnt_grids[0]; mnt_full[0::2, 1::2] = mnt_grids[1]
+                        mnt_full[1::2, 0::2] = mnt_grids[2]; mnt_full[1::2, 1::2] = mnt_grids[3]
+                    else:
+                        mns_full = mns_grids[0]
+                        mnt_full = mnt_grids[0]
+                        final_w = base_w; final_h = base_h
+                        final_res_x = actual_res_x; final_res_y = actual_res_y
+                    data_source = "wms"
+                    print(f"  ✓ WMS roof: {final_w}×{final_h}px, SR={'on' if use_sr_roof else 'off'}")
             
-            if tiles_ok > 0:
-                # MNH = hauteur au-dessus du sol
-                mnh_full = mns_full - mnt_full
+            if mns_full is not None and mnt_full is not None:
+                # MNH = hauteur au-dessus du sol (recalculer seulement si pas déjà fourni par LiDAR HD)
+                if mnh_full is None:
+                    mnh_full = mns_full - mnt_full
                 
                 # Extraire les points du toit dans la grille haute résolution
                 # Seuil adaptatif : pour les grands bâtiments, utiliser un seuil plus bas
@@ -1450,16 +1722,6 @@ def api_lidar_roof_analysis():
                         long_dim = bldg_height_m
                         profile_coord = x
                         long_coord = y
-                    
-                    # ── Analyse satellite des lignes de force ──
-                    sat_result = None
-                    try:
-                        sat_result = _analyze_satellite_structure(
-                            building_coords, b_center_lat, b_center_lon, building_is_ew)
-                        if sat_result:
-                            result['satellite_analysis'] = sat_result
-                    except Exception as e:
-                        print(f"⚠ Satellite structure analysis error: {e}")
                     
                     nb_blocks = max(1, int(round(trans_dim / block_size_m)))
                     if bldg_area_m2 < 2000:
@@ -1579,54 +1841,6 @@ def api_lidar_roof_analysis():
                                         filtered.append((idx, typ))
                                 ridges = [idx for idx, typ in filtered if typ == 'ridge']
                                 valleys = [idx for idx, typ in filtered if typ == 'valley']
-                            
-                            # ── FUSION satellite + LiDAR ──
-                            # L'image satellite donne les positions, le LiDAR confirme les hauteurs
-                            # Seuil réduit (0.15m au lieu de 0.4m) pour les faîtages confirmés par satellite
-                            if sat_result and sat_result.get('ridge_positions_m'):
-                                sat_added = 0
-                                for sri, sat_pos in enumerate(sat_result['ridge_positions_m']):
-                                    # Ce faîtage satellite tombe dans ce bloc ?
-                                    if sat_pos < b_trans_min - 0.5 or sat_pos > b_trans_max + 0.5:
-                                        continue
-                                    # Position en indice de bin
-                                    sat_bin = int((sat_pos - b_trans_min) / b_trans_range * (nb_bins - 1))
-                                    sat_bin = max(2, min(nb_bins - 3, sat_bin))
-                                    # Déjà détecté par LiDAR ?
-                                    if any(abs(lr - sat_bin) <= 2 for lr in ridges):
-                                        continue
-                                    # Micro-profil LiDAR autour de la position satellite (±3 bins)
-                                    w = 3
-                                    lo = max(0, sat_bin - w)
-                                    hi = min(nb_bins - 1, sat_bin + w)
-                                    local_z = profile_smooth[lo:hi+1]
-                                    if len(local_z) < 3:
-                                        continue
-                                    local_max_i = int(np.argmax(local_z))
-                                    local_min_i = int(np.argmin(local_z))
-                                    local_mean_z = (local_z[0] + local_z[-1]) / 2.0
-                                    # Seuil réduit : satellite confirme la position
-                                    if local_z[local_max_i] - local_mean_z > 0.15:
-                                        new_r = lo + local_max_i
-                                        if new_r not in ridges:
-                                            ridges.append(new_r)
-                                            sat_added += 1
-                                    elif local_mean_z - local_z[local_min_i] > 0.15:
-                                        new_v = lo + local_min_i
-                                        if new_v not in valleys:
-                                            valleys.append(new_v)
-                                            sat_added += 1
-                                    else:
-                                        # Image très confiante, pas de confirmation LiDAR
-                                        s_str = sat_result['ridge_strengths'][sri]
-                                        if s_str > 0.6:
-                                            ridges.append(sat_bin)
-                                            sat_added += 1
-                                if sat_added > 0:
-                                    ridges = sorted(set(ridges))
-                                    valleys = sorted(set(valleys))
-                                    print(f"  🛰️  Fusion sat+LiDAR: +{sat_added} extrema → "
-                                          f"{len(ridges)} faîtages, {len(valleys)} noues")
                             
                             block_nb_sheds = max(1, len(ridges))
                             block_is_multi_shed = block_nb_sheds >= 2
@@ -1804,7 +2018,8 @@ def api_lidar_roof_analysis():
                             "nb_valleys": total_valleys,
                             "nb_lidar_points": len(roof_points),
                             "resolution_m_per_px": round(final_res_x, 3),
-                            "super_resolution": use_sr,
+                            "super_resolution": use_sr_roof,
+                            "data_source": data_source,
                         }
                         result["roofs"].insert(0, summary)
                         
@@ -1850,203 +2065,6 @@ def api_lidar_roof_analysis():
     return jsonify(result)
 
 
-def _analyze_satellite_structure(building_coords, center_lat, center_lon, building_is_ew):
-    """
-    Détecte les lignes de faîtage/noue par analyse du gradient transversal
-    de l'image satellite orthophoto projetée sur le polygone du bâtiment.
-    
-    L'image satellite montre les faîtages comme des lignes de contraste
-    (ombres, changement de matériau, joints de couverture). On détecte ces
-    lignes par analyse du gradient directionnel, binné dans la direction
-    transversale à l'axe long du bâtiment.
-    
-    Returns:
-        dict with:
-            ridge_positions_m  : positions transversales en mètres depuis le centre
-            ridge_strengths    : force du gradient normalisée (0-1)
-            gradient_profile   : profil 1D du gradient moyenné
-            across_bins_m      : positions des bins en mètres
-        ou None si la détection échoue
-    """
-    import numpy as np
-    from PIL import Image as PILImage, ImageDraw
-    import io as _io
-
-    lons_b = [c[0] for c in building_coords]
-    lats_b = [c[1] for c in building_coords]
-    lng_to_m = 111320 * math.cos(math.radians(center_lat))
-
-    # ── Bbox du bâtiment + marge 15 % ──
-    margin = 0.15
-    lon_range = max(lons_b) - min(lons_b)
-    lat_range = max(lats_b) - min(lats_b)
-    bbox_west  = min(lons_b) - lon_range * margin
-    bbox_east  = max(lons_b) + lon_range * margin
-    bbox_south = min(lats_b) - lat_range * margin
-    bbox_north = max(lats_b) + lat_range * margin
-
-    # Dimension image : ~0.10 m/px, max 1024 px
-    width_m  = (bbox_east - bbox_west) * lng_to_m
-    height_m = (bbox_north - bbox_south) * 111320
-    px_w = min(1024, max(64, int(width_m / 0.10)))
-    px_h = min(1024, max(64, int(height_m / 0.10)))
-
-    # ── Télécharger l'orthophoto IGN ──
-    wms_url = "https://data.geopf.fr/wms-r/wms"
-    params = {
-        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-        "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-        "CRS": "EPSG:4326",
-        "BBOX": f"{bbox_south},{bbox_west},{bbox_north},{bbox_east}",
-        "WIDTH": str(px_w), "HEIGHT": str(px_h),
-        "FORMAT": "image/jpeg", "STYLES": ""
-    }
-    try:
-        r = requests.get(wms_url, params=params, timeout=15)
-        if r.status_code != 200 or 'image' not in r.headers.get('content-type', ''):
-            print(f"  ⚠ Satellite structure: HTTP {r.status_code}")
-            return None
-        img_arr = np.array(PILImage.open(_io.BytesIO(r.content)).convert('L'),
-                           dtype=np.float32)
-    except Exception as e:
-        print(f"  ⚠ Satellite fetch error: {e}")
-        return None
-
-    actual_h, actual_w = img_arr.shape
-    if actual_h < 20 or actual_w < 20:
-        return None
-
-    # ── Masque bâtiment via PIL (rapide) ──
-    poly_px = []
-    for lon_p, lat_p in building_coords:
-        pix_x = int((lon_p - bbox_west) / (bbox_east - bbox_west) * actual_w)
-        pix_y = int((bbox_north - lat_p) / (bbox_north - bbox_south) * actual_h)
-        poly_px.append((pix_x, pix_y))
-    mask_img = PILImage.new('L', (actual_w, actual_h), 0)
-    ImageDraw.Draw(mask_img).polygon(poly_px, fill=255)
-    mask = np.array(mask_img) > 0
-
-    n_roof_px = int(np.sum(mask))
-    if n_roof_px < 50:
-        print(f"  ⚠ Satellite: trop peu de pixels toit ({n_roof_px})")
-        return None
-
-    # ── Contraste local (high-pass = image - local-mean) ──
-    ksize = max(7, min(31, actual_w // 15))
-    if ksize % 2 == 0:
-        ksize += 1
-    pad = ksize // 2
-    img_pad = np.pad(img_arr, pad, mode='reflect')
-    # Integral image pour box filter rapide
-    cs = np.cumsum(np.cumsum(img_pad, axis=0), axis=1)
-    local_mean = (cs[ksize:, ksize:] - cs[ksize:, :-ksize]
-                  - cs[:-ksize, ksize:] + cs[:-ksize, :-ksize]) / (ksize * ksize)
-    # Ajuster taille si décalage
-    lm = local_mean[:actual_h, :actual_w]
-    lm[lm < 1] = 1
-    enhanced = np.clip(img_arr / lm * 128, 0, 255)
-
-    # ── Gradient directionnel (Sobel simplifié, direction transversale) ──
-    gy = np.zeros_like(enhanced)
-    gx = np.zeros_like(enhanced)
-    gy[1:-1, :] = enhanced[2:, :] - enhanced[:-2, :]   # ∂I/∂row  (row↓ = sud)
-    gx[:, 1:-1] = enhanced[:, 2:] - enhanced[:, :-2]   # ∂I/∂col  (col→ = est)
-
-    # La direction transversale en image :
-    # building_is_ew → trans = N-S = vertical = gy
-    # building_is_NS → trans = E-O = horizontal = gx
-    if building_is_ew:
-        grad_trans = np.abs(gy)
-    else:
-        grad_trans = np.abs(gx)
-
-    # ── Meshgrid de coordonnées en mètres ──
-    iy_arr, ix_arr = np.mgrid[0:actual_h, 0:actual_w]
-    px_lons = bbox_west + (ix_arr.astype(np.float32) / actual_w) * (bbox_east - bbox_west)
-    px_lats = bbox_north - (iy_arr.astype(np.float32) / actual_h) * (bbox_north - bbox_south)
-    # Coordonnées métriques depuis le centre du bâtiment
-    mx = (px_lons - center_lon) * lng_to_m
-    my = (px_lats - center_lat) * 111320.0
-
-    # Axe transversal : y pour E-W, x pour N-S (même convention que le LiDAR)
-    if building_is_ew:
-        across = my
-    else:
-        across = mx
-
-    across_vals = across[mask]
-    grad_vals = grad_trans[mask]
-
-    across_min = float(np.min(across_vals))
-    across_max = float(np.max(across_vals))
-    across_range = across_max - across_min
-    if across_range < 1.0:
-        return None
-
-    # ── Profil 1-D : gradient moyen par bin transversal (~0.25 m/bin) ──
-    nb_bins = max(15, int(across_range / 0.25))
-    bin_edges = np.linspace(across_min, across_max, nb_bins + 1)
-    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
-    digitized = np.digitize(across_vals, bin_edges) - 1
-    digitized = np.clip(digitized, 0, nb_bins - 1)
-
-    grad_profile = np.zeros(nb_bins, dtype=np.float64)
-    grad_count   = np.zeros(nb_bins, dtype=np.float64)
-    for i in range(len(across_vals)):
-        b = digitized[i]
-        grad_profile[b] += grad_vals[i]
-        grad_count[b] += 1
-    valid = grad_count > 0
-    grad_profile[valid] /= grad_count[valid]
-    # Interpoler bins vides
-    valid_idx = np.where(valid)[0]
-    if len(valid_idx) >= 2:
-        grad_profile = np.interp(np.arange(nb_bins), valid_idx, grad_profile[valid_idx])
-
-    # Lissage (noyau 5)
-    kernel = np.array([1, 2, 3, 2, 1], dtype=np.float64) / 9.0
-    grad_smooth = np.convolve(grad_profile, kernel, mode='same')
-
-    # ── Détection des pics (faîtages) = maxima locaux au-dessus du seuil ──
-    mean_g = float(np.mean(grad_smooth))
-    std_g  = float(np.std(grad_smooth))
-    threshold = mean_g + 1.0 * std_g
-
-    ridge_positions_m = []
-    ridge_strengths   = []
-
-    for i in range(2, nb_bins - 2):
-        if (grad_smooth[i] > grad_smooth[i-1] and
-            grad_smooth[i] > grad_smooth[i+1] and
-            grad_smooth[i] > threshold):
-            # Précision sub-bin par ajustement parabolique
-            alpha, beta, gamma = grad_smooth[i-1], grad_smooth[i], grad_smooth[i+1]
-            denom = 2.0 * (2*beta - alpha - gamma)
-            p = (alpha - gamma) / denom if abs(denom) > 1e-6 else 0.0
-            pos_m = float(bin_centers[i]) + p * (bin_centers[1] - bin_centers[0])
-            strength = (grad_smooth[i] - mean_g) / (std_g + 1e-6)
-
-            # Ignorer les bords (< 8 % ou > 92 % de la largeur)
-            rel = (pos_m - across_min) / across_range
-            if 0.08 < rel < 0.92:
-                ridge_positions_m.append(round(pos_m, 3))
-                ridge_strengths.append(round(min(1.0, strength / 3.0), 3))
-
-    print(f"🛰️  Satellite ridges: {actual_w}×{actual_h}px, {n_roof_px} roof px, "
-          f"{len(ridge_positions_m)} ridge(s) at {[f'{p:.1f}m' for p in ridge_positions_m]}")
-
-    return {
-        'ridge_positions_m': ridge_positions_m,
-        'ridge_strengths':   ridge_strengths,
-        'gradient_profile':  [round(float(v), 2) for v in grad_smooth],
-        'across_bins_m':     [round(float(v), 3) for v in bin_centers],
-        'across_range_m':    round(across_range, 2),
-        'image_size':        [actual_w, actual_h],
-        'nb_roof_pixels':    n_roof_px,
-        'threshold':         round(threshold, 2),
-    }
-
-
 def _point_in_polygon(x, y, polygon):
     """Test point-dans-polygone (ray casting)"""
     n = len(polygon)
@@ -2059,294 +2077,6 @@ def _point_in_polygon(x, y, polygon):
             inside = not inside
         j = i
     return inside
-
-
-# API: Diagnostic visuel — image satellite + bbox + faîtages
-# ──────────────────────────────────────────────────────────────
-@app.route('/api/lidar/debug-bbox', methods=['GET'])
-def api_lidar_debug_bbox():
-    """
-    Retourne une image JPEG annotée montrant :
-    - L'orthophoto satellite recadrée sur le bâtiment
-    - Le polygone du bâtiment (rouge)
-    - La bounding box orientée / OBB (jaune)
-    - Les faîtages détectés par gradient satellite (cyan)
-    - Le profil de gradient transversal (graphe incrusté)
-    
-    Params: lat, lon
-    """
-    import numpy as np
-    from PIL import Image as PILImage, ImageDraw, ImageFont
-    import io as _io
-
-    lat = request.args.get('lat', type=float)
-    lon = request.args.get('lon', type=float)
-    if not lat or not lon:
-        return jsonify({"error": "Paramètres lat, lon requis"}), 400
-
-    # ── 1. Trouver le bâtiment BD TOPO ──
-    building_coords = None
-    building_data = None
-    try:
-        from pyproj import Transformer
-        transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
-        x_l93, y_l93 = transformer.transform(lon, lat)
-        url_wfs = "https://data.geopf.fr/wfs/ows"
-        params_wfs = {
-            "service": "WFS", "version": "2.0.0", "request": "GetFeature",
-            "typeName": "BDTOPO_V3:batiment",
-            "outputFormat": "application/json",
-            "bbox": f"{x_l93-100},{y_l93-100},{x_l93+100},{y_l93+100},EPSG:2154",
-            "srsName": "EPSG:4326", "count": "50"
-        }
-        r_bd = requests.get(url_wfs, params=params_wfs, timeout=15)
-        if r_bd.status_code == 200:
-            data_bd = r_bd.json()
-            best_dist = float('inf')
-            for feat in data_bd.get("features", []):
-                geom = feat.get("geometry", {})
-                gtype = geom.get("type", "")
-                props = feat.get("properties", {})
-                if gtype == "MultiPolygon":
-                    coords = geom["coordinates"][0][0]
-                elif gtype == "Polygon":
-                    coords = geom["coordinates"][0]
-                else:
-                    continue
-                cx = sum(c[0] for c in coords) / len(coords)
-                cy = sum(c[1] for c in coords) / len(coords)
-                dist = math.sqrt((cx - lon)**2 + (cy - lat)**2) * 111320
-                if dist < best_dist:
-                    best_dist = dist
-                    building_coords = coords
-                    building_data = props
-    except Exception as e:
-        return jsonify({"error": f"BD TOPO: {e}"}), 500
-
-    if not building_coords:
-        return jsonify({"error": "Aucun bâtiment trouvé"}), 404
-
-    lons_b = [c[0] for c in building_coords]
-    lats_b = [c[1] for c in building_coords]
-    center_lat = sum(lats_b) / len(lats_b)
-    center_lon = sum(lons_b) / len(lons_b)
-    lng_to_m = 111320 * math.cos(math.radians(center_lat))
-
-    bldg_w = (max(lons_b) - min(lons_b)) * lng_to_m
-    bldg_h = (max(lats_b) - min(lats_b)) * 111320
-    building_is_ew = bldg_w > bldg_h
-
-    # ── 2. Télécharger l'orthophoto ──
-    margin = 0.35
-    lon_range = max(lons_b) - min(lons_b)
-    lat_range = max(lats_b) - min(lats_b)
-    bbox_west  = min(lons_b) - lon_range * margin
-    bbox_east  = max(lons_b) + lon_range * margin
-    bbox_south = min(lats_b) - lat_range * margin
-    bbox_north = max(lats_b) + lat_range * margin
-
-    # Garantir une bbox minimale de 30m pour que les petits bâtiments
-    # aient du contexte visible autour d'eux
-    width_m  = (bbox_east - bbox_west) * lng_to_m
-    height_m = (bbox_north - bbox_south) * 111320
-    min_size_m = 30.0
-    if width_m < min_size_m:
-        expand_lon = (min_size_m - width_m) / 2 / lng_to_m
-        bbox_west  -= expand_lon
-        bbox_east  += expand_lon
-        width_m = min_size_m
-    if height_m < min_size_m:
-        expand_lat = (min_size_m - height_m) / 2 / 111320
-        bbox_south -= expand_lat
-        bbox_north += expand_lat
-        height_m = min_size_m
-
-    # Résolution 0.20 m/px = résolution native de l'orthophoto IGN
-    # (0.08 demandait une sur-interpolation → image floue)
-    target_res = 0.20
-    px_w = min(1024, max(200, int(width_m / target_res)))
-    px_h = min(1024, max(200, int(height_m / target_res)))
-
-    wms_url = "https://data.geopf.fr/wms-r/wms"
-    params_wms = {
-        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-        "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-        "CRS": "EPSG:4326",
-        "BBOX": f"{bbox_south},{bbox_west},{bbox_north},{bbox_east}",
-        "WIDTH": str(px_w), "HEIGHT": str(px_h),
-        "FORMAT": "image/jpeg", "STYLES": ""
-    }
-    r_img = requests.get(wms_url, params=params_wms, timeout=15)
-    if r_img.status_code != 200:
-        return jsonify({"error": "Ortho fetch failed"}), 500
-
-    img = PILImage.open(_io.BytesIO(r_img.content)).convert('RGB')
-    actual_w, actual_h = img.size
-    draw = ImageDraw.Draw(img)
-
-    # Fonctions de conversion geo → pixel
-    def geo2px(lon_p, lat_p):
-        px = int((lon_p - bbox_west) / (bbox_east - bbox_west) * actual_w)
-        py = int((bbox_north - lat_p) / (bbox_north - bbox_south) * actual_h)
-        return (px, py)
-
-    # ── 3. Dessiner le polygone du bâtiment (rouge) ──
-    poly_px = [geo2px(c[0], c[1]) for c in building_coords]
-    draw.polygon(poly_px, outline=(255, 40, 40), fill=None)
-    # Trait plus épais
-    for i in range(len(poly_px)):
-        j = (i + 1) % len(poly_px)
-        draw.line([poly_px[i], poly_px[j]], fill=(255, 40, 40), width=2)
-
-    # ── 4. Calculer et dessiner l'OBB (jaune) ──
-    # Plus long côté du polygone = angle principal
-    pts_m = [((c[0] - center_lon) * lng_to_m, (c[1] - center_lat) * 111320)
-             for c in building_coords]
-    max_len = 0
-    best_angle = 0
-    for i in range(len(pts_m)):
-        j = (i + 1) % len(pts_m)
-        dx = pts_m[j][0] - pts_m[i][0]
-        dy = pts_m[j][1] - pts_m[i][1]
-        length = math.sqrt(dx*dx + dy*dy)
-        if length > max_len:
-            max_len = length
-            best_angle = math.atan2(dy, dx)
-
-    cosA = math.cos(-best_angle)
-    sinA = math.sin(-best_angle)
-    projL = [p[0]*cosA - p[1]*sinA for p in pts_m]
-    projS = [p[0]*sinA + p[1]*cosA for p in pts_m]
-    minL, maxL = min(projL), max(projL)
-    minS, maxS = min(projS), max(projS)
-
-    # 4 coins de l'OBB en mètres → géo → pixel
-    cosB = math.cos(best_angle)
-    sinB = math.sin(best_angle)
-    obb_corners_m = [
-        (minL * cosB - minS * sinB, minL * sinB + minS * cosB),
-        (maxL * cosB - minS * sinB, maxL * sinB + minS * cosB),
-        (maxL * cosB - maxS * sinB, maxL * sinB + maxS * cosB),
-        (minL * cosB - maxS * sinB, minL * sinB + maxS * cosB),
-    ]
-    obb_px = [geo2px(center_lon + mx / lng_to_m, center_lat + my / 111320)
-              for mx, my in obb_corners_m]
-    for i in range(4):
-        j = (i + 1) % 4
-        draw.line([obb_px[i], obb_px[j]], fill=(255, 255, 0), width=2)
-
-    # Axe principal (vert, pointillé)
-    mid_long_start = ((obb_corners_m[0][0] + obb_corners_m[3][0]) / 2,
-                      (obb_corners_m[0][1] + obb_corners_m[3][1]) / 2)
-    mid_long_end   = ((obb_corners_m[1][0] + obb_corners_m[2][0]) / 2,
-                      (obb_corners_m[1][1] + obb_corners_m[2][1]) / 2)
-    px_start = geo2px(center_lon + mid_long_start[0] / lng_to_m,
-                      center_lat + mid_long_start[1] / 111320)
-    px_end   = geo2px(center_lon + mid_long_end[0] / lng_to_m,
-                      center_lat + mid_long_end[1] / 111320)
-    draw.line([px_start, px_end], fill=(0, 255, 0), width=1)
-
-    # ── 5. Analyse satellite des faîtages ──
-    sat_result = None
-    try:
-        sat_result = _analyze_satellite_structure(
-            building_coords, center_lat, center_lon, building_is_ew)
-    except Exception as e:
-        print(f"debug-bbox: sat analysis error: {e}")
-
-    if sat_result and sat_result.get('ridge_positions_m'):
-        ridges_m = sat_result['ridge_positions_m']
-        trans_range = sat_result.get('across_range_m', bldg_h if building_is_ew else bldg_w)
-
-        for ri, ridge_pos_m in enumerate(ridges_m):
-            # Position transversale en mètres depuis le centre
-            # Dessiner la ligne de faîtage (cyan) perpendiculaire à la direction transversale
-            if building_is_ew:
-                # trans = N-S (y), faîtage = ligne E-O
-                r_lat = center_lat + ridge_pos_m / 111320
-                p1 = geo2px(min(lons_b), r_lat)
-                p2 = geo2px(max(lons_b), r_lat)
-            else:
-                # trans = E-O (x), faîtage = ligne N-S
-                r_lon = center_lon + ridge_pos_m / lng_to_m
-                p1 = geo2px(r_lon, min(lats_b))
-                p2 = geo2px(r_lon, max(lats_b))
-            draw.line([p1, p2], fill=(0, 255, 255), width=2)
-            # Label
-            strength = sat_result['ridge_strengths'][ri] if ri < len(sat_result['ridge_strengths']) else 0
-            label = f"R{ri+1} ({strength:.0%})"
-            draw.text((p1[0] + 3, p1[1] - 12), label, fill=(0, 255, 255))
-
-        # ── 6. Profil de gradient (mini-graphe en bas) ──
-        grad_profile = sat_result.get('gradient_profile', [])
-        if grad_profile:
-            graph_h = min(80, actual_h // 5)
-            graph_w = actual_w - 20
-            graph_y0 = actual_h - graph_h - 10
-            # Fond semi-transparent
-            for gy in range(graph_y0, graph_y0 + graph_h):
-                for gx in range(10, 10 + graph_w):
-                    r, g, b = img.getpixel((gx, gy))
-                    img.putpixel((gx, gy), (r // 3, g // 3, b // 3))
-
-            g_max = max(grad_profile) if grad_profile else 1
-            g_min = min(grad_profile) if grad_profile else 0
-            g_range = g_max - g_min if g_max > g_min else 1
-            prev_pt = None
-            threshold = sat_result.get('threshold', 0)
-            for i, gv in enumerate(grad_profile):
-                px_x = 10 + int(i / max(1, len(grad_profile) - 1) * graph_w)
-                px_y = graph_y0 + graph_h - int((gv - g_min) / g_range * (graph_h - 4)) - 2
-                cur_pt = (px_x, px_y)
-                if prev_pt:
-                    draw.line([prev_pt, cur_pt], fill=(0, 200, 255), width=1)
-                prev_pt = cur_pt
-            # Ligne seuil (rouge pointillé)
-            th_y = graph_y0 + graph_h - int((threshold - g_min) / g_range * (graph_h - 4)) - 2
-            for sx in range(10, 10 + graph_w, 6):
-                draw.line([(sx, th_y), (min(sx + 3, 10 + graph_w), th_y)], fill=(255, 100, 100), width=1)
-            draw.text((12, graph_y0 - 12), "Gradient transversal", fill=(0, 200, 255))
-
-    # ── 7. Annotations texte ──
-    info_lines = [
-        f"Bat: {bldg_w:.0f}x{bldg_h:.0f}m ({bldg_w*bldg_h:.0f}m²)",
-        f"Orientation: {'E-O' if building_is_ew else 'N-S'} ({math.degrees(best_angle):.0f}°)",
-        f"OBB: {maxL-minL:.1f}x{maxS-minS:.1f}m",
-    ]
-    if sat_result and sat_result.get('ridge_positions_m'):
-        info_lines.append(f"Faîtages satellite: {len(sat_result['ridge_positions_m'])}")
-        info_lines.append(f"Pixels toit: {sat_result.get('nb_roof_pixels', '?')}")
-    else:
-        info_lines.append("Faîtages satellite: aucun détecté")
-
-    if building_data:
-        h = building_data.get('hauteur', '?')
-        info_lines.append(f"Hauteur BD TOPO: {h}m")
-
-    y_txt = 8
-    for line in info_lines:
-        draw.text((8, y_txt), line, fill=(255, 255, 255))
-        y_txt += 14
-
-    # ── 8. Légende ──
-    legend_y = y_txt + 10
-    draw.rectangle([(8, legend_y), (20, legend_y + 10)], fill=(255, 40, 40))
-    draw.text((24, legend_y - 2), "Polygone bâtiment", fill=(255, 255, 255))
-    legend_y += 16
-    draw.rectangle([(8, legend_y), (20, legend_y + 10)], fill=(255, 255, 0))
-    draw.text((24, legend_y - 2), "OBB (boîte orientée)", fill=(255, 255, 255))
-    legend_y += 16
-    draw.line([(8, legend_y + 5), (20, legend_y + 5)], fill=(0, 255, 0), width=1)
-    draw.text((24, legend_y - 2), "Axe principal", fill=(255, 255, 255))
-    legend_y += 16
-    draw.line([(8, legend_y + 5), (20, legend_y + 5)], fill=(0, 255, 255), width=2)
-    draw.text((24, legend_y - 2), "Faîtages détectés (satellite)", fill=(255, 255, 255))
-
-    # ── Retourner l'image ──
-    buf = _io.BytesIO()
-    img.save(buf, 'JPEG', quality=92)
-    buf.seek(0)
-    return send_file(buf, mimetype='image/jpeg', download_name='debug_bbox.jpg')
 
 
 # API: Proxy satellite IGN (évite CORS pour Three.js)
@@ -2371,96 +2101,34 @@ def api_satellite_tile():
         # wms-r est le seul endpoint qui sert HR.ORTHOIMAGERY.ORTHOPHOTOS en image/jpeg
         wms_url = "https://data.geopf.fr/wms-r/wms"
         # Résolution satellite adaptative selon le rayon
-        # Pour les grands rayons, assembler plusieurs tuiles pour garder une haute résolution
-        if radius <= 80:
-            # Petite zone : une seule requête 1024px suffit
-            sat_size = "1024"
-            params = {
-                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-                "CRS": "EPSG:4326", "BBOX": bbox,
-                "WIDTH": sat_size, "HEIGHT": sat_size,
-                "FORMAT": "image/jpeg", "STYLES": ""
-            }
-            
-            print(f"🛰️ Satellite tile: lat={lat}, lon={lon}, radius={radius}")
-            r = requests.get(wms_url, params=params, timeout=15)
-            
-            content_type = r.headers.get('content-type', '')
-            print(f"🛰️ Response: status={r.status_code}, type={content_type}, size={len(r.content)}")
-            
-            if r.status_code == 200 and 'image' in content_type and 'xml' not in content_type:
-                resp = app.response_class(
-                    response=r.content,
-                    status=200,
-                    mimetype='image/jpeg'
-                )
-                resp.headers['Cache-Control'] = 'public, max-age=86400'
-                return resp
-            else:
-                body_preview = r.text[:200] if len(r.text) < 500 else r.text[:200]
-                print(f"⚠ Satellite WMS error body: {body_preview}")
-                return jsonify({"error": f"WMS returned {r.status_code}, type={content_type}"}), 502
-        else:
-            # Grande zone (>80m) : assembler 2x2 ou 3x3 tuiles de 1024px
-            from PIL import Image as PILImage
-            import io as _io
-            
-            nb_tiles = 2 if radius <= 150 else 3
-            tile_pixel_size = 1024
-            final_size = nb_tiles * tile_pixel_size
-            
-            south = lat - lat_deg
-            west = lon - lon_deg
-            lat_step = (2 * lat_deg) / nb_tiles
-            lon_step = (2 * lon_deg) / nb_tiles
-            
-            print(f"🛰️ Satellite tiled: {nb_tiles}x{nb_tiles} tuiles de {tile_pixel_size}px, radius={radius}m")
-            
-            final_img = PILImage.new('RGB', (final_size, final_size))
-            
-            for ty in range(nb_tiles):
-                for tx in range(nb_tiles):
-                    t_south = south + ty * lat_step
-                    t_north = t_south + lat_step
-                    t_west = west + tx * lon_step
-                    t_east = t_west + lon_step
-                    
-                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
-                    t_params = {
-                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                        "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-                        "CRS": "EPSG:4326", "BBOX": t_bbox,
-                        "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
-                        "FORMAT": "image/jpeg", "STYLES": ""
-                    }
-                    
-                    tr = requests.get(wms_url, params=t_params, timeout=15)
-                    t_ct = tr.headers.get('content-type', '')
-                    
-                    if tr.status_code == 200 and 'image' in t_ct and 'xml' not in t_ct:
-                        tile_img = PILImage.open(_io.BytesIO(tr.content))
-                        # WMS: row 0 = north, ty=0 = south → flip y
-                        py = (nb_tiles - 1 - ty) * tile_pixel_size
-                        px = tx * tile_pixel_size
-                        final_img.paste(tile_img, (px, py))
-                    else:
-                        print(f"⚠ Satellite tile [{tx},{ty}] error: {tr.status_code}")
-            
-            # Encoder en JPEG
-            buf = _io.BytesIO()
-            final_img.save(buf, format='JPEG', quality=85)
-            buf.seek(0)
-            
-            print(f"🛰️ Satellite assemblé: {final_size}x{final_size}px, {buf.getbuffer().nbytes // 1024}Ko")
-            
+        # Max 1024 = limite WMS IGN
+        sat_size = "1024" if radius <= 50 else ("768" if radius <= 100 else "512")
+        params = {
+            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+            "CRS": "EPSG:4326", "BBOX": bbox,
+            "WIDTH": sat_size, "HEIGHT": sat_size,
+            "FORMAT": "image/jpeg", "STYLES": ""
+        }
+        
+        print(f"🛰️ Satellite tile: lat={lat}, lon={lon}, radius={radius}")
+        r = requests.get(wms_url, params=params, timeout=15)
+        
+        content_type = r.headers.get('content-type', '')
+        print(f"🛰️ Response: status={r.status_code}, type={content_type}, size={len(r.content)}")
+        
+        if r.status_code == 200 and 'image' in content_type and 'xml' not in content_type:
             resp = app.response_class(
-                response=buf.getvalue(),
+                response=r.content,
                 status=200,
                 mimetype='image/jpeg'
             )
             resp.headers['Cache-Control'] = 'public, max-age=86400'
             return resp
+        else:
+            body_preview = r.text[:200] if len(r.text) < 500 else r.text[:200]
+            print(f"⚠ Satellite WMS error body: {body_preview}")
+            return jsonify({"error": f"WMS returned {r.status_code}, type={content_type}"}), 502
     
     except Exception as e:
         print(f"⚠ Satellite tile error: {e}")
