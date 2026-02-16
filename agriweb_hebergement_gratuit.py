@@ -1828,34 +1828,96 @@ def api_satellite_tile():
         # wms-r est le seul endpoint qui sert HR.ORTHOIMAGERY.ORTHOPHOTOS en image/jpeg
         wms_url = "https://data.geopf.fr/wms-r/wms"
         # Résolution satellite adaptative selon le rayon
-        # Max 1024 = limite WMS IGN
-        sat_size = "1024" if radius <= 50 else ("768" if radius <= 100 else "512")
-        params = {
-            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
-            "CRS": "EPSG:4326", "BBOX": bbox,
-            "WIDTH": sat_size, "HEIGHT": sat_size,
-            "FORMAT": "image/jpeg", "STYLES": ""
-        }
-        
-        print(f"🛰️ Satellite tile: lat={lat}, lon={lon}, radius={radius}")
-        r = requests.get(wms_url, params=params, timeout=15)
-        
-        content_type = r.headers.get('content-type', '')
-        print(f"🛰️ Response: status={r.status_code}, type={content_type}, size={len(r.content)}")
-        
-        if r.status_code == 200 and 'image' in content_type and 'xml' not in content_type:
+        # Pour les grands rayons, assembler plusieurs tuiles pour garder une haute résolution
+        if radius <= 80:
+            # Petite zone : une seule requête 1024px suffit
+            sat_size = "1024"
+            params = {
+                "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+                "CRS": "EPSG:4326", "BBOX": bbox,
+                "WIDTH": sat_size, "HEIGHT": sat_size,
+                "FORMAT": "image/jpeg", "STYLES": ""
+            }
+            
+            print(f"🛰️ Satellite tile: lat={lat}, lon={lon}, radius={radius}")
+            r = requests.get(wms_url, params=params, timeout=15)
+            
+            content_type = r.headers.get('content-type', '')
+            print(f"🛰️ Response: status={r.status_code}, type={content_type}, size={len(r.content)}")
+            
+            if r.status_code == 200 and 'image' in content_type and 'xml' not in content_type:
+                resp = app.response_class(
+                    response=r.content,
+                    status=200,
+                    mimetype='image/jpeg'
+                )
+                resp.headers['Cache-Control'] = 'public, max-age=86400'
+                return resp
+            else:
+                body_preview = r.text[:200] if len(r.text) < 500 else r.text[:200]
+                print(f"⚠ Satellite WMS error body: {body_preview}")
+                return jsonify({"error": f"WMS returned {r.status_code}, type={content_type}"}), 502
+        else:
+            # Grande zone (>80m) : assembler 2x2 ou 3x3 tuiles de 1024px
+            from PIL import Image as PILImage
+            import io as _io
+            
+            nb_tiles = 2 if radius <= 150 else 3
+            tile_pixel_size = 1024
+            final_size = nb_tiles * tile_pixel_size
+            
+            south = lat - lat_deg
+            west = lon - lon_deg
+            lat_step = (2 * lat_deg) / nb_tiles
+            lon_step = (2 * lon_deg) / nb_tiles
+            
+            print(f"🛰️ Satellite tiled: {nb_tiles}x{nb_tiles} tuiles de {tile_pixel_size}px, radius={radius}m")
+            
+            final_img = PILImage.new('RGB', (final_size, final_size))
+            
+            for ty in range(nb_tiles):
+                for tx in range(nb_tiles):
+                    t_south = south + ty * lat_step
+                    t_north = t_south + lat_step
+                    t_west = west + tx * lon_step
+                    t_east = t_west + lon_step
+                    
+                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
+                    t_params = {
+                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                        "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+                        "CRS": "EPSG:4326", "BBOX": t_bbox,
+                        "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
+                        "FORMAT": "image/jpeg", "STYLES": ""
+                    }
+                    
+                    tr = requests.get(wms_url, params=t_params, timeout=15)
+                    t_ct = tr.headers.get('content-type', '')
+                    
+                    if tr.status_code == 200 and 'image' in t_ct and 'xml' not in t_ct:
+                        tile_img = PILImage.open(_io.BytesIO(tr.content))
+                        # WMS: row 0 = north, ty=0 = south → flip y
+                        py = (nb_tiles - 1 - ty) * tile_pixel_size
+                        px = tx * tile_pixel_size
+                        final_img.paste(tile_img, (px, py))
+                    else:
+                        print(f"⚠ Satellite tile [{tx},{ty}] error: {tr.status_code}")
+            
+            # Encoder en JPEG
+            buf = _io.BytesIO()
+            final_img.save(buf, format='JPEG', quality=85)
+            buf.seek(0)
+            
+            print(f"🛰️ Satellite assemblé: {final_size}x{final_size}px, {buf.getbuffer().nbytes // 1024}Ko")
+            
             resp = app.response_class(
-                response=r.content,
+                response=buf.getvalue(),
                 status=200,
                 mimetype='image/jpeg'
             )
             resp.headers['Cache-Control'] = 'public, max-age=86400'
             return resp
-        else:
-            body_preview = r.text[:200] if len(r.text) < 500 else r.text[:200]
-            print(f"⚠ Satellite WMS error body: {body_preview}")
-            return jsonify({"error": f"WMS returned {r.status_code}, type={content_type}"}), 502
     
     except Exception as e:
         print(f"⚠ Satellite tile error: {e}")

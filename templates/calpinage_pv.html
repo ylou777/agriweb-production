@@ -970,7 +970,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=28"></script>
+    <script src="/static/js/calpinage_3d.js?v=29"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -5377,7 +5377,7 @@
                 // Calculer le centre et rayon depuis la bbox des modules PV
                 let centerLat3D = prospectLat;
                 let centerLon3D = prospectLon;
-                let radius3D = 40; // Défaut si pas de zones
+                let radius3D = 60; // Défaut si pas de zones (assez pour un bâtiment moyen)
                 
                 if (zones && zones.length > 0) {
                     let minLat = Infinity, maxLat = -Infinity;
@@ -5398,13 +5398,17 @@
                     if (hasModules) {
                         centerLat3D = (minLat + maxLat) / 2;
                         centerLon3D = (minLon + maxLon) / 2;
-                        // Rayon = demi-diagonale de la bbox des modules + 25m de marge
+                        // Rayon = demi-diagonale de la bbox des modules + 30m de marge
                         const dLat = (maxLat - minLat) * 111320;
                         const dLon = (maxLon - minLon) * 111320 * Math.cos(centerLat3D * Math.PI / 180);
                         const halfDiag = Math.sqrt(dLat * dLat + dLon * dLon) / 2;
-                        radius3D = Math.max(30, Math.ceil(halfDiag + 25));
+                        radius3D = Math.max(60, Math.ceil(halfDiag + 30));
                     }
                 }
+                
+                // Pour les grands bâtiments (>80m), élargir davantage
+                // pour que la carte satellite couvre l'ensemble du bâtiment + contexte
+                radius3D = Math.min(radius3D, 250); // Cap à 250m pour limiter le temps de chargement
                 
                 console.log(`🌍 Chargement LiDAR 3D: centre=(${centerLat3D.toFixed(6)}, ${centerLon3D.toFixed(6)}), rayon=${radius3D}m`);
                 viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D).then(() => {
