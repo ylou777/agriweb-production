@@ -1133,7 +1133,7 @@ class PlanMasseGenerator:
                 'SERVICE': 'WMS',
                 'VERSION': '1.3.0',
                 'REQUEST': 'GetMap',
-                'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS.BDORTHO',
+                'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
                 'CRS': 'EPSG:4326',
                 'BBOX': f'{min_lat},{min_lon},{max_lat},{max_lon}',
                 'WIDTH': str(width),
@@ -1141,7 +1141,7 @@ class PlanMasseGenerator:
                 'FORMAT': 'image/png',
                 'STYLES': ''
             }
-            response = requests.get('https://data.geopf.fr/wms-r/wms', params=ign_params, timeout=15)
+            response = requests.get('https://data.geopf.fr/wms-r', params=ign_params, timeout=15)
             if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
                 if len(response.content) > 5000:
                     return io.BytesIO(response.content)
@@ -1223,12 +1223,12 @@ class PlanMasseGenerator:
             # MÉTHODE 1: IGN Géoplateforme WMS (orthophotos françaises)
             # ========================================
             try:
-                ign_url = "https://data.geopf.fr/wms-r/wms"
+                ign_url = "https://data.geopf.fr/wms-r"
                 ign_params = {
                     'SERVICE': 'WMS',
                     'VERSION': '1.3.0',
                     'REQUEST': 'GetMap',
-                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS.BDORTHO',
+                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
                     'CRS': 'EPSG:4326',
                     'BBOX': f"{min_lat},{min_lon},{max_lat},{max_lon}",  # WMS 1.3.0: lat,lon order
                     'WIDTH': str(width),
@@ -1397,7 +1397,7 @@ class PlanMasseGenerator:
                     'SERVICE': 'WMS',
                     'VERSION': '1.3.0',
                     'REQUEST': 'GetMap',
-                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS.BDORTHO',
+                    'LAYERS': 'ORTHOIMAGERY.ORTHOPHOTOS',
                     'CRS': 'EPSG:4326',
                     'BBOX': f'{min_lat},{min_lon},{max_lat},{max_lon}',
                     'WIDTH': str(width),
@@ -1405,7 +1405,7 @@ class PlanMasseGenerator:
                     'FORMAT': 'image/png',
                     'STYLES': ''
                 }
-                response = requests.get('https://data.geopf.fr/wms-r/wms', params=ign_params, timeout=15)
+                response = requests.get('https://data.geopf.fr/wms-r', params=ign_params, timeout=15)
                 if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
                     img_size_kb = len(response.content) / 1024
                     if img_size_kb > 5:

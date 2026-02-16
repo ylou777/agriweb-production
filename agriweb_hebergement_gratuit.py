@@ -2109,14 +2109,14 @@ def api_satellite_tile():
         lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
         bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
         
-        # wms-r est le seul endpoint qui sert les orthophotos IGN en image/jpeg
+        # wms-r est le seul endpoint qui sert HR.ORTHOIMAGERY.ORTHOPHOTOS en image/jpeg
         wms_url = "https://data.geopf.fr/wms-r/wms"
         # Résolution satellite adaptative selon le rayon
         # Max 1024 = limite WMS IGN
         sat_size = "1024" if radius <= 50 else ("768" if radius <= 100 else "512")
         params = {
             "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-            "LAYERS": "ORTHOIMAGERY.ORTHOPHOTOS.BDORTHO",
+            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
             "CRS": "EPSG:4326", "BBOX": bbox,
             "WIDTH": sat_size, "HEIGHT": sat_size,
             "FORMAT": "image/jpeg", "STYLES": ""
