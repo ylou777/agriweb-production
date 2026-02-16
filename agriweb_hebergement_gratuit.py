@@ -2145,10 +2145,27 @@ def api_lidar_debug_bbox():
     bbox_south = min(lats_b) - lat_range * margin
     bbox_north = max(lats_b) + lat_range * margin
 
+    # Garantir une bbox minimale de 30m pour que les petits bâtiments
+    # aient du contexte visible autour d'eux
     width_m  = (bbox_east - bbox_west) * lng_to_m
     height_m = (bbox_north - bbox_south) * 111320
-    px_w = min(1024, max(200, int(width_m / 0.08)))
-    px_h = min(1024, max(200, int(height_m / 0.08)))
+    min_size_m = 30.0
+    if width_m < min_size_m:
+        expand_lon = (min_size_m - width_m) / 2 / lng_to_m
+        bbox_west  -= expand_lon
+        bbox_east  += expand_lon
+        width_m = min_size_m
+    if height_m < min_size_m:
+        expand_lat = (min_size_m - height_m) / 2 / 111320
+        bbox_south -= expand_lat
+        bbox_north += expand_lat
+        height_m = min_size_m
+
+    # Résolution 0.20 m/px = résolution native de l'orthophoto IGN
+    # (0.08 demandait une sur-interpolation → image floue)
+    target_res = 0.20
+    px_w = min(1024, max(200, int(width_m / target_res)))
+    px_h = min(1024, max(200, int(height_m / target_res)))
 
     wms_url = "https://data.geopf.fr/wms-r/wms"
     params_wms = {
