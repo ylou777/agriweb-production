@@ -29,9 +29,6 @@ class Calpinage3DViewer {
         this.terrainMesh = null;
         this.loadingOverlay = null;
         
-        // Override manuel du type de toiture (null = détection auto LiDAR)
-        this.roofTypeOverride = null;
-        
         // Conversion constants
         this.LAT_TO_M = 111320;
         this.centerLat = 0;
@@ -1701,27 +1698,6 @@ class Calpinage3DViewer {
                 console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m, ridges=${nRidges}`);
             }
             
-            // ═══ OVERRIDE MANUEL DU TYPE DE TOITURE ═══
-            // Si l'utilisateur a sélectionné un type de toit dans le dropdown,
-            // forcer ce type tout en conservant la hauteur de faîtage LiDAR (ridgeExtra)
-            if (this.roofTypeOverride) {
-                const prevShape = roofShape;
-                roofShape = this.roofTypeOverride;
-                hasPitchedRoof = (roofShape !== 'flat');
-                
-                // Si le LiDAR n'a pas détecté de pente, estimer une valeur par défaut
-                if (ridgeExtra < 0.3 && hasPitchedRoof) {
-                    ridgeExtra = obb.shortDim * 0.25;
-                }
-                
-                // Ajuster nRidges pour multi-gable
-                if (roofShape === 'multi-gable' && nRidges <= 1) {
-                    nRidges = Math.max(2, Math.round(obb.shortDim / 6));
-                }
-                
-                console.log(`🔧 Override toiture: ${prevShape} → ${roofShape}, ridgeExtra=${ridgeExtra.toFixed(1)}m, nRidges=${nRidges}`);
-            }
-            
             // ═══ MODE TOIT LiDAR DIRECT ═══
             // Utilisé UNIQUEMENT quand :
             //  1. Le toit est complexe (multi-gable, multi-shed) OU le fit paramétrique est mauvais
@@ -1767,19 +1743,6 @@ class Calpinage3DViewer {
         
         // ═══ FALLBACK PARAMÉTRIQUE (si LiDAR direct non utilisé) ═══
         if (!usedDirectLidar) {
-            // Override manuel : si l'utilisateur a choisi un type, on le force
-            if (this.roofTypeOverride && !hasPitchedRoof) {
-                roofShape = this.roofTypeOverride;
-                hasPitchedRoof = (roofShape !== 'flat');
-                if (hasPitchedRoof && ridgeExtra < 0.3) {
-                    ridgeExtra = obb.shortDim * 0.25;
-                }
-                if (roofShape === 'multi-gable' && nRidges <= 1) {
-                    nRidges = Math.max(2, Math.round(obb.shortDim / 6));
-                }
-                console.log(`🔧 Override toiture (sans LiDAR): ${roofShape}, ridgeExtra=${ridgeExtra.toFixed(1)}m`);
-            }
-            
             // 2. Fallback : données BD TOPO altitudes toit
             if (!hasPitchedRoof && buildingData.alt_toit_min && buildingData.alt_toit_max &&
                 (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
