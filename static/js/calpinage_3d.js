@@ -1691,10 +1691,25 @@ class Calpinage3DViewer {
             }
             
             // ═══ MODE TOIT LiDAR DIRECT ═══
-            // Si on a assez de points LiDAR (HD 50cm ou WMS dense),
-            // utiliser le maillage direct plutôt que les formes paramétriques.
-            // Cela capture la géométrie réelle : lucarnes, cheminées, formes irrégulières.
-            if (roofPoints.length >= 20 && hasPitchedRoof) {
+            // Utilisé UNIQUEMENT quand :
+            //  1. Le toit est complexe (multi-gable, multi-shed) OU le fit paramétrique est mauvais
+            //  2. On a des données LiDAR HD (50cm) — PAS le WMS 1m qui est trop bruité
+            //  3. La densité de points est suffisante (≥ 3 pts/m²)
+            // Pour les toits simples (gable, hip, shed) bien détectés, le rendu paramétrique
+            // produit des surfaces lisses et correctes — le LiDAR direct crée du bruit.
+            const isComplexRoof = roofShape === 'multi-gable' || roofShape === 'multi-shed';
+            const hasHDData = !!(this.lidarData && this.lidarData.building_hd && 
+                this.lidarData.building_hd.building_index === buildingData._bdtopoIdx);
+            const buildingArea = obb.longDim * obb.shortDim;
+            const pointDensity = buildingArea > 0 ? roofPoints.length / buildingArea : 0;
+            const parametricFitPoor = roofAnalysis && roofAnalysis.bestR2 < 0.35;
+            
+            // Activer le LiDAR direct seulement si les conditions sont réunies
+            const useDirectLidar = hasPitchedRoof && hasHDData && pointDensity >= 3.0 &&
+                (isComplexRoof || parametricFitPoor);
+            
+            if (useDirectLidar) {
+                console.log(`🛰️ Direct LiDAR candidat: ${roofPoints.length} pts, densité=${pointDensity.toFixed(1)} pts/m², HD=${hasHDData}, complex=${isComplexRoof}, R²=${roofAnalysis?.bestR2?.toFixed(3)}`);
                 try {
                     // Calculer la hauteur d'acrotère (percentile 10 du MNH = bord du toit)
                     const sortedMNH = roofPoints.map(p => p.mnh).sort((a, b) => a - b);
@@ -1707,12 +1722,14 @@ class Calpinage3DViewer {
                     );
                     
                     if (usedDirectLidar) {
-                        console.log(`🛰️ Mode toit LiDAR direct activé (${roofPoints.length} pts, eaveH=${eaveHeight.toFixed(1)}m)`);
+                        console.log(`✅ Mode toit LiDAR direct activé (${roofPoints.length} pts, eaveH=${eaveHeight.toFixed(1)}m)`);
                     }
                 } catch (lidarErr) {
                     console.warn('⚠️ Toit LiDAR direct échoué → fallback paramétrique:', lidarErr.message);
                     usedDirectLidar = false;
                 }
+            } else if (hasPitchedRoof && roofPoints.length >= 20) {
+                console.log(`📐 Toit paramétrique préféré: type=${roofShape}, R²=${roofAnalysis?.bestR2?.toFixed(3)}, HD=${hasHDData}, densité=${pointDensity.toFixed(1)} pts/m²`);
             }
         }
         
@@ -3257,16 +3274,19 @@ class Calpinage3DViewer {
         
         if (indices.length < 3) return false;
         
-        // ── 6. Créer le mesh du toit ──
+        // ── 6. Lissage Laplacien des POSITIONS (supprime le bruit LiDAR) ──
+        // Appliqué AVANT la création du mesh pour adoucir les bosses
+        this._smoothPositions(positions, indices, vertexCount, 3, 0.3);
+        
+        // ── 7. Créer le mesh du toit ──
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
         geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
         geo.setIndex(indices);
         geo.computeVertexNormals();
         
-        // Lissage Laplacien des normales pour adoucir le maillage LiDAR
-        // (les données brutes à 50cm peuvent être un peu irrégulières)
-        this._smoothNormals(geo, 1);
+        // Lissage Laplacien des normales pour adoucir les transitions entre faces
+        this._smoothNormals(geo, 3);
         
         const roofTex = this._getRoofTexture(roofType);
         const roofMat = new THREE.MeshPhongMaterial({
@@ -3344,6 +3364,62 @@ class Calpinage3DViewer {
         
         console.log('✅ Toit LiDAR direct créé avec succès');
         return true; // Succès
+    }
+    
+    /**
+     * Lissage Laplacien des POSITIONS de sommets.
+     * Aplatit les bosses/creux du maillage LiDAR en moyennant chaque sommet
+     * avec ses voisins. Ne lisse que la composante Y (hauteur) pour préserver
+     * la forme en plan du bâtiment.
+     * @param {Array} positions - Tableau flat [x0,y0,z0, x1,y1,z1, ...]
+     * @param {Array} indices - Tableau d'indices de triangles
+     * @param {number} vertexCount - Nombre de sommets
+     * @param {number} iterations - Nombre de passes de lissage
+     * @param {number} lambda - Facteur de lissage (0=rien, 1=moyenne pure des voisins)
+     */
+    _smoothPositions(positions, indices, vertexCount, iterations, lambda) {
+        // Construire la liste d'adjacence
+        const neighbors = new Array(vertexCount);
+        for (let i = 0; i < vertexCount; i++) neighbors[i] = [];
+        
+        for (let i = 0; i < indices.length; i += 3) {
+            const a = indices[i], b = indices[i+1], c = indices[i+2];
+            if (neighbors[a].indexOf(b) === -1) neighbors[a].push(b);
+            if (neighbors[a].indexOf(c) === -1) neighbors[a].push(c);
+            if (neighbors[b].indexOf(a) === -1) neighbors[b].push(a);
+            if (neighbors[b].indexOf(c) === -1) neighbors[b].push(c);
+            if (neighbors[c].indexOf(a) === -1) neighbors[c].push(a);
+            if (neighbors[c].indexOf(b) === -1) neighbors[c].push(b);
+        }
+        
+        for (let iter = 0; iter < iterations; iter++) {
+            const newY = new Float32Array(vertexCount);
+            
+            for (let i = 0; i < vertexCount; i++) {
+                const yi = positions[i * 3 + 1]; // Y actuel
+                const nb = neighbors[i];
+                
+                if (nb.length === 0) {
+                    newY[i] = yi;
+                    continue;
+                }
+                
+                // Moyenne des Y des voisins
+                let sumY = 0;
+                for (let j = 0; j < nb.length; j++) {
+                    sumY += positions[nb[j] * 3 + 1];
+                }
+                const avgY = sumY / nb.length;
+                
+                // Interpolation vers la moyenne : Y = Y + lambda * (avg - Y)
+                newY[i] = yi + lambda * (avgY - yi);
+            }
+            
+            // Appliquer les nouvelles hauteurs
+            for (let i = 0; i < vertexCount; i++) {
+                positions[i * 3 + 1] = newY[i];
+            }
+        }
     }
     
     /**
