@@ -2061,6 +2061,277 @@ def _point_in_polygon(x, y, polygon):
     return inside
 
 
+# API: Diagnostic visuel — image satellite + bbox + faîtages
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/lidar/debug-bbox', methods=['GET'])
+def api_lidar_debug_bbox():
+    """
+    Retourne une image JPEG annotée montrant :
+    - L'orthophoto satellite recadrée sur le bâtiment
+    - Le polygone du bâtiment (rouge)
+    - La bounding box orientée / OBB (jaune)
+    - Les faîtages détectés par gradient satellite (cyan)
+    - Le profil de gradient transversal (graphe incrusté)
+    
+    Params: lat, lon
+    """
+    import numpy as np
+    from PIL import Image as PILImage, ImageDraw, ImageFont
+    import io as _io
+
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    if not lat or not lon:
+        return jsonify({"error": "Paramètres lat, lon requis"}), 400
+
+    # ── 1. Trouver le bâtiment BD TOPO ──
+    building_coords = None
+    building_data = None
+    try:
+        from pyproj import Transformer
+        transformer = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+        x_l93, y_l93 = transformer.transform(lon, lat)
+        url_wfs = "https://data.geopf.fr/wfs/ows"
+        params_wfs = {
+            "service": "WFS", "version": "2.0.0", "request": "GetFeature",
+            "typeName": "BDTOPO_V3:batiment",
+            "outputFormat": "application/json",
+            "bbox": f"{x_l93-100},{y_l93-100},{x_l93+100},{y_l93+100},EPSG:2154",
+            "srsName": "EPSG:4326", "count": "50"
+        }
+        r_bd = requests.get(url_wfs, params=params_wfs, timeout=15)
+        if r_bd.status_code == 200:
+            data_bd = r_bd.json()
+            best_dist = float('inf')
+            for feat in data_bd.get("features", []):
+                geom = feat.get("geometry", {})
+                gtype = geom.get("type", "")
+                props = feat.get("properties", {})
+                if gtype == "MultiPolygon":
+                    coords = geom["coordinates"][0][0]
+                elif gtype == "Polygon":
+                    coords = geom["coordinates"][0]
+                else:
+                    continue
+                cx = sum(c[0] for c in coords) / len(coords)
+                cy = sum(c[1] for c in coords) / len(coords)
+                dist = math.sqrt((cx - lon)**2 + (cy - lat)**2) * 111320
+                if dist < best_dist:
+                    best_dist = dist
+                    building_coords = coords
+                    building_data = props
+    except Exception as e:
+        return jsonify({"error": f"BD TOPO: {e}"}), 500
+
+    if not building_coords:
+        return jsonify({"error": "Aucun bâtiment trouvé"}), 404
+
+    lons_b = [c[0] for c in building_coords]
+    lats_b = [c[1] for c in building_coords]
+    center_lat = sum(lats_b) / len(lats_b)
+    center_lon = sum(lons_b) / len(lons_b)
+    lng_to_m = 111320 * math.cos(math.radians(center_lat))
+
+    bldg_w = (max(lons_b) - min(lons_b)) * lng_to_m
+    bldg_h = (max(lats_b) - min(lats_b)) * 111320
+    building_is_ew = bldg_w > bldg_h
+
+    # ── 2. Télécharger l'orthophoto ──
+    margin = 0.35
+    lon_range = max(lons_b) - min(lons_b)
+    lat_range = max(lats_b) - min(lats_b)
+    bbox_west  = min(lons_b) - lon_range * margin
+    bbox_east  = max(lons_b) + lon_range * margin
+    bbox_south = min(lats_b) - lat_range * margin
+    bbox_north = max(lats_b) + lat_range * margin
+
+    width_m  = (bbox_east - bbox_west) * lng_to_m
+    height_m = (bbox_north - bbox_south) * 111320
+    px_w = min(1024, max(200, int(width_m / 0.08)))
+    px_h = min(1024, max(200, int(height_m / 0.08)))
+
+    wms_url = "https://data.geopf.fr/wms-r/wms"
+    params_wms = {
+        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+        "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+        "CRS": "EPSG:4326",
+        "BBOX": f"{bbox_south},{bbox_west},{bbox_north},{bbox_east}",
+        "WIDTH": str(px_w), "HEIGHT": str(px_h),
+        "FORMAT": "image/jpeg", "STYLES": ""
+    }
+    r_img = requests.get(wms_url, params=params_wms, timeout=15)
+    if r_img.status_code != 200:
+        return jsonify({"error": "Ortho fetch failed"}), 500
+
+    img = PILImage.open(_io.BytesIO(r_img.content)).convert('RGB')
+    actual_w, actual_h = img.size
+    draw = ImageDraw.Draw(img)
+
+    # Fonctions de conversion geo → pixel
+    def geo2px(lon_p, lat_p):
+        px = int((lon_p - bbox_west) / (bbox_east - bbox_west) * actual_w)
+        py = int((bbox_north - lat_p) / (bbox_north - bbox_south) * actual_h)
+        return (px, py)
+
+    # ── 3. Dessiner le polygone du bâtiment (rouge) ──
+    poly_px = [geo2px(c[0], c[1]) for c in building_coords]
+    draw.polygon(poly_px, outline=(255, 40, 40), fill=None)
+    # Trait plus épais
+    for i in range(len(poly_px)):
+        j = (i + 1) % len(poly_px)
+        draw.line([poly_px[i], poly_px[j]], fill=(255, 40, 40), width=2)
+
+    # ── 4. Calculer et dessiner l'OBB (jaune) ──
+    # Plus long côté du polygone = angle principal
+    pts_m = [((c[0] - center_lon) * lng_to_m, (c[1] - center_lat) * 111320)
+             for c in building_coords]
+    max_len = 0
+    best_angle = 0
+    for i in range(len(pts_m)):
+        j = (i + 1) % len(pts_m)
+        dx = pts_m[j][0] - pts_m[i][0]
+        dy = pts_m[j][1] - pts_m[i][1]
+        length = math.sqrt(dx*dx + dy*dy)
+        if length > max_len:
+            max_len = length
+            best_angle = math.atan2(dy, dx)
+
+    cosA = math.cos(-best_angle)
+    sinA = math.sin(-best_angle)
+    projL = [p[0]*cosA - p[1]*sinA for p in pts_m]
+    projS = [p[0]*sinA + p[1]*cosA for p in pts_m]
+    minL, maxL = min(projL), max(projL)
+    minS, maxS = min(projS), max(projS)
+
+    # 4 coins de l'OBB en mètres → géo → pixel
+    cosB = math.cos(best_angle)
+    sinB = math.sin(best_angle)
+    obb_corners_m = [
+        (minL * cosB - minS * sinB, minL * sinB + minS * cosB),
+        (maxL * cosB - minS * sinB, maxL * sinB + minS * cosB),
+        (maxL * cosB - maxS * sinB, maxL * sinB + maxS * cosB),
+        (minL * cosB - maxS * sinB, minL * sinB + maxS * cosB),
+    ]
+    obb_px = [geo2px(center_lon + mx / lng_to_m, center_lat + my / 111320)
+              for mx, my in obb_corners_m]
+    for i in range(4):
+        j = (i + 1) % 4
+        draw.line([obb_px[i], obb_px[j]], fill=(255, 255, 0), width=2)
+
+    # Axe principal (vert, pointillé)
+    mid_long_start = ((obb_corners_m[0][0] + obb_corners_m[3][0]) / 2,
+                      (obb_corners_m[0][1] + obb_corners_m[3][1]) / 2)
+    mid_long_end   = ((obb_corners_m[1][0] + obb_corners_m[2][0]) / 2,
+                      (obb_corners_m[1][1] + obb_corners_m[2][1]) / 2)
+    px_start = geo2px(center_lon + mid_long_start[0] / lng_to_m,
+                      center_lat + mid_long_start[1] / 111320)
+    px_end   = geo2px(center_lon + mid_long_end[0] / lng_to_m,
+                      center_lat + mid_long_end[1] / 111320)
+    draw.line([px_start, px_end], fill=(0, 255, 0), width=1)
+
+    # ── 5. Analyse satellite des faîtages ──
+    sat_result = None
+    try:
+        sat_result = _analyze_satellite_structure(
+            building_coords, center_lat, center_lon, building_is_ew)
+    except Exception as e:
+        print(f"debug-bbox: sat analysis error: {e}")
+
+    if sat_result and sat_result.get('ridge_positions_m'):
+        ridges_m = sat_result['ridge_positions_m']
+        trans_range = sat_result.get('across_range_m', bldg_h if building_is_ew else bldg_w)
+
+        for ri, ridge_pos_m in enumerate(ridges_m):
+            # Position transversale en mètres depuis le centre
+            # Dessiner la ligne de faîtage (cyan) perpendiculaire à la direction transversale
+            if building_is_ew:
+                # trans = N-S (y), faîtage = ligne E-O
+                r_lat = center_lat + ridge_pos_m / 111320
+                p1 = geo2px(min(lons_b), r_lat)
+                p2 = geo2px(max(lons_b), r_lat)
+            else:
+                # trans = E-O (x), faîtage = ligne N-S
+                r_lon = center_lon + ridge_pos_m / lng_to_m
+                p1 = geo2px(r_lon, min(lats_b))
+                p2 = geo2px(r_lon, max(lats_b))
+            draw.line([p1, p2], fill=(0, 255, 255), width=2)
+            # Label
+            strength = sat_result['ridge_strengths'][ri] if ri < len(sat_result['ridge_strengths']) else 0
+            label = f"R{ri+1} ({strength:.0%})"
+            draw.text((p1[0] + 3, p1[1] - 12), label, fill=(0, 255, 255))
+
+        # ── 6. Profil de gradient (mini-graphe en bas) ──
+        grad_profile = sat_result.get('gradient_profile', [])
+        if grad_profile:
+            graph_h = min(80, actual_h // 5)
+            graph_w = actual_w - 20
+            graph_y0 = actual_h - graph_h - 10
+            # Fond semi-transparent
+            for gy in range(graph_y0, graph_y0 + graph_h):
+                for gx in range(10, 10 + graph_w):
+                    r, g, b = img.getpixel((gx, gy))
+                    img.putpixel((gx, gy), (r // 3, g // 3, b // 3))
+
+            g_max = max(grad_profile) if grad_profile else 1
+            g_min = min(grad_profile) if grad_profile else 0
+            g_range = g_max - g_min if g_max > g_min else 1
+            prev_pt = None
+            threshold = sat_result.get('threshold', 0)
+            for i, gv in enumerate(grad_profile):
+                px_x = 10 + int(i / max(1, len(grad_profile) - 1) * graph_w)
+                px_y = graph_y0 + graph_h - int((gv - g_min) / g_range * (graph_h - 4)) - 2
+                cur_pt = (px_x, px_y)
+                if prev_pt:
+                    draw.line([prev_pt, cur_pt], fill=(0, 200, 255), width=1)
+                prev_pt = cur_pt
+            # Ligne seuil (rouge pointillé)
+            th_y = graph_y0 + graph_h - int((threshold - g_min) / g_range * (graph_h - 4)) - 2
+            for sx in range(10, 10 + graph_w, 6):
+                draw.line([(sx, th_y), (min(sx + 3, 10 + graph_w), th_y)], fill=(255, 100, 100), width=1)
+            draw.text((12, graph_y0 - 12), "Gradient transversal", fill=(0, 200, 255))
+
+    # ── 7. Annotations texte ──
+    info_lines = [
+        f"Bat: {bldg_w:.0f}x{bldg_h:.0f}m ({bldg_w*bldg_h:.0f}m²)",
+        f"Orientation: {'E-O' if building_is_ew else 'N-S'} ({math.degrees(best_angle):.0f}°)",
+        f"OBB: {maxL-minL:.1f}x{maxS-minS:.1f}m",
+    ]
+    if sat_result and sat_result.get('ridge_positions_m'):
+        info_lines.append(f"Faîtages satellite: {len(sat_result['ridge_positions_m'])}")
+        info_lines.append(f"Pixels toit: {sat_result.get('nb_roof_pixels', '?')}")
+    else:
+        info_lines.append("Faîtages satellite: aucun détecté")
+
+    if building_data:
+        h = building_data.get('hauteur', '?')
+        info_lines.append(f"Hauteur BD TOPO: {h}m")
+
+    y_txt = 8
+    for line in info_lines:
+        draw.text((8, y_txt), line, fill=(255, 255, 255))
+        y_txt += 14
+
+    # ── 8. Légende ──
+    legend_y = y_txt + 10
+    draw.rectangle([(8, legend_y), (20, legend_y + 10)], fill=(255, 40, 40))
+    draw.text((24, legend_y - 2), "Polygone bâtiment", fill=(255, 255, 255))
+    legend_y += 16
+    draw.rectangle([(8, legend_y), (20, legend_y + 10)], fill=(255, 255, 0))
+    draw.text((24, legend_y - 2), "OBB (boîte orientée)", fill=(255, 255, 255))
+    legend_y += 16
+    draw.line([(8, legend_y + 5), (20, legend_y + 5)], fill=(0, 255, 0), width=1)
+    draw.text((24, legend_y - 2), "Axe principal", fill=(255, 255, 255))
+    legend_y += 16
+    draw.line([(8, legend_y + 5), (20, legend_y + 5)], fill=(0, 255, 255), width=2)
+    draw.text((24, legend_y - 2), "Faîtages détectés (satellite)", fill=(255, 255, 255))
+
+    # ── Retourner l'image ──
+    buf = _io.BytesIO()
+    img.save(buf, 'JPEG', quality=92)
+    buf.seek(0)
+    return send_file(buf, mimetype='image/jpeg', download_name='debug_bbox.jpg')
+
+
 # API: Proxy satellite IGN (évite CORS pour Three.js)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/satellite-tile', methods=['GET'])
