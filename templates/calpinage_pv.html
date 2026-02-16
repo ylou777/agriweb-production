@@ -5579,12 +5579,26 @@
                 bufferM: 0.5
             };
             
+            // Convertir L.Rectangle en L.Polygon pour supporter la rotation correctement
+            // (L.Rectangle de Leaflet est toujours axis-aligned et ne supporte pas la rotation)
+            if (type !== 'circle' && layer instanceof L.Rectangle) {
+                const corners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, 0);
+                const st = layer.options;
+                obstaclesLayer.removeLayer(layer);
+                layer = L.polygon(corners, {
+                    color: st.color || '#dc3545', weight: st.weight || 2,
+                    fillColor: st.fillColor || '#dc3545', fillOpacity: st.fillOpacity || 0.35,
+                    dashArray: st.dashArray || '4, 4'
+                });
+                obstaclesLayer.addLayer(layer);
+                obs.layer = layer;
+                obs.id = layer._leaflet_id;
+            }
+            
             // Activer le drag natif sur le layer
             if (type === 'circle') {
-                // Pour un cercle, on simule le drag via mousedown/mousemove
                 _enableCircleDrag(obs);
             } else {
-                // Rectangles/polygones : utiliser la méthode de déplacement personnalisée
                 _enableRectDrag(obs);
             }
             
@@ -5618,10 +5632,8 @@
                 obs.widthM = obs.radiusM * 2;
                 obs.heightM = obs.radiusM * 2;
             } else {
-                const b = obs.layer.getBounds();
-                obs.center = b.getCenter();
-                obs.widthM = map.distance([b.getSouth(), b.getWest()], [b.getSouth(), b.getEast()]);
-                obs.heightM = map.distance([b.getSouth(), b.getWest()], [b.getNorth(), b.getWest()]);
+                // Pour les polygones pivotés, obs.center / widthM / heightM sont gérés
+                // directement par drag/resize/rotation — pas de recalcul depuis AABB
             }
             
             const displayText = obs.obstacleType !== 'Obstacle'
@@ -5753,14 +5765,49 @@
             delete obstacleHandles[obsId];
         }
         
-        // === DRAG pour rectangles ===
+        // === HELPERS GÉOMÉTRIE OBSTACLE ===
+        /**
+         * Calcule les 4 coins d'un rectangle pivoté en lat/lng.
+         * Rotation CW (clockwise), compensée pour le ratio lat/lng via cos(lat).
+         * Ordre: SW, SE, NE, NW (dans le repère local non-pivoté)
+         */
+        function _computeObstacleCorners(center, widthM, heightM, angleDeg) {
+            const rad = angleDeg * Math.PI / 180;
+            const cosR = Math.cos(rad), sinR = Math.sin(rad);
+            const latPerM = 1 / 111320;
+            const lngPerM = 1 / (111320 * Math.cos(center.lat * Math.PI / 180));
+            const hw = widthM / 2, hh = heightM / 2;
+            // Coins en mètres locaux (x=est, y=nord)
+            const local = [
+                { x: -hw, y: -hh },  // SW
+                { x:  hw, y: -hh },  // SE
+                { x:  hw, y:  hh },  // NE
+                { x: -hw, y:  hh }   // NW
+            ];
+            return local.map(c => {
+                // Rotation CW: x'=x*cos+y*sin, y'=-x*sin+y*cos
+                const rx = c.x * cosR + c.y * sinR;
+                const ry = -c.x * sinR + c.y * cosR;
+                return L.latLng(center.lat + ry * latPerM, center.lng + rx * lngPerM);
+            });
+        }
+        
+        /**
+         * Reconstruit le polygone obstacle depuis ses propriétés paramétriques
+         * (center, widthM, heightM, rotationAngle).
+         */
+        function _rebuildObstaclePolygon(obs) {
+            const corners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
+            obs.layer.setLatLngs(corners);
+        }
+        
+        // === DRAG pour rectangles/polygones ===
         function _enableRectDrag(obs) {
             const layer = obs.layer;
             let dragging = false, startLatLng = null;
             
             layer.on('mousedown', function(e) {
                 if (e.originalEvent.button !== 0) return;
-                // Ne pas drag si on est en train de resize/rotate
                 if (obstacleHandles[obs.id] && obstacleHandles[obs.id]._resizing) return;
                 dragging = true;
                 startLatLng = e.latlng;
@@ -5772,20 +5819,11 @@
                     const dlat = ev.latlng.lat - startLatLng.lat;
                     const dlng = ev.latlng.lng - startLatLng.lng;
                     startLatLng = ev.latlng;
-                    
-                    // Déplacer les coins du rectangle
-                    if (layer instanceof L.Rectangle) {
-                        const b = layer.getBounds();
-                        layer.setBounds(L.latLngBounds(
-                            [b.getSouth() + dlat, b.getWest() + dlng],
-                            [b.getNorth() + dlat, b.getEast() + dlng]
-                        ));
-                    } else {
-                        // Polygone : déplacer chaque sommet
-                        const lls = layer.getLatLngs()[0] || layer.getLatLngs();
-                        const moved = lls.map(ll => L.latLng(ll.lat + dlat, ll.lng + dlng));
-                        layer.setLatLngs(moved);
-                    }
+                    // Déplacer tous les sommets directement
+                    const lls = layer.getLatLngs()[0] || layer.getLatLngs();
+                    const moved = lls.map(ll => L.latLng(ll.lat + dlat, ll.lng + dlng));
+                    layer.setLatLngs(moved);
+                    obs.center = L.latLng(obs.center.lat + dlat, obs.center.lng + dlng);
                     _updateObstacleLabel(obs);
                     _refreshObstacleHandles(obs);
                 }
@@ -5799,7 +5837,6 @@
                 map.on('mouseup', onUp);
             });
             
-            // Curseur grab/move
             layer.on('mouseover', function() {
                 if (layer._path) layer._path.style.cursor = 'move';
             });
@@ -5842,32 +5879,27 @@
             });
         }
         
-        // === POIGNÉES DE REDIMENSIONNEMENT (4 coins) ===
+        // === POIGNÉES DE REDIMENSIONNEMENT (4 coins du rectangle pivoté) ===
         function _createResizeHandles(obs) {
             const h = obstacleHandles[obs.id] = obstacleHandles[obs.id] || {};
             if (h.resizeMarkers) h.resizeMarkers.forEach(m => map.removeLayer(m));
             h.resizeMarkers = [];
             
-            const b = obs.layer.getBounds();
-            const corners = [
-                { pos: b.getSouthWest(), cursor: 'nesw-resize', opp: 'ne' },
-                { pos: b.getSouthEast(), cursor: 'nwse-resize', opp: 'nw' },
-                { pos: b.getNorthEast(), cursor: 'nesw-resize', opp: 'sw' },
-                { pos: b.getNorthWest(), cursor: 'nwse-resize', opp: 'se' },
-            ];
+            // Utiliser les vrais sommets du polygone pivoté (pas l'AABB)
+            const corners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
+            const cursors = ['nesw-resize', 'nwse-resize', 'nesw-resize', 'nwse-resize'];
             
-            corners.forEach(c => {
-                const marker = L.marker(c.pos, {
+            corners.forEach((pos, cornerIdx) => {
+                const marker = L.marker(pos, {
                     icon: L.divIcon({
                         className: 'resize-handle-obstacle',
-                        html: `<div style="width:12px;height:12px;background:#fff;border:2px solid #dc3545;border-radius:2px;cursor:${c.cursor};box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
+                        html: `<div style="width:12px;height:12px;background:#fff;border:2px solid #dc3545;border-radius:2px;cursor:${cursors[cornerIdx]};box-shadow:0 1px 3px rgba(0,0,0,0.4);"></div>`,
                         iconSize: [12, 12],
                         iconAnchor: [6, 6]
                     }),
                     draggable: true,
                     zIndexOffset: 3000
                 });
-                marker._oppCorner = c.opp;
                 marker.addTo(map);
                 h.resizeMarkers.push(marker);
                 
@@ -5877,54 +5909,56 @@
                 });
                 
                 marker.on('drag', function(e) {
-                    const newPos = e.latlng;
-                    const bb = obs.layer.getBounds();
-                    let sw, ne;
+                    // Le coin opposé reste fixe
+                    const oppIdx = (cornerIdx + 2) % 4;
+                    const oppCorners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
+                    const oppPos = oppCorners[oppIdx];
+                    const newCorner = e.latlng;
                     
-                    // L'angle opposé reste fixe, le coin dragué définit le nouveau bound
-                    switch (marker._oppCorner) {
-                        case 'ne': // dragged SW corner
-                            sw = newPos;
-                            ne = bb.getNorthEast();
-                            break;
-                        case 'nw': // dragged SE corner
-                            sw = L.latLng(newPos.lat, bb.getWest());
-                            ne = L.latLng(bb.getNorth(), newPos.lng);
-                            break;
-                        case 'sw': // dragged NE corner
-                            sw = bb.getSouthWest();
-                            ne = newPos;
-                            break;
-                        case 'se': // dragged NW corner
-                            sw = L.latLng(bb.getSouth(), newPos.lng);
-                            ne = L.latLng(newPos.lat, bb.getEast());
-                            break;
-                    }
+                    // Nouveau centre = midpoint entre coin tiré et coin opposé
+                    const newCenter = L.latLng(
+                        (newCorner.lat + oppPos.lat) / 2,
+                        (newCorner.lng + oppPos.lng) / 2
+                    );
                     
-                    // Empêcher l'inversion
-                    if (sw.lat >= ne.lat || sw.lng >= ne.lng) return;
+                    // Vecteur coin opposé → nouveau coin, en mètres
+                    const latToM = 111320;
+                    const lngToM = 111320 * Math.cos(newCenter.lat * Math.PI / 180);
+                    const dx = (newCorner.lng - oppPos.lng) * lngToM;
+                    const dy = (newCorner.lat - oppPos.lat) * latToM;
                     
-                    obs.layer.setBounds(L.latLngBounds(sw, ne));
+                    // Projeter sur les axes du rectangle pivoté (rotation CW)
+                    const rad = obs.rotationAngle * Math.PI / 180;
+                    const cosR = Math.cos(rad), sinR = Math.sin(rad);
+                    // Axe largeur (local x) dans monde = (cos, -sin)
+                    // Axe hauteur (local y) dans monde = (sin, cos)
+                    const projW = Math.abs(dx * cosR - dy * sinR);
+                    const projH = Math.abs(dx * sinR + dy * cosR);
+                    
+                    if (projW < 0.2 || projH < 0.2) return; // taille minimum 20cm
+                    
+                    obs.center = newCenter;
+                    obs.widthM = projW;
+                    obs.heightM = projH;
+                    _rebuildObstaclePolygon(obs);
                     _updateObstacleLabel(obs);
                     
-                    // Mettre à jour uniquement les AUTRES coins resize
-                    const newB = obs.layer.getBounds();
-                    const positions = [newB.getSouthWest(), newB.getSouthEast(), newB.getNorthEast(), newB.getNorthWest()];
+                    // Mettre à jour les positions des AUTRES coins
+                    const newCorners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
                     h.resizeMarkers.forEach((m, i) => {
-                        if (m !== marker) m.setLatLng(positions[i]);
+                        if (i !== cornerIdx) m.setLatLng(newCorners[i]);
                     });
                     
                     // Repositionner la poignée de rotation
-                    if (h.rotationMarker) {
-                        const rc = newB.getCenter();
-                        const handleLat = newB.getNorth() + (newB.getNorth() - rc.lat) * 0.4;
-                        h.rotationMarker.setLatLng([handleLat, rc.lng]);
-                    }
+                    _updateRotationHandlePosition(obs);
                 });
                 
                 marker.on('dragend', function() {
                     h._resizing = false;
                     map.dragging.enable();
+                    // Snap tous les handles aux positions exactes
+                    const finalCorners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
+                    h.resizeMarkers.forEach((m, i) => m.setLatLng(finalCorners[i]));
                 });
             });
         }
@@ -5967,11 +6001,9 @@
             const h = obstacleHandles[obs.id] = obstacleHandles[obs.id] || {};
             if (h.rotationMarker) map.removeLayer(h.rotationMarker);
             
-            const b = obs.layer.getBounds();
-            const center = b.getCenter();
-            const handleLat = b.getNorth() + (b.getNorth() - center.lat) * 0.4;
+            const handlePos = _getRotationHandlePosition(obs);
             
-            const marker = L.marker([handleLat, center.lng], {
+            const marker = L.marker(handlePos, {
                 icon: L.divIcon({
                     className: 'rotation-handle-obstacle',
                     html: '<div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:#dc3545;border:2px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4);font-size:16px;color:white;cursor:grab;">↻</div>',
@@ -5987,9 +6019,10 @@
             let startAngle = 0;
             
             marker.on('dragstart', function() {
-                const cc = obs.layer.getBounds().getCenter();
+                const cc = obs.center;
                 const hp = marker.getLatLng();
-                startAngle = Math.atan2(hp.lng - cc.lng, hp.lat - cc.lat) * 180 / Math.PI;
+                const lngScale = Math.cos(cc.lat * Math.PI / 180);
+                startAngle = Math.atan2((hp.lng - cc.lng) * lngScale, hp.lat - cc.lat) * 180 / Math.PI;
                 
                 if (!h.guideLine) {
                     h.guideLine = L.polyline([cc, hp], {
@@ -5999,20 +6032,30 @@
             });
             
             marker.on('drag', function(e) {
-                const cc = obs.layer.getBounds().getCenter();
+                const cc = obs.center;
                 const hp = e.latlng;
                 
                 if (h.guideLine) h.guideLine.setLatLngs([cc, hp]);
                 
-                const currentAngle = Math.atan2(hp.lng - cc.lng, hp.lat - cc.lat) * 180 / Math.PI;
-                const delta = currentAngle - startAngle;
+                const lngScale = Math.cos(cc.lat * Math.PI / 180);
+                const currentAngle = Math.atan2((hp.lng - cc.lng) * lngScale, hp.lat - cc.lat) * 180 / Math.PI;
+                let delta = currentAngle - startAngle;
+                // Normaliser delta pour éviter les sauts à ±180°
+                if (delta > 180) delta -= 360;
+                if (delta < -180) delta += 360;
                 startAngle = currentAngle;
                 
                 obs.rotationAngle = ((obs.rotationAngle || 0) + delta + 360) % 360;
                 
-                // Faire pivoter le polygone autour du centre
-                _rotateObstacleLayer(obs, delta);
+                // Reconstruire le polygone depuis la représentation paramétrique
+                _rebuildObstaclePolygon(obs);
                 _updateObstacleLabel(obs);
+                
+                // Mettre à jour les poignées resize aux vrais sommets
+                const corners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
+                if (h.resizeMarkers) {
+                    h.resizeMarkers.forEach((m, i) => m.setLatLng(corners[i]));
+                }
             });
             
             marker.on('dragend', function() {
@@ -6020,35 +6063,32 @@
                     map.removeLayer(h.guideLine);
                     h.guideLine = null;
                 }
-                // Recréer les handles resize à la nouvelle position
-                _createResizeHandles(obs);
             });
         }
         
         /**
-         * Fait pivoter les sommets du polygone/rectangle de deltaDeg autour de son centre.
+         * Calcule la position de la poignée de rotation (au-dessus du rectangle dans le repère pivoté).
          */
-        function _rotateObstacleLayer(obs, deltaDeg) {
-            const layer = obs.layer;
-            const b = layer.getBounds();
-            const center = b.getCenter();
-            const rad = deltaDeg * Math.PI / 180;
-            const cosR = Math.cos(rad), sinR = Math.sin(rad);
-            
-            // Utiliser lat/lng directement (approximation locale ok pour petites tailles)
-            const latlngs = layer.getLatLngs();
-            const ring = latlngs[0] || latlngs; // Rectangle aplatit parfois
-            
-            const rotated = ring.map(ll => {
-                const dx = ll.lng - center.lng;
-                const dy = ll.lat - center.lat;
-                return L.latLng(
-                    center.lat + dy * cosR - dx * sinR,
-                    center.lng + dx * cosR + dy * sinR
-                );
-            });
-            
-            layer.setLatLngs(rotated);
+        function _getRotationHandlePosition(obs) {
+            const rad = obs.rotationAngle * Math.PI / 180;
+            const latPerM = 1 / 111320;
+            const lngPerM = 1 / (111320 * Math.cos(obs.center.lat * Math.PI / 180));
+            // Distance au-dessus du bord haut du rectangle (dans le repère pivoté)
+            const dist = obs.heightM / 2 + Math.max(obs.heightM * 0.25, 2);
+            // Local (0, +dist) → CW rotation: rx = dist*sin(angle), ry = dist*cos(angle)
+            return L.latLng(
+                obs.center.lat + dist * Math.cos(rad) * latPerM,
+                obs.center.lng + dist * Math.sin(rad) * lngPerM
+            );
+        }
+        
+        /**
+         * Met à jour la position de la poignée de rotation.
+         */
+        function _updateRotationHandlePosition(obs) {
+            const h = obstacleHandles[obs.id];
+            if (!h || !h.rotationMarker) return;
+            h.rotationMarker.setLatLng(_getRotationHandlePosition(obs));
         }
         
         /**
@@ -6066,19 +6106,13 @@
                     h.radiusMarker.setLatLng([c.lat, edgeLng]);
                 }
             } else {
-                // Mettre à jour la position des coins resize
+                // Mettre à jour resize handles aux vrais sommets du polygone pivoté
                 if (h.resizeMarkers && h.resizeMarkers.length === 4) {
-                    const b = obs.layer.getBounds();
-                    const positions = [b.getSouthWest(), b.getSouthEast(), b.getNorthEast(), b.getNorthWest()];
-                    h.resizeMarkers.forEach((m, i) => m.setLatLng(positions[i]));
+                    const corners = _computeObstacleCorners(obs.center, obs.widthM, obs.heightM, obs.rotationAngle);
+                    h.resizeMarkers.forEach((m, i) => m.setLatLng(corners[i]));
                 }
                 // Mettre à jour la poignée de rotation
-                if (h.rotationMarker) {
-                    const b = obs.layer.getBounds();
-                    const cc = b.getCenter();
-                    const handleLat = b.getNorth() + (b.getNorth() - cc.lat) * 0.4;
-                    h.rotationMarker.setLatLng([handleLat, cc.lng]);
-                }
+                _updateRotationHandlePosition(obs);
             }
         }
         
