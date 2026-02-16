@@ -731,18 +731,20 @@ def _query_lidar_hd_grid(building_coords, resolution=0.5, resource="ign_lidar_hd
     grid_w = max(3, int(math.ceil(width_m / resolution)))
     grid_h = max(3, int(math.ceil(height_m / resolution)))
     
-    # Limiter à 5000 points par requête API (limite IGN)
+    # Limite API IGN : 5000 points par requête, 5 req/s
     MAX_PTS = 5000
+    MAX_TOTAL = 20000  # Limiter à 4 batches max pour éviter les timeouts
     total_pts = grid_w * grid_h
-    if total_pts > MAX_PTS:
-        # Réduire la résolution pour tenir dans la limite
-        scale = math.sqrt(total_pts / MAX_PTS)
+    
+    if total_pts > MAX_TOTAL:
+        # Réduire la résolution seulement si vraiment trop de points
+        scale = math.sqrt(total_pts / MAX_TOTAL)
         grid_w = max(3, int(grid_w / scale))
         grid_h = max(3, int(grid_h / scale))
         total_pts = grid_w * grid_h
         actual_res_x = width_m / grid_w
         actual_res_y = height_m / grid_h
-        print(f"  ⚠ Grille réduite pour API: {grid_w}×{grid_h} ({total_pts} pts, "
+        print(f"  ⚠ Grille réduite: {grid_w}×{grid_h} ({total_pts} pts, "
               f"résol={actual_res_x:.2f}×{actual_res_y:.2f}m)")
     
     # Générer les coordonnées lat/lon pour chaque point de la grille
@@ -768,6 +770,11 @@ def _query_lidar_hd_grid(building_coords, resolution=0.5, resource="ign_lidar_hd
     nb_batches = math.ceil(total_pts / batch_size)
     
     for batch_idx in range(nb_batches):
+        # Rate limiting : max 5 req/s → 0.25s entre chaque batch
+        if batch_idx > 0:
+            import time
+            time.sleep(0.25)
+        
         start = batch_idx * batch_size
         end = min(start + batch_size, total_pts)
         
@@ -1676,12 +1683,16 @@ def api_lidar_roof_analysis():
                 
                 for iy in range(final_h):
                     for ix in range(final_w):
-                        px_lat = lat_max - (iy / final_h) * (lat_max - lat_min)
-                        px_lon = lon_min + (ix / final_w) * (lon_max - lon_min)
+                        px_lat = lat_max - ((iy + 0.5) / final_h) * (lat_max - lat_min)
+                        px_lon = lon_min + ((ix + 0.5) / final_w) * (lon_max - lon_min)
                         
                         if _point_in_polygon(px_lon, px_lat, building_coords):
                             alt_mns = float(mns_full[iy, ix])
                             mnh_val = float(mnh_full[iy, ix])
+                            
+                            # Ignorer les NaN (zones non couvertes par LiDAR HD)
+                            if np.isnan(alt_mns) or np.isnan(mnh_val):
+                                continue
                             
                             if mnh_val > mnh_threshold:
                                 x_m = (px_lon - b_center_lon) * lng_to_m
@@ -1689,8 +1700,8 @@ def api_lidar_roof_analysis():
                                 roof_points.append((x_m, y_m, alt_mns, ix, iy))
                                 roof_grid_mask[iy, ix] = True
                 
-                print(f"✓ Points toit LiDAR HD: {len(roof_points)} pixels sur le bâtiment "
-                      f"({bldg_area_m2:.0f}m², {tiles_ok} tuiles, seuil MNH={mnh_threshold}m, "
+                print(f"✓ Points toit [{data_source}]: {len(roof_points)} pixels sur le bâtiment "
+                      f"({bldg_area_m2:.0f}m², seuil MNH={mnh_threshold}m, "
                       f"résol={final_res_x:.3f}m/px → {1/final_res_x**2:.0f} pts/m²)")
                 
                 if len(roof_points) >= 6:
