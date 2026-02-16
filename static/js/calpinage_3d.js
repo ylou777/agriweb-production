@@ -271,9 +271,10 @@ class Calpinage3DViewer {
         // TERRAIN SUBDIVISÉ : interpolation bilinéaire pour éliminer
         // l'effet d'escalier dans la couche satellite
         // ═══════════════════════════════════════════════════════════
-        // Limiter meshRes à 256 max pour éviter RangeError sur grandes grilles
-        // (une grille 1024x1024 avec subdivFactor=3 donnerait 3069² = 9.4M vertices)
-        const maxMeshRes = 256;
+        // Limiter meshRes pour éviter RangeError sur grandes grilles
+        // Three.js r128 utilise des indices 16-bit (max 65535 vertices)
+        // → max 255 segments (256² = 65536), on prend 200 pour marge
+        const maxMeshRes = 200;
         const subdivFactor = 3;
         const meshRes = Math.min((gridSize - 1) * subdivFactor, maxMeshRes);
         const meshVerts = meshRes + 1;                  // nombre de vertices par axe
