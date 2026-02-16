@@ -1655,6 +1655,7 @@ class Calpinage3DViewer {
         let ridgeExtra = 0;
         let roofShape = 'flat'; // gable, hip, shed, flat, multi-gable, multi-shed
         let nRidges = 1;
+        let usedDirectLidar = false; // Flag: toit rendu par maillage LiDAR direct
         
         // 1. Essayer l'analyse LiDAR MNS (la plus précise)
         const roofPoints = this._sampleMNSOnBuilding(coords, buildingData._bdtopoIdx);
@@ -1688,64 +1689,94 @@ class Calpinage3DViewer {
                 
                 console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m, ridges=${nRidges}`);
             }
+            
+            // ═══ MODE TOIT LiDAR DIRECT ═══
+            // Si on a assez de points LiDAR (HD 50cm ou WMS dense),
+            // utiliser le maillage direct plutôt que les formes paramétriques.
+            // Cela capture la géométrie réelle : lucarnes, cheminées, formes irrégulières.
+            if (roofPoints.length >= 20 && hasPitchedRoof) {
+                try {
+                    // Calculer la hauteur d'acrotère (percentile 10 du MNH = bord du toit)
+                    const sortedMNH = roofPoints.map(p => p.mnh).sort((a, b) => a - b);
+                    const eaveHeight = sortedMNH[Math.floor(sortedMNH.length * 0.10)];
+                    const roofBaseY = terrainH + eaveHeight;
+                    
+                    usedDirectLidar = this._createDirectLidarRoof(
+                        localCoords, obb, roofBaseY, roofPoints,
+                        roofType, wallType, eaveHeight
+                    );
+                    
+                    if (usedDirectLidar) {
+                        console.log(`🛰️ Mode toit LiDAR direct activé (${roofPoints.length} pts, eaveH=${eaveHeight.toFixed(1)}m)`);
+                    }
+                } catch (lidarErr) {
+                    console.warn('⚠️ Toit LiDAR direct échoué → fallback paramétrique:', lidarErr.message);
+                    usedDirectLidar = false;
+                }
+            }
         }
         
-        // 2. Fallback : données BD TOPO altitudes toit
-        if (!hasPitchedRoof && buildingData.alt_toit_min && buildingData.alt_toit_max &&
-            (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
-            hasPitchedRoof = true;
-            ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
-            roofShape = 'gable';
-        }
-        
-        // 3. Fallback : tags OSM roof:shape
-        if (!hasPitchedRoof) {
-            if (buildingData.roof_shape === 'gabled') {
+        // ═══ FALLBACK PARAMÉTRIQUE (si LiDAR direct non utilisé) ═══
+        if (!usedDirectLidar) {
+            // 2. Fallback : données BD TOPO altitudes toit
+            if (!hasPitchedRoof && buildingData.alt_toit_min && buildingData.alt_toit_max &&
+                (buildingData.alt_toit_max - buildingData.alt_toit_min) > 0.5) {
+                hasPitchedRoof = true;
+                ridgeExtra = buildingData.alt_toit_max - buildingData.alt_toit_min;
+                roofShape = 'gable';
+            }
+            
+            // 3. Fallback : tags OSM roof:shape
+            if (!hasPitchedRoof) {
+                if (buildingData.roof_shape === 'gabled') {
+                    hasPitchedRoof = true;
+                    roofShape = 'gable';
+                    ridgeExtra = obb.shortDim * 0.3;
+                } else if (buildingData.roof_shape === 'hipped') {
+                    hasPitchedRoof = true;
+                    roofShape = 'hip';
+                    ridgeExtra = obb.shortDim * 0.3;
+                }
+            }
+            
+            // 4. Fallback universel : toit gable par défaut pour tout bâtiment < 15m
+            if (!hasPitchedRoof && buildingData.roof_shape !== 'flat' && bh < 15) {
                 hasPitchedRoof = true;
                 roofShape = 'gable';
-                ridgeExtra = obb.shortDim * 0.3;
-            } else if (buildingData.roof_shape === 'hipped') {
-                hasPitchedRoof = true;
-                roofShape = 'hip';
-                ridgeExtra = obb.shortDim * 0.3;
+                ridgeExtra = obb.shortDim * 0.25;
             }
-        }
-        
-        // 4. Fallback universel : toit gable par défaut pour tout bâtiment < 15m
-        if (!hasPitchedRoof && buildingData.roof_shape !== 'flat' && bh < 15) {
-            hasPitchedRoof = true;
-            roofShape = 'gable';
-            ridgeExtra = obb.shortDim * 0.25;
-        }
-        
-        if (hasPitchedRoof) {
-            ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
-            try {
-                if (roofShape === 'multi-gable') {
-                    this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
-                } else if (roofShape === 'multi-shed') {
-                    this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
-                } else if (roofShape === 'hip') {
-                    this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-                } else if (roofShape === 'shed') {
-                    this._createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, roofAnalysis?.ridgeOffset || 0);
-                } else {
-                    this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-                }
-            } catch (roofErr) {
-                console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr);
+            
+            if (hasPitchedRoof) {
+                ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
                 try {
-                    this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
-                } catch (e2) {
-                    console.error('⚠️ Fallback gable échoué aussi:', e2);
-                    this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                    if (roofShape === 'multi-gable') {
+                        this._createMultiGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
+                    } else if (roofShape === 'multi-shed') {
+                        this._createMultiShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, nRidges, roofAnalysis);
+                    } else if (roofShape === 'hip') {
+                        this._createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+                    } else if (roofShape === 'shed') {
+                        this._createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, roofAnalysis?.ridgeOffset || 0);
+                    } else {
+                        this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+                    }
+                } catch (roofErr) {
+                    console.error('⚠️ Erreur création toit', roofShape, '→ fallback gable:', roofErr);
+                    try {
+                        this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
+                    } catch (e2) {
+                        console.error('⚠️ Fallback gable échoué aussi:', e2);
+                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                    }
                 }
+            } else {
+                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
             }
-        } else {
-            this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
         }
         
         // === Calculer et stocker les informations des pans de toiture ===
+        // (l'analyse paramétrique reste utilisée pour le calcul des pans PV,
+        //  peu importe si le rendu est LiDAR direct ou paramétrique)
         this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, roofShape, ridgeExtra, bh, terrainH, hasPitchedRoof, roofType, nRidges, roofAnalysis);
         
         // Stocker l'OBB et les infos géométriques pour le matching zone→pan
@@ -3026,6 +3057,351 @@ class Calpinage3DViewer {
             this.scene.add(wallMesh);
             this.buildings.push(wallMesh);
         }
+    }
+    
+    // ═══════════════════════════════════════════════════════════════
+    //  TOIT LiDAR DIRECT — Maillage depuis les hauteurs MNS réelles
+    //  (résolution 50cm IGN LiDAR HD)
+    // ═══════════════════════════════════════════════════════════════
+    
+    /**
+     * Crée un toit 3D directement depuis les points MNS LiDAR échantillonnés,
+     * sans passer par une forme paramétrique (gable, hip, etc.).
+     * 
+     * Avantages :
+     * - Capture la géométrie réelle : lucarnes, cheminées, vallées, toits asymétriques
+     * - Fonctionne pour les bâtiments en L, T, ou formes irrégulières
+     * - Résolution 50cm avec le LiDAR HD IGN
+     * 
+     * Approche :
+     * 1. Construit un index spatial (cellules) des roofPoints
+     * 2. Crée une grille OBB-alignée dense (résol ~40cm)
+     * 3. Pour chaque nœud, interpole la hauteur MNS par IDW (k=4 voisins)
+     * 4. Clip au polygone réel du bâtiment
+     * 5. Crée le mesh + murs pignons
+     * 
+     * @param {Array} localCoords - Sommets du polygone [{x, z}]
+     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     * @param {number} roofBaseY - Y du haut des murs (terrainH + wallH)
+     * @param {Array} roofPoints - Points LiDAR {x, z, mns, mnt, mnh}
+     * @param {string} roofType - Type de couverture (tuile, ardoise, etc.)
+     * @param {string} wallType - Type de mur
+     * @param {number} eaveHeight - Hauteur d'acrotère/gouttière au-dessus du sol (percentile bas MNH)
+     */
+    _createDirectLidarRoof(localCoords, obb, roofBaseY, roofPoints, roofType, wallType, eaveHeight) {
+        if (!roofPoints || roofPoints.length < 6 || !localCoords || localCoords.length < 3) return;
+        
+        console.log(`🛰️ Toit LiDAR direct: ${roofPoints.length} points MNS, résolution grille ~0.4m`);
+        
+        // ── 1. Index spatial des roofPoints pour accès rapide ──
+        // Cellules de 1m × 1m dans l'espace local
+        const cellSize = 1.0;
+        const spatialIndex = {};
+        
+        for (const p of roofPoints) {
+            const ci = Math.floor(p.x / cellSize);
+            const cj = Math.floor(p.z / cellSize);
+            const key = `${ci},${cj}`;
+            if (!spatialIndex[key]) spatialIndex[key] = [];
+            spatialIndex[key].push(p);
+        }
+        
+        /**
+         * Interpolation IDW (Inverse Distance Weighting) depuis les k plus proches points.
+         * Retourne la hauteur MNH interpolée, ou null si pas assez de voisins.
+         */
+        const interpolateMNH = (wx, wz, kNearest = 4, maxDist = 3.0) => {
+            const ci = Math.floor(wx / cellSize);
+            const cj = Math.floor(wz / cellSize);
+            
+            // Collecter les candidats dans un voisinage 3×3 de cellules
+            const candidates = [];
+            for (let di = -2; di <= 2; di++) {
+                for (let dj = -2; dj <= 2; dj++) {
+                    const cell = spatialIndex[`${ci + di},${cj + dj}`];
+                    if (cell) {
+                        for (const p of cell) {
+                            const dx = p.x - wx;
+                            const dz = p.z - wz;
+                            const dist = Math.sqrt(dx * dx + dz * dz);
+                            if (dist < maxDist) {
+                                candidates.push({ mnh: p.mnh, dist: dist });
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (candidates.length === 0) return null;
+            
+            // Trier par distance et garder les k plus proches
+            candidates.sort((a, b) => a.dist - b.dist);
+            const k = Math.min(kNearest, candidates.length);
+            
+            // Cas exact : point très proche
+            if (candidates[0].dist < 0.05) return candidates[0].mnh;
+            
+            // IDW avec puissance 2
+            let sumW = 0, sumWH = 0;
+            for (let i = 0; i < k; i++) {
+                const w = 1 / (candidates[i].dist * candidates[i].dist + 0.01);
+                sumW += w;
+                sumWH += w * candidates[i].mnh;
+            }
+            return sumWH / sumW;
+        };
+        
+        // ── 2. Paramètres de grille OBB ──
+        const cosA = Math.cos(-obb.angle);
+        const sinA = Math.sin(-obb.angle);
+        const halfShort = obb.shortDim / 2;
+        const halfLong = obb.longDim / 2;
+        
+        // Résolution : ~40cm pour capturer les détails de toit
+        const gridStep = 0.4;
+        const nAcross = Math.max(8, Math.round(obb.shortDim / gridStep));
+        const nAlong = Math.max(8, Math.round(obb.longDim / gridStep));
+        
+        // Marge intérieure pour ne pas dépasser le polygone
+        const margin = 0.15;
+        const effHalfShort = halfShort - margin;
+        const effHalfLong = halfLong - margin;
+        
+        // Abaisser légèrement pour pénétrer dans les murs (anti-interstice)
+        const roofBaseAdj = roofBaseY - 0.15;
+        
+        // ── 3. Point-in-polygon test ──
+        const isInPolygon = (wx, wz) => {
+            let inside = false;
+            const n = localCoords.length;
+            for (let i = 0, j = n - 1; i < n; j = i++) {
+                const xi = localCoords[i].x, zi = localCoords[i].z;
+                const xj = localCoords[j].x, zj = localCoords[j].z;
+                if (((zi > wz) !== (zj > wz)) &&
+                    (wx < (xj - xi) * (wz - zi) / (zj - zi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        };
+        
+        // ── 4. Créer la grille de sommets avec hauteurs MNS réelles ──
+        const positions = [];
+        const uvs = [];
+        const gridIdx = [];
+        let vertexCount = 0;
+        let interpolatedCount = 0;
+        let missedCount = 0;
+        
+        for (let i = 0; i <= nAcross; i++) {
+            gridIdx[i] = [];
+            const across = -effHalfShort + (i / nAcross) * effHalfShort * 2;
+            
+            for (let j = 0; j <= nAlong; j++) {
+                const along = -effHalfLong + (j / nAlong) * effHalfLong * 2;
+                
+                // Convertir en coordonnées monde
+                const wx = obb.cx + along * cosA + across * sinA;
+                const wz = obb.cz - along * sinA + across * cosA;
+                
+                if (!isInPolygon(wx, wz)) {
+                    gridIdx[i][j] = -1;
+                    continue;
+                }
+                
+                // Interpoler la hauteur MNH depuis les points LiDAR
+                const mnh = interpolateMNH(wx, wz, 4, 3.0);
+                if (mnh === null || mnh < 1.0) {
+                    gridIdx[i][j] = -1;
+                    missedCount++;
+                    continue;
+                }
+                
+                // Hauteur au-dessus de la base du toit
+                // mnh = hauteur au-dessus du sol MNT
+                // eaveHeight = hauteur de l'acrotère (percentile bas du MNH)
+                // Le toit commence à eaveHeight → h relative = mnh - eaveHeight
+                const h = Math.max(0, mnh - eaveHeight);
+                
+                positions.push(wx, roofBaseAdj + h, wz);
+                uvs.push(along / 4.0, across / 4.0);
+                gridIdx[i][j] = vertexCount++;
+                interpolatedCount++;
+            }
+        }
+        
+        console.log(`  📊 Grille ${nAcross}×${nAlong}: ${interpolatedCount} pts interpolés, ${missedCount} manqués`);
+        
+        if (vertexCount < 3) {
+            console.warn('⚠️ _createDirectLidarRoof: pas assez de sommets, fallback vers paramétrique');
+            return false; // Signaler l'échec pour fallback
+        }
+        
+        // ── 5. Créer les triangles ──
+        const indices = [];
+        for (let i = 0; i < nAcross; i++) {
+            for (let j = 0; j < nAlong; j++) {
+                const i00 = gridIdx[i][j];
+                const i10 = gridIdx[i + 1][j];
+                const i01 = gridIdx[i][j + 1];
+                const i11 = gridIdx[i + 1][j + 1];
+                
+                if (i00 >= 0 && i10 >= 0 && i01 >= 0) {
+                    indices.push(i00, i10, i01);
+                }
+                if (i10 >= 0 && i11 >= 0 && i01 >= 0) {
+                    indices.push(i10, i11, i01);
+                }
+            }
+        }
+        
+        if (indices.length < 3) return false;
+        
+        // ── 6. Créer le mesh du toit ──
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(indices);
+        geo.computeVertexNormals();
+        
+        // Lissage Laplacien des normales pour adoucir le maillage LiDAR
+        // (les données brutes à 50cm peuvent être un peu irrégulières)
+        this._smoothNormals(geo, 1);
+        
+        const roofTex = this._getRoofTexture(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: roofTex,
+            side: THREE.DoubleSide,
+            specular: 0x222222,
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
+        });
+        const roofMesh = new THREE.Mesh(geo, roofMat);
+        roofMesh.castShadow = true;
+        roofMesh.receiveShadow = true;
+        this.scene.add(roofMesh);
+        this.buildings.push(roofMesh);
+        
+        // ── 7. Murs pignons (skirt) — combler entre le toit et le haut des murs ──
+        const wallColorMap = {
+            plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
+            concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
+        };
+        const wallColor = wallColorMap[wallType] || 0xE8DCC8;
+        
+        const pignonVerts = [];
+        const nEdgeSamples = Math.max(nAcross, 12);
+        
+        for (let e = 0; e < localCoords.length; e++) {
+            const curr = localCoords[e];
+            const next = localCoords[(e + 1) % localCoords.length];
+            
+            const edgeX = next.x - curr.x;
+            const edgeZ = next.z - curr.z;
+            const edgeLen = Math.sqrt(edgeX * edgeX + edgeZ * edgeZ);
+            if (edgeLen < 0.3) continue;
+            
+            for (let s = 0; s < nEdgeSamples; s++) {
+                const t1 = s / nEdgeSamples;
+                const t2 = (s + 1) / nEdgeSamples;
+                
+                const x1 = curr.x + t1 * edgeX;
+                const z1 = curr.z + t1 * edgeZ;
+                const x2 = curr.x + t2 * edgeX;
+                const z2 = curr.z + t2 * edgeZ;
+                
+                // Hauteur LiDAR aux 2 points de l'arête
+                const mnh1 = interpolateMNH(x1, z1, 3, 2.5);
+                const mnh2 = interpolateMNH(x2, z2, 3, 2.5);
+                
+                const h1 = mnh1 !== null ? Math.max(0, mnh1 - eaveHeight) : 0;
+                const h2 = mnh2 !== null ? Math.max(0, mnh2 - eaveHeight) : 0;
+                
+                if (h1 < 0.1 && h2 < 0.1) continue;
+                
+                const y1top = roofBaseAdj + h1;
+                const y2top = roofBaseAdj + h2;
+                
+                pignonVerts.push(
+                    x1, roofBaseAdj, z1,  x2, roofBaseAdj, z2,  x2, y2top, z2,
+                    x1, roofBaseAdj, z1,  x2, y2top, z2,      x1, y1top, z1
+                );
+            }
+        }
+        
+        if (pignonVerts.length > 0) {
+            const wallGeo = new THREE.BufferGeometry();
+            wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(pignonVerts), 3));
+            wallGeo.computeVertexNormals();
+            const wallMat = new THREE.MeshPhongMaterial({
+                color: wallColor, side: THREE.DoubleSide,
+                specular: 0x111111, shininess: 5
+            });
+            const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+            wallMesh.castShadow = true;
+            this.scene.add(wallMesh);
+            this.buildings.push(wallMesh);
+        }
+        
+        console.log('✅ Toit LiDAR direct créé avec succès');
+        return true; // Succès
+    }
+    
+    /**
+     * Lissage Laplacien des normales d'un BufferGeometry.
+     * Adoucit les irrégularités du maillage LiDAR sans modifier les positions.
+     * @param {THREE.BufferGeometry} geo
+     * @param {number} iterations - Nombre de passes de lissage
+     */
+    _smoothNormals(geo, iterations) {
+        const normals = geo.getAttribute('normal');
+        if (!normals) return;
+        
+        const index = geo.getIndex();
+        if (!index) return;
+        
+        const count = normals.count;
+        
+        // Construire la liste d'adjacence des sommets
+        const neighbors = new Array(count);
+        for (let i = 0; i < count; i++) neighbors[i] = new Set();
+        
+        const indexArray = index.array;
+        for (let i = 0; i < indexArray.length; i += 3) {
+            const a = indexArray[i], b = indexArray[i+1], c = indexArray[i+2];
+            neighbors[a].add(b); neighbors[a].add(c);
+            neighbors[b].add(a); neighbors[b].add(c);
+            neighbors[c].add(a); neighbors[c].add(b);
+        }
+        
+        for (let iter = 0; iter < iterations; iter++) {
+            const smoothed = new Float32Array(count * 3);
+            
+            for (let i = 0; i < count; i++) {
+                let nx = normals.getX(i);
+                let ny = normals.getY(i);
+                let nz = normals.getZ(i);
+                let w = 1.0;
+                
+                for (const j of neighbors[i]) {
+                    nx += normals.getX(j) * 0.5;
+                    ny += normals.getY(j) * 0.5;
+                    nz += normals.getZ(j) * 0.5;
+                    w += 0.5;
+                }
+                
+                // Normaliser
+                const len = Math.sqrt(nx*nx + ny*ny + nz*nz) || 1;
+                smoothed[i*3] = nx / len;
+                smoothed[i*3+1] = ny / len;
+                smoothed[i*3+2] = nz / len;
+            }
+            
+            for (let i = 0; i < count; i++) {
+                normals.setXYZ(i, smoothed[i*3], smoothed[i*3+1], smoothed[i*3+2]);
+            }
+        }
+        
+        normals.needsUpdate = true;
     }
     
     /**
