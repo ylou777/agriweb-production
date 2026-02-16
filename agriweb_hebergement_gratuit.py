@@ -1451,6 +1451,16 @@ def api_lidar_roof_analysis():
                         profile_coord = x
                         long_coord = y
                     
+                    # ── Analyse satellite des lignes de force ──
+                    sat_result = None
+                    try:
+                        sat_result = _analyze_satellite_structure(
+                            building_coords, b_center_lat, b_center_lon, building_is_ew)
+                        if sat_result:
+                            result['satellite_analysis'] = sat_result
+                    except Exception as e:
+                        print(f"⚠ Satellite structure analysis error: {e}")
+                    
                     nb_blocks = max(1, int(round(trans_dim / block_size_m)))
                     if bldg_area_m2 < 2000:
                         nb_blocks = 1  # pas de découpe pour petites toitures
@@ -1569,6 +1579,54 @@ def api_lidar_roof_analysis():
                                         filtered.append((idx, typ))
                                 ridges = [idx for idx, typ in filtered if typ == 'ridge']
                                 valleys = [idx for idx, typ in filtered if typ == 'valley']
+                            
+                            # ── FUSION satellite + LiDAR ──
+                            # L'image satellite donne les positions, le LiDAR confirme les hauteurs
+                            # Seuil réduit (0.15m au lieu de 0.4m) pour les faîtages confirmés par satellite
+                            if sat_result and sat_result.get('ridge_positions_m'):
+                                sat_added = 0
+                                for sri, sat_pos in enumerate(sat_result['ridge_positions_m']):
+                                    # Ce faîtage satellite tombe dans ce bloc ?
+                                    if sat_pos < b_trans_min - 0.5 or sat_pos > b_trans_max + 0.5:
+                                        continue
+                                    # Position en indice de bin
+                                    sat_bin = int((sat_pos - b_trans_min) / b_trans_range * (nb_bins - 1))
+                                    sat_bin = max(2, min(nb_bins - 3, sat_bin))
+                                    # Déjà détecté par LiDAR ?
+                                    if any(abs(lr - sat_bin) <= 2 for lr in ridges):
+                                        continue
+                                    # Micro-profil LiDAR autour de la position satellite (±3 bins)
+                                    w = 3
+                                    lo = max(0, sat_bin - w)
+                                    hi = min(nb_bins - 1, sat_bin + w)
+                                    local_z = profile_smooth[lo:hi+1]
+                                    if len(local_z) < 3:
+                                        continue
+                                    local_max_i = int(np.argmax(local_z))
+                                    local_min_i = int(np.argmin(local_z))
+                                    local_mean_z = (local_z[0] + local_z[-1]) / 2.0
+                                    # Seuil réduit : satellite confirme la position
+                                    if local_z[local_max_i] - local_mean_z > 0.15:
+                                        new_r = lo + local_max_i
+                                        if new_r not in ridges:
+                                            ridges.append(new_r)
+                                            sat_added += 1
+                                    elif local_mean_z - local_z[local_min_i] > 0.15:
+                                        new_v = lo + local_min_i
+                                        if new_v not in valleys:
+                                            valleys.append(new_v)
+                                            sat_added += 1
+                                    else:
+                                        # Image très confiante, pas de confirmation LiDAR
+                                        s_str = sat_result['ridge_strengths'][sri]
+                                        if s_str > 0.6:
+                                            ridges.append(sat_bin)
+                                            sat_added += 1
+                                if sat_added > 0:
+                                    ridges = sorted(set(ridges))
+                                    valleys = sorted(set(valleys))
+                                    print(f"  🛰️  Fusion sat+LiDAR: +{sat_added} extrema → "
+                                          f"{len(ridges)} faîtages, {len(valleys)} noues")
                             
                             block_nb_sheds = max(1, len(ridges))
                             block_is_multi_shed = block_nb_sheds >= 2
@@ -1790,6 +1848,203 @@ def api_lidar_roof_analysis():
             print(f"⚠ LiDAR roof analysis error: {e}")
     
     return jsonify(result)
+
+
+def _analyze_satellite_structure(building_coords, center_lat, center_lon, building_is_ew):
+    """
+    Détecte les lignes de faîtage/noue par analyse du gradient transversal
+    de l'image satellite orthophoto projetée sur le polygone du bâtiment.
+    
+    L'image satellite montre les faîtages comme des lignes de contraste
+    (ombres, changement de matériau, joints de couverture). On détecte ces
+    lignes par analyse du gradient directionnel, binné dans la direction
+    transversale à l'axe long du bâtiment.
+    
+    Returns:
+        dict with:
+            ridge_positions_m  : positions transversales en mètres depuis le centre
+            ridge_strengths    : force du gradient normalisée (0-1)
+            gradient_profile   : profil 1D du gradient moyenné
+            across_bins_m      : positions des bins en mètres
+        ou None si la détection échoue
+    """
+    import numpy as np
+    from PIL import Image as PILImage, ImageDraw
+    import io as _io
+
+    lons_b = [c[0] for c in building_coords]
+    lats_b = [c[1] for c in building_coords]
+    lng_to_m = 111320 * math.cos(math.radians(center_lat))
+
+    # ── Bbox du bâtiment + marge 15 % ──
+    margin = 0.15
+    lon_range = max(lons_b) - min(lons_b)
+    lat_range = max(lats_b) - min(lats_b)
+    bbox_west  = min(lons_b) - lon_range * margin
+    bbox_east  = max(lons_b) + lon_range * margin
+    bbox_south = min(lats_b) - lat_range * margin
+    bbox_north = max(lats_b) + lat_range * margin
+
+    # Dimension image : ~0.10 m/px, max 1024 px
+    width_m  = (bbox_east - bbox_west) * lng_to_m
+    height_m = (bbox_north - bbox_south) * 111320
+    px_w = min(1024, max(64, int(width_m / 0.10)))
+    px_h = min(1024, max(64, int(height_m / 0.10)))
+
+    # ── Télécharger l'orthophoto IGN ──
+    wms_url = "https://data.geopf.fr/wms-r/wms"
+    params = {
+        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+        "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+        "CRS": "EPSG:4326",
+        "BBOX": f"{bbox_south},{bbox_west},{bbox_north},{bbox_east}",
+        "WIDTH": str(px_w), "HEIGHT": str(px_h),
+        "FORMAT": "image/jpeg", "STYLES": ""
+    }
+    try:
+        r = requests.get(wms_url, params=params, timeout=15)
+        if r.status_code != 200 or 'image' not in r.headers.get('content-type', ''):
+            print(f"  ⚠ Satellite structure: HTTP {r.status_code}")
+            return None
+        img_arr = np.array(PILImage.open(_io.BytesIO(r.content)).convert('L'),
+                           dtype=np.float32)
+    except Exception as e:
+        print(f"  ⚠ Satellite fetch error: {e}")
+        return None
+
+    actual_h, actual_w = img_arr.shape
+    if actual_h < 20 or actual_w < 20:
+        return None
+
+    # ── Masque bâtiment via PIL (rapide) ──
+    poly_px = []
+    for lon_p, lat_p in building_coords:
+        pix_x = int((lon_p - bbox_west) / (bbox_east - bbox_west) * actual_w)
+        pix_y = int((bbox_north - lat_p) / (bbox_north - bbox_south) * actual_h)
+        poly_px.append((pix_x, pix_y))
+    mask_img = PILImage.new('L', (actual_w, actual_h), 0)
+    ImageDraw.Draw(mask_img).polygon(poly_px, fill=255)
+    mask = np.array(mask_img) > 0
+
+    n_roof_px = int(np.sum(mask))
+    if n_roof_px < 50:
+        print(f"  ⚠ Satellite: trop peu de pixels toit ({n_roof_px})")
+        return None
+
+    # ── Contraste local (high-pass = image - local-mean) ──
+    ksize = max(7, min(31, actual_w // 15))
+    if ksize % 2 == 0:
+        ksize += 1
+    pad = ksize // 2
+    img_pad = np.pad(img_arr, pad, mode='reflect')
+    # Integral image pour box filter rapide
+    cs = np.cumsum(np.cumsum(img_pad, axis=0), axis=1)
+    local_mean = (cs[ksize:, ksize:] - cs[ksize:, :-ksize]
+                  - cs[:-ksize, ksize:] + cs[:-ksize, :-ksize]) / (ksize * ksize)
+    # Ajuster taille si décalage
+    lm = local_mean[:actual_h, :actual_w]
+    lm[lm < 1] = 1
+    enhanced = np.clip(img_arr / lm * 128, 0, 255)
+
+    # ── Gradient directionnel (Sobel simplifié, direction transversale) ──
+    gy = np.zeros_like(enhanced)
+    gx = np.zeros_like(enhanced)
+    gy[1:-1, :] = enhanced[2:, :] - enhanced[:-2, :]   # ∂I/∂row  (row↓ = sud)
+    gx[:, 1:-1] = enhanced[:, 2:] - enhanced[:, :-2]   # ∂I/∂col  (col→ = est)
+
+    # La direction transversale en image :
+    # building_is_ew → trans = N-S = vertical = gy
+    # building_is_NS → trans = E-O = horizontal = gx
+    if building_is_ew:
+        grad_trans = np.abs(gy)
+    else:
+        grad_trans = np.abs(gx)
+
+    # ── Meshgrid de coordonnées en mètres ──
+    iy_arr, ix_arr = np.mgrid[0:actual_h, 0:actual_w]
+    px_lons = bbox_west + (ix_arr.astype(np.float32) / actual_w) * (bbox_east - bbox_west)
+    px_lats = bbox_north - (iy_arr.astype(np.float32) / actual_h) * (bbox_north - bbox_south)
+    # Coordonnées métriques depuis le centre du bâtiment
+    mx = (px_lons - center_lon) * lng_to_m
+    my = (px_lats - center_lat) * 111320.0
+
+    # Axe transversal : y pour E-W, x pour N-S (même convention que le LiDAR)
+    if building_is_ew:
+        across = my
+    else:
+        across = mx
+
+    across_vals = across[mask]
+    grad_vals = grad_trans[mask]
+
+    across_min = float(np.min(across_vals))
+    across_max = float(np.max(across_vals))
+    across_range = across_max - across_min
+    if across_range < 1.0:
+        return None
+
+    # ── Profil 1-D : gradient moyen par bin transversal (~0.25 m/bin) ──
+    nb_bins = max(15, int(across_range / 0.25))
+    bin_edges = np.linspace(across_min, across_max, nb_bins + 1)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2.0
+    digitized = np.digitize(across_vals, bin_edges) - 1
+    digitized = np.clip(digitized, 0, nb_bins - 1)
+
+    grad_profile = np.zeros(nb_bins, dtype=np.float64)
+    grad_count   = np.zeros(nb_bins, dtype=np.float64)
+    for i in range(len(across_vals)):
+        b = digitized[i]
+        grad_profile[b] += grad_vals[i]
+        grad_count[b] += 1
+    valid = grad_count > 0
+    grad_profile[valid] /= grad_count[valid]
+    # Interpoler bins vides
+    valid_idx = np.where(valid)[0]
+    if len(valid_idx) >= 2:
+        grad_profile = np.interp(np.arange(nb_bins), valid_idx, grad_profile[valid_idx])
+
+    # Lissage (noyau 5)
+    kernel = np.array([1, 2, 3, 2, 1], dtype=np.float64) / 9.0
+    grad_smooth = np.convolve(grad_profile, kernel, mode='same')
+
+    # ── Détection des pics (faîtages) = maxima locaux au-dessus du seuil ──
+    mean_g = float(np.mean(grad_smooth))
+    std_g  = float(np.std(grad_smooth))
+    threshold = mean_g + 1.0 * std_g
+
+    ridge_positions_m = []
+    ridge_strengths   = []
+
+    for i in range(2, nb_bins - 2):
+        if (grad_smooth[i] > grad_smooth[i-1] and
+            grad_smooth[i] > grad_smooth[i+1] and
+            grad_smooth[i] > threshold):
+            # Précision sub-bin par ajustement parabolique
+            alpha, beta, gamma = grad_smooth[i-1], grad_smooth[i], grad_smooth[i+1]
+            denom = 2.0 * (2*beta - alpha - gamma)
+            p = (alpha - gamma) / denom if abs(denom) > 1e-6 else 0.0
+            pos_m = float(bin_centers[i]) + p * (bin_centers[1] - bin_centers[0])
+            strength = (grad_smooth[i] - mean_g) / (std_g + 1e-6)
+
+            # Ignorer les bords (< 8 % ou > 92 % de la largeur)
+            rel = (pos_m - across_min) / across_range
+            if 0.08 < rel < 0.92:
+                ridge_positions_m.append(round(pos_m, 3))
+                ridge_strengths.append(round(min(1.0, strength / 3.0), 3))
+
+    print(f"🛰️  Satellite ridges: {actual_w}×{actual_h}px, {n_roof_px} roof px, "
+          f"{len(ridge_positions_m)} ridge(s) at {[f'{p:.1f}m' for p in ridge_positions_m]}")
+
+    return {
+        'ridge_positions_m': ridge_positions_m,
+        'ridge_strengths':   ridge_strengths,
+        'gradient_profile':  [round(float(v), 2) for v in grad_smooth],
+        'across_bins_m':     [round(float(v), 3) for v in bin_centers],
+        'across_range_m':    round(across_range, 2),
+        'image_size':        [actual_w, actual_h],
+        'nb_roof_pixels':    n_roof_px,
+        'threshold':         round(threshold, 2),
+    }
 
 
 def _point_in_polygon(x, y, polygon):

@@ -372,68 +372,81 @@ class Calpinage3DViewer {
             const objectUrl = URL.createObjectURL(blob);
             console.log('🛰️ Image satellite reçue:', (blob.size / 1024).toFixed(0), 'Ko');
             
-            // Charger l'image pour appliquer contraste/saturation
-            const img = new Image();
-            img.onload = () => {
-                // Créer un canvas pour booster le contraste
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                
-                // Dessiner l'image originale
-                ctx.drawImage(img, 0, 0);
-                
-                // Booster le contraste et la saturation
-                ctx.globalCompositeOperation = 'source-over';
-                // Augmenter le contraste via courbe S
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const d = imageData.data;
-                const contrast = 1.3; // 1.0 = normal, 1.3 = +30%
-                const satBoost = 1.25; // +25% saturation
-                for (let i = 0; i < d.length; i += 4) {
-                    // Contraste
-                    let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
-                    let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
-                    let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
+            // Charger l'image via Promise pour attendre le décodage complet
+            await new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Créer un canvas pour booster le contraste
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
                     
-                    // Saturation
-                    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
-                    r = gray + (r - gray) * satBoost;
-                    g = gray + (g - gray) * satBoost;
-                    b = gray + (b - gray) * satBoost;
+                    // Dessiner l'image originale
+                    ctx.drawImage(img, 0, 0);
                     
-                    d[i]   = Math.max(0, Math.min(255, r));
-                    d[i+1] = Math.max(0, Math.min(255, g));
-                    d[i+2] = Math.max(0, Math.min(255, b));
-                }
-                ctx.putImageData(imageData, 0, 0);
-                
-                const tex = new THREE.CanvasTexture(canvas);
-                tex.wrapS = THREE.ClampToEdgeWrapping;
-                tex.wrapT = THREE.ClampToEdgeWrapping;
-                tex.minFilter = THREE.LinearMipMapLinearFilter;
-                tex.magFilter = THREE.LinearFilter;
-                tex.anisotropy = 4; // Meilleur rendu en perspective
-                
-                if (this.terrainMesh) {
-                    this.terrainMesh.material.map = tex;
-                    this.terrainMesh.material.color.set(0xffffff);
-                    this.terrainMesh.material.needsUpdate = true;
-                }
-                
-                // Ne PAS appliquer au sol secondaire (600x600) :
-                // la même image satellite étirée sur un plan 3x plus grand
-                // crée un doublon flou et hors échelle
-                
-                console.log('✅ Texture satellite contrastée appliquée au terrain');
-                URL.revokeObjectURL(objectUrl);
-            };
-            img.onerror = () => {
-                console.warn('⚠ Erreur chargement image satellite');
-                URL.revokeObjectURL(objectUrl);
-            };
-            img.src = objectUrl;
+                    // Booster le contraste et la saturation
+                    ctx.globalCompositeOperation = 'source-over';
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const d = imageData.data;
+                    const contrast = 1.3;
+                    const satBoost = 1.25;
+
+                    // Stocker le niveau de gris BRUT (avant boost) pour l'analyse de faîtages
+                    const grayArr = new Float32Array(canvas.width * canvas.height);
+                    for (let i = 0; i < d.length; i += 4) {
+                        grayArr[i / 4] = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+                    }
+                    this._satGray  = grayArr;
+                    this._satW     = canvas.width;
+                    this._satH     = canvas.height;
+                    const latDeg   = radiusM / 111320.0;
+                    const lonDeg   = radiusM / (111320.0 * Math.cos(lat * Math.PI / 180));
+                    this._satBbox  = {
+                        south: lat - latDeg, north: lat + latDeg,
+                        west:  lon - lonDeg, east:  lon + lonDeg
+                    };
+
+                    for (let i = 0; i < d.length; i += 4) {
+                        let r = ((d[i] / 255 - 0.5) * contrast + 0.5) * 255;
+                        let g = ((d[i+1] / 255 - 0.5) * contrast + 0.5) * 255;
+                        let b = ((d[i+2] / 255 - 0.5) * contrast + 0.5) * 255;
+                        
+                        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+                        r = gray + (r - gray) * satBoost;
+                        g = gray + (g - gray) * satBoost;
+                        b = gray + (b - gray) * satBoost;
+                        
+                        d[i]   = Math.max(0, Math.min(255, r));
+                        d[i+1] = Math.max(0, Math.min(255, g));
+                        d[i+2] = Math.max(0, Math.min(255, b));
+                    }
+                    ctx.putImageData(imageData, 0, 0);
+                    
+                    const tex = new THREE.CanvasTexture(canvas);
+                    tex.wrapS = THREE.ClampToEdgeWrapping;
+                    tex.wrapT = THREE.ClampToEdgeWrapping;
+                    tex.minFilter = THREE.LinearMipMapLinearFilter;
+                    tex.magFilter = THREE.LinearFilter;
+                    tex.anisotropy = 4;
+                    
+                    if (this.terrainMesh) {
+                        this.terrainMesh.material.map = tex;
+                        this.terrainMesh.material.color.set(0xffffff);
+                        this.terrainMesh.material.needsUpdate = true;
+                    }
+                    
+                    console.log(`✅ Texture satellite ${canvas.width}×${canvas.height} + grayscale stocké pour analyse`);
+                    URL.revokeObjectURL(objectUrl);
+                    resolve();
+                };
+                img.onerror = () => {
+                    console.warn('⚠ Erreur chargement image satellite');
+                    URL.revokeObjectURL(objectUrl);
+                    resolve();  // ne pas bloquer le pipeline
+                };
+                img.src = objectUrl;
+            });
         } catch (e) {
             console.warn('⚠ Erreur texture satellite:', e);
         }
@@ -1088,6 +1101,165 @@ class Calpinage3DViewer {
     }
     
     /**
+     * Analyse l'image satellite pour détecter les lignes de faîtage par gradient transversal.
+     * L'image montre les faîtages comme des lignes de contraste (ombres, matériaux).
+     * Retourne les positions normalisées (0-1) des faîtages à travers la largeur du bâtiment.
+     *
+     * @param {Array} geoCoords - Coordonnées [[lon,lat], ...] du polygone
+     * @param {Object} obb - {cx, cz, angle, longDim, shortDim}
+     * @returns {Object|null} {count, positions[], strengths[], profile[]}
+     */
+    _analyzeSatelliteRidges(geoCoords, obb) {
+        if (!this._satGray || !this._satBbox) return null;
+
+        const bbox = this._satBbox;
+        const sw = this._satW, sh = this._satH;
+        const gray = this._satGray;
+
+        // Coordonnées lon/lat du bâtiment
+        const lons = geoCoords.map(c => c[0]);
+        const lats = geoCoords.map(c => c[1]);
+        const bMinLon = Math.min(...lons), bMaxLon = Math.max(...lons);
+        const bMinLat = Math.min(...lats), bMaxLat = Math.max(...lats);
+
+        // Pixel bounds du bâtiment dans l'image satellite
+        const pxMin = Math.max(0, Math.floor((bMinLon - bbox.west) / (bbox.east - bbox.west) * sw) - 2);
+        const pxMax = Math.min(sw - 1, Math.ceil((bMaxLon - bbox.west) / (bbox.east - bbox.west) * sw) + 2);
+        const pyMin = Math.max(0, Math.floor((bbox.north - bMaxLat) / (bbox.north - bbox.south) * sh) - 2);
+        const pyMax = Math.min(sh - 1, Math.ceil((bbox.north - bMinLat) / (bbox.north - bbox.south) * sh) + 2);
+
+        if (pxMax - pxMin < 10 || pyMax - pyMin < 10) return null;
+
+        const polyGeo = geoCoords.map(c => ({x: c[0], y: c[1]}));
+
+        // Direction transversale (perpendiculaire au faîtage)
+        const ridgeAngle = obb.angle;
+        const cosPerp = -Math.sin(ridgeAngle);  // perpendiculaire en 3D local (x=east)
+        const sinPerp =  Math.cos(ridgeAngle);
+
+        const centerLat = (bMinLat + bMaxLat) / 2;
+        const centerLon = (bMinLon + bMaxLon) / 2;
+        const lngToM = 111320 * Math.cos(centerLat * Math.PI / 180);
+
+        // Collecter gradient et coordonnée transversale pour chaque pixel du toit
+        const acrossVals = [];
+        const gradVals = [];
+
+        for (let py = pyMin + 1; py < pyMax - 1; py++) {
+            for (let px = pxMin + 1; px < pxMax - 1; px++) {
+                // Coordonnée géo du pixel
+                const pLon = bbox.west + (px + 0.5) / sw * (bbox.east - bbox.west);
+                const pLat = bbox.north - (py + 0.5) / sh * (bbox.north - bbox.south);
+
+                if (!this._pointInPolygon2D(pLon, pLat, polyGeo)) continue;
+
+                // Gradient central (Sobel simplifié)
+                const idx = py * sw + px;
+                const gx = (gray[idx + 1] - gray[idx - 1]) / 2;        // ∂I/∂col (→ east)
+                const gy = (gray[idx + sw] - gray[idx - sw]) / 2;       // ∂I/∂row (↓ = south)
+
+                // Projeter le gradient sur la direction transversale
+                // gx → composante east, gy → composante sud (car row↓=sud)
+                const mx = (pLon - centerLon) * lngToM;
+                const my = (pLat - centerLat) * 111320;
+                const across = mx * cosPerp + my * sinPerp;
+                const gradTrans = Math.abs(gx * cosPerp - gy * sinPerp);
+
+                acrossVals.push(across);
+                gradVals.push(gradTrans);
+            }
+        }
+
+        if (acrossVals.length < 30) return null;
+
+        // Profil 1D : gradient moyen par bin transversal (~0.3m/bin)
+        let aMin = Infinity, aMax = -Infinity;
+        for (let i = 0; i < acrossVals.length; i++) {
+            if (acrossVals[i] < aMin) aMin = acrossVals[i];
+            if (acrossVals[i] > aMax) aMax = acrossVals[i];
+        }
+        const aRange = aMax - aMin;
+        if (aRange < 1) return null;
+
+        const nbBins = Math.max(15, Math.round(aRange / 0.3));
+        const profile = new Float32Array(nbBins);
+        const counts  = new Float32Array(nbBins);
+
+        for (let i = 0; i < acrossVals.length; i++) {
+            let b = Math.floor((acrossVals[i] - aMin) / aRange * (nbBins - 1));
+            b = Math.max(0, Math.min(nbBins - 1, b));
+            profile[b] += gradVals[i];
+            counts[b]  += 1;
+        }
+        for (let i = 0; i < nbBins; i++) {
+            if (counts[i] > 0) profile[i] /= counts[i];
+        }
+
+        // Interpoler les bins vides
+        for (let i = 0; i < nbBins; i++) {
+            if (counts[i] === 0) {
+                let lo = i - 1, hi = i + 1;
+                while (lo >= 0 && counts[lo] === 0) lo--;
+                while (hi < nbBins && counts[hi] === 0) hi++;
+                if (lo >= 0 && hi < nbBins) {
+                    profile[i] = profile[lo] + (profile[hi] - profile[lo]) * (i - lo) / (hi - lo);
+                } else if (lo >= 0) profile[i] = profile[lo];
+                else if (hi < nbBins) profile[i] = profile[hi];
+            }
+        }
+
+        // Lissage (noyau [1,2,3,2,1]/9)
+        const smooth = new Float32Array(nbBins);
+        const k = [1, 2, 3, 2, 1];
+        for (let i = 0; i < nbBins; i++) {
+            let s = 0, w = 0;
+            for (let j = -2; j <= 2; j++) {
+                const idx = i + j;
+                if (idx >= 0 && idx < nbBins) { s += profile[idx] * k[j + 2]; w += k[j + 2]; }
+            }
+            smooth[i] = s / w;
+        }
+
+        // Détection des pics (maxima locaux > seuil adaptatif)
+        let meanG = 0, sumG2 = 0;
+        for (let i = 0; i < nbBins; i++) { meanG += smooth[i]; sumG2 += smooth[i] * smooth[i]; }
+        meanG /= nbBins;
+        const stdG = Math.sqrt(sumG2 / nbBins - meanG * meanG);
+        const threshold = meanG + 1.0 * stdG;
+
+        const ridgePositions = [];  // 0-1 normalized
+        const ridgeStrengths = [];
+
+        for (let i = 2; i < nbBins - 2; i++) {
+            if (smooth[i] > smooth[i-1] && smooth[i] > smooth[i+1] && smooth[i] > threshold) {
+                // Sub-bin précision (parabole)
+                const alpha = smooth[i-1], beta = smooth[i], gamma = smooth[i+1];
+                const denom = 2 * (2*beta - alpha - gamma);
+                const p = Math.abs(denom) > 1e-6 ? (alpha - gamma) / denom : 0;
+                const pos01 = (i + p) / (nbBins - 1);  // 0-1
+
+                // Ignorer les bords (< 8% ou > 92%)
+                if (pos01 > 0.08 && pos01 < 0.92) {
+                    ridgePositions.push(pos01);
+                    ridgeStrengths.push(Math.min(1, (smooth[i] - meanG) / (stdG * 3 + 0.001)));
+                }
+            }
+        }
+
+        console.log(`🛰️ Satellite ridges: ${ridgePositions.length} detected ` +
+                     `(${sw}×${sh}px, ${acrossVals.length} roof px, ` +
+                     `positions: ${ridgePositions.map(p => p.toFixed(2)).join(', ')})`);
+
+        return ridgePositions.length > 0 ? {
+            count: ridgePositions.length,
+            positions: ridgePositions,     // 0-1 across building
+            strengths: ridgeStrengths,
+            profile: Array.from(smooth),
+            acrossRange: aRange,
+        } : null;
+    }
+    
+    /**
      * Analyse la forme du toit à partir des points MNS LiDAR échantillonnés.
      * Détecte :
      * - La ligne de faîtage (direction + position) via test bi-directionnel
@@ -1656,6 +1828,63 @@ class Calpinage3DViewer {
                 
                 console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m, ridges=${nRidges}`);
             }
+        }
+        
+        // 1b. Analyse satellite : lignes de force (faîtages) par gradient d'image
+        // L'image satellite montre les faîtages comme des ombres/contrastes visibles.
+        // On les détecte par gradient transversal et on fusionne avec le LiDAR.
+        try {
+            const satRidges = this._analyzeSatelliteRidges(coords, obb);
+            if (satRidges && roofAnalysis) {
+                // Le satellite a trouvé plus de faîtages que le LiDAR ?
+                if (satRidges.count >= 2 && satRidges.count > nRidges) {
+                    console.log(`🛰️ Satellite détecte ${satRidges.count} faîtages (LiDAR: ${nRidges})`);
+                    
+                    // Vérifier que les positions satellite sont cohérentes avec le profil LiDAR
+                    const lidarProfile = roofAnalysis.profile;
+                    if (lidarProfile && lidarProfile.length >= 3) {
+                        // Vérifier chaque position satellite dans le profil LiDAR
+                        let confirmed = 0;
+                        for (const sPos of satRidges.positions) {
+                            // Position dans le profil LiDAR
+                            const pIdx = Math.floor(sPos * (lidarProfile.length - 1));
+                            const lo = Math.max(0, pIdx - 1);
+                            const hi = Math.min(lidarProfile.length - 1, pIdx + 1);
+                            const localH = lidarProfile.slice(lo, hi + 1).map(p => p.h);
+                            const localMax = Math.max(...localH);
+                            const neighbors = [
+                                lo > 0 ? lidarProfile[lo - 1]?.h : localMax,
+                                hi < lidarProfile.length - 1 ? lidarProfile[hi + 1]?.h : localMax
+                            ].filter(v => v !== undefined);
+                            const avgNeighbor = neighbors.reduce((s, v) => s + v, 0) / (neighbors.length || 1);
+                            
+                            // Un extremum même faible (0.15m) suffit car confirmé par satellite
+                            if (localMax - avgNeighbor > 0.15 || avgNeighbor - Math.min(...localH) > 0.15) {
+                                confirmed++;
+                            }
+                        }
+                        
+                        // Si au moins la moitié des faîtages satellite sont confirmés par LiDAR
+                        if (confirmed >= satRidges.count / 2) {
+                            nRidges = satRidges.count;
+                            roofAnalysis.nRidges = nRidges;
+                            // Déterminer le type : shed si profil en dent de scie, gable sinon
+                            const prevType = roofShape;
+                            if (roofShape !== 'multi-shed' && roofShape !== 'multi-gable') {
+                                roofShape = roofAnalysis.bestModel === 'multi-shed' ? 'multi-shed' : 'multi-gable';
+                                roofAnalysis.type = roofShape;
+                            }
+                            console.log(`🛰️ Fusion sat+LiDAR: ${confirmed}/${satRidges.count} confirmés → ${roofShape} (${nRidges} ridges) [était: ${prevType}]`);
+                        }
+                    }
+                }
+                // Le satellite confirme le LiDAR → plus de confiance
+                if (satRidges.count === nRidges) {
+                    console.log(`🛰️ Satellite confirme LiDAR: ${nRidges} faîtage(s) ✓`);
+                }
+            }
+        } catch (e) {
+            console.warn('⚠ Satellite ridge analysis:', e);
         }
         
         // 2. Fallback : données BD TOPO altitudes toit
