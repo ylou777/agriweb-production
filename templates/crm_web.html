@@ -1899,27 +1899,6 @@
                             <button class="btn btn-primary action-btn" onclick="editProspect(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-pencil"></i> Éditer
                             </button>
-                            ${prospect.lien_streetview ? `
-                            <a href="${prospect.lien_streetview}" target="_blank" 
-                               class="btn btn-info action-btn" onclick="event.stopPropagation();">
-                                <i class="bi bi-eye"></i> Street View
-                            </a>
-                            ` : ''}
-                            ${prospect.adresse ? `
-                            <a href="https://www.pagesjaunes.fr/carte/particuliers/recherche?quoiqui=&ou=${encodeURIComponent(prospect.adresse)}&univers=pagesblanches&idOu=" 
-                               target="_blank" 
-                               class="btn btn-success action-btn" 
-                               onclick="event.stopPropagation();"
-                               title="Rechercher un numéro de téléphone">
-                                <i class="bi bi-telephone-fill"></i> Pages Blanches
-                            </a>
-                            ` : ''}
-                            <button class="btn btn-warning action-btn" onclick="sendEmail(${prospect.id}); event.stopPropagation();">
-                                <i class="bi bi-envelope"></i> Email
-                            </button>
-                            <button class="btn btn-info action-btn" onclick="createAppointment(${prospect.id}); event.stopPropagation();">
-                                <i class="bi bi-calendar"></i> RDV
-                            </button>
                             <button class="btn btn-secondary action-btn" onclick="generateProposal(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-file-earmark-text"></i> Proposition
                             </button>
@@ -1927,10 +1906,7 @@
                                 <i class="bi bi-folder-plus"></i> Fiche Projet
                             </button>
                             <button class="btn btn-warning action-btn" onclick="window.open('/crm/prospect/${prospect.id}/calpinage', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white;">
-                                <i class="bi bi-sun"></i> Calpinage PV
-                            </button>
-                            <button class="btn btn-info action-btn" onclick="window.open('/crm/prospect/${prospect.id}/visite-technique', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;">
-                                <i class="bi bi-clipboard-check"></i> Visite Technique
+                                <i class="bi bi-sun"></i> Pré-étude PV
                             </button>
                             <button class="btn btn-warning action-btn" onclick="window.open('/crm/autoconso-collective/${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border: none; color: white;">
                                 <i class="bi bi-lightning-charge-fill"></i> Autoconso Collective
