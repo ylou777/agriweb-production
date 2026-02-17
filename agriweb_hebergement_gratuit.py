@@ -1706,15 +1706,64 @@ def api_lidar_roof_analysis():
                 
                 if len(roof_points) >= 6:
                     pts = np.array(roof_points)
-                    x = pts[:, 0]  # mètres relatifs
-                    y = pts[:, 1]
+                    x = pts[:, 0]  # mètres relatifs (Est positif)
+                    y = pts[:, 1]  # mètres relatifs (Nord positif)
                     z = pts[:, 2]  # altitude MNS
                     ix_arr = pts[:, 3].astype(int)  # indices grille
                     iy_arr = pts[:, 4].astype(int)
                     
                     width_m = result["building"]["width_m"]
                     length_m = result["building"]["length_m"]
-                    building_is_ew = width_m > length_m
+                    
+                    # ============================================================
+                    # OBB : Axe principal réel du bâtiment (pas la bbox E-O/N-S)
+                    # On calcule l'arête la plus longue du polygone pour trouver
+                    # la vraie direction du bâtiment, puis on projette les points
+                    # LiDAR dans le repère orienté (along = faîtage, across = pente)
+                    # ============================================================
+                    b_coords_m = []
+                    for c in building_coords:
+                        bx = (c[0] - b_center_lon) * lng_to_m
+                        by = (c[1] - b_center_lat) * 111320
+                        b_coords_m.append((bx, by))
+                    
+                    # Trouver l'arête la plus longue = direction principale
+                    best_edge_len = 0
+                    best_edge_angle = 0
+                    for i in range(len(b_coords_m)):
+                        j = (i + 1) % len(b_coords_m)
+                        dx_e = b_coords_m[j][0] - b_coords_m[i][0]
+                        dy_e = b_coords_m[j][1] - b_coords_m[i][1]
+                        edge_len = math.sqrt(dx_e**2 + dy_e**2)
+                        if edge_len > best_edge_len:
+                            best_edge_len = edge_len
+                            best_edge_angle = math.atan2(dy_e, dx_e)
+                    
+                    # Projeter les points toit dans le repère OBB
+                    cos_a = math.cos(-best_edge_angle)
+                    sin_a = math.sin(-best_edge_angle)
+                    along_pts = x * cos_a - y * sin_a   # le long du faîtage
+                    across_pts = x * sin_a + y * cos_a  # perpendiculaire (pente)
+                    
+                    # Dimensions OBB
+                    along_range = float(along_pts.max() - along_pts.min())
+                    across_range = float(across_pts.max() - across_pts.min())
+                    
+                    # Le faîtage suit l'axe long → profile transversal = across
+                    # (pas besoin de building_is_ew, l'OBB donne directement le bon axe)
+                    profile_coord = across_pts
+                    long_coord = along_pts
+                    trans_dim = across_range
+                    long_dim = along_range
+                    
+                    # Azimut de l'axe principal (angle du faîtage en degrés géo)
+                    # atan2(dy, dx) : 0=Est, PI/2=Nord
+                    # Azimut géo : 0=Nord, 90=Est → az = 90 - angle_deg
+                    obb_faitage_az = (90 - math.degrees(best_edge_angle)) % 360
+                    
+                    print(f"📐 OBB bâtiment: angle={math.degrees(best_edge_angle):.1f}°, "
+                          f"faîtage azimut={obb_faitage_az:.0f}°, "
+                          f"long={along_range:.1f}m, across={across_range:.1f}m")
                     
                     # ============================================================
                     # ANALYSE PAR BLOCS pour grandes toitures (>2000m²)
@@ -1722,17 +1771,6 @@ def api_lidar_roof_analysis():
                     # transversale, analyse chaque bloc indépendamment
                     # ============================================================
                     block_size_m = 20.0  # taille de bloc en mètres
-                    
-                    if building_is_ew:
-                        trans_dim = bldg_height_m
-                        long_dim = bldg_width_m
-                        profile_coord = y
-                        long_coord = x
-                    else:
-                        trans_dim = bldg_width_m
-                        long_dim = bldg_height_m
-                        profile_coord = x
-                        long_coord = y
                     
                     nb_blocks = max(1, int(round(trans_dim / block_size_m)))
                     if bldg_area_m2 < 2000:
@@ -1776,14 +1814,10 @@ def api_lidar_roof_analysis():
                             by = block_pts[:, 1]
                             bz = block_pts[:, 2]
                             
-                            if building_is_ew:
-                                b_profile_coord = by
-                                b_long_coord = bx
-                                trans_label = "Y (N-S)"
-                            else:
-                                b_profile_coord = bx
-                                b_long_coord = by
-                                trans_label = "X (E-O)"
+                            # Projeter dans le repère OBB (along/across)
+                            b_profile_coord = bx * sin_a + by * cos_a   # across
+                            b_long_coord = bx * cos_a - by * sin_a      # along
+                            trans_label = f"OBB across ({math.degrees(best_edge_angle):.0f}°)"
                         
                             # Profil d'altitude transversal pour ce bloc
                             b_trans_min = float(b_profile_coord.min())
@@ -1911,13 +1945,16 @@ def api_lidar_roof_analysis():
                                     azimut = math.degrees(math.atan2(ap, bp)) % 360
                                     pan_rmse = float(np.std(zp - (ap*xp + bp*yp + cp_c)))
                                     
-                                    # Dimensions du pan
-                                    if building_is_ew:
-                                        pan_w = block_width if nb_blocks > 1 else width_m
-                                        pan_l = abs(seg['trans_end'] - seg['trans_start'])
-                                    else:
-                                        pan_w = abs(seg['trans_end'] - seg['trans_start'])
-                                        pan_l = block_width if nb_blocks > 1 else length_m
+                                    # Dimensions du pan (OBB)
+                                    # width_m = le long du faîtage, length_m = perpendiculaire (pente)
+                                    pan_across = abs(seg['trans_end'] - seg['trans_start'])
+                                    pan_along = block_width if nb_blocks > 1 else along_range
+                                    
+                                    # Projeter en E-O / N-S pour l'API
+                                    abs_cos = abs(math.cos(best_edge_angle))
+                                    abs_sin = abs(math.sin(best_edge_angle))
+                                    pan_w = pan_along * abs_cos + pan_across * abs_sin  # EO
+                                    pan_l = pan_along * abs_sin + pan_across * abs_cos  # NS
                                     
                                     pan_area = pan_w * pan_l
                                     
