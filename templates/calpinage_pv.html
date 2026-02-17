@@ -746,9 +746,6 @@
                             </div>
                             <span class="badge bg-secondary ms-1" id="obstacleCount" style="display:none;">0</span>
                             <div class="vr mx-2"></div>
-                            <button type="button" class="btn btn-sm btn-outline-info" id="toolLidarDetect" title="Auto-détecter pente/orientation/dimensions d'un toit par LiDAR">
-                                🏠 Auto-détection toiture
-                            </button>
                             <span class="text-muted small" id="currentToolInfo">📐 Mode Zone PV - Dessinez un rectangle</span>
                         </div>
                         
@@ -2680,21 +2677,24 @@
             map.on('click', clickHandler);
         });
         
-        // === Auto-détection toiture LiDAR ===
-        document.getElementById('toolLidarDetect').addEventListener('click', function() {
-            if (lidarDetecting) {
-                stopLidarDetection();
-                return;
-            }
-            startLidarDetection();
-        });
+        // === Auto-détection toiture LiDAR (bouton supprimé — fonctions conservées pour usage programmatique) ===
+        const toolLidarBtn = document.getElementById('toolLidarDetect');
+        if (toolLidarBtn) {
+            toolLidarBtn.addEventListener('click', function() {
+                if (lidarDetecting) {
+                    stopLidarDetection();
+                    return;
+                }
+                startLidarDetection();
+            });
+        }
         
         function startLidarDetection() {
             lidarDetecting = true;
             if (typeof activeDrawHandler !== 'undefined' && activeDrawHandler) activeDrawHandler.disable();
             
-            document.getElementById('toolLidarDetect').classList.remove('btn-outline-info');
-            document.getElementById('toolLidarDetect').classList.add('btn-info', 'active');
+            const startBtn = document.getElementById('toolLidarDetect');
+            if (startBtn) { startBtn.classList.remove('btn-outline-info'); startBtn.classList.add('btn-info', 'active'); }
             document.getElementById('currentToolInfo').innerHTML = '🏠 <strong>Cliquez sur un bâtiment</strong> pour auto-détecter la toiture par LiDAR';
             map.getContainer().style.cursor = 'crosshair';
             
@@ -2710,8 +2710,8 @@
                 map.off('click', lidarClickHandler);
                 lidarClickHandler = null;
             }
-            document.getElementById('toolLidarDetect').classList.remove('btn-info', 'active');
-            document.getElementById('toolLidarDetect').classList.add('btn-outline-info');
+            const stopBtn = document.getElementById('toolLidarDetect');
+            if (stopBtn) { stopBtn.classList.remove('btn-info', 'active'); stopBtn.classList.add('btn-outline-info'); }
             document.getElementById('currentToolInfo').innerHTML = '📐 Mode Zone PV - Dessinez un rectangle';
             map.getContainer().style.cursor = '';
         }
