@@ -934,7 +934,7 @@
                 <!-- Actions -->
                 <div class="d-grid gap-2 mt-3">
                     <button class="btn btn-outline-primary btn-sm" id="toggleLegende">
-                        <i class="bi bi-circle-fill"></i> Masquer la légende
+                        <i class="bi bi-circle-fill"></i> Afficher la légende
                     </button>
                     <button class="btn btn-success" id="genererEtude">
                         <i class="bi bi-file-earmark-text"></i> Générer l'étude de productible
@@ -978,7 +978,7 @@
         
         // Données du prospect
         const prospectId = {{ prospect.id }};
-        let showLegende = true; // État de visibilité de la légende
+        let showLegende = false; // État de visibilité de la légende (masquée par défaut)
         const prospectLat = {{ prospect.latitude }};
         const prospectLon = {{ prospect.longitude }};
         const prospectDept = "{{ prospect.departement or '23' }}";
