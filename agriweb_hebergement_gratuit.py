@@ -2127,6 +2127,152 @@ def _point_in_polygon(x, y, polygon):
     return inside
 
 
+# ──────────────────────────────────────────────────────────────
+# API: Analyse IA du type de toiture via image satellite
+# Utilise Groq Vision (Llama 3.2) pour classifier le toit
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/ai/roof-type', methods=['GET'])
+def api_ai_roof_type():
+    """Analyse le type de toiture par IA vision à partir de l'orthophoto IGN."""
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    
+    if not lat or not lon:
+        return jsonify({"error": "Paramètres lat, lon requis"}), 400
+    
+    groq_key = os.getenv('GROQ_API_KEY', '')
+    if not groq_key:
+        return jsonify({"error": "Clé GROQ_API_KEY non configurée", "ai_available": False}), 503
+    
+    try:
+        # 1. Récupérer l'ortho IGN centrée sur le bâtiment (rayon ~25m)
+        radius = 25  # mètres — assez serré pour bien voir le toit
+        lat_deg = radius / 111320.0
+        lon_deg = radius / (111320.0 * math.cos(math.radians(lat)))
+        bbox = f"{lat - lat_deg},{lon - lon_deg},{lat + lat_deg},{lon + lon_deg}"
+        
+        wms_url = "https://data.geopf.fr/wms-r/wms"
+        params = {
+            "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+            "LAYERS": "HR.ORTHOIMAGERY.ORTHOPHOTOS",
+            "CRS": "EPSG:4326", "BBOX": bbox,
+            "WIDTH": "512", "HEIGHT": "512",
+            "FORMAT": "image/jpeg", "STYLES": ""
+        }
+        
+        print(f"🤖 AI Roof: récupération ortho IGN pour ({lat}, {lon})")
+        img_resp = requests.get(wms_url, params=params, timeout=15)
+        
+        if img_resp.status_code != 200 or 'image' not in img_resp.headers.get('content-type', ''):
+            return jsonify({"error": "Impossible de récupérer l'orthophoto IGN"}), 502
+        
+        # 2. Encoder l'image en base64
+        import base64
+        img_b64 = base64.b64encode(img_resp.content).decode('utf-8')
+        
+        # 3. Appeler Groq Vision
+        from groq import Groq
+        client = Groq(api_key=groq_key)
+        
+        prompt = """Analyse cette image satellite aérienne d'un bâtiment vu du dessus.
+Identifie le TYPE DE TOITURE visible. Réponds UNIQUEMENT avec un JSON valide, sans texte avant ni après.
+
+Format de réponse:
+{
+  "roof_type": "gable|hip|flat|shed|multi-gable|multi-shed|complex|mansard",
+  "nb_pans": <nombre de pans/versants visibles (2 pour gable, 4 pour hip, 1 pour shed, etc.)>,
+  "ridge_direction": "NS|EO|NE-SO|NO-SE|unknown",
+  "confidence": <0.0 à 1.0>,
+  "details": "<description courte>"
+}
+
+Définitions:
+- gable (2 pans) : toit à 2 versants avec pignons triangulaires aux extrémités
+- hip/croupe (4 pans) : toit à 4 versants, toutes les faces sont inclinées
+- flat (1 pan) : toit plat ou terrasse
+- shed (1 pan) : toit à un seul versant incliné (mono-pente)
+- multi-gable : plusieurs toits à 2 pans accolés
+- multi-shed : dents de scie industrielles
+- mansard : toit mansardé (pentes brisées)
+- complex : géométrie complexe non standard
+
+Pour la direction du faîtage, indique l'orientation géographique approximative."""
+
+        vision_model = os.getenv('GROQ_VISION_MODEL', 'llama-3.2-90b-vision-preview')
+        
+        response = client.chat.completions.create(
+            model=vision_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{img_b64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            temperature=0.1,
+            max_tokens=300
+        )
+        
+        ai_text = response.choices[0].message.content.strip()
+        print(f"🤖 AI Roof réponse brute: {ai_text}")
+        
+        # 4. Parser le JSON de réponse
+        # Extraire le JSON même si l'IA ajoute du texte autour
+        import re
+        json_match = re.search(r'\{[^}]+\}', ai_text, re.DOTALL)
+        if json_match:
+            ai_result = json.loads(json_match.group())
+        else:
+            ai_result = {"roof_type": "unknown", "nb_pans": 0, "confidence": 0, "details": ai_text}
+        
+        # Normaliser
+        roof_type = ai_result.get("roof_type", "unknown").lower().strip()
+        valid_types = ["gable", "hip", "flat", "shed", "multi-gable", "multi-shed", "complex", "mansard"]
+        if roof_type not in valid_types:
+            # Tenter de mapper des variantes
+            type_map = {"croupe": "hip", "2 pans": "gable", "4 pans": "hip", 
+                        "mono-pente": "shed", "terrasse": "flat", "plat": "flat"}
+            roof_type = type_map.get(roof_type, "unknown")
+        
+        result = {
+            "success": True,
+            "ai_available": True,
+            "roof_type": roof_type,
+            "nb_pans": ai_result.get("nb_pans", 0),
+            "ridge_direction": ai_result.get("ridge_direction", "unknown"),
+            "confidence": round(float(ai_result.get("confidence", 0)), 2),
+            "details": ai_result.get("details", ""),
+            "model": vision_model,
+            "lat": lat,
+            "lon": lon
+        }
+        
+        print(f"🤖 AI Roof résultat: type={roof_type}, pans={result['nb_pans']}, "
+              f"conf={result['confidence']}, dir={result['ridge_direction']}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        print(f"⚠ AI Roof erreur: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False, 
+            "ai_available": True,
+            "error": str(e),
+            "roof_type": "unknown",
+            "nb_pans": 0,
+            "confidence": 0
+        }), 500
+
+
 # API: Proxy satellite IGN (évite CORS pour Three.js)
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/satellite-tile', methods=['GET'])

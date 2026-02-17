@@ -209,8 +209,12 @@ class Calpinage3DViewer {
             // Charger la texture satellite
             await this._loadSatelliteTexture(lat, lon, radius || 100);
             
+            // Lancer l'analyse IA du type de toiture EN PARALLÈLE
+            // (ne bloque pas la construction 3D — le résultat arrive après)
+            this.aiRoofPromise = this._fetchAIRoofType(lat, lon);
+            
             // Construire les bâtiments
-            this._buildBuildings(this.lidarData);
+            await this._buildBuildings(this.lidarData);
             
             // Construire les routes
             this._buildRoads(this.lidarData);
@@ -227,6 +231,33 @@ class Calpinage3DViewer {
             console.error('❌ Erreur chargement 3D:', error);
             this._hideLoading();
             this._showError('Erreur chargement données 3D: ' + error.message);
+        }
+    }
+    
+    /**
+     * Appel IA pour classifier le type de toiture via image satellite
+     * Retourne une Promise avec {roof_type, nb_pans, confidence, ridge_direction}
+     */
+    async _fetchAIRoofType(lat, lon) {
+        try {
+            const url = `/api/ai/roof-type?lat=${lat}&lon=${lon}`;
+            console.log('🤖 Lancement analyse IA du toit...');
+            const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+            if (!response.ok) {
+                console.warn(`🤖 AI Roof: HTTP ${response.status}`);
+                return null;
+            }
+            const data = await response.json();
+            if (data.success && data.confidence >= 0.5) {
+                console.log(`🤖 AI Roof: ${data.roof_type} (${data.nb_pans} pans, conf=${data.confidence}, dir=${data.ridge_direction}) — ${data.details}`);
+                return data;
+            } else {
+                console.warn(`🤖 AI Roof: confiance insuffisante ou échec`, data);
+                return null;
+            }
+        } catch (err) {
+            console.warn('🤖 AI Roof timeout/erreur:', err.message);
+            return null;
         }
     }
     
@@ -821,7 +852,7 @@ class Calpinage3DViewer {
     /**
      * Construit les bâtiments 3D depuis BD TOPO et OSM
      */
-    _buildBuildings(data) {
+    async _buildBuildings(data) {
         // Supprimer les anciens bâtiments
         this.buildings.forEach(b => {
             this.scene.remove(b);
@@ -897,7 +928,7 @@ class Calpinage3DViewer {
         
         let successCount = 0;
         try {
-            this._createBuilding3D(pvBuilding);
+            await this._createBuilding3D(pvBuilding);
             successCount = 1;
         } catch(err) {
             console.warn(`⚠ Bâtiment PV échoué:`, err.message);
@@ -1761,7 +1792,7 @@ class Calpinage3DViewer {
      * Utilise l'emprise polygonale réelle (ExtrudeGeometry) avec fallback BoxGeometry orientée.
      * Toit bi-pan (gable) par défaut pour les bâtiments résidentiels.
      */
-    _createBuilding3D(buildingData) {
+    async _createBuilding3D(buildingData) {
         const coords = buildingData.coords;
         if (!coords || coords.length < 3) return;
         
@@ -1916,6 +1947,56 @@ class Calpinage3DViewer {
                 }
                 
                 console.log(`🏠 LiDAR roof: ${roofShape}, pente=${roofAnalysis.slopeDeg?.toFixed(1)}°, faîtage=${ridgeExtra.toFixed(1)}m, ridges=${nRidges}`);
+            }
+            
+            // ═══ ARBITRAGE IA : corriger le type LiDAR avec l'analyse vision ═══
+            if (this.aiRoofPromise) {
+                try {
+                    const aiResult = await this.aiRoofPromise;
+                    if (aiResult && aiResult.confidence >= 0.6) {
+                        const aiType = aiResult.roof_type;
+                        const lidarType = roofShape;
+                        
+                        // Si l'IA et le LiDAR divergent sur le type fondamental
+                        if (aiType !== lidarType) {
+                            // Cas critique : LiDAR dit hip (4 pans) mais IA dit gable (2 pans)
+                            if (aiType === 'gable' && lidarType === 'hip') {
+                                console.log(`🤖→🏠 IA corrige: hip → gable (conf=${aiResult.confidence})`);
+                                roofShape = 'gable';
+                                if (roofAnalysis) roofAnalysis.type = 'gable';
+                            }
+                            // LiDAR dit gable mais IA dit hip
+                            else if (aiType === 'hip' && lidarType === 'gable') {
+                                console.log(`🤖→🏠 IA corrige: gable → hip (conf=${aiResult.confidence})`);
+                                roofShape = 'hip';
+                                if (roofAnalysis) roofAnalysis.type = 'hip';
+                            }
+                            // LiDAR dit flat mais IA voit une pente
+                            else if (lidarType === 'flat' && ['gable', 'hip', 'shed'].includes(aiType)) {
+                                console.log(`🤖→🏠 IA détecte toit incliné (${aiType}) là où LiDAR voit flat`);
+                                roofShape = aiType;
+                                hasPitchedRoof = true;
+                                ridgeExtra = ridgeExtra || 1.5; // estimation par défaut
+                                if (roofAnalysis) roofAnalysis.type = aiType;
+                            }
+                            // Shed vs gable
+                            else if ((aiType === 'shed' && lidarType === 'gable') || (aiType === 'gable' && lidarType === 'shed')) {
+                                if (aiResult.confidence >= 0.75) {
+                                    console.log(`🤖→🏠 IA corrige: ${lidarType} → ${aiType} (conf=${aiResult.confidence})`);
+                                    roofShape = aiType;
+                                    if (roofAnalysis) roofAnalysis.type = aiType;
+                                }
+                            }
+                            else {
+                                console.log(`🤖 IA dit ${aiType} vs LiDAR ${lidarType} — on garde LiDAR (types trop différents)`);
+                            }
+                        } else {
+                            console.log(`🤖✅ IA confirme: ${aiType} (conf=${aiResult.confidence})`);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('🤖 Erreur attente IA:', e.message);
+                }
             }
             
             // ═══ MODE TOIT LiDAR DIRECT ═══
