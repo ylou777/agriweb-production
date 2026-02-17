@@ -3682,6 +3682,11 @@ def register_crm_routes(app):
             else:  # POST
                 data = request.json
                 
+                # Convertir les dates vides en None (PostgreSQL n'accepte pas '' pour DATE)
+                for date_field in ('rge_date_validite', 'qualibat_date_validite'):
+                    if date_field in data and not data[date_field]:
+                        data[date_field] = None
+                
                 # Vérifier si une entreprise existe déjà
                 existing = execute_query(
                     'SELECT id FROM parametrage_entreprise WHERE actif = TRUE LIMIT 1',

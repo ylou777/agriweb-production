@@ -18055,16 +18055,18 @@ def admin_create_user():
         is_admin_val = 1 if role == 'admin' else 0
         
         # Insertion directe - email pré-vérifié, pas besoin de confirmation
+        # Utiliser des booléens Python (True/False) pour PostgreSQL
+        is_admin_bool = True if role == 'admin' else False
         cursor.execute('''
             INSERT INTO users (
                 email, name, company, password_hash, salt,
                 is_email_verified, is_admin, is_active,
                 trial_start_date, trial_end_date, subscription_status,
                 created_at
-            ) VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             email, name, company or '', password_hash, salt,
-            is_admin_val, now, trial_end, sub_status, now
+            True, is_admin_bool, True, now, trial_end, sub_status, now
         ))
         
         conn.commit()
