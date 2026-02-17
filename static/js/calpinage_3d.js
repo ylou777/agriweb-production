@@ -1414,7 +1414,8 @@ class Calpinage3DViewer {
         
         if (bestDir.ridgeExtra < 0.3) return { type: 'flat', ridgeExtra: 0 };
         
-        const { projected, ridgePos, ridgeExtra, ridgeOffset, bestN, bestModel, bestR2, sawtoothScore, nDetectedRidges, acrossRange } = bestDir;
+        // let (pas const) car la méthode bbox peut corriger le sens du faîtage
+        let { projected, ridgePos, ridgeExtra, ridgeOffset, bestN, bestModel, bestR2, sawtoothScore, nDetectedRidges, acrossRange } = bestDir;
         
         // ═══════════════════════════════════════════════════════════
         // DÉTECTION DU TYPE DE TOIT
@@ -1465,54 +1466,156 @@ class Calpinage3DViewer {
                 console.log(`🏠 Gable asymétrique détecté (offset=${ridgeOffset.toFixed(2)}, monotone=${(Math.max(monotoneRise, monotoneFall) / totalSteps * 100).toFixed(0)}%, shedFitGood=${shedFitGood})`);
             }
         } else if (!roofType) {
-            // ── Faîtage centré → gable ou hip ──
-            let alongMin = Infinity, alongMax = -Infinity;
-            for (let i = 0; i < projected.length; i++) {
-                if (projected[i].along < alongMin) alongMin = projected[i].along;
-                if (projected[i].along > alongMax) alongMax = projected[i].along;
-            }
-            const alongRange = alongMax - alongMin;
+            // ═══════════════════════════════════════════════════════════
+            // MÉTHODE BBOX : Division par 2 vs Division par 4
+            // dans les DEUX sens (longueur/largeur et largeur/longueur)
+            //
+            // Pour chaque direction de faîtage candidat :
+            //   - ÷2 across : 2 demi-plans de chaque côté du faîtage
+            //   - ÷4 (2 across × 2 along) : 4 quadrants
+            //
+            // 1) On choisit le sens où ÷2 donne la meilleure variance
+            //    → c'est le bon sens des pans
+            // 2) Dans ce sens, si ÷4 >> ÷2 → hip (4 pans), sinon gable (2 pans)
+            // ═══════════════════════════════════════════════════════════
             
-            // Analyse longitudinale pour hip vs gable
-            // Prendre les extrémités en utilisant une marge adaptative
-            const endMargin = Math.max(0.12 * alongRange, 1.0);
-            const leftEnd = projected.filter(p => p.along < alongMin + endMargin);
-            const rightEnd = projected.filter(p => p.along > alongMax - endMargin);
-            const centerPts = projected.filter(p =>
-                p.along > alongMin + 0.25 * alongRange &&
-                p.along < alongMax - 0.25 * alongRange
-            );
-            
-            const percentile = (arr, pct) => {
-                if (arr.length === 0) return 0;
-                const sorted = arr.map(p => p.h).sort((a, b) => a - b);
-                return sorted[Math.min(Math.floor(sorted.length * pct), sorted.length - 1)];
+            // ── Fit plan (h = a·x + b·y + c) par moindres carrés ──
+            const fitPlane = (pts) => {
+                const n = pts.length;
+                if (n < 4) return { residualVar: Infinity, n: n };
+                
+                let sX = 0, sY = 0, sZ = 0;
+                let sXX = 0, sXY = 0, sXZ = 0, sYY = 0, sYZ = 0;
+                for (const p of pts) {
+                    sX += p.across; sY += p.along; sZ += p.h;
+                    sXX += p.across * p.across;
+                    sXY += p.across * p.along;
+                    sXZ += p.across * p.h;
+                    sYY += p.along * p.along;
+                    sYZ += p.along * p.h;
+                }
+                const det3 = (m) =>
+                    m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+                  - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+                  + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+                
+                const M = [[sXX, sXY, sX], [sXY, sYY, sY], [sX, sY, n]];
+                const D = det3(M);
+                if (Math.abs(D) < 1e-10) return { residualVar: Infinity, n: n };
+                
+                const rhs = [sXZ, sYZ, sZ];
+                const a = det3([[rhs[0], M[0][1], M[0][2]], [rhs[1], M[1][1], M[1][2]], [rhs[2], M[2][1], M[2][2]]]) / D;
+                const b = det3([[M[0][0], rhs[0], M[0][2]], [M[1][0], rhs[1], M[1][2]], [M[2][0], rhs[2], M[2][2]]]) / D;
+                const c = det3([[M[0][0], M[0][1], rhs[0]], [M[1][0], M[1][1], rhs[1]], [M[2][0], M[2][1], rhs[2]]]) / D;
+                
+                let ssRes = 0;
+                for (const p of pts) {
+                    const pred = a * p.across + b * p.along + c;
+                    ssRes += (p.h - pred) ** 2;
+                }
+                return { a, b, c, residualVar: ssRes / n, n: n };
             };
             
-            const centerMaxH = centerPts.length > 2 ? percentile(centerPts, 0.90) : bestDir.profile[Math.floor(bestDir.profile.length / 2)]?.h || 0;
-            const leftMaxH = leftEnd.length > 2 ? percentile(leftEnd, 0.85) : centerMaxH;
-            const rightMaxH = rightEnd.length > 2 ? percentile(rightEnd, 0.85) : centerMaxH;
+            // ── Analyse bbox pour une direction donnée ──
+            const analyzeBboxDirection = (dirData, label) => {
+                if (!dirData || !dirData.projected) return null;
+                const proj = dirData.projected;
+                
+                let aMin = Infinity, aMax = -Infinity;
+                let cMin = Infinity, cMax = -Infinity;
+                for (const p of proj) {
+                    if (p.along < aMin) aMin = p.along;
+                    if (p.along > aMax) aMax = p.along;
+                    if (p.across < cMin) cMin = p.across;
+                    if (p.across > cMax) cMax = p.across;
+                }
+                const aRange = aMax - aMin;
+                const cRange = cMax - cMin;
+                if (aRange < 1 || cRange < 1) return null;
+                
+                // Coupure across = position du faîtage
+                const ridgeCut = cMin + dirData.ridgePos * cRange;
+                // Coupure along = milieu
+                const alongMid = (aMin + aMax) / 2;
+                const totalN = proj.length;
+                
+                // ÷2 : 2 demi-plans (de chaque côté du faîtage)
+                const h1 = proj.filter(p => p.across <= ridgeCut);
+                const h2 = proj.filter(p => p.across > ridgeCut);
+                const f2a = fitPlane(h1);
+                const f2b = fitPlane(h2);
+                const var2 = (f2a.residualVar * h1.length + f2b.residualVar * h2.length) / totalN;
+                
+                // ÷4 : 4 quadrants (2 across × 2 along)
+                const q1 = proj.filter(p => p.across <= ridgeCut && p.along <= alongMid);
+                const q2 = proj.filter(p => p.across >  ridgeCut && p.along <= alongMid);
+                const q3 = proj.filter(p => p.across <= ridgeCut && p.along >  alongMid);
+                const q4 = proj.filter(p => p.across >  ridgeCut && p.along >  alongMid);
+                const f4a = fitPlane(q1);
+                const f4b = fitPlane(q2);
+                const f4c = fitPlane(q3);
+                const f4d = fitPlane(q4);
+                const var4 = (f4a.residualVar * q1.length + f4b.residualVar * q2.length
+                            + f4c.residualVar * q3.length + f4d.residualVar * q4.length) / totalN;
+                
+                const improvement = var2 > 1e-6 ? (var2 - var4) / var2 : 0;
+                const minQPts = Math.min(q1.length, q2.length, q3.length, q4.length);
+                
+                console.log(`📐 ${label}: Var(÷2)=${var2.toFixed(4)}, Var(÷4)=${var4.toFixed(4)}, amélio=${(improvement * 100).toFixed(1)}%, quadrants=${q1.length}+${q2.length}+${q3.length}+${q4.length}`);
+                
+                return { var2, var4, improvement, minQPts, label };
+            };
             
-            const endDropLeft = centerMaxH - leftMaxH;
-            const endDropRight = centerMaxH - rightMaxH;
-            const endDrop = Math.max(endDropLeft, endDropRight);
-            const avgEndDrop = (endDropLeft + endDropRight) / 2;
+            // ── Tester les DEUX directions ──
+            const bboxDir1 = analyzeBboxDirection(dir1, 'Faîtage→longDim');
+            const bboxDir2 = analyzeBboxDirection(dir2, 'Faîtage→shortDim');
             
-            // Critères hip améliorés :
-            // - Le LiDAR basse résolution perd du signal aux bords → seuils adaptatifs
-            // - Ratio de chute par rapport au ridgeExtra (plus sensible)
-            // - Seuil absolu adapté à la taille du bâtiment
-            const hipAbsThreshold = Math.max(0.8, ridgeExtra * 0.4);
-            const hipRatioThreshold = 0.50; // 50% du ridgeExtra (plus sensible qu'avant)
+            // ── Choisir le sens où ÷2 fitte le mieux = bon sens des pans ──
+            let chosenBbox = null;
+            let bboxRidgeAlongShort = false;
             
-            if (endDrop > ridgeExtra * hipRatioThreshold && endDrop > hipAbsThreshold) {
-                roofType = 'hip';
-                // Si un seul côté descend → croupe partielle (half-hip)
-                if (Math.abs(endDropLeft - endDropRight) > ridgeExtra * 0.4) {
-                    console.log(`🏠 Hip partiel détecté (gauche=${endDropLeft.toFixed(1)}m, droite=${endDropRight.toFixed(1)}m)`);
+            if (bboxDir1 && bboxDir2) {
+                if (bboxDir2.var2 < bboxDir1.var2 * 0.85) {
+                    // Sens 2 nettement meilleur (15% de marge)
+                    chosenBbox = bboxDir2;
+                    bboxRidgeAlongShort = true;
+                    console.log(`🔄 Bbox: meilleur sens = faîtage le long de shortDim (Var2: ${bboxDir2.var2.toFixed(4)} vs ${bboxDir1.var2.toFixed(4)})`);
+                } else {
+                    chosenBbox = bboxDir1;
+                    console.log(`📐 Bbox: meilleur sens = faîtage le long de longDim (Var2: ${bboxDir1.var2.toFixed(4)} vs ${bboxDir2.var2.toFixed(4)})`);
+                }
+            } else {
+                chosenBbox = bboxDir1 || bboxDir2;
+                if (chosenBbox === bboxDir2) bboxRidgeAlongShort = true;
+            }
+            
+            // ── Si le sens bbox contredit le sens du profil, corriger ──
+            if (chosenBbox && bboxRidgeAlongShort !== ridgeAlongShort) {
+                console.log(`⚠️ Bbox corrige le sens du faîtage : profil disait ${ridgeAlongShort ? 'shortDim' : 'longDim'}, bbox dit ${bboxRidgeAlongShort ? 'shortDim' : 'longDim'}`);
+                ridgeAlongShort = bboxRidgeAlongShort;
+                // Mettre à jour bestDir et ré-extraire toutes les variables
+                if (bboxRidgeAlongShort && dir2) {
+                    bestDir = dir2;
+                } else if (!bboxRidgeAlongShort && dir1) {
+                    bestDir = dir1;
+                }
+                // Ré-extraire les valeurs du nouveau bestDir
+                ({ projected, ridgePos, ridgeExtra, ridgeOffset, bestN, bestModel, bestR2, sawtoothScore, nDetectedRidges, acrossRange } = bestDir);
+                console.log(`   → Nouvelles valeurs: ridgeExtra=${ridgeExtra.toFixed(2)}m, ridgePos=${ridgePos.toFixed(2)}, R²=${bestR2?.toFixed(3)}`);
+            }
+            
+            // ── Décider gable vs hip ──
+            if (chosenBbox) {
+                if (chosenBbox.improvement > 0.25 && chosenBbox.minQPts >= 3) {
+                    roofType = 'hip';
+                    console.log(`🏠 Hip (4 pans) confirmé par bbox ${chosenBbox.label}: ÷4 améliore de ${(chosenBbox.improvement * 100).toFixed(1)}% vs ÷2`);
+                } else {
+                    roofType = 'gable';
+                    console.log(`🏠 Gable (2 pans) confirmé par bbox ${chosenBbox.label}: ÷4 n'améliore que de ${(chosenBbox.improvement * 100).toFixed(1)}% vs ÷2`);
                 }
             } else {
                 roofType = 'gable';
+                console.log(`🏠 Gable par défaut (analyse bbox impossible)`);
             }
         }
         
