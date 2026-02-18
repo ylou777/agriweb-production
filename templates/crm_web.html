@@ -3,549 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM AgriWeb - Gestion Projets</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <title>CRM AgriWeb - Gestion Prospects</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>
-        /* ===== DARK MINIMAL — CRM ===== */
-        :root {
-            --c-bg: #0f1117;
-            --c-surface: #1a1d27;
-            --c-surface-2: #22252f;
-            --c-border: #2a2d3a;
-            --c-border-light: #353849;
-            --c-text: #e8eaed;
-            --c-text-2: #9ba1b0;
-            --c-text-3: #6b7185;
-            --c-accent: #3b82f6;
-            --c-accent-light: rgba(59,130,246,0.1);
-            --c-green: #10b981;
-            --c-green-light: rgba(16,185,129,0.1);
-            --c-orange: #f59e0b;
-            --c-orange-light: rgba(245,158,11,0.1);
-            --c-red: #ef4444;
-            --c-red-light: rgba(239,68,68,0.1);
-            --c-purple: #a78bfa;
-            --c-purple-light: rgba(167,139,250,0.1);
-            --radius: 12px;
-            --radius-sm: 8px;
-            --radius-xs: 6px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.2);
-            --shadow: 0 2px 8px rgba(0,0,0,0.25);
-            --shadow-lg: 0 8px 24px rgba(0,0,0,0.35);
-            --transition: 0.2s cubic-bezier(.4,0,.2,1);
-        }
-
-        * { box-sizing: border-box; }
-
         body {
-            background: var(--c-bg);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 0;
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            color: var(--c-text);
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* === TOP BAR === */
-        .topbar {
-            background: var(--c-surface);
-            border-bottom: 1px solid var(--c-border);
-            padding: 16px 32px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: sticky;
-            top: 0;
-            z-index: 50;
-        }
-        .topbar-brand {
-            font-size: 1.2rem;
-            font-weight: 700;
-            letter-spacing: -0.03em;
-            color: var(--c-text);
-        }
-        .topbar-brand span { color: var(--c-accent); }
-        .topbar-sub {
-            font-size: 0.8rem;
-            color: var(--c-text-2);
-            margin-left: 16px;
-            font-weight: 400;
-        }
-        .topbar-nav {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .topbar-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 7px 16px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--c-text-2);
-            background: var(--c-bg);
-            border: 1px solid var(--c-border);
-            border-radius: 20px;
-            text-decoration: none;
-            transition: all var(--transition);
-            white-space: nowrap;
-        }
-        .topbar-link:hover {
-            color: var(--c-accent);
-            border-color: var(--c-accent);
-            background: var(--c-accent-light);
-            transform: translateY(-1px);
-        }
-        .topbar-link i { font-size: 0.9rem; }
-
-        /* === CONTENT === */
-        .crm-content {
-            max-width: 1500px;
-            margin: 0 auto;
-            padding: 24px 32px;
-        }
-
-        /* === STAT CARDS === */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 16px;
-            margin-bottom: 24px;
-        }
-        .stat-card {
-            background: var(--c-surface);
-            border: 1px solid var(--c-border);
-            border-radius: var(--radius);
             padding: 20px;
-            text-align: center;
-            transition: all var(--transition);
         }
-        .stat-card:hover {
-            box-shadow: var(--shadow);
-            transform: translateY(-2px);
+        .crm-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            padding: 0;
+            overflow: hidden;
         }
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            letter-spacing: -0.03em;
-            line-height: 1.1;
+        .crm-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px 30px;
         }
-        .stat-label {
-            font-size: 0.75rem;
-            color: var(--c-text-3);
-            margin-top: 6px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-        .stat-value.c-blue { color: var(--c-accent); }
-        .stat-value.c-green { color: var(--c-green); }
-        .stat-value.c-orange { color: var(--c-orange); }
-        .stat-value.c-purple { color: var(--c-purple); }
-        .stat-value.c-red { color: var(--c-red); }
-
-        /* === FILTERS === */
         .filters-bar {
-            background: var(--c-surface);
-            border: 1px solid var(--c-border);
-            border-radius: var(--radius);
-            padding: 16px 20px;
-            margin-bottom: 20px;
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 2px solid #e9ecef;
             position: relative;
         }
         .filter-loading {
             position: absolute;
-            top: 12px;
-            right: 16px;
-            background: var(--c-accent-light);
-            color: var(--c-accent);
-            padding: 4px 14px;
-            border-radius: 16px;
-            font-size: 0.78rem;
-            font-weight: 500;
+            top: 10px;
+            right: 10px;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
             display: none;
             z-index: 10;
         }
-        .filter-loading.active { display: block; }
-
-        .search-box {
-            border-radius: 20px;
-            padding: 9px 18px;
-            border: 1px solid var(--c-border);
-            font-size: 0.85rem;
-            background: var(--c-bg);
-            transition: all var(--transition);
+        .filter-loading.active {
+            display: block;
         }
-        .search-box:focus {
-            border-color: var(--c-accent);
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
-            background: var(--c-surface);
-        }
-        .form-select {
-            border: 1px solid var(--c-border);
-            border-radius: var(--radius-sm);
-            font-size: 0.82rem;
-            padding: 8px 12px;
-            color: var(--c-text);
-            transition: all var(--transition);
-        }
-        .form-select:focus {
-            border-color: var(--c-accent);
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
-        }
-        .btn-refresh {
-            width: 100%;
-            height: 38px;
-            border: 1px solid var(--c-border);
-            background: var(--c-surface);
-            color: var(--c-text-2);
-            border-radius: var(--radius-sm);
-            transition: all var(--transition);
-        }
-        .btn-refresh:hover {
-            border-color: var(--c-accent);
-            color: var(--c-accent);
-            background: var(--c-accent-light);
-        }
-
-        /* === PROSPECT CARDS === */
         .prospect-card {
-            background: var(--c-surface);
-            border: 1px solid var(--c-border);
-            border-radius: var(--radius);
-            padding: 20px 24px;
-            margin-bottom: 12px;
-            transition: all var(--transition);
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
             cursor: pointer;
         }
         .prospect-card:hover {
-            box-shadow: var(--shadow-lg);
-            border-color: var(--c-border-light);
-            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
         }
-        .prospect-card.highlight {
-            animation: highlightPulse 2s ease-in-out;
-            border-color: var(--c-accent) !important;
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.15) !important;
-        }
-        @keyframes highlightPulse {
-            0%, 100% { box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
-            50% { box-shadow: 0 0 0 6px rgba(37,99,235,0.1); }
-        }
-
-        /* === BADGES === */
         .badge-type {
-            font-size: 0.72rem;
-            font-weight: 600;
-            padding: 5px 12px;
-            border-radius: 16px;
-            letter-spacing: 0.03em;
-            text-transform: uppercase;
+            font-size: 0.9rem;
+            padding: 8px 15px;
         }
-        .badge-parking { background: var(--c-green-light); color: var(--c-green); }
-        .badge-toiture { background: var(--c-accent-light); color: var(--c-accent); }
-        .badge-friche { background: var(--c-orange-light); color: var(--c-orange); }
-        .badge-rpg { background: var(--c-green-light); color: var(--c-green); }
-
+        .badge-parking { background: #4CAF50; }
+        .badge-toiture { background: #2196F3; }
+        .badge-friche { background: #FF9800; }
+        .badge-rpg { background: #8BC34A; }
+        
         .badge-status {
-            font-size: 0.72rem;
-            font-weight: 500;
-            padding: 4px 10px;
-            border-radius: 12px;
-        }
-        .status-nouveau { background: var(--c-purple-light); color: var(--c-purple); }
-        .status-contacte { background: var(--c-accent-light); color: var(--c-accent); }
-        .status-qualifie { background: var(--c-green-light); color: var(--c-green); }
-        .status-perdu { background: var(--c-red-light); color: var(--c-red); }
-
-        /* === ACTION BUTTONS === */
-        .action-btn {
+            font-size: 0.85rem;
             padding: 5px 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
+        }
+        .status-nouveau { background: #9C27B0; }
+        .status-contacte { background: #2196F3; }
+        .status-qualifie { background: #4CAF50; }
+        .status-perdu { background: #F44336; }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid #e9ecef;
+        }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        .action-btn {
+            padding: 5px 10px;
+            font-size: 0.85rem;
             margin: 2px;
-            border-radius: var(--radius-xs);
-            border: 1px solid var(--c-border);
-            background: var(--c-surface);
-            color: var(--c-text-2);
-            transition: all var(--transition);
         }
-        .action-btn:hover {
-            border-color: var(--c-accent);
-            color: var(--c-accent);
-            background: var(--c-accent-light);
-            transform: translateY(-1px);
-        }
-        .action-btn.btn-primary {
-            background: var(--c-accent);
-            border-color: var(--c-accent);
-            color: #fff;
-        }
-        .action-btn.btn-primary:hover {
-            background: #1d4ed8;
-            border-color: #1d4ed8;
-            color: #fff;
-        }
-        .action-btn.btn-danger {
-            background: var(--c-surface);
-            border-color: var(--c-border);
-            color: var(--c-red);
-        }
-        .action-btn.btn-danger:hover {
-            background: var(--c-red-light);
-            border-color: var(--c-red);
-            color: var(--c-red);
-        }
-        /* Reset gradient overrides */
-        .action-btn[style*="background: linear-gradient"] {
-            border: 1px solid var(--c-border) !important;
-            background: var(--c-surface) !important;
-            color: var(--c-text-2) !important;
-        }
-        .action-btn[style*="background: linear-gradient"]:hover {
-            border-color: var(--c-accent) !important;
-            color: var(--c-accent) !important;
-            background: var(--c-accent-light) !important;
-        }
-
-        /* === DETAIL ROWS === */
         .detail-row {
-            margin: 6px 0;
-            font-size: 0.84rem;
-            color: var(--c-text);
-            line-height: 1.5;
+            margin: 8px 0;
+            font-size: 0.9rem;
         }
         .detail-label {
             font-weight: 600;
-            color: var(--c-text-2);
+            color: #495057;
         }
-
-        /* === NOTES === */
         .notes-section {
-            background: var(--c-bg);
-            border: 1px solid var(--c-border);
-            padding: 12px 16px;
-            border-radius: var(--radius-sm);
-            margin-top: 12px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
         }
-
-        /* === CARTE VIGNETTE === */
-        .carte-vignette {
-            border-radius: var(--radius-sm) !important;
-            border: 1px solid var(--c-border) !important;
-            box-shadow: var(--shadow-sm) !important;
-            overflow: hidden;
+        .search-box {
+            border-radius: 25px;
+            padding: 12px 20px;
+            border: 2px solid #e9ecef;
         }
-
-        /* === LOADING === */
+        .search-box:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
         .loading {
             text-align: center;
-            padding: 60px 20px;
-            color: var(--c-text-3);
-        }
-        .loading .spinner-border {
-            color: var(--c-accent);
+            padding: 40px;
+            color: #667eea;
         }
         .empty-state {
             text-align: center;
-            padding: 80px 20px;
-            color: var(--c-text-3);
+            padding: 60px 20px;
+            color: #6c757d;
         }
         .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 16px;
-            opacity: 0.25;
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
         }
-
-        /* === MODAL === */
-        .modal-content {
-            border: 1px solid var(--c-border);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow-lg);
+        .prospect-card.highlight {
+            animation: highlightPulse 2s ease-in-out;
+            border: 3px solid #667eea !important;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.5) !important;
         }
-        .modal-header {
-            background: var(--c-surface);
-            border-bottom: 1px solid var(--c-border);
-            padding: 16px 24px;
+        @keyframes highlightPulse {
+            0%, 100% { 
+                box-shadow: 0 0 20px rgba(102, 126, 234, 0.5);
+            }
+            50% { 
+                box-shadow: 0 0 40px rgba(102, 126, 234, 0.8);
+            }
         }
-        .modal-title {
-            font-weight: 600;
-            font-size: 1rem;
-        }
-        .modal-body {
-            padding: 24px;
-        }
-        .modal-footer {
-            border-top: 1px solid var(--c-border);
-            padding: 12px 24px;
-        }
-        .modal-footer .btn {
-            border-radius: var(--radius-sm);
-            font-size: 0.82rem;
-            font-weight: 500;
-            padding: 8px 20px;
-        }
-        .form-label {
-            font-size: 0.8rem;
-            font-weight: 500;
-            color: var(--c-text-2);
-        }
-        .form-control {
-            border: 1px solid var(--c-border);
-            border-radius: var(--radius-sm);
-            font-size: 0.85rem;
-            padding: 8px 12px;
-        }
-        .form-control:focus {
-            border-color: var(--c-accent);
-            box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
-        }
-
-        /* === PAGINATION === */
-        .pagination .page-link {
-            border: 1px solid var(--c-border);
-            color: var(--c-text-2);
-            font-size: 0.82rem;
-            border-radius: var(--radius-xs);
-            margin: 0 2px;
-            padding: 6px 12px;
-            transition: all var(--transition);
-        }
-        .pagination .page-item.active .page-link {
-            background: var(--c-accent);
-            border-color: var(--c-accent);
-            color: #fff;
-        }
-        .pagination .page-link:hover {
-            background: var(--c-accent-light);
-            border-color: var(--c-accent);
-            color: var(--c-accent);
-        }
-
-        /* === RESPONSIVE === */
-        @media (max-width: 768px) {
-            .topbar { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
-            .topbar-nav { flex-wrap: wrap; }
-            .crm-content { padding: 16px; }
-            .stats-row { grid-template-columns: repeat(3, 1fr); }
-            .stat-value { font-size: 1.5rem; }
-        }
-
-        /* === BOOTSTRAP DARK OVERRIDES === */
-        .card {
-            background: var(--c-surface);
-            border-color: var(--c-border);
-            color: var(--c-text);
-        }
-        .card-header {
-            background: var(--c-surface-2);
-            border-color: var(--c-border);
-            color: var(--c-text);
-        }
-        .card-body { background: var(--c-surface); color: var(--c-text); }
-        .text-muted { color: var(--c-text-3) !important; }
-        .text-success { color: var(--c-green) !important; }
-        .text-primary { color: var(--c-accent) !important; }
-        .text-warning { color: var(--c-orange) !important; }
-        .text-info { color: var(--c-accent) !important; }
-        .text-danger { color: var(--c-red) !important; }
-        .bg-light { background: var(--c-surface) !important; }
-        .border-top { border-color: var(--c-border) !important; }
-        .alert { background: var(--c-surface-2); border-color: var(--c-border); color: var(--c-text); }
-        .alert-success { background: var(--c-green-light); border-color: rgba(16,185,129,0.2); color: var(--c-green); }
-        .alert-primary { background: var(--c-accent-light); border-color: rgba(59,130,246,0.2); color: var(--c-accent); }
-        .alert-danger { background: var(--c-red-light); border-color: rgba(239,68,68,0.2); color: var(--c-red); }
-        .alert-warning { background: var(--c-orange-light); border-color: rgba(245,158,11,0.2); color: var(--c-orange); }
-        .form-control, .form-select {
-            background: var(--c-surface-2);
-            color: var(--c-text);
-            border-color: var(--c-border);
-        }
-        .form-control::placeholder { color: var(--c-text-3); }
-        .form-control:disabled, .form-control[readonly] {
-            background: var(--c-bg);
-            color: var(--c-text-2);
-        }
-        .table { color: var(--c-text); }
-        .table-light { background: var(--c-surface-2); }
-        .btn-close { filter: invert(1); }
-        .modal-content {
-            background: var(--c-surface);
-            color: var(--c-text);
-        }
-        .bg-secondary { background: var(--c-surface-2) !important; }
-        .bg-success { background: var(--c-green) !important; }
-        .bg-info { background: var(--c-accent) !important; }
-        .bg-danger { background: var(--c-red) !important; }
-        .bg-warning { background: var(--c-orange) !important; }
-        hr { border-color: var(--c-border); opacity: 0.5; }
-        a { color: var(--c-accent); }
-        a:hover { color: #60a5fa; }
-        strong { color: var(--c-text); }
-
-        .modal-fullscreen-lg { max-width: 90%; }
     </style>
 </head>
 <body>
-    <!-- Top bar -->
-    <div class="topbar">
-        <div class="d-flex align-items-center">
-            <div class="topbar-brand"><span>Agri</span>Web</div>
-            <span class="topbar-sub">Gestion des projets photovoltaïques</span>
-        </div>
-        <div class="topbar-nav">
-            <a href="/api/crm/parametrage" target="_blank" class="topbar-link"><i class="bi bi-gear"></i> Paramétrage</a>
-            <a href="/crm/calendrier" class="topbar-link"><i class="bi bi-calendar3"></i> Calendrier</a>
-            {% if is_admin %}
-            <a href="/crm/stats" class="topbar-link"><i class="bi bi-bar-chart-line"></i> Dashboard & KPI</a>
-            {% endif %}
-            <a href="/" class="topbar-link"><i class="bi bi-house"></i> Accueil</a>
-        </div>
-    </div>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-11">
+                <div class="crm-container">
+                    <!-- Header -->
+                    <div class="crm-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h1 class="mb-0"><i class="bi bi-people-fill me-2"></i>CRM AgriWeb</h1>
+                                <p class="mb-0 mt-2 opacity-75">Gestion des prospects photovoltaïques</p>
+                            </div>
+                            <div>
+                                <a href="/api/crm/parametrage" class="btn btn-warning me-2" target="_blank"><i class="bi bi-gear-fill me-2"></i>Paramétrage</a>
+                                <a href="/crm/calendrier" class="btn btn-primary me-2"><i class="bi bi-calendar-event me-2"></i>Calendrier</a>
+                                <a href="/crm/projets" class="btn btn-success me-2"><i class="bi bi-folder-fill me-2"></i>Fiches Projets</a>
+                                <a href="/crm/stats" class="btn btn-warning me-2"><i class="bi bi-graph-up me-2"></i>Dashboard & KPI</a>
+                                <a href="/" class="btn btn-light"><i class="bi bi-search me-2"></i>Analyse</a>
+                            </div>
+                        </div>
+                    </div>
 
-    <div class="crm-content">
-        <!-- Stats (admin only) -->
-        {% if is_admin %}
-        <div class="stats-row">
-            <div class="stat-card">
-                <div class="stat-value c-blue" id="stat-total">0</div>
-                <div class="stat-label">Projets</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value c-green" id="stat-parkings">0</div>
-                <div class="stat-label">Parkings</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value c-blue" id="stat-toitures">0</div>
-                <div class="stat-label">Toitures</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value c-orange" id="stat-friches">0</div>
-                <div class="stat-label">Friches</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value c-purple" id="stat-enrichis">0</div>
-                <div class="stat-label">Enrichis</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="stat-enrichis-percent">0%</div>
-                <div class="stat-label">Enrichissement</div>
-            </div>
-        </div>
-        {% endif %}
-        <!-- Filters -->
-        <div class="filters-bar">
-            <div class="filter-loading" id="filterLoading">
-                <i class="bi bi-funnel"></i> Filtrage...
-            </div>
-            <div class="row g-2">
-                <div class="col-md-3">
-                    <input type="text" id="searchBox" class="form-control search-box" 
-                           placeholder="Rechercher par commune, adresse...">
-                </div>
+                    <!-- Stats Dashboard -->
+                    <div class="p-4 bg-light">
+                        <div class="row">
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value" id="stat-total">0</div>
+                                    <div class="stat-label">Total Prospects</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-success" id="stat-parkings">0</div>
+                                    <div class="stat-label">🅿️ Parkings</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-primary" id="stat-toitures">0</div>
+                                    <div class="stat-label">🏠 Toitures</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-warning" id="stat-friches">0</div>
+                                    <div class="stat-label">🏚️ Friches</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-info" id="stat-enrichis">0</div>
+                                    <div class="stat-label">🏢 Enrichis</div>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-card">
+                                    <div class="stat-value text-muted" id="stat-enrichis-percent">0%</div>
+                                    <div class="stat-label">Taux enrichissement</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filters-bar">
+                        <div class="filter-loading" id="filterLoading">
+                            <i class="bi bi-funnel"></i> Filtrage...
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <input type="text" id="searchBox" class="form-control search-box" 
+                                       placeholder="🔍 Rechercher par commune, adresse...">
+                            </div>
                             <div class="col-md-2">
                                 <select id="filterType" class="form-select" onchange="filterProspects()">
                                     <option value="">Tous types</option>
@@ -604,7 +282,7 @@
                             </div>
                             <div class="col-md-2">
                                 <select id="filterProprietaire" class="form-select" onchange="filterProspects()">
-                                    <option value="">Tous projets</option>
+                                    <option value="">Tous prospects</option>
                                     <option value="enrichi">Avec propriétaire</option>
                                     <option value="non-enrichi">Sans propriétaire</option>
                                 </select>
@@ -616,7 +294,7 @@
                                 </select>
                             </div>
                             <div class="col-md-1">
-                                <button class="btn-refresh" onclick="refreshProspects()">
+                                <button class="btn btn-primary w-100" onclick="refreshProspects()" style="height: 38px;">
                                     <i class="bi bi-arrow-clockwise"></i>
                                 </button>
                             </div>
@@ -624,31 +302,34 @@
                     </div>
 
                     <!-- Prospects List -->
-                    <div class="mt-2">
+                    <div class="p-4">
                         <div id="loadingState" class="loading">
                             <div class="spinner-border" role="status">
                                 <span class="visually-hidden">Chargement...</span>
                             </div>
-                            <p class="mt-3">Chargement des projets...</p>
+                            <p class="mt-3">Chargement des prospects...</p>
                         </div>
                         
                         <div id="emptyState" class="empty-state" style="display: none;">
                             <i class="bi bi-inbox"></i>
-                            <h4>Aucun projet trouvé</h4>
-                            <p>Commencez par exporter des projets depuis les rapports de commune</p>
+                            <h4>Aucun prospect trouvé</h4>
+                            <p>Commencez par exporter des prospects depuis les rapports de commune</p>
                         </div>
 
                         <div id="prospectsList" style="display: none;"></div>
                         
                         <!-- Pagination -->
                         <div id="paginationContainer" style="display: none; margin-top: 20px; text-align: center;">
-                            <nav aria-label="Navigation projets">
+                            <nav aria-label="Navigation prospects">
                                 <ul class="pagination justify-content-center" id="paginationControls">
                                 </ul>
                             </nav>
                             <p class="text-muted" id="paginationInfo"></p>
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Modal Edition Prospect -->
@@ -656,7 +337,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Éditer le projet</h5>
+                    <h5 class="modal-title">Éditer le prospect</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
@@ -664,7 +345,7 @@
                     
                     <div class="row g-3">
                         <div class="col-md-12">
-                            <label class="form-label">Nom du projet</label>
+                            <label class="form-label">Nom du prospect</label>
                             <input type="text" id="edit-nom-prospect" class="form-control" placeholder="Ex: Parking Mairie, Toiture Entrepôt...">
                         </div>
                         <div class="col-md-6">
@@ -1135,16 +816,6 @@
                 const response = await fetch('/api/crm/prospects');
                 const data = await response.json();
                 
-                if (!data.success) {
-                    if (response.status === 401) {
-                        showError('Veuillez vous connecter pour accéder aux prospects');
-                        setTimeout(() => { window.location.href = '/auth/login'; }, 2000);
-                        return;
-                    }
-                    showError(data.error || 'Erreur lors du chargement');
-                    return;
-                }
-                
                 allProspects = data.prospects || [];
                 updateStats(data.stats);
                 populateFormeJuridiqueFilter();
@@ -1408,10 +1079,7 @@
         }
 
         function updateStats(stats) {
-            if (!stats) stats = {total: 0, parkings: 0, toitures: 0, friches: 0};
-            const el = document.getElementById('stat-total');
-            if (!el) return; // Stats masquées pour non-admin
-            el.textContent = stats.total || 0;
+            document.getElementById('stat-total').textContent = stats.total || 0;
             document.getElementById('stat-parkings').textContent = stats.parkings || 0;
             document.getElementById('stat-toitures').textContent = stats.toitures || 0;
             document.getElementById('stat-friches').textContent = stats.friches || 0;
@@ -1779,9 +1447,9 @@
                         ${carteUrl ? `
                         <div class="col-md-2">
                             <div class="carte-vignette" data-prospect-id="${prospect.id}" onclick="window.open('${carteUrl}', '_blank'); event.stopPropagation();" 
-                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.3); background: #22252f; display: flex; align-items: center; justify-content: center;">
+                                 style="cursor: pointer; position: relative; height: 200px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.2); background: #e0e0e0; display: flex; align-items: center; justify-content: center;">
                                 <iframe style="width: 100%; height: 100%; border: none; pointer-events: none; position: absolute; top: 0; left: 0;" title="Carte" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=padding:10px;text-align:center;color:#666;><i class=bi bi-map></i><br><small>Carte indisponible</small></div>';"></iframe>
-                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #6b7185; font-size: 0.9rem; pointer-events: none;">
+                                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #999; font-size: 0.9rem; pointer-events: none;">
                                     <i class="bi bi-hourglass-split"></i> Chargement...
                                 </div>
                                 <div style="position: absolute; top: 5px; right: 5px; background: white; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; z-index: 10;">
@@ -1899,6 +1567,27 @@
                             <button class="btn btn-primary action-btn" onclick="editProspect(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-pencil"></i> Éditer
                             </button>
+                            ${prospect.lien_streetview ? `
+                            <a href="${prospect.lien_streetview}" target="_blank" 
+                               class="btn btn-info action-btn" onclick="event.stopPropagation();">
+                                <i class="bi bi-eye"></i> Street View
+                            </a>
+                            ` : ''}
+                            ${prospect.adresse ? `
+                            <a href="https://www.pagesjaunes.fr/carte/particuliers/recherche?quoiqui=&ou=${encodeURIComponent(prospect.adresse)}&univers=pagesblanches&idOu=" 
+                               target="_blank" 
+                               class="btn btn-success action-btn" 
+                               onclick="event.stopPropagation();"
+                               title="Rechercher un numéro de téléphone">
+                                <i class="bi bi-telephone-fill"></i> Pages Blanches
+                            </a>
+                            ` : ''}
+                            <button class="btn btn-warning action-btn" onclick="sendEmail(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-envelope"></i> Email
+                            </button>
+                            <button class="btn btn-info action-btn" onclick="createAppointment(${prospect.id}); event.stopPropagation();">
+                                <i class="bi bi-calendar"></i> RDV
+                            </button>
                             <button class="btn btn-secondary action-btn" onclick="generateProposal(${prospect.id}); event.stopPropagation();">
                                 <i class="bi bi-file-earmark-text"></i> Proposition
                             </button>
@@ -1906,7 +1595,10 @@
                                 <i class="bi bi-folder-plus"></i> Fiche Projet
                             </button>
                             <button class="btn btn-warning action-btn" onclick="window.open('/crm/prospect/${prospect.id}/calpinage', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border: none; color: white;">
-                                <i class="bi bi-sun"></i> Pré-étude PV
+                                <i class="bi bi-sun"></i> Calpinage PV
+                            </button>
+                            <button class="btn btn-info action-btn" onclick="window.open('/crm/prospect/${prospect.id}/visite-technique', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white;">
+                                <i class="bi bi-clipboard-check"></i> Visite Technique
                             </button>
                             <button class="btn btn-warning action-btn" onclick="window.open('/crm/autoconso-collective/${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border: none; color: white;">
                                 <i class="bi bi-lightning-charge-fill"></i> Autoconso Collective
@@ -2338,6 +2030,86 @@
             }
         }
 
+        async function openOrCreateProjectForProspect(prospectId) {
+            const prospect = allProspects.find(p => p.id === prospectId);
+            if (!prospect) {
+                showError('Prospect introuvable');
+                return;
+            }
+            
+            // Vérifier si un projet existe déjà pour ce prospect
+            try {
+                const checkResponse = await fetch(`/api/crm/projets?prospect_id=${prospectId}`);
+                const checkResult = await checkResponse.json();
+                
+                if (checkResult.success && checkResult.projets && checkResult.projets.length > 0) {
+                    // Projet existe - ouvrir dans un nouvel onglet
+                    const existingProject = checkResult.projets[0]; // Premier projet du prospect
+                    showSuccess('✅ Ouverture de la fiche projet...');
+                    window.open(`/crm/projets?highlight=${existingProject.id}`, '_blank');
+                    return;
+                }
+            } catch (e) {
+                console.error('Erreur lors de la vérification du projet:', e);
+            }
+            
+            // Aucun projet existant - proposer d'en créer un
+            const nomClient = prospect.contact_nom || 'Client';
+            const nomProjet = prompt(`Aucun projet trouvé. Créer un projet pour ${nomClient}?`, 
+                `Projet ${nomClient} - ${prospect.type}`);
+            
+            if (!nomProjet) return;
+            
+            // Parser les parcelles cadastrales
+            let parcelles_str = '';
+            if (prospect.parcelles_cadastrales) {
+                try {
+                    const parcelles = typeof prospect.parcelles_cadastrales === 'string' 
+                        ? JSON.parse(prospect.parcelles_cadastrales) 
+                        : prospect.parcelles_cadastrales;
+                    parcelles_str = Array.isArray(parcelles) ? parcelles.join(', ') : '';
+                } catch (e) {
+                    parcelles_str = '';
+                }
+            }
+            
+            try {
+                const response = await fetch('/api/crm/projets', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        prospect_id: prospectId,
+                        nom_projet: nomProjet,
+                        type_projet: 'autoconsommation',
+                        client_nom: prospect.contact_nom || '',
+                        client_email: prospect.contact_email || '',
+                        client_telephone: prospect.contact_tel || '',
+                        client_adresse: prospect.adresse || '',
+                        adresse_projet: prospect.adresse || '',
+                        parcelles_cadastrales: parcelles_str,
+                        responsable: 'Système',
+                        notes: `Projet créé depuis le prospect #${prospectId}`
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess('✅ Fiche projet créée! Redirection...');
+                    // Rediriger vers la page des projets avec le highlight du nouveau projet
+                    // Attendre un peu plus pour que la DB finalise l'insertion
+                    setTimeout(() => {
+                        window.open(`/crm/projets?highlight=${result.project_id}`, '_blank');
+                    }, 1000);
+                } else {
+                    showError('Erreur: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                showError('Erreur lors de la création du projet');
+            }
+        }
+        
         let currentProjectData = null;
 
         async function openOrCreateProjectForProspect(prospectId) {
@@ -2513,8 +2285,8 @@
                     console.warn('[LOAD_RAPPORT] Pas de rapport dans le prospect');
                     document.getElementById('modalRapportContent').innerHTML = `
                         <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i> Aucun rapport trouvé pour ce projet.
-                            <br><small>Générez un "Rapport adresse" depuis la fiche projet pour créer un rapport.</small>
+                            <i class="bi bi-exclamation-triangle"></i> Aucun rapport trouvé pour ce prospect.
+                            <br><small>Générez un "Rapport adresse" depuis la fiche prospect pour créer un rapport.</small>
                         </div>
                     `;
                     document.getElementById('modalRapportBadge').style.display = 'none';
@@ -2722,16 +2494,16 @@
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${communeName}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${communeName}</div>
                                 <div class="text-muted">Commune</div>
-                                ${cadastreDetails ? `<small style="color: var(--c-accent);">${cadastreDetails.code_insee}</small>` : ''}
+                                ${cadastreDetails ? `<small class="text-info">${cadastreDetails.code_insee}</small>` : ''}
                             </div>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${parcelleRef}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${parcelleRef}</div>
                                 <div class="text-muted">Parcelle</div>
                                 <small class="text-success">Cadastre IGN</small>
                             </div>
@@ -2740,7 +2512,7 @@
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${surface}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${surface}</div>
                                 <div class="text-muted">Superficie</div>
                             </div>
                         </div>
@@ -2748,7 +2520,7 @@
                     <div class="col-md-3">
                         <div class="card text-center">
                             <div class="card-body">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: var(--c-accent);">${zoneUrba}</div>
+                                <div style="font-size: 1.5rem; font-weight: bold; color: #007bff;">${zoneUrba}</div>
                                 <div class="text-muted">Zone Urba</div>
                                 <small class="text-info">GPU</small>
                             </div>
@@ -2760,8 +2532,8 @@
             // ========== COORDONNÉES GPS ==========
             html += `
                 <div class="card mb-3">
-                    <div class="card-header" style="background: var(--c-surface-2); border-bottom: 1px solid var(--c-border);">
-                        <i class="bi bi-geo-alt-fill" style="color: var(--c-accent);"></i> Coordonnées GPS
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-geo-alt-fill"></i> Coordonnées GPS
                     </div>
                     <div class="card-body">
                         <p class="mb-0" style="font-family: 'Courier New', monospace; font-size: 1.1rem;">
