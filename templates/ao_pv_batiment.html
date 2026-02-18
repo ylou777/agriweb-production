@@ -807,6 +807,80 @@
             </div>
         </div>
 
+        <!-- Certisolis search – full width -->
+        <div class="ao-card mt-3">
+            <div class="ao-card-title">
+                <img src="https://www.certisolis.com/wp-content/uploads/certisolis-picto-80.png"
+                     style="height:22px; border-radius:4px; margin-right:6px;" alt="Certisolis"
+                     onerror="this.style.display='none'">
+                <i class="bi bi-patch-check-fill" style="color:#00b894;"></i>
+                Certificat ECS Certisolis
+                <span class="badge bg-warning text-dark ms-2" style="font-size:0.65rem;">Obligatoire pour le dossier</span>
+                <a href="https://www.certisolis.com/certisolis/bilan-carbone/" target="_blank"
+                   class="ms-auto" style="font-size:0.72rem; color:#74b9ff;">
+                    <i class="bi bi-box-arrow-up-right"></i> certisolis.com
+                </a>
+            </div>
+
+            <div class="alert mb-3 p-2" style="background:rgba(247,151,30,0.08);border:1px solid rgba(247,151,30,0.3);border-radius:8px;font-size:0.8rem;color:#ffeaa7;">
+                ⚠ L'ECS calculée ci-dessus est une <strong>estimation préliminaire</strong>.
+                Pour le dossier AO, la valeur officielle doit provenir du <strong>certificat Certisolis du fabricant</strong> (méthode PPE2-V2 obligatoire depuis P8).
+                La valeur ECS exacte en kg CO₂/kWc se trouve dans le PDF du certificat — à demander à votre fournisseur de modules.
+            </div>
+
+            <div class="row g-2 mb-2">
+                <div class="col-md-5">
+                    <input type="text" class="form-control form-control-sm" id="certisolis_q"
+                           placeholder="Fabricant (ex: Longi, JA Solar, Canadian Solar...)" oninput="searchCertisolis()">
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control form-control-sm" id="certisolis_ref"
+                           placeholder="Référence module (ex: HiMo6, CS6R...)" oninput="searchCertisolis()">
+                </div>
+                <div class="col-md-3">
+                    <select class="form-select form-select-sm" id="certisolis_methode" onchange="searchCertisolis()">
+                        <option value="PPE2-V2">PPE2-V2 (P8+, P12)</option>
+                        <option value="PPE2">PPE2 (ancienne)</option>
+                        <option value="">Toutes méthodes</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Résultats de recherche -->
+            <div id="certisolis_results" style="max-height:250px; overflow-y:auto; margin-bottom:10px;">
+                <div style="text-align:center; color:#666; font-size:0.8rem; padding:14px;">
+                    Saisissez un fabricant pour rechercher dans les 446 modules certifiés
+                </div>
+            </div>
+
+            <!-- Certificat sélectionné + champs dossier -->
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label" style="font-size:0.78rem;">N° certificat</label>
+                    <input type="text" class="form-control form-control-sm" id="certisolis_num"
+                           placeholder="PPE2_V2 N°..." style="font-family:monospace;">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" style="font-size:0.78rem;">ECS certifiée (kg CO₂/kWc)</label>
+                    <input type="number" class="form-control form-control-sm" id="certisolis_ecs_value"
+                           placeholder="Ex : 480" step="1" oninput="document.getElementById('ecs_valeur').value=this.value; onEcsChange();">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label" style="font-size:0.78rem;">Expiration</label>
+                    <input type="text" class="form-control form-control-sm" id="certisolis_expiry"
+                           placeholder="AAAA-MM-JJ" readonly style="background:rgba(255,255,255,0.04);">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label" style="font-size:0.78rem;">Statut</label>
+                    <div id="certisolis_status_badge" class="mt-1" style="font-size:0.8rem; color:#aaa;">—</div>
+                </div>
+            </div>
+            <div style="font-size:0.71rem; color:#666; margin-top:6px;">
+                Base mise à jour le 10/02/2026 · 446 modules (152 PPE2 + 294 PPE2-V2) ·
+                Source : <a href="https://www.certisolis.com" target="_blank" style="color:#74b9ff;">Certisolis</a>
+            </div>
+        </div>
+
         <div class="d-flex justify-content-between mt-3">
             <button class="btn btn-outline-orange" onclick="goStep(2)">
                 <i class="bi bi-arrow-left"></i> Précédent
@@ -1391,6 +1465,11 @@ async function selectProspect(id, el) {
             setField('tech_co2', data.technologie_module);
         }
 
+        // Auto-recherche certificat Certisolis avec le fabricant du module
+        if (data.fabricant_module) {
+            autoCertisolis(data.fabricant_module, data.ref_module || '');
+        }
+
         // Prévisualisation
         const puissStr = data.puissance_kwc ? `<span class="kwc-badge">${data.puissance_kwc} kWc (pré-étude)</span>` : '';
         preview.innerHTML = `
@@ -1809,6 +1888,10 @@ function collectData() {
         engagement_fc: document.getElementById('engagement_fc').checked,
         engagement_gp: document.getElementById('engagement_gp').checked,
         forme_garantie: document.getElementById('forme_garantie').value,
+        // Certisolis
+        certisolis_num: document.getElementById('certisolis_num').value,
+        certisolis_ecs_value: document.getElementById('certisolis_ecs_value').value,
+        certisolis_expiry: document.getElementById('certisolis_expiry').value,
         simulation: state.simulation,
     };
 }
@@ -1861,6 +1944,122 @@ async function exportExcel() {
     }
     btn.disabled = false;
     btn.innerHTML = '<i class="bi bi-download"></i> Télécharger Excel';
+}
+
+// ─── Certisolis certificate search ─────────────────────────────────────────
+let _certisolis_timer = null;
+function searchCertisolis() {
+    clearTimeout(_certisolis_timer);
+    _certisolis_timer = setTimeout(_doSearchCertisolis, 300);
+}
+
+async function _doSearchCertisolis() {
+    const q       = document.getElementById('certisolis_q').value.trim();
+    const ref     = document.getElementById('certisolis_ref').value.trim();
+    const methode = document.getElementById('certisolis_methode').value;
+    if (!q && !ref) return;
+
+    const params = new URLSearchParams({ q, ref, methode, valide_only: '1' });
+    try {
+        const resp = await fetch('/ao-pv-batiment/api/certisolis-search?' + params);
+        const d = await resp.json();
+        _renderCertisolis(d.results, d.total, d.generated);
+    } catch(e) {
+        document.getElementById('certisolis_results').innerHTML =
+            `<div style="color:#e55;font-size:0.8rem;padding:10px;">Erreur : ${e.message}</div>`;
+    }
+}
+
+function _renderCertisolis(results, total, generated) {
+    const el = document.getElementById('certisolis_results');
+    if (!results.length) {
+        el.innerHTML = `<div style="text-align:center;color:#888;font-size:0.8rem;padding:14px;">
+            Aucun module certifié trouvé. Vérifiez l'orthographe ou consultez <a href="https://www.certisolis.com/certisolis/bilan-carbone/" target="_blank" style="color:#74b9ff;">certisolis.com</a>.
+        </div>`;
+        return;
+    }
+
+    let html = `<div style="font-size:0.7rem;color:#888;margin-bottom:4px;">
+        ${total} résultat(s) · certifiés valides · Base ${generated || ''}
+    </div>`;
+    html += `<table class="table table-sm table-dark mb-0" style="font-size:0.72rem;">
+        <thead style="background:#1a1a2e;">
+            <tr style="color:#f7971e;">
+                <th>Fabricant</th><th>Références modules</th><th>Méthode</th>
+                <th>Seuils</th><th>Type ECS</th><th>Expiration</th><th></th>
+            </tr>
+        </thead><tbody>`;
+
+    for (const r of results) {
+        // Seuils
+        let seuils = '';
+        if (r.methode === 'PPE2-V2') {
+            if (r.seuil_530 === 'OUI') seuils = '<span style="color:#00b894;font-weight:700">&lt;530 ✓</span>';
+            else if (r.seuil_630 === 'OUI') seuils = '<span style="color:#fdcb6e;">&lt;630 ✓</span>';
+            else if (r.seuil_740 === 'OUI') seuils = '<span style="color:#e17055;">&lt;740 ✓</span>';
+            else seuils = '<span style="color:#e55;">&gt;740 ✗</span>';
+        } else {
+            if (r.seuil_450 === 'OUI') seuils = '<span style="color:#00b894;">&lt;450 ✓</span>';
+            else if (r.seuil_550 === 'OUI') seuils = '<span style="color:#fdcb6e;">&lt;550 ✓</span>';
+            else seuils = '<span style="color:#e55;">hors seuil</span>';
+        }
+        const typeColor = r.type_ecs === 'définitif' ? '#00b894' : '#fdcb6e';
+        html += `<tr style="cursor:pointer;" onclick="selectCertificat(${JSON.stringify(r).replace(/"/g,'&quot;')})" class="certisolis-row">
+            <td style="font-weight:600;">${r.fabricant || ''}</td>
+            <td style="font-size:0.68rem;max-width:160px;word-break:break-word;">${r.refs || ''}</td>
+            <td><span class="badge ${r.methode === 'PPE2-V2' ? 'bg-primary' : 'bg-secondary'}" style="font-size:0.62rem;">${r.methode}</span></td>
+            <td>${seuils}</td>
+            <td style="color:${typeColor}">${r.type_ecs || '—'}</td>
+            <td style="font-size:0.68rem;">${r.date_expiration || '—'}</td>
+            <td><button class="btn btn-xs" style="background:rgba(247,151,30,0.2);color:#f7971e;border:none;padding:2px 6px;font-size:0.68rem;">Sélectionner</button></td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+}
+
+function selectCertificat(r) {
+    document.getElementById('certisolis_num').value    = r.num_certificat || '';
+    document.getElementById('certisolis_expiry').value = r.date_expiration || '';
+
+    // Déduire la valeur ECS approximative depuis les seuils
+    let ecs_hint = null;
+    if (r.methode === 'PPE2-V2') {
+        if (r.seuil_530 === 'OUI')       ecs_hint = 520;
+        else if (r.seuil_630 === 'OUI') ecs_hint = 580;
+        else if (r.seuil_740 === 'OUI') ecs_hint = 650;
+    } else {
+        if (r.seuil_450 === 'OUI')       ecs_hint = 430;
+        else if (r.seuil_550 === 'OUI') ecs_hint = 500;
+    }
+    // Ne pré-remplit pas automatiquement — l'utilisateur doit lire le certificat PDF
+    // mais on donne un indice
+    if (ecs_hint) {
+        document.getElementById('certisolis_ecs_value').placeholder = `≈ ${ecs_hint} (lire le certificat PDF)`;
+    }
+
+    // Badge statut
+    let badge = '';
+    const ok = r.valide === 'OUI';
+    const isTemp = r.type_ecs === 'temporaire';
+    if (ok && !isTemp) badge = '<span class="badge bg-success">✓ Valide · Définitif</span>';
+    else if (ok && isTemp) badge = '<span class="badge bg-warning text-dark">⚠ Valide · Temporaire (mise en service exclue)</span>';
+    else badge = '<span class="badge bg-danger">✗ Expiré – Renouvellement requis</span>';
+    document.getElementById('certisolis_status_badge').innerHTML = badge;
+
+    // Scroll vers les champs
+    document.getElementById('certisolis_num').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('certisolis_num').focus();
+}
+
+// Auto-recherche quand le prospect est chargé
+function autoCertisolis(fabricant, modeleRef) {
+    if (!fabricant) return;
+    // Normaliser : Canadian Solar → CSI mais aussi chercher avec le nom complet
+    const q = fabricant.replace('Canadian Solar', 'Canadian Solar');
+    document.getElementById('certisolis_q').value   = fabricant.split(' ')[0]; // Premier mot
+    document.getElementById('certisolis_ref').value = modeleRef || '';
+    _doSearchCertisolis();
 }
 
 // ─── Plan d'affaires prévisionnel ────────────────────────────────────────────

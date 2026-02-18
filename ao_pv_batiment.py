@@ -739,6 +739,112 @@ def export_excel():
         return jsonify({"error": f"Erreur génération Excel : {str(e)}"}), 500
 
 
+# ─── BASE DE DONNÉES CERTISOLIS (chargée paresseusement) ─────────────────────
+_CERTISOLIS_DB = None
+
+def _load_certisolis_db():
+    global _CERTISOLIS_DB
+    if _CERTISOLIS_DB is None:
+        import os
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'certisolis_db.json')
+        if os.path.exists(db_path):
+            with open(db_path, 'r', encoding='utf-8') as f:
+                _CERTISOLIS_DB = json.load(f)
+        else:
+            _CERTISOLIS_DB = {'data': [], 'generated': 'N/A'}
+    return _CERTISOLIS_DB
+
+
+@ao_pv_bp.route('/api/certisolis-search', methods=['GET'])
+def certisolis_search():
+    """Recherche dans la base de données de modules certifiés Certisolis.
+    Paramètres GET:
+      q   = nom fabricant (recherche partielle, insensible à la casse)
+      ref = référence module (recherche partielle)
+      methode = PPE2-V2 | PPE2 | '' (toutes)
+      valide_only = 1 (défaut) | 0
+    """
+    q           = (request.args.get('q', '') or '').upper().strip()
+    ref         = (request.args.get('ref', '') or '').upper().strip()
+    methode     = request.args.get('methode', 'PPE2-V2').strip()
+    valide_only = request.args.get('valide_only', '1') == '1'
+
+    if not q and not ref:
+        return jsonify({'results': [], 'total': 0, 'generated': None})
+
+    db = _load_certisolis_db()
+    KEY_VALIDE = "ECS Valable aujourd'hui"
+
+    results = []
+    for row in db.get('data', []):
+        # Filtres
+        if methode and row.get('methode') != methode:
+            continue
+        if valide_only and row.get(KEY_VALIDE) != 'OUI':
+            continue
+        # Recherche fabricant
+        fab = row.get('fabricant_norm', '')
+        refs_lower = row.get('refs_norm', '')
+        if q and q not in fab:
+            # Essai avec alias courants
+            aliases = {
+                'CANADIAN SOLAR': 'CSI',
+                'LONGI': 'LONGI',
+                'JA': 'JA SOLAR',
+                'JINKO': 'JINKO',
+            }
+            matched = False
+            for alias_key, alias_val in aliases.items():
+                if q in alias_key and alias_val in fab:
+                    matched = True
+                    break
+                if q in alias_val and alias_val in fab:
+                    matched = True
+                    break
+            if not matched:
+                continue
+        if ref and ref not in refs_lower:
+            continue
+
+        # Construire l'objet résultat
+        r = {
+            'num_certificat':   row.get('N\u00b0 certificat'),
+            'revision':         row.get('R\u00e9vision'),
+            'fabricant':        row.get('Nom du fabricant'),
+            'refs':             row.get('R\u00e9f\u00e9rences modules'),
+            'date_edition':     row.get('Date \u00e9dition du certificat'),
+            'date_expiration':  row.get('Date expiration du certificat'),
+            'technologie':      row.get('Technologie'),
+            'tech_cellule':     row.get('Technologie cellule'),
+            'verre':            row.get('Biverre ou Monoverre'),
+            'puissance_min':    row.get('Puissance minimum (Wc)'),
+            'puissance_max':    row.get('Puissance maximum (Wc)'),
+            'type_ecs':         row.get('ECS d\u00e9finitif ou temporaire'),
+            'valide':           row.get(KEY_VALIDE),
+            'methode':          row.get('methode'),
+        }
+        # Seuils selon méthode
+        if row.get('methode') == 'PPE2-V2':
+            r['seuil_740'] = row.get('Seuil <740kgCO2/kWc')
+            r['seuil_630'] = row.get('Seuil <630kgCO2/kWc')
+            r['seuil_530'] = row.get('Seuil <530kgCO2/kWc')
+        else:
+            r['seuil_550'] = row.get('Seuil <550kgCO2/kWc')
+            r['seuil_450'] = row.get('Seuil <450kgCO2/kWc')
+        results.append(r)
+
+    # Trier : PPE2-V2 en premier, puis valides
+    results.sort(key=lambda x: (
+        0 if x.get('methode') == 'PPE2-V2' else 1,
+        0 if x.get('valide') == 'OUI' else 1,
+    ))
+    return jsonify({
+        'results': results[:50],
+        'total': len(results),
+        'generated': db.get('generated'),
+    })
+
+
 @ao_pv_bp.route('/api/checker-admissibilite', methods=['POST'])
 def checker_admissibilite():
     """Vérifie les conditions d'admissibilité de l'offre."""
@@ -910,6 +1016,9 @@ def _generer_pdf_formulaire(data):
         ("Pays fabrication cellule", data.get("pays_cellule")),
         ("Pays fabrication wafer", data.get("pays_wafer")),
         ("Référence autorisation urbanisme", data.get("ref_autorisation")),
+        ("N° certificat Certisolis", data.get("certisolis_num")),
+        ("ECS certifiée Certisolis (kg CO₂/kWc)", data.get("certisolis_ecs_value")),
+        ("Expiration certificat Certisolis", data.get("certisolis_expiry")),
     ])
 
     # Section C - Offre financière
