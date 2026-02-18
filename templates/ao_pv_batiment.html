@@ -1043,7 +1043,30 @@
                         </div>
                     </div>
 
-                    <div class="d-flex gap-2 mb-3 flex-wrap">
+                    <!-- Fiscalité & amortissement -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-12" style="font-size:0.72rem;color:#aaa;font-weight:600;letter-spacing:.04em;padding-bottom:2px;">Fiscalité &amp; amortissement</div>
+                        <div class="col-4">
+                            <label class="form-label" style="font-size:0.78rem;">Dégradation (%/an)</label>
+                            <input type="number" class="form-control form-control-sm" id="pa_degradation" value="0.5" step="0.1" min="0" max="2">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label" style="font-size:0.78rem;">Amortissement (ans)</label>
+                            <input type="number" class="form-control form-control-sm" id="pa_amortissement" value="20" min="5" max="25">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label" style="font-size:0.78rem;">Taux IS (%)</label>
+                            <input type="number" class="form-control form-control-sm" id="pa_taux_is" value="25" step="0.5" min="0" max="50">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:0.78rem;">IFER (€/kWc/an)</label>
+                            <input type="number" class="form-control form-control-sm" id="pa_ifer" value="7.87" step="0.01" min="0">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label" style="font-size:0.78rem;">CFE (€/an)</label>
+                            <input type="number" class="form-control form-control-sm" id="pa_cfe" value="0" step="100" min="0">
+                        </div>
+                    </div>
                         <button class="btn btn-sm btn-outline-secondary" onclick="chargerDonneesProposition()">
                             <i class="bi bi-cloud-download"></i> Charger depuis CRM
                         </button>
@@ -1084,6 +1107,13 @@
                                 <span>DSCR moyen : <strong id="pa_dscr_val" style="color:#e0e0e0;">—</strong></span>
                                 <span>Revenus 20 ans : <strong id="pa_revenus_val" style="color:#e0e0e0;">—</strong></span>
                                 <span>Production : <strong id="pa_prod_val" style="color:#e0e0e0;">—</strong></span>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex gap-3 flex-wrap" style="font-size:0.75rem;color:#aaa;">
+                                <span>IS total : <strong id="pa_is_val" style="color:#fd79a8;">—</strong></span>
+                                <span>IFER+CFE total : <strong id="pa_taxes_val" style="color:#e84393;">—</strong></span>
+                                <span>FCF net cumulé : <strong id="pa_fcf_net_val" style="color:#e0e0e0;">—</strong></span>
                             </div>
                         </div>
                     </div>
@@ -2144,7 +2174,11 @@ async function calculerPlanAffaires() {
         taux_actualisation:  5.0,
         inflation_om:        2.0,
         inflation_ass:       1.0,
-        degradation:         0.5,
+        degradation:         parseFloat(document.getElementById('pa_degradation').value) || 0.5,
+        duree_amortissement: parseInt(document.getElementById('pa_amortissement').value) || 20,
+        taux_is:             parseFloat(document.getElementById('pa_taux_is').value) || 25,
+        ifer_eur_kwc:        parseFloat(document.getElementById('pa_ifer').value) !== undefined ? parseFloat(document.getElementById('pa_ifer').value) : 7.87,
+        cfe_annuel:          parseFloat(document.getElementById('pa_cfe').value) || 0,
     };
 
     try {
@@ -2172,6 +2206,9 @@ function afficherPlanAffaires(d) {
     document.getElementById('pa_dscr_val').textContent    = d.dscr_moyen !== null ? d.dscr_moyen : '—';
     document.getElementById('pa_revenus_val').textContent = _fmtK(d.revenu_brut_total) + ' k€';
     document.getElementById('pa_prod_val').textContent    = Math.round(d.total_production_mwh).toLocaleString('fr-FR') + ' MWh';
+    document.getElementById('pa_is_val').textContent      = d.total_is !== undefined ? _fmtK(d.total_is) + ' k€' : '—';
+    document.getElementById('pa_taxes_val').textContent   = d.total_taxes !== undefined ? _fmtK(d.total_taxes) + ' k€' : '—';
+    document.getElementById('pa_fcf_net_val').textContent = _fmtK(d.fcf_cumule_total) + ' k€';
 
     // Tableau
     const tbody = document.getElementById('pa_tableau_body');
@@ -2189,6 +2226,9 @@ function afficherPlanAffaires(d) {
             <td class="text-end" style="color:#74b9ff;">${_fmtK(row.ebitda)}</td>
             <td class="text-end" style="color:#e17055;">${row.interets > 0 ? _fmtK(row.interets) : '—'}</td>
             <td class="text-end">${row.capital_rembourse > 0 ? _fmtK(row.capital_rembourse) : '—'}</td>
+            <td class="text-end" style="color:#a29bfe;">${_fmtK(row.amortissement)}</td>
+            <td class="text-end" style="color:#fd79a8;font-weight:600;">${row.is > 0 ? _fmtK(row.is) : '—'}</td>
+            <td class="text-end" style="color:#e84393;">${row.taxes > 0 ? _fmtK(row.taxes) : '—'}</td>
             <td class="text-end" style="${fcfColor};font-weight:700;">${_fmtK(row.fcf_equity)}</td>
             <td class="text-end" style="${cumColor};font-weight:700;">${_fmtK(row.fcf_cumule)}</td>
         </tr>`;
@@ -2202,8 +2242,12 @@ function afficherPlanAffaires(d) {
             <td class="text-end">${Math.round(d.total_production_mwh).toLocaleString('fr-FR')}</td>
             <td class="text-end">—</td>
             <td class="text-end">${_fmtK(d.revenu_brut_total)}</td>
-            <td class="text-end" colspan="2">OpEx : ${_fmtK(d.total_opex)}</td>
-            <td class="text-end" colspan="3">Dette : ${_fmtK(d.dette)}</td>
+            <td class="text-end" colspan="2" style="font-size:0.7rem;">OpEx : ${_fmtK(d.total_opex)}</td>
+            <td class="text-end">—</td>
+            <td class="text-end" colspan="2" style="font-size:0.7rem;">Dette : ${_fmtK(d.dette)}</td>
+            <td class="text-end" style="color:#a29bfe;">—</td>
+            <td class="text-end" style="color:#fd79a8;">${_fmtK(d.total_is)}</td>
+            <td class="text-end" style="color:#e84393;">${_fmtK(d.total_taxes)}</td>
             <td class="text-end">${_fmtK(d.fcf_cumule_total)}</td>
             <td class="text-end">—</td>
         </tr>`;

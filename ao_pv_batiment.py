@@ -482,6 +482,10 @@ def calcul_plan_affaires():
     t0                 = float(data.get('t0', 82))          # €/MWh (prix de référence)
     indexation_k       = float(data.get('indexation_k', 1.5)) / 100   # %/an → fraction
     degradation        = float(data.get('degradation', 0.5)) / 100    # %/an → fraction
+    duree_amortissement = int(data.get('duree_amortissement', 20))          # ans (amort. linéaire)
+    taux_is            = float(data.get('taux_is', 25.0)) / 100            # IS (fraction)
+    ifer_eur_kwc       = float(data.get('ifer_eur_kwc', 7.87))             # €/kWc/an (IFER solaire)
+    cfe_annuel         = float(data.get('cfe_annuel', 0.0))                # €/an (CFE)
     prix_kwc           = float(data.get('prix_kwc', 850))   # €/kWc (CAPEX)
     cout_om_pct        = float(data.get('cout_om_pct', 1.0)) / 100    # % CAPEX/an
     inflation_om       = float(data.get('inflation_om', 2.0)) / 100   # %/an
@@ -513,6 +517,8 @@ def calcul_plan_affaires():
     total_opex        = 0.0
     total_dette_svc   = 0.0
     total_fcf         = 0.0
+    total_is          = 0.0
+    total_taxes       = 0.0
 
     equity_cashflows  = [-equity]   # flux fonds propres (année 0 = -equity)
     project_cashflows = [-capex]    # flux projet (année 0 = -capex)
@@ -549,33 +555,60 @@ def calcul_plan_affaires():
             principal_n  = 0
             dette_svc_n  = 0
 
-        # Flux de trésorerie fonds propres
-        fcf_n = ebitda_n - dette_svc_n  # €
+        # ── Fiscalité ────────────────────────────────────────────────────────
+        # Amortissement linéaire du CAPEX
+        amortissement_n = capex / duree_amortissement if n <= duree_amortissement else 0.0
+
+        # IFER (Imposition Forfaitaire sur les Entreprises de Réseaux)
+        ifer_n = puissance_kwc * ifer_eur_kwc  # €/an (constant sur 20 ans)
+
+        # CFE (Cotisation Foncière des Entreprises), indexée inflation
+        cfe_n = cfe_annuel * (1 + inflation_om) ** (n - 1)
+
+        # Résultat fiscal = EBITDA – amortissement – intérêts (dette)
+        resultat_fiscal_n = ebitda_n - amortissement_n - interets_n
+
+        # IS = 25 % du résultat fiscal positif (déficits reportés de façon simplifiée)
+        is_n = max(0.0, resultat_fiscal_n * taux_is)
+
+        # Taxes locales totales (IFER + CFE)
+        taxes_n = ifer_n + cfe_n
+
+        # Flux de trésorerie fonds propres (net d'IS et taxes)
+        fcf_n = ebitda_n - dette_svc_n - is_n - taxes_n
 
         # Cumulatifs
         total_production += prod_mwh
         total_revenus    += revenus_n
         total_opex       += opex_n
         total_dette_svc  += dette_svc_n
+        total_is         += is_n
+        total_taxes      += taxes_n
         total_fcf        += fcf_n
 
         equity_cashflows.append(fcf_n)
         project_cashflows.append(ebitda_n)
 
         tableau.append({
-            'annee':         n,
-            'production_mwh': round(prod_mwh, 1),
-            'prix_mwh':      round(prix_n, 2),
-            'revenus':       round(revenus_n, 0),
-            'om':            round(om_n, 0),
-            'assurance':     round(ass_n, 0),
-            'opex':          round(opex_n, 0),
-            'ebitda':        round(ebitda_n, 0),
-            'interets':      round(interets_n, 0),
+            'annee':            n,
+            'production_mwh':   round(prod_mwh, 1),
+            'prix_mwh':         round(prix_n, 2),
+            'revenus':          round(revenus_n, 0),
+            'om':               round(om_n, 0),
+            'assurance':        round(ass_n, 0),
+            'opex':             round(opex_n, 0),
+            'ebitda':           round(ebitda_n, 0),
+            'interets':         round(interets_n, 0),
             'capital_rembourse': round(principal_n, 0),
-            'service_dette': round(dette_svc_n, 0),
-            'fcf_equity':    round(fcf_n, 0),
-            'fcf_cumule':    round(total_fcf, 0),
+            'service_dette':    round(dette_svc_n, 0),
+            'amortissement':    round(amortissement_n, 0),
+            'resultat_fiscal':  round(resultat_fiscal_n, 0),
+            'is':               round(is_n, 0),
+            'ifer':             round(ifer_n, 0),
+            'cfe':              round(cfe_n, 0),
+            'taxes':            round(taxes_n, 0),
+            'fcf_equity':       round(fcf_n, 0),
+            'fcf_cumule':       round(total_fcf, 0),
         })
 
     # ── TRI (IRR) par méthode Newton-Raphson ──────────────────────────────────
@@ -645,6 +678,8 @@ def calcul_plan_affaires():
         'dscr_moyen': dscr_moyen,
         'revenu_brut_total': revenu_brut_total,
         'total_opex': round(total_opex, 0),
+        'total_is': round(total_is, 0),
+        'total_taxes': round(total_taxes, 0),
         'fcf_cumule_total': round(total_fcf, 0),
         'total_production_mwh': round(total_production, 1),
         'tableau': tableau,
@@ -1141,7 +1176,7 @@ def _generer_excel_plan_affaires(data):
         return c
 
     # ── Titre ─────────────────────────────────────────────────────────────────
-    ws.merge_cells('A1:K1')
+    ws.merge_cells('A1:N1')
     _cell(ws, 1, 1, f"PIÈCE 5 – PLAN D'AFFAIRES PRÉVISIONNEL AO PPE2 PV BÂTIMENT – PÉRIODE {PERIODE_ACTUELLE}",
           font=Font(bold=True, size=13, color="FFFFFF"), fill=dark_fill, align=center)
 
@@ -1158,7 +1193,7 @@ def _generer_excel_plan_affaires(data):
     lcoe         = data.get('lcoe')
     dscr_moyen   = data.get('dscr_moyen')
 
-    ws.merge_cells('A2:K2')
+    ws.merge_cells('A2:N2')
     _cell(ws, 2, 1,
           f"Projet : {nom_projet}  |  Candidat : {raison_soc}  |  Puissance : {puissance} kWc  |  CAPEX : {capex:,.0f} €  |  Date : {datetime.now().strftime('%d/%m/%Y')}",
           font=Font(size=9), fill=grey_fill, align=center)
@@ -1186,7 +1221,9 @@ def _generer_excel_plan_affaires(data):
     col_headers = [
         "Année", "Production (MWh)", "Prix T₀ (€/MWh)", "Revenus (€)",
         "O&M (€)", "Assurance (€)", "EBITDA (€)",
-        "Intérêts (€)", "Capital remboursé (€)", "Flux net équité (€)", "Flux cumulé (€)"
+        "Intérêts (€)", "Capital remboursé (€)",
+        "Amortissement (€)", "IS (€)", "Taxes IFER+CFE (€)",
+        "Flux net équité (€)", "Flux cumulé (€)"
     ]
     for col, h in enumerate(col_headers, 1):
         c = _cell(ws, headers_row, col, h, font=bold_wh, fill=dark_fill, align=center, border=border_thin)
@@ -1205,6 +1242,9 @@ def _generer_excel_plan_affaires(data):
             row.get('ebitda'),
             row.get('interets') if row.get('interets', 0) > 0 else None,
             row.get('capital_rembourse') if row.get('capital_rembourse', 0) > 0 else None,
+            row.get('amortissement'),
+            row.get('is') if row.get('is', 0) > 0 else None,
+            row.get('taxes') if row.get('taxes', 0) > 0 else None,
             row.get('fcf_equity'),
             row.get('fcf_cumule'),
         ]
@@ -1213,10 +1253,14 @@ def _generer_excel_plan_affaires(data):
             font = bold_or if col == 1 else None
             c = _cell(ws, data_row, col, val, font=font, fill=row_fill, align=right if col > 1 else center, fmt=fmt, border=border_thin)
             # Couleur flux
-            if col == 10 and val is not None:  # flux net
+            if col == 13 and val is not None:  # flux net
                 c.font = Font(bold=True, color="006B52" if val >= 0 else "C0392B")
-            if col == 11 and val is not None:  # flux cumulé
+            if col == 14 and val is not None:  # flux cumulé
                 c.font = Font(bold=True, color="006B52" if val >= 0 else "E17055")
+            if col == 11 and val is not None:  # IS
+                c.font = Font(color="C0392B")
+            if col == 12 and val is not None:  # taxes
+                c.font = Font(color="9B59B6")
 
     # Ligne totaux
     total_row = headers_row + 1 + len(tableau)
@@ -1228,6 +1272,9 @@ def _generer_excel_plan_affaires(data):
         None, None,
         None,
         None, None,
+        None,
+        data.get('total_is'),
+        data.get('total_taxes'),
         data.get('fcf_cumule_total'),
         "—",
     ]
@@ -1236,13 +1283,13 @@ def _generer_excel_plan_affaires(data):
         _cell(ws, total_row, col, val, font=bold_wh, fill=dark_fill, align=right if col > 1 else center, fmt=fmt, border=border_thin)
 
     # ── Largeurs des colonnes ─────────────────────────────────────────────────
-    col_widths = [8, 18, 16, 16, 14, 14, 16, 16, 20, 18, 16]
+    col_widths = [8, 18, 16, 16, 14, 14, 16, 16, 20, 16, 13, 16, 18, 16]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
 
     # ── Freeze pane et filtres ────────────────────────────────────────────────
     ws.freeze_panes = f'A{headers_row + 1}'
-    ws.auto_filter.ref = f'A{headers_row}:K{total_row - 1}'
+    ws.auto_filter.ref = f'A{headers_row}:N{total_row - 1}'
 
     # ── Onglet Hypothèses ─────────────────────────────────────────────────────
     ws2 = wb.create_sheet("Hypothèses")
@@ -1257,6 +1304,10 @@ def _generer_excel_plan_affaires(data):
         ("Prix T₀",                   data.get('t0', '—'),                       "€/MWh",        "Prix de référence offre CRE"),
         ("Indexation K",              data.get('indexation_k', '—'),             "%/an",         "Indexation annuelle du tarif"),
         ("Dégradation modules",       data.get('degradation', 0.5),              "%/an",         "Perte rendement annuelle"),
+        ("Durée amortissement",        data.get('duree_amortissement', 20),       "ans",          "Amortissement linéaire du CAPEX"),
+        ("Taux IS",                    data.get('taux_is', 25),                   "%",            "Impôt sur les Sociétés (taux normal)"),
+        ("IFER",                       data.get('ifer_eur_kwc', 7.87),            "€/kWc/an",     "Imposition Forfaitaire Entreprises de Réseaux"),
+        ("CFE",                        data.get('cfe_annuel', 0),                 "€/an",         "Cotisation Foncière des Entreprises"),
         ("O&M",                       data.get('cout_om_pct', '—'),              "% CAPEX/an",   "Exploitation & Maintenance"),
         ("Inflation O&M",             data.get('inflation_om', 2.0),             "%/an",         ""),
         ("Assurance",                 data.get('assurance_pct', '—'),            "% CAPEX/an",   "Prime d'assurance annuelle"),
