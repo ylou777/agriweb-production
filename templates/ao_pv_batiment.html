@@ -2018,6 +2018,17 @@ function _renderCertisolis(results, total, generated) {
     el.innerHTML = html;
 }
 
+// Mapping fabricant_norm → pays pour auto-remplissage bilan carbone
+const _FABRICANT_PAYS_MAP = {
+    'VOLTEC':       { pm: 'France',          pc: "Autre pays du Monde", pw: "Autre pays du Monde" },
+    'DUALSUN':      { pm: 'France',          pc: "Autre pays du Monde", pw: "Autre pays du Monde" },
+    '3SUN':         { pm: "Autre pays d'Europe", pc: "Autre pays du Monde", pw: "Autre pays du Monde" },
+    'CS WISMAR':    { pm: "Autre pays d'Europe", pc: "Autre pays du Monde", pw: "Autre pays du Monde" },
+    'EINNOVA':      { pm: "Autre pays d'Europe", pc: "Autre pays du Monde", pw: "Autre pays du Monde" },
+    'QCELLS':       { pm: 'Corée du Sud',    pc: 'Corée du Sud',        pw: "Autre pays du Monde" },
+    'SUNPOWER':     { pm: 'Malaisie',        pc: "Autre pays du Monde", pw: "Autre pays du Monde" },
+};
+
 function selectCertificat(r) {
     document.getElementById('certisolis_num').value    = r.num_certificat || '';
     document.getElementById('certisolis_expiry').value = r.date_expiration || '';
@@ -2032,11 +2043,29 @@ function selectCertificat(r) {
         if (r.seuil_450 === 'OUI')       ecs_hint = 430;
         else if (r.seuil_550 === 'OUI') ecs_hint = 500;
     }
-    // Ne pré-remplit pas automatiquement — l'utilisateur doit lire le certificat PDF
-    // mais on donne un indice
     if (ecs_hint) {
         document.getElementById('certisolis_ecs_value').placeholder = `≈ ${ecs_hint} (lire le certificat PDF)`;
     }
+
+    // Auto-remplissage des pays selon le fabricant (bilan carbone)
+    const fab = (r.fabricant_norm || '').toUpperCase();
+    let pays = _FABRICANT_PAYS_MAP[fab];
+    if (!pays) {
+        // Par défaut Chine pour la majorité des fabricants asiatiques
+        pays = { pm: 'Chine', pc: 'Chine', pw: 'Chine' };
+    }
+    const setSelect = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) { el.value = val; }
+    };
+    setSelect('pays_module',    pays.pm);
+    setSelect('pays_cellule',   pays.pc);
+    setSelect('pays_wafer',     pays.pw);
+    setSelect('pays_module_co2',  pays.pm);
+    setSelect('pays_cellule_co2', pays.pc);
+    setSelect('pays_wafer_co2',   pays.pw);
+    // Déclencher recalcul carbone
+    if (typeof lancerCalculCarbone === 'function') lancerCalculCarbone();
 
     // Badge statut
     let badge = '';

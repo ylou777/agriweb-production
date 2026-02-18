@@ -819,9 +819,10 @@ def certisolis_search():
             'verre':            row.get('Biverre ou Monoverre'),
             'puissance_min':    row.get('Puissance minimum (Wc)'),
             'puissance_max':    row.get('Puissance maximum (Wc)'),
-            'type_ecs':         row.get('ECS d\u00e9finitif ou temporaire'),
+            'type_ecs':         row.get('ECS définitif ou temporaire'),
             'valide':           row.get(KEY_VALIDE),
             'methode':          row.get('methode'),
+            'fabricant_norm':   row.get('fabricant_norm'),
         }
         # Seuils selon méthode
         if row.get('methode') == 'PPE2-V2':
