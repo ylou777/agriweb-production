@@ -499,14 +499,17 @@ def _get_prospects_for_ao(user_id=None, is_admin=False):
     """Récupère les prospects depuis agriweb_prospects via database_adapter."""
     try:
         from database_adapter import execute_query
-        filter_clause = '' if is_admin or user_id is None else ' AND user_id = %s'
-        params = None if is_admin or user_id is None else (user_id,)
+        from crm_routes import user_filter_clause
+        filter_clause, params = user_filter_clause(user_id, is_admin)
+        # Si user_id non résolu, afficher quand même tous les prospects
+        if not is_admin and user_id is None:
+            filter_clause, params = '', ()
 
         rows = execute_query(
             f'SELECT id, nom_prospect, commune, departement, adresse, statut, surface_m2 '
             f'FROM agriweb_prospects WHERE 1=1{filter_clause} '
             f'ORDER BY date_creation DESC LIMIT 200',
-            params, fetch_all=True
+            params if params else None, fetch_all=True
         )
 
         result = []
