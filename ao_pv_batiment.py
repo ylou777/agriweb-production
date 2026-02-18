@@ -463,6 +463,248 @@ def calcul_garantie():
     })
 
 
+@ao_pv_bp.route('/api/plan-affaires', methods=['POST'])
+def calcul_plan_affaires():
+    """Calcule le plan d'affaires prévisionnel sur 20 ans (format Pièce 5 CRE).
+    
+    Modèle financier :
+      - CAPEX = puissance_kwc × prix_kwc €
+      - Revenus = production × T₀ × indexation K (contrat 20 ans)
+      - OpEx = O&M + assurance (% CAPEX, indexés inflation)
+      - Dette = part_dette% du CAPEX, remboursée sur duree_emprunt ans
+      - TRI equity, TRI projet, VAN, LCOE
+    """
+    data = request.get_json()
+
+    # ── Paramètres d'entrée ────────────────────────────────────────────────────
+    puissance_kwc      = float(data.get('puissance_kwc', 1000))
+    productible_kwh_kwc = float(data.get('productible_kwh_kwc', 1100))  # kWh/kWc/an
+    t0                 = float(data.get('t0', 82))          # €/MWh (prix de référence)
+    indexation_k       = float(data.get('indexation_k', 1.5)) / 100   # %/an → fraction
+    degradation        = float(data.get('degradation', 0.5)) / 100    # %/an → fraction
+    prix_kwc           = float(data.get('prix_kwc', 850))   # €/kWc (CAPEX)
+    cout_om_pct        = float(data.get('cout_om_pct', 1.0)) / 100    # % CAPEX/an
+    inflation_om       = float(data.get('inflation_om', 2.0)) / 100   # %/an
+    assurance_pct      = float(data.get('assurance_pct', 0.2)) / 100  # % CAPEX/an
+    inflation_ass      = float(data.get('inflation_ass', 1.0)) / 100  # %/an
+    part_dette         = float(data.get('part_dette', 70)) / 100      # % CAPEX
+    taux_interet       = float(data.get('taux_interet', 4.0)) / 100   # %/an
+    duree_emprunt      = int(data.get('duree_emprunt', 15))            # ans
+    taux_actualisation = float(data.get('taux_actualisation', 5.0)) / 100  # %/an
+    duree_contrat      = 20  # ans (contrat CRE obligatoirement 20 ans)
+
+    # ── Capitaux ───────────────────────────────────────────────────────────────
+    capex     = puissance_kwc * prix_kwc          # CAPEX total (€)
+    dette     = capex * part_dette               # Montant emprunté (€)
+    equity    = capex - dette                    # Fonds propres (€)
+
+    # Annuité de remboursement de la dette (annuité constante)
+    r = taux_interet
+    if r > 0 and duree_emprunt > 0:
+        annuite_dette = dette * r * (1 + r) ** duree_emprunt / ((1 + r) ** duree_emprunt - 1)
+    else:
+        annuite_dette = dette / duree_emprunt if duree_emprunt > 0 else 0
+
+    # ── Tableau annuel sur 20 ans ──────────────────────────────────────────────
+    tableau = []
+    principal_restant = dette
+    total_production  = 0.0
+    total_revenus     = 0.0
+    total_opex        = 0.0
+    total_dette_svc   = 0.0
+    total_fcf         = 0.0
+
+    equity_cashflows  = [-equity]   # flux fonds propres (année 0 = -equity)
+    project_cashflows = [-capex]    # flux projet (année 0 = -capex)
+
+    for n in range(1, duree_contrat + 1):
+        # Production dégradée (%)
+        prod_mwh = puissance_kwc * productible_kwh_kwc * (1 - degradation) ** (n - 1) / 1000  # MWh/an
+
+        # Prix indexé T₀ × (1+K)^(n-1)
+        prix_n = t0 * (1 + indexation_k) ** (n - 1)  # €/MWh
+
+        # Revenus
+        revenus_n = prod_mwh * prix_n  # €
+
+        # OpEx O&M
+        om_n = capex * cout_om_pct * (1 + inflation_om) ** (n - 1)  # €
+
+        # OpEx Assurance
+        ass_n = capex * assurance_pct * (1 + inflation_ass) ** (n - 1)  # €
+
+        opex_n = om_n + ass_n  # €
+
+        # EBITDA
+        ebitda_n = revenus_n - opex_n  # €
+
+        # Service de la dette (intérêts + principal)
+        if n <= duree_emprunt and dette > 0:
+            interets_n   = principal_restant * r
+            principal_n  = annuite_dette - interets_n
+            principal_restant = max(0, principal_restant - principal_n)
+            dette_svc_n  = annuite_dette
+        else:
+            interets_n   = 0
+            principal_n  = 0
+            dette_svc_n  = 0
+
+        # Flux de trésorerie fonds propres
+        fcf_n = ebitda_n - dette_svc_n  # €
+
+        # Cumulatifs
+        total_production += prod_mwh
+        total_revenus    += revenus_n
+        total_opex       += opex_n
+        total_dette_svc  += dette_svc_n
+        total_fcf        += fcf_n
+
+        equity_cashflows.append(fcf_n)
+        project_cashflows.append(ebitda_n)
+
+        tableau.append({
+            'annee':         n,
+            'production_mwh': round(prod_mwh, 1),
+            'prix_mwh':      round(prix_n, 2),
+            'revenus':       round(revenus_n, 0),
+            'om':            round(om_n, 0),
+            'assurance':     round(ass_n, 0),
+            'opex':          round(opex_n, 0),
+            'ebitda':        round(ebitda_n, 0),
+            'interets':      round(interets_n, 0),
+            'capital_rembourse': round(principal_n, 0),
+            'service_dette': round(dette_svc_n, 0),
+            'fcf_equity':    round(fcf_n, 0),
+            'fcf_cumule':    round(total_fcf, 0),
+        })
+
+    # ── TRI (IRR) par méthode Newton-Raphson ──────────────────────────────────
+    def _irr(cashflows, guess=0.1, max_iter=200):
+        """Calcule le TRI par Newton-Raphson."""
+        r = guess
+        for _ in range(max_iter):
+            npv  = sum(cf / (1 + r) ** t for t, cf in enumerate(cashflows))
+            dnpv = sum(-t * cf / (1 + r) ** (t + 1) for t, cf in enumerate(cashflows))
+            if abs(dnpv) < 1e-12:
+                break
+            r_new = r - npv / dnpv
+            if abs(r_new - r) < 1e-8:
+                r = r_new
+                break
+            r = max(-0.99, r_new)
+        return r
+
+    try:
+        tri_equity  = round(_irr(equity_cashflows) * 100, 2)
+    except Exception:
+        tri_equity  = None
+
+    try:
+        tri_projet  = round(_irr(project_cashflows) * 100, 2)
+    except Exception:
+        tri_projet  = None
+
+    # ── VAN fonds propres ─────────────────────────────────────────────────────
+    van_equity = sum(cf / (1 + taux_actualisation) ** t for t, cf in enumerate(equity_cashflows))
+    van_equity = round(van_equity, 0)
+
+    # ── LCOE (€/MWh) ─────────────────────────────────────────────────────────
+    # LCOE = (CAPEX + PV(OpEx)) / PV(Production)
+    pv_opex = sum(
+        capex * (cout_om_pct + assurance_pct) * (1 + inflation_om) ** (n - 1) / (1 + taux_actualisation) ** n
+        for n in range(1, duree_contrat + 1)
+    )
+    pv_prod = sum(
+        puissance_kwc * productible_kwh_kwc * (1 - degradation) ** (n - 1) / 1000
+        / (1 + taux_actualisation) ** n
+        for n in range(1, duree_contrat + 1)
+    )
+    lcoe = round((capex + pv_opex) / pv_prod, 2) if pv_prod > 0 else None
+
+    # ── Ratio couverture service dette (DSCR moyen premières années) ─────────
+    dscr_list = [
+        row['ebitda'] / row['service_dette']
+        for row in tableau
+        if row['service_dette'] > 0
+    ]
+    dscr_moyen = round(sum(dscr_list) / len(dscr_list), 2) if dscr_list else None
+
+    # ── Revenu cumulé 20 ans ──────────────────────────────────────────────────
+    revenu_brut_total = round(total_revenus, 0)
+
+    return jsonify({
+        'ok': True,
+        'capex': round(capex, 0),
+        'equity': round(equity, 0),
+        'dette': round(dette, 0),
+        'annuite_dette': round(annuite_dette, 0) if dette > 0 else 0,
+        'tri_equity': tri_equity,
+        'tri_projet': tri_projet,
+        'van_equity': van_equity,
+        'lcoe': lcoe,
+        'dscr_moyen': dscr_moyen,
+        'revenu_brut_total': revenu_brut_total,
+        'total_opex': round(total_opex, 0),
+        'fcf_cumule_total': round(total_fcf, 0),
+        'total_production_mwh': round(total_production, 1),
+        'tableau': tableau,
+    })
+
+
+@ao_pv_bp.route('/api/plan-affaires', methods=['GET'])
+def get_plan_affaires_proposition():
+    """Charge les paramètres financiers depuis prospect_proposals pour pré-remplir le plan d'affaires."""
+    prospect_id = request.args.get('prospect_id')
+    if not prospect_id:
+        return jsonify({'ok': False, 'error': 'prospect_id requis'}), 400
+    try:
+        from database_adapter import execute_query
+        rows = execute_query(
+            '''SELECT puissance_kwc, prix_kwc, production_annuelle_kwh,
+                      productible_mwh, tarif_rachat, investissement_total,
+                      revenus_annuels, rentabilite_pct, roi_annees, notes
+               FROM prospect_proposals
+               WHERE prospect_id = %s
+               ORDER BY date_creation DESC LIMIT 1''',
+            (prospect_id,)
+        )
+        if not rows:
+            return jsonify({'ok': False, 'error': 'Aucune proposition trouvée'})
+        row = rows[0]
+        puissance  = float(row.get('puissance_kwc') or 0)
+        prix_kwc   = float(row.get('prix_kwc') or 850)
+        prod_kwh   = float(row.get('production_annuelle_kwh') or row.get('productible_mwh', 0) or 0)
+        # productible_kwh_kwc = prod_an / puissance
+        kwh_kwc = round(prod_kwh / puissance, 1) if puissance > 0 else 1100
+        tarif    = float(row.get('tarif_rachat') or 82)
+        return jsonify({
+            'ok': True,
+            'puissance_kwc':      puissance,
+            'prix_kwc':           prix_kwc,
+            'productible_kwh_kwc': kwh_kwc,
+            't0':                 tarif,
+        })
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@ao_pv_bp.route('/api/export-plan-affaires-excel', methods=['POST'])
+def export_plan_affaires_excel():
+    """Génère le plan d'affaires 20 ans en Excel (format Pièce 5 CRE)."""
+    data = request.get_json()
+    try:
+        buffer = _generer_excel_plan_affaires(data)
+        nom_projet = data.get("nom_projet", "projet").replace(" ", "_")
+        return send_file(
+            buffer,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f"plan_affaires_AO_PV_P12_{nom_projet}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+        )
+    except Exception as e:
+        return jsonify({"error": f"Erreur génération Excel : {str(e)}"}), 500
+
+
 @ao_pv_bp.route('/api/export-pdf', methods=['POST'])
 def export_pdf():
     """Génère le formulaire de candidature pré-rempli en PDF."""
@@ -746,6 +988,185 @@ PRIX T0: {data.get('prix_reference', 'N/A')} €/MWh
 ECS: {data.get('ecs_valeur', 'N/A')} kg CO2/kWc
 """
     buffer = io.BytesIO(content.encode('utf-8'))
+    buffer.seek(0)
+    return buffer
+
+
+def _generer_excel_plan_affaires(data):
+    """Génère le plan d'affaires prévisionnel sur 20 ans en Excel (format Pièce 5 CRE AO PPE2)."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side, numbers
+    except ImportError:
+        raise Exception("openpyxl non installé. Installez-le avec: pip install openpyxl")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Plan d'affaires"
+
+    # ── Styles ────────────────────────────────────────────────────────────────
+    orange_fill = PatternFill("solid", fgColor="F7971E")
+    dark_fill   = PatternFill("solid", fgColor="1a1a2e")
+    green_fill  = PatternFill("solid", fgColor="006B52")
+    grey_fill   = PatternFill("solid", fgColor="F0F0F0")
+    red_fill    = PatternFill("solid", fgColor="C0392B")
+
+    bold_wh  = Font(bold=True, color="FFFFFF")
+    bold_or  = Font(bold=True, color="F7971E")
+    bold_blk = Font(bold=True)
+    border_thin = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    right  = Alignment(horizontal='right', vertical='center')
+
+    def _cell(ws, row, col, value, font=None, fill=None, align=None, fmt=None, border=None):
+        c = ws.cell(row=row, column=col, value=value)
+        if font:   c.font = font
+        if fill:   c.fill = fill
+        if align:  c.alignment = align
+        if fmt:    c.number_format = fmt
+        if border: c.border = border
+        return c
+
+    # ── Titre ─────────────────────────────────────────────────────────────────
+    ws.merge_cells('A1:K1')
+    _cell(ws, 1, 1, f"PIÈCE 5 – PLAN D'AFFAIRES PRÉVISIONNEL AO PPE2 PV BÂTIMENT – PÉRIODE {PERIODE_ACTUELLE}",
+          font=Font(bold=True, size=13, color="FFFFFF"), fill=dark_fill, align=center)
+
+    nom_projet   = data.get('nom_projet', '—')
+    raison_soc   = data.get('raison_sociale', '—')
+    puissance    = data.get('puissance_kwc', 0)
+    prix_kwc     = data.get('pa_prix_kwc') or data.get('prix_kwc', 850)
+    capex        = data.get('capex', 0)
+    equity       = data.get('equity', 0)
+    dette        = data.get('dette', 0)
+    tri_equity   = data.get('tri_equity')
+    tri_projet   = data.get('tri_projet')
+    van_equity   = data.get('van_equity')
+    lcoe         = data.get('lcoe')
+    dscr_moyen   = data.get('dscr_moyen')
+
+    ws.merge_cells('A2:K2')
+    _cell(ws, 2, 1,
+          f"Projet : {nom_projet}  |  Candidat : {raison_soc}  |  Puissance : {puissance} kWc  |  CAPEX : {capex:,.0f} €  |  Date : {datetime.now().strftime('%d/%m/%Y')}",
+          font=Font(size=9), fill=grey_fill, align=center)
+
+    # ── Paramètres financiers (résumé) ────────────────────────────────────────
+    params_headers = ["CAPEX total (€)", "Fonds propres (€)", "Dette (€)", "TRI fonds propres", "TRI projet", "VAN 5% (€)", "LCOE (€/MWh)", "DSCR moyen"]
+    params_values  = [
+        f"{capex:,.0f}",
+        f"{equity:,.0f}",
+        f"{dette:,.0f}",
+        f"{tri_equity} %" if tri_equity is not None else "—",
+        f"{tri_projet} %" if tri_projet is not None else "—",
+        f"{van_equity:,.0f}" if van_equity is not None else "—",
+        f"{lcoe}" if lcoe is not None else "—",
+        f"{dscr_moyen}" if dscr_moyen is not None else "—",
+    ]
+
+    r = 4
+    for col, (h, v) in enumerate(zip(params_headers, params_values), 1):
+        _cell(ws, r,     col, h, font=bold_wh, fill=orange_fill, align=center, border=border_thin)
+        _cell(ws, r + 1, col, v, font=bold_blk, fill=grey_fill,  align=center, border=border_thin)
+
+    # ── Tableau annuel ────────────────────────────────────────────────────────
+    headers_row = r + 3
+    col_headers = [
+        "Année", "Production (MWh)", "Prix T₀ (€/MWh)", "Revenus (€)",
+        "O&M (€)", "Assurance (€)", "EBITDA (€)",
+        "Intérêts (€)", "Capital remboursé (€)", "Flux net équité (€)", "Flux cumulé (€)"
+    ]
+    for col, h in enumerate(col_headers, 1):
+        c = _cell(ws, headers_row, col, h, font=bold_wh, fill=dark_fill, align=center, border=border_thin)
+
+    tableau = data.get('tableau', [])
+    for idx, row in enumerate(tableau):
+        data_row = headers_row + 1 + idx
+        row_fill = grey_fill if idx % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
+        values = [
+            row.get('annee'),
+            row.get('production_mwh'),
+            row.get('prix_mwh'),
+            row.get('revenus'),
+            row.get('om'),
+            row.get('assurance'),
+            row.get('ebitda'),
+            row.get('interets') if row.get('interets', 0) > 0 else None,
+            row.get('capital_rembourse') if row.get('capital_rembourse', 0) > 0 else None,
+            row.get('fcf_equity'),
+            row.get('fcf_cumule'),
+        ]
+        for col, val in enumerate(values, 1):
+            fmt = '#,##0' if col >= 4 else ('#,##0.0' if col == 2 else ('#,##0.00' if col == 3 else 'General'))
+            font = bold_or if col == 1 else None
+            c = _cell(ws, data_row, col, val, font=font, fill=row_fill, align=right if col > 1 else center, fmt=fmt, border=border_thin)
+            # Couleur flux
+            if col == 10 and val is not None:  # flux net
+                c.font = Font(bold=True, color="006B52" if val >= 0 else "C0392B")
+            if col == 11 and val is not None:  # flux cumulé
+                c.font = Font(bold=True, color="006B52" if val >= 0 else "E17055")
+
+    # Ligne totaux
+    total_row = headers_row + 1 + len(tableau)
+    totals = [
+        "TOTAL",
+        data.get('total_production_mwh'),
+        "—",
+        data.get('revenu_brut_total'),
+        None, None,
+        None,
+        None, None,
+        data.get('fcf_cumule_total'),
+        "—",
+    ]
+    for col, val in enumerate(totals, 1):
+        fmt = '#,##0' if col >= 4 and isinstance(val, (int, float)) else 'General'
+        _cell(ws, total_row, col, val, font=bold_wh, fill=dark_fill, align=right if col > 1 else center, fmt=fmt, border=border_thin)
+
+    # ── Largeurs des colonnes ─────────────────────────────────────────────────
+    col_widths = [8, 18, 16, 16, 14, 14, 16, 16, 20, 18, 16]
+    for i, w in enumerate(col_widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+
+    # ── Freeze pane et filtres ────────────────────────────────────────────────
+    ws.freeze_panes = f'A{headers_row + 1}'
+    ws.auto_filter.ref = f'A{headers_row}:K{total_row - 1}'
+
+    # ── Onglet Hypothèses ─────────────────────────────────────────────────────
+    ws2 = wb.create_sheet("Hypothèses")
+    hyp_headers = ["Paramètre", "Valeur", "Unité", "Commentaire"]
+    for col, h in enumerate(hyp_headers, 1):
+        _cell(ws2, 1, col, h, font=bold_wh, fill=dark_fill, align=center, border=border_thin)
+    hyps = [
+        ("Puissance installée",       data.get('puissance_kwc', '—'),            "kWc",          "Puissance crête AC"),
+        ("CAPEX unitaire",            data.get('pa_prix_kwc') or data.get('prix_kwc', '—'),         "€/kWc",        "Coût total installation / kWc"),
+        ("CAPEX total",               capex,                                     "€",            "= Puissance × CAPEX unitaire"),
+        ("Productible annuel",        data.get('productible_kwh_kwc', '—'),      "kWh/kWc/an",   "Source : pré-étude (calpinage)"),
+        ("Prix T₀",                   data.get('t0', '—'),                       "€/MWh",        "Prix de référence offre CRE"),
+        ("Indexation K",              data.get('indexation_k', '—'),             "%/an",         "Indexation annuelle du tarif"),
+        ("Dégradation modules",       data.get('degradation', 0.5),              "%/an",         "Perte rendement annuelle"),
+        ("O&M",                       data.get('cout_om_pct', '—'),              "% CAPEX/an",   "Exploitation & Maintenance"),
+        ("Inflation O&M",             data.get('inflation_om', 2.0),             "%/an",         ""),
+        ("Assurance",                 data.get('assurance_pct', '—'),            "% CAPEX/an",   "Prime d'assurance annuelle"),
+        ("Part dette",                data.get('part_dette', '—'),               "%",            "Taux de levier"),
+        ("Montant dette",             dette,                                     "€",            "= CAPEX × Part dette"),
+        ("Taux d'intérêt",            data.get('taux_interet', '—'),             "%/an",         "Taux emprunt bancaire"),
+        ("Durée emprunt",             data.get('duree_emprunt', '—'),            "ans",          ""),
+        ("Taux actualisation",        data.get('taux_actualisation', 5.0),       "%/an",         "Pour calcul VAN"),
+        ("Durée contrat CRE",         20,                                        "ans",          "Contrat obligatoirement 20 ans PPE2"),
+    ]
+    for row_i, (p, v, u, c) in enumerate(hyps, 2):
+        _cell(ws2, row_i, 1, p, fill=grey_fill if row_i % 2 == 0 else PatternFill("solid", fgColor="FFFFFF"), border=border_thin)
+        _cell(ws2, row_i, 2, v, font=bold_blk, border=border_thin, align=right)
+        _cell(ws2, row_i, 3, u, border=border_thin, align=center)
+        _cell(ws2, row_i, 4, c, border=border_thin)
+    for w, col in [(35, 1), (15, 2), (14, 3), (45, 4)]:
+        ws2.column_dimensions[openpyxl.utils.get_column_letter(col)].width = w
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
     buffer.seek(0)
     return buffer
 
