@@ -637,6 +637,14 @@ try:
 except Exception as e:
     print(f"⚠️ [HELIA] Impossible d'enregistrer le blueprint Helia IA: {e}")
 
+# Module AO PV Bâtiment CRE PPE2
+try:
+    from ao_pv_batiment import ao_pv_bp
+    app.register_blueprint(ao_pv_bp)
+    print("📋 [AO PV] Blueprint AO PV Bâtiment enregistré (/ao-pv-batiment)")
+except Exception as e:
+    print(f"⚠️ [AO PV] Impossible d'enregistrer le blueprint AO PV: {e}")
+
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
 def redirect_register():

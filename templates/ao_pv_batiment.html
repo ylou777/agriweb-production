@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AO PV Bâtiment CRE – Réponse automatique</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --orange: #F7971E;
+            --orange-dark: #e07a00;
+            --dark: #1a1a2e;
+            --dark2: #16213e;
+            --green: #00b894;
+            --red: #e74c3c;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--dark) 0%, var(--dark2) 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .ao-header {
+            background: linear-gradient(90deg, var(--dark) 0%, #0f3460 100%);
+            border-bottom: 3px solid var(--orange);
+            padding: 18px 32px;
+        }
+
+        .ao-header .badge-ao {
+            background: var(--orange);
+            color: #fff;
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 700;
+        }
+
+        /* Wizard Steps */
+        .wizard-nav {
+            display: flex;
+            gap: 0;
+            background: rgba(255,255,255,0.04);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        .wizard-step {
+            flex: 1;
+            padding: 14px 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-right: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.78rem;
+            color: #888;
+            position: relative;
+        }
+
+        .wizard-step:last-child { border-right: none; }
+
+        .wizard-step.active {
+            background: var(--orange);
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .wizard-step.completed {
+            background: rgba(0, 184, 148, 0.2);
+            color: var(--green);
+        }
+
+        .wizard-step .step-num {
+            display: block;
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 2px;
+        }
+
+        /* Cards */
+        .ao-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .ao-card-title {
+            font-weight: 700;
+            color: var(--orange);
+            font-size: 1rem;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Form controls */
+        .form-control, .form-select {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.15);
+            color: #e0e0e0;
+            border-radius: 8px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: rgba(255,255,255,0.12);
+            border-color: var(--orange);
+            color: #fff;
+            box-shadow: 0 0 0 3px rgba(247,151,30,0.2);
+        }
+
+        .form-control::placeholder { color: #888; }
+
+        .form-label {
+            font-size: 0.82rem;
+            color: #aaa;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        select option { background: #1a1a2e; color: #e0e0e0; }
+
+        /* Prospect selector */
+        .prospect-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .prospect-card:hover, .prospect-card.selected {
+            border-color: var(--orange);
+            background: rgba(247,151,30,0.1);
+        }
+
+        .prospect-card.selected {
+            box-shadow: 0 0 0 2px var(--orange);
+        }
+
+        /* Score simul */
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin: 0 auto;
+            border: 4px solid var(--orange);
+            color: var(--orange);
+        }
+
+        .note-bar-wrapper {
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            height: 22px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .note-bar-fill {
+            height: 100%;
+            border-radius: 8px;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 6px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        /* Alertes eligibilité */
+        .eligible-check {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+        }
+
+        .eligible-check.ok { background: rgba(0,184,148,0.12); border-left: 3px solid var(--green); }
+        .eligible-check.warn { background: rgba(243,156,18,0.12); border-left: 3px solid #f39c12; }
+        .eligible-check.error { background: rgba(231,76,60,0.12); border-left: 3px solid var(--red); }
+
+        /* Boutons */
+        .btn-orange {
+            background: var(--orange);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 22px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-orange:hover { background: var(--orange-dark); color: #fff; transform: translateY(-1px); }
+        .btn-outline-orange { border: 2px solid var(--orange); color: var(--orange); border-radius: 8px; padding: 8px 20px; font-weight: 600; transition: all 0.3s; background: transparent; }
+        .btn-outline-orange:hover { background: var(--orange); color: #fff; }
+
+        /* Loader */
+        .loading-spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-left: 6px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* Tableau comparaison */
+        .cmp-table th { background: rgba(247,151,30,0.15); color: var(--orange); font-size: 0.8rem; }
+        .cmp-table td { font-size: 0.82rem; color: #ccc; }
+        .cmp-table { border-collapse: separate; border-spacing: 0; }
+        .cmp-table td, .cmp-table th { border: 1px solid rgba(255,255,255,0.08); padding: 8px 12px; }
+
+        /* Export btns */
+        .export-btn-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        .export-btn {
+            flex: 1;
+            min-width: 160px;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .export-pdf { background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; }
+        .export-excel { background: linear-gradient(135deg, #27ae60, #1e8449); color: #fff; }
+        .export-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .wizard-step span:not(.step-num) { display: none; }
+        }
+
+        .kwc-badge {
+            display: inline-block;
+            background: var(--orange);
+            color: #fff;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .carbone-gauge {
+            position: relative;
+            height: 14px;
+            background: linear-gradient(90deg, #27ae60, #f39c12, #e74c3c);
+            border-radius: 8px;
+            margin: 8px 0;
+        }
+
+        .carbone-needle {
+            position: absolute;
+            top: -4px;
+            width: 4px;
+            height: 22px;
+            background: #fff;
+            border-radius: 2px;
+            transform: translateX(-50%);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+            transition: left 0.8s ease;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="ao-header d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center gap-3">
+        <span class="badge-ao">AO CRE PPE2</span>
+        <div>
+            <h5 class="mb-0 fw-bold" style="color: white;">
+                <i class="bi bi-sun-fill" style="color: var(--orange);"></i>
+                Réponse automatique – AO PV Bâtiment
+            </h5>
+            <small style="color: #aaa;">Centrales sur bâtiments > 500 kWc · Période {{ periode }} · Date limite : {{ date_limite }}</small>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-left"></i> Retour</a>
+        <a href="#" class="btn btn-sm btn-outline-warning" id="btnSauvegarder">
+            <i class="bi bi-save"></i> Sauvegarder
+        </a>
+    </div>
+</div>
+
+<div class="container-fluid px-4 py-4" style="max-width: 1300px;">
+
+    <!-- Wizard Navigation -->
+    <div class="wizard-nav" id="wizardNav">
+        <div class="wizard-step active" data-step="1" onclick="goStep(1)">
+            <span class="step-num">1</span>
+            <span>Projet source</span>
+        </div>
+        <div class="wizard-step" data-step="2" onclick="goStep(2)">
+            <span class="step-num">2</span>
+            <span>Installation</span>
+        </div>
+        <div class="wizard-step" data-step="3" onclick="goStep(3)">
+            <span class="step-num">3</span>
+            <span>Bilan carbone</span>
+        </div>
+        <div class="wizard-step" data-step="4" onclick="goStep(4)">
+            <span class="step-num">4</span>
+            <span>Offre financière</span>
+        </div>
+        <div class="wizard-step" data-step="5" onclick="goStep(5)">
+            <span class="step-num">5</span>
+            <span>Simulation notes</span>
+        </div>
+        <div class="wizard-step" data-step="6" onclick="goStep(6)">
+            <span class="step-num">6</span>
+            <span>Éligibilité & Export</span>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ÉTAPE 1 — Sélection du projet source
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="panel active" id="panel-1">
+        <div class="row g-3">
+            <!-- Recherche prospect -->
+            <div class="col-lg-5">
+                <div class="ao-card h-100">
+                    <div class="ao-card-title">
+                        <i class="bi bi-search"></i> Sélectionner un projet CRM
+                    </div>
+                    <input type="text" class="form-control mb-3" id="searchProspect"
+                           placeholder="Rechercher un prospect..." oninput="filterProspects(this.value)">
+
+                    <div id="prospectsList" style="max-height: 420px; overflow-y: auto;">
+                        {% if prospects %}
+                            {% for p in prospects %}
+                            <div class="prospect-card mb-2" data-id="{{ p.id }}"
+                                 onclick="selectProspect('{{ p.id }}', this)">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-bold" style="color:#fff; font-size:0.88rem;">
+                                            {{ p.company_name }}
+                                        </div>
+                                        <small style="color:#aaa;">
+                                            <i class="bi bi-geo-alt"></i> {{ p.city }}
+                                            {% if p.department %} ({{ p.department }}){% endif %}
+                                        </small>
+                                    </div>
+                                    <span class="badge
+                                        {% if p.status == 'interesse' %}bg-warning text-dark
+                                        {% elif p.status == 'negocie' %}bg-success
+                                        {% elif p.status == 'converti' %}bg-primary
+                                        {% else %}bg-secondary{% endif %}
+                                        " style="font-size:0.68rem;">
+                                        {{ p.status }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="text-center py-4" style="color:#888;">
+                                <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                                Aucun prospect disponible.<br>
+                                <small>Créez des prospects dans le CRM d'abord.</small>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mt-3 pt-3" style="border-top: 1px solid rgba(255,255,255,0.08);">
+                        <small style="color:#888;">Ou commencer sans projet CRM :</small><br>
+                        <button class="btn btn-sm btn-outline-orange mt-2" onclick="startBlank()">
+                            <i class="bi bi-plus-circle"></i> Nouveau projet vide
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Aperçu prospect sélectionné -->
+            <div class="col-lg-7">
+                <div class="ao-card h-100" id="prospectPreview">
+                    <div class="ao-card-title">
+                        <i class="bi bi-building"></i> Aperçu du projet
+                    </div>
+                    <div id="previewContent" class="text-center py-5" style="color:#666;">
+                        <i class="bi bi-arrow-left-circle fs-1 d-block mb-3" style="color:#444;"></i>
+                        Sélectionnez un projet sur la gauche pour pré-remplir le formulaire
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Infos AO -->
+        <div class="ao-card mt-3">
+            <div class="ao-card-title"><i class="bi bi-info-circle"></i> Rappel des conditions d'admissibilité – Période {{ periode }}</div>
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:14px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:800; color:var(--orange);">&gt; 500 kWc</div>
+                        <div style="font-size:0.78rem; color:#aaa;">Puissance minimale</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:14px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:800; color:var(--orange);">{{ carbone_ref.sup }}</div>
+                        <div style="font-size:0.78rem; color:#aaa;">kgCO₂/kWc max (ECS plafond)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:14px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:800; color:var(--orange);">{{ date_limite }}</div>
+                        <div style="font-size:0.78rem; color:#aaa;">Date limite dépôt</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div style="background:rgba(255,255,255,0.04); border-radius:10px; padding:14px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:800; color:var(--orange);">20 ans</div>
+                        <div style="font-size:0.78rem; color:#aaa;">Durée contrat complémentaire</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+            <button class="btn btn-orange px-4" onclick="goStep(2)">
+                Suivant <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ÉTAPE 2 — Description de l'installation
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="panel" id="panel-2">
+        <div class="row g-3">
+            <!-- Candidat -->
+            <div class="col-lg-6">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-person-badge"></i> A. Identification du candidat</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">Raison sociale *</label>
+                            <input type="text" class="form-control" id="raison_sociale" placeholder="SARL, SAS, Collectivité…">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Représentant légal *</label>
+                            <input type="text" class="form-control" id="representant_legal">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">SIRET</label>
+                            <input type="text" class="form-control" id="siret" placeholder="14 chiffres">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Adresse siège social *</label>
+                            <input type="text" class="form-control" id="adresse">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Code postal</label>
+                            <input type="text" class="form-control" id="code_postal">
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">Commune</label>
+                            <input type="text" class="form-control" id="commune">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="contact_email">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Téléphone</label>
+                            <input type="tel" class="form-control" id="contact_tel">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Installation -->
+            <div class="col-lg-6">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-building-fill"></i> B. Description de l'installation</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">Nom du projet *</label>
+                            <input type="text" class="form-control" id="nom_projet" placeholder="Ex: Toiture Entrepôt Logistique 01">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Type d'installation *</label>
+                            <select class="form-select" id="type_installation">
+                                <option value="batiment">Bâtiment</option>
+                                <option value="serre_agri">Serre agrivoltaïque</option>
+                                <option value="ombriere">Ombrière</option>
+                                <option value="ombriere_agri">Ombrière agrivoltaïque</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Département *</label>
+                            <input type="text" class="form-control" id="departement" placeholder="Ex: 31" maxlength="3">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Adresse du site *</label>
+                            <input type="text" class="form-control" id="adresse_site">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Commune du site</label>
+                            <input type="text" class="form-control" id="commune_site">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Surface toiture (m²)</label>
+                            <input type="number" class="form-control" id="surface_toiture_m2"
+                                   placeholder="m²" oninput="estimerPuissance()">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                Puissance installée (kWc) *
+                                <span id="puissanceBadge" class="kwc-badge ms-1" style="display:none;"></span>
+                            </label>
+                            <input type="number" class="form-control" id="puissance_kwc"
+                                   placeholder="≥ 500 kWc" min="500" step="1" oninput="validerPuissance()">
+                            <div id="puissanceWarn" class="mt-1" style="font-size:0.78rem; color: var(--red); display:none;">
+                                ⚠ Puissance inférieure au seuil de 500 kWc
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nature d'exploitation *</label>
+                            <select class="form-select" id="nature_exploitation">
+                                <option value="vente_totale">Vente totale</option>
+                                <option value="autoconso_individuelle">Autoconsommation individuelle</option>
+                                <option value="autoconso_collective">Autoconsommation collective</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Référence autorisation d'urbanisme *</label>
+                            <input type="text" class="form-control" id="ref_autorisation"
+                                   placeholder="N° PC ou DP + non-opposition">
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" id="has_autorisation_urbanisme">
+                                <label class="form-check-label" style="font-size:0.82rem;">
+                                    Autorisation d'urbanisme valide en ma possession
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modules -->
+            <div class="col-12">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-grid-3x3"></i> Modules photovoltaïques</div>
+                    <div class="row g-2">
+                        <div class="col-md-3">
+                            <label class="form-label">Technologie *</label>
+                            <select class="form-select" id="technologie_module" onchange="onTechChange()">
+                                <option value="mono">Silicium monocristallin (Mono)</option>
+                                <option value="multi">Silicium multicristallin (Multi)</option>
+                                <option value="monolike">Monolike</option>
+                                <option value="a-si">Silicium amorphe (a-Si)</option>
+                                <option value="cdte">CdTe</option>
+                                <option value="cigs">CIGS</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Fabricant</label>
+                            <input type="text" class="form-control" id="fabricant_module"
+                                   placeholder="Ex: Longi, JA Solar, REC…">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Référence module</label>
+                            <input type="text" class="form-control" id="ref_module" placeholder="Ex: Hi-MO7 580W">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Puissance unitaire (Wc)</label>
+                            <input type="number" class="form-control" id="puissance_module_wc"
+                                   placeholder="400-700 Wc" value="420">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                <i class="bi bi-flag"></i> Pays fabrication MODULE *
+                            </label>
+                            <select class="form-select" id="pays_module" onchange="onPaysChange()">
+                                {% for pays in gwp_pays %}
+                                <option value="{{ pays }}" {% if pays == 'Chine' %}selected{% endif %}>
+                                    {{ pays }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                <i class="bi bi-flag"></i> Pays fabrication CELLULE *
+                            </label>
+                            <select class="form-select" id="pays_cellule" onchange="onPaysChange()">
+                                {% for pays in gwp_pays %}
+                                <option value="{{ pays }}" {% if pays == 'Chine' %}selected{% endif %}>
+                                    {{ pays }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                <i class="bi bi-flag"></i> Pays fabrication WAFER *
+                            </label>
+                            <select class="form-select" id="pays_wafer" onchange="onPaysChange()">
+                                {% for pays in gwp_pays %}
+                                <option value="{{ pays }}" {% if pays == 'Chine' %}selected{% endif %}>
+                                    {{ pays }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <!-- Certifications -->
+                        <div class="col-md-6 mt-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="iso_9001_modules">
+                                <label class="form-check-label" style="font-size:0.82rem;">
+                                    Certification ISO 9001 du fabricant de modules ✓
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="iso_14001_modules">
+                                <label class="form-check-label" style="font-size:0.82rem;">
+                                    Certification ISO 14001 du fabricant de modules ✓
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mt-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="iso_9001_elec">
+                                <label class="form-check-label" style="font-size:0.82rem;">
+                                    ISO 9001 fabricant matériels électriques (onduleurs) ✓
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="iso_14001_elec">
+                                <label class="form-check-label" style="font-size:0.82rem;">
+                                    ISO 14001 fabricant matériels électriques (onduleurs) ✓
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-outline-orange" onclick="goStep(1)">
+                <i class="bi bi-arrow-left"></i> Précédent
+            </button>
+            <button class="btn btn-orange px-4" onclick="goStep(3)">
+                Suivant – Bilan carbone <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ÉTAPE 3 — Bilan carbone simplifié
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="panel" id="panel-3">
+        <div class="row g-3">
+            <div class="col-lg-5">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-tree"></i> Calcul ECS (Évaluation Carbone Simplifiée)</div>
+                    <p style="font-size:0.82rem; color:#aaa;">
+                        Le bilan carbone G (en kg CO₂-éq/kWc) est calculé selon la méthode Annexe 2 du CDC,
+                        basée sur les 3 pays de fabrication principaux du module.
+                    </p>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-12">
+                            <label class="form-label">Pays fabrication MODULE</label>
+                            <select class="form-select" id="pays_module_co2" onchange="lancerCalculCarbone()">
+                                {% for pays in gwp_pays %}
+                                <option value="{{ pays }}" {% if pays == 'Chine' %}selected{% endif %}>{{ pays }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Pays fabrication CELLULE</label>
+                            <select class="form-select" id="pays_cellule_co2" onchange="lancerCalculCarbone()">
+                                {% for pays in gwp_pays %}
+                                <option value="{{ pays }}" {% if pays == 'Chine' %}selected{% endif %}>{{ pays }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Pays fabrication WAFER (plaquette)</label>
+                            <select class="form-select" id="pays_wafer_co2" onchange="lancerCalculCarbone()">
+                                {% for pays in gwp_pays %}
+                                <option value="{{ pays }}" {% if pays == 'Chine' %}selected{% endif %}>{{ pays }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Technologie</label>
+                            <select class="form-select" id="tech_co2" onchange="lancerCalculCarbone()">
+                                <option value="mono">Monocristallin</option>
+                                <option value="multi">Multicristallin</option>
+                                <option value="monolike">Monolike</option>
+                                <option value="a-si">a-Si</option>
+                                <option value="cdte">CdTe</option>
+                                <option value="cigs">CIGS</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-orange w-100" onclick="lancerCalculCarbone()">
+                        <i class="bi bi-calculator"></i> Recalculer le bilan carbone
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-bar-chart-fill"></i> Résultat ECS</div>
+
+                    <div id="carbonResult" class="text-center py-4" style="color:#888;">
+                        Configurez les pays de fabrication pour calculer le bilan carbone
+                    </div>
+
+                    <!-- Jauge carbone -->
+                    <div id="carboneGaugeBlock" style="display:none;">
+                        <div class="d-flex justify-content-between mb-1" style="font-size:0.78rem; color:#888;">
+                            <span>Meilleur : 200</span>
+                            <span>Seuil : {{ carbone_ref.inf }}</span>
+                            <span>Plafond : {{ carbone_ref.sup }}</span>
+                        </div>
+                        <div class="carbone-gauge">
+                            <div class="carbone-needle" id="carboneNeedle" style="left:70%;"></div>
+                        </div>
+                        <div class="text-center mt-2">
+                            <span class="fw-bold" style="font-size:2rem; color:var(--orange);" id="ecsValue">—</span>
+                            <span style="color:#aaa; font-size:0.85rem;"> kg CO₂-éq/kWc</span>
+                        </div>
+                        <div class="text-center mt-1">
+                            <span id="ecsStatus" class="badge px-3 py-2" style="font-size:0.85rem;"></span>
+                        </div>
+                        <div class="mt-3 p-3" style="background:rgba(255,255,255,0.04); border-radius:8px; font-size:0.82rem;">
+                            <div class="d-flex justify-content-between">
+                                <span style="color:#aaa;">G brut calculé :</span>
+                                <span id="ecsBrut" style="color:#ccc;">—</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <span style="color:#aaa;">G arrondi (×10) :</span>
+                                <span id="ecsArrondi" style="color:var(--orange); font-weight:700;">—</span>
+                            </div>
+                            <div class="d-flex justify-content-between mt-1">
+                                <span style="color:#aaa;">Note NC estimée :</span>
+                                <span id="noteNC" style="color:var(--green); font-weight:700;">—</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparatif pays -->
+                <div class="ao-card mt-3">
+                    <div class="ao-card-title"><i class="bi bi-globe"></i> Comparatif par pays d'origine module</div>
+                    <div style="max-height:220px; overflow-y:auto;">
+                        <table class="table cmp-table mb-0">
+                            <thead><tr>
+                                <th>Pays (module)</th>
+                                <th>Module cristallin (kg/m²)</th>
+                                <th>ECS estimée</th>
+                                <th>Note NC /25</th>
+                            </tr></thead>
+                            <tbody id="compTableBody">
+                                <tr><td colspan="4" class="text-center text-muted py-3">
+                                    Calculez d'abord le bilan carbone
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-outline-orange" onclick="goStep(2)">
+                <i class="bi bi-arrow-left"></i> Précédent
+            </button>
+            <button class="btn btn-orange px-4" onclick="goStep(4)">
+                Suivant – Offre financière <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ÉTAPE 4 — Offre financière
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="panel" id="panel-4">
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-currency-euro"></i> C. Offre de prix</div>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label">
+                                Prix de référence T₀ (€/MWh) *
+                                <span class="badge bg-warning text-dark ms-2" style="font-size:0.68rem;">
+                                    ⚠ Plafond P12 confidentiel
+                                </span>
+                            </label>
+                            <input type="number" class="form-control form-control-lg" id="prix_reference"
+                                   placeholder="€/MWh" step="0.01" min="0" oninput="onPrixChange()">
+                            <div style="font-size:0.78rem; color:#888; margin-top:4px;">
+                                Référence P1-P3 : 96 €/MWh. P12 : confidentiel (estimation marché ~80-90 €/MWh).
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-switch mt-2">
+                                <input class="form-check-input" type="checkbox" id="indexation_k" checked>
+                                <label class="form-check-label" style="font-size:0.85rem;">
+                                    Activer l'indexation K (entre fin période candidature et mise en service)
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-12 mt-2">
+                            <label class="form-label">ECS retenue pour le dossier (kg CO₂-éq/kWc)</label>
+                            <input type="number" class="form-control" id="ecs_valeur"
+                                   placeholder="Valeur issue du calcul carbone" oninput="onEcsChange()">
+                            <div id="ecsRetenuInfo" style="font-size:0.78rem; margin-top:4px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financement collectif / Gouvernance partagée -->
+                <div class="ao-card mt-3">
+                    <div class="ao-card-title"><i class="bi bi-people-fill"></i> Financement collectif / Gouvernance partagée</div>
+                    <p style="font-size:0.8rem; color:#888;">FC et GP sont non cumulables. GP donne jusqu'à 5 pts, FC jusqu'à 2 pts.</p>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="engagement_fc"
+                               onchange="onEngagementChange()">
+                        <label class="form-check-label" style="font-size:0.85rem;">
+                            <strong>Financement collectif (FC)</strong> – +2 pts – 10% financement local (≥20 personnes ou collectivité)
+                        </label>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="engagement_gp"
+                               onchange="onEngagementChange()">
+                        <label class="form-check-label" style="font-size:0.85rem;">
+                            <strong>Gouvernance partagée (GP)</strong> – jusqu'à +5 pts
+                        </label>
+                    </div>
+
+                    <div id="gpDetails" style="display:none;">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="form-label">Part fonds propres citoyens/collectivités (%)</label>
+                                <input type="number" class="form-control" id="part_gp"
+                                       placeholder="Ex: 34 pour 1/3" min="0" max="100">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Nombre minimal de personnes physiques</label>
+                                <input type="number" class="form-control" id="nb_personnes_gp"
+                                       placeholder="Min 20" min="0">
+                            </div>
+                        </div>
+                        <div class="mt-2 p-2" style="background:rgba(0,184,148,0.08); border-radius:8px; font-size:0.78rem; color:#aaa;">
+                            • ≥1/3 et ≥20 personnes → 3 pts &nbsp;|&nbsp; ≥40% et ≥30 personnes → 4 pts &nbsp;|&nbsp; >50% et ≥50 personnes → 5 pts
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <!-- Garanties financières -->
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-shield-check"></i> Garanties financières</div>
+                    <div id="garantieCalc" class="p-3" style="background:rgba(255,255,255,0.04); border-radius:10px;">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span style="color:#aaa; font-size:0.85rem;">Puissance :</span>
+                            <span id="gPuissance" style="font-weight:700;">—</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span style="color:#aaa; font-size:0.85rem;">Garantie mise en œuvre :</span>
+                            <span id="gMontant" style="color:var(--orange); font-weight:700;">—</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2" id="gDemantelementRow" style="display:none!important;">
+                            <span style="color:#aaa; font-size:0.85rem;">Garantie démantèlement :</span>
+                            <span id="gDemantelement" style="color:#f39c12; font-weight:700;">—</span>
+                        </div>
+                        <div style="font-size:0.78rem; color:#888; margin-top:8px;">
+                            Calcul : 30 000 € × MWc · Dépôt : banque ou caisse des dépôts
+                        </div>
+                    </div>
+                    <select class="form-select mt-3" id="forme_garantie">
+                        <option value="bancaire">Garantie bancaire à 1ère demande</option>
+                        <option value="consignation">Consignation CDC</option>
+                        <option value="assurance">Garantie assurance</option>
+                    </select>
+
+                    <div class="mt-3">
+                        <label class="form-label">Plan d'affaires</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="plan_affaires_ok">
+                            <label class="form-check-label" style="font-size:0.82rem;">
+                                Plan d'affaires conforme au format CRE disponible
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Résumé offre en temps réel -->
+                <div class="ao-card mt-3">
+                    <div class="ao-card-title"><i class="bi bi-clipboard-check"></i> Résumé de l'offre</div>
+                    <div id="resumeOffre" style="font-size:0.85rem; color:#aaa;">
+                        Complétez les champs pour voir le résumé
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-outline-orange" onclick="goStep(3)">
+                <i class="bi bi-arrow-left"></i> Précédent
+            </button>
+            <button class="btn btn-orange px-4" onclick="lancerSimulation(); goStep(5)">
+                Simuler les notes <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ÉTAPE 5 — Simulation des notes
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="panel" id="panel-5">
+        <div class="row g-3">
+            <div class="col-lg-4">
+                <div class="ao-card text-center">
+                    <div class="ao-card-title justify-content-center">
+                        <i class="bi bi-trophy-fill"></i> Note totale simulée
+                    </div>
+                    <div class="score-circle mx-auto mb-3" id="scoreTotalCircle">—</div>
+                    <div style="font-size:0.8rem; color:#888;">/ 100 points (indicatif)</div>
+                    <div class="mt-3 p-2" style="background:rgba(255,255,255,0.04); border-radius:8px; font-size:0.78rem; color:#888;">
+                        ⚠ Simulation indicative. La note finale dépend des autres offres déposées (Pinf calculé après clôture).
+                    </div>
+                </div>
+
+                <div class="ao-card mt-3">
+                    <div class="ao-card-title"><i class="bi bi-sliders"></i> Optimiseur</div>
+                    <div style="font-size:0.82rem; color:#aaa; margin-bottom:8px;">Ajustez pour maximiser votre note :</div>
+                    <div class="mb-2">
+                        <label class="form-label" style="font-size:0.78rem;">Prix T₀ (€/MWh)</label>
+                        <input type="range" class="form-range" id="sliderPrix" min="60" max="96" step="0.5"
+                               value="80" oninput="updateSimulFromSliders()">
+                        <div class="d-flex justify-content-between" style="font-size:0.72rem; color:#888;">
+                            <span>60</span><span id="sliderPrixVal" style="color:var(--orange);">80</span><span>96</span>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label" style="font-size:0.78rem;">ECS (kg CO₂/kWc)</label>
+                        <input type="range" class="form-range" id="sliderECS" min="{{ carbone_ref.inf }}"
+                               max="{{ carbone_ref.sup }}" step="10" value="550"
+                               oninput="updateSimulFromSliders()">
+                        <div class="d-flex justify-content-between" style="font-size:0.72rem; color:#888;">
+                            <span>{{ carbone_ref.inf }}</span>
+                            <span id="sliderECSVal" style="color:var(--orange);">550</span>
+                            <span>{{ carbone_ref.sup }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-graph-up"></i> Détail des notes</div>
+
+                    <!-- NP -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-bold" style="color:#e0e0e0;">NP – Prix</span>
+                            <span>
+                                <span id="npNote" class="fw-bold" style="color:var(--orange);">—</span>
+                                <span style="color:#888;"> / 70 pts</span>
+                            </span>
+                        </div>
+                        <div class="note-bar-wrapper">
+                            <div class="note-bar-fill" id="npBar" style="width:0%; background:linear-gradient(90deg,#e74c3c,var(--orange));"></div>
+                        </div>
+                        <div id="npDetail" style="font-size:0.76rem; color:#888; margin-top:4px;"></div>
+                    </div>
+
+                    <!-- NC -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-bold" style="color:#e0e0e0;">NC – Bilan carbone</span>
+                            <span>
+                                <span id="ncNote" class="fw-bold" style="color:var(--green);">—</span>
+                                <span style="color:#888;"> / 25 pts</span>
+                            </span>
+                        </div>
+                        <div class="note-bar-wrapper">
+                            <div class="note-bar-fill" id="ncBar" style="width:0%; background:linear-gradient(90deg,#f39c12,var(--green));"></div>
+                        </div>
+                        <div id="ncDetail" style="font-size:0.76rem; color:#888; margin-top:4px;"></div>
+                    </div>
+
+                    <!-- NFC -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-bold" style="color:#e0e0e0;">NFC – Gouvernance / Financement</span>
+                            <span>
+                                <span id="nfcNote" class="fw-bold" style="color:#74b9ff;">—</span>
+                                <span style="color:#888;"> / 5 pts</span>
+                            </span>
+                        </div>
+                        <div class="note-bar-wrapper">
+                            <div class="note-bar-fill" id="nfcBar" style="width:0%; background:linear-gradient(90deg,#74b9ff,#0984e3);"></div>
+                        </div>
+                        <div id="nfcDetail" style="font-size:0.76rem; color:#888; margin-top:4px;"></div>
+                    </div>
+
+                    <!-- Total -->
+                    <div style="background:rgba(247,151,30,0.1); border-radius:10px; padding:14px; margin-top:8px;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold" style="font-size:1rem;">NOTE TOTALE</span>
+                            <span class="fw-bold" style="font-size:1.5rem; color:var(--orange);" id="noteTotale">—</span>
+                        </div>
+                        <div style="font-size:0.78rem; color:#888; margin-top:4px;" id="noteTotaleDetail"></div>
+                    </div>
+                </div>
+
+                <!-- Conseils d'optimisation -->
+                <div class="ao-card mt-3">
+                    <div class="ao-card-title"><i class="bi bi-lightbulb-fill" style="color:#ffd200;"></i> Conseils d'optimisation</div>
+                    <div id="conseilsOptim" style="font-size:0.84rem; color:#aaa;">
+                        Lancez la simulation pour obtenir des conseils personnalisés.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-outline-orange" onclick="goStep(4)">
+                <i class="bi bi-arrow-left"></i> Précédent
+            </button>
+            <button class="btn btn-orange px-4" onclick="lancerVerifEligibilite(); goStep(6)">
+                Vérifier éligibilité & Exports <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         ÉTAPE 6 — Éligibilité & Export
+    ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="panel" id="panel-6">
+        <div class="row g-3">
+            <!-- Checklist éligibilité -->
+            <div class="col-lg-5">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-shield-check"></i> Vérification d'admissibilité</div>
+
+                    <div id="eligibiliteResultat">
+                        <div class="text-center py-4" style="color:#888;">
+                            <i class="bi bi-hourglass-split fs-2 d-block mb-2"></i>
+                            Chargement de l'analyse…
+                        </div>
+                    </div>
+
+                    <!-- Pièces à produire -->
+                    <div class="mt-4 pt-3" style="border-top:1px solid rgba(255,255,255,0.08);">
+                        <div class="fw-bold mb-2" style="color:#ccc; font-size:0.9rem;">
+                            <i class="bi bi-folder-check"></i> Pièces à produire (§3.2 CDC)
+                        </div>
+                        <div id="piecesChecklist" style="font-size:0.82rem;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Exports -->
+            <div class="col-lg-7">
+                <div class="ao-card">
+                    <div class="ao-card-title"><i class="bi bi-download"></i> Générer les documents</div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <div style="background:rgba(231,76,60,0.08); border:1px solid rgba(231,76,60,0.2); border-radius:10px; padding:16px;">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-file-earmark-pdf fs-4" style="color:#e74c3c;"></i>
+                                    <span class="fw-bold" style="color:#e74c3c;">Formulaire candidature PDF</span>
+                                </div>
+                                <p style="font-size:0.78rem; color:#aaa; margin-bottom:12px;">
+                                    Formulaire de candidature pré-rempli avec toutes les données du projet.
+                                </p>
+                                <button class="btn w-100 export-pdf" onclick="exportPDF()">
+                                    <i class="bi bi-download"></i> Télécharger PDF
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div style="background:rgba(39,174,96,0.08); border:1px solid rgba(39,174,96,0.2); border-radius:10px; padding:16px;">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi bi-file-earmark-spreadsheet fs-4" style="color:#27ae60;"></i>
+                                    <span class="fw-bold" style="color:#27ae60;">Tableau carbone Excel</span>
+                                </div>
+                                <p style="font-size:0.78rem; color:#aaa; margin-bottom:12px;">
+                                    Tableau 1 bilan carbone (Annexe 2 CDC) en format xlsx avec référence GWP par pays.
+                                </p>
+                                <button class="btn w-100 export-excel" onclick="exportExcel()">
+                                    <i class="bi bi-download"></i> Télécharger Excel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Récap final -->
+                    <div class="ao-card" style="background:rgba(0,0,0,0.2); border-color:rgba(247,151,30,0.3);">
+                        <div class="ao-card-title">
+                            <i class="bi bi-file-text"></i> Récapitulatif complet du dossier
+                        </div>
+                        <div id="recapFinal" style="font-size:0.84rem; color:#ccc;">
+                            <div class="text-center py-3" style="color:#888;">Disponible après simulation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendrier -->
+                <div class="ao-card mt-3">
+                    <div class="ao-card-title"><i class="bi bi-calendar3"></i> Calendrier clé – Période 12</div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div style="background:rgba(255,255,255,0.04); border-radius:8px; padding:10px; font-size:0.8rem;">
+                                <div style="color:var(--orange); font-weight:700;">Dépôt des offres</div>
+                                <div>13 – <strong>24 avril 2026</strong></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div style="background:rgba(255,255,255,0.04); border-radius:8px; padding:10px; font-size:0.8rem;">
+                                <div style="color:var(--orange); font-weight:700;">Garantie financière</div>
+                                <div>Avant le <strong>24 juillet 2026</strong></div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div style="background:rgba(255,255,255,0.04); border-radius:8px; padding:10px; font-size:0.8rem;">
+                                <div style="color:var(--orange); font-weight:700;">Mise en service</div>
+                                <div>Dans <strong>30 mois</strong> après désignation</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div style="background:rgba(255,255,255,0.04); border-radius:8px; padding:10px; font-size:0.8rem;">
+                                <div style="color:var(--orange); font-weight:700;">Contrat CRE</div>
+                                <div><strong>20 ans</strong> complémentaire de rémunération</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-3">
+            <button class="btn btn-outline-orange" onclick="goStep(5)">
+                <i class="bi bi-arrow-left"></i> Précédent
+            </button>
+            <a href="https://www.cre.fr/documents/Appels-d-offres/appel-d-offres-portant-sur-la-realisation-et-l-exploitation-d-installations-de-production-d-electricite-a-partir-de-l-energie-solaire-centrales-s2"
+               target="_blank" class="btn btn-orange px-4">
+                <i class="bi bi-box-arrow-up-right"></i> Accéder à la plateforme CRE
+            </a>
+        </div>
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+
+// ─── État global ──────────────────────────────────────────────────────────────
+let state = {
+    prospect_id: null,
+    currentStep: 1,
+    carbon: { G_arrondi: null, G_brut: null, note_NC: null },
+    simulation: null,
+};
+
+const CARBONE_REF = { sup: {{ carbone_ref.sup }}, inf: {{ carbone_ref.inf }} };
+const PERIODE = {{ periode }};
+
+// ─── Navigation wizard ────────────────────────────────────────────────────────
+function goStep(n) {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.wizard-step').forEach((s, i) => {
+        s.classList.remove('active', 'completed');
+        if (i + 1 < n) s.classList.add('completed');
+        if (i + 1 === n) s.classList.add('active');
+    });
+    document.getElementById(`panel-${n}`).classList.add('active');
+    state.currentStep = n;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Actions automatiques selon étape
+    if (n === 3) syncCarbonePays();
+    if (n === 4) updateGarantieCalc();
+    if (n === 5) lancerSimulation();
+    if (n === 6) { lancerVerifEligibilite(); buildRecapFinal(); }
+}
+
+// ─── Sélection de prospect ────────────────────────────────────────────────────
+function filterProspects(q) {
+    const cards = document.querySelectorAll('.prospect-card');
+    q = q.toLowerCase();
+    cards.forEach(c => {
+        const text = c.textContent.toLowerCase();
+        c.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+async function selectProspect(id, el) {
+    // Highlight
+    document.querySelectorAll('.prospect-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    state.prospect_id = id;
+
+    const preview = document.getElementById('previewContent');
+    preview.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm" style="color:var(--orange);"></div></div>';
+
+    try {
+        const resp = await fetch(`/ao-pv-batiment/api/prospect/${id}`);
+        const data = await resp.json();
+        if (data.error) throw new Error(data.error);
+
+        // Pré-remplir les champs
+        setField('raison_sociale', data.raison_sociale);
+        setField('adresse', data.adresse);
+        setField('commune', data.commune);
+        setField('commune_site', data.commune);
+        setField('adresse_site', data.adresse);
+        setField('code_postal', data.code_postal);
+        setField('departement', data.departement);
+        setField('contact_email', data.contact_email);
+        setField('contact_tel', data.contact_tel);
+        if (data.puissance_kwc_estimee) setField('puissance_kwc', data.puissance_kwc_estimee);
+        if (data.surface_toiture_m2) setField('surface_toiture_m2', data.surface_toiture_m2);
+
+        // Prévisualisation
+        const puissStr = data.puissance_kwc_estimee ? `<span class="kwc-badge">${data.puissance_kwc_estimee} kWc estimés</span>` : '';
+        preview.innerHTML = `
+            <div>
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="mb-0" style="color:#fff;">${data.raison_sociale}</h5>
+                    ${puissStr}
+                </div>
+                <div class="row g-2" style="font-size:0.85rem;">
+                    <div class="col-6"><span style="color:#888;">Adresse :</span><br><span style="color:#ccc;">${data.adresse || '—'}</span></div>
+                    <div class="col-6"><span style="color:#888;">Commune :</span><br><span style="color:#ccc;">${data.commune || '—'} ${data.code_postal ? '('+data.code_postal+')' : ''}</span></div>
+                    <div class="col-6"><span style="color:#888;">Département :</span><br><span style="color:#ccc;">${data.departement || '—'}</span></div>
+                    <div class="col-6"><span style="color:#888;">Contact :</span><br><span style="color:#ccc;">${data.contact_nom || '—'}</span></div>
+                    <div class="col-6"><span style="color:#888;">Email :</span><br><span style="color:#ccc;">${data.contact_email || '—'}</span></div>
+                    <div class="col-6"><span style="color:#888;">Tél :</span><br><span style="color:#ccc;">${data.contact_tel || '—'}</span></div>
+                    ${data.surface_toiture_m2 ? `<div class="col-6"><span style="color:#888;">Surface toiture :</span><br><span style="color:var(--orange);">${data.surface_toiture_m2} m²</span></div>` : ''}
+                </div>
+                <div class="mt-3 p-2" style="background:rgba(0,184,148,0.1); border-radius:8px; font-size:0.8rem; color:var(--green);">
+                    <i class="bi bi-check-circle-fill"></i> Données pré-remplies dans le formulaire
+                </div>
+            </div>`;
+    } catch(e) {
+        preview.innerHTML = `<div class="text-danger"><i class="bi bi-exclamation-triangle"></i> Erreur : ${e.message}</div>`;
+    }
+}
+
+function startBlank() {
+    state.prospect_id = null;
+    document.querySelectorAll('.prospect-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('previewContent').innerHTML = `
+        <div style="color:var(--orange);">
+            <i class="bi bi-plus-circle fs-2 d-block mb-2"></i>
+            Nouveau projet vide – Remplissez les champs dans l'étape suivante
+        </div>`;
+    goStep(2);
+}
+
+function setField(id, val) {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+}
+
+// ─── Estimation puissance ─────────────────────────────────────────────────────
+function estimerPuissance() {
+    const surface = parseFloat(document.getElementById('surface_toiture_m2').value);
+    if (!isNaN(surface) && surface > 0) {
+        const kwc = Math.round(surface * 0.80 * 0.18 * 1000 / 1000);
+        const badge = document.getElementById('puissanceBadge');
+        badge.style.display = 'inline';
+        badge.textContent = `~${kwc} kWc estimés`;
+        if (!document.getElementById('puissance_kwc').value) {
+            document.getElementById('puissance_kwc').value = kwc;
+        }
+    }
+}
+
+function validerPuissance() {
+    const kwc = parseFloat(document.getElementById('puissance_kwc').value);
+    document.getElementById('puissanceWarn').style.display = (kwc < 500 && !isNaN(kwc)) ? 'block' : 'none';
+    updateGarantieCalc();
+}
+
+function onTechChange() {
+    const tech = document.getElementById('technologie_module').value;
+    document.getElementById('tech_co2').value = tech;
+    lancerCalculCarbone();
+}
+
+function onPaysChange() {
+    // Synchroniser avec onglet carbone
+    document.getElementById('pays_module_co2').value = document.getElementById('pays_module').value;
+    document.getElementById('pays_cellule_co2').value = document.getElementById('pays_cellule').value;
+    document.getElementById('pays_wafer_co2').value = document.getElementById('pays_wafer').value;
+}
+
+// ─── Carbone ─────────────────────────────────────────────────────────────────
+function syncCarbonePays() {
+    const pm = document.getElementById('pays_module');
+    const pc = document.getElementById('pays_cellule');
+    const pw = document.getElementById('pays_wafer');
+    if (pm) document.getElementById('pays_module_co2').value = pm.value;
+    if (pc) document.getElementById('pays_cellule_co2').value = pc.value;
+    if (pw) document.getElementById('pays_wafer_co2').value = pw.value;
+    lancerCalculCarbone();
+}
+
+async function lancerCalculCarbone() {
+    const payload = {
+        pays_module: document.getElementById('pays_module_co2').value,
+        pays_cellule: document.getElementById('pays_cellule_co2').value,
+        pays_wafer: document.getElementById('pays_wafer_co2').value,
+        technologie: document.getElementById('tech_co2').value,
+        periode: PERIODE
+    };
+
+    try {
+        const resp = await fetch('/ao-pv-batiment/api/calcul-carbone', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        state.carbon = data;
+
+        // Mettre à jour l'affichage
+        document.getElementById('carboneGaugeBlock').style.display = 'block';
+        document.getElementById('carbonResult').style.display = 'none';
+        document.getElementById('ecsValue').textContent = data.G_arrondi;
+        document.getElementById('ecsBrut').textContent = data.G_brut + ' kg CO₂/kWc';
+        document.getElementById('ecsArrondi').textContent = data.G_arrondi + ' kg CO₂/kWc';
+        document.getElementById('noteNC').textContent = data.note_NC + ' / 25';
+
+        // Jauge position
+        const pct = Math.min(100, Math.max(0, (data.G_arrondi - 200) / (CARBONE_REF.sup - 200) * 100));
+        document.getElementById('carboneNeedle').style.left = pct + '%';
+
+        // Status
+        const statusEl = document.getElementById('ecsStatus');
+        if (!data.eligible) {
+            statusEl.textContent = '✗ HORS PLAFOND – Offre éliminée';
+            statusEl.className = 'badge bg-danger px-3 py-2';
+        } else if (data.G_arrondi <= CARBONE_REF.inf) {
+            statusEl.textContent = '✓ Note NC maximale';
+            statusEl.className = 'badge bg-success px-3 py-2';
+        } else {
+            statusEl.textContent = '✓ Eligible';
+            statusEl.className = 'badge bg-warning text-dark px-3 py-2';
+        }
+
+        // Pré-remplir champ ECS
+        document.getElementById('ecs_valeur').value = data.G_arrondi;
+
+        // Tableau comparatif
+        buildComparativeTable();
+    } catch(e) {
+        console.error('Erreur calcul carbone:', e);
+    }
+}
+
+async function buildComparativeTable() {
+    const pays_list = ['France', 'Allemagne', 'Chine', 'Vietnam', 'Malaisie', 'Inde', 'Autre pays d\'Europe', 'Autre pays du Monde'];
+    const pays_wafer = document.getElementById('pays_wafer_co2').value;
+    const pays_cell = document.getElementById('pays_cellule_co2').value;
+    const tech = document.getElementById('tech_co2').value;
+
+    let html = '';
+    for (const pays of pays_list) {
+        try {
+            const resp = await fetch('/ao-pv-batiment/api/calcul-carbone', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({pays_module: pays, pays_cellule: pays_cell, pays_wafer: pays_wafer, technologie: tech, periode: PERIODE})
+            });
+            const d = await resp.json();
+            const ok = d.eligible ? 'color:var(--green)' : 'color:var(--red)';
+            html += `<tr>
+                <td>${pays}</td>
+                <td style="text-align:center;">—</td>
+                <td style="${ok}; font-weight:700;">${d.G_arrondi}</td>
+                <td style="text-align:center;">${d.note_NC}</td>
+            </tr>`;
+        } catch {}
+    }
+    document.getElementById('compTableBody').innerHTML = html || '<tr><td colspan="4" class="text-muted text-center">Erreur</td></tr>';
+}
+
+// ─── Offre financière ─────────────────────────────────────────────────────────
+function onPrixChange() { updateResume(); lancerSimulation(); }
+function onEcsChange() { updateResume(); lancerSimulation(); }
+
+function onEngagementChange() {
+    const gp = document.getElementById('engagement_gp').checked;
+    const fc = document.getElementById('engagement_fc').checked;
+    document.getElementById('gpDetails').style.display = gp ? 'block' : 'none';
+    if (gp && fc) document.getElementById('engagement_fc').checked = false;
+    lancerSimulation();
+}
+
+function updateGarantieCalc() {
+    const kwc = parseFloat(document.getElementById('puissance_kwc').value) || 0;
+    const mwc = kwc / 1000;
+    const garantie = mwc * 30000;
+
+    document.getElementById('gPuissance').textContent = kwc ? `${kwc} kWc (${mwc.toFixed(3)} MWc)` : '—';
+    document.getElementById('gMontant').textContent = garantie ? `${garantie.toLocaleString('fr-FR')} €` : '—';
+}
+
+function updateResume() {
+    const rs = document.getElementById('raison_sociale').value || '—';
+    const projet = document.getElementById('nom_projet').value || '—';
+    const kwc = document.getElementById('puissance_kwc').value || '—';
+    const prix = document.getElementById('prix_reference').value || '—';
+    const ecs = document.getElementById('ecs_valeur').value || (state.carbon.G_arrondi || '—');
+
+    document.getElementById('resumeOffre').innerHTML = `
+        <table style="width:100%; font-size:0.82rem;">
+            <tr><td style="color:#888; padding:3px 0;">Candidat :</td><td style="color:#ccc;">${rs}</td></tr>
+            <tr><td style="color:#888; padding:3px 0;">Projet :</td><td style="color:#ccc;">${projet}</td></tr>
+            <tr><td style="color:#888; padding:3px 0;">Puissance :</td><td style="color:var(--orange); font-weight:700;">${kwc} kWc</td></tr>
+            <tr><td style="color:#888; padding:3px 0;">Prix T₀ :</td><td style="color:var(--orange); font-weight:700;">${prix} €/MWh</td></tr>
+            <tr><td style="color:#888; padding:3px 0;">ECS :</td><td style="color:var(--green); font-weight:700;">${ecs} kg CO₂/kWc</td></tr>
+            <tr><td style="color:#888; padding:3px 0;">Période :</td><td style="color:#ccc;">P${PERIODE} – {{ date_limite }}</td></tr>
+        </table>`;
+}
+
+// ─── Simulation notes ─────────────────────────────────────────────────────────
+async function lancerSimulation() {
+    const prix = parseFloat(document.getElementById('prix_reference').value) || 0;
+    const ecs_input = document.getElementById('ecs_valeur');
+    const ecs = parseFloat(ecs_input.value) || (state.carbon.G_arrondi || 550);
+
+    // Sync sliders
+    document.getElementById('sliderPrix').value = prix || 80;
+    document.getElementById('sliderPrixVal').textContent = prix || 80;
+    document.getElementById('sliderECS').value = ecs;
+    document.getElementById('sliderECSVal').textContent = ecs;
+
+    await _runSimulation(prix, ecs);
+}
+
+function updateSimulFromSliders() {
+    const prix = parseFloat(document.getElementById('sliderPrix').value);
+    const ecs = parseFloat(document.getElementById('sliderECS').value);
+    document.getElementById('sliderPrixVal').textContent = prix;
+    document.getElementById('sliderECSVal').textContent = ecs;
+    document.getElementById('prix_reference').value = prix;
+    document.getElementById('ecs_valeur').value = ecs;
+    _runSimulation(prix, ecs);
+}
+
+async function _runSimulation(prix, ecs) {
+    if (!prix || !ecs) return;
+
+    const payload = {
+        prix, ecs,
+        periode: PERIODE,
+        engagement_gp: document.getElementById('engagement_gp').checked,
+        part_gp: parseFloat(document.getElementById('part_gp')?.value) || 0,
+        nb_personnes_gp: parseInt(document.getElementById('nb_personnes_gp')?.value) || 0,
+        engagement_fc: document.getElementById('engagement_fc').checked
+    };
+
+    try {
+        const resp = await fetch('/ao-pv-batiment/api/simulation-notes', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const d = await resp.json();
+        state.simulation = d;
+        afficherSimulation(d);
+    } catch(e) { console.error('Erreur simulation:', e); }
+}
+
+function afficherSimulation(d) {
+    const np = d.NP?.note ?? 0;
+    const nc = d.NC?.note ?? 0;
+    const nfc = d.NFC?.note ?? 0;
+    const total = d.note_totale ?? 0;
+
+    // Barres
+    document.getElementById('npNote').textContent = np;
+    document.getElementById('npBar').style.width = (np / 70 * 100) + '%';
+    document.getElementById('npBar').textContent = np;
+    document.getElementById('npDetail').textContent = d.NP?.detail || '';
+
+    document.getElementById('ncNote').textContent = nc;
+    document.getElementById('ncBar').style.width = (nc / 25 * 100) + '%';
+    document.getElementById('ncBar').textContent = nc;
+    document.getElementById('ncDetail').textContent = d.NC?.detail || '';
+
+    document.getElementById('nfcNote').textContent = nfc;
+    document.getElementById('nfcBar').style.width = (nfc / 5 * 100) + '%';
+    document.getElementById('nfcBar').textContent = nfc;
+    document.getElementById('nfcDetail').textContent = d.NFC?.detail || '';
+
+    document.getElementById('noteTotale').textContent = total + ' / 100';
+    document.getElementById('scoreTotalCircle').textContent = total;
+
+    let couleur = total >= 70 ? 'var(--green)' : total >= 50 ? 'var(--orange)' : 'var(--red)';
+    document.getElementById('scoreTotalCircle').style.borderColor = couleur;
+    document.getElementById('scoreTotalCircle').style.color = couleur;
+
+    // Conseils
+    const conseils = [];
+    if (np < 50) conseils.push('💡 <strong>Réduire le prix T₀</strong> améliorerait significativement la note NP (70% du total).');
+    if (nc < 20) conseils.push('🌱 <strong>Choisir un module fabriqué en France ou Europe</strong> réduirait l\'empreinte carbone et améliorerait NC.');
+    if (nfc === 0) conseils.push('🤝 <strong>Engager un financement collectif</strong> (+2 pts FC) ou <strong>gouvernance partagée</strong> (+3 à 5 pts GP) pour maximiser le score.');
+    if (np >= 60 && nc >= 22) conseils.push('✅ <strong>Offre compétitive !</strong> Prix et bilan carbone sont dans une bonne fourchette.');
+    if (d.NP?.detail?.includes('éliminée')) conseils.push('🚨 <strong>ATTENTION</strong> : Prix supérieur au plafond → offre automatiquement éliminée.');
+    if (d.NC?.detail?.includes('éliminée')) conseils.push('🚨 <strong>ATTENTION</strong> : ECS supérieure au plafond → offre automatiquement éliminée.');
+
+    document.getElementById('conseilsOptim').innerHTML = conseils.length ?
+        conseils.map(c => `<div class="mb-2">${c}</div>`).join('') :
+        '<span style="color:#888;">Lancez une simulation complète pour des conseils.</span>';
+}
+
+// ─── Éligibilité ──────────────────────────────────────────────────────────────
+async function lancerVerifEligibilite() {
+    const kwc = parseFloat(document.getElementById('puissance_kwc').value) || 0;
+    const ecs = parseFloat(document.getElementById('ecs_valeur').value) || (state.carbon.G_arrondi || 9999);
+
+    const payload = {
+        puissance_kwc: kwc,
+        ecs,
+        has_autorisation_urbanisme: document.getElementById('has_autorisation_urbanisme').checked,
+        garantie_montant: (kwc / 1000) * 30000,
+        iso_9001_modules: document.getElementById('iso_9001_modules').checked,
+        iso_14001_modules: document.getElementById('iso_14001_modules').checked,
+        agrivoltaique: ['serre_agri', 'ombriere_agri'].includes(document.getElementById('type_installation').value)
+    };
+
+    try {
+        const resp = await fetch('/ao-pv-batiment/api/checker-admissibilite', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const d = await resp.json();
+
+        let html = '';
+        if (d.eligible) {
+            html += `<div class="eligible-check ok"><i class="bi bi-check-circle-fill" style="color:var(--green);flex-shrink:0;"></i><span><strong>Dossier admissible</strong> (score : ${d.score_conformite}/100)</span></div>`;
+        } else {
+            html += `<div class="eligible-check error"><i class="bi bi-x-circle-fill" style="color:var(--red);flex-shrink:0;"></i><strong>Dossier non admissible</strong></div>`;
+        }
+        d.problemes?.forEach(p => {
+            html += `<div class="eligible-check error"><i class="bi bi-exclamation-triangle-fill" style="color:var(--red);flex-shrink:0;"></i>${p}</div>`;
+        });
+        d.avertissements?.forEach(a => {
+            html += `<div class="eligible-check warn"><i class="bi bi-exclamation-circle-fill" style="color:#f39c12;flex-shrink:0;"></i>${a}</div>`;
+        });
+        if (!d.problemes?.length && !d.avertissements?.length) {
+            html += `<div class="eligible-check ok"><i class="bi bi-check2-all" style="color:var(--green);flex-shrink:0;"></i>Aucun problème détecté</div>`;
+        }
+
+        document.getElementById('eligibiliteResultat').innerHTML = html;
+        buildPiecesChecklist();
+    } catch(e) {
+        document.getElementById('eligibiliteResultat').innerHTML = `<div class="text-danger">Erreur : ${e.message}</div>`;
+    }
+}
+
+function buildPiecesChecklist() {
+    const pieces = [
+        { label: "Pièce 1 : Identification du candidat (Kbis/statuts)", done: !!document.getElementById('raison_sociale').value },
+        { label: "Pièce 2 : Formulaire de candidature", done: !!document.getElementById('prix_reference').value },
+        { label: "Pièce 3 : Autorisation d'urbanisme (PC ou DP)", done: document.getElementById('has_autorisation_urbanisme').checked },
+        { label: "Pièce 4 : Garantie financière de mise en œuvre", done: !!document.getElementById('puissance_kwc').value },
+        { label: "Pièce 5 : Plan d'affaires prévisionnel", done: document.getElementById('plan_affaires_ok')?.checked },
+        { label: "Pièce 6 : Habilitation du signataire", done: !!document.getElementById('representant_legal').value },
+    ];
+
+    let html = pieces.map(p => `
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi ${p.done ? 'bi-check-circle-fill' : 'bi-circle'}"
+               style="color:${p.done ? 'var(--green)' : '#666'}; flex-shrink:0;"></i>
+            <span style="color:${p.done ? '#ccc' : '#888'};">${p.label}</span>
+        </div>`).join('');
+    document.getElementById('piecesChecklist').innerHTML = html;
+}
+
+function buildRecapFinal() {
+    if (!state.simulation) { return; }
+    const d = state.simulation;
+    const rs = document.getElementById('raison_sociale').value || '—';
+    const projet = document.getElementById('nom_projet').value || '—';
+    const kwc = document.getElementById('puissance_kwc').value || '—';
+    const prix = document.getElementById('prix_reference').value || '—';
+    const ecs = document.getElementById('ecs_valeur').value || '—';
+
+    document.getElementById('recapFinal').innerHTML = `
+        <div class="row g-2" style="font-size:0.85rem;">
+            <div class="col-6"><span style="color:#888;">Candidat</span><br><strong>${rs}</strong></div>
+            <div class="col-6"><span style="color:#888;">Projet</span><br><strong>${projet}</strong></div>
+            <div class="col-4"><span style="color:#888;">Puissance</span><br><strong style="color:var(--orange);">${kwc} kWc</strong></div>
+            <div class="col-4"><span style="color:#888;">Prix T₀</span><br><strong style="color:var(--orange);">${prix} €/MWh</strong></div>
+            <div class="col-4"><span style="color:#888;">ECS</span><br><strong style="color:var(--green);">${ecs} kg</strong></div>
+            <div class="col-12 mt-2" style="background:rgba(247,151,30,0.1); border-radius:8px; padding:10px;">
+                <strong>Note simulée : ${d.note_totale}/100</strong>
+                (NP=${d.NP?.note} + NC=${d.NC?.note} + NFC=${d.NFC?.note})
+            </div>
+        </div>`;
+}
+
+// ─── Exports ──────────────────────────────────────────────────────────────────
+function collectData() {
+    return {
+        raison_sociale: document.getElementById('raison_sociale').value,
+        representant_legal: document.getElementById('representant_legal').value,
+        adresse: document.getElementById('adresse').value,
+        code_postal: document.getElementById('code_postal').value,
+        commune: document.getElementById('commune').value,
+        siret: document.getElementById('siret').value,
+        contact_email: document.getElementById('contact_email').value,
+        contact_tel: document.getElementById('contact_tel').value,
+        nom_projet: document.getElementById('nom_projet').value,
+        type_installation: document.getElementById('type_installation').value,
+        adresse_site: document.getElementById('adresse_site').value,
+        commune_site: document.getElementById('commune_site').value,
+        departement: document.getElementById('departement').value,
+        puissance_kwc: document.getElementById('puissance_kwc').value,
+        surface_toiture_m2: document.getElementById('surface_toiture_m2').value,
+        nature_exploitation: document.getElementById('nature_exploitation').value,
+        technologie_module: document.getElementById('technologie_module').value,
+        fabricant_module: document.getElementById('fabricant_module').value,
+        pays_module: document.getElementById('pays_module').value,
+        pays_cellule: document.getElementById('pays_cellule').value,
+        pays_wafer: document.getElementById('pays_wafer').value,
+        ref_autorisation: document.getElementById('ref_autorisation').value,
+        prix_reference: document.getElementById('prix_reference').value,
+        ecs_valeur: document.getElementById('ecs_valeur').value,
+        indexation_k: document.getElementById('indexation_k').checked,
+        engagement_fc: document.getElementById('engagement_fc').checked,
+        engagement_gp: document.getElementById('engagement_gp').checked,
+        forme_garantie: document.getElementById('forme_garantie').value,
+        simulation: state.simulation,
+    };
+}
+
+async function exportPDF() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Génération…';
+
+    try {
+        const resp = await fetch('/ao-pv-batiment/api/export-pdf', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(collectData())
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.error); }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `formulaire_AO_PV_P12_${(document.getElementById('nom_projet').value || 'projet').replace(/\s/g,'_')}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        alert('Erreur PDF : ' + e.message);
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-download"></i> Télécharger PDF';
+}
+
+async function exportExcel() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Génération…';
+
+    try {
+        const resp = await fetch('/ao-pv-batiment/api/export-excel', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(collectData())
+        });
+        if (!resp.ok) { const e = await resp.json(); throw new Error(e.error); }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bilan_carbone_AO_PV_P12_${(document.getElementById('nom_projet').value || 'projet').replace(/\s/g,'_')}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch(e) {
+        alert('Erreur Excel : ' + e.message);
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-download"></i> Télécharger Excel';
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    lancerCalculCarbone();
+});
+
+</script>
+</body>
+</html>
