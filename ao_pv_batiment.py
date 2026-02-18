@@ -304,37 +304,86 @@ def get_prospect_data(prospect_id):
         if not p:
             return jsonify({"error": "Prospect non trouvé"}), 404
 
-        # Surface toiture et puissance estimée
-        surface_m2 = p.get('surface_m2')
-        puissance_kwc_estimee = None
-
-        # Essayer aussi dans data_json
+        # Parser data_json
+        dj = {}
         try:
-            dj = p.get('data_json')
-            if dj:
-                if isinstance(dj, str):
-                    dj = json.loads(dj)
-                if isinstance(dj, dict):
-                    surface_m2 = surface_m2 or dj.get('surface_toiture_m2') or dj.get('surface_m2')
+            raw = p.get('data_json')
+            if raw:
+                dj = json.loads(raw) if isinstance(raw, str) else raw
         except Exception:
             pass
 
-        if surface_m2:
-            puissance_kwc_estimee = round(float(surface_m2) * 0.80 * 0.18, 0)
+        # Puissance depuis la pré-étude (calpinage)
+        calpinage = dj.get('calpinage', {})
+        totaux = calpinage.get('totaux', {})
+        puissance_kwc = totaux.get('puissanceTotale') or totaux.get('puissance_totale')
+        if puissance_kwc:
+            puissance_kwc = round(float(puissance_kwc), 1)
+
+        # Module depuis la pré-étude
+        module_info = calpinage.get('module', {})
+        fabricant_module = module_info.get('marque', '')
+        ref_module = module_info.get('modele', '')
+        puissance_module_wc = module_info.get('puissance', '')
+        tech_raw = (module_info.get('technologie') or '').lower()
+        # Mapper vers les valeurs du select
+        if 'cdte' in tech_raw or 'cadmium' in tech_raw:
+            technologie_module = 'cdte'
+        elif 'cigs' in tech_raw or 'cuivre' in tech_raw:
+            technologie_module = 'cigs'
+        elif 'amorphe' in tech_raw or 'a-si' in tech_raw:
+            technologie_module = 'a-si'
+        elif 'monolike' in tech_raw:
+            technologie_module = 'monolike'
+        elif 'multi' in tech_raw or 'polycristallin' in tech_raw or 'poly' in tech_raw:
+            technologie_module = 'multi'
+        else:
+            technologie_module = 'mono'  # Monocristallin PERC/TOPCon → mono par défaut
+
+        # Surface toiture
+        surface_m2 = p.get('surface_m2') or dj.get('surface_toiture_m2') or dj.get('surface_m2')
+        # Fallback estimation depuis surface si pas de calpinage
+        if not puissance_kwc and surface_m2:
+            puissance_kwc = round(float(surface_m2) * 0.80 * 0.18, 0)
+
+        # Département : colonne directe, ou depuis code postal dans commune
+        departement = p.get('departement') or ''
+        commune_raw = p.get('commune') or ''
+        code_postal = ''
+        # Extraire code postal si commune = "67400 Illkirch-Graffenstaden"
+        import re
+        cp_match = re.match(r'^(\d{5})\s+', commune_raw)
+        if cp_match:
+            code_postal = cp_match.group(1)
+            if not departement:
+                departement = code_postal[:3] if code_postal.startswith('97') else code_postal[:2]
+            commune_raw = commune_raw[len(code_postal):].strip()
+        
+        # Département aussi dans rapport d'adresse (data_json)
+        if not departement:
+            departement = (dj.get('departement') or
+                           dj.get('dept') or
+                           dj.get('code_departement') or
+                           p.get('poste_bt_code_departement') or
+                           p.get('poste_hta_code_departement') or '')
 
         data = {
             "id": p.get('id'),
             "raison_sociale": p.get('nom_prospect') or "",
             "adresse": p.get('adresse') or "",
-            "commune": p.get('commune') or "",
-            "code_postal": "",
-            "departement": p.get('departement') or "",
+            "commune": commune_raw,
+            "code_postal": code_postal,
+            "departement": str(departement),
             "contact_nom": p.get('contact_nom') or "",
             "contact_email": p.get('contact_email') or "",
             "contact_tel": p.get('contact_telephone') or "",
             "surface_toiture_m2": surface_m2,
-            "puissance_kwc_estimee": puissance_kwc_estimee,
+            "puissance_kwc": puissance_kwc,
             "type": p.get('type') or "",
+            "fabricant_module": fabricant_module,
+            "ref_module": ref_module,
+            "puissance_module_wc": puissance_module_wc,
+            "technologie_module": technologie_module,
         }
         return jsonify(data)
     except Exception as e:
