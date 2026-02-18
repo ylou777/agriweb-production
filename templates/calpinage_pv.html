@@ -5038,15 +5038,27 @@
                         modulesPositions: z.modulesPositions || []
                     };
                 }),
-                module: {
-                    longueur: document.getElementById('moduleLongueur').value,
-                    largeur: document.getElementById('moduleLargeur').value,
-                    puissance: document.getElementById('modulePuissance').value,
-                    voc: document.getElementById('moduleVoc').value,
-                    vmpp: document.getElementById('moduleVmpp').value,
-                    isc: document.getElementById('moduleIsc').value,
-                    impp: document.getElementById('moduleImpp').value
-                },
+                module: (function() {
+                    const mt = document.getElementById('moduleType').value;
+                    const mdb = (typeof MODULES_DATABASE !== 'undefined' && MODULES_DATABASE[mt]) ? MODULES_DATABASE[mt] : {};
+                    return {
+                        moduleType: mt,
+                        marque: mdb.fabricant || '',
+                        modele: mdb.modele || '',
+                        technologie: mdb.technologie || '',
+                        tech_cellule: mdb.tech_cellule || '',
+                        pays_module: mdb.pays_module || '',
+                        certisolis_cert: mdb.certisolis_cert || null,
+                        certisolis_ecs_seuil: mdb.certisolis_ecs_seuil || null,
+                        longueur: document.getElementById('moduleLongueur').value,
+                        largeur: document.getElementById('moduleLargeur').value,
+                        puissance: document.getElementById('modulePuissance').value,
+                        voc: document.getElementById('moduleVoc').value,
+                        vmpp: document.getElementById('moduleVmpp').value,
+                        isc: document.getElementById('moduleIsc').value,
+                        impp: document.getElementById('moduleImpp').value
+                    };
+                })(),
                 typeInstallation: document.getElementById('typeInstallation').value,
                 ombriere_config: {
                     modele: document.getElementById('ombriereModele')?.value || 'custom',
@@ -6703,6 +6715,11 @@
             
             // Restaurer les paramètres du module si sauvegardés
             if (savedCalpinage.module) {
+                // Restaurer le type de module (select) et recharger les specs/badges
+                if (savedCalpinage.module.moduleType) {
+                    document.getElementById('moduleType').value = savedCalpinage.module.moduleType;
+                    loadModuleSpecs(); // met à jour badges ECS, fabricant, etc.
+                }
                 document.getElementById('moduleLongueur').value = savedCalpinage.module.longueur || 2108;
                 document.getElementById('moduleLargeur').value = savedCalpinage.module.largeur || 1048;
                 document.getElementById('modulePuissance').value = savedCalpinage.module.puissance || 450;
