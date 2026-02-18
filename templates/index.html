@@ -71,7 +71,8 @@
       min-width: var(--sidebar-w) !important;
       max-width: var(--sidebar-w) !important;
       height: 100% !important;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: clip;
       background: var(--c-surface) !important;
       z-index: 10 !important;
       border-right: 1px solid var(--c-border);
@@ -465,7 +466,7 @@
       </div>
 
       <!-- Sections -->
-      <div style="flex:1; overflow-y:auto; padding-bottom:16px; min-height:0;">
+      <div style="flex:1 1 0px; overflow-y:auto; padding-bottom:16px; min-height:0;">
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
