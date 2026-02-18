@@ -71,8 +71,7 @@
       min-width: var(--sidebar-w) !important;
       max-width: var(--sidebar-w) !important;
       height: 100% !important;
-      overflow-x: hidden;
-      overflow-y: clip;
+      overflow: hidden;
       background: var(--c-surface) !important;
       z-index: 10 !important;
       border-right: 1px solid var(--c-border);
@@ -145,30 +144,21 @@
 
     /* === SIDEBAR FOOTER === */
     .sidebar-footer {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      padding: 12px 24px;
+      padding: 8px 16px;
       border-top: 1px solid var(--c-border);
-      background: var(--c-surface-2);
-      z-index: 2;
+      background: var(--c-surface);
+      flex-shrink: 0;
     }
     .sidebar-footer .settings-btn {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      font-size: 0.85rem;
-      font-weight: 500;
+      gap: 8px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
       color: var(--c-text-secondary);
-      background: var(--c-bg);
-      border: 1px solid var(--c-border);
       border-radius: var(--radius-sm);
       text-decoration: none;
       transition: all var(--transition);
-      width: 100%;
-      justify-content: flex-start;
     }
     .sidebar-footer .settings-btn:hover {
       color: var(--c-accent);
@@ -470,7 +460,7 @@
       </div>
 
       <!-- Sections -->
-      <div style="flex:1 1 0px; overflow-y:auto; padding-bottom:72px; min-height:0;">
+      <div style="flex:1 1 0px; overflow-y:auto; min-height:0;">
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
