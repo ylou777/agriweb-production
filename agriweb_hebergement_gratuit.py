@@ -645,6 +645,14 @@ try:
 except Exception as e:
     print(f"⚠️ [AO PV] Impossible d'enregistrer le blueprint AO PV: {e}")
 
+# Module Suivi de Chantier Agile
+try:
+    from chantier_module import chantier_bp
+    app.register_blueprint(chantier_bp)
+    print("🔨 [CHANTIER] Blueprint suivi de chantier enregistré (/chantier)")
+except Exception as e:
+    print(f"⚠️ [CHANTIER] Impossible d'enregistrer le blueprint chantier: {e}")
+
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
 def redirect_register():

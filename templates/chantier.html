@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Suivi Chantier – {{ prospect.nom_prospect }}</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+<style>
+:root {
+  --dark: #0f0f23;
+  --dark2: #1a1a2e;
+  --dark3: #16213e;
+  --orange: #f7971e;
+  --card-bg: rgba(255,255,255,0.04);
+  --card-border: rgba(255,255,255,0.08);
+}
+body { background: var(--dark); color: #e0e0e0; font-family: 'Segoe UI',sans-serif; min-height:100vh; }
+
+/* NAV */
+.top-bar { background: var(--dark2); border-bottom: 1px solid var(--card-border); padding: 10px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.top-bar .prospect-name { font-size:1rem; font-weight:700; color:#fff; }
+.top-bar .prospect-addr { font-size:0.78rem; color:#aaa; }
+
+/* PROGRESS RING */
+.ring-wrap { position:relative; width:60px; height:60px; flex-shrink:0; }
+.ring-wrap svg { transform:rotate(-90deg); }
+.ring-wrap .ring-val { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:0.7rem; font-weight:700; color:var(--orange); }
+
+/* PHASE TABS */
+.phase-tabs { display:flex; overflow-x:auto; gap:4px; padding:12px 16px 0; background: var(--dark3); border-bottom: 1px solid var(--card-border); scrollbar-width:none; }
+.phase-tabs::-webkit-scrollbar { display:none; }
+.phase-tab { cursor:pointer; padding:8px 14px; border-radius:8px 8px 0 0; font-size:0.78rem; white-space:nowrap; display:flex; align-items:center; gap:6px; border: 1px solid transparent; border-bottom: none; transition:.15s; color:#aaa; }
+.phase-tab:hover { background: var(--card-bg); color:#fff; }
+.phase-tab.active { background: var(--dark2); color:#fff; border-color: var(--card-border); }
+.phase-tab .ph-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.phase-tab .ph-pct { font-size:0.65rem; background:rgba(255,255,255,0.08); border-radius:4px; padding:1px 5px; }
+
+/* TAB CONTENT */
+.tab-content-area { background: var(--dark2); min-height: calc(100vh - 170px); }
+.tab-pane-custom { display:none; padding: 16px; }
+.tab-pane-custom.active { display:block; }
+
+/* PHASE HEADER */
+.phase-header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+.phase-status-badge { font-size:0.72rem; padding:3px 10px; border-radius:10px; font-weight:600; }
+.s-non_demarre  { background:rgba(108,92,231,0.18); color:#a29bfe; }
+.s-en_cours     { background:rgba(253,203,110,0.18); color:#fdcb6e; }
+.s-termine      { background:rgba(0,184,148,0.18); color:#00b894; }
+.s-bloque       { background:rgba(214,48,49,0.18); color:#ff7675; }
+
+/* KANBAN */
+.kanban-board { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; }
+@media(max-width:900px){ .kanban-board { grid-template-columns: repeat(2,1fr); } }
+@media(max-width:550px){ .kanban-board { grid-template-columns: 1fr; } }
+.kanban-col { background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius:10px; padding:10px; min-height:180px; }
+.kanban-col-header { font-size:0.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
+.col-todo    { border-top: 3px solid #636e72; }
+.col-doing   { border-top: 3px solid #fdcb6e; }
+.col-done    { border-top: 3px solid #00b894; }
+.col-blocked { border-top: 3px solid #d63031; }
+.kanban-card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px 10px; margin-bottom:7px; cursor:pointer; transition:.15s; position:relative; }
+.kanban-card:hover { background: rgba(255,255,255,0.1); border-color: var(--orange); }
+.kanban-card .card-title { font-size:0.78rem; font-weight:600; margin-bottom:3px; }
+.kanban-card .card-meta  { font-size:0.68rem; color:#888; display:flex; gap:8px; flex-wrap:wrap; }
+.kanban-card .prio-haute  { border-left: 3px solid #d63031; }
+.kanban-card .prio-normale { border-left: 3px solid #636e72; }
+.kanban-card .prio-basse  { border-left: 3px solid #00b894; }
+.drag-over { background: rgba(247,151,30,0.1) !important; }
+
+/* CHECKLIST */
+.checklist-item { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size:0.8rem; }
+.checklist-item input[type=checkbox]:checked + span { text-decoration:line-through; color:#636e72; }
+.checklist-item input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--orange); }
+
+/* JOURNAL */
+.journal-entry { background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius:8px; padding:10px 14px; margin-bottom:8px; }
+.journal-entry .je-date { font-size:0.72rem; color:#888; }
+.journal-entry .je-meteo { font-size:0.9rem; }
+.journal-entry .je-arret { background:rgba(214,48,49,0.15); color:#ff7675; font-size:0.68rem; padding:1px 8px; border-radius:8px; font-weight:600; }
+.journal-entry .je-text { font-size:0.82rem; margin-top:5px; white-space:pre-wrap; }
+
+/* FACTURES */
+.fact-statut-emis    { color:#fdcb6e; }
+.fact-statut-paye    { color:#00b894; }
+.fact-statut-retard  { color:#d63031; }
+.fact-statut-annule  { color:#636e72; text-decoration:line-through; }
+.cash-kpi { text-align:center; padding:12px; background:rgba(255,255,255,0.04); border-radius:10px; border:1px solid var(--card-border); }
+.cash-kpi .label { font-size:0.68rem; color:#888; margin-bottom:4px; }
+.cash-kpi .val { font-size:1rem; font-weight:700; }
+
+/* MODAL */
+.modal-content { background: var(--dark2); color:#e0e0e0; border: 1px solid var(--card-border); }
+.modal-header { border-bottom: 1px solid var(--card-border); }
+.modal-footer { border-top: 1px solid var(--card-border); }
+.form-control, .form-select { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color:#e0e0e0; }
+.form-control:focus, .form-select:focus { background: rgba(255,255,255,0.09); border-color:var(--orange); color:#fff; box-shadow:0 0 0 2px rgba(247,151,30,0.2); }
+.form-label { font-size:0.78rem; color:#aaa; margin-bottom:3px; }
+.form-select option { background: #1a1a2e; }
+.btn-orange { background:var(--orange); color:#fff; border:none; }
+.btn-orange:hover { background:#e08a10; color:#fff; }
+
+/* PROGRESS BAR */
+.phase-progress-bar { height:6px; border-radius:3px; background:rgba(255,255,255,0.08); overflow:hidden; margin-top:4px; }
+.phase-progress-fill { height:100%; border-radius:3px; transition:.4s; }
+
+/* GLOBAL PROGRESS */
+.global-bar { height:8px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden; width:140px; }
+.global-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--orange),#fdcb6e); transition:.4s; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <a href="/crm" class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:0.75rem;">
+    <i class="bi bi-arrow-left"></i> CRM
+  </a>
+  <div>
+    <div class="prospect-name"><i class="bi bi-tools" style="color:var(--orange);"></i> Suivi Chantier – <span id="nomProjet">{{ chantier.nom_projet or prospect.nom_prospect }}</span></div>
+    <div class="prospect-addr">{{ prospect.adresse or '' }} {{ prospect.commune or '' }}</div>
+  </div>
+
+  <!-- Avancement global -->
+  <div class="ms-auto d-flex align-items-center gap-12" style="gap:16px;">
+    <div>
+      <div style="font-size:0.68rem;color:#888;margin-bottom:2px;">Avancement global</div>
+      <div class="global-bar"><div class="global-bar-fill" id="globalBarFill" style="width:{{ avancement.global }}%;"></div></div>
+      <div style="font-size:0.72rem;color:var(--orange);font-weight:700;margin-top:2px;" id="globalPct">{{ avancement.global }}%</div>
+    </div>
+    <button class="btn btn-sm btn-outline-warning" onclick="showConfigModal()" title="Paramètres chantier">
+      <i class="bi bi-gear"></i>
+    </button>
+  </div>
+</div>
+
+<!-- PHASE TABS -->
+<div class="phase-tabs" id="phaseTabs">
+  {% for ph in phases %}
+  <div class="phase-tab {% if loop.first %}active{% endif %}" data-phase="{{ ph.id }}" onclick="switchTab('{{ ph.id }}')" id="tab_{{ ph.id }}">
+    <i class="bi {{ ph.icon }}" style="color:{{ ph.color }};"></i>
+    {{ ph.label }}
+    <span class="ph-pct" id="pct_{{ ph.id }}">{{ avancement.phases.get(ph.id, 0) }}%</span>
+  </div>
+  {% endfor %}
+  <div class="phase-tab" data-phase="journal" onclick="switchTab('journal')" id="tab_journal">
+    <i class="bi bi-journal-text" style="color:#a29bfe;"></i> Journal
+  </div>
+  <div class="phase-tab" data-phase="facturation" onclick="switchTab('facturation')" id="tab_facturation">
+    <i class="bi bi-cash-coin" style="color:#00b894;"></i> Facturation
+  </div>
+</div>
+
+<!-- TAB CONTENT -->
+<div class="tab-content-area">
+
+  <!-- PHASE PANES -->
+  {% for ph in phases %}
+  <div class="tab-pane-custom {% if loop.first %}active{% endif %}" id="pane_{{ ph.id }}">
+
+    <!-- Phase header -->
+    <div class="phase-header">
+      <i class="bi {{ ph.icon }} fs-5" style="color:{{ ph.color }};"></i>
+      <div>
+        <div style="font-weight:700;font-size:0.95rem;">{{ ph.label }}</div>
+        <div class="phase-progress-bar" style="width:160px;">
+          <div class="phase-progress-fill" id="bar_{{ ph.id }}"
+               style="width:{{ avancement.phases.get(ph.id,0) }}%;background:{{ ph.color }};"></div>
+        </div>
+      </div>
+      <select class="form-select form-select-sm" style="width:auto;"
+              onchange="updatePhaseStatut('{{ ph.id }}', this.value)" id="status_{{ ph.id }}">
+        <option value="non_demarre" {% if chantier.phases.get(ph.id,{}).get('statut','non_demarre')=='non_demarre' %}selected{% endif %}>⬜ Non démarré</option>
+        <option value="en_cours"   {% if chantier.phases.get(ph.id,{}).get('statut','')=='en_cours' %}selected{% endif %}>🔄 En cours</option>
+        <option value="termine"    {% if chantier.phases.get(ph.id,{}).get('statut','')=='termine' %}selected{% endif %}>✅ Terminé</option>
+        <option value="bloque"     {% if chantier.phases.get(ph.id,{}).get('statut','')=='bloque' %}selected{% endif %}>🚫 Bloqué</option>
+      </select>
+      <div class="d-flex gap-2 align-items-center" style="font-size:0.75rem;">
+        <label class="text-muted">Début</label>
+        <input type="date" class="form-control form-control-sm" style="width:135px;"
+               value="{{ chantier.phases.get(ph.id,{}).get('date_debut','') }}"
+               onchange="updatePhaseDate('{{ ph.id }}','date_debut',this.value)">
+        <label class="text-muted">Fin prévue</label>
+        <input type="date" class="form-control form-control-sm" style="width:135px;"
+               value="{{ chantier.phases.get(ph.id,{}).get('date_fin_prevue','') }}"
+               onchange="updatePhaseDate('{{ ph.id }}','date_fin_prevue',this.value)">
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Checklist (left) -->
+      <div class="col-lg-3 col-md-4">
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:10px;padding:12px;">
+          <div style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;margin-bottom:10px;">CHECKLIST RÉGLEMENTAIRE</div>
+          {% for item in ph.checklist %}
+          {% set checked = chantier.phases.get(ph.id,{}).get('checklist',{}).get(item, False) %}
+          <div class="checklist-item">
+            <input type="checkbox" {% if checked %}checked{% endif %}
+                   onchange="toggleChecklist('{{ ph.id }}','{{ item.replace(\"'\",\"\") }}',this.checked)">
+            <span>{{ item }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Kanban (right) -->
+      <div class="col-lg-9 col-md-8">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;">TABLEAU KANBAN</span>
+          <button class="btn btn-sm btn-orange" onclick="showAddTacheModal('{{ ph.id }}')" style="font-size:0.75rem;padding:3px 10px;">
+            <i class="bi bi-plus"></i> Ajouter tâche
+          </button>
+        </div>
+        <div class="kanban-board" id="kanban_{{ ph.id }}">
+          {% for col_id, col_label, col_class, col_color in [('todo','À faire','col-todo','#636e72'),('doing','En cours','col-doing','#fdcb6e'),('done','Fait','col-done','#00b894'),('blocked','Bloqué','col-blocked','#d63031')] %}
+          <div class="kanban-col {{ col_class }} droppable" data-col="{{ col_id }}" data-phase="{{ ph.id }}"
+               ondragover="event.preventDefault();this.classList.add('drag-over')"
+               ondragleave="this.classList.remove('drag-over')"
+               ondrop="onDrop(event,'{{ ph.id }}','{{ col_id }}')">
+            <div class="kanban-col-header" style="color:{{ col_color }};">
+              {{ col_label }}
+              <span class="badge" style="background:rgba(255,255,255,0.08);color:#aaa;" id="cnt_{{ ph.id }}_{{ col_id }}">0</span>
+            </div>
+            <div id="cards_{{ ph.id }}_{{ col_id }}">
+              {% for t in chantier.phases.get(ph.id,{}).get('taches',[]) %}
+              {% if t.statut == col_id %}
+              <div class="kanban-card prio-{{ t.priorite | default('normale') }}" draggable="true" id="card_{{ t.id }}"
+                   ondragstart="onDragStart(event,'{{ t.id }}')"
+                   onclick="showEditTacheModal('{{ ph.id }}','{{ t.id }}','{{ t.titre|replace(\"'\",\"&#39;\") }}','{{ t.description|default('')|replace(\"'\",\"&#39;\") }}','{{ t.statut }}','{{ t.responsable|default('') }}','{{ t.deadline|default('') }}','{{ t.priorite|default('normale') }}')">
+                <div class="card-title">{{ t.titre }}</div>
+                <div class="card-meta">
+                  {% if t.responsable %}<span><i class="bi bi-person"></i> {{ t.responsable }}</span>{% endif %}
+                  {% if t.deadline %}<span><i class="bi bi-calendar"></i> {{ t.deadline }}</span>{% endif %}
+                  <span class="badge" style="font-size:0.6rem;background:rgba(255,255,255,0.08);">{{ t.priorite|default('normale') }}</span>
+                </div>
+              </div>
+              {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- JOURNAL PANE -->
+  <div class="tab-pane-custom" id="pane_journal">
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:10px;padding:14px;">
+          <div style="font-size:0.8rem;font-weight:700;margin-bottom:12px;color:#a29bfe;"><i class="bi bi-plus-circle"></i> Nouvelle entrée</div>
+          <div class="mb-2">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-control form-control-sm" id="jDate" value="{{ now }}">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Auteur</label>
+            <input type="text" class="form-control form-control-sm" id="jAuteur" placeholder="Votre nom">
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Météo</label>
+            <select class="form-select form-select-sm" id="jMeteo">
+              {% for m in meteos %}<option>{{ m }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="jArret">
+              <label class="form-check-label" style="font-size:0.78rem;">Arrêt chantier</label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Note / Avancement</label>
+            <textarea class="form-control" id="jContenu" rows="5" placeholder="Travaux réalisés, problèmes rencontrés, remarques..."></textarea>
+          </div>
+          <button class="btn btn-orange w-100" onclick="addJournal()"><i class="bi bi-check"></i> Enregistrer</button>
+        </div>
+      </div>
+      <div class="col-md-8">
+        <div style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;margin-bottom:10px;">JOURNAL DE CHANTIER</div>
+        <div id="journalList">
+          {% for e in chantier.journal %}
+          <div class="journal-entry" id="je_{{ e.id }}">
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="je-date"><i class="bi bi-calendar"></i> {{ e.date }}</span>
+              <span class="je-meteo">{{ e.meteo }}</span>
+              {% if e.arret_chantier %}<span class="je-arret">⛔ ARRÊT CHANTIER</span>{% endif %}
+              {% if e.auteur %}<span style="font-size:0.7rem;color:#aaa;margin-left:auto;"><i class="bi bi-person"></i> {{ e.auteur }}</span>{% endif %}
+              <button class="btn btn-sm p-0 ms-2" style="color:#636e72;font-size:0.75rem;" onclick="deleteJournal('{{ e.id }}')"><i class="bi bi-trash"></i></button>
+            </div>
+            <div class="je-text">{{ e.contenu }}</div>
+          </div>
+          {% else %}
+          <div id="journalEmpty" class="text-center py-4 text-muted"><i class="bi bi-journal-x fs-3"></i><br>Aucune entrée de journal</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FACTURATION PANE -->
+  <div class="tab-pane-custom" id="pane_facturation">
+    <!-- Cash Balance KPIs -->
+    <div class="row g-2 mb-4" id="cashKpis">
+      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Montant total HT</div><div class="val" id="ckTotal" style="color:var(--orange);">—</div></div></div>
+      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Facturé émis</div><div class="val" id="ckEmis" style="color:#fdcb6e;">—</div></div></div>
+      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Encaissé</div><div class="val" id="ckEncaisse" style="color:#00b894;">—</div></div></div>
+      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Restant à encaisser</div><div class="val" id="ckRestant" style="color:#d63031;">—</div></div></div>
+    </div>
+
+    <!-- Progress bar facturation -->
+    <div class="mb-4">
+      <div class="d-flex justify-content-between" style="font-size:0.72rem;color:#aaa;margin-bottom:4px;">
+        <span>Avancement facturation</span>
+        <span id="factPctLabel">0%</span>
+      </div>
+      <div style="height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;">
+        <div id="factBar" style="height:100%;border-radius:5px;background:linear-gradient(90deg,#00b894,#55efc4);transition:.4s;width:0%;"></div>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;">FACTURES</span>
+      <button class="btn btn-sm btn-orange" onclick="showAddFactureModal()" style="font-size:0.75rem;padding:3px 10px;">
+        <i class="bi bi-plus"></i> Nouvelle facture
+      </button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0" style="font-size:0.8rem;color:#e0e0e0;">
+        <thead style="background:rgba(255,255,255,0.05);color:#aaa;">
+          <tr>
+            <th>N°</th><th>Libellé</th><th class="text-end">Montant HT</th>
+            <th>Date émission</th><th>Date paiement</th><th>Statut</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="factureTable">
+          {% for f in chantier.factures %}
+          <tr id="fact_{{ f.id }}">
+            <td style="font-weight:700;">{{ f.numero }}</td>
+            <td>{{ f.libelle }}</td>
+            <td class="text-end">{{ "{:,.0f}".format(f.montant) }} €</td>
+            <td>{{ f.date_emission }}</td>
+            <td>{{ f.date_paiement or '—' }}</td>
+            <td><span class="fact-statut-{{ f.statut }}">{{ f.statut|upper }}</span></td>
+            <td>
+              <button class="btn btn-sm p-0 me-2" style="color:#aaa;font-size:0.75rem;"
+                      onclick="showEditFactureModal('{{ f.id }}','{{ f.numero }}','{{ f.libelle|replace(\"'\",\"&#39;\") }}',{{ f.montant }},'{{ f.date_emission }}','{{ f.date_paiement or '' }}','{{ f.statut }}')">
+                <i class="bi bi-pencil"></i></button>
+              <button class="btn btn-sm p-0" style="color:#e17055;font-size:0.75rem;" onclick="deleteFacture('{{ f.id }}')">
+                <i class="bi bi-trash"></i></button>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="factEmpty"><td colspan="7" class="text-center py-3 text-muted">Aucune facture</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /tab-content-area -->
+
+<!-- ====== MODALS ====== -->
+
+<!-- Add/Edit Tâche -->
+<div class="modal fade" id="tacheModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="tacheModalTitle">Ajouter une tâche</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="tModalPhase">
+        <input type="hidden" id="tModalId">
+        <div class="mb-2">
+          <label class="form-label">Titre *</label>
+          <input type="text" class="form-control" id="tModalTitre" placeholder="Titre de la tâche">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Description</label>
+          <textarea class="form-control" id="tModalDesc" rows="2"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" id="tModalStatut">
+              <option value="todo">À faire</option>
+              <option value="doing">En cours</option>
+              <option value="done">Fait</option>
+              <option value="blocked">Bloqué</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Priorité</label>
+            <select class="form-select" id="tModalPrio">
+              <option value="haute">🔴 Haute</option>
+              <option value="normale" selected>🟡 Normale</option>
+              <option value="basse">🟢 Basse</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Responsable</label>
+            <input type="text" class="form-control" id="tModalResp" placeholder="Nom">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Deadline</label>
+            <input type="date" class="form-control" id="tModalDeadline">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-danger me-auto" id="tModalDeleteBtn" style="display:none;" onclick="deleteTacheFromModal()">
+          <i class="bi bi-trash"></i> Supprimer
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-orange btn-sm" onclick="saveTache()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Facture -->
+<div class="modal fade" id="factureModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="factModalTitle">Nouvelle facture</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="fModalId">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">N° facture</label>
+            <input type="text" class="form-control" id="fModalNum" placeholder="FAC-001">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Montant HT (€)</label>
+            <input type="number" class="form-control" id="fModalMontant" step="0.01" min="0">
+          </div>
+          <div class="col-12">
+            <label class="form-label">Libellé</label>
+            <input type="text" class="form-control" id="fModalLib" placeholder="Ex: Acompte 30% – installation PV">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Date émission</label>
+            <input type="date" class="form-control" id="fModalDateE" value="{{ now }}">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Date paiement</label>
+            <input type="date" class="form-control" id="fModalDateP">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Statut</label>
+            <select class="form-select" id="fModalStatut">
+              <option value="emis">Émis</option>
+              <option value="paye">Payé</option>
+              <option value="retard">En retard</option>
+              <option value="annule">Annulé</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-danger me-auto" id="fModalDeleteBtn" style="display:none;" onclick="deleteFactureFromModal()">
+          <i class="bi bi-trash"></i>
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-orange btn-sm" onclick="saveFacture()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Config Chantier -->
+<div class="modal fade" id="configModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-gear"></i> Paramètres du chantier</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Nom du projet</label>
+          <input type="text" class="form-control" id="cfgNomProjet" value="{{ chantier.nom_projet or prospect.nom_prospect }}">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Montant total marché HT (€)</label>
+          <input type="number" class="form-control" id="cfgMontant" value="{{ chantier.montant_total_ht or 0 }}" step="100">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button type="button" class="btn btn-orange btn-sm" onclick="saveConfig()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const PROSPECT_ID = {{ prospect.id }};
+const API = `/chantier/api/${PROSPECT_ID}`;
+
+// ─── Onglets ──────────────────────────────────────────────────────────────────
+function switchTab(id) {
+    document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-pane-custom').forEach(t => t.classList.remove('active'));
+    const tab = document.getElementById('tab_' + id);
+    const pane = document.getElementById('pane_' + id);
+    if (tab) tab.classList.add('active');
+    if (pane) pane.classList.add('active');
+    if (id === 'facturation') updateCashUI();
+    // Update kanban counters
+    updateKanbanCounters();
+}
+
+// ─── Kanban counters ──────────────────────────────────────────────────────────
+function updateKanbanCounters() {
+    {% for ph in phases %}
+    ['todo','doing','done','blocked'].forEach(col => {
+        const cnt = document.getElementById('cnt_{{ ph.id }}_' + col);
+        const cards = document.querySelectorAll(`#cards_{{ ph.id }}_${col} .kanban-card`);
+        if (cnt) cnt.textContent = cards.length;
+    });
+    {% endfor %}
+}
+document.addEventListener('DOMContentLoaded', updateKanbanCounters);
+
+// ─── Phase statut / dates ─────────────────────────────────────────────────────
+async function updatePhaseStatut(phId, val) {
+    await fetch(`${API}/phase/${phId}`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({statut: val})
+    });
+}
+async function updatePhaseDate(phId, key, val) {
+    await fetch(`${API}/phase/${phId}`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({[key]: val})
+    });
+}
+
+// ─── Checklist ────────────────────────────────────────────────────────────────
+async function toggleChecklist(phaseId, item, val) {
+    const resp = await fetch(`${API}/checklist`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({phase_id: phaseId, item: item, value: val})
+    });
+    const d = await resp.json();
+    if (d.ok) updateAvancement(d.avancement);
+}
+
+// ─── Tâche modal ──────────────────────────────────────────────────────────────
+let _tacheModal = null;
+function showAddTacheModal(phaseId) {
+    document.getElementById('tacheModalTitle').textContent = 'Ajouter une tâche';
+    document.getElementById('tModalPhase').value = phaseId;
+    document.getElementById('tModalId').value = '';
+    document.getElementById('tModalTitre').value = '';
+    document.getElementById('tModalDesc').value = '';
+    document.getElementById('tModalStatut').value = 'todo';
+    document.getElementById('tModalPrio').value = 'normale';
+    document.getElementById('tModalResp').value = '';
+    document.getElementById('tModalDeadline').value = '';
+    document.getElementById('tModalDeleteBtn').style.display = 'none';
+    if (!_tacheModal) _tacheModal = new bootstrap.Modal(document.getElementById('tacheModal'));
+    _tacheModal.show();
+}
+function showEditTacheModal(phId, tId, titre, desc, statut, resp, deadline, prio) {
+    document.getElementById('tacheModalTitle').textContent = 'Modifier la tâche';
+    document.getElementById('tModalPhase').value = phId;
+    document.getElementById('tModalId').value = tId;
+    document.getElementById('tModalTitre').value = titre;
+    document.getElementById('tModalDesc').value = desc;
+    document.getElementById('tModalStatut').value = statut;
+    document.getElementById('tModalPrio').value = prio || 'normale';
+    document.getElementById('tModalResp').value = resp;
+    document.getElementById('tModalDeadline').value = deadline;
+    document.getElementById('tModalDeleteBtn').style.display = 'inline-flex';
+    if (!_tacheModal) _tacheModal = new bootstrap.Modal(document.getElementById('tacheModal'));
+    _tacheModal.show();
+}
+async function saveTache() {
+    const phaseId = document.getElementById('tModalPhase').value;
+    const tacheId = document.getElementById('tModalId').value;
+    const payload = {
+        titre:       document.getElementById('tModalTitre').value.trim(),
+        description: document.getElementById('tModalDesc').value,
+        statut:      document.getElementById('tModalStatut').value,
+        priorite:    document.getElementById('tModalPrio').value,
+        responsable: document.getElementById('tModalResp').value,
+        deadline:    document.getElementById('tModalDeadline').value,
+    };
+    if (!payload.titre) { alert('Le titre est obligatoire'); return; }
+    let resp;
+    if (tacheId) {
+        resp = await fetch(`${API}/tache/${tacheId}`, {
+            method:'PATCH', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+    } else {
+        payload.phase_id = phaseId;
+        resp = await fetch(`${API}/tache`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+    }
+    const d = await resp.json();
+    if (d.ok) {
+        _tacheModal.hide();
+        reloadKanban(phaseId, d);
+        if (d.avancement) updateAvancement(d.avancement);
+    } else { alert('Erreur: ' + d.error); }
+}
+async function deleteTacheFromModal() {
+    const tId = document.getElementById('tModalId').value;
+    const phId = document.getElementById('tModalPhase').value;
+    if (!confirm('Supprimer cette tâche ?')) return;
+    const resp = await fetch(`${API}/tache/${tId}`, { method: 'DELETE' });
+    const d = await resp.json();
+    if (d.ok) {
+        _tacheModal.hide();
+        const card = document.getElementById('card_' + tId);
+        if (card) card.remove();
+        if (d.avancement) updateAvancement(d.avancement);
+        updateKanbanCounters();
+    }
+}
+
+// ─── Drag & Drop Kanban ───────────────────────────────────────────────────────
+let _dragTacheId = null;
+function onDragStart(event, tacheId) { _dragTacheId = tacheId; event.dataTransfer.effectAllowed = 'move'; }
+async function onDrop(event, phaseId, colId) {
+    event.preventDefault();
+    event.currentTarget.classList.remove('drag-over');
+    if (!_dragTacheId) return;
+    const targetContainer = document.getElementById(`cards_${phaseId}_${colId}`);
+    const card = document.getElementById('card_' + _dragTacheId);
+    if (card && targetContainer) {
+        targetContainer.appendChild(card);
+        updateKanbanCounters();
+        const resp = await fetch(`${API}/tache/${_dragTacheId}`, {
+            method:'PATCH', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({statut: colId})
+        });
+        const d = await resp.json();
+        if (d.avancement) updateAvancement(d.avancement);
+    }
+    _dragTacheId = null;
+}
+
+// ─── Reload kanban après sauvegarde (page refresh light) ─────────────────────
+async function reloadKanban(phaseId, data) {
+    if (data.tache) {
+        const t = data.tache;
+        const existing = document.getElementById('card_' + t.id);
+        const prioClass = `prio-${t.priorite || 'normale'}`;
+        const cardHtml = `<div class="kanban-card ${prioClass}" draggable="true" id="card_${t.id}"
+            ondragstart="onDragStart(event,'${t.id}')"
+            onclick="showEditTacheModal('${phaseId}','${t.id}','${t.titre.replace(/'/g,"&#39;")}','${(t.description||'').replace(/'/g,"&#39;")}','${t.statut}','${t.responsable||''}','${t.deadline||''}','${t.priorite||'normale'}')">
+            <div class="card-title">${t.titre}</div>
+            <div class="card-meta">
+                ${t.responsable ? `<span><i class="bi bi-person"></i> ${t.responsable}</span>` : ''}
+                ${t.deadline ? `<span><i class="bi bi-calendar"></i> ${t.deadline}</span>` : ''}
+                <span class="badge" style="font-size:0.6rem;background:rgba(255,255,255,0.08);">${t.priorite||'normale'}</span>
+            </div></div>`;
+        if (existing) {
+            existing.outerHTML = cardHtml;
+        } else {
+            const container = document.getElementById(`cards_${phaseId}_${t.statut}`);
+            if (container) container.insertAdjacentHTML('beforeend', cardHtml);
+        }
+    }
+    updateKanbanCounters();
+}
+
+// ─── Journal ──────────────────────────────────────────────────────────────────
+async function addJournal() {
+    const payload = {
+        date:           document.getElementById('jDate').value,
+        auteur:         document.getElementById('jAuteur').value,
+        meteo:          document.getElementById('jMeteo').value,
+        arret_chantier: document.getElementById('jArret').checked,
+        contenu:        document.getElementById('jContenu').value.trim(),
+    };
+    if (!payload.contenu) { alert('Saisissez une note'); return; }
+    const resp = await fetch(`${API}/journal`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const d = await resp.json();
+    if (d.ok) {
+        const e = d.entry;
+        const html = `<div class="journal-entry" id="je_${e.id}">
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="je-date"><i class="bi bi-calendar"></i> ${e.date}</span>
+                <span class="je-meteo">${e.meteo}</span>
+                ${e.arret_chantier ? '<span class="je-arret">⛔ ARRÊT CHANTIER</span>' : ''}
+                ${e.auteur ? `<span style="font-size:0.7rem;color:#aaa;margin-left:auto;"><i class="bi bi-person"></i> ${e.auteur}</span>` : ''}
+                <button class="btn btn-sm p-0 ms-2" style="color:#636e72;font-size:0.75rem;" onclick="deleteJournal('${e.id}')"><i class="bi bi-trash"></i></button>
+            </div>
+            <div class="je-text">${e.contenu}</div>
+        </div>`;
+        const list = document.getElementById('journalList');
+        const empty = document.getElementById('journalEmpty');
+        if (empty) empty.remove();
+        list.insertAdjacentHTML('afterbegin', html);
+        document.getElementById('jContenu').value = '';
+        document.getElementById('jArret').checked = false;
+    }
+}
+async function deleteJournal(id) {
+    if (!confirm('Supprimer cette entrée ?')) return;
+    await fetch(`${API}/journal/${id}`, { method:'DELETE' });
+    const el = document.getElementById('je_' + id);
+    if (el) el.remove();
+}
+
+// ─── Facture modal ────────────────────────────────────────────────────────────
+let _factModal = null;
+function showAddFactureModal() {
+    document.getElementById('factModalTitle').textContent = 'Nouvelle facture';
+    document.getElementById('fModalId').value = '';
+    document.getElementById('fModalNum').value = '';
+    document.getElementById('fModalLib').value = '';
+    document.getElementById('fModalMontant').value = '';
+    document.getElementById('fModalDateE').value = '{{ now }}';
+    document.getElementById('fModalDateP').value = '';
+    document.getElementById('fModalStatut').value = 'emis';
+    document.getElementById('fModalDeleteBtn').style.display = 'none';
+    if (!_factModal) _factModal = new bootstrap.Modal(document.getElementById('factureModal'));
+    _factModal.show();
+}
+function showEditFactureModal(id, num, lib, montant, dateE, dateP, statut) {
+    document.getElementById('factModalTitle').textContent = 'Modifier la facture';
+    document.getElementById('fModalId').value = id;
+    document.getElementById('fModalNum').value = num;
+    document.getElementById('fModalLib').value = lib;
+    document.getElementById('fModalMontant').value = montant;
+    document.getElementById('fModalDateE').value = dateE;
+    document.getElementById('fModalDateP').value = dateP;
+    document.getElementById('fModalStatut').value = statut;
+    document.getElementById('fModalDeleteBtn').style.display = 'inline-flex';
+    if (!_factModal) _factModal = new bootstrap.Modal(document.getElementById('factureModal'));
+    _factModal.show();
+}
+function _fmtE(v) { return v !== null && v !== undefined ? Math.round(v).toLocaleString('fr-FR') + ' €' : '—'; }
+async function saveFacture() {
+    const fId = document.getElementById('fModalId').value;
+    const payload = {
+        numero:         document.getElementById('fModalNum').value,
+        libelle:        document.getElementById('fModalLib').value,
+        montant:        parseFloat(document.getElementById('fModalMontant').value) || 0,
+        date_emission:  document.getElementById('fModalDateE').value,
+        date_paiement:  document.getElementById('fModalDateP').value,
+        statut:         document.getElementById('fModalStatut').value,
+    };
+    let resp;
+    if (fId) {
+        resp = await fetch(`${API}/facture/${fId}`, {
+            method:'PATCH', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+    } else {
+        resp = await fetch(`${API}/facture`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+    }
+    const d = await resp.json();
+    if (d.ok) {
+        _factModal.hide();
+        updateCashFromData(d.cash);
+        refreshFactureTable();
+    }
+}
+async function deleteFacture(id) {
+    if (!confirm('Supprimer cette facture ?')) return;
+    const resp = await fetch(`${API}/facture/${id}`, { method:'DELETE' });
+    const d = await resp.json();
+    if (d.ok) { updateCashFromData(d.cash); refreshFactureTable(); }
+}
+async function deleteFactureFromModal() {
+    const id = document.getElementById('fModalId').value;
+    if (!id || !confirm('Supprimer ?')) return;
+    _factModal.hide();
+    await deleteFacture(id);
+}
+async function refreshFactureTable() {
+    const resp = await fetch(`${API}/data`);
+    const d = await resp.json();
+    const tbody = document.getElementById('factureTable');
+    if (!d.ok || !d.chantier.factures.length) {
+        tbody.innerHTML = '<tr id="factEmpty"><td colspan="7" class="text-center py-3 text-muted">Aucune facture</td></tr>';
+        return;
+    }
+    const statColors = {emis:'fact-statut-emis', paye:'fact-statut-paye', retard:'fact-statut-retard', annule:'fact-statut-annule'};
+    tbody.innerHTML = d.chantier.factures.map(f => `<tr id="fact_${f.id}">
+        <td style="font-weight:700;">${f.numero}</td>
+        <td>${f.libelle}</td>
+        <td class="text-end">${Math.round(f.montant).toLocaleString('fr-FR')} €</td>
+        <td>${f.date_emission}</td>
+        <td>${f.date_paiement || '—'}</td>
+        <td><span class="${statColors[f.statut] || ''}">${f.statut.toUpperCase()}</span></td>
+        <td>
+          <button class="btn btn-sm p-0 me-2" style="color:#aaa;font-size:0.75rem;"
+                  onclick="showEditFactureModal('${f.id}','${f.numero}','${f.libelle}',${f.montant},'${f.date_emission}','${f.date_paiement||''}','${f.statut}')">
+            <i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm p-0" style="color:#e17055;font-size:0.75rem;" onclick="deleteFacture('${f.id}')">
+            <i class="bi bi-trash"></i></button>
+        </td></tr>`).join('');
+}
+
+// ─── Cash Balance ─────────────────────────────────────────────────────────────
+function updateCashFromData(cash) {
+    document.getElementById('ckTotal').textContent    = _fmtE(cash.total_ht);
+    document.getElementById('ckEmis').textContent     = _fmtE(cash.facture_emis);
+    document.getElementById('ckEncaisse').textContent = _fmtE(cash.encaisse);
+    document.getElementById('ckRestant').textContent  = _fmtE(cash.restant_a_encaisser);
+    const pct = cash.total_ht > 0 ? Math.round(cash.encaisse / cash.total_ht * 100) : 0;
+    document.getElementById('factBar').style.width = pct + '%';
+    document.getElementById('factPctLabel').textContent = pct + '%';
+}
+async function updateCashUI() {
+    const resp = await fetch(`${API}/data`);
+    const d = await resp.json();
+    if (d.ok) updateCashFromData(d.cash);
+}
+
+// ─── Avancement global ────────────────────────────────────────────────────────
+function updateAvancement(av) {
+    document.getElementById('globalBarFill').style.width = av.global + '%';
+    document.getElementById('globalPct').textContent = av.global + '%';
+    Object.entries(av.phases).forEach(([phId, pct]) => {
+        const pctEl = document.getElementById('pct_' + phId);
+        const barEl = document.getElementById('bar_' + phId);
+        if (pctEl) pctEl.textContent = pct + '%';
+        if (barEl) barEl.style.width = pct + '%';
+    });
+}
+
+// ─── Config modal ─────────────────────────────────────────────────────────────
+let _cfgModal = null;
+function showConfigModal() {
+    if (!_cfgModal) _cfgModal = new bootstrap.Modal(document.getElementById('configModal'));
+    _cfgModal.show();
+}
+async function saveConfig() {
+    const payload = {
+        nom_projet:         document.getElementById('cfgNomProjet').value,
+        montant_total_ht:   parseFloat(document.getElementById('cfgMontant').value) || 0,
+    };
+    const resp = await fetch(`${API}/config`, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+    });
+    const d = await resp.json();
+    if (d.ok) {
+        document.getElementById('nomProjet').textContent = payload.nom_projet;
+        updateCashFromData(d.cash);
+        _cfgModal.hide();
+    }
+}
+
+// Init cash KPIs on load
+updateCashUI();
+</script>
+</body>
+</html>
