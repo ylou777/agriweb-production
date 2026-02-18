@@ -1494,6 +1494,16 @@ async function selectProspect(id, el) {
             setField('technologie_module', data.technologie_module);
             setField('tech_co2', data.technologie_module);
         }
+        // Pays fabrication (MODULE, CELLULE, WAFER) + sync bilan carbone
+        if (data.pays_module) {
+            setField('pays_module',  data.pays_module);
+            setField('pays_cellule', data.pays_cellule || data.pays_module);
+            setField('pays_wafer',   data.pays_wafer  || data.pays_cellule || data.pays_module);
+            setField('pays_module_co2',  data.pays_module);
+            setField('pays_cellule_co2', data.pays_cellule || data.pays_module);
+            setField('pays_wafer_co2',   data.pays_wafer  || data.pays_cellule || data.pays_module);
+            lancerCalculCarbone();
+        }
 
         // Auto-recherche certificat Certisolis avec le fabricant du module
         if (data.fabricant_module) {

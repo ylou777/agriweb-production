@@ -326,6 +326,10 @@ def get_prospect_data(prospect_id):
         ref_module = module_info.get('modele', '')
         puissance_module_wc = module_info.get('puissance', '')
         tech_raw = (module_info.get('technologie') or '').lower()
+        # Pays fabrication depuis la base modules (sauvegardés dans calpinage)
+        pays_module_val  = module_info.get('pays_module', '')
+        pays_cellule_val = module_info.get('pays_cellule', '') or pays_module_val
+        pays_wafer_val   = module_info.get('pays_wafer', '')  or pays_cellule_val
         # Mapper vers les valeurs du select
         if 'cdte' in tech_raw or 'cadmium' in tech_raw:
             technologie_module = 'cdte'
@@ -384,6 +388,9 @@ def get_prospect_data(prospect_id):
             "ref_module": ref_module,
             "puissance_module_wc": puissance_module_wc,
             "technologie_module": technologie_module,
+            "pays_module":  pays_module_val,
+            "pays_cellule": pays_cellule_val,
+            "pays_wafer":   pays_wafer_val,
         }
         return jsonify(data)
     except Exception as e:
