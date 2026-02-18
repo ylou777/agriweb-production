@@ -278,8 +278,12 @@ def simuler_note_totale(prix, ecs, periode=12, engagement_gp=False, part_gp=0,
 @ao_pv_bp.route('/')
 def index():
     """Page principale - sélection du projet/prospect source."""
-    # Charger les prospects depuis le CRM
-    prospects = _get_prospects_for_ao()
+    try:
+        from crm_routes import get_current_crm_user
+        user_id, is_admin = get_current_crm_user()
+    except Exception:
+        user_id, is_admin = None, True
+    prospects = _get_prospects_for_ao(user_id=user_id, is_admin=is_admin)
     return render_template('ao_pv_batiment.html',
                            prospects=prospects,
                            periode=PERIODE_ACTUELLE,
@@ -288,49 +292,53 @@ def index():
                            carbone_ref=CARBONE_REF[PERIODE_ACTUELLE])
 
 
-@ao_pv_bp.route('/api/prospect/<prospect_id>')
+@ao_pv_bp.route('/api/prospect/<int:prospect_id>')
 def get_prospect_data(prospect_id):
     """Retourne les données d'un prospect formatées pour le formulaire AO."""
     try:
-        from models import Prospect
-        p = Prospect.query.get(prospect_id)
+        from database_adapter import execute_query
+        p = execute_query(
+            'SELECT * FROM agriweb_prospects WHERE id = %s',
+            (prospect_id,), fetch_one=True
+        )
         if not p:
             return jsonify({"error": "Prospect non trouvé"}), 404
 
-        # Calcul de puissance estimée depuis la surface toiture (170 Wc/m² taux standard)
-        surface_m2 = None
+        # Surface toiture et puissance estimée
+        surface_m2 = p.get('surface_m2')
         puissance_kwc_estimee = None
+
+        # Essayer aussi dans data_json
         try:
-            tags = json.loads(p.tags) if p.tags else []
-            for tag in tags:
-                if isinstance(tag, dict) and tag.get("surface_toiture_m2"):
-                    surface_m2 = tag["surface_toiture_m2"]
-                    break
+            dj = p.get('data_json')
+            if dj:
+                if isinstance(dj, str):
+                    dj = json.loads(dj)
+                if isinstance(dj, dict):
+                    surface_m2 = surface_m2 or dj.get('surface_toiture_m2') or dj.get('surface_m2')
         except Exception:
             pass
 
-        # Estimation puissance depuis surface (rendement 18%, 80% utilisation toiture)
         if surface_m2:
-            puissance_kwc_estimee = round(surface_m2 * 0.80 * 0.18 * 1000 / 1000, 0)
+            puissance_kwc_estimee = round(float(surface_m2) * 0.80 * 0.18, 0)
 
         data = {
-            "id": p.id,
-            "raison_sociale": p.company_name,
-            "adresse": p.address or "",
-            "commune": p.city or "",
-            "code_postal": p.postal_code or "",
-            "departement": p.department or "",
-            "coordinates": p.coordinates or "",
-            "contact_nom": p.contact_name or "",
-            "contact_email": p.contact_email or "",
-            "contact_tel": p.contact_phone or "",
-            "notes": p.notes or "",
-            "estimated_value": p.estimated_value,
+            "id": p.get('id'),
+            "raison_sociale": p.get('nom_prospect') or "",
+            "adresse": p.get('adresse') or "",
+            "commune": p.get('commune') or "",
+            "code_postal": "",
+            "departement": p.get('departement') or "",
+            "contact_nom": p.get('contact_nom') or "",
+            "contact_email": p.get('contact_email') or "",
+            "contact_tel": p.get('contact_telephone') or "",
             "surface_toiture_m2": surface_m2,
             "puissance_kwc_estimee": puissance_kwc_estimee,
+            "type": p.get('type') or "",
         }
         return jsonify(data)
     except Exception as e:
+        import traceback; traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 
@@ -487,29 +495,34 @@ def checker_admissibilite():
 
 # ─── HELPERS ───────────────────────────────────────────────────────────────────
 
-def _get_prospects_for_ao():
-    """Récupère les prospects éligibles AO (surface disponible, puissance estimée)."""
+def _get_prospects_for_ao(user_id=None, is_admin=False):
+    """Récupère les prospects depuis agriweb_prospects via database_adapter."""
     try:
-        from models import Prospect
-        # Prospects actifs avec une adresse renseignée
-        prospects = Prospect.query.filter(
-            Prospect.city.isnot(None)
-        ).order_by(Prospect.created_at.desc()).limit(100).all()
+        from database_adapter import execute_query
+        filter_clause = '' if is_admin or user_id is None else ' AND user_id = %s'
+        params = None if is_admin or user_id is None else (user_id,)
+
+        rows = execute_query(
+            f'SELECT id, nom_prospect, commune, departement, adresse, statut, surface_m2 '
+            f'FROM agriweb_prospects WHERE 1=1{filter_clause} '
+            f'ORDER BY date_creation DESC LIMIT 200',
+            params, fetch_all=True
+        )
 
         result = []
-        for p in prospects:
+        for p in (rows or []):
             result.append({
-                "id": p.id,
-                "company_name": p.company_name,
-                "city": p.city or "",
-                "department": p.department or "",
-                "status": p.status,
-                "address": p.address or "",
-                "estimated_value": p.estimated_value,
+                "id": p.get('id'),
+                "company_name": p.get('nom_prospect') or '(sans nom)',
+                "city": p.get('commune') or '',
+                "department": p.get('departement') or '',
+                "status": p.get('statut') or 'nouveau',
+                "address": p.get('adresse') or '',
             })
         return result
     except Exception as e:
         print(f"[AO PV] Impossible de charger les prospects: {e}")
+        import traceback; traceback.print_exc()
         return []
 
 
