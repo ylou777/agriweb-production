@@ -145,10 +145,14 @@
 
     /* === SIDEBAR FOOTER === */
     .sidebar-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
       padding: 12px 24px;
       border-top: 1px solid var(--c-border);
       background: var(--c-surface-2);
-      flex-shrink: 0;
+      z-index: 2;
     }
     .sidebar-footer .settings-btn {
       display: flex;
@@ -466,7 +470,7 @@
       </div>
 
       <!-- Sections -->
-      <div style="flex:1 1 0px; overflow-y:auto; padding-bottom:16px; min-height:0;">
+      <div style="flex:1 1 0px; overflow-y:auto; padding-bottom:72px; min-height:0;">
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
