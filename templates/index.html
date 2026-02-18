@@ -142,6 +142,43 @@
       background: rgba(239,68,68,0.1);
     }
 
+    /* === SIDEBAR FOOTER === */
+    .sidebar-footer {
+      padding: 12px 24px;
+      border-top: 1px solid var(--c-border);
+      background: var(--c-surface-2);
+      flex-shrink: 0;
+    }
+    .sidebar-footer .settings-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--c-text-secondary);
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: var(--radius-sm);
+      text-decoration: none;
+      transition: all var(--transition);
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .sidebar-footer .settings-btn:hover {
+      color: var(--c-accent);
+      border-color: var(--c-accent);
+      background: var(--c-accent-light);
+      transform: translateX(2px);
+    }
+    .sidebar-footer .settings-btn i {
+      font-size: 1.1rem;
+      opacity: 0.7;
+    }
+    .sidebar-footer .settings-btn:hover i {
+      opacity: 1;
+    }
+
     /* === ACCORDION FLAT === */
     .accordion { --bs-accordion-border-color: transparent; }
     .accordion-item {
@@ -420,13 +457,12 @@
 
       <!-- Navigation pills -->
       <div class="nav-pills-row">
-        <a href="/" class="nav-pill"><i class="bi bi-house"></i> Accueil</a>
         <a href="/crm" target="_blank" class="nav-pill"><i class="bi bi-folder2-open"></i> Projets</a>
+        <a href="/" class="nav-pill"><i class="bi bi-search"></i> Analyse</a>
         {% if is_admin %}
         <a href="/crm/stats" target="_blank" class="nav-pill"><i class="bi bi-bar-chart-line"></i> KPI</a>
         <a href="/admin" target="_blank" class="nav-pill" style="border-color:rgba(241,196,15,0.4);color:#f1c40f;"><i class="bi bi-shield-lock"></i> Admin</a>
         {% endif %}
-        <a href="/logout" class="nav-pill pill-danger"><i class="bi bi-box-arrow-right"></i> Quitter</a>
       </div>
 
       <!-- Sections -->
@@ -434,6 +470,14 @@
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar-footer">
+        <a href="/api/crm/parametrage" class="settings-btn" target="_blank">
+          <i class="bi bi-gear"></i>
+          <span>Paramètres</span>
+        </a>
       </div>
     </div>
     <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
