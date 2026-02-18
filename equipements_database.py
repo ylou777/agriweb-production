@@ -8,254 +8,580 @@ AgriWeb 2025 - Catalogue professionnel
 # ============================================================================
 
 MODULES_PV_DATABASE = {
-    # CANADIAN SOLAR (Leader mondial, excellent rapport qualité/prix)
+    # =========================================================================
+    # CANADIAN SOLAR (Leader mondial, rapport qualité/prix)
+    # =========================================================================
     'CS-550W': {
         'fabricant': 'Canadian Solar',
         'modele': 'HiKu6 CS6W-550MS',
-        'puissance': 550,  # Wc
-        'voc': 49.5,       # V (tension circuit ouvert)
-        'vmpp': 41.8,      # V (tension point de puissance max)
-        'isc': 13.9,       # A (courant court-circuit)
-        'impp': 13.2,      # A (courant point de puissance max)
-        'longueur': 2278,  # mm
-        'largeur': 1134,   # mm
-        'epaisseur': 35,   # mm
-        'poids': 27.5,     # kg
-        'rendement': 21.2, # %
+        'puissance': 550,
+        'voc': 49.5, 'vmpp': 41.8, 'isc': 13.9, 'impp': 13.2,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 35,
+        'poids': 27.5, 'rendement': 21.2,
         'technologie': 'Monocristallin PERC',
-        'garantie_produit': 12,  # années
-        'garantie_performance': 25,  # années
-        'prix_indicatif': 180,  # € HT
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.34,  # %/°C
-        'coeff_temp_voc': -0.27,   # %/°C
-        'coeff_temp_isc': 0.048    # %/°C
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 180, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.34, 'coeff_temp_voc': -0.27, 'coeff_temp_isc': 0.048,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
     'CS-450W': {
         'fabricant': 'Canadian Solar',
         'modele': 'HiKu CS3W-450MS',
         'puissance': 450,
-        'voc': 49.1,
-        'vmpp': 41.2,
-        'isc': 11.53,
-        'impp': 10.93,
-        'longueur': 2108,
-        'largeur': 1048,
-        'epaisseur': 35,
-        'poids': 24.0,
-        'rendement': 20.4,
+        'voc': 49.1, 'vmpp': 41.2, 'isc': 11.53, 'impp': 10.93,
+        'longueur': 2108, 'largeur': 1048, 'epaisseur': 35,
+        'poids': 24.0, 'rendement': 20.4,
         'technologie': 'Monocristallin PERC',
-        'garantie_produit': 12,
-        'garantie_performance': 25,
-        'prix_indicatif': 150,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.35,
-        'coeff_temp_voc': -0.27,
-        'coeff_temp_isc': 0.048
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 150, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.35, 'coeff_temp_voc': -0.27, 'coeff_temp_isc': 0.048,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
-    
-    # JINKO SOLAR (Top 3 mondial, très performant)
+    'CS-580W-BIFACIAL': {
+        'fabricant': 'Canadian Solar',
+        'modele': 'BiHiKu7 CS7N-580TB-AG',
+        'puissance': 580,
+        'voc': 51.80, 'vmpp': 43.60, 'isc': 14.20, 'impp': 13.30,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 35,
+        'poids': 31.5, 'rendement': 22.4,
+        'technologie': 'Monocristallin N-type Bifacial',
+        'tech_cellule': 'N-TOPCon', 'biverre': True,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 220, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'bifacial': True, 'bifaciality': 70,
+        'coeff_temp_pmax': -0.30, 'coeff_temp_voc': -0.25, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
+    },
+
+    # =========================================================================
+    # JINKO SOLAR (Top 3 mondial)
+    # =========================================================================
     'JKM-575W': {
         'fabricant': 'Jinko Solar',
-        'modele': 'Tiger Neo N-type JKM575N-72HL4-BDV',
+        'modele': 'Tiger Neo JKM575N-72HL4-BDV',
         'puissance': 575,
-        'voc': 51.45,
-        'vmpp': 43.30,
-        'isc': 14.10,
-        'impp': 13.28,
-        'longueur': 2278,
-        'largeur': 1134,
-        'epaisseur': 30,
-        'poids': 28.6,
-        'rendement': 22.2,
+        'voc': 51.45, 'vmpp': 43.30, 'isc': 14.10, 'impp': 13.28,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 28.6, 'rendement': 22.2,
         'technologie': 'Monocristallin N-type TOPCon',
-        'garantie_produit': 15,
-        'garantie_performance': 30,
-        'prix_indicatif': 200,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.29,  # Meilleur coeff température (N-type)
-        'coeff_temp_voc': -0.24,
-        'coeff_temp_isc': 0.045
+        'tech_cellule': 'N-TOPCon', 'biverre': True,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 200, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°029-2024_002', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-12',
+    },
+    'JKM-590N-72HL4-BDV': {
+        'fabricant': 'Jinko Solar',
+        'modele': 'Tiger Neo JKM590N-72HL4-BDV',
+        'puissance': 590,
+        'voc': 52.20, 'vmpp': 44.10, 'isc': 14.50, 'impp': 13.38,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 29.6, 'rendement': 22.8,
+        'technologie': 'Monocristallin N-type TOPCon Bifacial',
+        'tech_cellule': 'N-TOPCon', 'biverre': True,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 205, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°029-2024_002', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-12',
+    },
+    'JKM-455N-54HL4R': {
+        'fabricant': 'Jinko Solar',
+        'modele': 'Tiger Neo JKM455N-54HL4R-B',
+        'puissance': 455,
+        'voc': 49.65, 'vmpp': 41.80, 'isc': 11.88, 'impp': 10.89,
+        'longueur': 1762, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 21.7, 'rendement': 21.6,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 160, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°029-2024_004', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-12',
     },
     'JKM-460W': {
         'fabricant': 'Jinko Solar',
         'modele': 'Tiger Pro JKM460M-60HL4-V',
         'puissance': 460,
-        'voc': 49.75,
-        'vmpp': 41.85,
-        'isc': 11.65,
-        'impp': 10.99,
-        'longueur': 1903,
-        'largeur': 1134,
-        'epaisseur': 30,
-        'poids': 24.5,
-        'rendement': 21.3,
+        'voc': 49.75, 'vmpp': 41.85, 'isc': 11.65, 'impp': 10.99,
+        'longueur': 1903, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 24.5, 'rendement': 21.3,
         'technologie': 'Monocristallin PERC',
-        'garantie_produit': 12,
-        'garantie_performance': 25,
-        'prix_indicatif': 155,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.34,
-        'coeff_temp_voc': -0.26,
-        'coeff_temp_isc': 0.048
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 155, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.34, 'coeff_temp_voc': -0.26, 'coeff_temp_isc': 0.048,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
-    
-    # JA SOLAR (Innovant, excellent rendement)
+
+    # =========================================================================
+    # JA SOLAR (DeepBlue 4.0 Pro N-TOPCon)
+    # =========================================================================
     'JAM72S30': {
         'fabricant': 'JA Solar',
         'modele': 'JAM72S30 560W',
         'puissance': 560,
-        'voc': 49.85,
-        'vmpp': 42.05,
-        'isc': 14.10,
-        'impp': 13.32,
-        'longueur': 2278,
-        'largeur': 1134,
-        'epaisseur': 35,
-        'poids': 28.0,
-        'rendement': 21.6,
+        'voc': 49.85, 'vmpp': 42.05, 'isc': 14.10, 'impp': 13.32,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 35,
+        'poids': 28.0, 'rendement': 21.6,
         'technologie': 'Monocristallin PERC Half-cell',
-        'garantie_produit': 12,
-        'garantie_performance': 25,
-        'prix_indicatif': 185,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.35,
-        'coeff_temp_voc': -0.27,
-        'coeff_temp_isc': 0.050
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 185, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.35, 'coeff_temp_voc': -0.27, 'coeff_temp_isc': 0.050,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
-    
-    # LONGI SOLAR (Premium, leader technologie)
+    'JAM66D45-635': {
+        'fabricant': 'JA Solar',
+        'modele': 'DeepBlue 4.0 Pro JAM66D45/LB 635W',
+        'puissance': 635,
+        'voc': 47.60, 'vmpp': 39.88, 'isc': 17.49, 'impp': 15.93,
+        'longueur': 2465, 'largeur': 1134, 'epaisseur': 35,
+        'poids': 34.8, 'rendement': 22.7,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 215, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°022-2025_002', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-04',
+    },
+    'JAM54D40-455': {
+        'fabricant': 'JA Solar',
+        'modele': 'DeepBlue 4.0 Pro JAM54D40/LB 455W',
+        'puissance': 455,
+        'voc': 40.35, 'vmpp': 33.95, 'isc': 14.78, 'impp': 13.40,
+        'longueur': 1762, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 22.5, 'rendement': 22.8,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 165, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°022-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-04',
+    },
+
+    # =========================================================================
+    # LONGI SOLAR (Back Contact Hi-MO 7)
+    # =========================================================================
     'LR5-72HBD': {
         'fabricant': 'LONGi Solar',
         'modele': 'Hi-MO 5 LR5-72HBD-565M',
         'puissance': 565,
-        'voc': 49.95,
-        'vmpp': 42.10,
-        'isc': 14.26,
-        'impp': 13.42,
-        'longueur': 2278,
-        'largeur': 1134,
-        'epaisseur': 35,
-        'poids': 28.3,
-        'rendement': 21.8,
+        'voc': 49.95, 'vmpp': 42.10, 'isc': 14.26, 'impp': 13.42,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 35,
+        'poids': 28.3, 'rendement': 21.8,
         'technologie': 'Monocristallin PERC',
-        'garantie_produit': 12,
-        'garantie_performance': 25,
-        'prix_indicatif': 195,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.34,
-        'coeff_temp_voc': -0.26,
-        'coeff_temp_isc': 0.048
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 195, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.34, 'coeff_temp_voc': -0.26, 'coeff_temp_isc': 0.048,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
-    
-    # TRINA SOLAR (Très populaire France)
+    'LR7-72HVD-645BC': {
+        'fabricant': 'LONGi Solar',
+        'modele': 'Hi-MO 7 LR7-72HVD-645M (Back Contact)',
+        'puissance': 645,
+        'voc': 51.85, 'vmpp': 44.40, 'isc': 14.98, 'impp': 14.53,
+        'longueur': 2382, 'largeur': 1134, 'epaisseur': 35,
+        'poids': 32.5, 'rendement': 23.8,
+        'technologie': 'Monocristallin Back Contact N-type',
+        'tech_cellule': 'Back Contact', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 230, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°026-2025_003', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-12',
+    },
+    'LR7-54HVH-480BC': {
+        'fabricant': 'LONGi Solar',
+        'modele': 'Hi-MO X LR7-54HVH-480M (Back Contact)',
+        'puissance': 480,
+        'voc': 40.20, 'vmpp': 33.90, 'isc': 14.91, 'impp': 14.16,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 23.0, 'rendement': 23.0,
+        'technologie': 'Monocristallin Back Contact N-type',
+        'tech_cellule': 'Back Contact', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 175, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°026-2025_003', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-12',
+    },
+    'LR8-66HYD-640BC': {
+        'fabricant': 'LONGi Solar',
+        'modele': 'Hi-MO LR8-66HYD-640M (Back Contact Bifacial)',
+        'puissance': 640,
+        'voc': 51.23, 'vmpp': 43.65, 'isc': 15.18, 'impp': 14.66,
+        'longueur': 2384, 'largeur': 1096, 'epaisseur': 35,
+        'poids': 34.0, 'rendement': 24.5,
+        'technologie': 'Monocristallin Back Contact N-type Bifacial',
+        'tech_cellule': 'Back Contact', 'biverre': True,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 250, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'bifacial': True, 'bifaciality': 75,
+        'coeff_temp_pmax': -0.24, 'coeff_temp_voc': -0.22, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°026-2025_005', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-12',
+    },
+
+    # =========================================================================
+    # TRINA SOLAR (Vertex S+ N-TOPCon)
+    # =========================================================================
     'TSM-DEG21C': {
         'fabricant': 'Trina Solar',
         'modele': 'Vertex S TSM-DEG21C.20 550W',
         'puissance': 550,
-        'voc': 49.60,
-        'vmpp': 41.90,
-        'isc': 13.95,
-        'impp': 13.13,
-        'longueur': 2278,
-        'largeur': 1134,
-        'epaisseur': 30,
-        'poids': 27.8,
-        'rendement': 21.2,
+        'voc': 49.60, 'vmpp': 41.90, 'isc': 13.95, 'impp': 13.13,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 27.8, 'rendement': 21.2,
         'technologie': 'Monocristallin PERC',
-        'garantie_produit': 12,
-        'garantie_performance': 25,
-        'prix_indicatif': 178,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.34,
-        'coeff_temp_voc': -0.26,
-        'coeff_temp_isc': 0.048
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 178, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.34, 'coeff_temp_voc': -0.26, 'coeff_temp_isc': 0.048,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
-    
-    # MODULES PREMIUM (Fabrication européenne)
+    'TSM-NEG9R-450': {
+        'fabricant': 'Trina Solar',
+        'modele': 'Vertex S+ TSM-NEG9R.28 450W',
+        'puissance': 450,
+        'voc': 37.73, 'vmpp': 31.64, 'isc': 15.30, 'impp': 14.22,
+        'longueur': 1762, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 21.5, 'rendement': 22.6,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 165, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°006-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-03',
+    },
+    'TSM-NEG18R-505': {
+        'fabricant': 'Trina Solar',
+        'modele': 'Vertex S+ TSM-NEG18R.28 505W',
+        'puissance': 505,
+        'voc': 42.04, 'vmpp': 35.30, 'isc': 15.38, 'impp': 14.31,
+        'longueur': 1903, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 24.0, 'rendement': 23.4,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 185, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°006-2025_002', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-03',
+    },
+
+    # =========================================================================
+    # RISEN ENERGY (Titan Pro N-TOPCon)
+    # =========================================================================
+    'RSM108-11-510': {
+        'fabricant': 'Risen Energy',
+        'modele': 'Titan Pro RSM108-11-510BNDG',
+        'puissance': 510,
+        'voc': 42.35, 'vmpp': 35.55, 'isc': 15.28, 'impp': 14.35,
+        'longueur': 1903, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 24.5, 'rendement': 23.6,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 180, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.30, 'coeff_temp_voc': -0.25, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°035-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-06',
+    },
+    'RSM96-11-450': {
+        'fabricant': 'Risen Energy',
+        'modele': 'Risen Evolution RSM96-11-450BNDG',
+        'puissance': 450,
+        'voc': 37.40, 'vmpp': 31.50, 'isc': 15.25, 'impp': 14.26,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 21.5, 'rendement': 23.0,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 162, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.30, 'coeff_temp_voc': -0.25, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°035-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-06',
+    },
+
+    # =========================================================================
+    # AIKO SOLAR (Neon N+ ABC — meilleur rendement marché)
+    # =========================================================================
+    'AIKO-A460-MAH54M': {
+        'fabricant': 'AIKO Solar',
+        'modele': 'Neon N+ AIKO-A460-MAH54Mw',
+        'puissance': 460,
+        'voc': 37.80, 'vmpp': 31.82, 'isc': 15.21, 'impp': 14.46,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 22.0, 'rendement': 23.6,
+        'technologie': 'Monocristallin N-type ABC (Back Contact)',
+        'tech_cellule': 'N-ABC', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 195, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.27, 'coeff_temp_voc': -0.23, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°069-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-10',
+    },
+    'AIKO-A480-MAH54D': {
+        'fabricant': 'AIKO Solar',
+        'modele': 'Neon N+ AIKO-A480-MAH54Dw (Bifacial)',
+        'puissance': 480,
+        'voc': 38.90, 'vmpp': 32.72, 'isc': 15.47, 'impp': 14.67,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 24.5, 'rendement': 24.6,
+        'technologie': 'Monocristallin N-type ABC Bifacial',
+        'tech_cellule': 'N-ABC', 'biverre': True,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 210, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'bifacial': True, 'bifaciality': 80,
+        'coeff_temp_pmax': -0.27, 'coeff_temp_voc': -0.23, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°069-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-10',
+    },
+
+    # =========================================================================
+    # VOLTEC SOLAR (Fabrication française — meilleur score carbone AO)
+    # =========================================================================
+    'VOLTEC-430': {
+        'fabricant': 'Voltec Solar',
+        'modele': 'VS-430-M6-PERC (ancienne génération)',
+        'puissance': 430,
+        'voc': 49.20, 'vmpp': 41.50, 'isc': 10.98, 'impp': 10.36,
+        'longueur': 1755, 'largeur': 1038, 'epaisseur': 35,
+        'poids': 22.0, 'rendement': 23.5,
+        'technologie': 'Monocristallin PERC',
+        'tech_cellule': 'P-PERC', 'biverre': False,
+        'pays_module': 'France', 'pays_cellule': 'Asie', 'pays_wafer': 'Asie',
+        'garantie_produit': 20, 'garantie_performance': 30,
+        'prix_indicatif': 280, 'disponibilite': 'stock France', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.35, 'coeff_temp_voc': -0.28, 'coeff_temp_isc': 0.050,
+        'made_in_france': True,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
+    },
+    'VOLTEC-TARKA110-450': {
+        'fabricant': 'Voltec Solar',
+        'modele': 'TARKA 110 VSMP 450W (Made in France)',
+        'puissance': 450,
+        'voc': 38.05, 'vmpp': 32.00, 'isc': 14.72, 'impp': 14.06,
+        'longueur': 1722, 'largeur': 1038, 'epaisseur': 30,
+        'poids': 21.5, 'rendement': 25.2,
+        'technologie': 'Monocristallin N-type TOPCon (Assemblage France)',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'France', 'pays_cellule': 'Asie', 'pays_wafer': 'Asie',
+        'garantie_produit': 20, 'garantie_performance': 30,
+        'prix_indicatif': 310, 'disponibilite': 'stock France', 'classe_feu': 'Classe C',
+        'made_in_france': True,
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°005-2025_007', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 530, 'certisolis_expiry': '2026-10',
+    },
+    'VOLTEC-TARKA120-490': {
+        'fabricant': 'Voltec Solar',
+        'modele': 'TARKA 120 VSMP 490W (Made in France)',
+        'puissance': 490,
+        'voc': 41.07, 'vmpp': 34.54, 'isc': 14.89, 'impp': 14.19,
+        'longueur': 1903, 'largeur': 1038, 'epaisseur': 30,
+        'poids': 23.5, 'rendement': 24.8,
+        'technologie': 'Monocristallin N-type TOPCon (Assemblage France)',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'France', 'pays_cellule': 'Asie', 'pays_wafer': 'Asie',
+        'garantie_produit': 20, 'garantie_performance': 30,
+        'prix_indicatif': 330, 'disponibilite': 'stock France', 'classe_feu': 'Classe C',
+        'made_in_france': True,
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°005-2025_007', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 530, 'certisolis_expiry': '2026-10',
+    },
+
+    # =========================================================================
+    # TONGWEI (N-TOPCon, bon rapport qualité/prix)
+    # =========================================================================
+    'TWMNH-54HD-505': {
+        'fabricant': 'Tongwei Solar',
+        'modele': 'TWMNH-54HD 505W',
+        'puissance': 505,
+        'voc': 41.95, 'vmpp': 35.24, 'isc': 15.32, 'impp': 14.33,
+        'longueur': 1903, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 24.3, 'rendement': 23.4,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 172, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.30, 'coeff_temp_voc': -0.25, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°036-2024_003', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-07',
+    },
+    'TWMNH-66HD-620': {
+        'fabricant': 'Tongwei Solar',
+        'modele': 'TWMNH-66HD 620W',
+        'puissance': 620,
+        'voc': 51.70, 'vmpp': 43.45, 'isc': 15.42, 'impp': 14.27,
+        'longueur': 2384, 'largeur': 1096, 'epaisseur': 30,
+        'poids': 32.8, 'rendement': 23.7,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 200, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.30, 'coeff_temp_voc': -0.25, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°036-2024_003', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-07',
+    },
+
+    # =========================================================================
+    # QCELLS (Hanwha, qualité premium)
+    # =========================================================================
+    'QCELLS-QTRON-445': {
+        'fabricant': 'Qcells (Hanwha)',
+        'modele': 'Q.TRON S-G3R.12+ 445W',
+        'puissance': 445,
+        'voc': 37.38, 'vmpp': 31.45, 'isc': 15.13, 'impp': 14.15,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 21.8, 'rendement': 22.8,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Corée/Malaisie', 'pays_cellule': 'Corée', 'pays_wafer': 'Asie',
+        'garantie_produit': 15, 'garantie_performance': 25,
+        'prix_indicatif': 185, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°009-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-07',
+    },
+
+    # =========================================================================
+    # GCL SOLAR (N-TOPCon, compétitif)
+    # =========================================================================
+    'GCL-NT12R-520': {
+        'fabricant': 'GCL Solar',
+        'modele': 'NT12R/54GDF 520W',
+        'puissance': 520,
+        'voc': 43.25, 'vmpp': 36.35, 'isc': 15.36, 'impp': 14.31,
+        'longueur': 1903, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 24.8, 'rendement': 24.1,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 12, 'garantie_performance': 25,
+        'prix_indicatif': 168, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.30, 'coeff_temp_voc': -0.25, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°025-2024_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-06',
+    },
+
+    # =========================================================================
+    # JOLYWOOD (N-TOPCon bifacial, spécialiste cellules)
+    # =========================================================================
+    'JW-HD96N-460': {
+        'fabricant': 'Jolywood',
+        'modele': 'JW-HD96N-R2-460 (Bifacial)',
+        'puissance': 460,
+        'voc': 38.54, 'vmpp': 32.44, 'isc': 15.12, 'impp': 14.18,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 22.5, 'rendement': 23.6,
+        'technologie': 'Monocristallin N-type TOPCon Bifacial',
+        'tech_cellule': 'N-TOPCon', 'biverre': True,
+        'pays_module': 'Chine', 'pays_cellule': 'Chine', 'pays_wafer': 'Chine',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 178, 'disponibilite': 'stock', 'classe_feu': 'Classe C',
+        'bifacial': True, 'bifaciality': 75,
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°032-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 630, 'certisolis_expiry': '2026-06',
+    },
+
+    # =========================================================================
+    # 3SUN / ENEL (HJT — Fabrication Italie, point Europe)
+    # =========================================================================
+    '3SUN-HJT-565': {
+        'fabricant': '3SUN (Enel)',
+        'modele': '3SHBGH-AA 565W HJT',
+        'puissance': 565,
+        'voc': 48.77, 'vmpp': 41.12, 'isc': 14.38, 'impp': 13.74,
+        'longueur': 2278, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 28.5, 'rendement': 21.9,
+        'technologie': 'Monocristallin N-type HJT (Hétérojonction)',
+        'tech_cellule': 'HJT', 'biverre': False,
+        'pays_module': 'Italie', 'pays_cellule': 'Italie', 'pays_wafer': 'Asie',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 260, 'disponibilite': 'sur commande', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.24, 'coeff_temp_voc': -0.21, 'coeff_temp_isc': 0.040,
+        'certisolis_cert': 'PPE2_V2 N°092-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-04',
+    },
+
+    # =========================================================================
+    # SUNPOWER / MAXEON (IBC premium)
+    # =========================================================================
     'SUNPOWER-400': {
         'fabricant': 'SunPower (Maxeon)',
         'modele': 'Maxeon 3 SPR-MAX3-400',
         'puissance': 400,
-        'voc': 67.8,
-        'vmpp': 57.3,
-        'isc': 7.12,
-        'impp': 6.98,
-        'longueur': 1690,
-        'largeur': 1046,
-        'epaisseur': 40,
-        'poids': 19.0,
-        'rendement': 22.6,  # Excellent rendement
+        'voc': 67.8, 'vmpp': 57.3, 'isc': 7.12, 'impp': 6.98,
+        'longueur': 1690, 'largeur': 1046, 'epaisseur': 40,
+        'poids': 19.0, 'rendement': 22.6,
         'technologie': 'Monocristallin IBC (Interdigitated Back Contact)',
-        'garantie_produit': 25,  # Garantie exceptionnelle
-        'garantie_performance': 40,
-        'prix_indicatif': 350,  # Premium
-        'disponibilite': 'sur commande',
-        'classe_feu': 'Classe A',
-        'coeff_temp_pmax': -0.29,  # Meilleur du marché
-        'coeff_temp_voc': -0.27,
-        'coeff_temp_isc': 0.035
+        'tech_cellule': 'IBC', 'biverre': False,
+        'pays_module': 'Malaisie', 'pays_cellule': 'Philippines', 'pays_wafer': 'Asie',
+        'garantie_produit': 25, 'garantie_performance': 40,
+        'prix_indicatif': 350, 'disponibilite': 'sur commande', 'classe_feu': 'Classe A',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.27, 'coeff_temp_isc': 0.035,
+        'certisolis_cert': None, 'certisolis_methode': None,
+        'certisolis_ecs_seuil': None, 'certisolis_expiry': None,
     },
-    
-    # MODULES FRANÇAIS (Made in France)
-    'VOLTEC-430': {
-        'fabricant': 'Voltec Solar (France)',
-        'modele': 'VS-430-M6-PERC',
-        'puissance': 430,
-        'voc': 49.20,
-        'vmpp': 41.50,
-        'isc': 10.98,
-        'impp': 10.36,
-        'longueur': 1755,
-        'largeur': 1038,
-        'epaisseur': 35,
-        'poids': 22.0,
-        'rendement': 23.5,  # Excellent rendement
-        'technologie': 'Monocristallin PERC',
-        'garantie_produit': 20,
-        'garantie_performance': 30,
-        'prix_indicatif': 280,
-        'disponibilite': 'stock France',
-        'classe_feu': 'Classe C',
-        'coeff_temp_pmax': -0.35,
-        'coeff_temp_voc': -0.28,
-        'coeff_temp_isc': 0.050,
-        'made_in_france': True
+    'SUNPOWER-HSM-ND-450': {
+        'fabricant': 'SunPower / Maxeon',
+        'modele': 'HSM-ND48-DR 450W N-TopCon',
+        'puissance': 450,
+        'voc': 37.65, 'vmpp': 31.62, 'isc': 15.23, 'impp': 14.23,
+        'longueur': 1722, 'largeur': 1134, 'epaisseur': 30,
+        'poids': 22.0, 'rendement': 23.0,
+        'technologie': 'Monocristallin N-type TOPCon',
+        'tech_cellule': 'N-TOPCon', 'biverre': False,
+        'pays_module': 'Malaisie', 'pays_cellule': 'Asie', 'pays_wafer': 'Asie',
+        'garantie_produit': 15, 'garantie_performance': 30,
+        'prix_indicatif': 220, 'disponibilite': 'sur commande', 'classe_feu': 'Classe C',
+        'coeff_temp_pmax': -0.29, 'coeff_temp_voc': -0.24, 'coeff_temp_isc': 0.045,
+        'certisolis_cert': 'PPE2_V2 N°002-2025_001', 'certisolis_methode': 'PPE2-V2',
+        'certisolis_ecs_seuil': 740, 'certisolis_expiry': '2026-06',
     },
-    
-    # MODULES BIFACIAUX (Production recto-verso)
-    'CS-580W-BIFACIAL': {
-        'fabricant': 'Canadian Solar',
-        'modele': 'BiHiKu7 CS7N-580TB-AG',
-        'puissance': 580,
-        'voc': 51.80,
-        'vmpp': 43.60,
-        'isc': 14.20,
-        'impp': 13.30,
-        'longueur': 2278,
-        'largeur': 1134,
-        'epaisseur': 35,
-        'poids': 31.5,
-        'rendement': 22.4,
-        'technologie': 'Monocristallin N-type Bifacial',
-        'garantie_produit': 15,
-        'garantie_performance': 30,
-        'prix_indicatif': 220,
-        'disponibilite': 'stock',
-        'classe_feu': 'Classe C',
-        'bifacial': True,
-        'bifaciality': 70,  # % gain face arrière
-        'coeff_temp_pmax': -0.30,
-        'coeff_temp_voc': -0.25,
-        'coeff_temp_isc': 0.045
-    }
 }
 
 # ============================================================================
@@ -1131,6 +1457,57 @@ def get_module_par_puissance(puissance_min=400, puissance_max=600):
     return {
         ref: data for ref, data in MODULES_PV_DATABASE.items()
         if puissance_min <= data['puissance'] <= puissance_max
+    }
+
+def get_modules_certisolis_eligibles(seuil_max=740, methode='PPE2-V2'):
+    """
+    Retourne les modules ayant un certificat Certisolis valide.
+
+    Args:
+        seuil_max: Seuil ECS maximum (530, 630 ou 740 kg CO2/kWc).
+                   Ex: 530 → uniquement les modules <530 kg CO2/kWc.
+        methode: Méthode Certisolis ciblée ('PPE2-V2' ou 'PPE2').
+
+    Returns:
+        dict {ref: data} des modules certifiés répondant au seuil.
+    """
+    eligible = {}
+    for ref, data in MODULES_PV_DATABASE.items():
+        cert = data.get('certisolis_cert')
+        m = data.get('certisolis_methode')
+        seuil = data.get('certisolis_ecs_seuil')
+        if cert and m == methode and seuil is not None and seuil <= seuil_max:
+            eligible[ref] = data
+    return eligible
+
+def get_modules_par_tech(tech_cellule):
+    """
+    Filtre les modules par technologie de cellule.
+
+    Args:
+        tech_cellule: 'N-TOPCon', 'P-PERC', 'HJT', 'IBC', 'N-ABC', 'Back Contact'
+
+    Returns:
+        dict {ref: data}
+    """
+    return {
+        ref: data for ref, data in MODULES_PV_DATABASE.items()
+        if data.get('tech_cellule', '').upper() == tech_cellule.upper()
+    }
+
+def get_modules_pays_fabrication(pays='France'):
+    """
+    Filtre les modules assemblés dans un pays donné (pour score carbone AO).
+
+    Args:
+        pays: 'France', 'Italie', 'Europe', 'Chine', etc.
+
+    Returns:
+        dict {ref: data}
+    """
+    return {
+        ref: data for ref, data in MODULES_PV_DATABASE.items()
+        if pays.lower() in data.get('pays_module', '').lower()
     }
 
 def get_onduleur_par_puissance(p_ac_min=0, p_ac_max=999999, type_reseau=None):
