@@ -700,7 +700,7 @@
                             <div class="module-preview">
                                 <small id="modulePreview" class="text-primary"><strong>Module: 2278×1134mm - 550Wc - Surface: 2.58 m² - Rendement: 21.2%</strong></small>
                             </div>
-                            <small class="text-muted" id="modulePrix">Prix indicatif: ~180€ HT - Stock disponible - Garantie 12 ans</small>
+                            <small class="text-muted" id="modulePrix">Garantie 12 ans - Rendement: 21.2% - 📍 Chine</small>
                         </div>
                     </div>
                 </div>
@@ -1377,7 +1377,7 @@
                 document.getElementById('moduleImpp').readOnly = false;
                 document.getElementById('moduleInfo').textContent = 'Module personnalisé';
                 document.getElementById('modulePrix').textContent = 'Saisie manuelle des caractéristiques';
-                return;
+                return; // prix intentionnellement masqués
             }
             
             const module = MODULES_DATABASE[moduleType];
@@ -1417,7 +1417,6 @@
             }
 
             document.getElementById('modulePrix').innerHTML = 
-                `Prix indicatif: <strong>~${module.prix}€ HT</strong> - ` +
                 `Garantie <strong>${module.garantie} ans</strong> - ` +
                 `Rendement: <strong>${module.rendement}%</strong>` +
                 (module.pays_module ? ` - 📍 ${module.pays_module}` : '');
