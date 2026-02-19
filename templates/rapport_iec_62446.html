@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rapport IEC 62446-1 — {{ chantier.nom_projet or prospect.nom_prospect }}</title>
+<style>
+:root{--blue:#1a3a6b;--orange:#e07b20;--green:#1a7a4a;--red:#a0201a;--grey:#f4f6fa;--border:#d0d7e2;--text:#1a1a2a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;font-size:10pt;color:var(--text);background:#fff;line-height:1.45}
+/* ── Print layout ── */
+@media print{
+  body{font-size:9pt}
+  .no-print{display:none!important}
+  .page-break{page-break-before:always}
+  @page{size:A4;margin:18mm 15mm 18mm 20mm}
+  .cover{page-break-after:always}
+  table{page-break-inside:avoid}
+  h2{page-break-after:avoid}
+}
+/* ── Screen ── */
+@media screen{
+  body{max-width:210mm;margin:0 auto;padding:10mm;background:#e8ecf4}
+  .report-wrap{background:#fff;padding:18mm 15mm 18mm 20mm;box-shadow:0 4px 24px rgba(0,0,0,.12)}
+  .print-bar{background:var(--blue);color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;max-width:210mm;margin:0 auto 0;print:none}
+  .print-bar button{background:var(--orange);color:#fff;border:none;padding:8px 20px;border-radius:5px;cursor:pointer;font-size:10pt;font-weight:600}
+  .print-bar button:hover{background:#c96e16}
+}
+/* ── Cover ── */
+.cover{min-height:250mm;display:flex;flex-direction:column;justify-content:space-between;border:3px solid var(--blue);padding:20mm}
+.cover-header{display:flex;justify-content:space-between;align-items:flex-start}
+.cover-logo{font-size:26pt;font-weight:900;color:var(--blue);letter-spacing:-1px}
+.cover-logo span{color:var(--orange)}
+.cover-norm{font-size:8pt;color:#666;text-align:right;border:1px solid var(--border);padding:6px 10px;border-radius:4px}
+.cover-title{text-align:center;padding:12mm 0}
+.cover-title h1{font-size:22pt;color:var(--blue);font-weight:800;margin-bottom:8px}
+.cover-title .subtitle{font-size:13pt;color:var(--orange);font-weight:600;margin-bottom:6px}
+.cover-title .norm-badge{display:inline-block;background:var(--blue);color:#fff;font-size:8pt;padding:4px 12px;border-radius:12px;margin-top:6px}
+.cover-info{border-top:2px solid var(--blue);padding-top:8mm}
+.cover-info table{width:100%;border-collapse:collapse}
+.cover-info td{padding:4px 8px;font-size:9.5pt;border-bottom:1px solid var(--border)}
+.cover-info td:first-child{width:40%;font-weight:600;color:var(--blue)}
+.cover-footer{font-size:7.5pt;color:#888;text-align:center;border-top:1px solid var(--border);padding-top:6px}
+/* ── TOC ── */
+.toc-page{padding:6mm 0}
+.toc-title{font-size:14pt;font-weight:800;color:var(--blue);margin-bottom:8mm;padding-bottom:4px;border-bottom:2px solid var(--orange)}
+.toc-entry{display:flex;align-items:baseline;padding:3px 0;font-size:9.5pt}
+.toc-num{font-weight:700;color:var(--blue);min-width:8mm}
+.toc-label{flex:1}
+.toc-dots{flex:1;border-bottom:1px dotted var(--border);margin:0 4px}
+/* ── Sections ── */
+h2{font-size:12pt;font-weight:800;color:var(--blue);border-left:4px solid var(--orange);padding:4px 10px;margin:7mm 0 4mm;background:var(--grey);border-radius:0 4px 4px 0}
+h3{font-size:10pt;font-weight:700;color:var(--blue);margin:5mm 0 2mm;border-bottom:1px solid var(--border);padding-bottom:2px}
+/* ── Tables ── */
+table.r-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin:3mm 0}
+table.r-table th{background:var(--blue);color:#fff;padding:5px 8px;text-align:left;font-weight:600}
+table.r-table td{padding:4px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+table.r-table tr:nth-child(even) td{background:var(--grey)}
+/* ── Status badges ── */
+.s-ok{color:#fff;background:var(--green);padding:2px 7px;border-radius:10px;font-size:7.5pt;font-weight:600;white-space:nowrap}
+.s-ko{color:#fff;background:var(--red);padding:2px 7px;border-radius:10px;font-size:7.5pt;font-weight:600;white-space:nowrap}
+.s-na{color:#555;background:#e0e0e0;padding:2px 7px;border-radius:10px;font-size:7.5pt;font-weight:600;white-space:nowrap}
+.s-warn{color:#fff;background:var(--orange);padding:2px 7px;border-radius:10px;font-size:7.5pt;font-weight:600;white-space:nowrap}
+/* ── KPI row ── */
+.kpi-row{display:flex;gap:6mm;margin:4mm 0;flex-wrap:wrap}
+.kpi-box{border:1px solid var(--border);border-radius:6px;padding:5px 10px;min-width:32mm;text-align:center}
+.kpi-box .kv{font-size:16pt;font-weight:800;color:var(--blue)}
+.kpi-box .kl{font-size:7pt;color:#888;margin-top:1px}
+/* ── Progress bar ── */
+.prog-bar{height:8px;border-radius:4px;background:#e0e5ef;overflow:hidden;margin-top:2px}
+.prog-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--blue),var(--orange));transition:.4s}
+/* ── Signature block ── */
+.sig-block{border:1px solid var(--border);border-radius:6px;padding:6mm;min-height:35mm;margin-top:4mm}
+.sig-title{font-size:8.5pt;font-weight:600;color:var(--blue);margin-bottom:3mm}
+.sig-line{border-top:1px solid var(--text);margin-top:20mm;font-size:7.5pt;color:#555}
+/* ── Info grid ── */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm 6mm;margin:3mm 0}
+.info-item label{font-size:7.5pt;color:#888;display:block;margin-bottom:1px}
+.info-item span{font-size:9pt;font-weight:600}
+/* ── Page number ── */
+.page-num{font-size:7pt;color:#aaa;text-align:right;margin-top:4mm}
+/* ── Checklist ── */
+.cl-item{display:flex;align-items:flex-start;gap:6px;padding:2px 4px;font-size:8.5pt}
+.cl-item.done{color:var(--green)}
+.cl-item.todo{color:#888}
+.cl-checkbox{flex-shrink:0;margin-top:1px}
+/* ── Warning note ── */
+.note-box{background:#fff8e1;border-left:3px solid var(--orange);padding:4px 8px;font-size:8pt;margin:3mm 0;border-radius:0 4px 4px 0}
+</style>
+</head>
+<body>
+
+<!-- ═══ PRINT BAR (screen only) ═══ -->
+<div class="print-bar no-print">
+  <div>
+    <strong style="font-size:12pt">📄 Rapport IEC 62446-1</strong>
+    <span style="font-size:9pt;opacity:.8;margin-left:12px">{{ chantier.nom_projet or prospect.nom_prospect }}</span>
+  </div>
+  <div style="display:flex;gap:10px">
+    <a href="/chantier/{{ prospect.id }}" style="color:#adf;font-size:9pt;text-decoration:none;align-self:center">← Retour chantier</a>
+    <button onclick="window.print()">🖨️ Imprimer / Télécharger PDF</button>
+  </div>
+</div>
+
+<div class="report-wrap">
+
+<!-- ══════════════════════════════════════════════════════════════════
+     PAGE 1 — COUVERTURE
+══════════════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-header">
+    <div class="cover-logo">Agri<span>Web</span></div>
+    <div class="cover-norm">
+      <strong>IEC 62446-1 : 2016</strong><br>
+      Systèmes photovoltaïques raccordés au réseau<br>
+      Exigences minimales pour la documentation, les essais<br>
+      et le contrôle à la mise en service
+    </div>
+  </div>
+
+  <div class="cover-title">
+    <h1>Dossier de Mise en Service<br>Système Photovoltaïque</h1>
+    <div class="subtitle">{{ chantier.nom_projet or prospect.nom_prospect }}</div>
+    <div class="norm-badge">Conforme IEC 62446-1 • PPSPS • NCF • DOE</div>
+  </div>
+
+  <div class="cover-info">
+    <table>
+      <tr><td>Maître d'ouvrage</td><td>{{ prospect.nom_prospect }}</td></tr>
+      <tr><td>Adresse du site</td><td>{{ prospect.adresse }} {{ prospect.commune }}</td></tr>
+      <tr><td>Puissance installée</td><td><strong>{{ chantier.puissance_kwc or '—' }} kWc</strong></td></tr>
+      <tr><td>Nombre de modules</td><td>{{ chantier.nb_modules or '—' }}</td></tr>
+      <tr><td>Date de début chantier</td><td>{{ chantier.date_debut_projet or '—' }}</td></tr>
+      <tr><td>Date de fin prévue</td><td>{{ chantier.date_fin_prevue_projet or '—' }}</td></tr>
+      <tr><td>Montant marché HT</td><td>{% if chantier.montant_total_ht %}{{ "{:,.0f}".format(chantier.montant_total_ht) }} €{% else %}—{% endif %}</td></tr>
+      <tr><td>Date de génération</td><td>{{ generated_at }}</td></tr>
+    </table>
+  </div>
+
+  <div class="cover-footer">
+    Document généré automatiquement — AgriWeb Suivi de Chantier PV · Conforme IEC 62446-1:2016 · NF C 15-100 · Guide UTE C 15-712
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     PAGE 2 — TABLE DES MATIÈRES
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break toc-page">
+  <div class="toc-title">Table des matières</div>
+  {% set sections = [
+    ("1", "Informations générales et description du système"),
+    ("2", "Avancement des phases travaux"),
+    ("3", "Inspection visuelle — Visite technique"),
+    ("4", "Checklist commissioning IEC 62446-1"),
+    ("5", "Traçabilité modules N° de série"),
+    ("6", "Registre des Non-Conformités (NCF)"),
+    ("7", "Dossier des Ouvrages Exécutés (DOE)"),
+    ("8", "Journal de chantier — Synthèse"),
+    ("9", "Facturation & jalons contractuels"),
+    ("10", "PPSPS / Sécurité"),
+    ("11", "Intervenants & planning équipe"),
+    ("12", "Signatures et visa"),
+  ] %}
+  {% for num, label in sections %}
+  <div class="toc-entry">
+    <span class="toc-num">{{ num }}.</span>
+    <span class="toc-label">{{ label }}</span>
+    <span class="toc-dots"></span>
+  </div>
+  {% endfor %}
+
+  <div class="note-box" style="margin-top:10mm">
+    <strong>Note de conformité :</strong> Ce dossier est établi conformément à la norme IEC 62446-1:2016 «&nbsp;Systèmes photovoltaïques raccordés au réseau&nbsp;— Exigences minimales pour la documentation, les essais et le contrôle à la mise en service&nbsp;» et au guide UTE C 15-712-1.
+    Les éléments manquants sont indiqués en rouge et doivent être complétés avant la réception définitive.
+  </div>
+
+  <div class="page-num">Généré le {{ generated_at }}</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 1 — INFORMATIONS GÉNÉRALES
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>1. Informations générales et description du système</h2>
+
+<div class="kpi-row">
+  <div class="kpi-box">
+    <div class="kv">{{ chantier.puissance_kwc or '—' }}</div>
+    <div class="kl">Puissance kWc</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv">{{ chantier.nb_modules or '—' }}</div>
+    <div class="kl">Modules</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv">{{ avancement.global }}%</div>
+    <div class="kl">Avancement global</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv">{{ chantier.ncf|length }}</div>
+    <div class="kl">NCF enregistrées</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv">{{ chantier.modules_tracking|length }}</div>
+    <div class="kl">Modules tracés</div>
+  </div>
+</div>
+
+<div class="prog-bar" style="margin:3mm 0 1mm">
+  <div class="prog-fill" style="width:{{ avancement.global }}%"></div>
+</div>
+<div style="font-size:7.5pt;color:#888">Avancement global : {{ avancement.global }}%</div>
+
+<h3>Identification du projet</h3>
+<div class="info-grid">
+  <div class="info-item"><label>Nom du projet</label><span>{{ chantier.nom_projet or prospect.nom_prospect }}</span></div>
+  <div class="info-item"><label>Maître d'ouvrage</label><span>{{ prospect.nom_prospect }}</span></div>
+  <div class="info-item"><label>Adresse site</label><span>{{ prospect.adresse }} {{ prospect.commune }}</span></div>
+  <div class="info-item"><label>Puissance crête (kWc)</label><span>{{ chantier.puissance_kwc or '—' }}</span></div>
+  <div class="info-item"><label>Date début travaux</label><span>{{ chantier.date_debut_projet or '—' }}</span></div>
+  <div class="info-item"><label>Date fin prévue</label><span>{{ chantier.date_fin_prevue_projet or '—' }}</span></div>
+  <div class="info-item"><label>Montant marché HT</label><span>{% if chantier.montant_total_ht %}{{ "{:,.0f}".format(chantier.montant_total_ht) }} €{% else %}—{% endif %}</span></div>
+  <div class="info-item"><label>Retenue de garantie</label><span>{{ chantier.retenue_garantie_pct }}%</span></div>
+</div>
+
+{% set vt = chantier.visite_technique %}
+{% if vt %}
+<h3>Caractéristiques techniques (visite technique)</h3>
+<div class="info-grid">
+  <div class="info-item"><label>Type de couverture</label><span>{{ vt.type_couverture or '—' }}</span></div>
+  <div class="info-item"><label>Surface totale (m²)</label><span>{{ vt.surface_totale_m2 or '—' }}</span></div>
+  <div class="info-item"><label>Surface retenue (m²)</label><span>{{ vt.surface_retenue_m2 or '—' }}</span></div>
+  <div class="info-item"><label>Orientation / Azimut</label><span>{{ vt.orientation_azimut or '—' }}</span></div>
+  <div class="info-item"><label>Pente (°)</label><span>{{ vt.pente_degres or '—' }}</span></div>
+  <div class="info-item"><label>Type charpente</label><span>{{ vt.type_charpente or '—' }}</span></div>
+  <div class="info-item"><label>Charges admissibles (kg/m²)</label><span>{{ vt.charges_admissibles_kg_m2 or '—' }}</span></div>
+  <div class="info-item"><label>Puissance raccordement (kVA)</label><span>{{ vt.puissance_raccordement_kva or '—' }}</span></div>
+  <div class="info-item"><label>Type raccordement ENEDIS</label><span>{{ vt.type_raccordement_enedis or '—' }}</span></div>
+  <div class="info-item"><label>Présence amiante</label><span>{{ vt.presence_amiante or '—' }}</span></div>
+  <div class="info-item"><label>Faisabilité retenue</label><span>{{ vt.faisabilite or '—' }}</span></div>
+  <div class="info-item"><label>kWc retenu (synthèse VT)</label><span>{{ vt.puissance_retenue_kwc or '—' }}</span></div>
+</div>
+{% if vt.observations_generales %}
+<div class="note-box" style="margin-top:3mm"><strong>Observations :</strong> {{ vt.observations_generales }}</div>
+{% endif %}
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 2 — AVANCEMENT PHASES
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>2. Avancement des phases travaux</h2>
+
+<table class="r-table">
+  <thead>
+    <tr>
+      <th style="width:8%">Code</th>
+      <th style="width:28%">Phase</th>
+      <th style="width:12%">Statut</th>
+      <th style="width:12%">Début</th>
+      <th style="width:12%">Fin prévue</th>
+      <th style="width:12%">Fin réelle</th>
+      <th style="width:8%">Avan.</th>
+      <th style="width:8%">Tâches</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ph in phases %}
+    {% set ph_data = chantier.phases.get(ph.id, {}) %}
+    {% set pct = avancement.phases.get(ph.id, 0) %}
+    {% set cl = ph_data.get('checklist', {}) %}
+    {% set cl_done = cl.values()|selectattr('__eq__', 'equalto', true)|list|length %}
+    {% set is_done = ph_data.get('statut') == 'termine' %}
+    {% set is_late = ph_data.get('date_fin_prevue') and ph_data.get('statut') != 'termine' and ph_data.get('date_fin_prevue') < now %}
+    <tr>
+      <td style="font-weight:700;color:{{ ph.color }}">{{ ph.abbr }}</td>
+      <td>{{ ph.label }}</td>
+      <td>
+        {% if is_done %}<span class="s-ok">Terminé</span>
+        {% elif is_late %}<span class="s-ko">Retard</span>
+        {% elif ph_data.get('statut') == 'en_cours' %}<span class="s-warn">En cours</span>
+        {% else %}<span class="s-na">Non démarré</span>{% endif %}
+      </td>
+      <td>{{ ph_data.get('date_debut') or '—' }}</td>
+      <td>{{ ph_data.get('date_fin_prevue') or '—' }}</td>
+      <td>{{ ph_data.get('date_fin_reelle') or '—' }}</td>
+      <td><strong>{{ pct }}%</strong><div class="prog-bar"><div class="prog-fill" style="width:{{ pct }}%"></div></div></td>
+      <td>{{ cl_done }}/{{ cl|length }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Détail des checklists</h3>
+{% for ph in phases %}
+{% set ph_data = chantier.phases.get(ph.id, {}) %}
+{% set cl = ph_data.get('checklist', {}) %}
+<div style="margin-bottom:4mm">
+  <div style="font-weight:700;color:{{ ph.color }};font-size:9pt;margin-bottom:1mm">{{ ph.abbr }} — {{ ph.label }}</div>
+  {% for item, done in cl.items() %}
+  <div class="cl-item {{ 'done' if done else 'todo' }}">
+    <span class="cl-checkbox">{{ '☑' if done else '☐' }}</span>
+    <span>{{ item }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endfor %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 3 — INSPECTION VISUELLE
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>3. Inspection visuelle — Visite technique</h2>
+{% set vt = chantier.visite_technique %}
+
+<div class="info-grid">
+  <div class="info-item"><label>Date de visite</label><span>{{ vt.date_visite or '—' }}</span></div>
+  <div class="info-item"><label>Interlocuteur(s)</label><span>{{ vt.interlocuteur or '—' }}</span></div>
+  <div class="info-item"><label>Référence cadastrale</label><span>{{ vt.reference_cadastrale or '—' }}</span></div>
+</div>
+
+<h3>Toiture</h3>
+<table class="r-table">
+  <tr><th>Paramètre</th><th>Valeur</th><th>Paramètre</th><th>Valeur</th></tr>
+  <tr><td>Type couverture</td><td>{{ vt.type_couverture or '—' }}</td><td>Pente (°)</td><td>{{ vt.pente_degres or '—' }}</td></tr>
+  <tr><td>Surface totale (m²)</td><td>{{ vt.surface_totale_m2 or '—' }}</td><td>Surface retenue (m²)</td><td>{{ vt.surface_retenue_m2 or '—' }}</td></tr>
+  <tr><td>Orientation / Azimut</td><td>{{ vt.orientation_azimut or '—' }}</td><td>Long. faîtière (m)</td><td>{{ vt.longueur_faitiere_m or '—' }}</td></tr>
+  <tr><td>Distance bord (m)</td><td>{{ vt.distance_bord_m or '—' }}</td><td>Notes toiture</td><td>{{ vt.notes_toiture or '—' }}</td></tr>
+</table>
+
+<h3>Structure et charpente</h3>
+<table class="r-table">
+  <tr><th>Paramètre</th><th>Valeur</th><th>Paramètre</th><th>Valeur</th></tr>
+  <tr><td>Type charpente</td><td>{{ vt.type_charpente or '—' }}</td><td>État charpente</td><td>{{ vt.etat_charpente or '—' }}</td></tr>
+  <tr><td>Portée pannes (m)</td><td>{{ vt.portee_pannes_m or '—' }}</td><td>Charges admissibles (kg/m²)</td><td>{{ vt.charges_admissibles_kg_m2 or '—' }}</td></tr>
+  <tr><td>Renforcement nécessaire</td><td>{{ vt.renforcement_necessaire or '—' }}</td><td>Notes structure</td><td>{{ vt.notes_structure or '—' }}</td></tr>
+</table>
+
+<h3>Accès & Sécurité</h3>
+<table class="r-table">
+  <tr><th>Paramètre</th><th>Valeur</th><th>Paramètre</th><th>Valeur</th></tr>
+  <tr><td>Accès toiture</td><td>{{ vt.acces_toiture or '—' }}</td><td>Garde-corps</td><td>{{ vt.garde_corps or '—' }}</td></tr>
+  <tr><td>Lignes de vie</td><td>{{ vt.lignes_vie or '—' }}</td><td>Prise 230V dispo.</td><td>{{ vt.prise_230v or '—' }}</td></tr>
+</table>
+
+<h3>Électricité</h3>
+<table class="r-table">
+  <tr><th>Paramètre</th><th>Valeur</th><th>Paramètre</th><th>Valeur</th></tr>
+  <tr><td>Puissance raccordement (kVA)</td><td>{{ vt.puissance_raccordement_kva or '—' }}</td><td>Type compteur</td><td>{{ vt.type_compteur or '—' }}</td></tr>
+  <tr><td>TGBT accessible</td><td>{{ vt.tgbt_accessible or '—' }}</td><td>Distance TGBT (m)</td><td>{{ vt.distance_tgbt_m or '—' }}</td></tr>
+  <tr><td>Chemin de câble</td><td>{{ vt.chemin_cable or '—' }}</td><td>Notes élec.</td><td>{{ vt.notes_elec or '—' }}</td></tr>
+</table>
+
+<h3>Tranchées & ENEDIS</h3>
+<table class="r-table">
+  <tr><th>Paramètre</th><th>Valeur</th><th>Paramètre</th><th>Valeur</th></tr>
+  <tr><td>Type raccordement</td><td>{{ vt.type_raccordement_enedis or '—' }}</td><td>Distance PDL (m)</td><td>{{ vt.distance_point_raccordement_m or '—' }}</td></tr>
+  <tr><td>Tranchée nécessaire</td><td>{{ vt.tranchee_necessaire or '—' }}</td><td>Longueur tranchée (m)</td><td>{{ vt.longueur_tranchee_m or '—' }}</td></tr>
+</table>
+
+<h3>Bâtiment & Risques</h3>
+<table class="r-table">
+  <tr><th>Paramètre</th><th>Valeur</th><th>Paramètre</th><th>Valeur</th></tr>
+  <tr><td>Âge bâtiment (ans)</td><td>{{ vt.age_batiment_ans or '—' }}</td><td>Présence amiante</td><td>{{ vt.presence_amiante or '—' }}</td></tr>
+  <tr><td>DTA disponible</td><td>{{ vt.dta_disponible or '—' }}</td><td>État étanchéité</td><td>{{ vt.etat_etancheite or '—' }}</td></tr>
+  <tr><td colspan="2">Travaux préalables</td><td colspan="2">{{ vt.travaux_prealables or '—' }}</td></tr>
+</table>
+
+{% if vt.points_bloquants or vt.reserves_techniques %}
+<h3>Réserves & Points bloquants</h3>
+{% if vt.points_bloquants %}<div class="note-box" style="border-color:var(--red)"><strong>Points bloquants :</strong> {{ vt.points_bloquants }}</div>{% endif %}
+{% if vt.reserves_techniques %}<div class="note-box"><strong>Réserves techniques :</strong> {{ vt.reserves_techniques }}</div>{% endif %}
+{% if vt.actions_requises %}<div class="note-box"><strong>Actions requises :</strong> {{ vt.actions_requises }}</div>{% endif %}
+{% endif %}
+
+<h3>Synthèse de faisabilité</h3>
+<div class="info-grid">
+  <div class="info-item"><label>Faisabilité</label><span>{{ vt.faisabilite or '—' }}</span></div>
+  <div class="info-item"><label>kWc retenus</label><span>{{ vt.puissance_retenue_kwc or '—' }}</span></div>
+  <div class="info-item"><label>Modules retenus</label><span>{{ vt.nb_modules_retenu or '—' }}</span></div>
+</div>
+{% if vt.observations_generales %}
+<div class="note-box"><strong>Conclusion :</strong> {{ vt.observations_generales }}</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 4 — COMMISSIONING IEC 62446-1
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>4. Checklist commissioning IEC 62446-1</h2>
+{% set com_phase = chantier.phases.get('commissioning', {}) %}
+
+<div class="note-box">
+  La checklist ci-dessous correspond aux essais et vérifications requis par la norme IEC 62446-1:2016, Section 4 à 7.
+  Chaque point doit être documenté avant la réception provisoire.
+</div>
+
+{% if com_phase %}
+{% set cl = com_phase.get('checklist', {}) %}
+{% if cl %}
+<table class="r-table" style="margin-top:4mm">
+  <thead><tr><th>Vérification IEC 62446-1</th><th style="width:15%">Résultat</th></tr></thead>
+  <tbody>
+    {% for item, done in cl.items() %}
+    <tr>
+      <td>{{ item }}</td>
+      <td>{% if done %}<span class="s-ok">✓ OK</span>{% else %}<span class="s-ko">À réaliser</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="note-box" style="border-color:var(--red)">⚠ Aucune checklist de commissioning renseignée.</div>
+{% endif %}
+{% else %}
+<div class="note-box" style="border-color:var(--red)">⚠ Phase commissioning non initialisée.</div>
+{% endif %}
+
+<h3>Essais électriques – Résultats attendus (IEC 62446-1 §4)</h3>
+<table class="r-table">
+  <thead><tr><th>Essai</th><th>Référence normative</th><th>Résultat</th><th>Observations</th></tr></thead>
+  <tbody>
+    <tr><td>Contrôle visuel de l'installation</td><td>§ 4.1</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Continuité des conducteurs de protection</td><td>§ 4.3</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Résistance d'isolement DC (> 1 MΩ)</td><td>§ 4.4</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Polarité des strings</td><td>§ 4.5</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Voc mesurée vs Voc calculée (± 5 %)</td><td>§ 4.6</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Isc mesurée vs Isc calculée (± 5 %)</td><td>§ 4.6</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Démarrage onduleur / alimentation réseau</td><td>§ 4.7</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+    <tr><td>Essais protection (déc. réseau, anti-îlotage)</td><td>§ 4.8</td><td><span class="s-na">À compléter</span></td><td></td></tr>
+  </tbody>
+</table>
+<div class="note-box">Ces cellules doivent être complétées manuellement lors de la réception.</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 5 — TRAÇABILITÉ MODULES
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>5. Traçabilité modules N° de série</h2>
+
+<div class="kpi-row">
+  <div class="kpi-box">
+    <div class="kv">{{ chantier.modules_tracking|length }}</div>
+    <div class="kl">Modules tracés</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv">{{ chantier.nb_modules or '—' }}</div>
+    <div class="kl">Modules prévus</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv">{% if chantier.nb_modules and chantier.modules_tracking|length %}{{ [((chantier.modules_tracking|length / chantier.nb_modules) * 100)|round(0)|int, 100]|min }}%{% else %}—{% endif %}</div>
+    <div class="kl">Complétude</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kv" style="color:var(--red)">{{ chantier.modules_tracking|selectattr('conforme','equalto',false)|list|length }}</div>
+    <div class="kl">Non-conformes</div>
+  </div>
+</div>
+
+{% if chantier.modules_tracking %}
+<table class="r-table">
+  <thead>
+    <tr>
+      <th>#</th><th>N° de série</th><th>String</th><th>Position</th>
+      <th>Date réception</th><th>Conforme</th><th>Observations</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for m in chantier.modules_tracking %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td style="font-family:monospace;font-size:8pt">{{ m.numero_serie }}</td>
+      <td>{{ m.string or '—' }}</td>
+      <td>{{ m.position or '—' }}</td>
+      <td>{{ m.date_reception or '—' }}</td>
+      <td>{% if m.conforme %}<span class="s-ok">✓ Oui</span>{% else %}<span class="s-ko">✗ Non</span>{% endif %}</td>
+      <td>{{ m.observations or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="note-box" style="border-color:var(--red)">⚠ Aucun module enregistré. La traçabilité N/S est requise par IEC 62446-1 (liste des modules avec numéros de série).</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 6 — REGISTRE NCF
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>6. Registre des Non-Conformités (NCF)</h2>
+
+{% set ncf_open = chantier.ncf|selectattr('statut','ne','Clôturée')|list %}
+{% set ncf_crit = chantier.ncf|selectattr('gravite','equalto','Critique')|list %}
+<div class="kpi-row">
+  <div class="kpi-box"><div class="kv">{{ chantier.ncf|length }}</div><div class="kl">Total NCF</div></div>
+  <div class="kpi-box"><div class="kv" style="color:var(--red)">{{ ncf_open|length }}</div><div class="kl">Ouvertes</div></div>
+  <div class="kpi-box"><div class="kv" style="color:var(--red)">{{ ncf_crit|length }}</div><div class="kl">Critiques</div></div>
+  <div class="kpi-box"><div class="kv" style="color:var(--green)">{{ chantier.ncf|selectattr('statut','equalto','Clôturée')|list|length }}</div><div class="kl">Clôturées</div></div>
+</div>
+
+{% if chantier.ncf %}
+<table class="r-table">
+  <thead>
+    <tr>
+      <th style="width:5%">#</th>
+      <th style="width:25%">Titre</th>
+      <th style="width:10%">Gravité</th>
+      <th style="width:10%">Origine</th>
+      <th style="width:10%">Statut</th>
+      <th style="width:10%">Détection</th>
+      <th style="width:15%">Responsable</th>
+      <th style="width:15%">Actions correctives</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for ncf in chantier.ncf %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ ncf.titre }}</strong>{% if ncf.description %}<br><span style="font-size:7.5pt;color:#666">{{ ncf.description[:80] }}{% if ncf.description|length > 80 %}…{% endif %}</span>{% endif %}</td>
+      <td>
+        {% if ncf.gravite == 'Critique' %}<span class="s-ko">Critique</span>
+        {% elif ncf.gravite == 'Majeure' %}<span class="s-warn">Majeure</span>
+        {% elif ncf.gravite == 'Mineure' %}<span class="s-na">Mineure</span>
+        {% else %}<span class="s-na">{{ ncf.gravite or '—' }}</span>{% endif %}
+      </td>
+      <td style="font-size:7.5pt">{{ ncf.origine or '—' }}</td>
+      <td>
+        {% if ncf.statut == 'Clôturée' %}<span class="s-ok">Clôturée</span>
+        {% elif ncf.statut == 'Ouverte' %}<span class="s-ko">Ouverte</span>
+        {% else %}<span class="s-warn">{{ ncf.statut or '—' }}</span>{% endif %}
+      </td>
+      <td>{{ ncf.date_detection or '—' }}</td>
+      <td>{{ ncf.responsable or '—' }}</td>
+      <td style="font-size:7.5pt">{{ ncf.actions_correctives or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="note-box" style="border-color:var(--green)">✅ Aucune non-conformité enregistrée.</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 7 — DOE
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>7. Dossier des Ouvrages Exécutés (DOE)</h2>
+
+{% set doe = chantier.doe_documents %}
+{% set doe_ok = doe.values()|selectattr('statut','equalto','Validé')|list|length %}
+{% set doe_total = doe_documents|length %}
+<div class="kpi-row">
+  <div class="kpi-box"><div class="kv">{{ doe_ok }}/{{ doe_total }}</div><div class="kl">Documents OK</div></div>
+  <div class="kpi-box"><div class="kv">{{ ((doe_ok / doe_total) * 100)|round(0)|int if doe_total else 0 }}%</div><div class="kl">Complétude DOE</div></div>
+</div>
+<div class="prog-bar" style="margin-bottom:4mm">
+  <div class="prog-fill" style="width:{{ ((doe_ok / doe_total) * 100)|round(0)|int if doe_total else 0 }}%"></div>
+</div>
+
+<table class="r-table">
+  <thead><tr><th>#</th><th>Document</th><th>Statut</th><th>Date</th><th>Notes</th></tr></thead>
+  <tbody>
+    {% for doc in doe_documents %}
+    {% set d = doe.get(doc.id, {}) %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ doc.label }}</td>
+      <td>
+        {% set s = d.get('statut','A_etablir') %}
+        {% if s == 'Validé' %}<span class="s-ok">Validé</span>
+        {% elif s == 'En cours' %}<span class="s-warn">En cours</span>
+        {% elif s == 'A_etablir' %}<span class="s-ko">À établir</span>
+        {% else %}<span class="s-na">{{ s }}</span>{% endif %}
+      </td>
+      <td>{{ d.get('date') or '—' }}</td>
+      <td>{{ d.get('notes') or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if doe_ok < doe_total %}
+<div class="note-box" style="border-color:var(--red); margin-top:4mm">
+  ⚠ <strong>{{ doe_total - doe_ok }} document{{ 's' if doe_total - doe_ok > 1 else '' }} DOE manquant{{ 's' if doe_total - doe_ok > 1 else '' }}</strong>
+  — à compléter avant la réception définitive et remise du DOE au maître d'ouvrage.
+</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 8 — JOURNAL DE CHANTIER
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>8. Journal de chantier — Synthèse</h2>
+
+{% if chantier.journal %}
+<table class="r-table">
+  <thead><tr><th>Date</th><th>Auteur</th><th>Météo</th><th>Ouvriers</th><th>Arrêt</th><th>Description</th></tr></thead>
+  <tbody>
+    {% for e in chantier.journal|sort(attribute='date', reverse=True) %}
+    <tr>
+      <td style="white-space:nowrap">{{ e.date or '—' }}</td>
+      <td>{{ e.auteur or '—' }}</td>
+      <td>{{ e.meteo or '—' }}</td>
+      <td style="text-align:center">{{ e.nb_ouvriers or '—' }}</td>
+      <td>{% if e.arret_chantier %}<span class="s-ko">Arrêt</span>{% else %}<span class="s-ok">Prod.</span>{% endif %}</td>
+      <td>{{ e.description or '—' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="note-box">Aucune entrée de journal.</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 9 — FACTURATION
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>9. Facturation & jalons contractuels</h2>
+
+{% if chantier.factures %}
+<table class="r-table">
+  <thead>
+    <tr><th>N° Facture</th><th>Libellé / Jalon</th><th>Montant HT</th><th>Date émission</th><th>Échéance</th><th>Paiement</th><th>Statut</th></tr>
+  </thead>
+  <tbody>
+    {% set ns = namespace(emis=0, paye=0) %}
+    {% for f in chantier.factures %}
+    {% if f.statut not in ('annule',) %}{% set ns.emis = ns.emis + (f.montant_ht|default(0)|float) %}{% endif %}
+    {% if f.statut == 'paye' %}{% set ns.paye = ns.paye + (f.montant_ht|default(0)|float) %}{% endif %}
+    <tr>
+      <td>{{ f.numero or '—' }}</td>
+      <td>{{ f.libelle or '—' }}</td>
+      <td style="text-align:right;font-weight:600">{{ "{:,.0f}".format(f.montant_ht|default(0)|float) }} €</td>
+      <td>{{ f.date_emission or '—' }}</td>
+      <td>{{ f.date_echeance or '—' }}</td>
+      <td>{{ f.date_paiement or '—' }}</td>
+      <td>
+        {% if f.statut == 'paye' %}<span class="s-ok">Payé</span>
+        {% elif f.statut == 'retard' %}<span class="s-ko">Retard</span>
+        {% elif f.statut == 'emis' %}<span class="s-warn">Émis</span>
+        {% elif f.statut == 'annule' %}<span class="s-na">Annulé</span>
+        {% else %}<span class="s-na">{{ f.statut }}</span>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    <tr style="font-weight:700;background:var(--grey)">
+      <td colspan="2">Total émis / Total payé</td>
+      <td style="text-align:right">{{ "{:,.0f}".format(ns.emis) }} €</td>
+      <td colspan="3" style="text-align:right">Payé : {{ "{:,.0f}".format(ns.paye) }} €</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+{% else %}
+<div class="note-box">Aucune facture enregistrée.</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 10 — PPSPS
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>10. PPSPS / Sécurité</h2>
+{% set pp = chantier.ppsps %}
+
+<div class="info-grid" style="margin-bottom:4mm">
+  <div class="info-item"><label>Coordonnateur SPS</label><span>{{ pp.coordonnateur_sps or '—' }}</span></div>
+  <div class="info-item"><label>Accidents AT</label><span style="color:{{ 'var(--red)' if pp.nb_accidents > 0 else 'var(--green)' }}">{{ pp.nb_accidents }}</span></div>
+  <div class="info-item"><label>Quasi-accidents</label><span>{{ pp.nb_quasi_accidents }}</span></div>
+</div>
+
+{% if pp.risques_identifies %}
+<h3>Risques identifiés</h3>
+<div style="font-size:8.5pt;padding:4px 8px;background:var(--grey);border-radius:4px;white-space:pre-wrap">{{ pp.risques_identifies }}</div>
+{% endif %}
+
+{% if pp.epi_requis %}
+<h3>EPI requis</h3>
+<div style="font-size:8.5pt;padding:4px 8px;background:var(--grey);border-radius:4px;white-space:pre-wrap">{{ pp.epi_requis }}</div>
+{% endif %}
+
+{% if pp.entreprises %}
+<h3>Intervenants PPSPS</h3>
+<div style="font-size:8.5pt;padding:4px 8px;background:var(--grey);border-radius:4px;white-space:pre-wrap">{% if pp.entreprises is string %}{{ pp.entreprises }}{% else %}{{ pp.entreprises|join('\n') }}{% endif %}</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 11 — INTERVENANTS
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>11. Intervenants & planning équipe</h2>
+
+{% if chantier.intervenants %}
+<table class="r-table">
+  <thead><tr><th>Nom</th><th>Entreprise</th><th>Rôle</th><th>Spécialité</th><th>Tél.</th><th>Email</th><th>Début</th><th>Fin</th><th>H. saisies</th></tr></thead>
+  <tbody>
+    {% for iv in chantier.intervenants %}
+    {% set h = chantier.presences|selectattr('intervenant_id','equalto',iv.id)|sum(attribute='nb_heures') %}
+    <tr>
+      <td><strong>{{ iv.nom }}</strong></td>
+      <td>{{ iv.entreprise or '—' }}</td>
+      <td>{{ iv.role or '—' }}</td>
+      <td>{{ iv.specialite or '—' }}</td>
+      <td>{{ iv.tel or '—' }}</td>
+      <td>{{ iv.email or '—' }}</td>
+      <td>{{ iv.date_debut or '—' }}</td>
+      <td>{{ iv.date_fin or '—' }}</td>
+      <td style="text-align:right;font-weight:600">{{ h }}h</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Relevé des présences — Synthèse</h3>
+{% set total_h = chantier.presences|sum(attribute='nb_heures') %}
+{% set nb_arrets = chantier.presences|selectattr('arret','equalto',true)|list|length %}
+<div class="kpi-row">
+  <div class="kpi-box"><div class="kv">{{ total_h|int }}</div><div class="kl">Heures totales</div></div>
+  <div class="kpi-box"><div class="kv">{{ chantier.presences|map(attribute='date')|unique|list|length }}</div><div class="kl">Jours de présence</div></div>
+  <div class="kpi-box"><div class="kv" style="color:var(--red)">{{ nb_arrets }}</div><div class="kl">Arrêts chantier</div></div>
+</div>
+{% else %}
+<div class="note-box">Aucun intervenant enregistré.</div>
+{% endif %}
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SECTION 12 — SIGNATURES
+══════════════════════════════════════════════════════════════════ -->
+<div class="page-break">
+<h2>12. Signatures et visa</h2>
+
+<p style="font-size:8.5pt;margin-bottom:6mm;color:#555">
+  Les soussignés certifient que l'installation photovoltaïque décrite dans ce dossier
+  a été réalisée conformément aux règles de l'art, aux normes en vigueur (IEC 62446-1, NF C 15-100,
+  UTE C 15-712-1) et aux documents contractuels. Ce document constitue le dossier de mise en service
+  au sens de la norme IEC 62446-1:2016.
+</p>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8mm">
+  <div class="sig-block">
+    <div class="sig-title">Maître d'ouvrage<br><span style="font-weight:400;font-size:7.5pt">{{ prospect.nom_prospect }}</span></div>
+    <div class="sig-line">Signature &amp; cachet — Date : _______________</div>
+  </div>
+  <div class="sig-block">
+    <div class="sig-title">Entreprise installatrice<br><span style="font-weight:400;font-size:7.5pt">___________________________</span></div>
+    <div class="sig-line">Signature &amp; cachet — Date : _______________</div>
+  </div>
+  <div class="sig-block">
+    <div class="sig-title">Bureau de contrôle / Ingénierie<br><span style="font-weight:400;font-size:7.5pt">___________________________</span></div>
+    <div class="sig-line">Signature &amp; cachet — Date : _______________</div>
+  </div>
+  <div class="sig-block">
+    <div class="sig-title">Coordinateur SPS<br><span style="font-weight:400;font-size:7.5pt">{{ chantier.ppsps.coordonnateur_sps or '___________________________' }}</span></div>
+    <div class="sig-line">Signature &amp; cachet — Date : _______________</div>
+  </div>
+</div>
+
+<div style="margin-top:10mm;border:1px solid var(--border);border-radius:6px;padding:6mm">
+  <strong style="font-size:9pt">Procès-verbal de réception provisoire</strong>
+  <div style="margin-top:3mm;font-size:8.5pt;color:#555">
+    À ____________________________________________ le _____ / _____ / _________<br><br>
+    L'installation a été : &nbsp;
+    <span style="border:1px solid currentColor;padding:2px 8px;border-radius:3px">Sans réserve</span> &nbsp;
+    <span style="border:1px solid currentColor;padding:2px 8px;border-radius:3px">Avec réserves (voir liste ci-jointe)</span> &nbsp;
+    <span style="border:1px solid currentColor;padding:2px 8px;border-radius:3px">Refusée</span>
+  </div>
+  <div style="margin-top:6mm;font-size:8pt;color:#888">Réserves éventuelles :</div>
+  <div style="border-bottom:1px dotted var(--border);margin:3mm 0;height:8mm"></div>
+  <div style="border-bottom:1px dotted var(--border);margin:3mm 0;height:8mm"></div>
+</div>
+
+<div class="page-num" style="margin-top:8mm;font-size:7.5pt;color:#aaa;text-align:center">
+  Rapport IEC 62446-1 — {{ chantier.nom_projet or prospect.nom_prospect }} — Généré le {{ generated_at }}
+  <br>Document émis par AgriWeb Suivi de Chantier PV
+</div>
+</div>
+
+</div><!-- /report-wrap -->
+</body>
+</html>

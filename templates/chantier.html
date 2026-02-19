@@ -158,6 +158,7 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
       <div class="kl">Marché HT</div>
     </div>
   </div>
+  <a href="/chantier/{{ prospect.id }}/rapport_iec" target="_blank" class="btn btn-sm" style="background:#1a3a6b;color:#fff;font-size:.72rem;padding:3px 9px" title="Rapport IEC 62446-1"><i class="bi bi-file-earmark-text"></i> Rapport IEC</a>
   <button class="bell-btn" onclick="switchTab('dashboard');setTimeout(renderAlerts,80)" title="Alertes">
     <i class="bi bi-bell-fill" style="font-size:.9rem"></i>
     <span class="bell-badge" id="bellBadge"></span>
@@ -740,7 +741,10 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
       <span class="section-title mb-0">DOE – Dossier des Ouvrages Exécutés</span>
       <span style="font-size:.72rem;color:#888;margin-left:8px">IEC 62446 · Remise documentaire complète</span>
     </div>
-    <div class="kpi-chip"><div class="kv" id="doePctBig" style="color:#74b9ff">{{ doe_pct }}%</div><div class="kl">Complété</div></div>
+    <div class="d-flex gap-2 align-items-center">
+      <a href="/chantier/{{ prospect.id }}/rapport_iec" target="_blank" class="btn btn-sm" style="background:#1a3a6b;color:#fff;font-size:.72rem"><i class="bi bi-file-earmark-text"></i> Générer rapport IEC 62446-1</a>
+      <div class="kpi-chip"><div class="kv" id="doePctBig" style="color:#74b9ff">{{ doe_pct }}%</div><div class="kl">Complété</div></div>
+    </div>
   </div>
   <div style="height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:16px">
     <div id="doeBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#74b9ff,#a29bfe);transition:.4s;width:{{ doe_pct }}%"></div>

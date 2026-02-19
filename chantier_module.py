@@ -487,6 +487,28 @@ def page_chantier(prospect_id: int):
         now=datetime.now().strftime('%Y-%m-%d'),
     )
 
+# ── Rapport IEC 62446-1 ───────────────────────────────────────────────────────
+@chantier_bp.route('/<int:prospect_id>/rapport_iec')
+def rapport_iec(prospect_id: int):
+    p = _load_prospect(prospect_id)
+    if not p:
+        return "Prospect introuvable", 404
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        chantier = _init_chantier(prospect_id, p.get('nom_prospect', ''))
+    chantier = _ensure_keys(chantier)
+    avancement = _calc_avancement(chantier)
+    return render_template(
+        'rapport_iec_62446.html',
+        prospect=p,
+        chantier=chantier,
+        phases=PHASES,
+        avancement=avancement,
+        doe_documents=DOE_DOCUMENTS,
+        now=datetime.now().strftime('%d/%m/%Y'),
+        generated_at=datetime.now().strftime('%d/%m/%Y à %H:%M'),
+    )
+
 # ── API : Tâches ──────────────────────────────────────────────────────────────
 @chantier_bp.route('/api/<int:prospect_id>/tache', methods=['POST'])
 def add_tache(prospect_id: int):
