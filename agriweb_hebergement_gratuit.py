@@ -1606,8 +1606,8 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     with laspy.CopcReader.open(buffered) as reader:
         # ── 3. Requête spatiale bounding box ─────────────────────────────────
         bounds = laspy.copc.Bounds(
-            x=(x_min, x_max),
-            y=(y_min, y_max),
+            mins=[x_min, y_min],
+            maxs=[x_max, y_max],
         )
         print(f"  📐 COPC query: L93 x=[{x_min:.0f},{x_max:.0f}], y=[{y_min:.0f},{y_max:.0f}]")
         pts = reader.query(bounds)
