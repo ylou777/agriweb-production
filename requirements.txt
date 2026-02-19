@@ -38,6 +38,9 @@ matplotlib==3.8.2
 seaborn==0.13.1
 openpyxl==3.1.2
 
+# LiDAR HD COPC streaming (nuages de points IGN bruts, HTTP range requests)
+laspy[lazrs]>=2.5.0
+
 # Utilities
 requests==2.31.0
 python-dotenv==1.0.0
