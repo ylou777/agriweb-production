@@ -5635,6 +5635,8 @@
                     }
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
+                    // Vérifier silencieusement la couverture COPC pour ce point
+                    checkCopcCoverage(centerLat3D, centerLon3D);
                 });
             }
         }
@@ -5749,6 +5751,37 @@
         }
 
         /**
+         * Vérifie rapidement si le LiDAR HD COPC couvre la position courante.
+         * Met à jour le bouton + tooltip en conséquence.
+         * Lancé automatiquement après le chargement de la vue 3D.
+         */
+        async function checkCopcCoverage(lat, lon) {
+            const btn    = document.getElementById('btnCopcAnalysis');
+            const status = document.getElementById('copcStatus');
+            if (!btn) return;
+            try {
+                const r = await fetch(`/api/lidar/copc-coverage?lat=${lat}&lon=${lon}`,
+                                     { signal: AbortSignal.timeout(12000) });
+                if (!r.ok) return;
+                const d = await r.json();
+                if (d.covered === false) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.title = 'Zone non encore couverte par le programme LiDAR HD IGN';
+                    status.innerHTML = '&#8505;&#65039; <span style="color:#64748b;">' +
+                        'Zone non encore couverte par le LiDAR HD IGN ' +
+                        '(échéance ~2026) — l\'analyse MNH standard reste active.' +
+                        ' <a href="https://macarte.ign.fr/carte/mThSup/diffusionMNxLiDARHD" ' +
+                        'target="_blank" style="color:#3b82f6;">Carte de couverture &#8599;</a></span>';
+                } else if (d.covered === true) {
+                    btn.title = `Dalle disponible : ${d.tile_name || ''} (${d.timestamp || ''})`.trim();
+                    status.innerHTML = `<span style="color:#64748b;font-size:0.7rem;">` +
+                        `Dalle IGN prête — ${d.timestamp || ''}</span>`;
+                }
+            } catch (_) { /* ign */ }
+        }
+
+        /**
          * Analyse haute précision COPC — nuage de points LiDAR HD brut IGN.
          * Envoie la bbox du bâtiment au backend /api/lidar/copc-roof,
          * puis reconstruit le toit 3D depuis les plans RANSAC retournés.
@@ -5766,7 +5799,7 @@
             // Récupérer le polygone du bâtiment principal depuis le viewer3D
             const buildingCoords = viewer3D.pvBuildingCoords;
             if (!buildingCoords || buildingCoords.length < 3) {
-                status.innerHTML = '<span class="text-danger">⚠ Polygone bâtiment indisponible — relancez la vue 3D</span>';
+                status.innerHTML = '<span class="text-warning">⚠ Polygone bâtiment indisponible — relancez la vue 3D</span>';
                 return;
             }
 
@@ -5775,7 +5808,7 @@
 
             btn.disabled = true;
             btn.textContent = '⏳ Analyse COPC…';
-            status.innerHTML = '<span class="text-info">Interrogation WFS + streaming range requests…</span>';
+            status.innerHTML = '<span style="color:#64748b;">Interrogation WFS + streaming range requests…</span>';
 
             try {
                 const t0 = Date.now();
@@ -5783,48 +5816,59 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ lat, lon, building_coords: buildingCoords }),
-                    signal: AbortSignal.timeout(120_000),   // 2 min max
+                    signal: AbortSignal.timeout(120_000),
                 });
 
-                if (!resp.ok) {
-                    const err = await resp.json();
-                    throw new Error(err.error || `HTTP ${resp.status}`);
+                const data = await resp.json();
+
+                // ── Zone non couverte : message informatif, pas d'erreur bloquante ──
+                if (!resp.ok && data.error_code === 'NOT_COVERED') {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    status.innerHTML = '&#8505;&#65039; <span style="color:#64748b;">' +
+                        'Zone non encore couverte par le LiDAR HD IGN ' +
+                        '(échéance ~2026). L\'analyse MNH standard (±10cm) reste active. ' +
+                        '<a href="https://macarte.ign.fr/carte/mThSup/diffusionMNxLiDARHD" ' +
+                        'target="_blank" style="color:#3b82f6;">Carte de couverture &#8599;</a></span>';
+                    return;
                 }
 
-                const data = await resp.json();
+                if (!resp.ok) {
+                    throw new Error(data.error || `HTTP ${resp.status}`);
+                }
+
                 const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
                 if (!data.success || !data.roof_planes?.length) {
                     throw new Error(`Aucun plan RANSAC retourné (${data.error || 'inconnu'})`);
                 }
 
-                console.log(`🔬 COPC résultat: ${data.roof_planes.length} plan(s), `
-                          + `${data.nb_points_filtered} pts, ${elapsed}s`, data);
+                console.log(`🔬 COPC résultat: ${data.roof_planes.length} plan(s), ` +
+                            `${data.nb_points_filtered} pts, ${elapsed}s`, data);
 
                 // ── Mettre à jour building_hd avec les nouveaux plans COPC ──
-                if (!viewer3D.lidarData.building_hd) {
-                    viewer3D.lidarData.building_hd = {};
-                }
-                viewer3D.lidarData.building_hd.roof_planes      = data.roof_planes;
-                viewer3D.lidarData.building_hd.building_center  = data.building_center;
-                viewer3D.lidarData.building_hd.building_index   = 0;   // bâtiment PV = index 0
-                viewer3D.lidarData.building_hd._source          = 'copc';
+                if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
+                viewer3D.lidarData.building_hd.roof_planes     = data.roof_planes;
+                viewer3D.lidarData.building_hd.building_center = data.building_center;
+                viewer3D.lidarData.building_hd.building_index  = 0;
+                viewer3D.lidarData.building_hd._source         = 'copc';
 
                 // ── Reconstruire les bâtiments 3D avec les nouveaux plans ──
                 await viewer3D._buildBuildings(viewer3D.lidarData);
-
-                // ── Re-synchroniser les angles de pente ──────────────────────
                 ajusterZonesDepuisToiture3D();
                 updateRoofPanelsInfoPanel();
 
-                status.innerHTML = `<span class="text-success">✅ ${data.roof_planes.length} plan(s) COPC — ${data.nb_points_filtered} pts — ${elapsed}s</span>`;
+                status.innerHTML = `<span class="text-success">✅ ${data.roof_planes.length} plan(s) COPC ` +
+                                   `— ${data.nb_points_filtered} pts — ${elapsed}s</span>`;
 
             } catch (e) {
                 console.error('COPC error:', e);
                 status.innerHTML = `<span class="text-danger">❌ ${e.message}</span>`;
             } finally {
-                btn.disabled    = false;
-                btn.textContent = '🔬 Analyse précision COPC';
+                if (btn.textContent.includes('⏳')) {
+                    btn.disabled    = false;
+                    btn.textContent = '🔬 Analyse précision COPC';
+                }
             }
         }
 

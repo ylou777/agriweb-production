@@ -1563,6 +1563,7 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     try:
         import laspy
         import io as _io
+        import numpy as np
         from pyproj import Transformer
     except ImportError as e:
         raise ImportError(f"Dépendances COPC manquantes: {e}. Ajoutez laspy[lazrs] dans requirements.txt") from e
@@ -1665,6 +1666,7 @@ def api_lidar_copc_roof():
         if not building_coords or len(building_coords) < 3:
             return jsonify({"error": "building_coords trop court (min 3 points)"}), 400
 
+        import numpy as np
         # ── 1. Trouver la dalle COPC ─────────────────────────────────────────
         copc_url = _find_lidar_hd_tile_url(lat, lon)
 
