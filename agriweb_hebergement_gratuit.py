@@ -739,6 +739,92 @@ def _convex_hull_2d(xs, ys):
     return [[round(p[0], 2), round(p[1], 2)] for p in hull_gs]
 
 
+def _filter_acroteres(x_arr, y_arr, z_arr, poly_local_x, poly_local_y,
+                      margin=0.90, z_thresh=0.30):
+    """
+    Masque les acrotères (relevés de toiture / parapet périphérique).
+
+    Contrairement aux cheminées (saillies ponctuelles), l'acrotère forme un
+    anneau continu au bord du bâtiment.  Le filtre MAD local ne le détecte pas
+    car le voisinage d'un point d'acrotère contient d'autres acrotères.
+
+    Algorithme :
+        1. Calcule la distance de chaque point LiDAR au périmètre du polygone
+           bâtiment (coordonnées métriques locales).
+        2. Sépare « bande bord » (dist < margin) et « intérieur » (dist ≥ margin).
+        3. Calcule la médiane z de l'intérieur (= hauteur réelle du toit plat
+           ou médiane du pan réel).
+        4. Si median_bord − median_intérieur > z_thresh ET au moins 4 pts de bord :
+               → acrotère probable → masque les pts de bord > median_int + z_thresh/2
+        5. Les points de bord dont la hauteur est ≤ median_int + z_thresh/2
+           sont conservés (égout d'un toit incliné ≠ acrotère).
+
+    Args:
+        x_arr, y_arr, z_arr    : coordonnées métriques locales des points toit
+        poly_local_x/y         : polygone bâtiment en coordonnées métriques locales
+        margin                 : largeur de la bande bord (m), ~1 rangée LiDAR HD
+        z_thresh               : seuil hauteur acrotère vs intérieur (m)
+
+    Returns:
+        np.array bool — True = point valide (pas acrotère)
+    """
+    import numpy as np
+    x = np.asarray(x_arr, dtype=np.float64)
+    y = np.asarray(y_arr, dtype=np.float64)
+    z = np.asarray(z_arr, dtype=np.float64)
+    n = len(x)
+    if n < 4 or len(poly_local_x) < 3:
+        return np.ones(n, dtype=bool)
+
+    px = np.asarray(poly_local_x, dtype=np.float64)
+    py = np.asarray(poly_local_y, dtype=np.float64)
+
+    # Distance de chaque point LiDAR au bord le plus proche du polygone
+    # = min sur tous les segments [Vi, Vi+1] de la distance point-segment
+    m_poly = len(px)
+    dist = np.full(n, np.inf)
+    for i in range(m_poly):
+        j = (i + 1) % m_poly
+        ex, ey = px[j] - px[i], py[j] - py[i]
+        seg_len2 = ex * ex + ey * ey
+        if seg_len2 < 1e-10:
+            # Segment dégénéré → distance au sommet
+            d = np.sqrt((x - px[i])**2 + (y - py[i])**2)
+        else:
+            # t = paramètre de projection sur le segment [0..1]
+            t = np.clip(((x - px[i]) * ex + (y - py[i]) * ey) / seg_len2, 0.0, 1.0)
+            cx_ = px[i] + t * ex
+            cy_ = py[i] + t * ey
+            d = np.sqrt((x - cx_)**2 + (y - cy_)**2)
+        dist = np.minimum(dist, d)
+
+    border_mask   = dist <  margin
+    interior_mask = dist >= margin
+
+    n_border   = int(np.sum(border_mask))
+    n_interior = int(np.sum(interior_mask))
+
+    if n_interior < 4 or n_border < 4:
+        return np.ones(n, dtype=bool)
+
+    med_int    = float(np.median(z[interior_mask]))
+    med_border = float(np.median(z[border_mask]))
+    delta      = med_border - med_int
+
+    if delta <= z_thresh:
+        return np.ones(n, dtype=bool)   # pas d'acrotère détecté
+
+    # Acrotère détecté : masque les points de bord dont z dépasse le niveau du toit
+    acrotere_z_cutoff = med_int + z_thresh / 2.0
+    acrotere_pts = border_mask & (z > acrotere_z_cutoff)
+    n_masked = int(np.sum(acrotere_pts))
+    print(f"  🏗 Acrotère détecté : Δz={delta:.2f}m (bord={med_border:.2f}m, "
+          f"int={med_int:.2f}m) → {n_masked}/{n_border} pts bord masqués "
+          f"(seuil cutoff={acrotere_z_cutoff:.2f}m)")
+
+    return ~acrotere_pts
+
+
 def _filter_roof_obstacles(x_arr, y_arr, z_arr, grid_res=0.5, sigma=1.8):
     """
     Masque les anomalies de hauteur locales : cheminées, superstructures HVAC,
@@ -1841,9 +1927,24 @@ def api_lidar_3d_data():
                             ry.append((px_lat - bldg_cx_lat) * 111320.0)
                             rz.append(float(mnh_v))
 
+                    # Polygone bâtiment en coordonnées métriques locales (même repère que rx/ry)
+                    poly_lx = [(c[0] - bldg_cx_lon) * hd_lng_to_m      for c in building_coords]
+                    poly_ly = [(c[1] - bldg_cx_lat) * 111320.0         for c in building_coords]
+
                     print(f"\U0001f52c RANSAC: {len(rx)} points toit (seuil MNH\u2265{mnh_thresh:.1f}m)")
                     if len(rx) >= 8:
-                        roof_planes = _segment_roof_planes_ransac(rx, ry, rz)
+                        rx_np = np.array(rx); ry_np = np.array(ry); rz_np = np.array(rz)
+
+                        # ── Filtre acrotères (avant RANSAC) ────────────────────────────
+                        acr_mask = _filter_acroteres(rx_np, ry_np, rz_np, poly_lx, poly_ly)
+                        rx_f = rx_np[acr_mask].tolist()
+                        ry_f = ry_np[acr_mask].tolist()
+                        rz_f = rz_np[acr_mask].tolist()
+                        if len(rx_f) < 8:
+                            print(f"  ⚠ Après filtre acrotère : {len(rx_f)} pts (insuffisant → on garde tout)")
+                            rx_f, ry_f, rz_f = rx, ry, rz
+
+                        roof_planes = _segment_roof_planes_ransac(rx_f, ry_f, rz_f)
                         result["building_hd"]["roof_planes"] = roof_planes
                         result["building_hd"]["building_center"] = {
                             "lat": round(bldg_cx_lat, 7),
