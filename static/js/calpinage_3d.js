@@ -542,9 +542,9 @@ class Calpinage3DViewer {
         // Supprimer anciens modules 3D
         this.modules3D.forEach(m => {
             this.scene.remove(m);
-            if (m.children) m.children.forEach(c => { if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); });
+            if (m.children) m.children.forEach(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(mat => mat.dispose()); else c.material.dispose(); } });
             if (m.geometry) m.geometry.dispose();
-            if (m.material) m.material.dispose();
+            if (m.material) { if (Array.isArray(m.material)) m.material.forEach(mat => mat.dispose()); else m.material.dispose(); }
         });
         this.modules3D = [];
         
@@ -857,7 +857,7 @@ class Calpinage3DViewer {
         this.buildings.forEach(b => {
             this.scene.remove(b);
             if (b.geometry) b.geometry.dispose();
-            if (b.material) b.material.dispose();
+            if (b.material) { if (Array.isArray(b.material)) b.material.forEach(m => m.dispose()); else b.material.dispose(); }
         });
         this.buildings = [];
         
@@ -4147,7 +4147,7 @@ class Calpinage3DViewer {
         this.roads.forEach(r => {
             this.scene.remove(r);
             if (r.geometry) r.geometry.dispose();
-            if (r.material) r.material.dispose();
+            if (r.material) { if (Array.isArray(r.material)) r.material.forEach(m => m.dispose()); else r.material.dispose(); }
         });
         this.roads = [];
         
@@ -5154,7 +5154,7 @@ class Calpinage3DViewer {
             if (m.children) {
                 m.children.forEach(child => {
                     if (child.geometry) child.geometry.dispose();
-                    if (child.material) child.material.dispose();
+                    if (child.material) { if (Array.isArray(child.material)) child.material.forEach(c => c.dispose()); else child.material.dispose(); }
                 });
             }
         });
