@@ -330,6 +330,29 @@ def _init_chantier(prospect_id: int, nom: str = '') -> dict:
             'nb_accidents': 0,
             'nb_quasi_accidents': 0,
         },
+        'visite_technique': {
+            'date_visite': '', 'interlocuteur': '', 'reference_cadastrale': '',
+            'type_couverture': '', 'surface_totale_m2': '', 'surface_retenue_m2': '',
+            'orientation_azimut': '', 'pente_degres': '', 'longueur_faitiere_m': '',
+            'distance_bord_m': '', 'notes_toiture': '',
+            'type_charpente': '', 'etat_charpente': '', 'portee_pannes_m': '',
+            'charges_admissibles_kg_m2': '', 'renforcement_necessaire': '',
+            'notes_structure': '',
+            'acces_toiture': '', 'garde_corps': '', 'lignes_vie': '',
+            'prise_230v': '', 'eclairage_dispo': '', 'notes_acces': '',
+            'puissance_raccordement_kva': '', 'type_compteur': '',
+            'tgbt_accessible': '', 'distance_tgbt_m': '', 'chemin_cable': '',
+            'notes_elec': '',
+            'type_raccordement_enedis': '', 'distance_point_raccordement_m': '',
+            'tranchee_necessaire': '', 'longueur_tranchee_m': '', 'notes_enedis': '',
+            'age_batiment_ans': '', 'presence_amiante': '', 'dta_disponible': '',
+            'etat_etancheite': '', 'travaux_prealables': '',
+            'points_bloquants': '', 'reserves_techniques': '',
+            'actions_requises': '',
+            'faisabilite': '', 'puissance_retenue_kwc': '', 'nb_modules_retenu': '',
+            'observations_generales': '',
+            'last_saved': '',
+        },
         'created_at': datetime.now().isoformat(),
     }
 
@@ -351,6 +374,8 @@ def _ensure_keys(chantier: dict) -> dict:
         }
     if 'documents' not in chantier:
         chantier['documents'] = []
+    if 'visite_technique' not in chantier:
+        chantier['visite_technique'] = {}
     if 'retenue_garantie_pct' not in chantier:
         chantier['retenue_garantie_pct'] = 5.0
     # Ensure phases have date_fin_reelle
@@ -450,6 +475,7 @@ def page_chantier(prospect_id: int):
         doe_documents=DOE_DOCUMENTS,
         milestones_default=MILESTONES_DEFAULT,
         doc_categories=DOC_CATEGORIES,
+        visite_technique=chantier.get('visite_technique', {}),
         now=datetime.now().strftime('%Y-%m-%d'),
     )
 
@@ -700,6 +726,20 @@ def update_config(prospect_id: int):
             chantier[key] = d[key]
     _save_chantier(prospect_id, chantier)
     return jsonify({'ok': True, 'cash': _calc_cash_balance(chantier)})
+
+# ── API : Visite Technique ────────────────────────────────────────────────────
+@chantier_bp.route('/api/<int:prospect_id>/visite_technique', methods=['PATCH'])
+def update_visite_technique(prospect_id: int):
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    if 'visite_technique' not in chantier:
+        chantier['visite_technique'] = {}
+    chantier['visite_technique'].update(d)
+    chantier['visite_technique']['last_saved'] = datetime.now().isoformat()
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'last_saved': chantier['visite_technique']['last_saved']})
 
 # ── API : PPSPS ───────────────────────────────────────────────────────────────
 @chantier_bp.route('/api/<int:prospect_id>/ppsps', methods=['PATCH'])
