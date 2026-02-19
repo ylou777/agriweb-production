@@ -461,6 +461,17 @@
                             <small class="text-muted" id="typeInfo">Ombrière de parking - Structure métallique surélevée</small>
                         </div>
                     </div>
+                    <!-- Checkbox auto 3D inclinaison (visible uniquement pour toiture) -->
+                    <div id="auto3DInclinaisonRow" class="mt-2" style="display:none;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="auto3DInclinaisonCheck" checked
+                                   onchange="toggleAuto3DInclinaison(this.checked)">
+                            <label class="form-check-label small" for="auto3DInclinaisonCheck">
+                                🔒 Inclinaison verrouillée par détection 3D LiDAR
+                                <span class="text-muted">(décochez pour saisir manuellement)</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
@@ -1041,6 +1052,7 @@
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
         let lidarDetecting = false; // Mode auto-détection toiture LiDAR
         let lidarClickHandler = null; // Handler click map pour détection
+        let auto3DInclinaisonEnabled = true; // Auto-ajustement inclinaison depuis LiDAR 3D (peut être désactivé)
         
         // Obstacles toiture (cheminées, acrotères, trappes...)
         let obstacles = [];
@@ -3825,14 +3837,14 @@
                     </div>
                     <div class="col-12 mt-2" id="inclinaison-container-${zone.id}">
                         <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}</span>°
-                            ${document.getElementById('typeInstallation').value === 'toiture' ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Détectée automatiquement depuis les données LiDAR 3D">🏠 auto 3D</span>' : ''}
+                            ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Détectée automatiquement depuis les données LiDAR 3D">🏠 auto 3D</span>' : ''}
                         </small></label>
                         <input type="range" class="form-range" min="0" max="90" step="1" value="${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}"
                                id="inclinaison-slider-${zone.id}"
                                oninput="updateZoneInclinaisonSlider(${zone.id}, this.value)"
-                               ${document.getElementById('typeInstallation').value === 'toiture' ? 'disabled style="opacity:0.5;"' : ''}>
+                               ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled ? 'disabled style="opacity:0.5;"' : ''}>
                         <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #666;">
-                            ${document.getElementById('typeInstallation').value === 'toiture' 
+                            ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled
                                 ? '<span>⚡ Pente détectée automatiquement en vue 3D</span>' 
                                 : '<span>Plat (0°)</span><span>Optimal (30°)</span><span>Vertical (90°)</span>'}
                         </div>
@@ -4535,6 +4547,10 @@
             
             document.getElementById('typeInfo').textContent = typeInfos[type] || '';
             
+            // Afficher/masquer la checkbox auto3D inclinaison (uniquement toiture)
+            const auto3DRow = document.getElementById('auto3DInclinaisonRow');
+            if (auto3DRow) auto3DRow.style.display = (type === 'toiture') ? 'block' : 'none';
+
             // Afficher/masquer les paramètres ombrière
             const ombriereParams = document.getElementById('ombriereParams');
             if (ombriereParams) {
@@ -5626,6 +5642,11 @@
          * 4. Met à jour les sliders et recalcule le productible
          */
         function ajusterZonesDepuisToiture3D() {
+            // Si l'utilisateur a désactivé l'auto3D inclinaison, ne pas écraser
+            if (!auto3DInclinaisonEnabled) {
+                console.log('ℹ️ Auto3D inclinaison désactivée par l\'utilisateur');
+                return;
+            }
             if (!viewer3D || !viewer3D.roofPanelsInfo) {
                 console.log('⚠️ Pas d\'info toiture 3D pour l\'ajustement');
                 return;
@@ -5704,6 +5725,37 @@
             }
         }
         
+        /**
+         * Activer/désactiver l'inclinaison automatique par LiDAR 3D
+         */
+        function toggleAuto3DInclinaison(enabled) {
+            auto3DInclinaisonEnabled = enabled;
+            const typeInstall = document.getElementById('typeInstallation').value;
+            // Mettre à jour l'état des sliders d'inclinaison de toutes les zones
+            zones.forEach(zone => {
+                const slider = document.getElementById(`inclinaison-slider-${zone.id}`);
+                const badge = document.querySelector(`#inclinaison-container-${zone.id} .badge.bg-info`);
+                const hint = document.querySelector(`#inclinaison-container-${zone.id} div[style*='font-size'] span`);
+                if (!slider) return;
+                if (typeInstall === 'toiture') {
+                    if (enabled) {
+                        slider.disabled = true;
+                        slider.style.opacity = '0.5';
+                        if (hint) hint.textContent = '⚡ Pente détectée automatiquement en vue 3D';
+                    } else {
+                        slider.disabled = false;
+                        slider.style.opacity = '1';
+                        if (hint) hint.textContent = 'Plat (0°) — Optimal (30°) — Vertical (90°)';
+                    }
+                }
+            });
+            // Réappliquer auto3D si on le réactive
+            if (enabled) {
+                ajusterZonesDepuisToiture3D();
+            }
+            console.log(`🔒 Auto3D inclinaison : ${enabled ? 'activée' : 'désactivée'}`);
+        }
+
         /**
          * Afficher/masquer le panneau d'informations des pans de toiture
          */

@@ -364,6 +364,54 @@ class SunsticeAssistant {
                     text-align: right;
                 }
 
+                /* Styles pour les messages réels (addBotMessage / addUserMessage) */
+                .assistant-message {
+                    display: flex;
+                    gap: 10px;
+                    margin-bottom: 15px;
+                    animation: fadeIn 0.3s ease;
+                }
+
+                .assistant-message.user-message {
+                    flex-direction: row-reverse;
+                }
+
+                .message-icon {
+                    width: 32px;
+                    height: 32px;
+                    background: linear-gradient(135deg, #FFD700, #FFA500);
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 16px;
+                    flex-shrink: 0;
+                    box-shadow: 0 2px 6px rgba(255, 140, 0, 0.3);
+                }
+
+                .bot-message .message-content {
+                    background: linear-gradient(to right, #FFF9E6, #ffffff);
+                    color: #333333;
+                    padding: 12px 16px;
+                    border-radius: 12px;
+                    max-width: 80%;
+                    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.1);
+                    border-left: 3px solid #FFD700;
+                    font-size: 14px;
+                    line-height: 1.5;
+                }
+
+                .user-message .message-content {
+                    background: #1a1a1a;
+                    color: #ffffff;
+                    padding: 12px 16px;
+                    border-radius: 12px;
+                    max-width: 80%;
+                    text-align: right;
+                    font-size: 14px;
+                    line-height: 1.5;
+                }
+
                 .assistant-quick-actions {
                     padding: 15px;
                     background: white;
