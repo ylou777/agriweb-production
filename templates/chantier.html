@@ -196,7 +196,8 @@ body { background: var(--dark); color: #e0e0e0; font-family: 'Segoe UI',sans-ser
           {% set checked = chantier.phases.get(ph.id,{}).get('checklist',{}).get(item, False) %}
           <div class="checklist-item">
             <input type="checkbox" {% if checked %}checked{% endif %}
-                   onchange="toggleChecklist('{{ ph.id }}','{{ item.replace(\"'\",\"\") }}',this.checked)">
+                   data-phase="{{ ph.id }}" data-item="{{ item | replace("'", "") }}"
+                   onchange="toggleChecklist(this.dataset.phase, this.dataset.item, this.checked)">
             <span>{{ item }}</span>
           </div>
           {% endfor %}
