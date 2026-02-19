@@ -208,8 +208,13 @@ DOE_DOCUMENTS = [
 # ── Helpers DB ────────────────────────────────────────────────────────────────
 def _get_db():
     try:
-        from agriweb_hebergement_gratuit import get_db_connection
-        return get_db_connection()
+        import os, psycopg2
+        DATABASE_URL = os.environ.get('DATABASE_URL', '')
+        if not DATABASE_URL:
+            return None
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+        return psycopg2.connect(DATABASE_URL)
     except Exception:
         return None
 
