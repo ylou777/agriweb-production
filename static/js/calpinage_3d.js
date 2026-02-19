@@ -3147,7 +3147,7 @@ class Calpinage3DViewer {
     }
     
     _createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType) {
-        if (!localCoords || localCoords.length < 3) return;
+        if (!localCoords || localCoords.length < 3) throw new Error('roof: insufficient coords');
         
         const cosA = Math.cos(-obb.angle);
         const sinA = Math.sin(-obb.angle);
@@ -3194,7 +3194,7 @@ class Calpinage3DViewer {
             }
         }
         
-        if (augmented.length < 3) return;
+        if (augmented.length < 3) throw new Error('roof: augmented polygon too small');
         
         // === Étape 3 : Trouver les sommets de faîtage et séparer en 2 demi-toitures ===
         // La triangulation ear-clipping sur le polygone entier crée des triangles
@@ -3276,10 +3276,10 @@ class Calpinage3DViewer {
                 for (const t of tris) {
                     allTriangles.push([t[0], t[1], t[2]]);
                 }
-            } catch(e) { return; }
+            } catch(e) { throw new Error('roof: triangulateShape failed: ' + e.message); }
         }
         
-        if (allTriangles.length === 0) return;
+        if (allTriangles.length === 0) throw new Error('roof: triangulation produced 0 triangles');
         
         // === Étape 4 : Géométrie du toit ===
         const positions = [];
