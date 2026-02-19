@@ -1864,13 +1864,9 @@ class Calpinage3DViewer {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
             };
-            // Cap : transparent pour que le toit en pente ne montre pas
-            // de panneau gris parasite en dessous
+            // Cap : toit plat visible par défaut (toit en pente le recouvre avec polygonOffset)
             const capMat = new THREE.MeshLambertMaterial({
-                color: 0x666666,
-                transparent: true,
-                opacity: 0,
-                depthWrite: false,
+                color: 0x888888,
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
@@ -3227,7 +3223,7 @@ class Calpinage3DViewer {
                 }
                 return tris;
             } catch(e) {
-                return [];
+                throw new Error('roof: triangulatePoly failed: ' + e.message);
             }
         };
         
@@ -3307,7 +3303,10 @@ class Calpinage3DViewer {
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex, side: THREE.DoubleSide,
             specular: 0x222222,
-            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5
+            shininess: roofType === 'zinc' || roofType === 'metal' ? 30 : 5,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1,
         });
         const roofMesh = new THREE.Mesh(geo, roofMat);
         roofMesh.castShadow = true;
