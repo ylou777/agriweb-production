@@ -740,7 +740,7 @@ def _convex_hull_2d(xs, ys):
 
 
 def _filter_acroteres(x_arr, y_arr, z_arr, poly_local_x, poly_local_y,
-                      margin=0.90, z_thresh=0.30):
+                      margin=1.40, z_thresh=0.12):
     """
     Masque les acrotères (relevés de toiture / parapet périphérique).
 
@@ -808,19 +808,29 @@ def _filter_acroteres(x_arr, y_arr, z_arr, poly_local_x, poly_local_y,
         return np.ones(n, dtype=bool)
 
     med_int    = float(np.median(z[interior_mask]))
-    med_border = float(np.median(z[border_mask]))
+    med_border = float(np.median(z[border_mask]))  
+    p85_border = float(np.percentile(z[border_mask], 85))  # robuste aux quelques pts d'egout
     delta      = med_border - med_int
+    delta_p85  = p85_border - med_int
 
-    if delta <= z_thresh:
-        return np.ones(n, dtype=bool)   # pas d'acrotère détecté
+    print(f"  [acrotere] bord={n_border}pts med={med_border:.2f}m p85={p85_border:.2f}m "
+          f"| int={n_interior}pts med={med_int:.2f}m | delta={delta:.3f}m "
+          f"delta_p85={delta_p85:.3f}m (seuil={z_thresh}m)")
 
-    # Acrotère détecté : masque les points de bord dont z dépasse le niveau du toit
-    acrotere_z_cutoff = med_int + z_thresh / 2.0
+    # Utilise le p85 des bords pour eviter les faux positifs sur toits inclines
+    # (l'egout d'un toit incline est bas -> p85 reste proche de med_border)
+    if delta <= z_thresh and delta_p85 <= z_thresh:
+        return np.ones(n, dtype=bool)   # pas d'acrotere detecte
+
+    effective_delta = max(delta, delta_p85)
+
+    # Acrotere detecte : masque les points de bord dont z depasse le niveau du toit
+    # Seuil adaptatif : med_int + moitie de l'ecart detecte (min 0.06m)
+    acrotere_z_cutoff = med_int + max(z_thresh * 0.5, effective_delta * 0.4)
     acrotere_pts = border_mask & (z > acrotere_z_cutoff)
     n_masked = int(np.sum(acrotere_pts))
-    print(f"  🏗 Acrotère détecté : Δz={delta:.2f}m (bord={med_border:.2f}m, "
-          f"int={med_int:.2f}m) → {n_masked}/{n_border} pts bord masqués "
-          f"(seuil cutoff={acrotere_z_cutoff:.2f}m)")
+    print(f"  [acrotere] DETECTE delta_eff={effective_delta:.3f}m "
+          f"cutoff={acrotere_z_cutoff:.3f}m -> {n_masked}/{n_border} pts masques")
 
     return ~acrotere_pts
 
@@ -1935,13 +1945,24 @@ def api_lidar_3d_data():
                     if len(rx) >= 8:
                         rx_np = np.array(rx); ry_np = np.array(ry); rz_np = np.array(rz)
 
-                        # ── Filtre acrotères (avant RANSAC) ────────────────────────────
-                        acr_mask = _filter_acroteres(rx_np, ry_np, rz_np, poly_lx, poly_ly)
-                        rx_f = rx_np[acr_mask].tolist()
-                        ry_f = ry_np[acr_mask].tolist()
-                        rz_f = rz_np[acr_mask].tolist()
-                        if len(rx_f) < 8:
-                            print(f"  ⚠ Après filtre acrotère : {len(rx_f)} pts (insuffisant → on garde tout)")
+                        # ── Filtre acroteres (avant RANSAC) ───────────────────────────
+                        try:
+                            acr_mask = _filter_acroteres(
+                                rx_np, ry_np, rz_np, poly_lx, poly_ly)
+                            rx_f = rx_np[acr_mask].tolist()
+                            ry_f = ry_np[acr_mask].tolist()
+                            rz_f = rz_np[acr_mask].tolist()
+                            n_acr_removed = int((~acr_mask).sum())
+                            if len(rx_f) < 8:
+                                print(f"  Apres filtre acrotere : {len(rx_f)} pts insuffisant, garde tout")
+                                rx_f, ry_f, rz_f = rx, ry, rz
+                            else:
+                                print(f"  Apres filtre acrotere : {len(rx_f)}/{len(rx)} pts retenus "
+                                      f"({n_acr_removed} pts bord retires)")
+                        except Exception as e_acr:
+                            import traceback as _tb
+                            print(f"  WARN filtre acrotere : {e_acr}")
+                            _tb.print_exc()
                             rx_f, ry_f, rz_f = rx, ry, rz
 
                         roof_planes = _segment_roof_planes_ransac(rx_f, ry_f, rz_f)
