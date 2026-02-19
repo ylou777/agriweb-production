@@ -1907,7 +1907,35 @@ class Calpinage3DViewer {
         mesh.receiveShadow = true;
         this.scene.add(mesh);
         this.buildings.push(mesh);
-        
+
+        // ═══════════════════════════════════════════════════════════════════
+        // PRIORITÉ 0 : Toit RANSAC depuis backend (segmentation multi-plans)
+        // Vosselman & Maas (2010), CityGML LOD2 — le plus précis disponible
+        // ═══════════════════════════════════════════════════════════════════
+        const _buildingHD    = this.lidarData?.building_hd;
+        const _isMainBldg    = _buildingHD && _buildingHD.building_index === buildingData._bdtopoIdx;
+        let   usedRansac     = false;
+        if (_isMainBldg && Array.isArray(_buildingHD.roof_planes) && _buildingHD.roof_planes.length > 0) {
+            const _planes = _buildingHD.roof_planes;
+            const _bc     = _buildingHD.building_center;   // {lat, lon}
+            console.log(`🔬 Toit RANSAC: ${_planes.length} plan(s) disponibles pour le bâtiment principal`);
+            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
+            if (_rok) {
+                this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc);
+                // Compléter les coordonnées locales (pour matchZones…)
+                this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({ x: c.x, z: c.z }));
+                if (this.pvBuildingCoords && this.pvBuildingCoords.length) {
+                    const gc = this._polygonCenter ? this._polygonCenter(this.pvBuildingCoords)
+                                                   : { x: _bc.lon, y: _bc.lat };
+                    this.roofPanelsInfo.buildingCenterGeo = { lat: gc.y ?? _bc.lat, lng: gc.x ?? _bc.lon };
+                }
+                usedRansac = true;
+                console.log('✅ Toit RANSAC: rendu réussi — skip analyse paramétrique');
+                console.log('📐 Pans de toiture (RANSAC):', this.roofPanelsInfo);
+            }
+        }
+        if (usedRansac) return;
+
         // === Toit : analyse LiDAR MNS pour forme réaliste ===
         let roofAnalysis = null;
         let hasPitchedRoof = false;
@@ -3788,7 +3816,166 @@ class Calpinage3DViewer {
         
         normals.needsUpdate = true;
     }
-    
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RENDU TOIT DEPUIS PLANS RANSAC BACKEND
+    // Source : Vosselman & Maas (2010) – adapté WebGL / Three.js
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Construit la géométrie du toit depuis les plans RANSAC détectés côté backend.
+     * Chaque plan = un pan de toit réel avec son polygone 2D et son équation MNH.
+     *
+     * Système de coordonnées :
+     *   plane.polygon_2d  : [[x_est_m, y_nord_m], …] relatif au centre bâtiment
+     *   plane.mnh_a/b/c   : MNH(x,y) = a*x + b*y + c  → hauteur au-dessus du sol MNT
+     *   Three.js           : wx = bldgOffsetX + poly_x
+     *                        wz = bldgOffsetZ - poly_y  (axe Z inversé)
+     *                        wy = terrainH + MNH(poly_x, poly_y)
+     *
+     * @param {Array}  planes      - plans depuis building_hd.roof_planes
+     * @param {Object} bldgCenter  - {lat, lon} du centre du bâtiment
+     * @param {number} bh          - hauteur de mur (m)
+     * @param {number} terrainH    - hauteur terrain en Three.js Y
+     * @param {string} roofType    - matériau de toit
+     * @returns {boolean} true si au moins un pan rendu
+     */
+    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
+        if (!planes || planes.length === 0) return false;
+
+        const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+        const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
+        const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
+
+        const roofMat = this._getRoofMaterial(roofType);
+        let nBuilt = 0;
+
+        // ── Pans inclinés ──────────────────────────────────────────────
+        for (const plane of planes) {
+            const poly = plane.polygon_2d;
+            if (!poly || poly.length < 3) continue;
+
+            const { mnh_a, mnh_b, mnh_c } = plane;
+            const positions = [];
+            const uvs = [];
+
+            for (const [px, py] of poly) {
+                const wx = bldgOffsetX + px;
+                const wz = bldgOffsetZ - py;
+                const wy = terrainH + Math.max(bh * 0.5, mnh_a * px + mnh_b * py + mnh_c);
+                positions.push(wx, wy, wz);
+                uvs.push(px / 4.0, py / 4.0);
+            }
+
+            if (positions.length < 9) continue;   // < 3 sommets
+
+            // Triangulation en éventail (valide pour convex hull)
+            const indices = [];
+            const n = poly.length;
+            for (let i = 1; i < n - 1; i++) indices.push(0, i, i + 1);
+            if (indices.length < 3) continue;
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
+            geo.setIndex(indices);
+            geo.computeVertexNormals();
+
+            const mat = roofMat.clone();
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow    = true;
+            mesh.receiveShadow = true;
+            mesh.userData = {
+                planId:    plane.plane_id,
+                slopeDeg:  plane.slope_deg,
+                azimuthDeg: plane.azimuth_deg,
+                source:    'ransac',
+            };
+            this.scene.add(mesh);
+            this.buildings.push(mesh);
+            nBuilt++;
+        }
+
+        if (nBuilt > 0) {
+            console.log(`✅ _buildRoofFromPlanes: ${nBuilt} pan(s) depuis ${planes.length} plan(s) RANSAC`);
+        }
+        return nBuilt > 0;
+    }
+
+    /**
+     * Calcule les infos de pans de toiture (roofPanelsInfo) depuis les plans RANSAC.
+     * Remplace _computeRoofPanelsInfo quand les plans backend sont disponibles.
+     *
+     * @param {Array}  planes     - building_hd.roof_planes
+     * @param {Object} obb        - Oriented Bounding Box du bâtiment
+     * @param {number} terrainH   - hauteur terrain Three.js Y
+     * @param {number} bh         - hauteur de mur (m)
+     * @param {Object} bldgCenter - {lat, lon}
+     * @returns {Object} roofPanelsInfo compatible avec matchZonesToRoofPanels()
+     */
+    _computeRoofPanelsInfoFromPlanes(planes, obb, terrainH, bh, bldgCenter) {
+        if (!planes || planes.length === 0) return null;
+
+        const inclined = planes.filter(p => p.slope_deg >= 1.0);
+
+        const panelList = inclined.map((plane, idx) => {
+            // Surface en projection horizontale (shoelace)
+            const poly = plane.polygon_2d || [];
+            let area2d = 0;
+            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                area2d += (poly[j][0] + poly[i][0]) * (poly[j][1] - poly[i][1]);
+            }
+            area2d = Math.abs(area2d) / 2;
+            // Surface réelle du pan incliné
+            const cosSlope  = Math.cos(plane.slope_deg * Math.PI / 180);
+            const realArea  = cosSlope > 0.01 ? area2d / cosSlope : area2d;
+
+            // Dimensions approximatives (bbox du polygone)
+            const xs = poly.map(p => p[0]);
+            const ys = poly.map(p => p[1]);
+            const w  = (Math.max(...xs) - Math.min(...xs)) || obb.longDim;
+            const l  = (Math.max(...ys) - Math.min(...ys)) || obb.shortDim;
+
+            return {
+                name:              `Pan RANSAC ${idx + 1}`,
+                pente_deg:         plane.slope_deg,
+                orientation_deg:   plane.azimuth_deg,
+                orientation_label: this._getOrientationLabel ? this._getOrientationLabel(plane.azimuth_deg) : '',
+                surface_m2:        Math.round(realArea * 10) / 10,
+                longueur:          Math.round(w * 10) / 10,
+                largeur:           Math.round(l * 10) / 10,
+                source:            'ransac',
+                eave_mnh:          plane.eave_mnh,
+                mnh_a:             plane.mnh_a,
+                mnh_b:             plane.mnh_b,
+                mnh_c:             plane.mnh_c,
+                polygon_2d:        plane.polygon_2d,
+                centroid:          plane.centroid,
+                confidence:        plane.confidence,
+            };
+        });
+
+        const nInc = inclined.length;
+        const roofTypeName = nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat';
+
+        return {
+            type:               roofTypeName,
+            panels:             panelList,
+            source:             'ransac',
+            buildingOBB: {
+                cx:       obb.cx,  cz:      obb.cz,
+                angle:    obb.angle,
+                longDim:  obb.longDim, shortDim: obb.shortDim,
+            },
+            buildingTerrainH:    terrainH,
+            buildingWallH:       bh,
+            buildingLocalCoords: [],   // rempli par l'appelant
+            buildingCenterGeo:   { lat: bldgCenter.lat, lng: bldgCenter.lon },
+        };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+
     /**
      * Toit bi-pan (gable) depuis le polygone réel du bâtiment.
      * Profil en V : hauteur maximale au faîtage (across=0), zéro aux bords.
