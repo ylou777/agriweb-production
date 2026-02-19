@@ -5751,6 +5751,37 @@
         }
 
         /**
+         * Vérifie silencieusement si le point est couvert par le LiDAR HD IGN.
+         * Met à jour le bouton + tooltip en conséquence.
+         * Lancé automatiquement après le chargement de la vue 3D.
+         */
+        async function checkCopcCoverage(lat, lon) {
+            const btn    = document.getElementById('btnCopcAnalysis');
+            const status = document.getElementById('copcStatus');
+            if (!btn) return;
+            try {
+                const r = await fetch(`/api/lidar/copc-coverage?lat=${lat}&lon=${lon}`,
+                                     { signal: AbortSignal.timeout(12000) });
+                if (!r.ok) return;
+                const d = await r.json();
+                if (d.covered === false) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.title = 'Zone non encore couverte par le programme LiDAR HD IGN';
+                    status.innerHTML = '&#8505;&#65039; <span style="color:#64748b;">' +
+                        'Zone non encore couverte par le LiDAR HD IGN ' +
+                        '(échéance ~2026) — l\'analyse MNH standard reste active.' +
+                        ' <a href="https://macarte.ign.fr/carte/mThSup/diffusionMNxLiDARHD" ' +
+                        'target="_blank" style="color:#3b82f6;">Carte de couverture &#8599;</a></span>';
+                } else if (d.covered === true) {
+                    btn.title = `Dalle disponible : ${d.tile_name || ''} (${d.timestamp || ''})`.trim();
+                    status.innerHTML = `<span style="color:#64748b;font-size:0.7rem;">` +
+                        `Dalle IGN prête — ${d.timestamp || ''}</span>`;
+                }
+            } catch (_) { /* silencieux */ }
+        }
+
+        /**
          * Analyse haute précision COPC — nuage de points LiDAR HD brut IGN.
          * Envoie la bbox du bâtiment au backend /api/lidar/copc-roof,
          * puis reconstruit le toit 3D depuis les plans RANSAC retournés.
