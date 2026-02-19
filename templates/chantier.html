@@ -227,7 +227,15 @@ body { background: var(--dark); color: #e0e0e0; font-family: 'Segoe UI',sans-ser
               {% if t.statut == col_id %}
               <div class="kanban-card prio-{{ t.priorite | default('normale') }}" draggable="true" id="card_{{ t.id }}"
                    ondragstart="onDragStart(event,'{{ t.id }}')"
-                   onclick="showEditTacheModal('{{ ph.id }}','{{ t.id }}','{{ t.titre|replace(\"'\",\"&#39;\") }}','{{ t.description|default('')|replace(\"'\",\"&#39;\") }}','{{ t.statut }}','{{ t.responsable|default('') }}','{{ t.deadline|default('') }}','{{ t.priorite|default('normale') }}')">
+                   data-phase="{{ ph.id }}"
+                   data-id="{{ t.id }}"
+                   data-titre="{{ t.titre | e }}"
+                   data-desc="{{ t.description | default('') | e }}"
+                   data-statut="{{ t.statut }}"
+                   data-resp="{{ t.responsable | default('') | e }}"
+                   data-deadline="{{ t.deadline | default('') }}"
+                   data-prio="{{ t.priorite | default('normale') }}"
+                   onclick="openCardModal(this)">
                 <div class="card-title">{{ t.titre }}</div>
                 <div class="card-meta">
                   {% if t.responsable %}<span><i class="bi bi-person"></i> {{ t.responsable }}</span>{% endif %}
@@ -348,7 +356,10 @@ body { background: var(--dark); color: #e0e0e0; font-family: 'Segoe UI',sans-ser
             <td><span class="fact-statut-{{ f.statut }}">{{ f.statut|upper }}</span></td>
             <td>
               <button class="btn btn-sm p-0 me-2" style="color:#aaa;font-size:0.75rem;"
-                      onclick="showEditFactureModal('{{ f.id }}','{{ f.numero }}','{{ f.libelle|replace(\"'\",\"&#39;\") }}',{{ f.montant }},'{{ f.date_emission }}','{{ f.date_paiement or '' }}','{{ f.statut }}')">
+                      data-fid="{{ f.id }}" data-num="{{ f.numero }}" data-lib="{{ f.libelle | e }}"
+                      data-montant="{{ f.montant }}" data-datee="{{ f.date_emission }}"
+                      data-datep="{{ f.date_paiement or '' }}" data-statut="{{ f.statut }}"
+                      onclick="openFactureModal(this)">
                 <i class="bi bi-pencil"></i></button>
               <button class="btn btn-sm p-0" style="color:#e17055;font-size:0.75rem;" onclick="deleteFacture('{{ f.id }}')">
                 <i class="bi bi-trash"></i></button>
@@ -664,7 +675,15 @@ async function reloadKanban(phaseId, data) {
         const prioClass = `prio-${t.priorite || 'normale'}`;
         const cardHtml = `<div class="kanban-card ${prioClass}" draggable="true" id="card_${t.id}"
             ondragstart="onDragStart(event,'${t.id}')"
-            onclick="showEditTacheModal('${phaseId}','${t.id}','${t.titre.replace(/'/g,"&#39;")}','${(t.description||'').replace(/'/g,"&#39;")}','${t.statut}','${t.responsable||''}','${t.deadline||''}','${t.priorite||'normale'}')">
+            data-phase="${phaseId}"
+            data-id="${t.id}"
+            data-titre="${(t.titre||'').replace(/"/g,'&quot;')}"
+            data-desc="${(t.description||'').replace(/"/g,'&quot;')}"
+            data-statut="${t.statut}"
+            data-resp="${(t.responsable||'').replace(/"/g,'&quot;')}"
+            data-deadline="${t.deadline||''}"
+            data-prio="${t.priorite||'normale'}"
+            onclick="openCardModal(this)">
             <div class="card-title">${t.titre}</div>
             <div class="card-meta">
                 ${t.responsable ? `<span><i class="bi bi-person"></i> ${t.responsable}</span>` : ''}
@@ -679,6 +698,20 @@ async function reloadKanban(phaseId, data) {
         }
     }
     updateKanbanCounters();
+}
+
+// ─── openCardModal — lit les data attributes de la carte ─────────────────────
+function openCardModal(el) {
+    showEditTacheModal(
+        el.dataset.phase,
+        el.dataset.id,
+        el.dataset.titre,
+        el.dataset.desc,
+        el.dataset.statut,
+        el.dataset.resp,
+        el.dataset.deadline,
+        el.dataset.prio
+    );
 }
 
 // ─── Journal ──────────────────────────────────────────────────────────────────
@@ -811,11 +844,23 @@ async function refreshFactureTable() {
         <td><span class="${statColors[f.statut] || ''}">${f.statut.toUpperCase()}</span></td>
         <td>
           <button class="btn btn-sm p-0 me-2" style="color:#aaa;font-size:0.75rem;"
-                  onclick="showEditFactureModal('${f.id}','${f.numero}','${f.libelle}',${f.montant},'${f.date_emission}','${f.date_paiement||''}','${f.statut}')">
+                  data-fid="${f.id}" data-num="${f.numero}"
+                  data-lib="${(f.libelle||'').replace(/"/g,'&quot;')}"
+                  data-montant="${f.montant}" data-datee="${f.date_emission}"
+                  data-datep="${f.date_paiement||''}" data-statut="${f.statut}"
+                  onclick="openFactureModal(this)">
             <i class="bi bi-pencil"></i></button>
           <button class="btn btn-sm p-0" style="color:#e17055;font-size:0.75rem;" onclick="deleteFacture('${f.id}')">
             <i class="bi bi-trash"></i></button>
         </td></tr>`).join('');
+}
+
+// ─── openFactureModal — lit les data attributes du bouton ────────────────────
+function openFactureModal(el) {
+    showEditFactureModal(
+        el.dataset.fid, el.dataset.num, el.dataset.lib,
+        el.dataset.montant, el.dataset.datee, el.dataset.datep, el.dataset.statut
+    );
 }
 
 // ─── Cash Balance ─────────────────────────────────────────────────────────────
