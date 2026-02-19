@@ -3074,7 +3074,7 @@ function refreshOpsTable(phaseId) {
   }
   tbody.innerHTML = ops.map(op => {
     const iv_sel = ['todo','doing','done','blocked'].map(s =>
-      `<option value="${s}"${op.statut===s?' selected':''}>${{todo:'⬜ À faire',doing:'🔄 En cours',done:'✅ Terminé',blocked:'🚫 Bloqué'}[s]}</option>`
+      `<option value="${s}"${op.statut===s?' selected':''}>${({todo:'⬜ À faire',doing:'🔄 En cours',done:'✅ Terminé',blocked:'🚫 Bloqué'})[s]}</option>`
     ).join('');
     return `<tr id="oprow_${op.id}" data-phase="${phaseId}" data-id="${op.id}">
       <td style="color:#555">${op.seq}</td>
