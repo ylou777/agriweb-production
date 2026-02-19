@@ -3,919 +3,1389 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Suivi Chantier – {{ prospect.nom_prospect }}</title>
+<title>Chantier PV – {{ prospect.nom_prospect }}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 <style>
-:root {
-  --dark: #0f0f23;
-  --dark2: #1a1a2e;
-  --dark3: #16213e;
-  --orange: #f7971e;
-  --card-bg: rgba(255,255,255,0.04);
-  --card-border: rgba(255,255,255,0.08);
-}
-body { background: var(--dark); color: #e0e0e0; font-family: 'Segoe UI',sans-serif; min-height:100vh; }
+:root{--dark:#0f0f23;--dark2:#1a1a2e;--dark3:#16213e;--orange:#f7971e;--card-bg:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08)}
+*{box-sizing:border-box}
+body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-height:100vh}
 
-/* NAV */
-.top-bar { background: var(--dark2); border-bottom: 1px solid var(--card-border); padding: 10px 20px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-.top-bar .prospect-name { font-size:1rem; font-weight:700; color:#fff; }
-.top-bar .prospect-addr { font-size:0.78rem; color:#aaa; }
+/* TOP BAR */
+.top-bar{background:var(--dark2);border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.prospect-name{font-size:.95rem;font-weight:700;color:#fff}
+.prospect-sub{font-size:.72rem;color:#888}
+/* STATS BADGE */
+.kpi-chip{text-align:center;padding:6px 12px;border-radius:8px;background:var(--card-bg);border:1px solid var(--border);min-width:90px}
+.kpi-chip .kv{font-size:.95rem;font-weight:700}
+.kpi-chip .kl{font-size:.6rem;color:#888;text-transform:uppercase;letter-spacing:.05em}
 
-/* PROGRESS RING */
-.ring-wrap { position:relative; width:60px; height:60px; flex-shrink:0; }
-.ring-wrap svg { transform:rotate(-90deg); }
-.ring-wrap .ring-val { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:0.7rem; font-weight:700; color:var(--orange); }
+/* SIDE NAV */
+.layout{display:flex;height:calc(100vh - 57px)}
+.side-nav{width:180px;flex-shrink:0;background:var(--dark3);border-right:1px solid var(--border);overflow-y:auto;padding:8px 0}
+.side-nav::-webkit-scrollbar{width:3px}
+.side-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.nav-item{cursor:pointer;padding:9px 14px;display:flex;align-items:center;gap:8px;font-size:.75rem;color:#aaa;transition:.15s;border-left:2px solid transparent;user-select:none}
+.nav-item:hover{background:rgba(255,255,255,.04);color:#fff}
+.nav-item.active{background:rgba(255,255,255,.06);color:#fff;border-left-color:var(--orange)}
+.nav-item i{font-size:.85rem;flex-shrink:0}
+.nav-sep{font-size:.58rem;color:#555;letter-spacing:.1em;text-transform:uppercase;padding:14px 14px 4px;font-weight:700}
+.nav-pct{font-size:.6rem;background:rgba(255,255,255,.08);border-radius:4px;padding:1px 5px;margin-left:auto}
 
-/* PHASE TABS */
-.phase-tabs { display:flex; overflow-x:auto; gap:4px; padding:12px 16px 0; background: var(--dark3); border-bottom: 1px solid var(--card-border); scrollbar-width:none; }
-.phase-tabs::-webkit-scrollbar { display:none; }
-.phase-tab { cursor:pointer; padding:8px 14px; border-radius:8px 8px 0 0; font-size:0.78rem; white-space:nowrap; display:flex; align-items:center; gap:6px; border: 1px solid transparent; border-bottom: none; transition:.15s; color:#aaa; }
-.phase-tab:hover { background: var(--card-bg); color:#fff; }
-.phase-tab.active { background: var(--dark2); color:#fff; border-color: var(--card-border); }
-.phase-tab .ph-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.phase-tab .ph-pct { font-size:0.65rem; background:rgba(255,255,255,0.08); border-radius:4px; padding:1px 5px; }
+/* CONTENT */
+.content-area{flex:1;overflow-y:auto;padding:16px}
+.content-area::-webkit-scrollbar{width:4px}
+.content-area::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.tab-pane{display:none}.tab-pane.active{display:block}
 
-/* TAB CONTENT */
-.tab-content-area { background: var(--dark2); min-height: calc(100vh - 170px); }
-.tab-pane-custom { display:none; padding: 16px; }
-.tab-pane-custom.active { display:block; }
+/* CARDS */
+.card-dark{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:14px}
+.section-title{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#888;margin-bottom:10px}
 
 /* PHASE HEADER */
-.phase-header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
-.phase-status-badge { font-size:0.72rem; padding:3px 10px; border-radius:10px; font-weight:600; }
-.s-non_demarre  { background:rgba(108,92,231,0.18); color:#a29bfe; }
-.s-en_cours     { background:rgba(253,203,110,0.18); color:#fdcb6e; }
-.s-termine      { background:rgba(0,184,148,0.18); color:#00b894; }
-.s-bloque       { background:rgba(214,48,49,0.18); color:#ff7675; }
-
-/* KANBAN */
-.kanban-board { display:grid; grid-template-columns: repeat(4,1fr); gap:10px; }
-@media(max-width:900px){ .kanban-board { grid-template-columns: repeat(2,1fr); } }
-@media(max-width:550px){ .kanban-board { grid-template-columns: 1fr; } }
-.kanban-col { background: rgba(255,255,255,0.03); border: 1px solid var(--card-border); border-radius:10px; padding:10px; min-height:180px; }
-.kanban-col-header { font-size:0.72rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between; }
-.col-todo    { border-top: 3px solid #636e72; }
-.col-doing   { border-top: 3px solid #fdcb6e; }
-.col-done    { border-top: 3px solid #00b894; }
-.col-blocked { border-top: 3px solid #d63031; }
-.kanban-card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px 10px; margin-bottom:7px; cursor:pointer; transition:.15s; position:relative; }
-.kanban-card:hover { background: rgba(255,255,255,0.1); border-color: var(--orange); }
-.kanban-card .card-title { font-size:0.78rem; font-weight:600; margin-bottom:3px; }
-.kanban-card .card-meta  { font-size:0.68rem; color:#888; display:flex; gap:8px; flex-wrap:wrap; }
-.kanban-card .prio-haute  { border-left: 3px solid #d63031; }
-.kanban-card .prio-normale { border-left: 3px solid #636e72; }
-.kanban-card .prio-basse  { border-left: 3px solid #00b894; }
-.drag-over { background: rgba(247,151,30,0.1) !important; }
+.phase-hdr{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:12px}
+.phase-hdr .ph-label{font-size:1rem;font-weight:700}
+.phase-bar{height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:5px}
+.phase-bar-fill{height:100%;border-radius:3px;transition:.4s}
+.statut-badge{font-size:.68rem;padding:2px 9px;border-radius:8px;font-weight:600}
+.s-non_demarre{background:rgba(99,110,114,.2);color:#b2bec3}
+.s-en_cours{background:rgba(253,203,110,.2);color:#fdcb6e}
+.s-termine{background:rgba(0,184,148,.2);color:#00b894}
+.s-bloque{background:rgba(214,48,49,.2);color:#ff7675}
 
 /* CHECKLIST */
-.checklist-item { display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size:0.8rem; }
-.checklist-item input[type=checkbox]:checked + span { text-decoration:line-through; color:#636e72; }
-.checklist-item input[type=checkbox] { width:15px; height:15px; cursor:pointer; accent-color:var(--orange); }
+.cl-item{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:.78rem}
+.cl-item input[type=checkbox]{accent-color:var(--orange);width:14px;height:14px;cursor:pointer;flex-shrink:0}
+.cl-item input:checked+span{text-decoration:line-through;color:#555}
+
+/* KANBAN */
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(max-width:900px){.kanban{grid-template-columns:repeat(2,1fr)}}
+.k-col{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:8px;padding:8px;min-height:160px}
+.k-col.drag-over{background:rgba(247,151,30,.08)!important}
+.k-col-hdr{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px;display:flex;align-items:center;justify-content:space-between}
+.k-todo{border-top:3px solid #636e72}.k-doing{border-top:3px solid #fdcb6e}
+.k-done{border-top:3px solid #00b894}.k-blocked{border-top:3px solid #d63031}
+.k-card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:7px 9px;margin-bottom:6px;cursor:pointer;transition:.12s}
+.k-card:hover{background:rgba(255,255,255,.09);border-color:var(--orange)}
+.k-card.pl-haute{border-left:3px solid #d63031}
+.k-card.pl-normale{border-left:3px solid #636e72}
+.k-card.pl-basse{border-left:3px solid #00b894}
+.k-card .ct{font-size:.76rem;font-weight:600;margin-bottom:2px}
+.k-card .cm{font-size:.65rem;color:#888;display:flex;gap:6px;flex-wrap:wrap}
+
+/* NCF */
+.ncf-critique{color:#ff7675}.ncf-majeure{color:#fdcb6e}
+.ncf-mineure{color:#74b9ff}.ncf-observation{color:#a29bfe}
+.ncf-row{background:var(--card-bg);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:7px}
+
+/* DOE */
+.doe-a_etablir{color:#636e72}.doe-en_cours{color:#fdcb6e}
+.doe-fourni{color:#74b9ff}.doe-valide{color:#00b894}.doe-na{color:#555}
+.doe-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:.78rem}
 
 /* JOURNAL */
-.journal-entry { background: rgba(255,255,255,0.04); border: 1px solid var(--card-border); border-radius:8px; padding:10px 14px; margin-bottom:8px; }
-.journal-entry .je-date { font-size:0.72rem; color:#888; }
-.journal-entry .je-meteo { font-size:0.9rem; }
-.journal-entry .je-arret { background:rgba(214,48,49,0.15); color:#ff7675; font-size:0.68rem; padding:1px 8px; border-radius:8px; font-weight:600; }
-.journal-entry .je-text { font-size:0.82rem; margin-top:5px; white-space:pre-wrap; }
+.je{background:var(--card-bg);border:1px solid var(--border);border-radius:8px;padding:10px 13px;margin-bottom:7px}
+.je-meta{font-size:.7rem;color:#888;display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap}
+.je-arret{background:rgba(214,48,49,.15);color:#ff7675;font-size:.65rem;padding:1px 7px;border-radius:6px;font-weight:600}
+.je-text{font-size:.8rem;white-space:pre-wrap}
 
-/* FACTURES */
-.fact-statut-emis    { color:#fdcb6e; }
-.fact-statut-paye    { color:#00b894; }
-.fact-statut-retard  { color:#d63031; }
-.fact-statut-annule  { color:#636e72; text-decoration:line-through; }
-.cash-kpi { text-align:center; padding:12px; background:rgba(255,255,255,0.04); border-radius:10px; border:1px solid var(--card-border); }
-.cash-kpi .label { font-size:0.68rem; color:#888; margin-bottom:4px; }
-.cash-kpi .val { font-size:1rem; font-weight:700; }
+/* FACTURATION */
+.cash-kpi{text-align:center;padding:12px 8px;background:var(--card-bg);border:1px solid var(--border);border-radius:9px}
+.cash-kpi .cv{font-size:.95rem;font-weight:700}
+.cash-kpi .cl{font-size:.62rem;color:#888;margin-top:2px}
+.fact-emis{color:#fdcb6e}.fact-paye{color:#00b894}.fact-retard{color:#d63031}.fact-annule{color:#636e72;text-decoration:line-through}
 
-/* MODAL */
-.modal-content { background: var(--dark2); color:#e0e0e0; border: 1px solid var(--card-border); }
-.modal-header { border-bottom: 1px solid var(--card-border); }
-.modal-footer { border-top: 1px solid var(--card-border); }
-.form-control, .form-select { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color:#e0e0e0; }
-.form-control:focus, .form-select:focus { background: rgba(255,255,255,0.09); border-color:var(--orange); color:#fff; box-shadow:0 0 0 2px rgba(247,151,30,0.2); }
-.form-label { font-size:0.78rem; color:#aaa; margin-bottom:3px; }
-.form-select option { background: #1a1a2e; }
-.btn-orange { background:var(--orange); color:#fff; border:none; }
-.btn-orange:hover { background:#e08a10; color:#fff; }
+/* GANTT */
+.gantt-wrap{overflow-x:auto;background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:12px}
+.gantt-row{display:flex;align-items:center;margin-bottom:6px;gap:6px}
+.gantt-label{width:130px;font-size:.7rem;color:#aaa;text-align:right;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gantt-track{flex:1;height:18px;background:rgba(255,255,255,.05);border-radius:4px;position:relative;min-width:200px}
+.gantt-bar{height:100%;border-radius:4px;position:absolute;top:0;min-width:4px;display:flex;align-items:center;padding-left:4px;font-size:.58rem;color:rgba(0,0,0,.7);font-weight:700;overflow:hidden;white-space:nowrap}
+.gantt-today{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--orange);z-index:2}
 
-/* PROGRESS BAR */
-.phase-progress-bar { height:6px; border-radius:3px; background:rgba(255,255,255,0.08); overflow:hidden; margin-top:4px; }
-.phase-progress-fill { height:100%; border-radius:3px; transition:.4s; }
+/* PPSPS */
+.risk-badge{font-size:.65rem;padding:2px 8px;border-radius:6px;background:rgba(214,48,49,.15);color:#ff7675}
 
-/* GLOBAL PROGRESS */
-.global-bar { height:8px; border-radius:4px; background:rgba(255,255,255,0.08); overflow:hidden; width:140px; }
-.global-bar-fill { height:100%; border-radius:4px; background:linear-gradient(90deg,var(--orange),#fdcb6e); transition:.4s; }
+/* MODALS */
+.modal-content{background:var(--dark2);color:#e0e0e0;border:1px solid var(--border)}
+.modal-header,.modal-footer{border-color:var(--border)}
+.form-control,.form-select,.form-check-input{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e0e0e0}
+.form-control:focus,.form-select:focus{background:rgba(255,255,255,.09);border-color:var(--orange);color:#fff;box-shadow:0 0 0 2px rgba(247,151,30,.2)}
+.form-label{font-size:.74rem;color:#aaa;margin-bottom:2px}
+.form-select option{background:#1a1a2e}
+.btn-orange{background:var(--orange);color:#fff;border:none}
+.btn-orange:hover{background:#e08a10;color:#fff}
+.global-bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;width:120px}
+.global-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--orange),#fdcb6e);transition:.4s}
 </style>
 </head>
 <body>
 
-<!-- TOP BAR -->
+<!-- ═══ TOP BAR ═══════════════════════════════════════════════════════════════ -->
 <div class="top-bar">
-  <a href="/crm" class="btn btn-sm btn-outline-secondary" style="padding:3px 10px;font-size:0.75rem;">
-    <i class="bi bi-arrow-left"></i> CRM
-  </a>
+  <a href="/crm" class="btn btn-sm btn-outline-secondary" style="font-size:.72rem;padding:3px 9px"><i class="bi bi-arrow-left"></i></a>
   <div>
-    <div class="prospect-name"><i class="bi bi-tools" style="color:var(--orange);"></i> Suivi Chantier – <span id="nomProjet">{{ chantier.nom_projet or prospect.nom_prospect }}</span></div>
-    <div class="prospect-addr">{{ prospect.adresse or '' }} {{ prospect.commune or '' }}</div>
+    <div class="prospect-name"><i class="bi bi-tools" style="color:var(--orange)"></i> <span id="nomProjet">{{ chantier.nom_projet or prospect.nom_prospect }}</span></div>
+    <div class="prospect-sub">{{ prospect.adresse }} {{ prospect.commune }} · {% if chantier.puissance_kwc %}{{ chantier.puissance_kwc }} kWc · {% endif %}{% if chantier.nb_modules %}{{ chantier.nb_modules }} modules{% endif %}</div>
   </div>
-
-  <!-- Avancement global -->
-  <div class="ms-auto d-flex align-items-center gap-12" style="gap:16px;">
-    <div>
-      <div style="font-size:0.68rem;color:#888;margin-bottom:2px;">Avancement global</div>
-      <div class="global-bar"><div class="global-bar-fill" id="globalBarFill" style="width:{{ avancement.global }}%;"></div></div>
-      <div style="font-size:0.72rem;color:var(--orange);font-weight:700;margin-top:2px;" id="globalPct">{{ avancement.global }}%</div>
+  <!-- Global KPIs -->
+  <div class="d-flex gap-2 ms-auto flex-wrap">
+    <div class="kpi-chip">
+      <div class="kv" id="topGlobalPct" style="color:var(--orange)">{{ avancement.global }}%</div>
+      <div class="kl">Avancement</div>
     </div>
-    <button class="btn btn-sm btn-outline-warning" onclick="showConfigModal()" title="Paramètres chantier">
-      <i class="bi bi-gear"></i>
-    </button>
+    <div class="kpi-chip">
+      <div class="kv" id="topNcfOpen" style="color:#ff7675">{{ ncf_stats.ouvertes }}</div>
+      <div class="kl">NCF ouvertes</div>
+    </div>
+    <div class="kpi-chip">
+      <div class="kv" id="topDoePct" style="color:#74b9ff">{{ doe_pct }}%</div>
+      <div class="kl">DOE</div>
+    </div>
+    <div class="kpi-chip">
+      <div class="kv" id="topCash" style="color:#00b894">{% if chantier.montant_total_ht %}{{ "{:,.0f}".format(chantier.montant_total_ht) }} €{% else %}—{% endif %}</div>
+      <div class="kl">Marché HT</div>
+    </div>
   </div>
+  <button class="btn btn-sm btn-outline-warning" onclick="showConfigModal()" title="Paramètres"><i class="bi bi-gear"></i></button>
 </div>
 
-<!-- PHASE TABS -->
-<div class="phase-tabs" id="phaseTabs">
+<!-- ═══ LAYOUT ════════════════════════════════════════════════════════════════ -->
+<div class="layout">
+
+<!-- ─── SIDE NAV ───────────────────────────────────────────────────────────── -->
+<nav class="side-nav">
+  <div class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard')">
+    <i class="bi bi-speedometer2" style="color:var(--orange)"></i> Dashboard
+  </div>
+  <div class="nav-sep">Phases travaux</div>
   {% for ph in phases %}
-  <div class="phase-tab {% if loop.first %}active{% endif %}" data-phase="{{ ph.id }}" onclick="switchTab('{{ ph.id }}')" id="tab_{{ ph.id }}">
-    <i class="bi {{ ph.icon }}" style="color:{{ ph.color }};"></i>
-    {{ ph.label }}
-    <span class="ph-pct" id="pct_{{ ph.id }}">{{ avancement.phases.get(ph.id, 0) }}%</span>
+  <div class="nav-item" data-tab="{{ ph.id }}" onclick="switchTab('{{ ph.id }}')">
+    <i class="bi {{ ph.icon }}" style="color:{{ ph.color }}"></i>
+    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ph.abbr }} – {{ ph.label.split(' &')[0] }}</span>
+    <span class="nav-pct" id="npct_{{ ph.id }}">{{ avancement.phases.get(ph.id, 0) }}%</span>
   </div>
   {% endfor %}
-  <div class="phase-tab" data-phase="journal" onclick="switchTab('journal')" id="tab_journal">
-    <i class="bi bi-journal-text" style="color:#a29bfe;"></i> Journal
+  <div class="nav-sep">Qualité & Docs</div>
+  <div class="nav-item" data-tab="ncf" onclick="switchTab('ncf')">
+    <i class="bi bi-exclamation-triangle" style="color:#ff7675"></i> NCF
+    <span class="nav-pct" id="npct_ncf" style="background:rgba(214,48,49,.2);color:#ff7675">{{ ncf_stats.ouvertes }}</span>
   </div>
-  <div class="phase-tab" data-phase="facturation" onclick="switchTab('facturation')" id="tab_facturation">
-    <i class="bi bi-cash-coin" style="color:#00b894;"></i> Facturation
+  <div class="nav-item" data-tab="doe" onclick="switchTab('doe')">
+    <i class="bi bi-folder-check" style="color:#74b9ff"></i> DOE
+    <span class="nav-pct">{{ doe_pct }}%</span>
   </div>
-</div>
+  <div class="nav-item" data-tab="modules" onclick="switchTab('modules')">
+    <i class="bi bi-upc-scan" style="color:#a29bfe"></i> Modules N/S
+    <span class="nav-pct" id="npct_modules">{{ chantier.modules_tracking|length }}</span>
+  </div>
+  <div class="nav-sep">Suivi</div>
+  <div class="nav-item" data-tab="journal" onclick="switchTab('journal')">
+    <i class="bi bi-journal-text" style="color:#fdcb6e"></i> Journal
+  </div>
+  <div class="nav-item" data-tab="facturation" onclick="switchTab('facturation')">
+    <i class="bi bi-cash-coin" style="color:#00b894"></i> Facturation
+  </div>
+  <div class="nav-item" data-tab="ppsps" onclick="switchTab('ppsps')">
+    <i class="bi bi-shield-check" style="color:#e17055"></i> PPSPS / Sécu
+  </div>
+</nav>
 
-<!-- TAB CONTENT -->
-<div class="tab-content-area">
+<!-- ─── CONTENT ────────────────────────────────────────────────────────────── -->
+<div class="content-area">
 
-  <!-- PHASE PANES -->
-  {% for ph in phases %}
-  <div class="tab-pane-custom {% if loop.first %}active{% endif %}" id="pane_{{ ph.id }}">
-
-    <!-- Phase header -->
-    <div class="phase-header">
-      <i class="bi {{ ph.icon }} fs-5" style="color:{{ ph.color }};"></i>
-      <div>
-        <div style="font-weight:700;font-size:0.95rem;">{{ ph.label }}</div>
-        <div class="phase-progress-bar" style="width:160px;">
-          <div class="phase-progress-fill" id="bar_{{ ph.id }}"
-               style="width:{{ avancement.phases.get(ph.id,0) }}%;background:{{ ph.color }};"></div>
+<!-- ██ DASHBOARD ██████████████████████████████████████████████████████████████ -->
+<div class="tab-pane active" id="tab_dashboard">
+  <div class="row g-3 mb-3">
+    <!-- Global progress -->
+    <div class="col-md-4">
+      <div class="card-dark h-100">
+        <div class="section-title">Avancement global</div>
+        <div style="font-size:2.2rem;font-weight:800;color:var(--orange)" id="db_globalPct">{{ avancement.global }}%</div>
+        <div style="height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px">
+          <div id="db_globalBar" style="height:100%;border-radius:5px;background:linear-gradient(90deg,var(--orange),#fdcb6e);transition:.4s;width:{{ avancement.global }}%"></div>
+        </div>
+        <div style="font-size:.72rem;color:#888;margin-top:8px">{{ chantier.date_debut_projet or '—' }} → {{ chantier.date_fin_prevue_projet or '—' }}</div>
+        {% if chantier.puissance_kwc %}
+        <div style="margin-top:8px;font-size:.75rem">
+          <span style="color:#aaa">Puissance :</span> <strong>{{ chantier.puissance_kwc }} kWc</strong>
+          {% if chantier.nb_modules %} · <strong>{{ chantier.nb_modules }} modules</strong>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    <!-- Safety KPIs -->
+    <div class="col-md-2">
+      <div class="card-dark h-100 text-center">
+        <div class="section-title">Sécurité</div>
+        <div style="font-size:1.8rem;font-weight:800;color:{% if chantier.ppsps.nb_accidents > 0 %}#ff7675{% else %}#00b894{% endif %}">{{ chantier.ppsps.nb_accidents }}</div>
+        <div style="font-size:.65rem;color:#888">Accidents</div>
+        <div style="font-size:1.2rem;font-weight:700;color:#fdcb6e;margin-top:6px">{{ chantier.ppsps.nb_quasi_accidents }}</div>
+        <div style="font-size:.65rem;color:#888">Quasi-accidents</div>
+      </div>
+    </div>
+    <!-- NCF summary -->
+    <div class="col-md-3">
+      <div class="card-dark h-100">
+        <div class="section-title">Non-Conformités (NCF)</div>
+        <div class="row g-1 text-center">
+          <div class="col-6"><div style="font-size:1.4rem;font-weight:700;color:#ff7675" id="db_ncfTotal">{{ ncf_stats.total }}</div><div style="font-size:.6rem;color:#888">Total</div></div>
+          <div class="col-6"><div style="font-size:1.4rem;font-weight:700;color:#fdcb6e" id="db_ncfOpen">{{ ncf_stats.ouvertes }}</div><div style="font-size:.6rem;color:#888">Ouvertes</div></div>
+          <div class="col-6"><div style="font-size:1.4rem;font-weight:700;color:#e17055" id="db_ncfCrit">{{ ncf_stats.critiques }}</div><div style="font-size:.6rem;color:#888">Critiques</div></div>
+          <div class="col-6"><button class="btn btn-sm btn-outline-danger mt-1" onclick="switchTab('ncf')" style="font-size:.65rem">Voir NCF</button></div>
         </div>
       </div>
-      <select class="form-select form-select-sm" style="width:auto;"
-              onchange="updatePhaseStatut('{{ ph.id }}', this.value)" id="status_{{ ph.id }}">
-        <option value="non_demarre" {% if chantier.phases.get(ph.id,{}).get('statut','non_demarre')=='non_demarre' %}selected{% endif %}>⬜ Non démarré</option>
-        <option value="en_cours"   {% if chantier.phases.get(ph.id,{}).get('statut','')=='en_cours' %}selected{% endif %}>🔄 En cours</option>
-        <option value="termine"    {% if chantier.phases.get(ph.id,{}).get('statut','')=='termine' %}selected{% endif %}>✅ Terminé</option>
-        <option value="bloque"     {% if chantier.phases.get(ph.id,{}).get('statut','')=='bloque' %}selected{% endif %}>🚫 Bloqué</option>
+    </div>
+    <!-- Cash -->
+    <div class="col-md-3">
+      <div class="card-dark h-100">
+        <div class="section-title">Cash Balance</div>
+        <div style="font-size:.72rem;color:#aaa;margin-bottom:4px">Marché : <strong id="db_total" style="color:#fff">{% if chantier.montant_total_ht %}{{ "{:,.0f}".format(chantier.montant_total_ht) }} €{% else %}—{% endif %}</strong></div>
+        <div style="font-size:.72rem;color:#aaa">Encaissé : <strong id="db_encaisse" style="color:#00b894">—</strong></div>
+        <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px">
+          <div id="db_cashBar" style="height:100%;border-radius:3px;background:linear-gradient(90deg,#00b894,#55efc4);transition:.4s;width:0%"></div>
+        </div>
+        <div style="font-size:.6rem;color:#888;margin-top:3px">Retenue : {{ chantier.retenue_garantie_pct }}%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GANTT -->
+  <div class="gantt-wrap mb-3">
+    <div class="section-title mb-2">Planning Gantt</div>
+    <div id="ganttContainer">
+      <!-- Built by JS -->
+      <div class="text-muted text-center py-3" style="font-size:.8rem">Renseignez les dates de début/fin du projet dans les paramètres pour afficher le Gantt</div>
+    </div>
+  </div>
+
+  <!-- Phase cards grid -->
+  <div class="row g-2">
+    {% for ph in phases %}
+    <div class="col-lg-3 col-md-4 col-6">
+      <div class="card-dark" style="border-top:2px solid {{ ph.color }};cursor:pointer" onclick="switchTab('{{ ph.id }}')">
+        <div style="font-size:.68rem;font-weight:700;color:{{ ph.color }}">{{ ph.abbr }}</div>
+        <div style="font-size:.78rem;font-weight:600;margin:2px 0">{{ ph.label }}</div>
+        <div style="font-size:1.2rem;font-weight:800;color:{{ ph.color }}" id="dbpct_{{ ph.id }}">{{ avancement.phases.get(ph.id, 0) }}%</div>
+        <div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:4px">
+          <div style="height:100%;border-radius:2px;background:{{ ph.color }};width:{{ avancement.phases.get(ph.id,0) }}%;transition:.4s" id="dbbar_{{ ph.id }}"></div>
+        </div>
+        <div class="mt-1">
+          {% set ph_data = chantier.phases.get(ph.id, {}) %}
+          <span class="statut-badge s-{{ ph_data.get('statut','non_demarre') }}">{{ ph_data.get('statut','non_demarre')|replace('_',' ')|title }}</span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div><!-- /dashboard -->
+
+<!-- ██ PHASE PANES ██████████████████████████████████████████████████████████████ -->
+{% for ph in phases %}
+{% set ph_data = chantier.phases.get(ph.id, {}) %}
+<div class="tab-pane" id="tab_{{ ph.id }}">
+  <!-- Phase header -->
+  <div class="phase-hdr">
+    <div class="d-flex align-items-center gap-10 flex-wrap" style="gap:10px">
+      <i class="bi {{ ph.icon }} fs-5" style="color:{{ ph.color }}"></i>
+      <div style="flex:1">
+        <div class="ph-label">{{ ph.label }}</div>
+        <div class="phase-bar" style="width:200px">
+          <div class="phase-bar-fill" id="pbar_{{ ph.id }}" style="width:{{ avancement.phases.get(ph.id,0) }}%;background:{{ ph.color }}"></div>
+        </div>
+      </div>
+      <select class="form-select form-select-sm" style="width:auto" onchange="updatePhaseStatut('{{ ph.id }}',this.value)" id="pstat_{{ ph.id }}">
+        <option value="non_demarre" {% if ph_data.get('statut','non_demarre')=='non_demarre' %}selected{% endif %}>⬜ Non démarré</option>
+        <option value="en_cours" {% if ph_data.get('statut')=='en_cours' %}selected{% endif %}>🔄 En cours</option>
+        <option value="termine" {% if ph_data.get('statut')=='termine' %}selected{% endif %}>✅ Terminé</option>
+        <option value="bloque" {% if ph_data.get('statut')=='bloque' %}selected{% endif %}>🚫 Bloqué</option>
       </select>
-      <div class="d-flex gap-2 align-items-center" style="font-size:0.75rem;">
-        <label class="text-muted">Début</label>
-        <input type="date" class="form-control form-control-sm" style="width:135px;"
-               value="{{ chantier.phases.get(ph.id,{}).get('date_debut','') }}"
-               onchange="updatePhaseDate('{{ ph.id }}','date_debut',this.value)">
-        <label class="text-muted">Fin prévue</label>
-        <input type="date" class="form-control form-control-sm" style="width:135px;"
-               value="{{ chantier.phases.get(ph.id,{}).get('date_fin_prevue','') }}"
-               onchange="updatePhaseDate('{{ ph.id }}','date_fin_prevue',this.value)">
+    </div>
+    <div class="d-flex gap-2 mt-2 flex-wrap" style="font-size:.72rem">
+      <div class="d-flex align-items-center gap-1"><span style="color:#888">Début</span><input type="date" class="form-control form-control-sm" style="width:130px" value="{{ ph_data.get('date_debut','') }}" onchange="updatePhaseDate('{{ ph.id }}','date_debut',this.value)"></div>
+      <div class="d-flex align-items-center gap-1"><span style="color:#888">Fin prévue</span><input type="date" class="form-control form-control-sm" style="width:130px" value="{{ ph_data.get('date_fin_prevue','') }}" onchange="updatePhaseDate('{{ ph.id }}','date_fin_prevue',this.value)"></div>
+      <div class="d-flex align-items-center gap-1"><span style="color:#888">Fin réelle</span><input type="date" class="form-control form-control-sm" style="width:130px" value="{{ ph_data.get('date_fin_reelle','') }}" onchange="updatePhaseDate('{{ ph.id }}','date_fin_reelle',this.value)"></div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Checklist -->
+    <div class="col-xl-3 col-lg-4">
+      <div class="card-dark">
+        <div class="section-title">Checklist réglementaire ({{ ph.checklist|length }} points)</div>
+        {% for item in ph.checklist %}
+        {% set checked = ph_data.get('checklist',{}).get(item, False) %}
+        <div class="cl-item">
+          <input type="checkbox" {% if checked %}checked{% endif %}
+                 data-phase="{{ ph.id }}" data-item="{{ item | e }}"
+                 onchange="toggleChecklist(this.dataset.phase, this.dataset.item, this.checked)">
+          <span>{{ item }}</span>
+        </div>
+        {% endfor %}
       </div>
     </div>
-
-    <div class="row g-3">
-      <!-- Checklist (left) -->
-      <div class="col-lg-3 col-md-4">
-        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:10px;padding:12px;">
-          <div style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;margin-bottom:10px;">CHECKLIST RÉGLEMENTAIRE</div>
-          {% for item in ph.checklist %}
-          {% set checked = chantier.phases.get(ph.id,{}).get('checklist',{}).get(item, False) %}
-          <div class="checklist-item">
-            <input type="checkbox" {% if checked %}checked{% endif %}
-                   data-phase="{{ ph.id }}" data-item="{{ item | replace("'", "") }}"
-                   onchange="toggleChecklist(this.dataset.phase, this.dataset.item, this.checked)">
-            <span>{{ item }}</span>
-          </div>
-          {% endfor %}
-        </div>
+    <!-- Kanban -->
+    <div class="col-xl-9 col-lg-8">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <span class="section-title mb-0">Kanban des tâches</span>
+        <button class="btn btn-sm btn-orange" onclick="openAddTache('{{ ph.id }}')" style="font-size:.72rem;padding:3px 10px"><i class="bi bi-plus"></i> Ajouter</button>
       </div>
-
-      <!-- Kanban (right) -->
-      <div class="col-lg-9 col-md-8">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <span style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;">TABLEAU KANBAN</span>
-          <button class="btn btn-sm btn-orange" onclick="showAddTacheModal('{{ ph.id }}')" style="font-size:0.75rem;padding:3px 10px;">
-            <i class="bi bi-plus"></i> Ajouter tâche
-          </button>
-        </div>
-        <div class="kanban-board" id="kanban_{{ ph.id }}">
-          {% for col_id, col_label, col_class, col_color in [('todo','À faire','col-todo','#636e72'),('doing','En cours','col-doing','#fdcb6e'),('done','Fait','col-done','#00b894'),('blocked','Bloqué','col-blocked','#d63031')] %}
-          <div class="kanban-col {{ col_class }} droppable" data-col="{{ col_id }}" data-phase="{{ ph.id }}"
-               ondragover="event.preventDefault();this.classList.add('drag-over')"
-               ondragleave="this.classList.remove('drag-over')"
-               ondrop="onDrop(event,'{{ ph.id }}','{{ col_id }}')">
-            <div class="kanban-col-header" style="color:{{ col_color }};">
-              {{ col_label }}
-              <span class="badge" style="background:rgba(255,255,255,0.08);color:#aaa;" id="cnt_{{ ph.id }}_{{ col_id }}">0</span>
-            </div>
-            <div id="cards_{{ ph.id }}_{{ col_id }}">
-              {% for t in chantier.phases.get(ph.id,{}).get('taches',[]) %}
-              {% if t.statut == col_id %}
-              <div class="kanban-card prio-{{ t.priorite | default('normale') }}" draggable="true" id="card_{{ t.id }}"
-                   ondragstart="onDragStart(event,'{{ t.id }}')"
-                   data-phase="{{ ph.id }}"
-                   data-id="{{ t.id }}"
-                   data-titre="{{ t.titre | e }}"
-                   data-desc="{{ t.description | default('') | e }}"
-                   data-statut="{{ t.statut }}"
-                   data-resp="{{ t.responsable | default('') | e }}"
-                   data-deadline="{{ t.deadline | default('') }}"
-                   data-prio="{{ t.priorite | default('normale') }}"
-                   onclick="openCardModal(this)">
-                <div class="card-title">{{ t.titre }}</div>
-                <div class="card-meta">
-                  {% if t.responsable %}<span><i class="bi bi-person"></i> {{ t.responsable }}</span>{% endif %}
-                  {% if t.deadline %}<span><i class="bi bi-calendar"></i> {{ t.deadline }}</span>{% endif %}
-                  <span class="badge" style="font-size:0.6rem;background:rgba(255,255,255,0.08);">{{ t.priorite|default('normale') }}</span>
-                </div>
+      <div class="kanban" id="kanban_{{ ph.id }}">
+        {% for col_id,col_lbl,col_cls,col_col in [('todo','À faire','k-todo','#636e72'),('doing','En cours','k-doing','#fdcb6e'),('done','Terminé','k-done','#00b894'),('blocked','Bloqué','k-blocked','#d63031')] %}
+        <div class="k-col {{ col_cls }} droppable" data-col="{{ col_id }}" data-phase="{{ ph.id }}"
+             ondragover="event.preventDefault();this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="onDrop(event,'{{ ph.id }}','{{ col_id }}')">
+          <div class="k-col-hdr" style="color:{{ col_col }}">{{ col_lbl }}<span class="badge" style="background:rgba(255,255,255,.07);color:#aaa;font-size:.6rem" id="kcnt_{{ ph.id }}_{{ col_id }}">0</span></div>
+          <div id="kcards_{{ ph.id }}_{{ col_id }}">
+            {% for t in ph_data.get('taches',[]) %}{% if t.statut == col_id %}
+            <div class="k-card pl-{{ t.priorite|default('normale') }}" draggable="true" id="kcard_{{ t.id }}"
+                 ondragstart="onDragStart(event,'{{ t.id }}')"
+                 data-phase="{{ ph.id }}" data-id="{{ t.id }}"
+                 data-titre="{{ t.titre | e }}" data-desc="{{ t.description|default('')|e }}"
+                 data-statut="{{ t.statut }}" data-resp="{{ t.responsable|default('')|e }}"
+                 data-deadline="{{ t.deadline|default('') }}" data-prio="{{ t.priorite|default('normale') }}"
+                 onclick="openCardModal(this)">
+              <div class="ct">{{ t.titre }}</div>
+              <div class="cm">
+                {% if t.responsable %}<span><i class="bi bi-person"></i> {{ t.responsable }}</span>{% endif %}
+                {% if t.deadline %}<span><i class="bi bi-calendar"></i> {{ t.deadline }}</span>{% endif %}
+                <span class="badge" style="font-size:.55rem;background:rgba(255,255,255,.07)">{{ t.priorite|default('normale') }}</span>
               </div>
-              {% endif %}
-              {% endfor %}
             </div>
+            {% endif %}{% endfor %}
           </div>
-          {% endfor %}
         </div>
+        {% endfor %}
       </div>
     </div>
   </div>
-  {% endfor %}
+</div>
+{% endfor %}
 
-  <!-- JOURNAL PANE -->
-  <div class="tab-pane-custom" id="pane_journal">
-    <div class="row g-3">
-      <div class="col-md-4">
-        <div style="background:rgba(255,255,255,0.03);border:1px solid var(--card-border);border-radius:10px;padding:14px;">
-          <div style="font-size:0.8rem;font-weight:700;margin-bottom:12px;color:#a29bfe;"><i class="bi bi-plus-circle"></i> Nouvelle entrée</div>
-          <div class="mb-2">
-            <label class="form-label">Date</label>
-            <input type="date" class="form-control form-control-sm" id="jDate" value="{{ now }}">
+<!-- ██ NCF ████████████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_ncf">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <span class="section-title mb-0">Non-Conformités (NCF)</span>
+      <span style="font-size:.72rem;color:#888;margin-left:8px">IEC 9001 · Traçabilité qualité chantier</span>
+    </div>
+    <button class="btn btn-sm btn-orange" onclick="openAddNcfModal()" style="font-size:.72rem"><i class="bi bi-plus"></i> Ouvrir NCF</button>
+  </div>
+  <!-- Filtres -->
+  <div class="d-flex gap-2 mb-3 flex-wrap">
+    <select class="form-select form-select-sm" id="ncfFilterGravite" onchange="renderNcfList()" style="width:140px">
+      <option value="">Toutes gravités</option>
+      {% for g in ncf_gravites %}<option>{{ g }}</option>{% endfor %}
+    </select>
+    <select class="form-select form-select-sm" id="ncfFilterStatut" onchange="renderNcfList()" style="width:160px">
+      <option value="">Tous statuts</option>
+      {% for s in ncf_statuts %}<option>{{ s }}</option>{% endfor %}
+    </select>
+    <!-- Summary chips -->
+    <div class="d-flex gap-2 ms-auto">
+      <span class="kpi-chip"><div class="kv" id="ncfChipTotal" style="color:#fff">{{ ncf_stats.total }}</div><div class="kl">Total</div></span>
+      <span class="kpi-chip"><div class="kv" id="ncfChipOpen" style="color:#ff7675">{{ ncf_stats.ouvertes }}</div><div class="kl">Ouvertes</div></span>
+      <span class="kpi-chip"><div class="kv" id="ncfChipCrit" style="color:#e17055">{{ ncf_stats.critiques }}</div><div class="kl">Critiques</div></span>
+    </div>
+  </div>
+  <div id="ncfList">
+    {% if chantier.ncf %}
+    {% for n in chantier.ncf %}
+    <div class="ncf-row" id="ncf_{{ n.id }}">
+      <div class="d-flex align-items-start gap-2 flex-wrap">
+        <div style="flex:1">
+          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <span style="font-size:.72rem;font-weight:700;color:#888">{{ n.numero }}</span>
+            <span class="ncf-{{ n.gravite|lower }}" style="font-size:.7rem;font-weight:700">▲ {{ n.gravite }}</span>
+            <span class="statut-badge s-{% if n.statut=='Ouverte' %}bloque{% elif n.statut=='Clôturée' %}termine{% else %}en_cours{% endif %}">{{ n.statut }}</span>
+            <span style="font-size:.68rem;color:#888">{{ n.origine }}</span>
+            <span style="font-size:.68rem;color:#888">{{ n.date_detection }}</span>
           </div>
-          <div class="mb-2">
-            <label class="form-label">Auteur</label>
-            <input type="text" class="form-control form-control-sm" id="jAuteur" placeholder="Votre nom">
-          </div>
-          <div class="mb-2">
-            <label class="form-label">Météo</label>
+          <div style="font-size:.82rem;font-weight:600">{{ n.titre }}</div>
+          {% if n.description %}<div style="font-size:.75rem;color:#aaa;margin-top:3px">{{ n.description }}</div>{% endif %}
+          {% if n.actions_correctives %}<div style="font-size:.72rem;color:#74b9ff;margin-top:3px"><i class="bi bi-tools"></i> {{ n.actions_correctives }}</div>{% endif %}
+        </div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm p-1" style="color:#aaa;font-size:.72rem"
+                  data-id="{{ n.id }}" data-titre="{{ n.titre|e }}" data-desc="{{ n.description|default('')|e }}"
+                  data-origine="{{ n.origine }}" data-gravite="{{ n.gravite }}" data-statut="{{ n.statut }}"
+                  data-resp="{{ n.responsable|default('')|e }}" data-actions="{{ n.actions_correctives|default('')|e }}"
+                  data-date="{{ n.date_detection }}" data-phase="{{ n.phase_id|default('') }}"
+                  onclick="openEditNcfModal(this)"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm p-1" style="color:#e17055;font-size:.72rem" data-id="{{ n.id }}" onclick="deleteNcf(this.dataset.id)"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% else %}
+    <div id="ncfEmpty" class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-3"></i><br>Aucune non-conformité enregistrée</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ██ DOE ████████████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_doe">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <span class="section-title mb-0">DOE – Dossier des Ouvrages Exécutés</span>
+      <span style="font-size:.72rem;color:#888;margin-left:8px">IEC 62446 · Remise documentaire complète</span>
+    </div>
+    <div class="kpi-chip"><div class="kv" id="doePctBig" style="color:#74b9ff">{{ doe_pct }}%</div><div class="kl">Complété</div></div>
+  </div>
+  <div style="height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:16px">
+    <div id="doeBar" style="height:100%;border-radius:4px;background:linear-gradient(90deg,#74b9ff,#a29bfe);transition:.4s;width:{{ doe_pct }}%"></div>
+  </div>
+  <div class="card-dark">
+    {% for doc in doe_documents %}
+    {% set doc_data = chantier.doe_documents.get(doc.id, {'statut':'A_etablir','date':'','notes':''}) %}
+    <div class="doe-row" id="doe_{{ doc.id }}">
+      <i class="bi bi-file-earmark-check doe-{{ doc_data.get('statut','A_etablir')|lower|replace(' ','_') }}" style="font-size:.9rem;flex-shrink:0"></i>
+      <div style="flex:1;font-size:.78rem">{{ doc.label }}</div>
+      <select class="form-select form-select-sm" style="width:120px"
+              data-docid="{{ doc.id }}"
+              onchange="updateDoe(this.dataset.docid,'statut',this.value)">
+        <option value="A_etablir" {% if doc_data.get('statut')=='A_etablir' %}selected{% endif %}>À établir</option>
+        <option value="En_cours" {% if doc_data.get('statut')=='En_cours' %}selected{% endif %}>En cours</option>
+        <option value="Fourni" {% if doc_data.get('statut')=='Fourni' %}selected{% endif %}>Fourni</option>
+        <option value="Valide" {% if doc_data.get('statut')=='Valide' %}selected{% endif %}>✅ Validé</option>
+        <option value="NA" {% if doc_data.get('statut')=='NA' %}selected{% endif %}>N/A</option>
+      </select>
+      <input type="date" class="form-control form-control-sm" style="width:130px"
+             value="{{ doc_data.get('date','') }}"
+             data-docid="{{ doc.id }}"
+             onchange="updateDoe(this.dataset.docid,'date',this.value)">
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ██ MODULES N/S ████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_modules">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <span class="section-title mb-0">Traçabilité Modules – N° de Série</span>
+      <span style="font-size:.72rem;color:#888;margin-left:8px">IEC 62446 · Registre panneaux</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="kpi-chip"><div class="kv" id="modCountBig" style="color:#a29bfe">{{ chantier.modules_tracking|length }}</div><div class="kl">Enregistrés</div></span>
+      {% if chantier.nb_modules %}
+      <span class="kpi-chip"><div class="kv" style="color:#aaa">{{ chantier.nb_modules }}</div><div class="kl">Prévus</div></span>
+      {% endif %}
+      <button class="btn btn-sm btn-orange" onclick="openAddModuleModal()" style="font-size:.72rem"><i class="bi bi-plus"></i> Ajouter</button>
+    </div>
+  </div>
+  <!-- Import CSV info -->
+  <div class="card-dark mb-3" style="font-size:.75rem;color:#888">
+    <i class="bi bi-info-circle"></i> Ajoutez chaque module un par un, ou importez une liste. Format : N° de série | String | Position | Conforme
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm" style="font-size:.78rem;color:#e0e0e0">
+      <thead style="background:rgba(255,255,255,.05);color:#888">
+        <tr><th>#</th><th>N° de série</th><th>String</th><th>Position</th><th>Date réception</th><th>Conforme</th><th>Obs.</th><th></th></tr>
+      </thead>
+      <tbody id="modulesTable">
+        {% for m in chantier.modules_tracking %}
+        <tr id="modrow_{{ m.id }}">
+          <td style="color:#888">{{ loop.index }}</td>
+          <td style="font-family:monospace;font-size:.72rem">{{ m.numero_serie }}</td>
+          <td>{{ m.string }}</td>
+          <td>{{ m.position }}</td>
+          <td>{{ m.date_reception }}</td>
+          <td>{% if m.conforme %}<span style="color:#00b894">✅</span>{% else %}<span style="color:#ff7675">❌</span>{% endif %}</td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888">{{ m.observations }}</td>
+          <td><button class="btn btn-sm p-0" style="color:#e17055;font-size:.72rem" data-id="{{ m.id }}" onclick="deleteModule(this.dataset.id)"><i class="bi bi-trash"></i></button></td>
+        </tr>
+        {% else %}
+        <tr id="modEmpty"><td colspan="8" class="text-center py-3 text-muted">Aucun module enregistré</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ██ JOURNAL █████████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_journal">
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card-dark">
+        <div class="section-title">Nouvelle entrée de journal</div>
+        <div class="mb-2"><label class="form-label">Date</label><input type="date" class="form-control form-control-sm" id="jDate" value="{{ now }}"></div>
+        <div class="mb-2"><label class="form-label">Chef de chantier / Auteur</label><input type="text" class="form-control form-control-sm" id="jAuteur" placeholder="Prénom Nom"></div>
+        <div class="row g-2 mb-2">
+          <div class="col-7"><label class="form-label">Météo</label>
             <select class="form-select form-select-sm" id="jMeteo">
               {% for m in meteos %}<option>{{ m }}</option>{% endfor %}
             </select>
           </div>
-          <div class="mb-2">
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" id="jArret">
-              <label class="form-check-label" style="font-size:0.78rem;">Arrêt chantier</label>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Note / Avancement</label>
-            <textarea class="form-control" id="jContenu" rows="5" placeholder="Travaux réalisés, problèmes rencontrés, remarques..."></textarea>
-          </div>
-          <button class="btn btn-orange w-100" onclick="addJournal()"><i class="bi bi-check"></i> Enregistrer</button>
-        </div>
-      </div>
-      <div class="col-md-8">
-        <div style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;margin-bottom:10px;">JOURNAL DE CHANTIER</div>
-        <div id="journalList">
-          {% for e in chantier.journal %}
-          <div class="journal-entry" id="je_{{ e.id }}">
-            <div class="d-flex align-items-center gap-2 mb-1">
-              <span class="je-date"><i class="bi bi-calendar"></i> {{ e.date }}</span>
-              <span class="je-meteo">{{ e.meteo }}</span>
-              {% if e.arret_chantier %}<span class="je-arret">⛔ ARRÊT CHANTIER</span>{% endif %}
-              {% if e.auteur %}<span style="font-size:0.7rem;color:#aaa;margin-left:auto;"><i class="bi bi-person"></i> {{ e.auteur }}</span>{% endif %}
-              <button class="btn btn-sm p-0 ms-2" style="color:#636e72;font-size:0.75rem;" onclick="deleteJournal('{{ e.id }}')"><i class="bi bi-trash"></i></button>
-            </div>
-            <div class="je-text">{{ e.contenu }}</div>
-          </div>
-          {% else %}
-          <div id="journalEmpty" class="text-center py-4 text-muted"><i class="bi bi-journal-x fs-3"></i><br>Aucune entrée de journal</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- FACTURATION PANE -->
-  <div class="tab-pane-custom" id="pane_facturation">
-    <!-- Cash Balance KPIs -->
-    <div class="row g-2 mb-4" id="cashKpis">
-      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Montant total HT</div><div class="val" id="ckTotal" style="color:var(--orange);">—</div></div></div>
-      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Facturé émis</div><div class="val" id="ckEmis" style="color:#fdcb6e;">—</div></div></div>
-      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Encaissé</div><div class="val" id="ckEncaisse" style="color:#00b894;">—</div></div></div>
-      <div class="col-6 col-md-3"><div class="cash-kpi"><div class="label">Restant à encaisser</div><div class="val" id="ckRestant" style="color:#d63031;">—</div></div></div>
-    </div>
-
-    <!-- Progress bar facturation -->
-    <div class="mb-4">
-      <div class="d-flex justify-content-between" style="font-size:0.72rem;color:#aaa;margin-bottom:4px;">
-        <span>Avancement facturation</span>
-        <span id="factPctLabel">0%</span>
-      </div>
-      <div style="height:10px;background:rgba(255,255,255,0.08);border-radius:5px;overflow:hidden;">
-        <div id="factBar" style="height:100%;border-radius:5px;background:linear-gradient(90deg,#00b894,#55efc4);transition:.4s;width:0%;"></div>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="d-flex justify-content-between align-items-center mb-2">
-      <span style="font-size:0.75rem;font-weight:700;color:#aaa;letter-spacing:.05em;">FACTURES</span>
-      <button class="btn btn-sm btn-orange" onclick="showAddFactureModal()" style="font-size:0.75rem;padding:3px 10px;">
-        <i class="bi bi-plus"></i> Nouvelle facture
-      </button>
-    </div>
-    <div class="table-responsive">
-      <table class="table table-sm mb-0" style="font-size:0.8rem;color:#e0e0e0;">
-        <thead style="background:rgba(255,255,255,0.05);color:#aaa;">
-          <tr>
-            <th>N°</th><th>Libellé</th><th class="text-end">Montant HT</th>
-            <th>Date émission</th><th>Date paiement</th><th>Statut</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="factureTable">
-          {% for f in chantier.factures %}
-          <tr id="fact_{{ f.id }}">
-            <td style="font-weight:700;">{{ f.numero }}</td>
-            <td>{{ f.libelle }}</td>
-            <td class="text-end">{{ "{:,.0f}".format(f.montant) }} €</td>
-            <td>{{ f.date_emission }}</td>
-            <td>{{ f.date_paiement or '—' }}</td>
-            <td><span class="fact-statut-{{ f.statut }}">{{ f.statut|upper }}</span></td>
-            <td>
-              <button class="btn btn-sm p-0 me-2" style="color:#aaa;font-size:0.75rem;"
-                      data-fid="{{ f.id }}" data-num="{{ f.numero }}" data-lib="{{ f.libelle | e }}"
-                      data-montant="{{ f.montant }}" data-datee="{{ f.date_emission }}"
-                      data-datep="{{ f.date_paiement or '' }}" data-statut="{{ f.statut }}"
-                      onclick="openFactureModal(this)">
-                <i class="bi bi-pencil"></i></button>
-              <button class="btn btn-sm p-0" style="color:#e17055;font-size:0.75rem;" onclick="deleteFacture('{{ f.id }}')">
-                <i class="bi bi-trash"></i></button>
-            </td>
-          </tr>
-          {% else %}
-          <tr id="factEmpty"><td colspan="7" class="text-center py-3 text-muted">Aucune facture</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-</div><!-- /tab-content-area -->
-
-<!-- ====== MODALS ====== -->
-
-<!-- Add/Edit Tâche -->
-<div class="modal fade" id="tacheModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title" id="tacheModalTitle">Ajouter une tâche</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <input type="hidden" id="tModalPhase">
-        <input type="hidden" id="tModalId">
-        <div class="mb-2">
-          <label class="form-label">Titre *</label>
-          <input type="text" class="form-control" id="tModalTitre" placeholder="Titre de la tâche">
+          <div class="col-5"><label class="form-label">Nb ouvriers</label><input type="number" class="form-control form-control-sm" id="jNbOuvriers" min="0" placeholder="0"></div>
         </div>
         <div class="mb-2">
-          <label class="form-label">Description</label>
-          <textarea class="form-control" id="tModalDesc" rows="2"></textarea>
+          <div class="form-check"><input type="checkbox" class="form-check-input" id="jArret"><label class="form-check-label" style="font-size:.75rem;color:#ff7675">Arrêt chantier</label></div>
         </div>
-        <div class="row g-2">
-          <div class="col-6">
-            <label class="form-label">Statut</label>
-            <select class="form-select" id="tModalStatut">
-              <option value="todo">À faire</option>
-              <option value="doing">En cours</option>
-              <option value="done">Fait</option>
-              <option value="blocked">Bloqué</option>
-            </select>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Priorité</label>
-            <select class="form-select" id="tModalPrio">
-              <option value="haute">🔴 Haute</option>
-              <option value="normale" selected>🟡 Normale</option>
-              <option value="basse">🟢 Basse</option>
-            </select>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Responsable</label>
-            <input type="text" class="form-control" id="tModalResp" placeholder="Nom">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Deadline</label>
-            <input type="date" class="form-control" id="tModalDeadline">
-          </div>
+        <div class="mb-3"><label class="form-label">Note / Travaux réalisés</label>
+          <textarea class="form-control" id="jContenu" rows="6" placeholder="Décrire les travaux effectués, les problèmes rencontrés, les décisions prises..."></textarea>
         </div>
+        <button class="btn btn-orange w-100" onclick="addJournal()"><i class="bi bi-check"></i> Enregistrer</button>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-sm btn-outline-danger me-auto" id="tModalDeleteBtn" style="display:none;" onclick="deleteTacheFromModal()">
-          <i class="bi bi-trash"></i> Supprimer
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
-        <button type="button" class="btn btn-orange btn-sm" onclick="saveTache()">Enregistrer</button>
+    </div>
+    <div class="col-md-8">
+      <div class="section-title">Journal de chantier ({{ chantier.journal|length }} entrées)</div>
+      <div id="journalList">
+        {% for e in chantier.journal %}
+        <div class="je" id="je_{{ e.id }}">
+          <div class="je-meta">
+            <span><i class="bi bi-calendar"></i> {{ e.date }}</span>
+            <span>{{ e.meteo }}</span>
+            {% if e.nb_ouvriers %}<span><i class="bi bi-people"></i> {{ e.nb_ouvriers }} ouvriers</span>{% endif %}
+            {% if e.arret_chantier %}<span class="je-arret">⛔ ARRÊT</span>{% endif %}
+            {% if e.auteur %}<span style="margin-left:auto"><i class="bi bi-person"></i> {{ e.auteur }}</span>{% endif %}
+            <button class="btn btn-sm p-0" style="color:#555;font-size:.7rem" data-id="{{ e.id }}" onclick="deleteJournal(this.dataset.id)"><i class="bi bi-trash"></i></button>
+          </div>
+          <div class="je-text">{{ e.contenu }}</div>
+        </div>
+        {% else %}
+        <div id="journalEmpty" class="text-center py-5 text-muted"><i class="bi bi-journal-x fs-3"></i><br>Aucune entrée de journal</div>
+        {% endfor %}
       </div>
     </div>
   </div>
 </div>
 
-<!-- Add/Edit Facture -->
-<div class="modal fade" id="factureModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title" id="factModalTitle">Nouvelle facture</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+<!-- ██ FACTURATION █████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_facturation">
+  <!-- Cash KPIs -->
+  <div class="row g-2 mb-4">
+    <div class="col-6 col-md"><div class="cash-kpi"><div class="cv" id="fkTotal" style="color:var(--orange)">—</div><div class="cl">Marché total HT</div></div></div>
+    <div class="col-6 col-md"><div class="cash-kpi"><div class="cv" id="fkRetenue" style="color:#e17055">—</div><div class="cl">Retenue garantie ({{ chantier.retenue_garantie_pct }}%)</div></div></div>
+    <div class="col-6 col-md"><div class="cash-kpi"><div class="cv" id="fkEmis" style="color:#fdcb6e">—</div><div class="cl">Facturé émis</div></div></div>
+    <div class="col-6 col-md"><div class="cash-kpi"><div class="cv" id="fkEncaisse" style="color:#00b894">—</div><div class="cl">Encaissé</div></div></div>
+    <div class="col-6 col-md"><div class="cash-kpi"><div class="cv" id="fkRestant" style="color:#ff7675">—</div><div class="cl">Restant à encaisser</div></div></div>
+  </div>
+  <!-- Progress -->
+  <div class="mb-4">
+    <div class="d-flex justify-content-between" style="font-size:.7rem;color:#aaa;margin-bottom:3px"><span>Avancement facturation</span><span id="fkPctLbl">0%</span></div>
+    <div style="height:10px;border-radius:5px;background:rgba(255,255,255,.08);overflow:hidden">
+      <div id="fkBar" style="height:100%;border-radius:5px;background:linear-gradient(90deg,#00b894,#55efc4);transition:.4s;width:0%"></div>
+    </div>
+  </div>
+  <!-- Table -->
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <span class="section-title mb-0">Situations de travaux / Jalons</span>
+    <button class="btn btn-sm btn-orange" onclick="openAddFacture()" style="font-size:.72rem"><i class="bi bi-plus"></i> Nouvelle facture</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm" style="font-size:.78rem;color:#e0e0e0">
+      <thead style="background:rgba(255,255,255,.05);color:#888">
+        <tr><th>N°</th><th>Jalon / Libellé</th><th class="text-end">Montant HT</th><th>Émission</th><th>Échéance</th><th>Paiement</th><th>Statut</th><th></th></tr>
+      </thead>
+      <tbody id="factTable">
+        {% for f in chantier.factures %}
+        <tr id="factrow_{{ f.id }}">
+          <td style="font-weight:700">{{ f.numero }}</td>
+          <td>{{ f.libelle }}{% if f.milestone %}<br><span style="font-size:.65rem;color:#888">{{ f.milestone }}</span>{% endif %}</td>
+          <td class="text-end">{{ "{:,.0f}".format(f.montant) }} €{% if f.retenue_appliquee %}<br><span style="font-size:.6rem;color:#e17055">-RG</span>{% endif %}</td>
+          <td>{{ f.date_emission }}</td>
+          <td>{{ f.date_echeance or '—' }}</td>
+          <td>{{ f.date_paiement or '—' }}</td>
+          <td><span class="fact-{{ f.statut }}">{{ f.statut|upper }}</span></td>
+          <td>
+            <button class="btn btn-sm p-0 me-1" style="color:#aaa;font-size:.72rem"
+                    data-fid="{{ f.id }}" data-num="{{ f.numero }}" data-lib="{{ f.libelle|e }}"
+                    data-milestone="{{ f.milestone|default('')|e }}" data-montant="{{ f.montant }}"
+                    data-retenue="{{ f.retenue_appliquee|lower }}"
+                    data-datee="{{ f.date_emission }}" data-dateech="{{ f.date_echeance|default('') }}"
+                    data-datep="{{ f.date_paiement|default('') }}" data-statut="{{ f.statut }}"
+                    onclick="openEditFacture(this)"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-sm p-0" style="color:#e17055;font-size:.72rem" data-id="{{ f.id }}" onclick="deleteFacture(this.dataset.id)"><i class="bi bi-trash"></i></button>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="factEmpty"><td colspan="8" class="text-center py-3 text-muted">Aucune facture — <button class="btn btn-sm btn-outline-warning" onclick="openAddFacture()">Ajouter</button></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ██ PPSPS ████████████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_ppsps">
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card-dark">
+        <div class="section-title">Informations PPSPS</div>
+        <div class="mb-2"><label class="form-label">Coordonnateur SPS</label>
+          <input type="text" class="form-control form-control-sm" id="ppspsCoord" value="{{ chantier.ppsps.coordonnateur_sps|default('') }}" onchange="savePpsps()"></div>
+        <div class="mb-2"><label class="form-label">Risques identifiés</label>
+          <textarea class="form-control" id="ppspsRisques" rows="5" onchange="savePpsps()">{{ chantier.ppsps.risques_identifies|default('') }}</textarea></div>
+        <div class="mb-2"><label class="form-label">EPI requis</label>
+          <textarea class="form-control" id="ppspsEpi" rows="4" onchange="savePpsps()">{{ chantier.ppsps.epi_requis|default('') }}</textarea></div>
       </div>
-      <div class="modal-body">
-        <input type="hidden" id="fModalId">
+    </div>
+    <div class="col-md-6">
+      <div class="card-dark mb-3">
+        <div class="section-title">Indicateurs sécurité</div>
         <div class="row g-2">
           <div class="col-6">
-            <label class="form-label">N° facture</label>
-            <input type="text" class="form-control" id="fModalNum" placeholder="FAC-001">
+            <label class="form-label">Nb accidents AT</label>
+            <input type="number" class="form-control form-control-sm" id="ppspsAcc" min="0" value="{{ chantier.ppsps.nb_accidents|default(0) }}" onchange="savePpsps()">
           </div>
           <div class="col-6">
-            <label class="form-label">Montant HT (€)</label>
-            <input type="number" class="form-control" id="fModalMontant" step="0.01" min="0">
+            <label class="form-label">Nb quasi-accidents</label>
+            <input type="number" class="form-control form-control-sm" id="ppspsQA" min="0" value="{{ chantier.ppsps.nb_quasi_accidents|default(0) }}" onchange="savePpsps()">
           </div>
-          <div class="col-12">
-            <label class="form-label">Libellé</label>
-            <input type="text" class="form-control" id="fModalLib" placeholder="Ex: Acompte 30% – installation PV">
+        </div>
+        <div class="mt-3" style="text-align:center">
+          <div style="font-size:2.5rem;font-weight:800;color:{% if chantier.ppsps.nb_accidents > 0 %}#ff7675{% else %}#00b894{% endif %}">
+            {{ chantier.ppsps.nb_accidents|default(0) }}
           </div>
-          <div class="col-6">
-            <label class="form-label">Date émission</label>
-            <input type="date" class="form-control" id="fModalDateE" value="{{ now }}">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Date paiement</label>
-            <input type="date" class="form-control" id="fModalDateP">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Statut</label>
-            <select class="form-select" id="fModalStatut">
-              <option value="emis">Émis</option>
-              <option value="paye">Payé</option>
-              <option value="retard">En retard</option>
-              <option value="annule">Annulé</option>
-            </select>
+          <div style="font-size:.72rem;color:#888">accident{{ 's' if chantier.ppsps.nb_accidents != 1 else '' }} enregistré{{ 's' if chantier.ppsps.nb_accidents != 1 else '' }}</div>
+          <div style="margin-top:6px;font-size:.75rem;color:{% if chantier.ppsps.nb_accidents == 0 %}#00b894{% else %}#ff7675{% endif %}">
+            {% if chantier.ppsps.nb_accidents == 0 %}✅ Chantier sans accident{% else %}⚠️ Accidents déclarés – Action corrective requise{% endif %}
           </div>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-sm btn-outline-danger me-auto" id="fModalDeleteBtn" style="display:none;" onclick="deleteFactureFromModal()">
-          <i class="bi bi-trash"></i>
-        </button>
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
-        <button type="button" class="btn btn-orange btn-sm" onclick="saveFacture()">Enregistrer</button>
+      <div class="card-dark">
+        <div class="section-title">Intervenants chantier</div>
+        <textarea class="form-control" id="ppspsEntr" rows="6" placeholder="Entreprises / sous-traitants&#10;— Installateur principal : ...&#10;— Électricien : ...&#10;— Charpentier : ..." onchange="savePpsps()">{{ chantier.ppsps.entreprises if chantier.ppsps.entreprises is string else (chantier.ppsps.entreprises|join('\n') if chantier.ppsps.entreprises else '') }}</textarea>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Config Chantier -->
-<div class="modal fade" id="configModal" tabindex="-1">
+</div><!-- /content-area -->
+</div><!-- /layout -->
+
+<!-- ════════════════════ MODALS ══════════════════════════════════════════════ -->
+
+<!-- Config -->
+<div class="modal fade" id="modalConfig" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header">
-        <h6 class="modal-title"><i class="bi bi-gear"></i> Paramètres du chantier</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
+      <div class="modal-header"><h6 class="modal-title"><i class="bi bi-gear"></i> Paramètres du chantier</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
       <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">Nom du projet</label>
-          <input type="text" class="form-control" id="cfgNomProjet" value="{{ chantier.nom_projet or prospect.nom_prospect }}">
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label">Nom du projet</label><input type="text" class="form-control" id="cfgNom" value="{{ chantier.nom_projet|default(prospect.nom_prospect)|e }}"></div>
+          <div class="col-6"><label class="form-label">Montant total HT (€)</label><input type="number" class="form-control" id="cfgMontant" value="{{ chantier.montant_total_ht|default(0) }}" step="100"></div>
+          <div class="col-6"><label class="form-label">Retenue garantie (%)</label><input type="number" class="form-control" id="cfgRetenue" value="{{ chantier.retenue_garantie_pct|default(5) }}" step="0.5" min="0" max="20"></div>
+          <div class="col-6"><label class="form-label">Date début projet</label><input type="date" class="form-control" id="cfgDateD" value="{{ chantier.date_debut_projet|default('') }}"></div>
+          <div class="col-6"><label class="form-label">Date fin prévue</label><input type="date" class="form-control" id="cfgDateF" value="{{ chantier.date_fin_prevue_projet|default('') }}"></div>
+          <div class="col-6"><label class="form-label">Puissance crête (kWc)</label><input type="number" class="form-control" id="cfgPuissance" value="{{ chantier.puissance_kwc|default(0) }}" step="0.1"></div>
+          <div class="col-6"><label class="form-label">Nombre de modules</label><input type="number" class="form-control" id="cfgNbMod" value="{{ chantier.nb_modules|default(0) }}"></div>
         </div>
-        <div class="mb-3">
-          <label class="form-label">Montant total marché HT (€)</label>
-          <input type="number" class="form-control" id="cfgMontant" value="{{ chantier.montant_total_ht or 0 }}" step="100">
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button><button class="btn btn-orange btn-sm" onclick="saveConfig()">Enregistrer</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tâche -->
+<div class="modal fade" id="modalTache" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="tacheModalTitle">Ajouter une tâche</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="tPhase"><input type="hidden" id="tId">
+        <div class="mb-2"><label class="form-label">Titre *</label><input type="text" class="form-control" id="tTitre"></div>
+        <div class="mb-2"><label class="form-label">Description</label><textarea class="form-control" id="tDesc" rows="2"></textarea></div>
+        <div class="row g-2">
+          <div class="col-6"><label class="form-label">Statut</label><select class="form-select" id="tStatut"><option value="todo">À faire</option><option value="doing">En cours</option><option value="done">Terminé</option><option value="blocked">Bloqué</option></select></div>
+          <div class="col-6"><label class="form-label">Priorité</label><select class="form-select" id="tPrio"><option value="haute">🔴 Haute</option><option value="normale" selected>🟡 Normale</option><option value="basse">🟢 Basse</option></select></div>
+          <div class="col-6"><label class="form-label">Responsable</label><input type="text" class="form-control" id="tResp"></div>
+          <div class="col-6"><label class="form-label">Deadline</label><input type="date" class="form-control" id="tDeadline"></div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
-        <button type="button" class="btn btn-orange btn-sm" onclick="saveConfig()">Enregistrer</button>
+        <button class="btn btn-sm btn-outline-danger me-auto" id="tDeleteBtn" style="display:none" onclick="deleteTache()"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-orange btn-sm" onclick="saveTache()">Enregistrer</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- NCF -->
+<div class="modal fade" id="modalNcf" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="ncfModalTitle">Nouvelle NCF</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="ncfId">
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label">Titre *</label><input type="text" class="form-control" id="ncfTitre" placeholder="Description courte de la non-conformité"></div>
+          <div class="col-12"><label class="form-label">Description détaillée</label><textarea class="form-control" id="ncfDesc" rows="3"></textarea></div>
+          <div class="col-4"><label class="form-label">Gravité</label><select class="form-select" id="ncfGravite">{% for g in ncf_gravites %}<option>{{ g }}</option>{% endfor %}</select></div>
+          <div class="col-4"><label class="form-label">Origine</label><select class="form-select" id="ncfOrigine">{% for o in ncf_origines %}<option>{{ o }}</option>{% endfor %}</select></div>
+          <div class="col-4"><label class="form-label">Phase concernée</label><select class="form-select" id="ncfPhase"><option value="">—</option>{% for ph in phases %}<option value="{{ ph.id }}">{{ ph.abbr }} – {{ ph.label }}</option>{% endfor %}</select></div>
+          <div class="col-6"><label class="form-label">Responsable traitement</label><input type="text" class="form-control" id="ncfResp"></div>
+          <div class="col-6"><label class="form-label">Date détection</label><input type="date" class="form-control" id="ncfDate" value="{{ now }}"></div>
+          <div class="col-8"><label class="form-label">Actions correctives</label><textarea class="form-control" id="ncfActions" rows="2"></textarea></div>
+          <div class="col-4"><label class="form-label">Statut</label><select class="form-select" id="ncfStatut">{% for s in ncf_statuts %}<option>{{ s }}</option>{% endfor %}</select></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-danger me-auto" id="ncfDeleteBtn" style="display:none" onclick="deleteNcfFromModal()"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-orange btn-sm" onclick="saveNcf()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Facture -->
+<div class="modal fade" id="modalFacture" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="factModalTitle">Nouvelle facture</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="fId">
+        <div class="row g-2">
+          <div class="col-5"><label class="form-label">N° facture</label><input type="text" class="form-control" id="fNum" placeholder="SIT-001"></div>
+          <div class="col-7"><label class="form-label">Jalon / Milestone</label>
+            <select class="form-select" id="fMilestone">
+              <option value="">— Saisir libellé libre —</option>
+              {% for m in milestones_default %}<option value="{{ m.label }}">{{ m.label }} ({{ m.pct }}%)</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label">Libellé</label><input type="text" class="form-control" id="fLib"></div>
+          <div class="col-6"><label class="form-label">Montant HT (€)</label><input type="number" class="form-control" id="fMontant" step="0.01"></div>
+          <div class="col-6 d-flex align-items-end">
+            <div class="form-check mb-2"><input type="checkbox" class="form-check-input" id="fRetenue" checked><label class="form-check-label" style="font-size:.75rem">Retenue de garantie applicable</label></div>
+          </div>
+          <div class="col-4"><label class="form-label">Date émission</label><input type="date" class="form-control" id="fDateE" value="{{ now }}"></div>
+          <div class="col-4"><label class="form-label">Échéance</label><input type="date" class="form-control" id="fDateEch"></div>
+          <div class="col-4"><label class="form-label">Date paiement</label><input type="date" class="form-control" id="fDateP"></div>
+          <div class="col-6"><label class="form-label">Statut</label><select class="form-select" id="fStatut"><option value="emis">Émis</option><option value="paye">Payé</option><option value="retard">En retard</option><option value="annule">Annulé</option></select></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-danger me-auto" id="fDeleteBtn" style="display:none" onclick="deleteFactureFromModal()"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-orange btn-sm" onclick="saveFacture()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Module N/S -->
+<div class="modal fade" id="modalModule" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Enregistrer un module</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label">N° de série *</label><input type="text" class="form-control" id="modNs" placeholder="Ex: JINKO-2024-001234"></div>
+          <div class="col-6"><label class="form-label">String</label><input type="text" class="form-control" id="modString" placeholder="STR-01"></div>
+          <div class="col-6"><label class="form-label">Position dans le string</label><input type="text" class="form-control" id="modPos" placeholder="M-01"></div>
+          <div class="col-6"><label class="form-label">Date réception</label><input type="date" class="form-control" id="modDate" value="{{ now }}"></div>
+          <div class="col-6 d-flex align-items-end"><div class="form-check mb-2"><input type="checkbox" class="form-check-input" id="modConf" checked><label class="form-check-label" style="font-size:.75rem">Conforme à la réception</label></div></div>
+          <div class="col-12"><label class="form-label">Observations</label><input type="text" class="form-control" id="modObs"></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button><button class="btn btn-orange btn-sm" onclick="saveModule()">Enregistrer</button></div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-const PROSPECT_ID = {{ prospect.id }};
-const API = `/chantier/api/${PROSPECT_ID}`;
+const PID = {{ prospect.id }};
+const API = `/chantier/api/${PID}`;
 
-// ─── Onglets ──────────────────────────────────────────────────────────────────
+// ─── Bootstrap modal instances ────────────────────────────────────────────────
+const mConfig  = new bootstrap.Modal(document.getElementById('modalConfig'));
+const mTache   = new bootstrap.Modal(document.getElementById('modalTache'));
+const mNcf     = new bootstrap.Modal(document.getElementById('modalNcf'));
+const mFacture = new bootstrap.Modal(document.getElementById('modalFacture'));
+const mModule  = new bootstrap.Modal(document.getElementById('modalModule'));
+
+// ─── Tab navigation ───────────────────────────────────────────────────────────
 function switchTab(id) {
-    document.querySelectorAll('.phase-tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-pane-custom').forEach(t => t.classList.remove('active'));
-    const tab = document.getElementById('tab_' + id);
-    const pane = document.getElementById('pane_' + id);
-    if (tab) tab.classList.add('active');
-    if (pane) pane.classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.tab === id));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active',p.id === 'tab_' + id));
     if (id === 'facturation') updateCashUI();
-    // Update kanban counters
-    updateKanbanCounters();
 }
 
 // ─── Kanban counters ──────────────────────────────────────────────────────────
 function updateKanbanCounters() {
-    {% for ph in phases %}
-    ['todo','doing','done','blocked'].forEach(col => {
-        const cnt = document.getElementById('cnt_{{ ph.id }}_' + col);
-        const cards = document.querySelectorAll(`#cards_{{ ph.id }}_${col} .kanban-card`);
-        if (cnt) cnt.textContent = cards.length;
+    document.querySelectorAll('.k-col').forEach(col => {
+        const ph = col.dataset.phase, c = col.dataset.col;
+        const cnt = document.getElementById('kcnt_' + ph + '_' + c);
+        if (cnt) cnt.textContent = col.querySelectorAll('.k-card').length;
     });
-    {% endfor %}
 }
 document.addEventListener('DOMContentLoaded', updateKanbanCounters);
 
 // ─── Phase statut / dates ─────────────────────────────────────────────────────
-async function updatePhaseStatut(phId, val) {
-    await fetch(`${API}/phase/${phId}`, {
-        method:'PATCH', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({statut: val})
-    });
+async function updatePhaseStatut(id, val) {
+    await fetch(`${API}/phase/${id}`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({statut:val})});
 }
-async function updatePhaseDate(phId, key, val) {
-    await fetch(`${API}/phase/${phId}`, {
-        method:'PATCH', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({[key]: val})
-    });
+async function updatePhaseDate(id, key, val) {
+    await fetch(`${API}/phase/${id}`, {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:val})});
+    if (key === 'date_debut' || key === 'date_fin_prevue') buildGantt();
 }
 
 // ─── Checklist ────────────────────────────────────────────────────────────────
 async function toggleChecklist(phaseId, item, val) {
-    const resp = await fetch(`${API}/checklist`, {
-        method:'PATCH', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({phase_id: phaseId, item: item, value: val})
-    });
-    const d = await resp.json();
+    const r = await fetch(`${API}/checklist`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({phase_id:phaseId,item:item,value:val})});
+    const d = await r.json();
     if (d.ok) updateAvancement(d.avancement);
 }
 
-// ─── Tâche modal ──────────────────────────────────────────────────────────────
-let _tacheModal = null;
-function showAddTacheModal(phaseId) {
+// ─── Tâches ───────────────────────────────────────────────────────────────────
+function openAddTache(phaseId) {
     document.getElementById('tacheModalTitle').textContent = 'Ajouter une tâche';
-    document.getElementById('tModalPhase').value = phaseId;
-    document.getElementById('tModalId').value = '';
-    document.getElementById('tModalTitre').value = '';
-    document.getElementById('tModalDesc').value = '';
-    document.getElementById('tModalStatut').value = 'todo';
-    document.getElementById('tModalPrio').value = 'normale';
-    document.getElementById('tModalResp').value = '';
-    document.getElementById('tModalDeadline').value = '';
-    document.getElementById('tModalDeleteBtn').style.display = 'none';
-    if (!_tacheModal) _tacheModal = new bootstrap.Modal(document.getElementById('tacheModal'));
-    _tacheModal.show();
+    document.getElementById('tPhase').value = phaseId;
+    document.getElementById('tId').value = '';
+    ['tTitre','tDesc','tResp','tDeadline'].forEach(id => {document.getElementById(id).value='';});
+    document.getElementById('tStatut').value = 'todo';
+    document.getElementById('tPrio').value = 'normale';
+    document.getElementById('tDeleteBtn').style.display = 'none';
+    mTache.show();
 }
-function showEditTacheModal(phId, tId, titre, desc, statut, resp, deadline, prio) {
+function openCardModal(el) {
     document.getElementById('tacheModalTitle').textContent = 'Modifier la tâche';
-    document.getElementById('tModalPhase').value = phId;
-    document.getElementById('tModalId').value = tId;
-    document.getElementById('tModalTitre').value = titre;
-    document.getElementById('tModalDesc').value = desc;
-    document.getElementById('tModalStatut').value = statut;
-    document.getElementById('tModalPrio').value = prio || 'normale';
-    document.getElementById('tModalResp').value = resp;
-    document.getElementById('tModalDeadline').value = deadline;
-    document.getElementById('tModalDeleteBtn').style.display = 'inline-flex';
-    if (!_tacheModal) _tacheModal = new bootstrap.Modal(document.getElementById('tacheModal'));
-    _tacheModal.show();
+    document.getElementById('tPhase').value = el.dataset.phase;
+    document.getElementById('tId').value = el.dataset.id;
+    document.getElementById('tTitre').value = el.dataset.titre;
+    document.getElementById('tDesc').value = el.dataset.desc;
+    document.getElementById('tStatut').value = el.dataset.statut;
+    document.getElementById('tPrio').value = el.dataset.prio;
+    document.getElementById('tResp').value = el.dataset.resp;
+    document.getElementById('tDeadline').value = el.dataset.deadline;
+    document.getElementById('tDeleteBtn').style.display = '';
+    mTache.show();
 }
 async function saveTache() {
-    const phaseId = document.getElementById('tModalPhase').value;
-    const tacheId = document.getElementById('tModalId').value;
+    const phaseId = document.getElementById('tPhase').value;
+    const tId = document.getElementById('tId').value;
+    const titre = document.getElementById('tTitre').value.trim();
+    if (!titre) { alert('Le titre est obligatoire'); return; }
     const payload = {
-        titre:       document.getElementById('tModalTitre').value.trim(),
-        description: document.getElementById('tModalDesc').value,
-        statut:      document.getElementById('tModalStatut').value,
-        priorite:    document.getElementById('tModalPrio').value,
-        responsable: document.getElementById('tModalResp').value,
-        deadline:    document.getElementById('tModalDeadline').value,
+        titre, description:document.getElementById('tDesc').value,
+        statut:document.getElementById('tStatut').value,
+        priorite:document.getElementById('tPrio').value,
+        responsable:document.getElementById('tResp').value,
+        deadline:document.getElementById('tDeadline').value,
     };
-    if (!payload.titre) { alert('Le titre est obligatoire'); return; }
-    let resp;
-    if (tacheId) {
-        resp = await fetch(`${API}/tache/${tacheId}`, {
-            method:'PATCH', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        });
+    let r;
+    if (tId) {
+        r = await fetch(`${API}/tache/${tId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     } else {
         payload.phase_id = phaseId;
-        resp = await fetch(`${API}/tache`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        });
+        r = await fetch(`${API}/tache`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     }
-    const d = await resp.json();
+    const d = await r.json();
+    if (d.ok) { mTache.hide(); renderKanbanCard(phaseId, d); if(d.avancement) updateAvancement(d.avancement); }
+}
+async function deleteTache() {
+    const tId = document.getElementById('tId').value;
+    const phaseId = document.getElementById('tPhase').value;
+    if (!confirm('Supprimer ?')) return;
+    const r = await fetch(`${API}/tache/${tId}`,{method:'DELETE'});
+    const d = await r.json();
     if (d.ok) {
-        _tacheModal.hide();
-        reloadKanban(phaseId, d);
-        if (d.avancement) updateAvancement(d.avancement);
-    } else { alert('Erreur: ' + d.error); }
-}
-async function deleteTacheFromModal() {
-    const tId = document.getElementById('tModalId').value;
-    const phId = document.getElementById('tModalPhase').value;
-    if (!confirm('Supprimer cette tâche ?')) return;
-    const resp = await fetch(`${API}/tache/${tId}`, { method: 'DELETE' });
-    const d = await resp.json();
-    if (d.ok) {
-        _tacheModal.hide();
-        const card = document.getElementById('card_' + tId);
-        if (card) card.remove();
-        if (d.avancement) updateAvancement(d.avancement);
+        mTache.hide();
+        const c = document.getElementById('kcard_'+tId);
+        if(c) c.remove();
         updateKanbanCounters();
+        if(d.avancement) updateAvancement(d.avancement);
     }
 }
-
-// ─── Drag & Drop Kanban ───────────────────────────────────────────────────────
-let _dragTacheId = null;
-function onDragStart(event, tacheId) { _dragTacheId = tacheId; event.dataTransfer.effectAllowed = 'move'; }
-async function onDrop(event, phaseId, colId) {
-    event.preventDefault();
-    event.currentTarget.classList.remove('drag-over');
-    if (!_dragTacheId) return;
-    const targetContainer = document.getElementById(`cards_${phaseId}_${colId}`);
-    const card = document.getElementById('card_' + _dragTacheId);
-    if (card && targetContainer) {
-        targetContainer.appendChild(card);
-        updateKanbanCounters();
-        const resp = await fetch(`${API}/tache/${_dragTacheId}`, {
-            method:'PATCH', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({statut: colId})
-        });
-        const d = await resp.json();
-        if (d.avancement) updateAvancement(d.avancement);
-    }
-    _dragTacheId = null;
-}
-
-// ─── Reload kanban après sauvegarde (page refresh light) ─────────────────────
-async function reloadKanban(phaseId, data) {
-    if (data.tache) {
-        const t = data.tache;
-        const existing = document.getElementById('card_' + t.id);
-        const prioClass = `prio-${t.priorite || 'normale'}`;
-        const cardHtml = `<div class="kanban-card ${prioClass}" draggable="true" id="card_${t.id}"
-            ondragstart="onDragStart(event,'${t.id}')"
-            data-phase="${phaseId}"
-            data-id="${t.id}"
-            data-titre="${(t.titre||'').replace(/"/g,'&quot;')}"
-            data-desc="${(t.description||'').replace(/"/g,'&quot;')}"
-            data-statut="${t.statut}"
-            data-resp="${(t.responsable||'').replace(/"/g,'&quot;')}"
-            data-deadline="${t.deadline||''}"
-            data-prio="${t.priorite||'normale'}"
-            onclick="openCardModal(this)">
-            <div class="card-title">${t.titre}</div>
-            <div class="card-meta">
-                ${t.responsable ? `<span><i class="bi bi-person"></i> ${t.responsable}</span>` : ''}
-                ${t.deadline ? `<span><i class="bi bi-calendar"></i> ${t.deadline}</span>` : ''}
-                <span class="badge" style="font-size:0.6rem;background:rgba(255,255,255,0.08);">${t.priorite||'normale'}</span>
-            </div></div>`;
-        if (existing) {
-            existing.outerHTML = cardHtml;
-        } else {
-            const container = document.getElementById(`cards_${phaseId}_${t.statut}`);
-            if (container) container.insertAdjacentHTML('beforeend', cardHtml);
-        }
-    }
+function renderKanbanCard(phaseId, data) {
+    if (!data.tache) return;
+    const t = data.tache;
+    const container = document.getElementById(`kcards_${phaseId}_${t.statut}`);
+    const existing = document.getElementById('kcard_'+t.id);
+    const html = `<div class="k-card pl-${t.priorite||'normale'}" draggable="true" id="kcard_${t.id}"
+        ondragstart="onDragStart(event,'${t.id}')"
+        data-phase="${phaseId}" data-id="${t.id}"
+        data-titre="${(t.titre||'').replace(/"/g,'&quot;')}"
+        data-desc="${(t.description||'').replace(/"/g,'&quot;')}"
+        data-statut="${t.statut}" data-resp="${(t.responsable||'').replace(/"/g,'&quot;')}"
+        data-deadline="${t.deadline||''}" data-prio="${t.priorite||'normale'}"
+        onclick="openCardModal(this)">
+        <div class="ct">${t.titre}</div>
+        <div class="cm">
+          ${t.responsable?`<span><i class="bi bi-person"></i> ${t.responsable}</span>`:''}
+          ${t.deadline?`<span><i class="bi bi-calendar"></i> ${t.deadline}</span>`:''}
+          <span class="badge" style="font-size:.55rem;background:rgba(255,255,255,.07)">${t.priorite||'normale'}</span>
+        </div></div>`;
+    if (existing) { existing.outerHTML = html; }
+    else if (container) { container.insertAdjacentHTML('beforeend', html); }
     updateKanbanCounters();
 }
 
-// ─── openCardModal — lit les data attributes de la carte ─────────────────────
-function openCardModal(el) {
-    showEditTacheModal(
-        el.dataset.phase,
-        el.dataset.id,
-        el.dataset.titre,
-        el.dataset.desc,
-        el.dataset.statut,
-        el.dataset.resp,
-        el.dataset.deadline,
-        el.dataset.prio
-    );
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
+let _dragId = null;
+function onDragStart(e, id) { _dragId = id; e.dataTransfer.effectAllowed = 'move'; }
+async function onDrop(e, phaseId, col) {
+    e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+    if (!_dragId) return;
+    const card = document.getElementById('kcard_'+_dragId);
+    const tgt = document.getElementById(`kcards_${phaseId}_${col}`);
+    if (card && tgt) {
+        tgt.appendChild(card);
+        card.dataset.statut = col;
+        updateKanbanCounters();
+        const r = await fetch(`${API}/tache/${_dragId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({statut:col})});
+        const d = await r.json();
+        if(d.avancement) updateAvancement(d.avancement);
+    }
+    _dragId = null;
+}
+
+// ─── Avancement ───────────────────────────────────────────────────────────────
+function updateAvancement(av) {
+    document.getElementById('topGlobalPct').textContent = av.global+'%';
+    document.getElementById('db_globalPct').textContent = av.global+'%';
+    document.getElementById('db_globalBar').style.width = av.global+'%';
+    Object.entries(av.phases).forEach(([pid, pct]) => {
+        const np = document.getElementById('npct_'+pid);
+        const pb = document.getElementById('pbar_'+pid);
+        const dp = document.getElementById('dbpct_'+pid);
+        const db = document.getElementById('dbbar_'+pid);
+        if(np) np.textContent = pct+'%';
+        if(pb) pb.style.width = pct+'%';
+        if(dp) dp.textContent = pct+'%';
+        if(db) db.style.width = pct+'%';
+    });
+}
+
+// ─── NCF ──────────────────────────────────────────────────────────────────────
+function openAddNcfModal() {
+    document.getElementById('ncfModalTitle').textContent = 'Nouvelle NCF';
+    document.getElementById('ncfId').value = '';
+    ['ncfTitre','ncfDesc','ncfResp','ncfActions'].forEach(id => document.getElementById(id).value='');
+    document.getElementById('ncfGravite').value = 'Mineure';
+    document.getElementById('ncfOrigine').value = 'Travaux';
+    document.getElementById('ncfStatut').value = 'Ouverte';
+    document.getElementById('ncfPhase').value = '';
+    document.getElementById('ncfDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('ncfDeleteBtn').style.display = 'none';
+    mNcf.show();
+}
+function openEditNcfModal(el) {
+    document.getElementById('ncfModalTitle').textContent = 'Modifier NCF';
+    document.getElementById('ncfId').value = el.dataset.id;
+    document.getElementById('ncfTitre').value = el.dataset.titre;
+    document.getElementById('ncfDesc').value = el.dataset.desc;
+    document.getElementById('ncfGravite').value = el.dataset.gravite;
+    document.getElementById('ncfOrigine').value = el.dataset.origine;
+    document.getElementById('ncfStatut').value = el.dataset.statut;
+    document.getElementById('ncfResp').value = el.dataset.resp;
+    document.getElementById('ncfActions').value = el.dataset.actions;
+    document.getElementById('ncfDate').value = el.dataset.date;
+    document.getElementById('ncfPhase').value = el.dataset.phase;
+    document.getElementById('ncfDeleteBtn').style.display = '';
+    mNcf.show();
+}
+async function saveNcf() {
+    const nId = document.getElementById('ncfId').value;
+    const titre = document.getElementById('ncfTitre').value.trim();
+    if (!titre) { alert('Titre obligatoire'); return; }
+    const payload = {
+        titre, description:document.getElementById('ncfDesc').value,
+        gravite:document.getElementById('ncfGravite').value,
+        origine:document.getElementById('ncfOrigine').value,
+        statut:document.getElementById('ncfStatut').value,
+        responsable:document.getElementById('ncfResp').value,
+        actions_correctives:document.getElementById('ncfActions').value,
+        date_detection:document.getElementById('ncfDate').value,
+        phase_id:document.getElementById('ncfPhase').value,
+    };
+    let r;
+    if (nId) r = await fetch(`${API}/ncf/${nId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    else r = await fetch(`${API}/ncf`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
+    if (d.ok) {
+        mNcf.hide();
+        updateNcfStats(d.stats);
+        reloadNcfList();
+    }
+}
+async function deleteNcf(id) {
+    if (!confirm('Supprimer cette NCF ?')) return;
+    const r = await fetch(`${API}/ncf/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if(d.ok) { document.getElementById('ncf_'+id)?.remove(); updateNcfStats(d.stats); }
+}
+async function deleteNcfFromModal() {
+    const id = document.getElementById('ncfId').value;
+    mNcf.hide();
+    await deleteNcf(id);
+}
+function updateNcfStats(s) {
+    if (!s) return;
+    document.getElementById('topNcfOpen').textContent = s.ouvertes;
+    document.getElementById('npct_ncf').textContent = s.ouvertes;
+    document.getElementById('db_ncfTotal').textContent = s.total;
+    document.getElementById('db_ncfOpen').textContent = s.ouvertes;
+    document.getElementById('db_ncfCrit').textContent = s.critiques;
+    document.getElementById('ncfChipTotal').textContent = s.total;
+    document.getElementById('ncfChipOpen').textContent = s.ouvertes;
+    document.getElementById('ncfChipCrit').textContent = s.critiques;
+}
+async function reloadNcfList() {
+    const r = await fetch(`${API}/data`);
+    const d = await r.json();
+    if (!d.ok) return;
+    const ncf = d.chantier.ncf || [];
+    const list = document.getElementById('ncfList');
+    const gF = document.getElementById('ncfFilterGravite').value;
+    const sF = document.getElementById('ncfFilterStatut').value;
+    const filtered = ncf.filter(n => (!gF||n.gravite===gF)&&(!sF||n.statut===sF));
+    if (!filtered.length) {
+        list.innerHTML = '<div id="ncfEmpty" class="text-center py-5 text-muted"><i class="bi bi-check-circle fs-3"></i><br>Aucune non-conformité</div>';
+        return;
+    }
+    const gravCls = {Critique:'ncf-critique',Majeure:'ncf-majeure',Mineure:'ncf-mineure',Observation:'ncf-observation'};
+    list.innerHTML = filtered.map(n => `
+    <div class="ncf-row" id="ncf_${n.id}">
+      <div class="d-flex align-items-start gap-2 flex-wrap">
+        <div style="flex:1">
+          <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+            <span style="font-size:.72rem;font-weight:700;color:#888">${n.numero}</span>
+            <span class="${gravCls[n.gravite]||''}" style="font-size:.7rem;font-weight:700">▲ ${n.gravite}</span>
+            <span class="statut-badge s-${n.statut==='Ouverte'?'bloque':n.statut==='Clôturée'?'termine':'en_cours'}">${n.statut}</span>
+            <span style="font-size:.68rem;color:#888">${n.origine}</span>
+            <span style="font-size:.68rem;color:#888">${n.date_detection}</span>
+          </div>
+          <div style="font-size:.82rem;font-weight:600">${n.titre}</div>
+          ${n.description?`<div style="font-size:.75rem;color:#aaa;margin-top:3px">${n.description}</div>`:''}
+          ${n.actions_correctives?`<div style="font-size:.72rem;color:#74b9ff;margin-top:3px"><i class="bi bi-tools"></i> ${n.actions_correctives}</div>`:''}
+        </div>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm p-1" style="color:#aaa;font-size:.72rem"
+                  data-id="${n.id}" data-titre="${(n.titre||'').replace(/"/g,'&quot;')}"
+                  data-desc="${(n.description||'').replace(/"/g,'&quot;')}"
+                  data-origine="${n.origine}" data-gravite="${n.gravite}" data-statut="${n.statut}"
+                  data-resp="${(n.responsable||'').replace(/"/g,'&quot;')}"
+                  data-actions="${(n.actions_correctives||'').replace(/"/g,'&quot;')}"
+                  data-date="${n.date_detection}" data-phase="${n.phase_id||''}"
+                  onclick="openEditNcfModal(this)"><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm p-1" style="color:#e17055;font-size:.72rem" data-id="${n.id}" onclick="deleteNcf(this.dataset.id)"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function renderNcfList() { reloadNcfList(); }
+
+// ─── DOE ──────────────────────────────────────────────────────────────────────
+async function updateDoe(docId, field, val) {
+    const row = document.getElementById('doe_' + docId);
+    // Read current values from DOM selects/inputs in this row
+    const statutEl = row?.querySelector('select');
+    const dateEl = row?.querySelector('input[type=date]');
+    const payload = {
+        doc_id: docId,
+        statut: field === 'statut' ? val : (statutEl?.value || 'A_etablir'),
+        date:   field === 'date'   ? val : (dateEl?.value || ''),
+        notes: '',
+    };
+    const r = await fetch(`${API}/doe`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
+    if (d.ok) {
+        document.getElementById('topDoePct').textContent = d.pct+'%';
+        document.getElementById('doePctBig').textContent = d.pct+'%';
+        document.getElementById('doeBar').style.width = d.pct+'%';
+    }
+}
+
+// ─── Modules N/S ──────────────────────────────────────────────────────────────
+function openAddModuleModal() { mModule.show(); }
+async function saveModule() {
+    const ns = document.getElementById('modNs').value.trim();
+    if (!ns) { alert('N° de série obligatoire'); return; }
+    const r = await fetch(`${API}/module`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        numero_serie:ns, string:document.getElementById('modString').value,
+        position:document.getElementById('modPos').value,
+        date_reception:document.getElementById('modDate').value,
+        conforme:document.getElementById('modConf').checked,
+        observations:document.getElementById('modObs').value,
+    })});
+    const d = await r.json();
+    if (d.ok) {
+        mModule.hide();
+        const m = d.module;
+        const empty = document.getElementById('modEmpty');
+        if (empty) empty.remove();
+        const tbody = document.getElementById('modulesTable');
+        const idx = tbody.querySelectorAll('tr').length + 1;
+        tbody.insertAdjacentHTML('beforeend',`<tr id="modrow_${m.id}">
+          <td style="color:#888">${idx}</td>
+          <td style="font-family:monospace;font-size:.72rem">${m.numero_serie}</td>
+          <td>${m.string}</td><td>${m.position}</td><td>${m.date_reception}</td>
+          <td>${m.conforme?'<span style="color:#00b894">✅</span>':'<span style="color:#ff7675">❌</span>'}</td>
+          <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888">${m.observations}</td>
+          <td><button class="btn btn-sm p-0" style="color:#e17055;font-size:.72rem" data-id="${m.id}" onclick="deleteModule(this.dataset.id)"><i class="bi bi-trash"></i></button></td>
+        </tr>`);
+        document.getElementById('modCountBig').textContent = d.total;
+        document.getElementById('npct_modules').textContent = d.total;
+        ['modNs','modString','modPos','modObs'].forEach(id=>document.getElementById(id).value='');
+        document.getElementById('modConf').checked = true;
+    }
+}
+async function deleteModule(id) {
+    if (!confirm('Supprimer ce module de la liste ?')) return;
+    const r = await fetch(`${API}/module/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if (d.ok) {
+        document.getElementById('modrow_'+id)?.remove();
+        document.getElementById('modCountBig').textContent = d.total;
+        document.getElementById('npct_modules').textContent = d.total;
+    }
 }
 
 // ─── Journal ──────────────────────────────────────────────────────────────────
 async function addJournal() {
-    const payload = {
-        date:           document.getElementById('jDate').value,
-        auteur:         document.getElementById('jAuteur').value,
-        meteo:          document.getElementById('jMeteo').value,
-        arret_chantier: document.getElementById('jArret').checked,
-        contenu:        document.getElementById('jContenu').value.trim(),
-    };
-    if (!payload.contenu) { alert('Saisissez une note'); return; }
-    const resp = await fetch(`${API}/journal`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-    });
-    const d = await resp.json();
+    const contenu = document.getElementById('jContenu').value.trim();
+    if (!contenu) { alert('Saisissez une note'); return; }
+    const r = await fetch(`${API}/journal`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        date:document.getElementById('jDate').value,
+        auteur:document.getElementById('jAuteur').value,
+        meteo:document.getElementById('jMeteo').value,
+        arret_chantier:document.getElementById('jArret').checked,
+        nb_ouvriers:document.getElementById('jNbOuvriers').value,
+        contenu,
+    })});
+    const d = await r.json();
     if (d.ok) {
         const e = d.entry;
-        const html = `<div class="journal-entry" id="je_${e.id}">
-            <div class="d-flex align-items-center gap-2 mb-1">
-                <span class="je-date"><i class="bi bi-calendar"></i> ${e.date}</span>
-                <span class="je-meteo">${e.meteo}</span>
-                ${e.arret_chantier ? '<span class="je-arret">⛔ ARRÊT CHANTIER</span>' : ''}
-                ${e.auteur ? `<span style="font-size:0.7rem;color:#aaa;margin-left:auto;"><i class="bi bi-person"></i> ${e.auteur}</span>` : ''}
-                <button class="btn btn-sm p-0 ms-2" style="color:#636e72;font-size:0.75rem;" onclick="deleteJournal('${e.id}')"><i class="bi bi-trash"></i></button>
-            </div>
-            <div class="je-text">${e.contenu}</div>
-        </div>`;
         const list = document.getElementById('journalList');
-        const empty = document.getElementById('journalEmpty');
-        if (empty) empty.remove();
-        list.insertAdjacentHTML('afterbegin', html);
-        document.getElementById('jContenu').value = '';
-        document.getElementById('jArret').checked = false;
+        document.getElementById('journalEmpty')?.remove();
+        list.insertAdjacentHTML('afterbegin',`<div class="je" id="je_${e.id}">
+          <div class="je-meta">
+            <span><i class="bi bi-calendar"></i> ${e.date}</span>
+            <span>${e.meteo}</span>
+            ${e.nb_ouvriers?`<span><i class="bi bi-people"></i> ${e.nb_ouvriers} ouvriers</span>`:''}
+            ${e.arret_chantier?'<span class="je-arret">⛔ ARRÊT</span>':''}
+            ${e.auteur?`<span style="margin-left:auto"><i class="bi bi-person"></i> ${e.auteur}</span>`:''}
+            <button class="btn btn-sm p-0" style="color:#555;font-size:.7rem" data-id="${e.id}" onclick="deleteJournal(this.dataset.id)"><i class="bi bi-trash"></i></button>
+          </div>
+          <div class="je-text">${e.contenu}</div>
+        </div>`);
+        document.getElementById('jContenu').value='';
+        document.getElementById('jArret').checked=false;
+        document.getElementById('jNbOuvriers').value='';
     }
 }
 async function deleteJournal(id) {
-    if (!confirm('Supprimer cette entrée ?')) return;
-    await fetch(`${API}/journal/${id}`, { method:'DELETE' });
-    const el = document.getElementById('je_' + id);
-    if (el) el.remove();
+    if (!confirm('Supprimer ?')) return;
+    await fetch(`${API}/journal/${id}`,{method:'DELETE'});
+    document.getElementById('je_'+id)?.remove();
 }
 
-// ─── Facture modal ────────────────────────────────────────────────────────────
-let _factModal = null;
-function showAddFactureModal() {
+// ─── Facturation ──────────────────────────────────────────────────────────────
+function _fmt(v) { return v!=null ? Math.round(v).toLocaleString('fr-FR')+' €' : '—'; }
+function updateCashFromData(cash) {
+    document.getElementById('fkTotal').textContent = _fmt(cash.total_ht);
+    document.getElementById('fkRetenue').textContent = _fmt(cash.retenue_garantie);
+    document.getElementById('fkEmis').textContent = _fmt(cash.facture_emis);
+    document.getElementById('fkEncaisse').textContent = _fmt(cash.encaisse);
+    document.getElementById('fkRestant').textContent = _fmt(cash.restant_a_encaisser);
+    document.getElementById('db_total').textContent = _fmt(cash.total_ht);
+    document.getElementById('db_encaisse').textContent = _fmt(cash.encaisse);
+    const pct = cash.total_ht > 0 ? Math.round(cash.encaisse/cash.total_ht*100) : 0;
+    document.getElementById('fkBar').style.width = pct+'%';
+    document.getElementById('fkPctLbl').textContent = pct+'%';
+    document.getElementById('db_cashBar').style.width = pct+'%';
+}
+async function updateCashUI() {
+    const r = await fetch(`${API}/data`);
+    const d = await r.json();
+    if (d.ok) updateCashFromData(d.cash);
+}
+function openAddFacture() {
     document.getElementById('factModalTitle').textContent = 'Nouvelle facture';
-    document.getElementById('fModalId').value = '';
-    document.getElementById('fModalNum').value = '';
-    document.getElementById('fModalLib').value = '';
-    document.getElementById('fModalMontant').value = '';
-    document.getElementById('fModalDateE').value = '{{ now }}';
-    document.getElementById('fModalDateP').value = '';
-    document.getElementById('fModalStatut').value = 'emis';
-    document.getElementById('fModalDeleteBtn').style.display = 'none';
-    if (!_factModal) _factModal = new bootstrap.Modal(document.getElementById('factureModal'));
-    _factModal.show();
+    document.getElementById('fId').value = '';
+    ['fNum','fLib','fMontant','fDateEch','fDateP'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('fMilestone').value = '';
+    document.getElementById('fDateE').value = new Date().toISOString().split('T')[0];
+    document.getElementById('fStatut').value = 'emis';
+    document.getElementById('fRetenue').checked = true;
+    document.getElementById('fDeleteBtn').style.display = 'none';
+    mFacture.show();
 }
-function showEditFactureModal(id, num, lib, montant, dateE, dateP, statut) {
+function openEditFacture(el) {
     document.getElementById('factModalTitle').textContent = 'Modifier la facture';
-    document.getElementById('fModalId').value = id;
-    document.getElementById('fModalNum').value = num;
-    document.getElementById('fModalLib').value = lib;
-    document.getElementById('fModalMontant').value = montant;
-    document.getElementById('fModalDateE').value = dateE;
-    document.getElementById('fModalDateP').value = dateP;
-    document.getElementById('fModalStatut').value = statut;
-    document.getElementById('fModalDeleteBtn').style.display = 'inline-flex';
-    if (!_factModal) _factModal = new bootstrap.Modal(document.getElementById('factureModal'));
-    _factModal.show();
+    document.getElementById('fId').value = el.dataset.fid;
+    document.getElementById('fNum').value = el.dataset.num;
+    document.getElementById('fLib').value = el.dataset.lib;
+    document.getElementById('fMilestone').value = el.dataset.milestone||'';
+    document.getElementById('fMontant').value = el.dataset.montant;
+    document.getElementById('fRetenue').checked = el.dataset.retenue === 'true';
+    document.getElementById('fDateE').value = el.dataset.datee;
+    document.getElementById('fDateEch').value = el.dataset.dateech;
+    document.getElementById('fDateP').value = el.dataset.datep;
+    document.getElementById('fStatut').value = el.dataset.statut;
+    document.getElementById('fDeleteBtn').style.display = '';
+    mFacture.show();
 }
-function _fmtE(v) { return v !== null && v !== undefined ? Math.round(v).toLocaleString('fr-FR') + ' €' : '—'; }
 async function saveFacture() {
-    const fId = document.getElementById('fModalId').value;
+    const fId = document.getElementById('fId').value;
+    const ms = document.getElementById('fMilestone').value;
     const payload = {
-        numero:         document.getElementById('fModalNum').value,
-        libelle:        document.getElementById('fModalLib').value,
-        montant:        parseFloat(document.getElementById('fModalMontant').value) || 0,
-        date_emission:  document.getElementById('fModalDateE').value,
-        date_paiement:  document.getElementById('fModalDateP').value,
-        statut:         document.getElementById('fModalStatut').value,
+        numero:document.getElementById('fNum').value,
+        libelle:document.getElementById('fLib').value,
+        milestone:ms,
+        montant:parseFloat(document.getElementById('fMontant').value)||0,
+        retenue_appliquee:document.getElementById('fRetenue').checked,
+        date_emission:document.getElementById('fDateE').value,
+        date_echeance:document.getElementById('fDateEch').value,
+        date_paiement:document.getElementById('fDateP').value,
+        statut:document.getElementById('fStatut').value,
     };
-    let resp;
-    if (fId) {
-        resp = await fetch(`${API}/facture/${fId}`, {
-            method:'PATCH', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        });
-    } else {
-        resp = await fetch(`${API}/facture`, {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-        });
-    }
-    const d = await resp.json();
+    // Auto-fill libelle from milestone
+    if (!payload.libelle && ms) payload.libelle = ms;
+    let r;
+    if (fId) r = await fetch(`${API}/facture/${fId}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    else r = await fetch(`${API}/facture`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
     if (d.ok) {
-        _factModal.hide();
+        mFacture.hide();
         updateCashFromData(d.cash);
-        refreshFactureTable();
+        reloadFactureTable();
     }
 }
 async function deleteFacture(id) {
     if (!confirm('Supprimer cette facture ?')) return;
-    const resp = await fetch(`${API}/facture/${id}`, { method:'DELETE' });
-    const d = await resp.json();
-    if (d.ok) { updateCashFromData(d.cash); refreshFactureTable(); }
+    const r = await fetch(`${API}/facture/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if(d.ok) { updateCashFromData(d.cash); reloadFactureTable(); }
 }
 async function deleteFactureFromModal() {
-    const id = document.getElementById('fModalId').value;
-    if (!id || !confirm('Supprimer ?')) return;
-    _factModal.hide();
+    const id = document.getElementById('fId').value;
+    mFacture.hide();
     await deleteFacture(id);
 }
-async function refreshFactureTable() {
-    const resp = await fetch(`${API}/data`);
-    const d = await resp.json();
-    const tbody = document.getElementById('factureTable');
+async function reloadFactureTable() {
+    const r = await fetch(`${API}/data`);
+    const d = await r.json();
+    const tbody = document.getElementById('factTable');
     if (!d.ok || !d.chantier.factures.length) {
-        tbody.innerHTML = '<tr id="factEmpty"><td colspan="7" class="text-center py-3 text-muted">Aucune facture</td></tr>';
+        tbody.innerHTML = '<tr id="factEmpty"><td colspan="8" class="text-center py-3 text-muted">Aucune facture</td></tr>';
         return;
     }
-    const statColors = {emis:'fact-statut-emis', paye:'fact-statut-paye', retard:'fact-statut-retard', annule:'fact-statut-annule'};
-    tbody.innerHTML = d.chantier.factures.map(f => `<tr id="fact_${f.id}">
-        <td style="font-weight:700;">${f.numero}</td>
-        <td>${f.libelle}</td>
-        <td class="text-end">${Math.round(f.montant).toLocaleString('fr-FR')} €</td>
-        <td>${f.date_emission}</td>
-        <td>${f.date_paiement || '—'}</td>
-        <td><span class="${statColors[f.statut] || ''}">${f.statut.toUpperCase()}</span></td>
-        <td>
-          <button class="btn btn-sm p-0 me-2" style="color:#aaa;font-size:0.75rem;"
-                  data-fid="${f.id}" data-num="${f.numero}"
-                  data-lib="${(f.libelle||'').replace(/"/g,'&quot;')}"
-                  data-montant="${f.montant}" data-datee="${f.date_emission}"
-                  data-datep="${f.date_paiement||''}" data-statut="${f.statut}"
-                  onclick="openFactureModal(this)">
-            <i class="bi bi-pencil"></i></button>
-          <button class="btn btn-sm p-0" style="color:#e17055;font-size:0.75rem;" onclick="deleteFacture('${f.id}')">
-            <i class="bi bi-trash"></i></button>
-        </td></tr>`).join('');
+    const sc = {emis:'fact-emis',paye:'fact-paye',retard:'fact-retard',annule:'fact-annule'};
+    tbody.innerHTML = d.chantier.factures.map(f=>`<tr id="factrow_${f.id}">
+      <td style="font-weight:700">${f.numero}</td>
+      <td>${f.libelle}${f.milestone?`<br><span style="font-size:.65rem;color:#888">${f.milestone}</span>`:''}</td>
+      <td class="text-end">${Math.round(f.montant).toLocaleString('fr-FR')} €${f.retenue_appliquee?'<br><span style="font-size:.6rem;color:#e17055">-RG</span>':''}</td>
+      <td>${f.date_emission}</td><td>${f.date_echeance||'—'}</td><td>${f.date_paiement||'—'}</td>
+      <td><span class="${sc[f.statut]||''}">${f.statut.toUpperCase()}</span></td>
+      <td>
+        <button class="btn btn-sm p-0 me-1" style="color:#aaa;font-size:.72rem"
+                data-fid="${f.id}" data-num="${f.numero}"
+                data-lib="${(f.libelle||'').replace(/"/g,'&quot;')}"
+                data-milestone="${(f.milestone||'').replace(/"/g,'&quot;')}"
+                data-montant="${f.montant}" data-retenue="${f.retenue_appliquee}"
+                data-datee="${f.date_emission}" data-dateech="${f.date_echeance||''}"
+                data-datep="${f.date_paiement||''}" data-statut="${f.statut}"
+                onclick="openEditFacture(this)"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm p-0" style="color:#e17055;font-size:.72rem" data-id="${f.id}" onclick="deleteFacture(this.dataset.id)"><i class="bi bi-trash"></i></button>
+      </td></tr>`).join('');
 }
 
-// ─── openFactureModal — lit les data attributes du bouton ────────────────────
-function openFactureModal(el) {
-    showEditFactureModal(
-        el.dataset.fid, el.dataset.num, el.dataset.lib,
-        el.dataset.montant, el.dataset.datee, el.dataset.datep, el.dataset.statut
-    );
-}
-
-// ─── Cash Balance ─────────────────────────────────────────────────────────────
-function updateCashFromData(cash) {
-    document.getElementById('ckTotal').textContent    = _fmtE(cash.total_ht);
-    document.getElementById('ckEmis').textContent     = _fmtE(cash.facture_emis);
-    document.getElementById('ckEncaisse').textContent = _fmtE(cash.encaisse);
-    document.getElementById('ckRestant').textContent  = _fmtE(cash.restant_a_encaisser);
-    const pct = cash.total_ht > 0 ? Math.round(cash.encaisse / cash.total_ht * 100) : 0;
-    document.getElementById('factBar').style.width = pct + '%';
-    document.getElementById('factPctLabel').textContent = pct + '%';
-}
-async function updateCashUI() {
-    const resp = await fetch(`${API}/data`);
-    const d = await resp.json();
-    if (d.ok) updateCashFromData(d.cash);
-}
-
-// ─── Avancement global ────────────────────────────────────────────────────────
-function updateAvancement(av) {
-    document.getElementById('globalBarFill').style.width = av.global + '%';
-    document.getElementById('globalPct').textContent = av.global + '%';
-    Object.entries(av.phases).forEach(([phId, pct]) => {
-        const pctEl = document.getElementById('pct_' + phId);
-        const barEl = document.getElementById('bar_' + phId);
-        if (pctEl) pctEl.textContent = pct + '%';
-        if (barEl) barEl.style.width = pct + '%';
-    });
-}
-
-// ─── Config modal ─────────────────────────────────────────────────────────────
-let _cfgModal = null;
-function showConfigModal() {
-    if (!_cfgModal) _cfgModal = new bootstrap.Modal(document.getElementById('configModal'));
-    _cfgModal.show();
-}
+// ─── Config ───────────────────────────────────────────────────────────────────
+function showConfigModal() { mConfig.show(); }
 async function saveConfig() {
     const payload = {
-        nom_projet:         document.getElementById('cfgNomProjet').value,
-        montant_total_ht:   parseFloat(document.getElementById('cfgMontant').value) || 0,
+        nom_projet:document.getElementById('cfgNom').value,
+        montant_total_ht:parseFloat(document.getElementById('cfgMontant').value)||0,
+        retenue_garantie_pct:parseFloat(document.getElementById('cfgRetenue').value)||5,
+        date_debut_projet:document.getElementById('cfgDateD').value,
+        date_fin_prevue_projet:document.getElementById('cfgDateF').value,
+        puissance_kwc:parseFloat(document.getElementById('cfgPuissance').value)||0,
+        nb_modules:parseInt(document.getElementById('cfgNbMod').value)||0,
     };
-    const resp = await fetch(`${API}/config`, {
-        method:'PATCH', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-    });
-    const d = await resp.json();
+    const r = await fetch(`${API}/config`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
     if (d.ok) {
+        mConfig.hide();
         document.getElementById('nomProjet').textContent = payload.nom_projet;
-        updateCashFromData(d.cash);
-        _cfgModal.hide();
+        document.getElementById('topCash').textContent = payload.montant_total_ht ? Math.round(payload.montant_total_ht).toLocaleString('fr-FR')+' €' : '—';
+        if(d.cash) updateCashFromData(d.cash);
+        buildGantt();
     }
 }
 
-// Init cash KPIs on load
+// ─── PPSPS ────────────────────────────────────────────────────────────────────
+let _ppspsTimer = null;
+function savePpsps() {
+    clearTimeout(_ppspsTimer);
+    _ppspsTimer = setTimeout(async () => {
+        const entr = document.getElementById('ppspsEntr').value;
+        await fetch(`${API}/ppsps`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+            coordonnateur_sps:document.getElementById('ppspsCoord').value,
+            risques_identifies:document.getElementById('ppspsRisques').value,
+            epi_requis:document.getElementById('ppspsEpi').value,
+            entreprises:entr,
+            nb_accidents:parseInt(document.getElementById('ppspsAcc').value)||0,
+            nb_quasi_accidents:parseInt(document.getElementById('ppspsQA').value)||0,
+        })});
+    }, 800);
+}
+
+// ─── Gantt SVG ────────────────────────────────────────────────────────────────
+async function buildGantt() {
+    const r = await fetch(`${API}/data`);
+    const d = await r.json();
+    if (!d.ok) return;
+    const ch = d.chantier;
+    const startStr = ch.date_debut_projet;
+    const endStr = ch.date_fin_prevue_projet;
+    const container = document.getElementById('ganttContainer');
+    if (!startStr || !endStr) {
+        container.innerHTML = '<div class="text-muted text-center py-3" style="font-size:.8rem">Renseignez les dates de début/fin du projet dans les <button class="btn btn-sm btn-outline-warning" onclick="showConfigModal()" style="font-size:.7rem;padding:1px 6px">Paramètres</button> pour afficher le Gantt</div>';
+        return;
+    }
+    const pStart = new Date(startStr);
+    const pEnd   = new Date(endStr);
+    const totalDays = Math.max(1, (pEnd - pStart) / 86400000);
+    const today = new Date();
+    const todayPct = Math.min(100, Math.max(0, (today - pStart) / 86400000 / totalDays * 100));
+
+    const phases = {{ phases | tojson }};
+    let html = `<div style="font-size:.65rem;color:#888;margin-bottom:6px;display:flex;gap:6px">
+      <div style="width:130px;text-align:right">Phase</div>
+      <div style="flex:1;position:relative">
+        <span style="position:absolute;left:0">${pStart.toLocaleDateString('fr-FR')}</span>
+        <span style="position:absolute;right:0">${pEnd.toLocaleDateString('fr-FR')}</span>
+        <span style="position:absolute;left:${todayPct}%;transform:translateX(-50%);color:var(--orange);font-weight:700">▼</span>
+      </div>
+    </div>`;
+    phases.forEach(ph => {
+        const phd = ch.phases?.[ph.id] || {};
+        const ds = phd.date_debut, de = phd.date_fin_prevue || phd.date_fin_reelle;
+        const pct = d.avancement?.phases?.[ph.id] || 0;
+        let left = 0, width = 100;
+        if (ds) {
+            const s = new Date(ds);
+            left = Math.min(100, Math.max(0, (s - pStart) / 86400000 / totalDays * 100));
+        }
+        if (de) {
+            const e = new Date(de);
+            const right = Math.min(100, Math.max(0, (e - pStart) / 86400000 / totalDays * 100));
+            width = Math.max(0.5, right - left);
+        } else {
+            width = Math.max(0.5, 100 - left);
+        }
+        html += `<div class="gantt-row">
+          <div class="gantt-label" title="${ph.label}" style="cursor:pointer" onclick="switchTab('${ph.id}')">${ph.abbr}</div>
+          <div class="gantt-track">
+            <div class="gantt-bar" style="left:${left}%;width:${width}%;background:${ph.color};opacity:0.85">${pct}%</div>
+            <div class="gantt-today" style="left:${todayPct}%"></div>
+          </div>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
 updateCashUI();
+buildGantt();
 </script>
 </body>
 </html>
