@@ -1438,6 +1438,297 @@ def _query_lidar_hd_grid(building_coords, resolution=0.25, resource="ign_lidar_h
     }
 
 
+# ╔══════════════════════════════════════════════════════════════════════════════════╗
+# ║  PIPELINE COPC — Nuage de points IGN LiDAR HD brut via HTTP range requests     ║
+# ║  Précision : ±5cm altimétrique, 20 pts/m², classe 6 = bâtiment                ║
+# ║  Source : data.geopf.fr WFS catalog + COPC streaming lazrs                     ║
+# ╚══════════════════════════════════════════════════════════════════════════════════╝
+
+class _HttpRangeFile(io.RawIOBase):
+    """
+    Fichier virtuel qui réalise des requêtes HTTP Range pour streamer
+    un fichier COPC depuis un serveur web sans le télécharger entièrement.
+    
+    Compatible io.RawIOBase → utilisable avec io.BufferedReader
+    → compatible laspy.CopcReader.open(fileobj).
+    """
+    def __init__(self, url, timeout=30):
+        super().__init__()
+        self.url = url
+        self.timeout = timeout
+        self._pos = 0
+        self._size = None
+        # Récupérer la taille du fichier via HEAD
+        r = requests.head(url, timeout=timeout, allow_redirects=True)
+        r.raise_for_status()
+        cl = r.headers.get('Content-Length')
+        if not cl:
+            raise ValueError(f"COPC: le serveur ne renvoie pas Content-Length pour {url}")
+        self._size = int(cl)
+        accept_ranges = r.headers.get('Accept-Ranges', '').lower()
+        if accept_ranges not in ('bytes', ''):
+            # Certains serveurs n'envoient pas Accept-Ranges mais supportent quand même les Range
+            pass
+        print(f"  📦 COPC: {url} — {self._size/1e6:.1f} MB, range_support={accept_ranges or 'unknown'}")
+
+    def readable(self): return True
+    def seekable(self): return True
+
+    def tell(self):
+        return self._pos
+
+    def seek(self, pos, whence=0):
+        if whence == 0:
+            self._pos = max(0, pos)
+        elif whence == 1:
+            self._pos = max(0, self._pos + pos)
+        elif whence == 2:
+            self._pos = max(0, self._size + pos)
+        return self._pos
+
+    def readinto(self, b):
+        n = len(b)
+        if self._pos >= self._size:
+            return 0
+        end = min(self._pos + n - 1, self._size - 1)
+        headers = {'Range': f'bytes={self._pos}-{end}'}
+        try:
+            r = requests.get(self.url, headers=headers, timeout=self.timeout, stream=False)
+            r.raise_for_status()
+            data = r.content
+            n_read = len(data)
+            b[:n_read] = data
+            self._pos += n_read
+            return n_read
+        except requests.RequestException as e:
+            raise IOError(f"COPC range request failed ({self._pos}-{end}): {e}") from e
+
+
+def _find_lidar_hd_tile_url(lat, lon):
+    """
+    Interroge le WFS IGN (IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle) pour
+    trouver l'URL du fichier COPC correspondant à une position WGS84.
+    
+    Returns:
+        str: URL directe du fichier .copc.laz IGN
+    Raises:
+        ValueError: si aucune dalle LiDAR HD n'est disponible pour ce point
+    """
+    delta = 0.003   # ~300m de marge
+    bbox = f"{lon-delta},{lat-delta},{lon+delta},{lat+delta},EPSG:4326"
+    wfs_url = (
+        "https://data.geopf.fr/wfs/ows"
+        "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
+        "&TYPENAMES=IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle"
+        f"&BBOX={bbox}&OUTPUTFORMAT=application/json&COUNT=1"
+    )
+    try:
+        r = requests.get(wfs_url, timeout=15)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        raise ValueError(f"WFS LiDAR HD inaccessible: {e}") from e
+
+    features = data.get("features", [])
+    if not features:
+        raise ValueError(
+            f"Aucune dalle LiDAR HD disponible pour lat={lat:.5f}, lon={lon:.5f} "
+            f"(zone non encore couverte ou interdite)"
+        )
+    url = features[0]["properties"].get("url", "")
+    if not url:
+        raise ValueError("WFS LiDAR HD: propriété 'url' absente dans la feature")
+    name = features[0]["properties"].get("name", "?")
+    print(f"  🗺️ Dalle LiDAR HD: {name}")
+    return url
+
+
+def _extract_copc_building_points(copc_url, building_coords_wgs84):
+    """
+    Extrait les points LiDAR classe 6 (bâtiment) d'une tuile COPC IGN
+    via HTTP range requests (streaming sans téléchargement complet).
+    
+    Args:
+        copc_url: URL du fichier .copc.laz IGN (depuis WFS)
+        building_coords_wgs84: liste de [lon, lat] du polygone bâtiment (WGS84)
+    
+    Returns:
+        tuple (x_local, y_local, z, cx_l93, cy_l93, cx_wgs84_lon, cx_wgs84_lat)
+        x_local, y_local : coordonnées métriques locales en Lambert93
+                           (centrées sur le centroïde du bâtiment)
+        z               : altitudes brutes (NGF-IGN69)
+        cx_l93, cy_l93  : centroïde Lambert93 du bâtiment
+        cx_lon, cx_lat  : centroïde WGS84 du bâtiment
+    """
+    try:
+        import laspy
+        import io as _io
+        from pyproj import Transformer
+    except ImportError as e:
+        raise ImportError(f"Dépendances COPC manquantes: {e}. Ajoutez laspy[lazrs] dans requirements.txt") from e
+
+    # ── 1. Projection Lambert93 du polygone bâtiment ──────────────────────────
+    lons_b = [float(c[0]) for c in building_coords_wgs84]
+    lats_b = [float(c[1]) for c in building_coords_wgs84]
+
+    t_fwd = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+    t_bck = Transformer.from_crs("EPSG:2154", "EPSG:4326", always_xy=True)
+
+    xs_l93, ys_l93 = t_fwd.transform(lons_b, lats_b)
+    xs_l93 = list(xs_l93)
+    ys_l93 = list(ys_l93)
+
+    # Centroïde en L93 puis en WGS84
+    cx_l93 = float(np.mean(xs_l93))
+    cy_l93 = float(np.mean(ys_l93))
+    cx_lon, cx_lat = t_bck.transform(cx_l93, cy_l93)
+
+    # Bounding box avec marge 3m de chaque côté
+    margin = 3.0
+    x_min = min(xs_l93) - margin
+    x_max = max(xs_l93) + margin
+    y_min = min(ys_l93) - margin
+    y_max = max(ys_l93) + margin
+
+    # ── 2. Ouvrir le COPC via HTTP range requests ─────────────────────────────
+    print(f"  📡 COPC: ouverture flux HTTP range ({copc_url[:80]}...)")
+    raw_file = _HttpRangeFile(copc_url, timeout=40)
+    buffered = _io.BufferedReader(raw_file, buffer_size=64 * 1024)  # 64KB buffer
+
+    with laspy.CopcReader.open(buffered) as reader:
+        # ── 3. Requête spatiale bounding box ─────────────────────────────────
+        bounds = laspy.copc.Bounds(
+            x=(x_min, x_max),
+            y=(y_min, y_max),
+        )
+        print(f"  📐 COPC query: L93 x=[{x_min:.0f},{x_max:.0f}], y=[{y_min:.0f},{y_max:.0f}]")
+        pts = reader.query(bounds)
+
+    # ── 4. Convertir en numpy, filtrer classe 6 (Bâtiment) ───────────────────
+    total_pts = len(pts.x)
+    print(f"  📊 COPC: {total_pts} points dans la bbox")
+
+    if total_pts == 0:
+        raise ValueError("COPC: aucun point dans la bounding box du bâtiment")
+
+    classification = np.array(pts.classification, dtype=np.uint8)
+    mask_bldg = classification == 6
+
+    n_bldg = int(mask_bldg.sum())
+    print(f"  🏠 COPC: {n_bldg}/{total_pts} points classe 6 (bâtiment)")
+
+    if n_bldg < 5:
+        # Diagnostic : quelles classes sont présentes ?
+        unique_cls, counts = np.unique(classification, return_counts=True)
+        cls_info = ", ".join(f"cls{c}:{n}" for c, n in zip(unique_cls, counts))
+        raise ValueError(
+            f"COPC: seulement {n_bldg} point(s) classe 6 dans la zone "
+            f"(classes présentes: {cls_info})"
+        )
+
+    x_l93 = np.array(pts.x, dtype=np.float64)[mask_bldg]
+    y_l93 = np.array(pts.y, dtype=np.float64)[mask_bldg]
+    z_arr = np.array(pts.z, dtype=np.float64)[mask_bldg]
+
+    # ── 5. Coordonnées locales (mètres, relatif centroïde L93) ───────────────
+    x_local = (x_l93 - cx_l93).tolist()
+    y_local = (y_l93 - cy_l93).tolist()
+    z_list  = z_arr.tolist()
+
+    return x_local, y_local, z_list, cx_l93, cy_l93, float(cx_lon), float(cx_lat)
+
+
+# ──────────────────────────────────────────────────────────────
+# Route COPC : analyse haute précision nuage de points brut
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/lidar/copc-roof', methods=['POST'])
+def api_lidar_copc_roof():
+    """
+    Pipeline LiDAR HD COPC haute précision (latence 15-35s).
+    
+    Step 1 : WFS → URL de la dalle COPC covering the building
+    Step 2 : HTTP range requests → extraction classe 6 dans la bbox
+    Step 3 : Filtre acrotère + RANSAC multi-plans
+    Step 4 : Retourne roof_planes identiques au format /api/lidar/3d-data
+    
+    POST body (JSON):
+        lat           : float — latitude du bâtiment (WGS84)
+        lon           : float — longitude du bâtiment (WGS84)
+        building_coords : [[lon, lat], ...] — polygone bâtiment (WGS84)
+    """
+    try:
+        body = request.get_json(force=True) or {}
+        lat  = float(body['lat'])
+        lon  = float(body['lon'])
+        building_coords = body['building_coords']   # [[lon, lat], ...]
+
+        if not building_coords or len(building_coords) < 3:
+            return jsonify({"error": "building_coords trop court (min 3 points)"}), 400
+
+        # ── 1. Trouver la dalle COPC ─────────────────────────────────────────
+        copc_url = _find_lidar_hd_tile_url(lat, lon)
+
+        # ── 2. Extraire les points bâtiment ──────────────────────────────────
+        rx, ry, rz, cx_l93, cy_l93, cx_lon, cx_lat = \
+            _extract_copc_building_points(copc_url, building_coords)
+
+        nb_raw = len(rx)
+        if nb_raw < 10:
+            return jsonify({
+                "error": f"Trop peu de points LiDAR classe 6: {nb_raw}",
+                "tile_url": copc_url,
+                "nb_points": nb_raw,
+            }), 422
+
+        # ── 3. Polygone local pour le filtre acrotère ────────────────────────
+        from pyproj import Transformer
+        t = Transformer.from_crs("EPSG:4326", "EPSG:2154", always_xy=True)
+        lons_b = [float(c[0]) for c in building_coords]
+        lats_b = [float(c[1]) for c in building_coords]
+        xs_l93_poly, ys_l93_poly = t.transform(lons_b, lats_b)
+        poly_lx = [float(x - cx_l93) for x in xs_l93_poly]
+        poly_ly = [float(y - cy_l93) for y in ys_l93_poly]
+
+        rx_np = np.array(rx, dtype=np.float64)
+        ry_np = np.array(ry, dtype=np.float64)
+        rz_np = np.array(rz, dtype=np.float64)
+
+        # ── 4. Filtre acrotères ──────────────────────────────────────────────
+        try:
+            acr_mask = _filter_acroteres(rx_np, ry_np, rz_np, poly_lx, poly_ly)
+            rx_f = rx_np[acr_mask]
+            ry_f = ry_np[acr_mask]
+            rz_f = rz_np[acr_mask]
+            print(f"  🏗️ COPC acrotère: {nb_raw} → {int(acr_mask.sum())} pts conservés")
+        except Exception as e_acr:
+            app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
+            rx_f, ry_f, rz_f = rx_np, ry_np, rz_np
+
+        # ── 5. RANSAC multi-plans ─────────────────────────────────────────────
+        roof_planes = _segment_roof_planes_ransac(
+            rx_f.tolist(), ry_f.tolist(), rz_f.tolist(),
+            grid_res=0.25
+        )
+        print(f"  ✅ COPC RANSAC: {len(roof_planes)} plan(s) détecté(s)")
+
+        return jsonify({
+            "success": True,
+            "source": "copc",
+            "tile_url": copc_url,
+            "nb_points_raw": nb_raw,
+            "nb_points_filtered": int(len(rx_f)),
+            "roof_planes": roof_planes,
+            "building_center": {"lat": cx_lat, "lon": cx_lon},
+        })
+
+    except ValueError as e:
+        app.logger.warning(f"COPC roof ValueError: {e}")
+        return jsonify({"error": str(e)}), 422
+    except Exception as e:
+        app.logger.error(f"COPC roof error: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+
 # ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
