@@ -637,6 +637,22 @@ try:
 except Exception as e:
     print(f"⚠️ [HELIA] Impossible d'enregistrer le blueprint Helia IA: {e}")
 
+# Module AO PV Bâtiment CRE PPE2
+try:
+    from ao_pv_batiment import ao_pv_bp
+    app.register_blueprint(ao_pv_bp)
+    print("📋 [AO PV] Blueprint AO PV Bâtiment enregistré (/ao-pv-batiment)")
+except Exception as e:
+    print(f"⚠️ [AO PV] Impossible d'enregistrer le blueprint AO PV: {e}")
+
+# Module Suivi de Chantier Agile
+try:
+    from chantier_module import chantier_bp
+    app.register_blueprint(chantier_bp)
+    print("🔨 [CHANTIER] Blueprint suivi de chantier enregistré (/chantier)")
+except Exception as e:
+    print(f"⚠️ [CHANTIER] Impossible d'enregistrer le blueprint chantier: {e}")
+
 # Redirections pour compatibilité avec les anciennes URLs
 @app.route("/register", methods=["GET", "POST"])
 def redirect_register():
@@ -683,6 +699,184 @@ def after_request(response):
 def lidar_plan_view():
     """Affiche la visualisation des points LiDAR sur un plan 100m×100m"""
     return render_template('lidar_plan.html')
+
+# ──────────────────────────────────────────────────────────────
+# HELPERS : Segmentation planaire RANSAC multi-plan
+# Standard : Vosselman & Maas (2010) Airborne and Terrestrial
+# Laser Scanning — Chapter 5 : Planar surface detection.
+# Coordonnées locales : x = Est (m), y = Nord (m), z = MNH (m)
+# ──────────────────────────────────────────────────────────────
+
+def _convex_hull_2d(xs, ys):
+    """
+    Enveloppe convexe 2D. Utilise shapely si disponible, sinon Graham scan.
+    Retourne [[x, y], ...] arrondi au centimètre.
+    """
+    pts = list(zip(xs, ys))
+    if len(pts) < 3:
+        return [[round(p[0], 2), round(p[1], 2)] for p in pts]
+    try:
+        from shapely.geometry import MultiPoint
+        hull = MultiPoint(pts).convex_hull
+        if hull.geom_type == 'Polygon':
+            return [[round(c[0], 2), round(c[1], 2)] for c in hull.exterior.coords[:-1]]
+        elif hull.geom_type == 'LineString':
+            return [[round(c[0], 2), round(c[1], 2)] for c in hull.coords]
+        return [[round(pts[0][0], 2), round(pts[0][1], 2)]]
+    except Exception:
+        pass
+    # Graham scan fallback
+    pivot = min(pts, key=lambda p: (p[1], p[0]))
+    def _ang(p): return math.atan2(p[1] - pivot[1], p[0] - pivot[0])
+    def _d2(p):  return (p[0] - pivot[0])**2 + (p[1] - pivot[1])**2
+    sorted_pts = sorted(set(pts), key=lambda p: (_ang(p), _d2(p)))
+    def _cross(o, a, b): return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0])
+    hull_gs = []
+    for p in sorted_pts:
+        while len(hull_gs) >= 2 and _cross(hull_gs[-2], hull_gs[-1], p) <= 0:
+            hull_gs.pop()
+        hull_gs.append(p)
+    return [[round(p[0], 2), round(p[1], 2)] for p in hull_gs]
+
+
+def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
+                                threshold=0.12, min_pts=8, max_planes=8, n_iter=150):
+    """
+    Segmentation planaire RANSAC itérative sur un nuage de points de toiture.
+
+    Modèle: z = a*x + b*y + c  (altitude MNH en coordonnées métriques locales)
+    Conforme pipeline Vosselman & Maas (2010), Ch.5.
+
+    Args:
+        x_arr, y_arr : positions relatives au centre bâtiment (m) — x=Est, y=Nord
+        z_arr        : MNH = hauteur au-dessus du terrain MNT (m)
+        threshold    : distance résiduelle max pour inlier (m) ≈ 1 pixel LiDAR
+        min_pts      : nombre minimum d'inliers pour valider un plan
+        max_planes   : nombre maximum de plans à extraire
+        n_iter       : itérations RANSAC par plan
+
+    Returns:
+        list of dict — chaque plan contient :
+          plane_id, mnh_a, mnh_b, mnh_c  (z = a*x + b*y + c en coords locales)
+          normal, slope_deg, azimuth_deg  (géométrie du plan)
+          eave_mnh, rmse, nb_points, centroid, polygon_2d, confidence
+    """
+    import numpy as np
+
+    x = np.asarray(x_arr, dtype=np.float64)
+    y = np.asarray(y_arr, dtype=np.float64)
+    z = np.asarray(z_arr, dtype=np.float64)
+
+    planes = []
+    remaining = np.ones(len(x), dtype=bool)
+    min_remaining = max(min_pts, int(len(x) * 0.04))
+
+    for plane_idx in range(max_planes):
+        xi = x[remaining]; yi = y[remaining]; zi = z[remaining]
+        if len(xi) < min_pts:
+            break
+
+        best_mask  = None
+        best_count = 0
+        best_coeffs = None
+        rng = np.random.default_rng(seed=42 + plane_idx * 7)
+        actual_iter = min(n_iter, max(50, len(xi) // 4))
+
+        for _ in range(actual_iter):
+            s = rng.choice(len(xi), 3, replace=False)
+            A3 = np.array([[xi[s[0]], yi[s[0]], 1.0],
+                           [xi[s[1]], yi[s[1]], 1.0],
+                           [xi[s[2]], yi[s[2]], 1.0]])
+            b3 = np.array([zi[s[0]], zi[s[1]], zi[s[2]]])
+            try:
+                coeffs = np.linalg.solve(A3, b3)
+            except np.linalg.LinAlgError:
+                continue
+            a_c, b_c, c_c = coeffs
+            denom = math.sqrt(a_c**2 + b_c**2 + 1.0)
+            res   = np.abs(a_c * xi + b_c * yi + c_c - zi) / denom
+            mask  = res < threshold
+            cnt   = int(np.sum(mask))
+            if cnt > best_count:
+                best_count = cnt; best_mask = mask; best_coeffs = coeffs
+
+        if best_mask is None or best_count < min_pts:
+            break
+
+        # Raffinage moindres carrés sur les inliers
+        xi_in = xi[best_mask]; yi_in = yi[best_mask]; zi_in = zi[best_mask]
+        A_ls  = np.column_stack([xi_in, yi_in, np.ones(len(xi_in))])
+        try:
+            coeffs_ls, _, _, _ = np.linalg.lstsq(A_ls, zi_in, rcond=None)
+            a_p, b_p, c_p = coeffs_ls
+        except Exception:
+            a_p, b_p, c_p = best_coeffs
+
+        # Recalcul des inliers avec modèle affiné
+        denom_ref = math.sqrt(a_p**2 + b_p**2 + 1.0)
+        res_ref   = np.abs(a_p * xi + b_p * yi + c_p - zi) / denom_ref
+        final_mask = res_ref < threshold
+        xi_f = xi[final_mask]; yi_f = yi[final_mask]; zi_f = zi[final_mask]
+        if len(xi_f) < min_pts:
+            break
+
+        rmse = float(np.std(zi_f - (a_p * xi_f + b_p * yi_f + c_p)))
+
+        # Vecteur normal unitaire (nz > 0, pointe vers le haut)
+        norm_n = math.sqrt(a_p**2 + b_p**2 + 1.0)
+        n_vec  = [-a_p / norm_n, -b_p / norm_n, 1.0 / norm_n]
+
+        # Inclinaison : angle entre la normale et la verticale
+        slope_deg = float(math.degrees(math.acos(min(1.0, abs(n_vec[2])))))
+
+        # Azimut géographique de la face descendante (0=N, 90=E, 180=S, 270=O)
+        # gradient de descente = (-a_p, -b_p) en (Est, Nord)
+        azimuth_geo = float((math.degrees(math.atan2(-a_p, -b_p)) + 360) % 360)
+
+        # Hauteur à l'égout (percentile 15 du MNH des inliers)
+        eave_mnh = float(np.percentile(zi_f, 15))
+
+        # Enveloppe convexe 2D des inliers
+        polygon_2d = _convex_hull_2d(xi_f.tolist(), yi_f.tolist())
+
+        # Niveau de confiance
+        if   len(xi_f) >= 40 and rmse < 0.12: confidence = 'high'
+        elif len(xi_f) >= 12 and rmse < 0.30: confidence = 'medium'
+        else:                                  confidence = 'low'
+
+        print(f"  ✅ Plan RANSAC {plane_idx+1}: {len(xi_f)} pts, "
+              f"pente={slope_deg:.1f}°, azimut={azimuth_geo:.0f}°, "
+              f"RMSE={rmse:.3f}m, conf={confidence}")
+
+        planes.append({
+            'plane_id':  plane_idx + 1,
+            'mnh_a':     round(float(a_p), 6),
+            'mnh_b':     round(float(b_p), 6),
+            'mnh_c':     round(float(c_p), 3),
+            'normal':    [round(n_vec[0], 4), round(n_vec[1], 4), round(n_vec[2], 4)],
+            'slope_deg': round(slope_deg, 1),
+            'azimuth_deg': round(azimuth_geo, 1),
+            'eave_mnh':  round(eave_mnh, 2),
+            'rmse':      round(rmse, 3),
+            'nb_points': int(len(xi_f)),
+            'centroid':  [round(float(np.mean(xi_f)), 2), round(float(np.mean(yi_f)), 2)],
+            'polygon_2d': polygon_2d,
+            'z_min_mnh': round(float(zi_f.min()), 2),
+            'z_max_mnh': round(float(zi_f.max()), 2),
+            'confidence': confidence,
+        })
+
+        # Retirer les inliers du nuage restant
+        rem_idx = np.where(remaining)[0]
+        remaining[rem_idx[final_mask]] = False
+        if np.sum(remaining) < min_remaining:
+            break
+
+    # Plans inclinés en premier (tri par nb_points desc), plats à la fin
+    inclined = sorted([p for p in planes if p['slope_deg'] >= 1.0], key=lambda p: -p['nb_points'])
+    flat     = [p for p in planes if p['slope_deg'] < 1.0]
+    return inclined + flat
+
 
 # ──────────────────────────────────────────────────────────────
 # HELPER : Requête altimétrie LiDAR HD via API IGN (50cm)
@@ -1384,6 +1578,55 @@ def api_lidar_3d_data():
                     "valid_ratio": round(hd['valid_ratio'], 2),
                     "data_source": "lidar_hd",
                 }
+
+                # ─── RANSAC multi-plan sur la grille MNH du b\u00e2timent ───────────
+                # Conforme : Vosselman & Maas (2010) Ch.5 \u2014 Planar surface detection
+                try:
+                    mnh_grid_np = np.array(hd['mnh_grid'], dtype=np.float32)
+                    hd_bbox  = hd['bbox']
+                    hd_w, hd_h_g = hd['grid_w'], hd['grid_h']
+                    bldg_cx_lon = sum(c[0] for c in building_coords) / len(building_coords)
+                    bldg_cx_lat = sum(c[1] for c in building_coords) / len(building_coords)
+                    hd_lng_to_m = 111320.0 * math.cos(math.radians(bldg_cx_lat))
+
+                    # Seuil MNH : percentile 20 des valeurs > 0.5 m
+                    # (exclut le sol et les gouttières)
+                    mnh_vals = mnh_grid_np[~np.isnan(mnh_grid_np)]
+                    above = mnh_vals[mnh_vals > 0.5]
+                    mnh_thresh = float(np.percentile(above, 20)) if len(above) > 0 else 1.5
+                    mnh_thresh = max(1.5, mnh_thresh)
+
+                    rx, ry, rz = [], [], []
+                    for iy in range(hd_h_g):
+                        for ix in range(hd_w):
+                            mnh_v = mnh_grid_np[iy, ix]
+                            if np.isnan(mnh_v) or mnh_v < mnh_thresh:
+                                continue
+                            px_lon = hd_bbox['west']  + (ix + 0.5) / hd_w   * (hd_bbox['east']  - hd_bbox['west'])
+                            px_lat = hd_bbox['north'] - (iy + 0.5) / hd_h_g * (hd_bbox['north'] - hd_bbox['south'])
+                            if not _point_in_polygon(px_lon, px_lat, building_coords):
+                                continue
+                            rx.append((px_lon - bldg_cx_lon) * hd_lng_to_m)
+                            ry.append((px_lat - bldg_cx_lat) * 111320.0)
+                            rz.append(float(mnh_v))
+
+                    print(f"\U0001f52c RANSAC: {len(rx)} points toit (seuil MNH\u2265{mnh_thresh:.1f}m)")
+                    if len(rx) >= 8:
+                        roof_planes = _segment_roof_planes_ransac(rx, ry, rz)
+                        result["building_hd"]["roof_planes"] = roof_planes
+                        result["building_hd"]["building_center"] = {
+                            "lat": round(bldg_cx_lat, 7),
+                            "lon": round(bldg_cx_lon, 7),
+                        }
+                        print(f"\u2705 RANSAC: {len(roof_planes)} plan(s) d\u00e9tect\u00e9(s)")
+                    else:
+                        print(f"\u26a0 RANSAC: points insuffisants ({len(rx)})")
+                except Exception as e_ransac:
+                    import traceback
+                    print(f"\u26a0 RANSAC planes error: {e_ransac}")
+                    traceback.print_exc()
+                # ────────────────────────────────────────────────────────────────
+
                 print(f"✓ LiDAR HD bâtiment: {hd['grid_w']}×{hd['grid_h']} à {hd['resolution']:.2f}m/px")
             else:
                 print("  ⚠ LiDAR HD non disponible pour ce bâtiment, fallback WMS terrain")
