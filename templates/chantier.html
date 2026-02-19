@@ -674,7 +674,100 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
       </div>
     </div>
   </div>
-</div>
+
+  <!-- ─── PLANNING DE RÉALISATION PAR PHASE ──────────────────────────────── -->
+  <div class="row g-3 mt-2">
+    <div class="col-12">
+      <div class="card-dark">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div>
+            <span class="section-title mb-0"><i class="bi bi-calendar2-week" style="color:{{ ph.color }}"></i> Planning de réalisation — {{ ph.label }}</span>
+            <span style="font-size:.65rem;color:#555;margin-left:8px">{{ ph.checklist|length }} points checklist · durée std {{ ph.duree_std }}j</span>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" style="font-size:.68rem" onclick="openOpModal('{{ ph.id }}')"><i class="bi bi-plus"></i> Opération</button>
+            {% if phase_operations.get(ph.id) %}
+            <button class="btn btn-sm" style="background:{{ ph.color }};color:#000;font-size:.68rem" onclick="prefillOps('{{ ph.id }}')" title="Pré-remplir avec les {{ phase_operations[ph.id]|length }} opérations standardisées IEC/NF"><i class="bi bi-magic"></i> Pré-remplir ({{ phase_operations[ph.id]|length }} ops standards)</button>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Mini-Gantt des opérations par phase (rendu JS) -->
+        <div id="opsGantt_{{ ph.id }}" style="overflow-x:auto;margin-bottom:10px">
+          <div style="font-size:.7rem;color:#555;padding:4px 0;text-align:center" id="opsGanttMsg_{{ ph.id }}">Ajoutez des opérations ou utilisez « Pré-remplir » pour afficher le Gantt</div>
+        </div>
+
+        <!-- Tableau des opérations -->
+        <div style="overflow-x:auto">
+          <table class="table table-dark table-sm mb-0" style="font-size:.72rem" id="opsTable_{{ ph.id }}">
+            <thead style="color:#888">
+              <tr>
+                <th style="width:28px">#</th>
+                <th>Opération</th>
+                <th style="width:90px">Catégorie</th>
+                <th style="width:60px">Durée</th>
+                <th style="width:45px">Ouvriers</th>
+                <th style="width:120px">Responsable</th>
+                <th style="width:110px">Date début</th>
+                <th style="width:90px">Statut</th>
+                <th style="width:130px">Norme réf.</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody id="opsTbody_{{ ph.id }}">
+            {% set ph_ops = ph_data.get('operations', []) %}
+            {% if ph_ops %}
+              {% for op in ph_ops | sort(attribute='seq') %}
+              <tr id="oprow_{{ op.id }}" data-phase="{{ ph.id }}" data-id="{{ op.id }}">
+                <td style="color:#555">{{ op.seq }}</td>
+                <td>
+                  <div style="color:#eee;line-height:1.3">{{ op.titre }}</div>
+                  {% if op.notes %}<div style="color:#555;font-size:.6rem">{{ op.notes }}</div>{% endif %}
+                </td>
+                <td><span style="background:rgba(255,255,255,.07);border-radius:3px;padding:1px 5px">{{ op.categorie }}</span></td>
+                <td style="color:#fdcb6e;font-weight:600">{{ op.duree_j }}j</td>
+                <td style="text-align:center;color:#74b9ff">{{ op.nb_ouvriers }}</td>
+                <td style="color:#aaa">{{ op.responsable or '—' }}</td>
+                <td style="color:#aaa">{{ op.date_debut or '—' }}</td>
+                <td>
+                  <select class="form-select form-select-sm" style="background:#1a1a2e;border-color:#2a2a3a;color:#eee;font-size:.65rem;padding:1px 4px" onchange="updateOpStatut('{{ ph.id }}','{{ op.id }}',this.value)">
+                    <option value="todo"{% if op.statut=='todo' %} selected{% endif %}>⬜ À faire</option>
+                    <option value="doing"{% if op.statut=='doing' %} selected{% endif %}>🔄 En cours</option>
+                    <option value="done"{% if op.statut=='done' %} selected{% endif %}>✅ Terminé</option>
+                    <option value="blocked"{% if op.statut=='blocked' %} selected{% endif %}>🚫 Bloqué</option>
+                  </select>
+                </td>
+                <td style="color:#555;font-size:.6rem">{{ op.norme_ref or '—' }}</td>
+                <td>
+                  <button class="btn btn-sm btn-outline-secondary" style="font-size:.6rem;padding:1px 4px" onclick="openOpModal('{{ ph.id }}','{{ op.id }}')"><i class="bi bi-pencil"></i></button>
+                  <button class="btn btn-sm btn-outline-danger" style="font-size:.6rem;padding:1px 4px" onclick="deleteOp('{{ ph.id }}','{{ op.id }}')"><i class="bi bi-trash"></i></button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr id="opsEmptyRow_{{ ph.id }}"><td colspan="10" class="text-center" style="color:#555;padding:12px">Aucune opération — cliquez <strong>Pré-remplir</strong> pour charger les {{ phase_operations.get(ph.id, [])|length }} opérations standardisées</td></tr>
+            {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- KPIs opérations -->
+        {% set ph_ops = ph_data.get('operations', []) %}
+        {% if ph_ops %}
+        <div class="d-flex gap-3 mt-2" style="font-size:.68rem;flex-wrap:wrap">
+          <span style="color:#555">Total : <strong style="color:#aaa">{{ ph_ops|length }} opérations</strong></span>
+          <span style="color:#555">Durée cumul : <strong style="color:#fdcb6e">{{ ph_ops|sum(attribute='duree_j') }}j</strong></span>
+          <span style="color:#555">Terminées : <strong style="color:#00b894">{{ ph_ops|selectattr('statut','equalto','done')|list|length }}/{{ ph_ops|length }}</strong></span>
+          <span style="color:#555">En cours : <strong style="color:#fdcb6e">{{ ph_ops|selectattr('statut','equalto','doing')|list|length }}</strong></span>
+          <span style="color:#555">Bloquées : <strong style="color:#ff7675">{{ ph_ops|selectattr('statut','equalto','blocked')|list|length }}</strong></span>
+        </div>
+        {% endif %}
+
+      </div><!-- /card -->
+    </div>
+  </div><!-- /row ops -->
+
+</div><!-- /tab-pane -->
 {% endfor %}
 
 <!-- ██ NCF ████████████████████████████████████████████████████████████████████ -->
@@ -1258,6 +1351,57 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
       </div>
     </div>
 
+    <!-- Gantt détaillé opérations (consolidé toutes phases) -->
+    <div class="col-12">
+      <div class="card-dark">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0" style="font-size:.8rem"><i class="bi bi-list-task" style="color:#fdcb6e"></i> Gantt Opérations détaillé — Toutes phases</h6>
+          <div class="d-flex gap-2 align-items-center">
+            <select id="opsGanttPhaseFilter" class="form-select form-select-sm" style="width:160px;background:#1a1a2e;border-color:#2a2a3a;color:#eee;font-size:.7rem" onchange="buildOpsGantt()">
+              <option value="">Toutes les phases</option>
+              {% for ph in phases %}
+              <option value="{{ ph.id }}">{{ ph.abbr }} – {{ ph.label.split(' &')[0] }}</option>
+              {% endfor %}
+            </select>
+            <select id="opsGanttStatusFilter" class="form-select form-select-sm" style="width:120px;background:#1a1a2e;border-color:#2a2a3a;color:#eee;font-size:.7rem" onchange="buildOpsGantt()">
+              <option value="">Tous statuts</option>
+              <option value="todo">À faire</option>
+              <option value="doing">En cours</option>
+              <option value="done">Terminé</option>
+              <option value="blocked">Bloqué</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <svg id="opsGanttMainSvg" width="100%" style="min-height:40px;display:block"></svg>
+        </div>
+        <div class="mt-2" style="font-size:.65rem;color:#666;display:flex;gap:12px;flex-wrap:wrap">
+          <span><span style="display:inline-block;width:8px;height:8px;background:#636e72;border-radius:2px"></span> À faire</span>
+          <span><span style="display:inline-block;width:8px;height:8px;background:#fdcb6e;border-radius:2px"></span> En cours</span>
+          <span><span style="display:inline-block;width:8px;height:8px;background:#00b894;border-radius:2px"></span> Terminé</span>
+          <span><span style="display:inline-block;width:8px;height:8px;background:#ff7675;border-radius:2px"></span> Bloqué</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vue équipe hebdomadaire -->
+    <div class="col-12">
+      <div class="card-dark">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0" style="font-size:.8rem"><i class="bi bi-people" style="color:#74b9ff"></i> Vue équipe hebdomadaire — Chef de chantier</h6>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-secondary" style="font-size:.7rem" onclick="weekNav(-1)"><i class="bi bi-chevron-left"></i></button>
+            <span id="weekLabel" style="font-size:.75rem;color:#aaa;align-self:center;min-width:160px;text-align:center"></span>
+            <button class="btn btn-sm btn-outline-secondary" style="font-size:.7rem" onclick="weekNav(+1)"><i class="bi bi-chevron-right"></i></button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <div id="weekGrid" style="min-width:600px"></div>
+        </div>
+        <div style="font-size:.6rem;color:#555;margin-top:6px">Chaque cellule = 1 jour · Nombre d'ouvriers requis affiché · Cliquez pour assigner un intervenant</div>
+      </div>
+    </div>
+
   </div><!-- /row -->
 </div><!-- /tab_planning -->
 
@@ -1507,6 +1651,69 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   </div>
 </div>
 
+<!-- Modal Opération -->
+<div class="modal fade" id="modalOperation" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="opModalTitle">Ajouter une opération</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="opId">
+        <input type="hidden" id="opPhaseId">
+        <div class="row g-2">
+          <div class="col-1"><label class="form-label">Séq.</label><input type="number" class="form-control" id="opSeq" min="1" value="1"></div>
+          <div class="col-7"><label class="form-label">Titre / Opération *</label><input type="text" class="form-control" id="opTitre" placeholder="Ex : Pose modules string 1 à 10…"></div>
+          <div class="col-4">
+            <label class="form-label">Catégorie</label>
+            <select class="form-select" id="opCategorie">
+              <option value="Préparation">Préparation</option>
+              <option value="Structure">Structure</option>
+              <option value="Modules">Modules</option>
+              <option value="Câblage">Câblage</option>
+              <option value="Protection">Protection</option>
+              <option value="Onduleurs">Onduleurs</option>
+              <option value="Monitoring">Monitoring</option>
+              <option value="Sécurité">Sécurité</option>
+              <option value="Tests DC">Tests DC</option>
+              <option value="Mesures électriques">Mesures électriques</option>
+              <option value="Thermographie">Thermographie</option>
+              <option value="Inspection visuelle">Inspection visuelle</option>
+              <option value="Documentation">Documentation</option>
+              <option value="Administratif">Administratif</option>
+              <option value="Qualité">Qualité</option>
+              <option value="Traçabilité">Traçabilité</option>
+              <option value="Ingénierie">Ingénierie</option>
+              <option value="Achat">Achat</option>
+              <option value="Formation">Formation</option>
+              <option value="Réception">Réception</option>
+              <option value="DOE">DOE</option>
+              <option value="Chantier">Chantier</option>
+            </select>
+          </div>
+          <div class="col-2"><label class="form-label">Durée (j)</label><input type="number" class="form-control" id="opDuree" min="0.1" step="0.5" value="1"></div>
+          <div class="col-2"><label class="form-label">Nbre ouvriers</label><input type="number" class="form-control" id="opOuvriers" min="1" value="2"></div>
+          <div class="col-4"><label class="form-label">Responsable</label><input type="text" class="form-control" id="opResponsable" placeholder="Nom ou équipe"></div>
+          <div class="col-4"><label class="form-label">Date début</label><input type="date" class="form-control" id="opDateDebut"></div>
+          <div class="col-4">
+            <label class="form-label">Statut</label>
+            <select class="form-select" id="opStatut">
+              <option value="todo">⬜ À faire</option>
+              <option value="doing">🔄 En cours</option>
+              <option value="done">✅ Terminé</option>
+              <option value="blocked">🚫 Bloqué</option>
+            </select>
+          </div>
+          <div class="col-8"><label class="form-label">Référence norme</label><input type="text" class="form-control" id="opNorme" placeholder="IEC 62446-1 §4.2 / NF C 15-100…"></div>
+          <div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" id="opNotes" rows="2" placeholder="Remarques, conditions particulières…"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-orange btn-sm" onclick="saveOp()"><i class="bi bi-check"></i> Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal Jalon -->
 <div class="modal fade" id="modalJalon" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
@@ -1693,6 +1900,7 @@ const mIv      = new bootstrap.Modal(document.getElementById('modalIntervenant')
 const mPr      = new bootstrap.Modal(document.getElementById('modalPresence'));
 const mJalon   = new bootstrap.Modal(document.getElementById('modalJalon'));
 const mContr   = new bootstrap.Modal(document.getElementById('modalContrainte'));
+const mOp      = new bootstrap.Modal(document.getElementById('modalOperation'));
 
 // ─── Tab navigation ───────────────────────────────────────────────────────────
 function switchTab(id) {
@@ -1700,7 +1908,10 @@ function switchTab(id) {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active',p.id === 'tab_' + id));
     if (id === 'facturation') updateCashUI();
     if (id === 'intervenants') { buildEquipeGantt(); reloadPresences(); }
-    if (id === 'planning') { buildPlanGantt(); buildCalendar(); reloadJalons(); reloadContraintes(); reloadJoursIndispo(); computePlanKpis(); }
+    if (id === 'planning') { buildPlanGantt(); buildCalendar(); reloadJalons(); reloadContraintes(); reloadJoursIndispo(); computePlanKpis(); buildOpsGantt(); buildWeekGrid(); }
+    // Phase tab → refresh ops Gantt mini
+    const phIds = {{ phases | map(attribute='id') | list | tojson }};
+    if (phIds.includes(id)) setTimeout(() => buildOpsPhaseGantt(id), 80);
 }
 
 // ─── Kanban counters ──────────────────────────────────────────────────────────
@@ -2724,6 +2935,380 @@ document.addEventListener('DOMContentLoaded', () => {
   else { reloadIntervenants(); }
   renderAlerts(false); // populate bell badge silently
 });
+
+  if (_ivData.length || _prData.length) { reloadIntervenants(); reloadPresences(); buildEquipeGantt(); }
+  else { reloadIntervenants(); }
+  renderAlerts(false); // populate bell badge silently
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ─── OPÉRATIONS PLANNING PAR PHASE ────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+const _OP_STATUT_COLORS = {todo:'#3a3a4a', doing:'#fdcb6e', done:'#00b894', blocked:'#d63031'};
+const _OP_STATUT_LABELS = {todo:'À faire', doing:'En cours', done:'Terminé', blocked:'Bloqué'};
+
+// Build ops data map from Jinja2 server-side data
+const _OPS_DATA = {};
+{% for ph in phases %}
+_OPS_DATA['{{ ph.id }}'] = {{ chantier.phases.get(ph.id, {}).get('operations', []) | tojson }};
+{% endfor %}
+const _PH_COLORS = {};
+{% for ph in phases %}_PH_COLORS['{{ ph.id }}'] = '{{ ph.color }}';{% endfor %}
+const _PH_ABBR   = {};
+{% for ph in phases %}_PH_ABBR['{{ ph.id }}']   = '{{ ph.abbr }}';{% endfor %}
+
+// ─── Modal Opération ──────────────────────────────────────────────────────
+function openOpModal(phaseId, opId) {
+  document.getElementById('opPhaseId').value = phaseId;
+  if (opId) {
+    const op = (_OPS_DATA[phaseId] || []).find(o => o.id === opId);
+    if (!op) return;
+    document.getElementById('opModalTitle').textContent = 'Modifier l\'opération';
+    document.getElementById('opId').value        = op.id;
+    document.getElementById('opSeq').value       = op.seq || 1;
+    document.getElementById('opTitre').value     = op.titre || '';
+    document.getElementById('opCategorie').value = op.categorie || 'Chantier';
+    document.getElementById('opDuree').value     = op.duree_j || 1;
+    document.getElementById('opOuvriers').value  = op.nb_ouvriers || 1;
+    document.getElementById('opResponsable').value = op.responsable || '';
+    document.getElementById('opDateDebut').value = op.date_debut || '';
+    document.getElementById('opStatut').value    = op.statut || 'todo';
+    document.getElementById('opNorme').value     = op.norme_ref || '';
+    document.getElementById('opNotes').value     = op.notes || '';
+  } else {
+    document.getElementById('opModalTitle').textContent = 'Ajouter une opération';
+    document.getElementById('opId').value = '';
+    const existing = _OPS_DATA[phaseId] || [];
+    document.getElementById('opSeq').value = existing.length + 1;
+    document.getElementById('opTitre').value = '';
+    document.getElementById('opCategorie').value = 'Chantier';
+    document.getElementById('opDuree').value = 1;
+    document.getElementById('opOuvriers').value = 2;
+    document.getElementById('opResponsable').value = '';
+    document.getElementById('opDateDebut').value = '';
+    document.getElementById('opStatut').value = 'todo';
+    document.getElementById('opNorme').value = '';
+    document.getElementById('opNotes').value = '';
+  }
+  mOp.show();
+}
+
+async function saveOp() {
+  const phaseId = document.getElementById('opPhaseId').value;
+  const opId    = document.getElementById('opId').value;
+  const payload = {
+    seq:         parseInt(document.getElementById('opSeq').value) || 1,
+    titre:       document.getElementById('opTitre').value,
+    categorie:   document.getElementById('opCategorie').value,
+    duree_j:     parseFloat(document.getElementById('opDuree').value) || 1,
+    nb_ouvriers: parseInt(document.getElementById('opOuvriers').value) || 1,
+    responsable: document.getElementById('opResponsable').value,
+    date_debut:  document.getElementById('opDateDebut').value,
+    statut:      document.getElementById('opStatut').value,
+    norme_ref:   document.getElementById('opNorme').value,
+    notes:       document.getElementById('opNotes').value,
+  };
+  if (!payload.titre) return;
+  const url    = opId ? `${API}/phase/${phaseId}/operation/${opId}` : `${API}/phase/${phaseId}/operation`;
+  const method = opId ? 'PATCH' : 'POST';
+  const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const d = await r.json();
+  if (d.ok) {
+    if (!opId && d.operation) {
+      _OPS_DATA[phaseId] = [...(_OPS_DATA[phaseId]||[]), d.operation];
+    } else if (opId) {
+      const ops = _OPS_DATA[phaseId] || [];
+      const idx = ops.findIndex(o => o.id === opId);
+      if (idx >= 0) ops[idx] = {...ops[idx], ...payload};
+    }
+    _OPS_DATA[phaseId].sort((a,b) => (a.seq||0)-(b.seq||0));
+    mOp.hide();
+    refreshOpsTable(phaseId);
+    buildOpsPhaseGantt(phaseId);
+  }
+}
+
+async function deleteOp(phaseId, opId) {
+  if (!confirm('Supprimer cette opération ?')) return;
+  const r = await fetch(`${API}/phase/${phaseId}/operation/${opId}`, {method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) {
+    _OPS_DATA[phaseId] = (_OPS_DATA[phaseId]||[]).filter(o => o.id !== opId);
+    refreshOpsTable(phaseId);
+    buildOpsPhaseGantt(phaseId);
+  }
+}
+
+async function updateOpStatut(phaseId, opId, statut) {
+  await fetch(`${API}/phase/${phaseId}/operation/${opId}`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({statut})});
+  const ops = _OPS_DATA[phaseId] || [];
+  const op = ops.find(o => o.id === opId);
+  if (op) op.statut = statut;
+  buildOpsPhaseGantt(phaseId);
+  buildOpsGantt();
+}
+
+async function prefillOps(phaseId) {
+  if (!confirm('Pré-remplir les opérations standardisées ? Les opérations existantes seront REMPLACÉES.')) return;
+  const r = await fetch(`${API}/phase/${phaseId}/operations/prefill`, {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+  const d = await r.json();
+  if (d.ok) {
+    _OPS_DATA[phaseId] = d.operations || [];
+    refreshOpsTable(phaseId);
+    buildOpsPhaseGantt(phaseId);
+    buildOpsGantt();
+    alert(`✅ ${d.count} opérations chargées pour ${_PH_ABBR[phaseId] || phaseId}`);
+  } else {
+    alert('Erreur : ' + (d.error || 'inconnue'));
+  }
+}
+
+// ─── Refresh tableau opérations (sans rechargement page) ──────────────────
+function refreshOpsTable(phaseId) {
+  const tbody = document.getElementById('opsTbody_' + phaseId);
+  if (!tbody) return;
+  const ops = (_OPS_DATA[phaseId] || []).slice().sort((a,b)=>(a.seq||0)-(b.seq||0));
+  if (!ops.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center" style="color:#555;padding:12px">Aucune opération — cliquez <strong>Pré-remplir</strong></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = ops.map(op => {
+    const iv_sel = ['todo','doing','done','blocked'].map(s =>
+      `<option value="${s}"${op.statut===s?' selected':''}>${{todo:'⬜ À faire',doing:'🔄 En cours',done:'✅ Terminé',blocked:'🚫 Bloqué'}[s]}</option>`
+    ).join('');
+    return `<tr id="oprow_${op.id}" data-phase="${phaseId}" data-id="${op.id}">
+      <td style="color:#555">${op.seq}</td>
+      <td><div style="color:#eee;line-height:1.3">${op.titre}</div>${op.notes?`<div style="color:#555;font-size:.6rem">${op.notes}</div>`:''}</td>
+      <td><span style="background:rgba(255,255,255,.07);border-radius:3px;padding:1px 5px">${op.categorie||''}</span></td>
+      <td style="color:#fdcb6e;font-weight:600">${op.duree_j}j</td>
+      <td style="text-align:center;color:#74b9ff">${op.nb_ouvriers}</td>
+      <td style="color:#aaa">${op.responsable||'—'}</td>
+      <td style="color:#aaa">${op.date_debut||'—'}</td>
+      <td><select class="form-select form-select-sm" style="background:#1a1a2e;border-color:#2a2a3a;color:#eee;font-size:.65rem;padding:1px 4px" onchange="updateOpStatut('${phaseId}','${op.id}',this.value)">${iv_sel}</select></td>
+      <td style="color:#555;font-size:.6rem">${op.norme_ref||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary" style="font-size:.6rem;padding:1px 4px" onclick="openOpModal('${phaseId}','${op.id}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" style="font-size:.6rem;padding:1px 4px" onclick="deleteOp('${phaseId}','${op.id}')"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Mini-Gantt SVG par phase ─────────────────────────────────────────────
+function buildOpsPhaseGantt(phaseId) {
+  const wrap = document.getElementById('opsGantt_' + phaseId);
+  const msg  = document.getElementById('opsGanttMsg_' + phaseId);
+  if (!wrap) return;
+  const ops = (_OPS_DATA[phaseId] || []).filter(o => o.date_debut).sort((a,b)=>(a.seq||0)-(b.seq||0));
+  if (!ops.length) { if(msg) msg.style.display='block'; wrap.innerHTML = (msg ? msg.outerHTML : '<div style="font-size:.7rem;color:#555;padding:4px 0;text-align:center">Ajoutez des opérations avec une date de début pour afficher le Gantt</div>'); return; }
+  if(msg) { const m = wrap.querySelector('[id^="opsGanttMsg_"]'); if(m) m.style.display='none'; }
+  // Compute time range
+  let minD = Infinity, maxD = -Infinity;
+  ops.forEach(op => {
+    const d = new Date(op.date_debut+'T00:00:00').getTime();
+    const dEnd = d + op.duree_j * 86400000;
+    if (d < minD) minD = d;
+    if (dEnd > maxD) maxD = dEnd;
+  });
+  const totalMs = Math.max(86400000, maxD - minD);
+  const RH = 24, LW = 170, MARGIN_T = 18;
+  const svgW = Math.max(500, (wrap.clientWidth || 600) - 16);
+  const CW = svgW - LW;
+  const totalH = ops.length * RH + MARGIN_T + 4;
+  const ms2x = ms => LW + Math.min(CW, Math.max(0, ms / totalMs * CW));
+
+  let mk = '';
+  // Day ticks
+  let dc = new Date(minD); dc.setHours(0,0,0,0);
+  while (dc.getTime() <= maxD) {
+    const x = ms2x(dc.getTime() - minD);
+    mk += `<line x1="${x}" y1="0" x2="${x}" y2="${totalH}" stroke="#1e1e2e" stroke-width="1"/>`;
+    if (dc.getDay() === 1 || ops.length <= 10) {
+      mk += `<text x="${x+1}" y="10" fill="#333" font-size="8">${dc.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</text>`;
+    }
+    dc.setDate(dc.getDate()+1);
+  }
+  // Today
+  const todayX = ms2x(new Date().setHours(0,0,0,0) - minD);
+  if (todayX >= LW && todayX <= svgW) mk += `<line x1="${todayX}" y1="0" x2="${todayX}" y2="${totalH}" stroke="#ff7675" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8"/>`;
+
+  const phColor = _PH_COLORS[phaseId] || '#636e72';
+  ops.forEach((op, i) => {
+    const y = MARGIN_T + i * RH;
+    const opStart = new Date(op.date_debut+'T00:00:00').getTime();
+    const x1 = ms2x(opStart - minD);
+    const x2 = ms2x(opStart - minD + op.duree_j * 86400000);
+    const bw = Math.max(4, x2 - x1);
+    const barColor = _OP_STATUT_COLORS[op.statut] || '#3a3a4a';
+    const lbl = op.titre.length > 28 ? op.titre.substring(0,28)+'…' : op.titre;
+    mk += `<text x="${LW-4}" y="${y+RH/2+4}" fill="#aaa" font-size="9" text-anchor="end">${op.seq}. ${lbl.substring(0,24)}</text>`;
+    mk += `<rect x="${x1}" y="${y+3}" width="${bw}" height="${RH-6}" rx="3" fill="${barColor}" opacity="0.85"/>`;
+    if (bw > 20) mk += `<text x="${x1+4}" y="${y+RH/2+4}" fill="${op.statut==='done'?'#000':'#eee'}" font-size="8">${op.nb_ouvriers}👷 ${op.duree_j}j</text>`;
+  });
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width', svgW);
+  svg.style.height = totalH + 'px';
+  svg.style.display = 'block';
+  svg.innerHTML = mk;
+  wrap.innerHTML = '';
+  wrap.appendChild(svg);
+}
+
+// ─── Gantt consolidé toutes phases (Planning tab) ─────────────────────────
+function buildOpsGantt() {
+  const svg = document.getElementById('opsGanttMainSvg');
+  if (!svg) return;
+  const phFilter = document.getElementById('opsGanttPhaseFilter')?.value || '';
+  const stFilter = document.getElementById('opsGanttStatusFilter')?.value || '';
+
+  // Flatten all ops
+  let allOps = [];
+  Object.entries(_OPS_DATA).forEach(([phId, ops]) => {
+    if (phFilter && phId !== phFilter) return;
+    (ops || []).forEach(op => {
+      if (stFilter && op.statut !== stFilter) return;
+      if (!op.date_debut) return;
+      allOps.push({...op, phaseId: phId});
+    });
+  });
+  allOps.sort((a,b) => {
+    const phOrder = {{ phases | map(attribute='id') | list | tojson }};
+    const pi = phOrder.indexOf(a.phaseId) * 1000 + (a.seq||0);
+    const qi = phOrder.indexOf(b.phaseId) * 1000 + (b.seq||0);
+    return pi - qi;
+  });
+
+  if (!allOps.length) {
+    svg.innerHTML = '<text x="10" y="30" fill="#555" font-size="12">Aucune opération avec date de début — utilisez « Pré-remplir » dans chaque phase</text>';
+    svg.style.height = '40px';
+    return;
+  }
+
+  let minD = Infinity, maxD = -Infinity;
+  allOps.forEach(op => {
+    const d = new Date(op.date_debut+'T00:00:00').getTime();
+    const dEnd = d + op.duree_j * 86400000;
+    if (d < minD) minD = d;
+    if (dEnd > maxD) maxD = dEnd;
+  });
+  const totalMs = Math.max(86400000, maxD - minD);
+  const RH = 22, LW = 200, MARGIN_T = 18;
+  const svgW = Math.max(700, (svg.parentElement.clientWidth || 700) - 8);
+  const CW = svgW - LW;
+  const totalH = allOps.length * RH + MARGIN_T + 8;
+  const ms2x = ms => LW + Math.min(CW, Math.max(0, ms / totalMs * CW));
+
+  let mk = '';
+  // Month ticks
+  let mc2 = new Date(minD); mc2.setDate(1);
+  while (mc2.getTime() <= maxD) {
+    const x = ms2x(mc2.getTime() - minD);
+    mk += `<line x1="${x}" y1="0" x2="${x}" y2="${totalH}" stroke="#1e1e2e" stroke-width="1"/>`;
+    mk += `<text x="${x+2}" y="10" fill="#333" font-size="8">${mc2.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'})}</text>`;
+    mc2.setMonth(mc2.getMonth()+1);
+  }
+  // Today
+  const tx2 = ms2x(new Date().setHours(0,0,0,0) - minD);
+  if (tx2 >= LW && tx2 <= svgW) mk += `<line x1="${tx2}" y1="0" x2="${tx2}" y2="${totalH}" stroke="#ff7675" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.7"/>`;
+
+  allOps.forEach((op, i) => {
+    const y = MARGIN_T + i * RH;
+    const opStart = new Date(op.date_debut+'T00:00:00').getTime();
+    const x1 = ms2x(opStart - minD);
+    const x2 = ms2x(opStart - minD + op.duree_j * 86400000);
+    const bw = Math.max(3, x2 - x1);
+    const phColor = _PH_COLORS[op.phaseId] || '#636e72';
+    const barColor = _OP_STATUT_COLORS[op.statut] || '#3a3a4a';
+    const lbl = `[${_PH_ABBR[op.phaseId]}] ${op.titre}`.substring(0,36);
+    mk += `<rect x="0" y="${y+1}" width="${LW-2}" height="${RH-2}" fill="transparent"/>`;
+    mk += `<text x="${LW-4}" y="${y+RH/2+4}" fill="#aaa" font-size="8" text-anchor="end">${lbl}</text>`;
+    mk += `<line x1="0" y1="${y}" x2="${LW}" y2="${y}" stroke="#1e1e2e" stroke-width="0.5"/>`;
+    mk += `<rect x="${x1}" y="${y+3}" width="${bw}" height="${RH-6}" rx="2" fill="${barColor}" opacity="0.85"/>`;
+    if (bw > 16) mk += `<text x="${x1+3}" y="${y+RH/2+4}" fill="${op.statut==='done'?'#000':'#eee'}" font-size="7">${op.duree_j}j · ${op.nb_ouvriers}👷</text>`;
+  });
+
+  svg.setAttribute('width', svgW);
+  svg.style.height = totalH + 'px';
+  svg.innerHTML = mk;
+}
+
+// ─── Vue équipe hebdomadaire ──────────────────────────────────────────────
+let _weekOffset = 0; // offset in weeks from today
+
+function weekNav(dir) {
+  _weekOffset += dir;
+  buildWeekGrid();
+}
+
+function buildWeekGrid() {
+  const container = document.getElementById('weekGrid');
+  const label     = document.getElementById('weekLabel');
+  if (!container) return;
+
+  // Get Monday of current week + offset
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dow = today.getDay() === 0 ? 6 : today.getDay() - 1; // 0=Mon
+  const monday = new Date(today.getTime() - dow * 86400000 + _weekOffset * 7 * 86400000);
+  const days = Array.from({length:7}, (_, i) => new Date(monday.getTime() + i * 86400000));
+  const dayNames = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+
+  if (label) label.textContent = `Semaine du ${monday.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})} au ${days[6].toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'})}`;
+
+  // Flatten all ops with date_debut
+  let allOps = [];
+  Object.entries(_OPS_DATA).forEach(([phId, ops]) => {
+    (ops || []).forEach(op => {
+      if (!op.date_debut) return;
+      const ds = new Date(op.date_debut+'T00:00:00');
+      const de = new Date(ds.getTime() + op.duree_j * 86400000);
+      allOps.push({...op, phaseId: phId, _ds: ds, _de: de});
+    });
+  });
+
+  // Header row
+  let html = `<div style="display:grid;grid-template-columns:150px repeat(7,1fr);gap:2px;margin-bottom:4px">
+    <div style="font-size:.65rem;color:#555;padding:4px">Phase / Opération</div>
+    ${days.map((d,i) => {
+      const isTod = d.toDateString() === today.toDateString();
+      const isWE  = i >= 5;
+      return `<div style="text-align:center;font-size:.65rem;padding:4px;color:${isTod?'#fd79a8':isWE?'#555':'#888'};background:${isTod?'rgba(253,121,168,.1)':'transparent'};border-radius:4px">
+        ${dayNames[i]}<br><span style="font-weight:600">${d.getDate()}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  // Phase section headers + ops
+  const phOrder = {{ phases | map(attribute='id') | list | tojson }};
+  phOrder.forEach(phId => {
+    const ops = (allOps).filter(o => o.phaseId === phId && days.some(d => d >= o._ds && d < o._de));
+    if (!ops.length) return;
+    const phColor = _PH_COLORS[phId] || '#636e72';
+    html += `<div style="grid-column:1/-1;background:${phColor}22;border-left:3px solid ${phColor};padding:3px 8px;font-size:.68rem;font-weight:600;color:${phColor};margin-bottom:2px">${_PH_ABBR[phId]} — ${ops[0].titre ? '' : ''}opérations actives</div>`;
+    ops.forEach(op => {
+      const barColor = _OP_STATUT_COLORS[op.statut] || '#3a3a4a';
+      const cells = days.map((d, i) => {
+        const active = d >= op._ds && d < op._de;
+        const isWeekend = i >= 5;
+        if (!active) return `<div style="background:${isWeekend?'rgba(255,255,255,.01)':'transparent'};border:1px solid #1a1a2e;border-radius:3px;min-height:32px"></div>`;
+        return `<div style="background:${barColor};opacity:${isWeekend?0.4:0.85};border-radius:3px;min-height:32px;padding:2px 4px;font-size:.6rem">
+          <div style="color:${op.statut==='done'?'#000':'#eee'};line-height:1.2">${op.nb_ouvriers}👷</div>
+          ${op.responsable ? `<div style="color:${op.statut==='done'?'#000':'#ccc'};font-size:.55rem">${op.responsable}</div>`: ''}
+        </div>`;
+      }).join('');
+      html += `<div style="display:grid;grid-template-columns:150px repeat(7,1fr);gap:2px;margin-bottom:2px">
+        <div style="font-size:.65rem;color:#ccc;padding:3px 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${op.titre}">${op.seq}. ${op.titre}</div>
+        ${cells}
+      </div>`;
+    });
+  });
+
+  if (!allOps.filter(o => days.some(d => d >= o._ds && d < o._de)).length) {
+    html += `<div style="color:#555;text-align:center;padding:20px;font-size:.8rem">Aucune opération planifiée cette semaine.<br><span style="font-size:.7rem">Utilisez « Pré-remplir » dans chaque phase avec des dates de début.</span></div>`;
+  }
+
+  container.innerHTML = html;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ─── PLANNING & CALENDRIER ─────────────────────────────────────────────────

@@ -175,6 +175,118 @@ PHASES = [
     },
 ]
 
+# ── Templates opérations détaillées par phase (IEC 62446-1 / NF C 15-100 / UTE C 15-712) ──
+PHASE_OPERATIONS = {
+    "etudes": [
+        {"seq":1, "titre":"Collecte données site & contraintes urbanistiques", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC 62548 §5", "categorie":"Ingénierie"},
+        {"seq":2, "titre":"Simulation production PVsyst (P50 / P90)", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"IEC 61724-1", "categorie":"Ingénierie"},
+        {"seq":3, "titre":"Étude structurelle charpente / toiture", "duree_j":3.0, "nb_ouvriers":1, "norme_ref":"Eurocode 1 / NF EN 1991", "categorie":"Structure"},
+        {"seq":4, "titre":"Note de calcul électrique DC / AC", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"NF C 15-100 / UTE C 15-712", "categorie":"Électrique"},
+        {"seq":5, "titre":"Calpinage & plan de câblage strings", "duree_j":1.5, "nb_ouvriers":1, "norme_ref":"IEC 62548 §9", "categorie":"Ingénierie"},
+        {"seq":6, "titre":"Schéma unifilaire DC/AC + protection foudre", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"NF C 15-100 §443 / IEC 62305", "categorie":"Électrique"},
+        {"seq":7, "titre":"Plans d'exécution IFC / DWG", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"NF EN ISO 19650", "categorie":"Ingénierie"},
+        {"seq":8, "titre":"CCTP / DPGF / Tableau de prix", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"—", "categorie":"Administratif"},
+        {"seq":9, "titre":"Rapport d'ombre (masques) + optimisation inclinaison", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC 61724-1 §5.3", "categorie":"Ingénierie"},
+        {"seq":10,"titre":"Validation choix technologie modules / onduleurs / BOS", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 61215 / IEC 62109", "categorie":"Ingénierie"},
+    ],
+    "permitting": [
+        {"seq":1, "titre":"Dépôt DICT (Déclaration Intention de Commencement de Travaux)", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"Décret 2011-1470", "categorie":"Administratif"},
+        {"seq":2, "titre":"Constitution dossier Déclaration Préalable / Permis de Construire", "duree_j":3.0, "nb_ouvriers":1, "norme_ref":"Code Urbanisme L421-1", "categorie":"Administratif"},
+        {"seq":3, "titre":"Dépôt et suivi DP/PC en Mairie", "duree_j":60.0, "nb_ouvriers":1, "norme_ref":"Code Urbanisme", "categorie":"Administratif"},
+        {"seq":4, "titre":"Demande de raccordement ENEDIS (S10 / S14)", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"Arrêté 23/04/2008 / DR ENEDIS", "categorie":"Raccordement"},
+        {"seq":5, "titre":"Signature convention de raccordement ENEDIS", "duree_j":30.0, "nb_ouvriers":1, "norme_ref":"TURPE", "categorie":"Raccordement"},
+        {"seq":6, "titre":"Signature contrat OA / PPA", "duree_j":5.0, "nb_ouvriers":1, "norme_ref":"Arrêté tarifaire S21 / CRE", "categorie":"Commercial"},
+        {"seq":7, "titre":"Souscription assurance TRC + RC chantier", "duree_j":3.0, "nb_ouvriers":1, "norme_ref":"Loi Spinetta", "categorie":"Assurance"},
+        {"seq":8, "titre":"Établissement PPSPS", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"Décret 94-1159 / R4532", "categorie":"Sécurité"},
+        {"seq":9, "titre":"Déclaration ADEME / PTF", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"Loi ENE Art 88", "categorie":"Administratif"},
+    ],
+    "appro": [
+        {"seq":1, "titre":"Validation fiches techniques modules (IEC 61215 + 61730)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC 61215 / IEC 61730", "categorie":"Qualité"},
+        {"seq":2, "titre":"Commande modules photovoltaïques + bon de commande", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"—", "categorie":"Achat"},
+        {"seq":3, "titre":"Commande onduleurs central / micro / string", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 62109 / VDE-AR-N 4105", "categorie":"Achat"},
+        {"seq":4, "titre":"Commande structure / rails / fixations", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"Eurocode 3 / AT fabricant", "categorie":"Achat"},
+        {"seq":5, "titre":"Commande câblage DC (câble PV EN 50618) + connecteurs MC4", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"EN 50618 / IEC 62852", "categorie":"Achat"},
+        {"seq":6, "titre":"Commande chemin de câbles + protections (gaines ICTA, presse-étoupes)", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"NF C 15-100 §522 / IEC 60614", "categorie":"Achat"},
+        {"seq":7, "titre":"Commande coffret/armoire AC + TGBT + disjoncteurs", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"NF EN 60439 / UTE C 15-712-1", "categorie":"Achat"},
+        {"seq":8, "titre":"Contrôle quantitatif réception modules (nombre + n° de série)", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4 / IECRE TS 62941", "categorie":"Qualité"},
+        {"seq":9, "titre":"Contrôle qualitatif modules : flashage EL + mesure puissance", "duree_j":2.0, "nb_ouvriers":2, "norme_ref":"IEC 60904-1 / IEC TS 60904-1-1", "categorie":"Qualité"},
+        {"seq":10,"titre":"Enregistrement numéros de série + map de placement", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC 62446-1 §4.10", "categorie":"Traçabilité"},
+        {"seq":11,"titre":"PV de réception matériaux signé", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"CCTP", "categorie":"Qualité"},
+    ],
+    "structure": [
+        {"seq":1, "titre":"Installation chantier : clôture, bungalow, signalisation", "duree_j":0.5, "nb_ouvriers":3, "norme_ref":"R4534 / PPSPS", "categorie":"Préparation"},
+        {"seq":2, "titre":"Inspection toiture + relevé points d'ancrage existants", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"NF DTU 40 / NF P 84-204", "categorie":"Diagnostic"},
+        {"seq":3, "titre":"Dépose couverture existante + évacuation déchets (si nécessaire)", "duree_j":2.0, "nb_ouvriers":3, "norme_ref":"Décret 2012-639 (déchets)", "categorie":"Dépose"},
+        {"seq":4, "titre":"Renforcement charpente : pannes + faîtage + entraits", "duree_j":2.0, "nb_ouvriers":3, "norme_ref":"Eurocode 5 / NF B52-001", "categorie":"Structure"},
+        {"seq":5, "titre":"Reprise étanchéité : pose membrane EPDM ou bitume", "duree_j":2.0, "nb_ouvriers":2, "norme_ref":"NF DTU 43.1 / NF P 84-204", "categorie":"Étanchéité"},
+        {"seq":6, "titre":"Pose relevés d'étanchéité + bavettes aluminium", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"NF DTU 40.44", "categorie":"Étanchéité"},
+        {"seq":7, "titre":"Implantation + traçage lignes de rails selon plan calpinage", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"Plan d'exécution", "categorie":"Structure"},
+        {"seq":8, "titre":"Pose crochets / platines de fixation sur charpente (pré-perçage + étanchéité vis)", "duree_j":1.5, "nb_ouvriers":3, "norme_ref":"AT fabricant / Eurocode 3", "categorie":"Structure"},
+        {"seq":9, "titre":"Pose rails aluminium anodisé + équerres intermédiaires", "duree_j":1.5, "nb_ouvriers":3, "norme_ref":"AT fabricant / NF EN 755-9", "categorie":"Structure"},
+        {"seq":10,"titre":"Vérification alignement, niveaux, serrage au couple (clé dynamométrique)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"AT fabricant §torque", "categorie":"Contrôle"},
+        {"seq":11,"titre":"Application protection anticorrosion contacts bimétalliques", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"NF EN ISO 12944", "categorie":"Protection"},
+        {"seq":12,"titre":"PV de réception structure + photographies", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"CCTP / IEC 62446-1", "categorie":"Qualité"},
+    ],
+    "installation": [
+        {"seq":1, "titre":"Pose chemin de câbles DC toiture (inox / alu) + collets de fixation", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"NF C 15-100 §522 / IEC 60614-2-7", "categorie":"Câblage"},
+        {"seq":2, "titre":"Tirage câbles DC strings en toiture (câble PV 4mm² / 6mm²)", "duree_j":1.5, "nb_ouvriers":3, "norme_ref":"EN 50618 / NF C 32-201", "categorie":"Câblage"},
+        {"seq":3, "titre":"Pose et sertissage connecteurs MC4 côté + et − chaque string", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"IEC 62852 / EN 50521", "categorie":"Câblage"},
+        {"seq":4, "titre":"Pose modules string 1 à N/2 (vissage, serrage, verrouillage)", "duree_j":3.0, "nb_ouvriers":4, "norme_ref":"AT fabricant / IEC 61215 §10.1", "categorie":"Modules"},
+        {"seq":5, "titre":"Pose modules string N/2+1 à N", "duree_j":3.0, "nb_ouvriers":4, "norme_ref":"AT fabricant", "categorie":"Modules"},
+        {"seq":6, "titre":"Raccordement connecteurs MC4 inter-modules (sertissage + test continuité)", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"IEC 62852 / IEC 62446-1 §4.2", "categorie":"Câblage"},
+        {"seq":7, "titre":"Installation boîtes de jonction / combiners DC multi-strings", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"IEC 62548 §11 / NF C 15-100 §537", "categorie":"Protection"},
+        {"seq":8, "titre":"Pose chemin de câbles DC local technique (IGH ICTA / chemins métalliques)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"NF C 15-100 §522", "categorie":"Câblage"},
+        {"seq":9, "titre":"Tirage câbles DC local technique jusqu'aux onduleurs", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"EN 50618 / IEC 60364-7-712", "categorie":"Câblage"},
+        {"seq":10,"titre":"Pose et raccordement onduleurs (fixation murale + câblage DC + AC)", "duree_j":1.5, "nb_ouvriers":2, "norme_ref":"IEC 62109-1 / IEC 62109-2", "categorie":"Onduleurs"},
+        {"seq":11,"titre":"Pose chemin câbles AC onduleurs → TGBT + câble U1000 R2V", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"NF C 15-100 §522 / NF C 32-321", "categorie":"Câblage"},
+        {"seq":12,"titre":"Câblage AC onduleurs → tableau de protection (disjoncteurs, DDR)", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"NF C 15-100 §433 / §530", "categorie":"Protection"},
+        {"seq":13,"titre":"Installation et câblage TGBT / armoire AC (bilan de puissance)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"NF EN 60439 / UTE C 15-712-1", "categorie":"Protection"},
+        {"seq":14,"titre":"Installation compteur de production + système monitoring / SCADA", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"MO001 ENEDIS / IEC 61724-1", "categorie":"Monitoring"},
+        {"seq":15,"titre":"Mise à la terre : liaisons équipotentielles modules, rails, onduleurs", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"NF C 15-100 §411 / IEC 60364-4-41", "categorie":"Sécurité"},
+        {"seq":16,"titre":"Pose parafoudres DC (Type 2) + AC (Type 2) en aval protections", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 61643-11 / NF C 15-100 §443", "categorie":"Protection"},
+        {"seq":17,"titre":"Étiquetage câbles DC (rouge/noir), AC + plaquettes de repérage strings", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.1.3 / NF C 15-100 §514", "categorie":"Documentation"},
+        {"seq":18,"titre":"Nettoyage chantier + évacuation déchets (emballages, chutes câbles)", "duree_j":0.5, "nb_ouvriers":3, "norme_ref":"ISO 14001", "categorie":"Chantier"},
+    ],
+    "commissioning": [
+        {"seq":1, "titre":"Vérifications visuelles IEC 62446-1 §4.1 (état général, fixations, câblage)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.1", "categorie":"Inspection visuelle"},
+        {"seq":2, "titre":"Tests de continuité conducteurs de protection DC (IEC 62446-1 §4.2)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.2", "categorie":"Tests DC"},
+        {"seq":3, "titre":"Tests de polarité strings + chaînes (§4.3) — vérification + / −", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.3", "categorie":"Tests DC"},
+        {"seq":4, "titre":"Tests d'isolement DC >= 1 MΩ (§4.4) — chaque string à la terre", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.4", "categorie":"Tests DC"},
+        {"seq":5, "titre":"Mesure Voc strings vs Vocref (écart < 2%) (§4.5)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.5 / IEC 60904-5", "categorie":"Mesures électriques"},
+        {"seq":6, "titre":"Mesure Isc strings vs Iscref (§4.5)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §4.5", "categorie":"Mesures électriques"},
+        {"seq":7, "titre":"Test de fonctionnement onduleurs — démarrage, synchronisation réseau", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 62116 / VDE-AR-N 4105", "categorie":"Onduleurs"},
+        {"seq":8, "titre":"Test protection anti-îlotage (découplage réseau)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62116 / EN 50549-1", "categorie":"Onduleurs"},
+        {"seq":9, "titre":"Courbes I-V mesurées par string (si équipement Solmetric/SebaKMT dispo)", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"IEC 60904-1 / IEC 62446-1 §4.6", "categorie":"Mesures électriques"},
+        {"seq":10,"titre":"Thermographie IR (caméra Flir/Fluke) — modules + connexions", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC TS 62446-3 / IEC 61215 §10.18", "categorie":"Thermographie"},
+        {"seq":11,"titre":"Vérification paramétrage monitoring + envoi données test 24h", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 61724-1 §6", "categorie":"Monitoring"},
+        {"seq":12,"titre":"Rédaction rapport IEC 62446-1 (mesures + résultats + fiches tests)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC 62446-1 §4–5", "categorie":"Documentation"},
+        {"seq":13,"titre":"Signature rapport d'essai par MOA + installateur", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"IEC 62446-1 §6", "categorie":"Documentation"},
+    ],
+    "raccordement": [
+        {"seq":1, "titre":"Constitution dossier CONSUEL (schéma unifilaire + note de calcul)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"NF C 15-100 / CONSUEL CP01", "categorie":"Administratif"},
+        {"seq":2, "titre":"Dépôt dossier CONSUEL en ligne", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"Décret 72-1120", "categorie":"Administratif"},
+        {"seq":3, "titre":"Visite CONSUEL + levée remarques éventuelles", "duree_j":1.0, "nb_ouvriers":2, "norme_ref":"NF C 15-100", "categorie":"Inspection"},
+        {"seq":4, "titre":"Obtention attestation CONSUEL (A8 ou A22)", "duree_j":5.0, "nb_ouvriers":1, "norme_ref":"CONSUEL", "categorie":"Administratif"},
+        {"seq":5, "titre":"Transmission demande MES à ENEDIS + dossier complet", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"Décret 2011-1460 / DR ENEDIS", "categorie":"Raccordement"},
+        {"seq":6, "titre":"Intervention ENEDIS : pose disjoncteur de branchement / compteur Linky", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"C14-100 ENEDIS / NF EN 62053", "categorie":"Raccordement"},
+        {"seq":7, "titre":"Mise en service officielle ENEDIS + enregistrement index", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"DR ENEDIS", "categorie":"Raccordement"},
+        {"seq":8, "titre":"Vérification production J1 : monitoring + compteur ENEDIS", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 61724-1", "categorie":"Monitoring"},
+        {"seq":9, "titre":"Compte-rendu MEP + PV premier kWh transmis au client", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"Contractuel", "categorie":"Documentation"},
+    ],
+    "cloture": [
+        {"seq":1, "titre":"Levée des réserves (liste exhaustive propriétaire / MOA)", "duree_j":2.0, "nb_ouvriers":2, "norme_ref":"CCAP", "categorie":"Réception"},
+        {"seq":2, "titre":"PV de réception sans réserve signé (MOA + MOE)", "duree_j":0.5, "nb_ouvriers":2, "norme_ref":"C.civ. Art 1792-6", "categorie":"Réception"},
+        {"seq":3, "titre":"Plans de récolement (as-built) toiture + électrique + local technique", "duree_j":3.0, "nb_ouvriers":1, "norme_ref":"Marché public CCAP", "categorie":"Documentation"},
+        {"seq":4, "titre":"Schéma unifilaire final mis à jour (as-built)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"IEC 62446-1 §5 / NF C 15-100", "categorie":"Documentation"},
+        {"seq":5, "titre":"Constitution DOE : collecte tous documents (certs. garantie, manuel O&M…)", "duree_j":2.0, "nb_ouvriers":1, "norme_ref":"IEC 62446-1 §5", "categorie":"DOE"},
+        {"seq":6, "titre":"Formation exploitation client (O&M, monitoring, alertes)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"Contractuel / IEC 62446-1 §5.4", "categorie":"Formation"},
+        {"seq":7, "titre":"Transmission assurance DO 10 ans", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"Loi Spinetta C.civ Art 1792", "categorie":"Assurance"},
+        {"seq":8, "titre":"Remise DOE complet signé au maître d'ouvrage", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"IEC 62446-1 §5", "categorie":"DOE"},
+        {"seq":9, "titre":"Émission facture solde + retenue de garantie", "duree_j":0.5, "nb_ouvriers":1, "norme_ref":"CCTP / Loi 75-1334", "categorie":"Facturation"},
+        {"seq":10,"titre":"Demande mainlevée caution bancaire (si applicable)", "duree_j":1.0, "nb_ouvriers":1, "norme_ref":"Loi 71-584", "categorie":"Financier"},
+    ],
+}
+
 METEOS = ["Ensoleillé", "Nuageux", "Pluvieux", "Orageux", "Venteux", "Brumeux", "Neige/Gel"]
 
 NCF_ORIGINES = ["Conception", "Approvisionnement", "Travaux", "Commissioning", "Client", "Réglementaire"]
@@ -303,6 +415,7 @@ def _init_chantier(prospect_id: int, nom: str = '') -> dict:
             'date_debut': '', 'date_fin_prevue': '', 'date_fin_reelle': '',
             'checklist': {item: False for item in ph['checklist']},
             'taches': [],
+            'operations': [],  # planning détaillé : {id, seq, titre, duree_j, nb_ouvriers, responsable, date_debut, statut, norme_ref, categorie, notes}
         }
     return {
         'nom_projet': nom,
@@ -399,11 +512,13 @@ def _ensure_keys(chantier: dict) -> dict:
         }
     if 'retenue_garantie_pct' not in chantier:
         chantier['retenue_garantie_pct'] = 5.0
-    # Ensure phases have date_fin_reelle
+    # Ensure phases have date_fin_reelle and operations
     for ph in PHASES:
         ph_data = chantier.get('phases', {}).get(ph['id'])
         if ph_data and 'date_fin_reelle' not in ph_data:
             ph_data['date_fin_reelle'] = ''
+        if ph_data and 'operations' not in ph_data:
+            ph_data['operations'] = []
     return chantier
 
 def _calc_avancement(chantier: dict) -> dict:
@@ -500,6 +615,7 @@ def page_chantier(prospect_id: int):
         intervenants=chantier.get('intervenants', []),
         presences=chantier.get('presences', []),
         planning=chantier.get('planning', {}),
+        phase_operations=PHASE_OPERATIONS,
         now=datetime.now().strftime('%Y-%m-%d'),
     )
 
@@ -936,6 +1052,95 @@ def delete_presence(prospect_id: int, pid: str):
     chantier['presences'] = [p for p in chantier.get('presences', []) if p['id'] != pid]
     _save_chantier(prospect_id, chantier)
     return jsonify({'ok': True})
+
+# ── API : Opérations planning par phase ──────────────────────────────────────
+@chantier_bp.route('/api/<int:prospect_id>/phase/<phase_id>/operation', methods=['POST'])
+def add_operation(prospect_id: int, phase_id: str):
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    if phase_id not in chantier.get('phases', {}):
+        return jsonify({'ok': False, 'error': 'Phase inconnue'}), 400
+    ops = chantier['phases'][phase_id].setdefault('operations', [])
+    op = {
+        'id':           str(uuid.uuid4())[:8],
+        'seq':          d.get('seq', len(ops) + 1),
+        'titre':        d.get('titre', ''),
+        'categorie':    d.get('categorie', ''),
+        'duree_j':      float(d.get('duree_j', 1.0)),
+        'nb_ouvriers':  int(d.get('nb_ouvriers', 1)),
+        'responsable':  d.get('responsable', ''),
+        'date_debut':   d.get('date_debut', ''),
+        'statut':       d.get('statut', 'todo'),  # todo | doing | done | blocked
+        'norme_ref':    d.get('norme_ref', ''),
+        'notes':        d.get('notes', ''),
+        'created_at':   datetime.now().isoformat(),
+    }
+    ops.append(op)
+    ops.sort(key=lambda x: x.get('seq', 999))
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'operation': op})
+
+@chantier_bp.route('/api/<int:prospect_id>/phase/<phase_id>/operation/<op_id>', methods=['PATCH', 'DELETE'])
+def update_operation(prospect_id: int, phase_id: str, op_id: str):
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    ops = chantier.get('phases', {}).get(phase_id, {}).get('operations', [])
+    if request.method == 'DELETE':
+        chantier['phases'][phase_id]['operations'] = [o for o in ops if o['id'] != op_id]
+        _save_chantier(prospect_id, chantier)
+        return jsonify({'ok': True})
+    d = request.get_json()
+    for op in ops:
+        if op['id'] == op_id:
+            op.update({k: v for k, v in d.items() if k not in ('id', 'created_at')})
+            break
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True})
+
+@chantier_bp.route('/api/<int:prospect_id>/phase/<phase_id>/operations/prefill', methods=['POST'])
+def prefill_operations(prospect_id: int, phase_id: str):
+    """Pré-remplit les opérations standards de la phase depuis le template PHASE_OPERATIONS."""
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    if phase_id not in chantier.get('phases', {}):
+        return jsonify({'ok': False, 'error': 'Phase inconnue'}), 400
+    templates = PHASE_OPERATIONS.get(phase_id, [])
+    if not templates:
+        return jsonify({'ok': False, 'error': 'Pas de template pour cette phase'}), 400
+    # Calcul date_debut auto depuis date début de phase
+    ph_start = chantier['phases'][phase_id].get('date_debut', '')
+    from datetime import date as date_cls, timedelta
+    curr_date = date_cls.fromisoformat(ph_start) if ph_start else None
+    ops = []
+    for tmpl in templates:
+        date_str = curr_date.isoformat() if curr_date else ''
+        op = {
+            'id':          str(uuid.uuid4())[:8],
+            'seq':         tmpl['seq'],
+            'titre':       tmpl['titre'],
+            'categorie':   tmpl.get('categorie', ''),
+            'duree_j':     tmpl['duree_j'],
+            'nb_ouvriers': tmpl['nb_ouvriers'],
+            'responsable': '',
+            'date_debut':  date_str,
+            'statut':      'todo',
+            'norme_ref':   tmpl.get('norme_ref', ''),
+            'notes':       '',
+            'created_at':  datetime.now().isoformat(),
+        }
+        ops.append(op)
+        if curr_date:
+            curr_date += timedelta(days=tmpl['duree_j'])
+    chantier['phases'][phase_id]['operations'] = ops
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'operations': ops, 'count': len(ops)})
 
 # ── API : Planning ────────────────────────────────────────────────────────────
 @chantier_bp.route('/api/<int:prospect_id>/planning', methods=['PATCH'])
