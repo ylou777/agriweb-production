@@ -461,6 +461,17 @@
                             <small class="text-muted" id="typeInfo">Ombrière de parking - Structure métallique surélevée</small>
                         </div>
                     </div>
+                    <!-- Checkbox auto 3D inclinaison (visible uniquement pour toiture) -->
+                    <div id="auto3DInclinaisonRow" class="mt-2" style="display:none;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="auto3DInclinaisonCheck" checked
+                                   onchange="toggleAuto3DInclinaison(this.checked)">
+                            <label class="form-check-label small" for="auto3DInclinaisonCheck">
+                                🔒 Inclinaison verrouillée par détection 3D LiDAR
+                                <span class="text-muted">(décochez pour saisir manuellement)</span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
@@ -584,35 +595,74 @@
                         <div class="col-md-4">
                             <label class="form-label"><strong>Modèle de module</strong></label>
                             <select class="form-select" id="moduleType" onchange="loadModuleSpecs()">
-                                <optgroup label="🇨🇦 Canadian Solar (Rapport qualité/prix)">
-                                    <option value="CS-550W" selected>HiKu6 550W - 2278×1134mm - 21.2%</option>
-                                    <option value="CS-450W">HiKu 450W - 2108×1048mm - 20.4%</option>
-                                    <option value="CS-580W-BIFACIAL">BiHiKu7 580W Bifacial - N-type - 22.4%</option>
+                                <optgroup label="🇨🇦 Canadian Solar">
+                                    <option value="CS-550W" selected>HiKu6 550W PERC - 21.2% ⚪</option>
+                                    <option value="CS-450W">HiKu 450W PERC - 20.4% ⚪</option>
+                                    <option value="CS-580W-BIFACIAL">BiHiKu7 580W N-type Bifacial - 22.4% ⚪</option>
                                 </optgroup>
-                                <optgroup label="🇨🇳 Jinko Solar (Top 3 mondial)">
-                                    <option value="JKM-575W">Tiger Neo 575W - N-type TOPCon - 22.2%</option>
-                                    <option value="JKM-460W">Tiger Pro 460W - 1903×1134mm - 21.3%</option>
+                                <optgroup label="🇨🇳 Jinko Solar">
+                                    <option value="JKM-575W">Tiger Neo 575W TOPCon Bifacial - 22.2% 🔵&lt;630</option>
+                                    <option value="JKM-590N-72HL4-BDV">Tiger Neo 590W TOPCon Bifacial - 22.8% 🔵&lt;630</option>
+                                    <option value="JKM-455N-54HL4R">Tiger Neo 455W TOPCon - 21.6% 🔵&lt;630</option>
+                                    <option value="JKM-460W">Tiger Pro 460W PERC - 21.3% ⚪</option>
                                 </optgroup>
-                                <optgroup label="🇨🇳 JA Solar (Innovant)">
-                                    <option value="JAM72S30">JAM72S30 560W - Half-cell - 21.6%</option>
+                                <optgroup label="🇨🇳 JA Solar">
+                                    <option value="JAM66D45-635">DeepBlue 4.0 Pro 635W TOPCon - 22.7% 🔵&lt;630</option>
+                                    <option value="JAM54D40-455">DeepBlue 4.0 Pro 455W TOPCon - 22.8% 🔵&lt;630</option>
+                                    <option value="JAM72S30">JAM72S30 560W PERC - 21.6% ⚪</option>
                                 </optgroup>
-                                <optgroup label="🇨🇳 LONGi Solar (Leader techno)">
-                                    <option value="LR5-72HBD">Hi-MO 5 565W - PERC - 21.8%</option>
+                                <optgroup label="🇨🇳 LONGi Solar">
+                                    <option value="LR7-72HVD-645BC">Hi-MO 7 645W Back Contact - 23.8% 🟡&lt;740</option>
+                                    <option value="LR8-66HYD-640BC">640W Back Contact Bifacial - 24.5% 🔵&lt;630</option>
+                                    <option value="LR7-54HVH-480BC">Hi-MO X 480W Back Contact - 23.0% 🟡&lt;740</option>
+                                    <option value="LR5-72HBD">Hi-MO 5 565W PERC - 21.8% ⚪</option>
                                 </optgroup>
-                                <optgroup label="🇨🇳 Trina Solar (Populaire France)">
-                                    <option value="TSM-DEG21C">Vertex S 550W - 2278×1134mm - 21.2%</option>
+                                <optgroup label="🇨🇳 Trina Solar">
+                                    <option value="TSM-NEG18R-505">Vertex S+ 505W TOPCon - 23.4% 🔵&lt;630</option>
+                                    <option value="TSM-NEG9R-450">Vertex S+ 450W TOPCon - 22.6% 🔵&lt;630</option>
+                                    <option value="TSM-DEG21C">Vertex S 550W PERC - 21.2% ⚪</option>
                                 </optgroup>
-                                <optgroup label="🇺🇸 SunPower (Premium)">
-                                    <option value="SUNPOWER-400">Maxeon 3 400W - IBC - 22.6% - 25 ans garantie</option>
+                                <optgroup label="🇨🇳 Risen Energy">
+                                    <option value="RSM108-11-510">Titan Pro 510W TOPCon - 23.6% 🔵&lt;630</option>
+                                    <option value="RSM96-11-450">Evolution 450W TOPCon - 23.0% 🟡&lt;740</option>
+                                </optgroup>
+                                <optgroup label="🇨🇳 AIKO Solar (ABC)">
+                                    <option value="AIKO-A480-MAH54D">Neon N+ 480W ABC Bifacial - 24.6% 🔵&lt;630</option>
+                                    <option value="AIKO-A460-MAH54M">Neon N+ 460W ABC - 23.6% 🔵&lt;630</option>
                                 </optgroup>
                                 <optgroup label="🇫🇷 Voltec Solar (Made in France)">
-                                    <option value="VOLTEC-430">VS-430 430W - 1755×1038mm - 23.5% - 🇫🇷</option>
+                                    <option value="VOLTEC-TARKA120-490">TARKA 120 490W TOPCon 🇫🇷 - 24.8% ✅&lt;530</option>
+                                    <option value="VOLTEC-TARKA110-450">TARKA 110 450W TOPCon 🇫🇷 - 25.2% ✅&lt;530</option>
+                                    <option value="VOLTEC-430">VS-430 430W PERC 🇫🇷 - 23.5% ⚪</option>
+                                </optgroup>
+                                <optgroup label="🇨🇳 Tongwei Solar">
+                                    <option value="TWMNH-66HD-620">620W N-TOPCon - 23.7% 🟡&lt;740</option>
+                                    <option value="TWMNH-54HD-505">505W N-TOPCon - 23.4% 🟡&lt;740</option>
+                                </optgroup>
+                                <optgroup label="🇰🇷 Qcells (Hanwha)">
+                                    <option value="QCELLS-QTRON-445">Q.TRON S-G3R 445W TOPCon - 22.8% 🟡&lt;740</option>
+                                </optgroup>
+                                <optgroup label="🇨🇳 GCL Solar">
+                                    <option value="GCL-NT12R-520">NT12R 520W TOPCon - 24.1% 🔵&lt;630</option>
+                                </optgroup>
+                                <optgroup label="🇨🇳 Jolywood">
+                                    <option value="JW-HD96N-460">HD96N 460W TOPCon Bifacial - 23.6% 🔵&lt;630</option>
+                                </optgroup>
+                                <optgroup label="🇮🇹 3SUN / Enel (HJT)">
+                                    <option value="3SUN-HJT-565">HJT 565W Made in Italy - 21.9% 🟡&lt;740</option>
+                                </optgroup>
+                                <optgroup label="🇺🇸 SunPower / Maxeon">
+                                    <option value="SUNPOWER-HSM-ND-450">HSM N-TopCon 450W - 23.0% 🟡&lt;740</option>
+                                    <option value="SUNPOWER-400">Maxeon 3 400W IBC - 22.6% - 25 ans ⚪</option>
                                 </optgroup>
                                 <optgroup label="⚙️ Personnalisé">
                                     <option value="custom">Module personnalisé</option>
                                 </optgroup>
                             </select>
-                            <small class="text-muted" id="moduleInfo">Canadian Solar HiKu6 - Monocristallin PERC</small>
+                            <div class="mt-1">
+                                <small class="text-muted" id="moduleInfo">Canadian Solar HiKu6 - Monocristallin PERC</small>
+                                <span id="moduleEcsBadge"></span>
+                            </div>
                         </div>
                         <div class="col-md-2">
                             <label class="form-label">Longueur (mm)</label>
@@ -661,7 +711,7 @@
                             <div class="module-preview">
                                 <small id="modulePreview" class="text-primary"><strong>Module: 2278×1134mm - 550Wc - Surface: 2.58 m² - Rendement: 21.2%</strong></small>
                             </div>
-                            <small class="text-muted" id="modulePrix">Prix indicatif: ~180€ HT - Stock disponible - Garantie 12 ans</small>
+                            <small class="text-muted" id="modulePrix">Garantie 12 ans - Rendement: 21.2% - 📍 Chine</small>
                         </div>
                     </div>
                 </div>
@@ -1002,6 +1052,7 @@
         let rotationHandles = {}; // Stocker les poignées de rotation par zone
         let lidarDetecting = false; // Mode auto-détection toiture LiDAR
         let lidarClickHandler = null; // Handler click map pour détection
+        let auto3DInclinaisonEnabled = true; // Auto-ajustement inclinaison depuis LiDAR 3D (peut être désactivé)
         
         // Obstacles toiture (cheminées, acrotères, trappes...)
         let obstacles = [];
@@ -1043,156 +1094,283 @@
         };
         
         // Base de données modules PV (correspondant à equipements_database.py)
+        // ECS seuil badge helper
+        function ecsBadgeHtml(seuil) {
+            if (!seuil) return '<span class="badge bg-secondary ms-1">Non certifié</span>';
+            if (seuil <= 530) return '<span class="badge ms-1" style="background:#198754">✅ ECS &lt;530 kg CO₂/kWc</span>';
+            if (seuil <= 630) return '<span class="badge ms-1" style="background:#0d6efd">🔵 ECS &lt;630 kg CO₂/kWc</span>';
+            return '<span class="badge ms-1" style="background:#fd7e14">🟡 ECS &lt;740 kg CO₂/kWc</span>';
+        }
+
         const MODULES_DATABASE = {
             'CS-550W': {
-                fabricant: 'Canadian Solar',
-                modele: 'HiKu6 CS6W-550MS',
-                puissance: 550,
-                voc: 49.5,
-                vmpp: 41.8,
-                isc: 13.9,
-                impp: 13.2,
-                longueur: 2278,
-                largeur: 1134,
-                rendement: 21.2,
-                technologie: 'Monocristallin PERC',
-                garantie: 12,
-                prix: 180
+                fabricant: 'Canadian Solar', modele: 'HiKu6 CS6W-550MS',
+                puissance: 550, voc: 49.5, vmpp: 41.8, isc: 13.9, impp: 13.2,
+                longueur: 2278, largeur: 1134, rendement: 21.2,
+                technologie: 'Monocristallin PERC', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 180,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
             'CS-450W': {
-                fabricant: 'Canadian Solar',
-                modele: 'HiKu CS3W-450MS',
-                puissance: 450,
-                voc: 49.1,
-                vmpp: 41.2,
-                isc: 11.53,
-                impp: 10.93,
-                longueur: 2108,
-                largeur: 1048,
-                rendement: 20.4,
-                technologie: 'Monocristallin PERC',
-                garantie: 12,
-                prix: 150
+                fabricant: 'Canadian Solar', modele: 'HiKu CS3W-450MS',
+                puissance: 450, voc: 49.1, vmpp: 41.2, isc: 11.53, impp: 10.93,
+                longueur: 2108, largeur: 1048, rendement: 20.4,
+                technologie: 'Monocristallin PERC', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 150,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
             'CS-580W-BIFACIAL': {
-                fabricant: 'Canadian Solar',
-                modele: 'BiHiKu7 CS7N-580TB-AG',
-                puissance: 580,
-                voc: 51.80,
-                vmpp: 43.60,
-                isc: 14.20,
-                impp: 13.30,
-                longueur: 2278,
-                largeur: 1134,
-                rendement: 22.4,
-                technologie: 'N-type Bifacial',
-                garantie: 15,
-                prix: 220
+                fabricant: 'Canadian Solar', modele: 'BiHiKu7 CS7N-580TB-AG',
+                puissance: 580, voc: 51.80, vmpp: 43.60, isc: 14.20, impp: 13.30,
+                longueur: 2278, largeur: 1134, rendement: 22.4,
+                technologie: 'N-type TOPCon Bifacial', tech_cellule: 'N-TOPCon', biverre: true,
+                pays_module: 'Chine', garantie: 15, prix: 220,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
+            // --- JINKO SOLAR ---
             'JKM-575W': {
-                fabricant: 'Jinko Solar',
-                modele: 'Tiger Neo JKM575N-72HL4-BDV',
-                puissance: 575,
-                voc: 51.45,
-                vmpp: 43.30,
-                isc: 14.10,
-                impp: 13.28,
-                longueur: 2278,
-                largeur: 1134,
-                rendement: 22.2,
-                technologie: 'N-type TOPCon',
-                garantie: 15,
-                prix: 200
+                fabricant: 'Jinko Solar', modele: 'Tiger Neo JKM575N-72HL4-BDV',
+                puissance: 575, voc: 51.45, vmpp: 43.30, isc: 14.10, impp: 13.28,
+                longueur: 2278, largeur: 1134, rendement: 22.2,
+                technologie: 'N-type TOPCon Bifacial', tech_cellule: 'N-TOPCon', biverre: true,
+                pays_module: 'Chine', garantie: 15, prix: 200,
+                certisolis_cert: 'PPE2_V2 N°029-2024_002', certisolis_ecs_seuil: 630
+            },
+            'JKM-590N-72HL4-BDV': {
+                fabricant: 'Jinko Solar', modele: 'Tiger Neo JKM590N-72HL4-BDV',
+                puissance: 590, voc: 52.20, vmpp: 44.10, isc: 14.50, impp: 13.38,
+                longueur: 2278, largeur: 1134, rendement: 22.8,
+                technologie: 'N-type TOPCon Bifacial', tech_cellule: 'N-TOPCon', biverre: true,
+                pays_module: 'Chine', garantie: 15, prix: 205,
+                certisolis_cert: 'PPE2_V2 N°029-2024_002', certisolis_ecs_seuil: 630
+            },
+            'JKM-455N-54HL4R': {
+                fabricant: 'Jinko Solar', modele: 'Tiger Neo JKM455N-54HL4R-B',
+                puissance: 455, voc: 49.65, vmpp: 41.80, isc: 11.88, impp: 10.89,
+                longueur: 1762, largeur: 1134, rendement: 21.6,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 160,
+                certisolis_cert: 'PPE2_V2 N°029-2024_004', certisolis_ecs_seuil: 630
             },
             'JKM-460W': {
-                fabricant: 'Jinko Solar',
-                modele: 'Tiger Pro JKM460M-60HL4-V',
-                puissance: 460,
-                voc: 49.75,
-                vmpp: 41.85,
-                isc: 11.65,
-                impp: 10.99,
-                longueur: 1903,
-                largeur: 1134,
-                rendement: 21.3,
-                technologie: 'Monocristallin PERC',
-                garantie: 12,
-                prix: 155
+                fabricant: 'Jinko Solar', modele: 'Tiger Pro JKM460M-60HL4-V',
+                puissance: 460, voc: 49.75, vmpp: 41.85, isc: 11.65, impp: 10.99,
+                longueur: 1903, largeur: 1134, rendement: 21.3,
+                technologie: 'Monocristallin PERC', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 155,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
+            // --- JA SOLAR ---
             'JAM72S30': {
-                fabricant: 'JA Solar',
-                modele: 'JAM72S30 560W',
-                puissance: 560,
-                voc: 49.85,
-                vmpp: 42.05,
-                isc: 14.10,
-                impp: 13.32,
-                longueur: 2278,
-                largeur: 1134,
-                rendement: 21.6,
-                technologie: 'Monocristallin PERC Half-cell',
-                garantie: 12,
-                prix: 185
+                fabricant: 'JA Solar', modele: 'JAM72S30 560W',
+                puissance: 560, voc: 49.85, vmpp: 42.05, isc: 14.10, impp: 13.32,
+                longueur: 2278, largeur: 1134, rendement: 21.6,
+                technologie: 'Monocristallin PERC', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 185,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
+            'JAM66D45-635': {
+                fabricant: 'JA Solar', modele: 'DeepBlue 4.0 Pro JAM66D45/LB 635W',
+                puissance: 635, voc: 47.60, vmpp: 39.88, isc: 17.49, impp: 15.93,
+                longueur: 2465, largeur: 1134, rendement: 22.7,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 215,
+                certisolis_cert: 'PPE2_V2 N°022-2025_002', certisolis_ecs_seuil: 630
+            },
+            'JAM54D40-455': {
+                fabricant: 'JA Solar', modele: 'DeepBlue 4.0 Pro JAM54D40/LB 455W',
+                puissance: 455, voc: 40.35, vmpp: 33.95, isc: 14.78, impp: 13.40,
+                longueur: 1762, largeur: 1134, rendement: 22.8,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 165,
+                certisolis_cert: 'PPE2_V2 N°022-2025_001', certisolis_ecs_seuil: 630
+            },
+            // --- LONGI SOLAR ---
             'LR5-72HBD': {
-                fabricant: 'LONGi Solar',
-                modele: 'Hi-MO 5 LR5-72HBD-565M',
-                puissance: 565,
-                voc: 49.95,
-                vmpp: 42.10,
-                isc: 14.26,
-                impp: 13.42,
-                longueur: 2278,
-                largeur: 1134,
-                rendement: 21.8,
-                technologie: 'Monocristallin PERC',
-                garantie: 12,
-                prix: 195
+                fabricant: 'LONGi Solar', modele: 'Hi-MO 5 LR5-72HBD-565M',
+                puissance: 565, voc: 49.95, vmpp: 42.10, isc: 14.26, impp: 13.42,
+                longueur: 2278, largeur: 1134, rendement: 21.8,
+                technologie: 'Monocristallin PERC', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 195,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
+            'LR7-72HVD-645BC': {
+                fabricant: 'LONGi Solar', modele: 'Hi-MO 7 LR7-72HVD-645M (Back Contact)',
+                puissance: 645, voc: 51.85, vmpp: 44.40, isc: 14.98, impp: 14.53,
+                longueur: 2382, largeur: 1134, rendement: 23.8,
+                technologie: 'Back Contact N-type', tech_cellule: 'Back Contact', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 230,
+                certisolis_cert: 'PPE2_V2 N°026-2025_003', certisolis_ecs_seuil: 740
+            },
+            'LR7-54HVH-480BC': {
+                fabricant: 'LONGi Solar', modele: 'Hi-MO X LR7-54HVH-480M (Back Contact)',
+                puissance: 480, voc: 40.20, vmpp: 33.90, isc: 14.91, impp: 14.16,
+                longueur: 1722, largeur: 1134, rendement: 23.0,
+                technologie: 'Back Contact N-type', tech_cellule: 'Back Contact', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 175,
+                certisolis_cert: 'PPE2_V2 N°026-2025_003', certisolis_ecs_seuil: 740
+            },
+            'LR8-66HYD-640BC': {
+                fabricant: 'LONGi Solar', modele: 'Hi-MO LR8-66HYD-640M (Back Contact Bifacial)',
+                puissance: 640, voc: 51.23, vmpp: 43.65, isc: 15.18, impp: 14.66,
+                longueur: 2384, largeur: 1096, rendement: 24.5,
+                technologie: 'Back Contact N-type Bifacial', tech_cellule: 'Back Contact', biverre: true,
+                pays_module: 'Chine', garantie: 15, prix: 250,
+                certisolis_cert: 'PPE2_V2 N°026-2025_005', certisolis_ecs_seuil: 630
+            },
+            // --- TRINA SOLAR ---
             'TSM-DEG21C': {
-                fabricant: 'Trina Solar',
-                modele: 'Vertex S TSM-DEG21C.20 550W',
-                puissance: 550,
-                voc: 49.60,
-                vmpp: 41.90,
-                isc: 13.95,
-                impp: 13.13,
-                longueur: 2278,
-                largeur: 1134,
-                rendement: 21.2,
-                technologie: 'Monocristallin PERC',
-                garantie: 12,
-                prix: 178
+                fabricant: 'Trina Solar', modele: 'Vertex S TSM-DEG21C.20 550W',
+                puissance: 550, voc: 49.60, vmpp: 41.90, isc: 13.95, impp: 13.13,
+                longueur: 2278, largeur: 1134, rendement: 21.2,
+                technologie: 'Monocristallin PERC', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 178,
+                certisolis_cert: null, certisolis_ecs_seuil: null
             },
-            'SUNPOWER-400': {
-                fabricant: 'SunPower (Maxeon)',
-                modele: 'Maxeon 3 SPR-MAX3-400',
-                puissance: 400,
-                voc: 67.8,
-                vmpp: 57.3,
-                isc: 7.12,
-                impp: 6.98,
-                longueur: 1690,
-                largeur: 1046,
-                rendement: 22.6,
-                technologie: 'IBC Premium',
-                garantie: 25,
-                prix: 350
+            'TSM-NEG9R-450': {
+                fabricant: 'Trina Solar', modele: 'Vertex S+ TSM-NEG9R.28 450W',
+                puissance: 450, voc: 37.73, vmpp: 31.64, isc: 15.30, impp: 14.22,
+                longueur: 1762, largeur: 1134, rendement: 22.6,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 165,
+                certisolis_cert: 'PPE2_V2 N°006-2025_001', certisolis_ecs_seuil: 630
             },
+            'TSM-NEG18R-505': {
+                fabricant: 'Trina Solar', modele: 'Vertex S+ TSM-NEG18R.28 505W',
+                puissance: 505, voc: 42.04, vmpp: 35.30, isc: 15.38, impp: 14.31,
+                longueur: 1903, largeur: 1134, rendement: 23.4,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 185,
+                certisolis_cert: 'PPE2_V2 N°006-2025_002', certisolis_ecs_seuil: 630
+            },
+            // --- RISEN ENERGY ---
+            'RSM108-11-510': {
+                fabricant: 'Risen Energy', modele: 'Titan Pro RSM108-11-510BNDG',
+                puissance: 510, voc: 42.35, vmpp: 35.55, isc: 15.28, impp: 14.35,
+                longueur: 1903, largeur: 1134, rendement: 23.6,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 180,
+                certisolis_cert: 'PPE2_V2 N°035-2025_001', certisolis_ecs_seuil: 630
+            },
+            'RSM96-11-450': {
+                fabricant: 'Risen Energy', modele: 'Risen Evolution RSM96-11-450BNDG',
+                puissance: 450, voc: 37.40, vmpp: 31.50, isc: 15.25, impp: 14.26,
+                longueur: 1722, largeur: 1134, rendement: 23.0,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 162,
+                certisolis_cert: 'PPE2_V2 N°035-2025_001', certisolis_ecs_seuil: 740
+            },
+            // --- AIKO SOLAR ---
+            'AIKO-A460-MAH54M': {
+                fabricant: 'AIKO Solar', modele: 'Neon N+ AIKO-A460-MAH54Mw',
+                puissance: 460, voc: 37.80, vmpp: 31.82, isc: 15.21, impp: 14.46,
+                longueur: 1722, largeur: 1134, rendement: 23.6,
+                technologie: 'N-type ABC (Back Contact)', tech_cellule: 'N-ABC', biverre: false,
+                pays_module: 'Chine', garantie: 15, prix: 195,
+                certisolis_cert: 'PPE2_V2 N°069-2025_001', certisolis_ecs_seuil: 630
+            },
+            'AIKO-A480-MAH54D': {
+                fabricant: 'AIKO Solar', modele: 'Neon N+ AIKO-A480-MAH54Dw (Bifacial)',
+                puissance: 480, voc: 38.90, vmpp: 32.72, isc: 15.47, impp: 14.67,
+                longueur: 1722, largeur: 1134, rendement: 24.6,
+                technologie: 'N-type ABC Bifacial', tech_cellule: 'N-ABC', biverre: true,
+                pays_module: 'Chine', garantie: 15, prix: 210,
+                certisolis_cert: 'PPE2_V2 N°069-2025_001', certisolis_ecs_seuil: 630
+            },
+            // --- VOLTEC SOLAR (France) ---
             'VOLTEC-430': {
-                fabricant: 'Voltec Solar',
-                modele: 'VS-430-M6-PERC',
-                puissance: 430,
-                voc: 49.20,
-                vmpp: 41.50,
-                isc: 10.98,
-                impp: 10.36,
-                longueur: 1755,
-                largeur: 1038,
-                rendement: 23.5,
-                technologie: 'Monocristallin PERC - Made in France',
-                garantie: 20,
-                prix: 280
+                fabricant: 'Voltec Solar', modele: 'VS-430-M6-PERC',
+                puissance: 430, voc: 49.20, vmpp: 41.50, isc: 10.98, impp: 10.36,
+                longueur: 1755, largeur: 1038, rendement: 23.5,
+                technologie: 'Monocristallin PERC - Assemblage France', tech_cellule: 'P-PERC', biverre: false,
+                pays_module: 'France', garantie: 20, prix: 280,
+                certisolis_cert: null, certisolis_ecs_seuil: null
+            },
+            'VOLTEC-TARKA110-450': {
+                fabricant: 'Voltec Solar', modele: 'TARKA 110 VSMP 450W (Made in France)',
+                puissance: 450, voc: 38.05, vmpp: 32.00, isc: 14.72, impp: 14.06,
+                longueur: 1722, largeur: 1038, rendement: 25.2,
+                technologie: 'N-type TOPCon - Made in France', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'France', garantie: 20, prix: 310,
+                certisolis_cert: 'PPE2_V2 N°005-2025_007', certisolis_ecs_seuil: 530
+            },
+            'VOLTEC-TARKA120-490': {
+                fabricant: 'Voltec Solar', modele: 'TARKA 120 VSMP 490W (Made in France)',
+                puissance: 490, voc: 41.07, vmpp: 34.54, isc: 14.89, impp: 14.19,
+                longueur: 1903, largeur: 1038, rendement: 24.8,
+                technologie: 'N-type TOPCon - Made in France', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'France', garantie: 20, prix: 330,
+                certisolis_cert: 'PPE2_V2 N°005-2025_007', certisolis_ecs_seuil: 530
+            },
+            // --- TONGWEI ---
+            'TWMNH-54HD-505': {
+                fabricant: 'Tongwei Solar', modele: 'TWMNH-54HD 505W',
+                puissance: 505, voc: 41.95, vmpp: 35.24, isc: 15.32, impp: 14.33,
+                longueur: 1903, largeur: 1134, rendement: 23.4,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 172,
+                certisolis_cert: 'PPE2_V2 N°036-2024_003', certisolis_ecs_seuil: 740
+            },
+            'TWMNH-66HD-620': {
+                fabricant: 'Tongwei Solar', modele: 'TWMNH-66HD 620W',
+                puissance: 620, voc: 51.70, vmpp: 43.45, isc: 15.42, impp: 14.27,
+                longueur: 2384, largeur: 1096, rendement: 23.7,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 200,
+                certisolis_cert: 'PPE2_V2 N°036-2024_003', certisolis_ecs_seuil: 740
+            },
+            // --- QCELLS ---
+            'QCELLS-QTRON-445': {
+                fabricant: 'Qcells (Hanwha)', modele: 'Q.TRON S-G3R.12+ 445W',
+                puissance: 445, voc: 37.38, vmpp: 31.45, isc: 15.13, impp: 14.15,
+                longueur: 1722, largeur: 1134, rendement: 22.8,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Corée/Malaisie', garantie: 15, prix: 185,
+                certisolis_cert: 'PPE2_V2 N°009-2025_001', certisolis_ecs_seuil: 740
+            },
+            // --- GCL SOLAR ---
+            'GCL-NT12R-520': {
+                fabricant: 'GCL Solar', modele: 'NT12R/54GDF 520W',
+                puissance: 520, voc: 43.25, vmpp: 36.35, isc: 15.36, impp: 14.31,
+                longueur: 1903, largeur: 1134, rendement: 24.1,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Chine', garantie: 12, prix: 168,
+                certisolis_cert: 'PPE2_V2 N°025-2024_001', certisolis_ecs_seuil: 630
+            },
+            // --- JOLYWOOD ---
+            'JW-HD96N-460': {
+                fabricant: 'Jolywood', modele: 'JW-HD96N-R2-460 (Bifacial)',
+                puissance: 460, voc: 38.54, vmpp: 32.44, isc: 15.12, impp: 14.18,
+                longueur: 1722, largeur: 1134, rendement: 23.6,
+                technologie: 'N-type TOPCon Bifacial', tech_cellule: 'N-TOPCon', biverre: true,
+                pays_module: 'Chine', garantie: 15, prix: 178,
+                certisolis_cert: 'PPE2_V2 N°032-2025_001', certisolis_ecs_seuil: 630
+            },
+            // --- 3SUN HJT (Italie) ---
+            '3SUN-HJT-565': {
+                fabricant: '3SUN (Enel)', modele: '3SHBGH-AA 565W HJT',
+                puissance: 565, voc: 48.77, vmpp: 41.12, isc: 14.38, impp: 13.74,
+                longueur: 2278, largeur: 1134, rendement: 21.9,
+                technologie: 'N-type HJT - Made in Italy', tech_cellule: 'HJT', biverre: false,
+                pays_module: 'Italie', garantie: 15, prix: 260,
+                certisolis_cert: 'PPE2_V2 N°092-2025_001', certisolis_ecs_seuil: 740
+            },
+            // --- SUNPOWER / MAXEON ---
+            'SUNPOWER-400': {
+                fabricant: 'SunPower (Maxeon)', modele: 'Maxeon 3 SPR-MAX3-400',
+                puissance: 400, voc: 67.8, vmpp: 57.3, isc: 7.12, impp: 6.98,
+                longueur: 1690, largeur: 1046, rendement: 22.6,
+                technologie: 'IBC Premium', tech_cellule: 'IBC', biverre: false,
+                pays_module: 'Malaisie', garantie: 25, prix: 350,
+                certisolis_cert: null, certisolis_ecs_seuil: null
+            },
+            'SUNPOWER-HSM-ND-450': {
+                fabricant: 'SunPower / Maxeon', modele: 'HSM-ND48-DR 450W N-TopCon',
+                puissance: 450, voc: 37.65, vmpp: 31.62, isc: 15.23, impp: 14.23,
+                longueur: 1722, largeur: 1134, rendement: 23.0,
+                technologie: 'N-type TOPCon', tech_cellule: 'N-TOPCon', biverre: false,
+                pays_module: 'Malaisie', garantie: 15, prix: 220,
+                certisolis_cert: 'PPE2_V2 N°002-2025_001', certisolis_ecs_seuil: 740
             }
         };
         
@@ -1211,7 +1389,7 @@
                 document.getElementById('moduleImpp').readOnly = false;
                 document.getElementById('moduleInfo').textContent = 'Module personnalisé';
                 document.getElementById('modulePrix').textContent = 'Saisie manuelle des caractéristiques';
-                return;
+                return; // prix intentionnellement masqués
             }
             
             const module = MODULES_DATABASE[moduleType];
@@ -1240,11 +1418,20 @@
             // Afficher les infos
             document.getElementById('moduleInfo').textContent = 
                 `${module.fabricant} ${module.modele} - ${module.technologie}`;
-            
+
+            // Badge Certisolis ECS
+            const ecsBadgeEl = document.getElementById('moduleEcsBadge');
+            if (ecsBadgeEl) {
+                ecsBadgeEl.innerHTML = ecsBadgeHtml(module.certisolis_ecs_seuil);
+                if (module.certisolis_cert) {
+                    ecsBadgeEl.title = `Certificat: ${module.certisolis_cert}`;
+                }
+            }
+
             document.getElementById('modulePrix').innerHTML = 
-                `Prix indicatif: <strong>~${module.prix}€ HT</strong> - ` +
                 `Garantie <strong>${module.garantie} ans</strong> - ` +
-                `Rendement: ${module.rendement}%`;
+                `Rendement: <strong>${module.rendement}%</strong>` +
+                (module.pays_module ? ` - 📍 ${module.pays_module}` : '');
             
             // Mettre à jour l'aperçu
             updateModulePreview();
@@ -3650,14 +3837,14 @@
                     </div>
                     <div class="col-12 mt-2" id="inclinaison-container-${zone.id}">
                         <label class="form-label"><small>Inclinaison : <span id="inclinaison-value-${zone.id}">${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}</span>°
-                            ${document.getElementById('typeInstallation').value === 'toiture' ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Détectée automatiquement depuis les données LiDAR 3D">🏠 auto 3D</span>' : ''}
+                            ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled ? '<span class="badge bg-info ms-1" style="font-size:0.65rem;" title="Détectée automatiquement depuis les données LiDAR 3D">🏠 auto 3D</span>' : ''}
                         </small></label>
                         <input type="range" class="form-range" min="0" max="90" step="1" value="${zone.inclinaison != null ? Math.round(zone.inclinaison) : 30}"
                                id="inclinaison-slider-${zone.id}"
                                oninput="updateZoneInclinaisonSlider(${zone.id}, this.value)"
-                               ${document.getElementById('typeInstallation').value === 'toiture' ? 'disabled style="opacity:0.5;"' : ''}>
+                               ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled ? 'disabled style="opacity:0.5;"' : ''}>
                         <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: #666;">
-                            ${document.getElementById('typeInstallation').value === 'toiture' 
+                            ${document.getElementById('typeInstallation').value === 'toiture' && auto3DInclinaisonEnabled
                                 ? '<span>⚡ Pente détectée automatiquement en vue 3D</span>' 
                                 : '<span>Plat (0°)</span><span>Optimal (30°)</span><span>Vertical (90°)</span>'}
                         </div>
@@ -4360,6 +4547,10 @@
             
             document.getElementById('typeInfo').textContent = typeInfos[type] || '';
             
+            // Afficher/masquer la checkbox auto3D inclinaison (uniquement toiture)
+            const auto3DRow = document.getElementById('auto3DInclinaisonRow');
+            if (auto3DRow) auto3DRow.style.display = (type === 'toiture') ? 'block' : 'none';
+
             // Afficher/masquer les paramètres ombrière
             const ombriereParams = document.getElementById('ombriereParams');
             if (ombriereParams) {
@@ -4863,15 +5054,27 @@
                         modulesPositions: z.modulesPositions || []
                     };
                 }),
-                module: {
-                    longueur: document.getElementById('moduleLongueur').value,
-                    largeur: document.getElementById('moduleLargeur').value,
-                    puissance: document.getElementById('modulePuissance').value,
-                    voc: document.getElementById('moduleVoc').value,
-                    vmpp: document.getElementById('moduleVmpp').value,
-                    isc: document.getElementById('moduleIsc').value,
-                    impp: document.getElementById('moduleImpp').value
-                },
+                module: (function() {
+                    const mt = document.getElementById('moduleType').value;
+                    const mdb = (typeof MODULES_DATABASE !== 'undefined' && MODULES_DATABASE[mt]) ? MODULES_DATABASE[mt] : {};
+                    return {
+                        moduleType: mt,
+                        marque: mdb.fabricant || '',
+                        modele: mdb.modele || '',
+                        technologie: mdb.technologie || '',
+                        tech_cellule: mdb.tech_cellule || '',
+                        pays_module: mdb.pays_module || '',
+                        certisolis_cert: mdb.certisolis_cert || null,
+                        certisolis_ecs_seuil: mdb.certisolis_ecs_seuil || null,
+                        longueur: document.getElementById('moduleLongueur').value,
+                        largeur: document.getElementById('moduleLargeur').value,
+                        puissance: document.getElementById('modulePuissance').value,
+                        voc: document.getElementById('moduleVoc').value,
+                        vmpp: document.getElementById('moduleVmpp').value,
+                        isc: document.getElementById('moduleIsc').value,
+                        impp: document.getElementById('moduleImpp').value
+                    };
+                })(),
                 typeInstallation: document.getElementById('typeInstallation').value,
                 ombriere_config: {
                     modele: document.getElementById('ombriereModele')?.value || 'custom',
@@ -5439,6 +5642,11 @@
          * 4. Met à jour les sliders et recalcule le productible
          */
         function ajusterZonesDepuisToiture3D() {
+            // Si l'utilisateur a désactivé l'auto3D inclinaison, ne pas écraser
+            if (!auto3DInclinaisonEnabled) {
+                console.log('ℹ️ Auto3D inclinaison désactivée par l\'utilisateur');
+                return;
+            }
             if (!viewer3D || !viewer3D.roofPanelsInfo) {
                 console.log('⚠️ Pas d\'info toiture 3D pour l\'ajustement');
                 return;
@@ -5517,6 +5725,37 @@
             }
         }
         
+        /**
+         * Activer/désactiver l'inclinaison automatique par LiDAR 3D
+         */
+        function toggleAuto3DInclinaison(enabled) {
+            auto3DInclinaisonEnabled = enabled;
+            const typeInstall = document.getElementById('typeInstallation').value;
+            // Mettre à jour l'état des sliders d'inclinaison de toutes les zones
+            zones.forEach(zone => {
+                const slider = document.getElementById(`inclinaison-slider-${zone.id}`);
+                const badge = document.querySelector(`#inclinaison-container-${zone.id} .badge.bg-info`);
+                const hint = document.querySelector(`#inclinaison-container-${zone.id} div[style*='font-size'] span`);
+                if (!slider) return;
+                if (typeInstall === 'toiture') {
+                    if (enabled) {
+                        slider.disabled = true;
+                        slider.style.opacity = '0.5';
+                        if (hint) hint.textContent = '⚡ Pente détectée automatiquement en vue 3D';
+                    } else {
+                        slider.disabled = false;
+                        slider.style.opacity = '1';
+                        if (hint) hint.textContent = 'Plat (0°) — Optimal (30°) — Vertical (90°)';
+                    }
+                }
+            });
+            // Réappliquer auto3D si on le réactive
+            if (enabled) {
+                ajusterZonesDepuisToiture3D();
+            }
+            console.log(`🔒 Auto3D inclinaison : ${enabled ? 'activée' : 'désactivée'}`);
+        }
+
         /**
          * Afficher/masquer le panneau d'informations des pans de toiture
          */
@@ -6528,6 +6767,11 @@
             
             // Restaurer les paramètres du module si sauvegardés
             if (savedCalpinage.module) {
+                // Restaurer le type de module (select) et recharger les specs/badges
+                if (savedCalpinage.module.moduleType) {
+                    document.getElementById('moduleType').value = savedCalpinage.module.moduleType;
+                    loadModuleSpecs(); // met à jour badges ECS, fabricant, etc.
+                }
                 document.getElementById('moduleLongueur').value = savedCalpinage.module.longueur || 2108;
                 document.getElementById('moduleLargeur').value = savedCalpinage.module.largeur || 1048;
                 document.getElementById('modulePuissance').value = savedCalpinage.module.puissance || 450;
