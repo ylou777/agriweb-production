@@ -1914,6 +1914,9 @@
                             <button class="btn btn-warning action-btn" onclick="window.open('/ao-pv-batiment?prospect_id=${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #e05000 100%); border: none; color: white;">
                                 <i class="bi bi-sun-fill"></i> AO PV Bâtiment
                             </button>
+                            <button class="btn btn-warning action-btn" onclick="window.open('/chantier/${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #c0392b 100%); border: none; color: white;">
+                                <i class="bi bi-hammer"></i> Suivi Chantier
+                            </button>
                             <button class="btn btn-primary action-btn" onclick="generateRapportAdresse(${prospect.id}, ${prospect.latitude}, ${prospect.longitude}); event.stopPropagation();">
                                 <i class="bi bi-geo-alt-fill"></i> Rapport adresse
                             </button>
