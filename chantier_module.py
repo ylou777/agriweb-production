@@ -353,6 +353,8 @@ def _init_chantier(prospect_id: int, nom: str = '') -> dict:
             'observations_generales': '',
             'last_saved': '',
         },
+        'intervenants': [],   # {id, nom, entreprise, role, specialite, tel, email, date_debut, date_fin, color}
+        'presences': [],      # {id, intervenant_id, date, nb_heures, phase_id, arret, notes}
         'created_at': datetime.now().isoformat(),
     }
 
@@ -376,6 +378,10 @@ def _ensure_keys(chantier: dict) -> dict:
         chantier['documents'] = []
     if 'visite_technique' not in chantier:
         chantier['visite_technique'] = {}
+    if 'intervenants' not in chantier:
+        chantier['intervenants'] = []
+    if 'presences' not in chantier:
+        chantier['presences'] = []
     if 'retenue_garantie_pct' not in chantier:
         chantier['retenue_garantie_pct'] = 5.0
     # Ensure phases have date_fin_reelle
@@ -476,6 +482,8 @@ def page_chantier(prospect_id: int):
         milestones_default=MILESTONES_DEFAULT,
         doc_categories=DOC_CATEGORIES,
         visite_technique=chantier.get('visite_technique', {}),
+        intervenants=chantier.get('intervenants', []),
+        presences=chantier.get('presences', []),
         now=datetime.now().strftime('%Y-%m-%d'),
     )
 
@@ -814,6 +822,82 @@ def download_document(prospect_id: int, doc_id: str):
         mimetype=doc.get('type_mime', 'application/octet-stream'),
         headers={"Content-Disposition": f"attachment; filename=\"{doc['nom']}\""}
     )
+
+# ── API : Intervenants ────────────────────────────────────────────────────────
+INTERVENANT_COLORS = ['#6c5ce7','#0984e3','#00b894','#e17055','#fdcb6e','#a29bfe','#00cec9','#fd79a8','#55efc4','#74b9ff']
+
+@chantier_bp.route('/api/<int:prospect_id>/intervenant', methods=['POST'])
+def add_intervenant(prospect_id: int):
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        chantier = _init_chantier(prospect_id)
+    chantier = _ensure_keys(chantier)
+    idx = len(chantier['intervenants'])
+    iv = {
+        'id':          str(uuid.uuid4()),
+        'nom':         d.get('nom', ''),
+        'entreprise':  d.get('entreprise', ''),
+        'role':        d.get('role', ''),
+        'specialite':  d.get('specialite', ''),
+        'tel':         d.get('tel', ''),
+        'email':       d.get('email', ''),
+        'date_debut':  d.get('date_debut', ''),
+        'date_fin':    d.get('date_fin', ''),
+        'color':       INTERVENANT_COLORS[idx % len(INTERVENANT_COLORS)],
+    }
+    chantier['intervenants'].append(iv)
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'intervenant': iv})
+
+@chantier_bp.route('/api/<int:prospect_id>/intervenant/<iid>', methods=['PATCH', 'DELETE'])
+def update_intervenant(prospect_id: int, iid: str):
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    if request.method == 'DELETE':
+        chantier['intervenants'] = [iv for iv in chantier['intervenants'] if iv['id'] != iid]
+        # Also remove their presences
+        chantier['presences'] = [p for p in chantier.get('presences', []) if p.get('intervenant_id') != iid]
+        _save_chantier(prospect_id, chantier)
+        return jsonify({'ok': True})
+    d = request.get_json()
+    for iv in chantier['intervenants']:
+        if iv['id'] == iid:
+            iv.update({k: v for k, v in d.items() if k not in ('id', 'color')})
+            break
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True})
+
+@chantier_bp.route('/api/<int:prospect_id>/presence', methods=['POST'])
+def add_presence(prospect_id: int):
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        chantier = _init_chantier(prospect_id)
+    chantier = _ensure_keys(chantier)
+    pr = {
+        'id':             str(uuid.uuid4()),
+        'intervenant_id': d.get('intervenant_id', ''),
+        'date':           d.get('date', date.today().isoformat()),
+        'nb_heures':      float(d.get('nb_heures', 8)),
+        'phase_id':       d.get('phase_id', ''),
+        'arret':          bool(d.get('arret', False)),
+        'notes':          d.get('notes', ''),
+    }
+    chantier['presences'].append(pr)
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'presence': pr})
+
+@chantier_bp.route('/api/<int:prospect_id>/presence/<pid>', methods=['DELETE'])
+def delete_presence(prospect_id: int, pid: str):
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier['presences'] = [p for p in chantier.get('presences', []) if p['id'] != pid]
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True})
 
 # ── API : Full data ───────────────────────────────────────────────────────────
 @chantier_bp.route('/api/<int:prospect_id>/data', methods=['GET'])

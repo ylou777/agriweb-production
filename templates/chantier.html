@@ -198,6 +198,10 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   <div class="nav-item" data-tab="ppsps" onclick="switchTab('ppsps')">
     <i class="bi bi-shield-check" style="color:#e17055"></i> PPSPS / Sécu
   </div>
+  <div class="nav-item" data-tab="intervenants" onclick="switchTab('intervenants')">
+    <i class="bi bi-people" style="color:#74b9ff"></i> Intervenants
+    <span class="nav-pct" id="npct_iv">{{ intervenants|length }}</span>
+  </div>
 </nav>
 
 <!-- ─── CONTENT ────────────────────────────────────────────────────────────── -->
@@ -1021,6 +1025,89 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   </div>
 </div>
 
+<!-- ██ INTERVENANTS █████████████████████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_intervenants">
+  <!-- KPI chips -->
+  <div class="row g-2 mb-3">
+    <div class="col-auto">
+      <div class="card-dark p-2 text-center" style="min-width:120px">
+        <div class="fw-bold" style="font-size:1.5rem;color:#74b9ff" id="ivKpiTotal">0</div>
+        <div style="font-size:.7rem;color:#888">Intervenants</div>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="card-dark p-2 text-center" style="min-width:120px">
+        <div class="fw-bold" style="font-size:1.5rem;color:#00b894" id="ivKpiHeures">0h</div>
+        <div style="font-size:.7rem;color:#888">Heures ce mois</div>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="card-dark p-2 text-center" style="min-width:120px">
+        <div class="fw-bold" style="font-size:1.5rem;color:#fdcb6e" id="ivKpiJours">0</div>
+        <div style="font-size:.7rem;color:#888">Jours de présence</div>
+      </div>
+    </div>
+    <div class="col-auto">
+      <div class="card-dark p-2 text-center" style="min-width:120px">
+        <div class="fw-bold" style="font-size:1.5rem;color:#ff7675" id="ivKpiArrets">0</div>
+        <div style="font-size:.7rem;color:#888">Arrêts chantier</div>
+      </div>
+    </div>
+  </div>
+  <!-- Gantt intervenants -->
+  <div class="card-dark mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="section-title mb-0">Planning équipe</div>
+    </div>
+    <div style="overflow-x:auto">
+      <svg id="ivGantt" style="width:100%;min-width:700px;height:40px"></svg>
+    </div>
+  </div>
+  <!-- Liste intervenants -->
+  <div class="card-dark mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="section-title mb-0">Intervenants &amp; sous-traitants</div>
+      <button class="btn btn-orange btn-sm" onclick="openIvModal(null)"><i class="bi bi-plus-lg"></i> Ajouter</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="table table-dark table-sm table-hover">
+        <thead><tr>
+          <th style="width:20px"></th>
+          <th>Nom</th><th>Entreprise</th><th>Rôle</th><th>Tél.</th>
+          <th>Début</th><th>Fin prévue</th><th>H. saisies</th><th></th>
+        </tr></thead>
+        <tbody id="ivTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Relevé des présences -->
+  <div class="card-dark">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <div class="section-title mb-0">Relevé des présences</div>
+      <button class="btn btn-sm" style="background:#74b9ff;color:#0f0f23" onclick="openPrModal(null)"><i class="bi bi-plus-lg"></i> Saisir</button>
+    </div>
+    <div class="row g-2 mb-2">
+      <div class="col-md-3">
+        <select class="form-select form-select-sm" id="prFilterIv" onchange="reloadPresences()">
+          <option value="">Tous les intervenants</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <input type="month" class="form-control form-control-sm" id="prFilterMonth" value="{{ now[:7] }}" onchange="reloadPresences()">
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="table table-dark table-sm table-hover">
+        <thead><tr>
+          <th>Date</th><th>Intervenant</th><th>Phase</th>
+          <th>Heures</th><th>Arrêt</th><th>Notes</th><th></th>
+        </tr></thead>
+        <tbody id="prTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div><!-- /tab_intervenants -->
+
 </div><!-- /content-area -->
 </div><!-- /layout -->
 
@@ -1155,6 +1242,77 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   </div>
 </div>
 
+<!-- Intervenant -->
+<div class="modal fade" id="modalIntervenant" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="ivModalTitle">Ajouter un intervenant</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="ivId">
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label">Nom *</label><input type="text" class="form-control" id="ivNom" placeholder="Jean Dupont"></div>
+          <div class="col-8"><label class="form-label">Entreprise</label><input type="text" class="form-control" id="ivEntreprise" placeholder="SolarTech SARL"></div>
+          <div class="col-4"><label class="form-label">Tél.</label><input type="text" class="form-control" id="ivTel"></div>
+          <div class="col-6"><label class="form-label">Rôle</label>
+            <select class="form-select" id="ivRole">
+              <option value="Chef de chantier">Chef de chantier</option>
+              <option value="Installateur PV">Installateur PV</option>
+              <option value="Électricien">Electricien</option>
+              <option value="Charpentier">Charpentier</option>
+              <option value="Bureau d'études">Bureau d'etudes</option>
+              <option value="Coordinateur SPS">Coordinateur SPS</option>
+              <option value="Contrôleur technique">Controleur technique</option>
+              <option value="Autre">Autre</option>
+            </select>
+          </div>
+          <div class="col-6"><label class="form-label">Spécialité</label><input type="text" class="form-control" id="ivSpecialite" placeholder="Ex: HTB, Charpente bois"></div>
+          <div class="col-12"><label class="form-label">Email</label><input type="email" class="form-control" id="ivEmail"></div>
+          <div class="col-6"><label class="form-label">Date début</label><input type="date" class="form-control" id="ivDateD"></div>
+          <div class="col-6"><label class="form-label">Date fin prévue</label><input type="date" class="form-control" id="ivDateF"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-outline-danger me-auto" id="ivDeleteBtn" style="display:none" onclick="deleteIv()"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-orange btn-sm" onclick="saveIv()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Présence -->
+<div class="modal fade" id="modalPresence" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Saisir une présence</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="prId">
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label">Intervenant *</label>
+            <select class="form-select" id="prIvSelect"></select>
+          </div>
+          <div class="col-6"><label class="form-label">Date *</label><input type="date" class="form-control" id="prDate" value="{{ now }}"></div>
+          <div class="col-6"><label class="form-label">Heures</label><input type="number" class="form-control" id="prHeures" value="8" step="0.5" min="0.5" max="24"></div>
+          <div class="col-6"><label class="form-label">Phase</label>
+            <select class="form-select" id="prPhase">
+              <option value="">—</option>
+              {% for ph in phases %}<option value="{{ ph.id }}">{{ ph.abbr }} – {{ ph.label }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-6 d-flex align-items-end">
+            <div class="form-check mb-2"><input type="checkbox" class="form-check-input" id="prArret"><label class="form-check-label" style="font-size:.75rem">Arrêt chantier</label></div>
+          </div>
+          <div class="col-12"><label class="form-label">Notes</label><input type="text" class="form-control" id="prNotes"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-sm" style="background:#74b9ff;color:#0f0f23" onclick="savePr()">Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Document upload modal -->
 <div class="modal fade" id="modalDocUpload" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
@@ -1207,12 +1365,15 @@ const mTache   = new bootstrap.Modal(document.getElementById('modalTache'));
 const mNcf     = new bootstrap.Modal(document.getElementById('modalNcf'));
 const mFacture = new bootstrap.Modal(document.getElementById('modalFacture'));
 const mModule  = new bootstrap.Modal(document.getElementById('modalModule'));
+const mIv      = new bootstrap.Modal(document.getElementById('modalIntervenant'));
+const mPr      = new bootstrap.Modal(document.getElementById('modalPresence'));
 
 // ─── Tab navigation ───────────────────────────────────────────────────────────
 function switchTab(id) {
     document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.tab === id));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active',p.id === 'tab_' + id));
     if (id === 'facturation') updateCashUI();
+    if (id === 'intervenants') { buildEquipeGantt(); reloadPresences(); }
 }
 
 // ─── Kanban counters ──────────────────────────────────────────────────────────
@@ -2029,6 +2190,211 @@ document.head.insertAdjacentHTML('beforeend',`<style>
 // ─── Init ─────────────────────────────────────────────────────────────────────
 updateCashUI();
 buildGantt();
+
+// ─── Intervenants & Présences ─────────────────────────────────────────────────
+let _ivData = {{ intervenants | tojson }};
+let _prData = {{ presences | tojson }};
+
+function openIvModal(iv) {
+  document.getElementById('ivModalTitle').textContent = iv ? "Modifier l'intervenant" : 'Ajouter un intervenant';
+  document.getElementById('ivId').value = iv ? iv.id : '';
+  document.getElementById('ivNom').value = iv ? iv.nom : '';
+  document.getElementById('ivEntreprise').value = iv ? iv.entreprise : '';
+  document.getElementById('ivTel').value = iv ? iv.tel : '';
+  const roleEl = document.getElementById('ivRole');
+  if (iv) { for(let o of roleEl.options) if(o.value===iv.role){o.selected=true;break;} }
+  document.getElementById('ivSpecialite').value = iv ? iv.specialite : '';
+  document.getElementById('ivEmail').value = iv ? iv.email : '';
+  document.getElementById('ivDateD').value = iv ? iv.date_debut : '';
+  document.getElementById('ivDateF').value = iv ? iv.date_fin : '';
+  document.getElementById('ivDeleteBtn').style.display = iv ? 'inline-block' : 'none';
+  mIv.show();
+}
+
+async function saveIv() {
+  const id = document.getElementById('ivId').value;
+  const payload = {
+    nom: document.getElementById('ivNom').value.trim(),
+    entreprise: document.getElementById('ivEntreprise').value.trim(),
+    tel: document.getElementById('ivTel').value.trim(),
+    role: document.getElementById('ivRole').value,
+    specialite: document.getElementById('ivSpecialite').value.trim(),
+    email: document.getElementById('ivEmail').value.trim(),
+    date_debut: document.getElementById('ivDateD').value,
+    date_fin: document.getElementById('ivDateF').value,
+  };
+  if (!payload.nom) { alert('Le nom est obligatoire.'); return; }
+  const url = id ? `${API}/intervenant/${id}` : `${API}/intervenant`;
+  const method = id ? 'PATCH' : 'POST';
+  const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const d = await r.json();
+  if (d.ok) {
+    if (id) { const i = _ivData.findIndex(x => x.id===id); if(i>=0) _ivData[i]={..._ivData[i],...payload}; }
+    else _ivData.push(d.intervenant);
+    mIv.hide(); reloadIntervenants(); buildEquipeGantt();
+  }
+}
+
+async function deleteIv() {
+  const id = document.getElementById('ivId').value;
+  if (!id || !confirm("Supprimer cet intervenant (et toutes ses présences) ?")) return;
+  const r = await fetch(`${API}/intervenant/${id}`, {method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) {
+    _ivData = _ivData.filter(x => x.id !== id);
+    _prData = _prData.filter(x => x.intervenant_id !== id);
+    mIv.hide(); reloadIntervenants(); reloadPresences(); buildEquipeGantt();
+  }
+}
+
+function reloadIntervenants() {
+  document.getElementById('npct_iv').textContent = _ivData.length;
+  const tbody = document.getElementById('ivTableBody');
+  if (!_ivData.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4"><i class="bi bi-people fs-3 d-block mb-1"></i>Aucun intervenant enregistré</td></tr>';
+  } else {
+    tbody.innerHTML = _ivData.map(iv => {
+      const h = _prData.filter(p => p.intervenant_id===iv.id).reduce((s,p) => s+p.nb_heures, 0);
+      const ivJson = JSON.stringify(iv).replace(/"/g,'&quot;');
+      return `<tr onclick="openIvModal(JSON.parse(this.dataset.iv))" data-iv="${ivJson}" style="cursor:pointer">
+        <td><span style="display:inline-block;width:13px;height:13px;border-radius:50%;background:${iv.color}"></span></td>
+        <td class="fw-semibold">${iv.nom}</td>
+        <td class="text-muted" style="font-size:.8rem">${iv.entreprise||'—'}</td>
+        <td><span class="badge" style="background:#ffffff18;font-size:.7rem">${iv.role||'—'}</span></td>
+        <td style="font-size:.8rem">${iv.tel||'—'}</td>
+        <td style="font-size:.8rem">${iv.date_debut||'—'}</td>
+        <td style="font-size:.8rem">${iv.date_fin||'—'}</td>
+        <td class="fw-semibold" style="color:#74b9ff">${h}h</td>
+        <td><i class="bi bi-pencil text-muted" style="font-size:.8rem"></i></td>
+      </tr>`;
+    }).join('');
+  }
+  // Presence filter select
+  const sel = document.getElementById('prFilterIv');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Tous les intervenants</option>' + _ivData.map(iv => `<option value="${iv.id}"${iv.id===cur?' selected':''}>${iv.nom}</option>`).join('');
+  refreshIvKpis();
+}
+
+function refreshIvKpis() {
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const mPrs = _prData.filter(p => p.date && p.date.startsWith(ym));
+  document.getElementById('ivKpiTotal').textContent = _ivData.length;
+  document.getElementById('ivKpiHeures').textContent = mPrs.reduce((s,p) => s+p.nb_heures, 0) + 'h';
+  document.getElementById('ivKpiJours').textContent = new Set(mPrs.map(p => p.date)).size;
+  document.getElementById('ivKpiArrets').textContent = _prData.filter(p => p.arret).length;
+}
+
+function openPrModal() {
+  document.getElementById('prId').value = '';
+  const sel = document.getElementById('prIvSelect');
+  sel.innerHTML = _ivData.map(iv => `<option value="${iv.id}">${iv.nom} – ${iv.entreprise||'N/A'}</option>`).join('');
+  document.getElementById('prHeures').value = 8;
+  document.getElementById('prArret').checked = false;
+  document.getElementById('prNotes').value = '';
+  mPr.show();
+}
+
+async function savePr() {
+  const pl = {
+    intervenant_id: document.getElementById('prIvSelect').value,
+    date: document.getElementById('prDate').value,
+    nb_heures: parseFloat(document.getElementById('prHeures').value),
+    phase_id: document.getElementById('prPhase').value,
+    arret: document.getElementById('prArret').checked,
+    notes: document.getElementById('prNotes').value.trim(),
+  };
+  if (!pl.intervenant_id) { alert('Choisir un intervenant.'); return; }
+  const r = await fetch(`${API}/presence`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(pl)});
+  const d = await r.json();
+  if (d.ok) { _prData.push(d.presence); mPr.hide(); reloadPresences(); buildEquipeGantt(); refreshIvKpis(); }
+}
+
+async function deletePr(pid) {
+  if (!confirm('Supprimer cette présence ?')) return;
+  const r = await fetch(`${API}/presence/${pid}`, {method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) { _prData = _prData.filter(x => x.id !== pid); reloadPresences(); refreshIvKpis(); }
+}
+
+const _PHASE_LBL = {};{% for ph in phases %}_PHASE_LBL['{{ ph.id }}']='{{ ph.abbr }}';{% endfor %}
+
+function reloadPresences() {
+  const filterIv = document.getElementById('prFilterIv').value;
+  const filterMonth = document.getElementById('prFilterMonth').value;
+  const tbody = document.getElementById('prTableBody');
+  let list = _prData;
+  if (filterIv) list = list.filter(p => p.intervenant_id === filterIv);
+  if (filterMonth) list = list.filter(p => p.date && p.date.startsWith(filterMonth));
+  list = [...list].sort((a,b) => b.date.localeCompare(a.date));
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">Aucune présence saisie</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(p => {
+    const iv = _ivData.find(x => x.id === p.intervenant_id);
+    const dot = iv ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${iv.color};margin-right:5px"></span>` : '';
+    const phLbl = p.phase_id ? (_PHASE_LBL[p.phase_id]||p.phase_id) : '—';
+    return `<tr>
+      <td style="font-size:.83rem">${p.date}</td>
+      <td style="font-size:.83rem">${dot}${iv ? iv.nom : '—'}</td>
+      <td style="font-size:.83rem">${phLbl}</td>
+      <td class="fw-semibold" style="color:#74b9ff">${p.nb_heures}h</td>
+      <td>${p.arret ? '<span class="badge bg-danger" style="font-size:.65rem">Arrêt</span>' : '<span class="badge bg-success" style="font-size:.65rem">Présent</span>'}</td>
+      <td class="text-muted" style="font-size:.8rem">${p.notes||'—'}</td>
+      <td><button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deletePr('${p.id}')"><i class="bi bi-x"></i></button></td>
+    </tr>`;
+  }).join('');
+}
+
+function buildEquipeGantt() {
+  const svg = document.getElementById('ivGantt');
+  if (!svg) return;
+  const ivWithDates = _ivData.filter(iv => iv.date_debut && iv.date_fin);
+  if (!ivWithDates.length) {
+    svg.style.height = '30px'; svg.innerHTML = '<text x="10" y="20" fill="#666" font-size="11">Définissez des périodes pour afficher le planning</text>';
+    return;
+  }
+  const allDs = ivWithDates.flatMap(iv => [new Date(iv.date_debut), new Date(iv.date_fin)]);
+  const minD = new Date(Math.min(...allDs)), maxD = new Date(Math.max(...allDs));
+  const totalDays = Math.max(1, (maxD - minD) / 86400000);
+  const RH = 28, LW = 130;
+  const W = (svg.parentElement.clientWidth || 700) - 20;
+  const CW = W - LW;
+  const totalH = ivWithDates.length * RH + 24;
+  svg.style.height = totalH + 'px';
+  let mk = ``;
+  // Month grid
+  let mc = new Date(minD); mc.setDate(1);
+  while (mc <= maxD) {
+    const x = LW + ((mc - minD)/86400000)/totalDays*CW;
+    mk += `<line x1="${x}" y1="0" x2="${x}" y2="${totalH}" stroke="#2a2a3a" stroke-width="1"/>`;
+    mk += `<text x="${x+3}" y="10" fill="#555" font-size="9">${mc.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'})}</text>`;
+    mc.setMonth(mc.getMonth()+1);
+  }
+  // Today
+  const tx = LW + ((new Date()-minD)/86400000)/totalDays*CW;
+  mk += `<line x1="${tx}" y1="0" x2="${tx}" y2="${totalH}" stroke="#ff7675" stroke-width="1.5" stroke-dasharray="3"/>`;
+  ivWithDates.forEach((iv, i) => {
+    const y = 14 + i*RH;
+    const x1 = LW + ((new Date(iv.date_debut)-minD)/86400000)/totalDays*CW;
+    const x2 = LW + ((new Date(iv.date_fin)-minD)/86400000)/totalDays*CW;
+    const bw = Math.max(6, x2-x1);
+    mk += `<text x="${LW-5}" y="${y+RH/2+4}" fill="#bbb" font-size="10" text-anchor="end">${iv.nom.substring(0,17)}</text>`;
+    mk += `<rect x="${x1}" y="${y+3}" width="${bw}" height="${RH-6}" rx="3" fill="${iv.color}" opacity="0.75"/>`;
+    _prData.filter(p=>p.intervenant_id===iv.id).forEach(p => {
+      const px = LW + ((new Date(p.date)-minD)/86400000)/totalDays*CW;
+      mk += `<circle cx="${px}" cy="${y+RH/2}" r="3" fill="${p.arret?'#ff7675':'#00b894'}" opacity="0.9"/>`;
+    });
+  });
+  svg.innerHTML = mk;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (_ivData.length || _prData.length) { reloadIntervenants(); reloadPresences(); buildEquipeGantt(); }
+  else { reloadIntervenants(); }
+});
 </script>
 </body>
 </html>
