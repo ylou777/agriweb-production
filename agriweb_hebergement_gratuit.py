@@ -992,7 +992,8 @@ def _largest_connected_component_mask(xi, yi, grid_res=0.5):
 
 def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
                                 threshold=0.12, min_pts=8, max_planes=8, n_iter=150,
-                                pre_filter=True, min_area_m2=1.5, density_check=True):
+                                pre_filter=True, min_area_m2=1.5, density_check=True,
+                                grid_res=0.25):
     """
     Segmentation planaire RANSAC itérative avec robustesse obstacles/discontinuités.
 
@@ -1153,7 +1154,8 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
         # b) Densité : ratio pts_réels / pts_attendus_dans_hull
         #    Un ratio trop faible indique un hull qui englobe un vide (discontinuité)
         if density_check and hull_area > 0:
-            expected_pts = hull_area / 0.25   # ~4 pts/m² pour LiDAR HD 50cm
+            # pts attendus = aire / (espacement²) — s'adapte à la résolution réelle
+            expected_pts = hull_area / (grid_res ** 2)
             density_ratio = len(xi_f) / max(expected_pts, 1.0)
             if density_ratio < 0.18:   # hull trop creux → discontinuité probable
                 print(f"  ⚠ Plan {plane_idx+1} densité faible "
@@ -1208,7 +1210,7 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
 # ──────────────────────────────────────────────────────────────
 # HELPER : Requête altimétrie LiDAR HD via API IGN (50cm)
 # ──────────────────────────────────────────────────────────────
-def _query_lidar_hd_grid(building_coords, resolution=0.5, resource="ign_lidar_hd_mnx_mono_wld"):
+def _query_lidar_hd_grid(building_coords, resolution=0.25, resource="ign_lidar_hd_mnx_mono_wld"):
     """
     Interroge l'API altimétrique IGN avec la ressource LiDAR HD
     pour obtenir MNT, MNS et MNH sur un bâtiment.
@@ -1254,7 +1256,7 @@ def _query_lidar_hd_grid(building_coords, resolution=0.5, resource="ign_lidar_hd
     
     # Limite API IGN : 5000 points par requête, 5 req/s
     MAX_PTS = 5000
-    MAX_TOTAL = 20000  # Limiter à 4 batches max pour éviter les timeouts
+    MAX_TOTAL = 40000  # 8 batches max — résolution 0.25m sur bâtiment 1000m² ≈ 26 000 pts
     total_pts = grid_w * grid_h
     
     if total_pts > MAX_TOTAL:
@@ -1294,7 +1296,7 @@ def _query_lidar_hd_grid(building_coords, resolution=0.5, resource="ign_lidar_hd
         # Rate limiting : max 5 req/s → 0.25s entre chaque batch
         if batch_idx > 0:
             import time
-            time.sleep(0.25)
+            time.sleep(0.20)  # API IGN : 5 req/s max
         
         start = batch_idx * batch_size
         end = min(start + batch_size, total_pts)
@@ -1881,7 +1883,7 @@ def api_lidar_3d_data():
             building_coords = main_bldg["coords"]
             
             print(f"📡 LiDAR HD API pour bâtiment principal #{best_idx}...")
-            hd = _query_lidar_hd_grid(building_coords, resolution=0.5)
+            hd = _query_lidar_hd_grid(building_coords, resolution=0.25)
             
             if hd is not None:
                 # Normaliser par rapport au MNT de base (même référence que le terrain WMS)
@@ -1965,7 +1967,7 @@ def api_lidar_3d_data():
                             _tb.print_exc()
                             rx_f, ry_f, rz_f = rx, ry, rz
 
-                        roof_planes = _segment_roof_planes_ransac(rx_f, ry_f, rz_f)
+                        roof_planes = _segment_roof_planes_ransac(rx_f, ry_f, rz_f, grid_res=0.25)
                         result["building_hd"]["roof_planes"] = roof_planes
                         result["building_hd"]["building_center"] = {
                             "lat": round(bldg_cx_lat, 7),
@@ -2122,7 +2124,7 @@ def api_lidar_roof_analysis():
             
             try:
                 print(f"📡 Tentative LiDAR HD API pour bâtiment {bldg_width_m:.0f}×{bldg_height_m:.0f}m...")
-                lidar_hd = _query_lidar_hd_grid(building_coords, resolution=0.5)
+                lidar_hd = _query_lidar_hd_grid(building_coords, resolution=0.25)
                 
                 if lidar_hd is not None:
                     mns_full = lidar_hd['mns_grid']
