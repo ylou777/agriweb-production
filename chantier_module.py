@@ -355,6 +355,13 @@ def _init_chantier(prospect_id: int, nom: str = '') -> dict:
         },
         'intervenants': [],   # {id, nom, entreprise, role, specialite, tel, email, date_debut, date_fin, color}
         'presences': [],      # {id, intervenant_id, date, nb_heures, phase_id, arret, notes}
+        'planning': {
+            'methode': 'phases',          # 'phases' | 'jalons'
+            'contraintes': [],            # {id, phase_id, type, description, date_contrainte}
+            'jalons': [],                 # {id, label, date_prevue, date_reelle, type, couleur}
+            'jours_indisponibles': [],    # ['YYYY-MM-DD', ...] (jours chômés, intempéries)
+            'notes_planning': '',
+        },
         'created_at': datetime.now().isoformat(),
     }
 
@@ -382,6 +389,14 @@ def _ensure_keys(chantier: dict) -> dict:
         chantier['intervenants'] = []
     if 'presences' not in chantier:
         chantier['presences'] = []
+    if 'planning' not in chantier:
+        chantier['planning'] = {
+            'methode': 'phases',
+            'contraintes': [],
+            'jalons': [],
+            'jours_indisponibles': [],
+            'notes_planning': '',
+        }
     if 'retenue_garantie_pct' not in chantier:
         chantier['retenue_garantie_pct'] = 5.0
     # Ensure phases have date_fin_reelle
@@ -484,6 +499,7 @@ def page_chantier(prospect_id: int):
         visite_technique=chantier.get('visite_technique', {}),
         intervenants=chantier.get('intervenants', []),
         presences=chantier.get('presences', []),
+        planning=chantier.get('planning', {}),
         now=datetime.now().strftime('%Y-%m-%d'),
     )
 
@@ -918,6 +934,98 @@ def delete_presence(prospect_id: int, pid: str):
     if not chantier:
         return jsonify({'ok': False}), 404
     chantier['presences'] = [p for p in chantier.get('presences', []) if p['id'] != pid]
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True})
+
+# ── API : Planning ────────────────────────────────────────────────────────────
+@chantier_bp.route('/api/<int:prospect_id>/planning', methods=['PATCH'])
+def update_planning(prospect_id: int):
+    """Met à jour les paramètres généraux du planning + notes."""
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    pl = chantier.setdefault('planning', {})
+    for key in ('methode', 'notes_planning'):
+        if key in d:
+            pl[key] = d[key]
+    # Jours indisponibles: on remplace la liste complète
+    if 'jours_indisponibles' in d:
+        pl['jours_indisponibles'] = d['jours_indisponibles']
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'planning': pl})
+
+@chantier_bp.route('/api/<int:prospect_id>/planning/jalon', methods=['POST'])
+def add_jalon(prospect_id: int):
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        chantier = _init_chantier(prospect_id)
+    chantier = _ensure_keys(chantier)
+    JALON_COLORS = {'GO': '#00b894', 'livraison': '#0984e3', 'reception': '#a29bfe',
+                    'paiement': '#fdcb6e', 'audit': '#e17055', 'general': '#636e72'}
+    jtype = d.get('type', 'general')
+    jalon = {
+        'id':           str(uuid.uuid4())[:8],
+        'label':        d.get('label', ''),
+        'date_prevue':  d.get('date_prevue', ''),
+        'date_reelle':  d.get('date_reelle', ''),
+        'type':         jtype,
+        'couleur':      d.get('couleur', JALON_COLORS.get(jtype, '#636e72')),
+        'notes':        d.get('notes', ''),
+        'created_at':   datetime.now().isoformat(),
+    }
+    chantier['planning'].setdefault('jalons', []).append(jalon)
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'jalon': jalon})
+
+@chantier_bp.route('/api/<int:prospect_id>/planning/jalon/<jid>', methods=['PATCH', 'DELETE'])
+def update_jalon(prospect_id: int, jid: str):
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    jalons = chantier['planning'].setdefault('jalons', [])
+    if request.method == 'DELETE':
+        chantier['planning']['jalons'] = [j for j in jalons if j['id'] != jid]
+        _save_chantier(prospect_id, chantier)
+        return jsonify({'ok': True})
+    d = request.get_json()
+    for j in jalons:
+        if j['id'] == jid:
+            j.update({k: v for k, v in d.items() if k not in ('id',)})
+            break
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True})
+
+@chantier_bp.route('/api/<int:prospect_id>/planning/contrainte', methods=['POST'])
+def add_contrainte(prospect_id: int):
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        chantier = _init_chantier(prospect_id)
+    chantier = _ensure_keys(chantier)
+    ct = {
+        'id':               str(uuid.uuid4())[:8],
+        'phase_id':         d.get('phase_id', ''),
+        'type':             d.get('type', 'externe'),   # externe | administrative | météo | technique
+        'description':      d.get('description', ''),
+        'date_contrainte':  d.get('date_contrainte', ''),
+        'impact_jours':     int(d.get('impact_jours', 0)),
+        'created_at':       datetime.now().isoformat(),
+    }
+    chantier['planning'].setdefault('contraintes', []).append(ct)
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'contrainte': ct})
+
+@chantier_bp.route('/api/<int:prospect_id>/planning/contrainte/<cid>', methods=['DELETE'])
+def delete_contrainte(prospect_id: int, cid: str):
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    chantier = _ensure_keys(chantier)
+    chantier['planning']['contraintes'] = [c for c in chantier['planning'].get('contraintes', []) if c['id'] != cid]
     _save_chantier(prospect_id, chantier)
     return jsonify({'ok': True})
 

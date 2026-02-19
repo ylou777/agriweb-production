@@ -217,6 +217,10 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
     <i class="bi bi-people" style="color:#74b9ff"></i> Intervenants
     <span class="nav-pct" id="npct_iv">{{ intervenants|length }}</span>
   </div>
+  <div class="nav-item" data-tab="planning" onclick="switchTab('planning')">
+    <i class="bi bi-calendar3" style="color:#fd79a8"></i> Planning
+    <span class="nav-pct" id="npct_plan" style="background:rgba(253,121,168,.15);color:#fd79a8">{{ planning.jalons|default([])|length }}</span>
+  </div>
 </nav>
 
 <!-- ─── CONTENT ────────────────────────────────────────────────────────────── -->
@@ -1137,6 +1141,126 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   </div>
 </div><!-- /tab_intervenants -->
 
+<!-- ██ PLANNING ██████████████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_planning">
+
+  <!-- KPIs planning -->
+  <div class="row g-2 mb-3" id="planKpiRow">
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip" style="border-color:rgba(253,121,168,.3)">
+        <div class="kpi-label">Durée prévue</div>
+        <div class="kpi-value" id="planDureePrevue" style="color:#fd79a8">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip" style="border-color:rgba(253,121,168,.3)">
+        <div class="kpi-label">Durée réalisée</div>
+        <div class="kpi-value" id="planDureeReel" style="color:#fd79a8">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip" style="border-color:rgba(253,121,168,.3)">
+        <div class="kpi-label">Retard global</div>
+        <div class="kpi-value" id="planRetard">—</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-chip" style="border-color:rgba(253,121,168,.3)">
+        <div class="kpi-label">SPI (Schedule Perf.)</div>
+        <div class="kpi-value" id="planSpi">—</div>
+        <div class="kpi-label" style="font-size:.6rem;margin-top:2px">Cible : 1,00 (EN 62446)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+
+    <!-- Gantt phases + jalons -->
+    <div class="col-12">
+      <div class="card-dark">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0" style="font-size:.8rem"><i class="bi bi-bar-chart-steps" style="color:#fd79a8"></i> Gantt Planning — Phases & Jalons</h6>
+          <div class="d-flex gap-2">
+            <select id="planViewMode" class="form-select form-select-sm" style="width:120px;background:#1a1a2e;border-color:#2a2a3a;color:#eee;font-size:.7rem" onchange="buildPlanGantt()">
+              <option value="phases">Par phases</option>
+              <option value="mois">Vue mensuelle</option>
+              <option value="semaines">Vue hebdo</option>
+            </select>
+            <button class="btn btn-sm" style="background:#fd79a8;color:#000;font-size:.7rem" onclick="openJalonModal()">
+              <i class="bi bi-flag"></i> Jalon
+            </button>
+          </div>
+        </div>
+        <div id="planGanttWrap" style="overflow-x:auto">
+          <svg id="planGanttSvg" width="100%" style="min-height:220px;display:block"></svg>
+        </div>
+        <div class="mt-2" style="font-size:.65rem;color:#666;display:flex;gap:12px;flex-wrap:wrap">
+          <span><span style="display:inline-block;width:10px;height:10px;background:#2a2a3a;border:1px solid #3a3a4a"></span> Phase planifiée</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:rgba(253,121,168,.5)"></span> Phase réelle</span>
+          <span><span style="display:inline-block;width:10px;height:10px;background:#ff7675"></span> Ligne aujourd'hui</span>
+          <span><i class="bi bi-diamond-fill" style="color:#fdcb6e;font-size:8px"></i> Jalon</span>
+          <span><i class="bi bi-exclamation-triangle" style="color:#e17055;font-size:8px"></i> Contrainte</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calendrier mensuel -->
+    <div class="col-12 col-md-7">
+      <div class="card-dark">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <button class="btn btn-sm btn-outline-secondary" style="font-size:.7rem" onclick="calNav(-1)"><i class="bi bi-chevron-left"></i></button>
+          <h6 class="mb-0" id="calTitle" style="font-size:.8rem"><i class="bi bi-calendar3" style="color:#fd79a8"></i> Calendrier</h6>
+          <button class="btn btn-sm btn-outline-secondary" style="font-size:.7rem" onclick="calNav(+1)"><i class="bi bi-chevron-right"></i></button>
+        </div>
+        <div id="calGrid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+      </div>
+    </div>
+
+    <!-- Panneau droit : Jalons + Contraintes -->
+    <div class="col-12 col-md-5">
+
+      <!-- Jalons -->
+      <div class="card-dark mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0" style="font-size:.8rem"><i class="bi bi-flag" style="color:#fdcb6e"></i> Jalons</h6>
+          <button class="btn btn-sm" style="background:#fdcb6e;color:#000;font-size:.65rem" onclick="openJalonModal()"><i class="bi bi-plus"></i> Ajouter</button>
+        </div>
+        <div id="jalonList" style="max-height:200px;overflow-y:auto"></div>
+      </div>
+
+      <!-- Contraintes -->
+      <div class="card-dark mb-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0" style="font-size:.8rem"><i class="bi bi-exclamation-triangle" style="color:#e17055"></i> Contraintes & Risques délai</h6>
+          <button class="btn btn-sm" style="background:#e17055;color:#fff;font-size:.65rem" onclick="openContrainteModal()"><i class="bi bi-plus"></i> Ajouter</button>
+        </div>
+        <div id="contrainteList" style="max-height:200px;overflow-y:auto"></div>
+      </div>
+
+      <!-- Jours chômés / intempéries -->
+      <div class="card-dark">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0" style="font-size:.8rem"><i class="bi bi-calendar-x" style="color:#636e72"></i> Jours indisponibles</h6>
+          <button class="btn btn-sm btn-outline-secondary" style="font-size:.65rem" onclick="addJourIndispo()"><i class="bi bi-plus"></i></button>
+        </div>
+        <div id="joursIndispoList" style="max-height:140px;overflow-y:auto"></div>
+        <div style="font-size:.65rem;color:#666;margin-top:4px">Jours fériés, intempéries, arrêts chantier pris en compte dans le calcul délai réel.</div>
+      </div>
+
+    </div>
+
+    <!-- Notes planning -->
+    <div class="col-12">
+      <div class="card-dark">
+        <h6 style="font-size:.8rem;margin-bottom:6px"><i class="bi bi-sticky" style="color:#a29bfe"></i> Notes & Observations planning</h6>
+        <textarea id="planNotes" rows="3" class="form-control" style="background:#1a1a2e;border-color:#2a2a3a;color:#eee;font-size:.8rem;resize:vertical" placeholder="Remarques planning, hypothèses, contraintes contractuelles…" oninput="savePlanNotes()">{{ planning.notes_planning|default('') }}</textarea>
+        <div style="font-size:.6rem;color:#555;margin-top:4px">Sauvegarde automatique</div>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+</div><!-- /tab_planning -->
+
 </div><!-- /content-area -->
 </div><!-- /layout -->
 
@@ -1383,6 +1507,78 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   </div>
 </div>
 
+<!-- Modal Jalon -->
+<div class="modal fade" id="modalJalon" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title" id="jalonModalTitle">Ajouter un jalon</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="jalonId">
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label">Libellé *</label><input type="text" class="form-control" id="jalonLabel" placeholder="Fin pose modules, Réception CONSUEL…"></div>
+          <div class="col-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="jalonType">
+              <option value="GO">Go / Démarrage</option>
+              <option value="livraison">Livraison matériaux</option>
+              <option value="reception">Réception / Mise en service</option>
+              <option value="paiement">Jalon paiement</option>
+              <option value="audit">Audit / Inspection</option>
+              <option value="general">Général</option>
+            </select>
+          </div>
+          <div class="col-6"><label class="form-label">Couleur</label><input type="color" class="form-control form-control-color w-100" id="jalonCouleur" value="#fdcb6e"></div>
+          <div class="col-6"><label class="form-label">Date prévue</label><input type="date" class="form-control" id="jalonDatePrevue"></div>
+          <div class="col-6"><label class="form-label">Date réelle</label><input type="date" class="form-control" id="jalonDateReelle"></div>
+          <div class="col-12"><label class="form-label">Notes</label><textarea class="form-control" id="jalonNotes" rows="2"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-sm" style="background:#fdcb6e;color:#000" onclick="saveJalon()"><i class="bi bi-check"></i> Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Contrainte -->
+<div class="modal fade" id="modalContrainte" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title">Ajouter une contrainte délai</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">Phase concernée</label>
+            <select class="form-select" id="ctPhase">
+              <option value="">— Projet global —</option>
+              {% for ph in phases %}
+              <option value="{{ ph.id }}">{{ ph.abbr }} – {{ ph.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Type</label>
+            <select class="form-select" id="ctType">
+              <option value="administrative">Administrative (permis, raccordement…)</option>
+              <option value="externe">Externe (fournisseur, ENEDIS…)</option>
+              <option value="météo">Météo / Intempéries</option>
+              <option value="technique">Technique</option>
+            </select>
+          </div>
+          <div class="col-12"><label class="form-label">Description *</label><input type="text" class="form-control" id="ctDesc" placeholder="Ex : Délai ENEDIS raccordement, attente permis…"></div>
+          <div class="col-6"><label class="form-label">Date contrainte</label><input type="date" class="form-control" id="ctDate"></div>
+          <div class="col-6"><label class="form-label">Impact estimé (jours)</label><input type="number" class="form-control" id="ctImpact" min="0" placeholder="0"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-sm" style="background:#e17055;color:#fff" onclick="saveContrainte()"><i class="bi bi-check"></i> Enregistrer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const PID = {{ prospect.id }};
@@ -1495,6 +1691,8 @@ const mFacture = new bootstrap.Modal(document.getElementById('modalFacture'));
 const mModule  = new bootstrap.Modal(document.getElementById('modalModule'));
 const mIv      = new bootstrap.Modal(document.getElementById('modalIntervenant'));
 const mPr      = new bootstrap.Modal(document.getElementById('modalPresence'));
+const mJalon   = new bootstrap.Modal(document.getElementById('modalJalon'));
+const mContr   = new bootstrap.Modal(document.getElementById('modalContrainte'));
 
 // ─── Tab navigation ───────────────────────────────────────────────────────────
 function switchTab(id) {
@@ -1502,6 +1700,7 @@ function switchTab(id) {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active',p.id === 'tab_' + id));
     if (id === 'facturation') updateCashUI();
     if (id === 'intervenants') { buildEquipeGantt(); reloadPresences(); }
+    if (id === 'planning') { buildPlanGantt(); buildCalendar(); reloadJalons(); reloadContraintes(); reloadJoursIndispo(); computePlanKpis(); }
 }
 
 // ─── Kanban counters ──────────────────────────────────────────────────────────
@@ -2525,6 +2724,423 @@ document.addEventListener('DOMContentLoaded', () => {
   else { reloadIntervenants(); }
   renderAlerts(false); // populate bell badge silently
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ─── PLANNING & CALENDRIER ─────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+let _planData = {{ planning | tojson }};
+const _PHASES_CFG = {{ phases | tojson }};
+const _PROJ_START = '{{ chantier.date_debut_projet | default("") }}';
+const _PROJ_END   = '{{ chantier.date_fin_prevue_projet | default("") }}';
+
+// ─── KPIs planning ────────────────────────────────────────────────────────
+async function computePlanKpis() {
+  const r = await fetch(`${API}/data`);
+  const d = await r.json();
+  if (!d.ok) return;
+  const ch = d.chantier;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const pStart = ch.date_debut_projet ? new Date(ch.date_debut_projet) : null;
+  const pEnd   = ch.date_fin_prevue_projet ? new Date(ch.date_fin_prevue_projet) : null;
+  const setPlan = (id, val, col) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val;
+    if (col) el.style.color = col;
+  };
+  if (pStart && pEnd) {
+    const dureePrevue = Math.round((pEnd - pStart) / 86400000);
+    setPlan('planDureePrevue', `${dureePrevue} j`);
+    // Durée réelle = jours depuis démarrage (ou durée totale si terminé)
+    const dureeReel = Math.max(0, Math.round((today - pStart) / 86400000));
+    setPlan('planDureeReel', pStart <= today ? `${dureeReel} j` : '—');
+    // Retard
+    const retard = Math.round((today - pEnd) / 86400000);
+    if (retard > 0) {
+      setPlan('planRetard', `+${retard} j`, '#ff7675');
+    } else if (today > pStart) {
+      const avance = Math.abs(retard);
+      setPlan('planRetard', avance > 0 ? `-${avance} j` : 'Dans les temps', '#00b894');
+    } else {
+      setPlan('planRetard', 'Pas commencé', '#636e72');
+    }
+    // SPI = (% avancement prévu) / (% avancement réel planifié)
+    const globalAvt = d.avancement?.global || 0;
+    const shouldBe = Math.min(100, Math.round((today - pStart) / (pEnd - pStart) * 100));
+    const spi = shouldBe > 0 ? (globalAvt / shouldBe) : 1;
+    const spiStr = spi.toFixed(2);
+    const spiColor = spi >= 0.95 ? '#00b894' : spi >= 0.8 ? '#fdcb6e' : '#ff7675';
+    setPlan('planSpi', spiStr, spiColor);
+  } else {
+    ['planDureePrevue','planDureeReel','planRetard','planSpi'].forEach(id => setPlan(id, '—'));
+  }
+  document.getElementById('npct_plan').textContent = (_planData.jalons || []).length;
+}
+
+// ─── Gantt Planning SVG ───────────────────────────────────────────────────
+async function buildPlanGantt() {
+  const r = await fetch(`${API}/data`);
+  const d = await r.json();
+  if (!d.ok) return;
+  const ch = d.chantier;
+  const mode = document.getElementById('planViewMode')?.value || 'phases';
+  const svg = document.getElementById('planGanttSvg');
+  const wrap = document.getElementById('planGanttWrap');
+  if (!ch.date_debut_projet || !ch.date_fin_prevue_projet) {
+    svg.innerHTML = '<text x="10" y="30" fill="#555" font-size="12">Renseignez les dates de début/fin dans les Paramètres ⚙ pour afficher le planning</text>';
+    return;
+  }
+  const pStart = new Date(ch.date_debut_projet);
+  const pEnd   = new Date(ch.date_fin_prevue_projet);
+  const today  = new Date(); today.setHours(0,0,0,0);
+  const totalMs = Math.max(1, pEnd - pStart);
+  const RH = 28, LW = 140, MARGIN_B = 20;
+  const svgW = Math.max(700, (wrap.clientWidth || 700) - 16);
+  const CW = svgW - LW;
+  const rows = _PHASES_CFG.length;
+  const totalH = rows * RH + MARGIN_B + 30;
+
+  const pct2x = ms => LW + Math.min(CW, Math.max(0, ms / totalMs * CW));
+
+  // Grid header: tick marks
+  let mk = '';
+  // Month ticks
+  let mc = new Date(pStart.getFullYear(), pStart.getMonth(), 1);
+  while (mc <= pEnd) {
+    const x = pct2x(mc - pStart);
+    mk += `<line x1="${x}" y1="0" x2="${x}" y2="${totalH}" stroke="#1e1e2e" stroke-width="1"/>`;
+    mk += `<text x="${x+2}" y="10" fill="#444" font-size="8">${mc.toLocaleDateString('fr-FR',{month:'short',year:'2-digit'})}</text>`;
+    mc.setMonth(mc.getMonth()+1);
+  }
+
+  // Today line
+  const tx = pct2x(today - pStart);
+  mk += `<line x1="${tx}" y1="0" x2="${tx}" y2="${totalH}" stroke="#ff7675" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8"/>`;
+  mk += `<text x="${tx+2}" y="${totalH}" fill="#ff7675" font-size="8">Aujourd'hui</text>`;
+
+  // Phases
+  _PHASES_CFG.forEach((ph, i) => {
+    const phd = ch.phases?.[ph.id] || {};
+    // Planned bar
+    const ds = phd.date_debut ? new Date(phd.date_debut) : null;
+    const de = phd.date_fin_prevue ? new Date(phd.date_fin_prevue) : null;
+    const dr = phd.date_fin_reelle ? new Date(phd.date_fin_reelle) : null;
+    const y = 20 + i * RH;
+    const pct = d.avancement?.phases?.[ph.id] || 0;
+
+    // Label
+    mk += `<text x="${LW-5}" y="${y+RH/2+4}" fill="#aaa" font-size="9" text-anchor="end">${ph.abbr}</text>`;
+    // Background (durée standard depuis date_debut si connue)
+    if (ds) {
+      const std_ms = (ph.duree_std || 30) * 86400000;
+      const x1 = pct2x(ds - pStart);
+      let x2 = de ? pct2x(de - pStart) : pct2x(ds - pStart + std_ms);
+      const bw = Math.max(4, x2 - x1);
+      mk += `<rect x="${x1}" y="${y+2}" width="${bw}" height="${RH-4}" rx="3" fill="${ph.color}" opacity="0.15" stroke="${ph.color}" stroke-width="1"/>`;
+      // Progress
+      const pw = Math.round(bw * pct / 100);
+      if (pw > 0) mk += `<rect x="${x1}" y="${y+2}" width="${pw}" height="${RH-4}" rx="3" fill="${ph.color}" opacity="0.65"/>`;
+      // Real end marker
+      if (dr) {
+        const xr = pct2x(dr - pStart);
+        mk += `<line x1="${xr}" y1="${y+2}" x2="${xr}" y2="${y+RH-2}" stroke="#fd79a8" stroke-width="2"/>`;
+      }
+      // Pct label
+      if (bw > 30) mk += `<text x="${x1 + pw/2}" y="${y+RH/2+4}" fill="${pct>40?'#000':'#eee'}" font-size="8" text-anchor="middle">${pct}%</text>`;
+    } else {
+      // No date set → grey placeholder
+      mk += `<text x="${LW+10}" y="${y+RH/2+4}" fill="#333" font-size="8" font-style="italic">dates à renseigner</text>`;
+    }
+  });
+
+  // Jalons
+  (_planData.jalons || []).forEach(jl => {
+    const jd = jl.date_prevue ? new Date(jl.date_prevue) : (jl.date_reelle ? new Date(jl.date_reelle) : null);
+    if (!jd) return;
+    const jx = pct2x(jd - pStart);
+    const achieved = !!(jl.date_reelle);
+    mk += `<polygon points="${jx},${MARGIN_B + 8} ${jx-6},${MARGIN_B + 16} ${jx+6},${MARGIN_B + 16}" fill="${achieved ? jl.couleur : 'none'}" stroke="${jl.couleur}" stroke-width="1.5" opacity="0.9"/>`;
+    mk += `<line x1="${jx}" y1="${MARGIN_B + 16}" x2="${jx}" y2="${totalH - MARGIN_B}" stroke="${jl.couleur}" stroke-width="1" stroke-dasharray="2,3" opacity="0.5"/>`;
+    mk += `<text x="${jx+4}" y="${MARGIN_B + 14}" fill="${jl.couleur}" font-size="8">${jl.label.substring(0,20)}</text>`;
+  });
+
+  svg.setAttribute('width', svgW);
+  svg.style.height = totalH + 'px';
+  svg.innerHTML = mk;
+}
+
+// ─── Calendrier mensuel ───────────────────────────────────────────────────
+let _calYear, _calMonth;
+(function initCal() {
+  const now = new Date();
+  _calYear = now.getFullYear();
+  _calMonth = now.getMonth();
+})();
+
+function calNav(dir) {
+  _calMonth += dir;
+  if (_calMonth > 11) { _calMonth = 0; _calYear++; }
+  if (_calMonth < 0) { _calMonth = 11; _calYear--; }
+  buildCalendar();
+}
+
+function buildCalendar() {
+  const grid = document.getElementById('calGrid');
+  const title = document.getElementById('calTitle');
+  if (!grid) return;
+  const y = _calYear, m = _calMonth;
+  const monthNames = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+  title.innerHTML = `<i class="bi bi-calendar3" style="color:#fd79a8"></i> ${monthNames[m]} ${y}`;
+
+  // Day headers
+  const dayH = ['Lu','Ma','Me','Je','Ve','Sa','Di'];
+  let html = dayH.map(d => `<div style="text-align:center;font-size:.6rem;color:#555;padding:2px 0">${d}</div>`).join('');
+
+  const firstDay = new Date(y, m, 1).getDay(); // 0=Sun
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Mon-based
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+
+  // Build event map: date -> array of {label, color}
+  const events = {};
+  const addEvt = (dateStr, label, color) => {
+    if (!dateStr) return;
+    const k = dateStr.substring(0, 10);
+    if (!events[k]) events[k] = [];
+    events[k].push({label, color});
+  };
+  // Phase events
+  const r = fetch(`${API}/data`).then(res => res.json()).then(d => {
+    if (!d.ok) return;
+    const ch = d.chantier;
+    _PHASES_CFG.forEach(ph => {
+      const phd = ch.phases?.[ph.id] || {};
+      if (phd.date_debut) addEvt(phd.date_debut, `▶ ${ph.abbr}`, ph.color);
+      if (phd.date_fin_prevue) addEvt(phd.date_fin_prevue, `■ ${ph.abbr} (prév.)`, ph.color + '99');
+      if (phd.date_fin_reelle) addEvt(phd.date_fin_reelle, `✓ ${ph.abbr}`, ph.color);
+    });
+    // Jalons
+    (_planData.jalons || []).forEach(jl => {
+      addEvt(jl.date_prevue, `◆ ${jl.label}`, jl.couleur);
+      if (jl.date_reelle) addEvt(jl.date_reelle, `◆✓ ${jl.label}`, jl.couleur);
+    });
+    // Jours indisponibles
+    (_planData.jours_indisponibles || []).forEach(jd => addEvt(jd, 'Indisponible', '#636e72'));
+    // Journal arrêts
+    (ch.journal || []).filter(j => j.arret_chantier).forEach(j => addEvt(j.date, '⏸ Arrêt chantier', '#ff7675'));
+    renderCalGrid(y, m, daysInMonth, startOffset, events);
+  });
+}
+
+function renderCalGrid(y, m, daysInMonth, startOffset, events) {
+  const grid = document.getElementById('calGrid');
+  const today = new Date();
+  const dayH = ['Lu','Ma','Me','Je','Ve','Sa','Di'];
+  let html = dayH.map(d => `<div style="text-align:center;font-size:.6rem;color:#555;padding:2px 0">${d}</div>`).join('');
+  // Empty cells
+  for (let i = 0; i < startOffset; i++) html += `<div></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dt = new Date(y, m, day);
+    const dtStr = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const isToday = dt.toDateString() === today.toDateString();
+    const isWE = dt.getDay() === 0 || dt.getDay() === 6;
+    const dayEvts = events[dtStr] || [];
+    const isIndispo = dayEvts.some(e => e.label === 'Indisponible');
+    const bg = isToday ? 'rgba(253,121,168,.25)' : isIndispo ? 'rgba(99,110,114,.2)' : isWE ? 'rgba(255,255,255,.02)' : 'transparent';
+    const border = isToday ? '1px solid #fd79a8' : '1px solid #1e1e2e';
+    let dots = dayEvts.map(e => `<div style="width:6px;height:6px;border-radius:50%;background:${e.color};flex-shrink:0" title="${e.label}"></div>`).join('');
+    html += `<div style="background:${bg};border:${border};border-radius:4px;padding:2px;min-height:36px;cursor:pointer" onclick="addJourIndispoDate('${dtStr}')">
+      <div style="font-size:.65rem;font-weight:${isToday?700:400};color:${isToday?'#fd79a8':isWE?'#555':'#aaa'}">${day}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:2px;margin-top:1px">${dots}</div>
+    </div>`;
+  }
+  grid.innerHTML = html;
+}
+
+// ─── Jalons CRUD ──────────────────────────────────────────────────────────
+function openJalonModal(id) {
+  if (id) {
+    const j = (_planData.jalons || []).find(x => x.id === id);
+    if (!j) return;
+    document.getElementById('jalonModalTitle').textContent = 'Modifier le jalon';
+    document.getElementById('jalonId').value = j.id;
+    document.getElementById('jalonLabel').value = j.label || '';
+    document.getElementById('jalonType').value = j.type || 'general';
+    document.getElementById('jalonCouleur').value = j.couleur || '#fdcb6e';
+    document.getElementById('jalonDatePrevue').value = j.date_prevue || '';
+    document.getElementById('jalonDateReelle').value = j.date_reelle || '';
+    document.getElementById('jalonNotes').value = j.notes || '';
+  } else {
+    document.getElementById('jalonModalTitle').textContent = 'Ajouter un jalon';
+    document.getElementById('jalonId').value = '';
+    document.getElementById('jalonLabel').value = '';
+    document.getElementById('jalonType').value = 'general';
+    document.getElementById('jalonCouleur').value = '#fdcb6e';
+    document.getElementById('jalonDatePrevue').value = '';
+    document.getElementById('jalonDateReelle').value = '';
+    document.getElementById('jalonNotes').value = '';
+  }
+  mJalon.show();
+}
+
+async function saveJalon() {
+  const id = document.getElementById('jalonId').value;
+  const payload = {
+    label:       document.getElementById('jalonLabel').value,
+    type:        document.getElementById('jalonType').value,
+    couleur:     document.getElementById('jalonCouleur').value,
+    date_prevue: document.getElementById('jalonDatePrevue').value,
+    date_reelle: document.getElementById('jalonDateReelle').value,
+    notes:       document.getElementById('jalonNotes').value,
+  };
+  if (!payload.label) return;
+  const url = id ? `${API}/planning/jalon/${id}` : `${API}/planning/jalon`;
+  const method = id ? 'PATCH' : 'POST';
+  const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const d = await r.json();
+  if (d.ok) {
+    if (!id && d.jalon) _planData.jalons = [...(_planData.jalons || []), d.jalon];
+    else if (id) { const i = (_planData.jalons||[]).findIndex(x=>x.id===id); if(i>=0) _planData.jalons[i]={..._planData.jalons[i],...payload}; }
+    mJalon.hide();
+    reloadJalons(); buildPlanGantt(); buildCalendar(); computePlanKpis();
+    document.getElementById('npct_plan').textContent = (_planData.jalons||[]).length;
+  }
+}
+
+async function deleteJalon(id) {
+  if (!confirm('Supprimer ce jalon ?')) return;
+  const r = await fetch(`${API}/planning/jalon/${id}`, {method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) {
+    _planData.jalons = (_planData.jalons||[]).filter(j => j.id !== id);
+    reloadJalons(); buildPlanGantt(); buildCalendar(); computePlanKpis();
+    document.getElementById('npct_plan').textContent = (_planData.jalons||[]).length;
+  }
+}
+
+function reloadJalons() {
+  const el = document.getElementById('jalonList');
+  if (!el) return;
+  const jalons = _planData.jalons || [];
+  const TYPE_ICONS = {GO:'bi-play-circle', livraison:'bi-truck', reception:'bi-patch-check', paiement:'bi-cash-coin', audit:'bi-clipboard2-pulse', general:'bi-flag'};
+  if (!jalons.length) { el.innerHTML = '<div style="color:#555;font-size:.75rem;padding:4px">Aucun jalon défini</div>'; return; }
+  const sorted = [...jalons].sort((a,b) => (a.date_prevue||'').localeCompare(b.date_prevue||''));
+  el.innerHTML = sorted.map(j => {
+    const achieved = !!(j.date_reelle);
+    const dateStr = achieved ? `✓ ${j.date_reelle}` : (j.date_prevue || '—');
+    return `<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #1a1a2e;font-size:.72rem">
+      <i class="bi ${TYPE_ICONS[j.type]||'bi-flag'}" style="color:${j.couleur};font-size:.85rem;width:14px;text-align:center"></i>
+      <div style="flex:1;min-width:0">
+        <div style="color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${achieved?'text-decoration:line-through;opacity:.6':''}">${j.label}</div>
+        <div style="color:#666;font-size:.65rem">${dateStr}</div>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" style="font-size:.6rem;padding:1px 4px" onclick="openJalonModal('${j.id}')"><i class="bi bi-pencil"></i></button>
+      <button class="btn btn-sm btn-outline-danger" style="font-size:.6rem;padding:1px 4px" onclick="deleteJalon('${j.id}')"><i class="bi bi-trash"></i></button>
+    </div>`;
+  }).join('');
+}
+
+// ─── Contraintes CRUD ─────────────────────────────────────────────────────
+function openContrainteModal() {
+  document.getElementById('ctPhase').value = '';
+  document.getElementById('ctType').value = 'administrative';
+  document.getElementById('ctDesc').value = '';
+  document.getElementById('ctDate').value = '';
+  document.getElementById('ctImpact').value = '';
+  mContr.show();
+}
+
+async function saveContrainte() {
+  const payload = {
+    phase_id:         document.getElementById('ctPhase').value,
+    type:             document.getElementById('ctType').value,
+    description:      document.getElementById('ctDesc').value,
+    date_contrainte:  document.getElementById('ctDate').value,
+    impact_jours:     parseInt(document.getElementById('ctImpact').value) || 0,
+  };
+  if (!payload.description) return;
+  const r = await fetch(`${API}/planning/contrainte`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+  const d = await r.json();
+  if (d.ok) {
+    _planData.contraintes = [...(_planData.contraintes||[]), d.contrainte];
+    mContr.hide();
+    reloadContraintes();
+  }
+}
+
+async function deleteContrainte(id) {
+  if (!confirm('Supprimer cette contrainte ?')) return;
+  const r = await fetch(`${API}/planning/contrainte/${id}`, {method:'DELETE'});
+  const d = await r.json();
+  if (d.ok) { _planData.contraintes = (_planData.contraintes||[]).filter(c=>c.id!==id); reloadContraintes(); }
+}
+
+function reloadContraintes() {
+  const el = document.getElementById('contrainteList');
+  if (!el) return;
+  const cts = _planData.contraintes || [];
+  const TYPE_COLORS = {administrative:'#0984e3', externe:'#e17055', 'météo':'#74b9ff', technique:'#a29bfe'};
+  if (!cts.length) { el.innerHTML = '<div style="color:#555;font-size:.75rem;padding:4px">Aucune contrainte</div>'; return; }
+  const phMap = Object.fromEntries(_PHASES_CFG.map(p => [p.id, p.abbr]));
+  el.innerHTML = cts.map(ct => `<div style="display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid #1a1a2e;font-size:.72rem">
+    <span style="background:${TYPE_COLORS[ct.type]||'#636e72'};color:#fff;border-radius:3px;padding:1px 5px;font-size:.6rem;white-space:nowrap;margin-top:1px">${ct.type}</span>
+    <div style="flex:1;min-width:0">
+      <div style="color:#eee">${ct.description}</div>
+      <div style="color:#666;font-size:.65rem">${ct.phase_id ? phMap[ct.phase_id]||ct.phase_id : 'Projet global'} · Impact : ${ct.impact_jours} j${ct.date_contrainte?' · '+ct.date_contrainte:''}</div>
+    </div>
+    <button class="btn btn-sm btn-outline-danger" style="font-size:.6rem;padding:1px 4px;flex-shrink:0" onclick="deleteContrainte('${ct.id}')"><i class="bi bi-trash"></i></button>
+  </div>`).join('');
+}
+
+// ─── Jours indisponibles ──────────────────────────────────────────────────
+async function addJourIndispo() {
+  const date = prompt('Date indisponible (YYYY-MM-DD) :', new Date().toISOString().substring(0,10));
+  if (!date || !date.match(/^\d{4}-\d{2}-\d{2}$/)) return;
+  if ((_planData.jours_indisponibles||[]).includes(date)) return;
+  _planData.jours_indisponibles = [...(_planData.jours_indisponibles||[]), date].sort();
+  await savePlanField('jours_indisponibles', _planData.jours_indisponibles);
+  reloadJoursIndispo(); buildCalendar();
+}
+
+async function addJourIndispoDate(date) {
+  if ((_planData.jours_indisponibles||[]).includes(date)) {
+    // toggle off
+    _planData.jours_indisponibles = (_planData.jours_indisponibles||[]).filter(d=>d!==date);
+    await savePlanField('jours_indisponibles', _planData.jours_indisponibles);
+    reloadJoursIndispo(); buildCalendar();
+  }
+  // Don't add from calendar click (only remove) — use the button to add
+}
+
+async function deleteJourIndispo(date) {
+  _planData.jours_indisponibles = (_planData.jours_indisponibles||[]).filter(d=>d!==date);
+  await savePlanField('jours_indisponibles', _planData.jours_indisponibles);
+  reloadJoursIndispo(); buildCalendar();
+}
+
+function reloadJoursIndispo() {
+  const el = document.getElementById('joursIndispoList');
+  if (!el) return;
+  const jj = _planData.jours_indisponibles || [];
+  if (!jj.length) { el.innerHTML = '<div style="color:#555;font-size:.75rem;padding:4px">Aucun jour déclaré</div>'; return; }
+  el.innerHTML = [...jj].sort().map(d => `<div style="display:flex;align-items:center;gap:6px;padding:2px 0;border-bottom:1px solid #1a1a2e;font-size:.72rem">
+    <i class="bi bi-calendar-x" style="color:#636e72"></i>
+    <span style="flex:1;color:#aaa">${new Date(d+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})}</span>
+    <button class="btn btn-sm btn-outline-danger" style="font-size:.6rem;padding:1px 4px" onclick="deleteJourIndispo('${d}')"><i class="bi bi-trash"></i></button>
+  </div>`).join('');
+}
+
+// ─── Notes planning ───────────────────────────────────────────────────────
+let _planNotesTimer = null;
+function savePlanNotes() {
+  clearTimeout(_planNotesTimer);
+  _planNotesTimer = setTimeout(() => {
+    savePlanField('notes_planning', document.getElementById('planNotes').value);
+  }, 800);
+}
+
+async function savePlanField(field, value) {
+  await fetch(`${API}/planning`, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({[field]: value})});
+}
 </script>
 </body>
 </html>
