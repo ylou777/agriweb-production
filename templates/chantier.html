@@ -180,6 +180,10 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
     <i class="bi bi-upc-scan" style="color:#a29bfe"></i> Modules N/S
     <span class="nav-pct" id="npct_modules">{{ chantier.modules_tracking|length }}</span>
   </div>
+  <div class="nav-item" data-tab="documents" onclick="switchTab('documents')">
+    <i class="bi bi-folder2-open" style="color:#00cec9"></i> Documents
+    <span class="nav-pct" id="npct_docs">{{ chantier.documents|length }}</span>
+  </div>
   <div class="nav-sep">Suivi</div>
   <div class="nav-item" data-tab="journal" onclick="switchTab('journal')">
     <i class="bi bi-journal-text" style="color:#fdcb6e"></i> Journal
@@ -505,6 +509,94 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
   </div>
 </div>
 
+<!-- ██ DOCUMENTS & MÉDIAS ████████████████████████████████████████████████████ -->
+<div class="tab-pane" id="tab_documents">
+  <!-- Barre supérieure -->
+  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <div>
+      <span class="section-title mb-0">Documents & Médias</span>
+      <span style="font-size:.72rem;color:#888;margin-left:8px">Visite technique · Plans · Tranchées · Photos · Administratif</span>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="kpi-chip"><div class="kv" id="docTotalBig" style="color:#00cec9">{{ chantier.documents|length }}</div><div class="kl">Fichiers</div></span>
+      <button class="btn btn-sm btn-orange" onclick="openDocUpload()" style="font-size:.72rem"><i class="bi bi-cloud-upload"></i> Ajouter</button>
+    </div>
+  </div>
+
+  <!-- Onglets catégories -->
+  <div class="d-flex gap-2 mb-3 flex-wrap" id="docCatTabs">
+    <button class="btn btn-sm active" id="dcat_all" onclick="filterDocs('all')"
+            style="font-size:.72rem;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)">
+      <i class="bi bi-grid"></i> Tous <span id="dcc_all" class="badge" style="background:rgba(255,255,255,.15)">{{ chantier.documents|length }}</span>
+    </button>
+    {% for cat in doc_categories %}
+    <button class="btn btn-sm" id="dcat_{{ cat.id }}" onclick="filterDocs('{{ cat.id }}')"
+            style="font-size:.72rem;background:rgba(255,255,255,.05);color:#aaa;border:1px solid rgba(255,255,255,.1)">
+      <i class="bi {{ cat.icon }}" style="color:{{ cat.color }}"></i> {{ cat.label }}
+      <span id="dcc_{{ cat.id }}" class="badge" style="background:rgba(255,255,255,.1);color:#888">0</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <!-- Zone drag & drop upload -->
+  <div id="docDropZone"
+       ondragover="event.preventDefault();this.classList.add('dz-over')"
+       ondragleave="this.classList.remove('dz-over')"
+       ondrop="handleDocDrop(event)"
+       style="border:2px dashed rgba(255,255,255,.15);border-radius:10px;text-align:center;padding:18px;margin-bottom:16px;cursor:pointer;transition:.2s;font-size:.8rem;color:#666"
+       onclick="document.getElementById('docFileInput').click()">
+    <i class="bi bi-cloud-upload-fill" style="font-size:1.6rem;opacity:.4"></i><br>
+    Glissez vos fichiers ici <span style="color:#888">ou cliquez pour sélectionner</span><br>
+    <span style="font-size:.68rem">PDF, DWG, DXF, PNG, JPG, XLSX — max 15 Mo par fichier</span>
+  </div>
+  <input type="file" id="docFileInput" style="display:none" multiple
+         accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.xls,.docx,.doc,.zip,.csv"
+         onchange="handleDocFileSelect(this.files)">
+
+  <!-- Grille des documents -->
+  <div id="docGrid" class="row g-2">
+    {% if chantier.documents %}
+      {% for doc in chantier.documents %}
+      <div class="col-xl-2 col-lg-3 col-md-4 col-6 doc-card" data-cat="{{ doc.categorie }}" id="doccard_{{ doc.id }}">
+        <div class="card-dark h-100" style="border-top:2px solid {{ doc_categories | selectattr('id','equalto',doc.categorie) | map(attribute='color') | first | default('#636e72') }}">
+          {% if doc.type_mime and doc.type_mime.startswith('image') %}
+            <a href="{{ url_for('chantier.download_document', prospect_id=prospect.id, doc_id=doc.id) }}" target="_blank">
+              <img src="{{ url_for('chantier.download_document', prospect_id=prospect.id, doc_id=doc.id) }}"
+                   style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px" onerror="this.style.display='none'">
+            </a>
+          {% else %}
+            <div style="font-size:2rem;text-align:center;margin-bottom:4px;opacity:.6">
+              {% if 'pdf' in (doc.type_mime or '') %}<i class="bi bi-file-earmark-pdf" style="color:#e17055"></i>
+              {% elif 'excel' in (doc.type_mime or '') or 'spreadsheet' in (doc.type_mime or '') %}<i class="bi bi-file-earmark-excel" style="color:#00b894"></i>
+              {% elif 'word' in (doc.type_mime or '') or 'document' in (doc.type_mime or '') %}<i class="bi bi-file-earmark-word" style="color:#74b9ff"></i>
+              {% elif 'zip' in (doc.type_mime or '') %}<i class="bi bi-file-earmark-zip" style="color:#fdcb6e"></i>
+              {% else %}<i class="bi bi-file-earmark" style="color:#aaa"></i>{% endif %}
+            </div>
+          {% endif %}
+          <div style="font-size:.7rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px" title="{{ doc.nom }}">{{ doc.nom }}</div>
+          <div style="font-size:.62rem;color:#888">{{ doc.date }}</div>
+          {% if doc.taille_ko %}<div style="font-size:.6rem;color:#555">{{ doc.taille_ko }} Ko</div>{% endif %}
+          {% if doc.notes %}<div style="font-size:.65rem;color:#aaa;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ doc.notes }}</div>{% endif %}
+          <div class="d-flex gap-1 mt-2">
+            {% if doc.url %}
+            <a href="{{ doc.url }}" target="_blank" class="btn btn-sm p-1" style="color:#74b9ff;font-size:.7rem" title="Ouvrir lien"><i class="bi bi-link-45deg"></i></a>
+            {% elif doc.data_b64 %}
+            <a href="{{ url_for('chantier.download_document', prospect_id=prospect.id, doc_id=doc.id) }}" class="btn btn-sm p-1" style="color:#74b9ff;font-size:.7rem" title="Télécharger"><i class="bi bi-download"></i></a>
+            {% endif %}
+            <button class="btn btn-sm p-1 ms-auto" style="color:#e17055;font-size:.7rem" data-id="{{ doc.id }}" onclick="deleteDoc(this.dataset.id)"><i class="bi bi-trash"></i></button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div id="docEmpty" class="col-12 text-center py-5 text-muted">
+        <i class="bi bi-folder2-open fs-2"></i><br>
+        Aucun document — glissez des fichiers ou cliquez sur <strong>Ajouter</strong>
+      </div>
+    {% endif %}
+  </div>
+</div><!-- /tab_documents -->
+
 <!-- ██ JOURNAL █████████████████████████████████████████████████████████████████ -->
 <div class="tab-pane" id="tab_journal">
   <div class="row g-3">
@@ -784,6 +876,47 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
         </div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button><button class="btn btn-orange btn-sm" onclick="saveModule()">Enregistrer</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Document upload modal -->
+<div class="modal fade" id="modalDocUpload" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h6 class="modal-title"><i class="bi bi-cloud-upload"></i> Ajouter un document</h6><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-2"><label class="form-label">Catégorie</label>
+          <select class="form-select" id="docCatSelect">
+            {% for cat in doc_categories %}<option value="{{ cat.id }}">{{ cat.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Fichier</label>
+          <input type="file" class="form-control" id="docModalFile"
+                 accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.gif,.webp,.xlsx,.xls,.docx,.doc,.zip,.csv">
+          <div style="font-size:.68rem;color:#888;margin-top:3px">Max 15 Mo</div>
+        </div>
+        <div class="mb-2 text-center text-muted" style="font-size:.72rem">— ou lien externe —</div>
+        <div class="mb-2"><label class="form-label">URL externe</label>
+          <input type="url" class="form-control" id="docUrl" placeholder="https://...">
+          <div style="font-size:.68rem;color:#888;margin-top:2px">Google Drive, Dropbox, SharePoint…</div>
+        </div>
+        <div class="mb-2"><label class="form-label">Nom du document</label><input type="text" class="form-control" id="docNom" placeholder="ex: Plan masse v2.pdf"></div>
+        <div class="mb-2"><label class="form-label">Notes</label><input type="text" class="form-control" id="docNotes" placeholder="Description courte…"></div>
+        <div class="mb-0"><label class="form-label">Date</label><input type="date" class="form-control" id="docDate" value="{{ now }}"></div>
+        <!-- Progress -->
+        <div id="docUploadProgress" style="display:none;margin-top:10px">
+          <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden">
+            <div id="docUploadBar" style="height:100%;border-radius:3px;background:var(--orange);transition:.2s;width:0%"></div>
+          </div>
+          <div style="font-size:.7rem;color:#888;margin-top:4px;text-align:center" id="docUploadStatus">Lecture du fichier…</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+        <button class="btn btn-orange btn-sm" id="docSaveBtn" onclick="saveDoc()"><i class="bi bi-check"></i> Enregistrer</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1382,6 +1515,205 @@ async function buildGantt() {
     });
     container.innerHTML = html;
 }
+
+// ─── Documents & Médias ───────────────────────────────────────────────────────
+const DOC_CATEGORIES = {{ doc_categories | tojson }};
+const mDocUpload = new bootstrap.Modal(document.getElementById('modalDocUpload'));
+let _docCatFilter = 'all';
+
+// Initialise les compteurs par catégorie au chargement
+(function initDocCounts(){
+    const cards = document.querySelectorAll('.doc-card');
+    const counts = {};
+    DOC_CATEGORIES.forEach(c => counts[c.id] = 0);
+    cards.forEach(c => {
+        const cat = c.dataset.cat;
+        if (cat in counts) counts[cat]++;
+    });
+    document.getElementById('dcc_all').textContent = cards.length;
+    DOC_CATEGORIES.forEach(c => {
+        const el = document.getElementById('dcc_'+c.id);
+        if (el) el.textContent = counts[c.id] || 0;
+    });
+})();
+
+function filterDocs(cat) {
+    _docCatFilter = cat;
+    document.querySelectorAll('[id^="dcat_"]').forEach(btn => {
+        btn.classList.remove('active');
+        btn.style.background = 'rgba(255,255,255,.05)';
+        btn.style.color = '#aaa';
+    });
+    const active = document.getElementById('dcat_'+cat);
+    if (active) { active.classList.add('active'); active.style.background='rgba(255,255,255,.1)'; active.style.color='#fff'; }
+    document.querySelectorAll('.doc-card').forEach(c => {
+        c.style.display = (cat === 'all' || c.dataset.cat === cat) ? '' : 'none';
+    });
+}
+
+function openDocUpload(presetCat) {
+    document.getElementById('docModalFile').value = '';
+    document.getElementById('docUrl').value = '';
+    document.getElementById('docNom').value = '';
+    document.getElementById('docNotes').value = '';
+    document.getElementById('docDate').value = new Date().toISOString().split('T')[0];
+    if (presetCat) document.getElementById('docCatSelect').value = presetCat;
+    document.getElementById('docUploadProgress').style.display = 'none';
+    document.getElementById('docSaveBtn').disabled = false;
+    mDocUpload.show();
+}
+
+function handleDocDrop(e) {
+    e.preventDefault();
+    document.getElementById('docDropZone').classList.remove('dz-over');
+    const files = e.dataTransfer.files;
+    if (files.length) uploadDocFiles(files);
+}
+
+function handleDocFileSelect(files) {
+    if (files.length) uploadDocFiles(files);
+    document.getElementById('docFileInput').value = '';
+}
+
+async function uploadDocFiles(files) {
+    for (const file of files) {
+        if (file.size > 15 * 1024 * 1024) {
+            alert(`${file.name} dépasse 15 Mo — ignoré`);
+            continue;
+        }
+        await _uploadOneFile(file, _docCatFilter === 'all' ? 'autre' : _docCatFilter, '', new Date().toISOString().split('T')[0]);
+    }
+}
+
+function readFileAsB64(file) {
+    return new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = e => res(e.target.result.split(',')[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function saveDoc() {
+    const fileEl = document.getElementById('docModalFile');
+    const urlVal = document.getElementById('docUrl').value.trim();
+    const nomVal = document.getElementById('docNom').value.trim();
+    const cat    = document.getElementById('docCatSelect').value;
+    const notes  = document.getElementById('docNotes').value.trim();
+    const dateVal= document.getElementById('docDate').value;
+
+    if (!fileEl.files.length && !urlVal) { alert('Sélectionnez un fichier ou saisissez une URL'); return; }
+    document.getElementById('docSaveBtn').disabled = true;
+    document.getElementById('docUploadProgress').style.display = '';
+
+    const file = fileEl.files[0];
+    if (file) {
+        if (file.size > 15 * 1024 * 1024) { alert('Fichier > 15 Mo'); document.getElementById('docSaveBtn').disabled=false; return; }
+        document.getElementById('docUploadStatus').textContent = 'Lecture du fichier…';
+        document.getElementById('docUploadBar').style.width = '30%';
+        const b64 = await readFileAsB64(file);
+        document.getElementById('docUploadBar').style.width = '70%';
+        document.getElementById('docUploadStatus').textContent = 'Envoi…';
+        await _uploadOneFile(file, cat, notes, dateVal, nomVal || file.name, b64);
+    } else {
+        // URL only
+        await _uploadOneFile(null, cat, notes, dateVal, nomVal || urlVal, null, urlVal);
+    }
+    mDocUpload.hide();
+}
+
+async function _uploadOneFile(file, cat, notes, dateVal, nomOverride, b64Override, urlOverride) {
+    let b64 = b64Override || null;
+    let mime = file ? file.type : 'application/octet-stream';
+    let nom  = nomOverride || (file ? file.name : 'document');
+    let taille = file ? Math.round(file.size / 1024) : 0;
+    if (file && !b64) {
+        b64 = await readFileAsB64(file);
+    }
+    const payload = {
+        nom, categorie: cat, type_mime: mime, taille_ko: taille,
+        date: dateVal || new Date().toISOString().split('T')[0],
+        notes: notes || '', data_b64: b64 || '', url: urlOverride || '',
+    };
+    const r = await fetch(`${API}/document`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d = await r.json();
+    if (d.ok) {
+        document.getElementById('docUploadBar').style.width = '100%';
+        document.getElementById('docUploadStatus').textContent = 'Enregistré ✓';
+        addDocCard(d.doc);
+        document.getElementById('npct_docs').textContent = d.total;
+    }
+}
+
+function addDocCard(doc) {
+    const empty = document.getElementById('docEmpty');
+    if (empty) empty.remove();
+
+    const catInfo = DOC_CATEGORIES.find(c => c.id === doc.categorie) || {color:'#636e72', icon:'bi-paperclip'};
+    const isImage = doc.type_mime && doc.type_mime.startsWith('image');
+    let iconHtml;
+    if (isImage) {
+        iconHtml = `<img src="${API}/document/${doc.id}/download" style="width:100%;height:80px;object-fit:cover;border-radius:6px;margin-bottom:6px" onerror="this.style.display='none'">`;
+    } else {
+        const icoMap = {'application/pdf':'bi-file-earmark-pdf','application/vnd.ms-excel':'bi-file-earmark-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'bi-file-earmark-excel',
+            'application/msword':'bi-file-earmark-word','application/zip':'bi-file-earmark-zip'};
+        const ico = icoMap[doc.type_mime] || 'bi-file-earmark';
+        iconHtml = `<div style="font-size:2rem;text-align:center;margin-bottom:4px;opacity:.6"><i class="bi ${ico}"></i></div>`;
+    }
+    const html = `<div class="col-xl-2 col-lg-3 col-md-4 col-6 doc-card" data-cat="${doc.categorie}" id="doccard_${doc.id}">
+      <div class="card-dark h-100" style="border-top:2px solid ${catInfo.color}">
+        ${iconHtml}
+        <div style="font-size:.7rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px" title="${doc.nom}">${doc.nom}</div>
+        <div style="font-size:.62rem;color:#888">${doc.date}</div>
+        ${doc.taille_ko ? `<div style="font-size:.6rem;color:#555">${doc.taille_ko} Ko</div>` : ''}
+        ${doc.notes ? `<div style="font-size:.65rem;color:#aaa;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${doc.notes}</div>` : ''}
+        <div class="d-flex gap-1 mt-2">
+          ${doc.url
+            ? `<a href="${doc.url}" target="_blank" class="btn btn-sm p-1" style="color:#74b9ff;font-size:.7rem"><i class="bi bi-link-45deg"></i></a>`
+            : `<a href="${API}/document/${doc.id}/download" class="btn btn-sm p-1" style="color:#74b9ff;font-size:.7rem"><i class="bi bi-download"></i></a>`}
+          <button class="btn btn-sm p-1 ms-auto" style="color:#e17055;font-size:.7rem" data-id="${doc.id}" onclick="deleteDoc(this.dataset.id)"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+    </div>`;
+    document.getElementById('docGrid').insertAdjacentHTML('afterbegin', html);
+
+    // Update counters
+    const allEl = document.getElementById('dcc_all');
+    if (allEl) allEl.textContent = parseInt(allEl.textContent||0)+1;
+    const catEl = document.getElementById('dcc_'+doc.categorie);
+    if (catEl) catEl.textContent = parseInt(catEl.textContent||0)+1;
+    document.getElementById('docTotalBig').textContent = document.querySelectorAll('.doc-card').length;
+
+    // Apply current filter
+    if (_docCatFilter !== 'all' && doc.categorie !== _docCatFilter) {
+        document.getElementById('doccard_'+doc.id).style.display = 'none';
+    }
+}
+
+async function deleteDoc(id) {
+    if (!confirm('Supprimer ce document ?')) return;
+    const r = await fetch(`${API}/document/${id}`,{method:'DELETE'});
+    const d = await r.json();
+    if (d.ok) {
+        const card = document.getElementById('doccard_'+id);
+        const cat = card?.dataset.cat;
+        card?.remove();
+        const allEl = document.getElementById('dcc_all');
+        if (allEl) allEl.textContent = Math.max(0,parseInt(allEl.textContent)-1);
+        if (cat) { const catEl = document.getElementById('dcc_'+cat); if(catEl) catEl.textContent = Math.max(0,parseInt(catEl.textContent)-1); }
+        document.getElementById('docTotalBig').textContent = d.total;
+        document.getElementById('npct_docs').textContent = d.total;
+        if (!document.querySelectorAll('.doc-card').length) {
+            document.getElementById('docGrid').innerHTML = '<div id="docEmpty" class="col-12 text-center py-5 text-muted"><i class="bi bi-folder2-open fs-2"></i><br>Aucun document</div>';
+        }
+    }
+}
+
+// CSS for drag-over
+document.head.insertAdjacentHTML('beforeend',`<style>
+#docDropZone.dz-over{border-color:var(--orange)!important;background:rgba(247,151,30,.05)}
+</style>`);
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 updateCashUI();

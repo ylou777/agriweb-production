@@ -190,6 +190,16 @@ MILESTONES_DEFAULT = [
     {"id": "m6", "label": "Levée réserves / Réception définitive", "pct": 5},
 ]
 
+DOC_CATEGORIES = [
+    {"id": "visite_technique", "label": "Visite technique",    "icon": "bi-clipboard2-check", "color": "#6c5ce7"},
+    {"id": "plans",            "label": "Plans & schémas",     "icon": "bi-file-earmark-ruled", "color": "#0984e3"},
+    {"id": "tranchees",        "label": "Tranchées & GC",      "icon": "bi-layers",            "color": "#e17055"},
+    {"id": "photos",           "label": "Photos chantier",     "icon": "bi-camera",            "color": "#fdcb6e"},
+    {"id": "administratif",    "label": "Administratif",       "icon": "bi-briefcase",         "color": "#00b894"},
+    {"id": "reception",        "label": "Réception / DOE",     "icon": "bi-patch-check",       "color": "#a29bfe"},
+    {"id": "autre",            "label": "Autres pièces",       "icon": "bi-paperclip",         "color": "#636e72"},
+]
+
 DOE_DOCUMENTS = [
     {"id": "plans_recolement",    "label": "Plans de récolement (as-built)"},
     {"id": "schema_unifilaire",   "label": "Schéma unifilaire final"},
@@ -307,6 +317,7 @@ def _init_chantier(prospect_id: int, nom: str = '') -> dict:
         'factures': [],
         'ncf': [],
         'modules_tracking': [],
+        'documents': [],
         'doe_documents': {
             doc['id']: {'statut': 'A_etablir', 'date': '', 'notes': ''}
             for doc in DOE_DOCUMENTS
@@ -338,6 +349,8 @@ def _ensure_keys(chantier: dict) -> dict:
             'risques_identifies': '', 'epi_requis': '',
             'nb_accidents': 0, 'nb_quasi_accidents': 0,
         }
+    if 'documents' not in chantier:
+        chantier['documents'] = []
     if 'retenue_garantie_pct' not in chantier:
         chantier['retenue_garantie_pct'] = 5.0
     # Ensure phases have date_fin_reelle
@@ -436,6 +449,7 @@ def page_chantier(prospect_id: int):
         ncf_statuts=NCF_STATUTS,
         doe_documents=DOE_DOCUMENTS,
         milestones_default=MILESTONES_DEFAULT,
+        doc_categories=DOC_CATEGORIES,
         now=datetime.now().strftime('%Y-%m-%d'),
     )
 
@@ -699,6 +713,67 @@ def update_ppsps(prospect_id: int):
     chantier['ppsps'].update(d)
     _save_chantier(prospect_id, chantier)
     return jsonify({'ok': True})
+
+# ── API : Documents & Médias ──────────────────────────────────────────────────
+import base64
+
+@chantier_bp.route('/api/<int:prospect_id>/document', methods=['POST'])
+def add_document(prospect_id: int):
+    """Reçoit un fichier encodé base64 ou une URL externe."""
+    d = request.get_json()
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False, 'error': 'Chantier introuvable'}), 404
+    chantier = _ensure_keys(chantier)
+    doc = {
+        "id":          str(uuid.uuid4())[:10],
+        "nom":         d.get('nom', 'document'),
+        "categorie":   d.get('categorie', 'autre'),
+        "type_mime":   d.get('type_mime', 'application/octet-stream'),
+        "taille_ko":   d.get('taille_ko', 0),
+        "date":        d.get('date', date.today().isoformat()),
+        "notes":       d.get('notes', ''),
+        "data_b64":    d.get('data_b64', ''),   # base64 content
+        "url":         d.get('url', ''),         # OR external link
+        "uploaded_at": datetime.now().isoformat(),
+    }
+    chantier['documents'].append(doc)
+    _save_chantier(prospect_id, chantier)
+    # Return without data_b64 for lighter payload
+    doc_meta = {k: v for k, v in doc.items() if k != 'data_b64'}
+    return jsonify({'ok': True, 'doc': doc_meta, 'total': len(chantier['documents'])})
+
+@chantier_bp.route('/api/<int:prospect_id>/document/<doc_id>', methods=['DELETE'])
+def delete_document(prospect_id: int, doc_id: str):
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return jsonify({'ok': False}), 404
+    docs = chantier.get('documents', [])
+    chantier['documents'] = [d for d in docs if d['id'] != doc_id]
+    _save_chantier(prospect_id, chantier)
+    return jsonify({'ok': True, 'total': len(chantier['documents'])})
+
+@chantier_bp.route('/api/<int:prospect_id>/document/<doc_id>/download', methods=['GET'])
+def download_document(prospect_id: int, doc_id: str):
+    """Renvoie le fichier stocké en base64."""
+    from flask import Response
+    chantier = _load_prospect_chantier(prospect_id)
+    if not chantier:
+        return "Introuvable", 404
+    doc = next((d for d in chantier.get('documents', []) if d['id'] == doc_id), None)
+    if not doc:
+        return "Document introuvable", 404
+    if doc.get('url'):
+        from flask import redirect
+        return redirect(doc['url'])
+    if not doc.get('data_b64'):
+        return "Aucun fichier", 404
+    file_data = base64.b64decode(doc['data_b64'])
+    return Response(
+        file_data,
+        mimetype=doc.get('type_mime', 'application/octet-stream'),
+        headers={"Content-Disposition": f"attachment; filename=\"{doc['nom']}\""}
+    )
 
 # ── API : Full data ───────────────────────────────────────────────────────────
 @chantier_bp.route('/api/<int:prospect_id>/data', methods=['GET'])
