@@ -1531,15 +1531,22 @@ def _find_lidar_hd_tile_url(lat, lon):
 
     features = data.get("features", [])
     if not features:
-        raise ValueError(
-            f"Aucune dalle LiDAR HD disponible pour lat={lat:.5f}, lon={lon:.5f} "
-            f"(zone non encore couverte ou interdite)"
+        # Exception typée pour que l'appelant puisse distinguer "zone non couverte"
+        # d'une vraie erreur réseau/serveur
+        err = ValueError(
+            f"Zone non couverte : aucune dalle LiDAR HD disponible pour "
+            f"lat={lat:.5f}, lon={lon:.5f}. "
+            f"Le programme IGN couvre ~60% du territoire métropolitain (2026). "
+            f"Consultez https://macarte.ign.fr/carte/mThSup/diffusionMNxLiDARHD"
         )
+        err.code = "NOT_COVERED"   # attribut custom pour distinguer côté appelant
+        raise err
     url = features[0]["properties"].get("url", "")
     if not url:
         raise ValueError("WFS LiDAR HD: propriété 'url' absente dans la feature")
     name = features[0]["properties"].get("name", "?")
-    print(f"  🗺️ Dalle LiDAR HD: {name}")
+    timestamp = features[0]["properties"].get("timestamp", "")
+    print(f"  🗺️ Dalle LiDAR HD: {name} (date={timestamp})")
     return url
 
 
@@ -1563,6 +1570,7 @@ def _extract_copc_building_points(copc_url, building_coords_wgs84):
     try:
         import laspy
         import io as _io
+        import numpy as np
         from pyproj import Transformer
     except ImportError as e:
         raise ImportError(f"Dépendances COPC manquantes: {e}. Ajoutez laspy[lazrs] dans requirements.txt") from e
@@ -1657,6 +1665,7 @@ def api_lidar_copc_roof():
         building_coords : [[lon, lat], ...] — polygone bâtiment (WGS84)
     """
     try:
+        import numpy as np
         body = request.get_json(force=True) or {}
         lat  = float(body['lat'])
         lon  = float(body['lon'])
@@ -1722,11 +1731,60 @@ def api_lidar_copc_roof():
         })
 
     except ValueError as e:
-        app.logger.warning(f"COPC roof ValueError: {e}")
-        return jsonify({"error": str(e)}), 422
+        code = getattr(e, 'code', 'ERROR')
+        app.logger.warning(f"COPC roof {code}: {e}")
+        return jsonify({
+            "error": str(e),
+            "error_code": code,
+            "coverage_available": code != "NOT_COVERED",
+        }), 422
     except Exception as e:
         app.logger.error(f"COPC roof error: {e}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "error_code": "SERVER_ERROR", "coverage_available": True}), 500
+
+
+# ──────────────────────────────────────────────────────────────
+# Route légère : vérifie si le LiDAR HD IGN est disponible
+# pour une position (WFS only, ~0.5s, pas de COPC streaming)
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/lidar/copc-coverage', methods=['GET'])
+def api_lidar_copc_coverage():
+    """
+    Vérifie rapidement si le LiDAR HD COPC IGN couvre une position.
+    GET ?lat=XX&lon=YY
+    Réponse : { covered: bool, tile_name: str|null, timestamp: str|null }
+    """
+    try:
+        lat = float(request.args['lat'])
+        lon = float(request.args['lon'])
+    except (KeyError, ValueError):
+        return jsonify({"error": "lat et lon requis"}), 400
+
+    delta = 0.003
+    bbox  = f"{lon-delta},{lat-delta},{lon+delta},{lat+delta},EPSG:4326"
+    wfs_url = (
+        "https://data.geopf.fr/wfs/ows"
+        "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
+        "&TYPENAMES=IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle"
+        f"&BBOX={bbox}&OUTPUTFORMAT=application/json&COUNT=1"
+    )
+    try:
+        r = requests.get(wfs_url, timeout=10)
+        r.raise_for_status()
+        features = r.json().get("features", [])
+        if not features:
+            return jsonify({"covered": False, "tile_name": None, "timestamp": None})
+        props = features[0]["properties"]
+        return jsonify({
+            "covered":   True,
+            "tile_name": props.get("name"),
+            "timestamp": props.get("timestamp"),
+            "tile_url":  props.get("url"),
+        })
+    except Exception as e:
+        app.logger.warning(f"COPC coverage check error: {e}")
+        # En cas d'erreur réseau, on ne peut pas déterminer la couverture
+        return jsonify({"covered": None, "error": str(e)})
 
 
 # ──────────────────────────────────────────────────────────────

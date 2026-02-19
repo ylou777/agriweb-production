@@ -5635,6 +5635,8 @@
                     }
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
+                    // Vérifier silencieusement la couverture COPC pour ce point
+                    checkCopcCoverage(centerLat3D, centerLon3D);
                 });
             }
         }
