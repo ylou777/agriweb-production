@@ -454,15 +454,15 @@
                     <div class="row">
                         <div class="col-md-12">
                             <select class="form-select" id="typeInstallation" onchange="updateTypeInstallation()">
-                                <option value="toiture">🏠 Toiture (inclinée)</option>
-                                <option value="ombriere" selected>🅿️ Ombrière (parking, carport)</option>
+                                <option value="toiture" selected>🏠 Toiture</option>
+                                <option value="ombriere">🅿️ Ombrière (parking, carport)</option>
                                 <option value="sol">🌾 Au sol (centrale, agrivoltaïque)</option>
                             </select>
-                            <small class="text-muted" id="typeInfo">Ombrière de parking - Structure métallique surélevée</small>
+                            <small class="text-muted" id="typeInfo">Installation en toiture - Modules fixés sur la charpente existante</small>
                         </div>
                     </div>
                     <!-- Checkbox auto 3D inclinaison (visible uniquement pour toiture) -->
-                    <div id="auto3DInclinaisonRow" class="mt-2" style="display:none;">
+                    <div id="auto3DInclinaisonRow" class="mt-2" style="display:block;">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="auto3DInclinaisonCheck" checked
                                    onchange="toggleAuto3DInclinaison(this.checked)">
@@ -475,7 +475,7 @@
                 </div>
 
                 <!-- Paramètres ombrière (visible uniquement pour type ombrière) -->
-                <div class="module-selector" id="ombriereParams" style="display: block;">
+                <div class="module-selector" id="ombriereParams" style="display: none;">
                     <h5>🅿️ Paramètres Ombrière de Parking</h5>
 
                     <!-- Catalogue de modèles ombrières -->
