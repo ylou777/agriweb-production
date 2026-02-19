@@ -118,6 +118,16 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
 .btn-orange:hover{background:#e08a10;color:#fff}
 .global-bar{height:8px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden;width:120px}
 .global-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--orange),#fdcb6e);transition:.4s}
+/* ALERTS */
+.alert-row{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:6px;font-size:.78rem;cursor:pointer;transition:background .15s}
+.alert-row:hover{filter:brightness(1.12)}
+.alert-row.a-danger{background:rgba(255,118,117,.12);border-left:3px solid #ff7675}
+.alert-row.a-warning{background:rgba(253,203,110,.10);border-left:3px solid #fdcb6e}
+.alert-row.a-info{background:rgba(116,185,255,.10);border-left:3px solid #74b9ff}
+.alert-row.a-success{background:rgba(0,184,148,.10);border-left:3px solid #00b894}
+.bell-btn{position:relative;background:transparent;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:3px 9px;color:#ccc;cursor:pointer;transition:border-color .2s}
+.bell-btn:hover{border-color:var(--orange);color:var(--orange)}
+.bell-badge{position:absolute;top:-5px;right:-5px;background:#ff7675;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;display:none}
 </style>
 </head>
 <body>
@@ -148,6 +158,10 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
       <div class="kl">Marché HT</div>
     </div>
   </div>
+  <button class="bell-btn" onclick="switchTab('dashboard');setTimeout(renderAlerts,80)" title="Alertes">
+    <i class="bi bi-bell-fill" style="font-size:.9rem"></i>
+    <span class="bell-badge" id="bellBadge"></span>
+  </button>
   <button class="btn btn-sm btn-outline-warning" onclick="showConfigModal()" title="Paramètres"><i class="bi bi-gear"></i></button>
 </div>
 
@@ -260,6 +274,17 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
         </div>
         <div style="font-size:.6rem;color:#888;margin-top:3px">Retenue : {{ chantier.retenue_garantie_pct }}%</div>
       </div>
+    </div>
+  </div>
+
+  <!-- ALERTS PANEL -->
+  <div id="alertsPanel" class="mb-3" style="display:none">
+    <div class="card-dark">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="section-title mb-0"><i class="bi bi-bell-fill" style="color:#fdcb6e"></i> Alertes chantier <span id="alertsCount" class="badge" style="background:rgba(255,255,255,.1);font-size:.65rem;vertical-align:middle">0</span></div>
+        <button class="btn btn-sm btn-link text-muted p-0" onclick="document.getElementById('alertsPanel').style.display='none'" style="font-size:.7rem">Fermer</button>
+      </div>
+      <div id="alertsList"></div>
     </div>
   </div>
 
@@ -1359,6 +1384,105 @@ body{background:var(--dark);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-
 const PID = {{ prospect.id }};
 const API = `/chantier/api/${PID}`;
 
+// ─── Alerts data ───────────────────────────────────────────────────────────────────
+const _ALERT_NCF      = {{ chantier.ncf | tojson }};
+const _ALERT_DOE      = {{ chantier.doe_documents | tojson }};
+const _ALERT_FAC      = {{ chantier.factures | tojson }};
+const _ALERT_PHASES   = {{ chantier.phases | tojson }};
+const _ALERT_FIN_PROJ = '{{ chantier.date_fin_prevue_projet | default("") }}';
+
+function computeAlerts() {
+  const alerts = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // 1. NCF Critique ouverte depuis ≥ 7 jours
+  (_ALERT_NCF || []).forEach(ncf => {
+    if (ncf.gravite === 'Critique' && ncf.statut !== 'Clôturée') {
+      const age = ncf.date_detection ? Math.floor((today - new Date(ncf.date_detection)) / 86400000) : 0;
+      if (age >= 7) alerts.push({sev:'danger', icon:'bi-exclamation-triangle-fill',
+        msg:`NCF critique « ${ncf.titre} » ouverte depuis <strong>${age} jours</strong>`, tab:'ncf'});
+      else if (age >= 0) alerts.push({sev:'warning', icon:'bi-exclamation-circle',
+        msg:`NCF critique « ${ncf.titre} » ouverte depuis ${age} jour${age>1?'s':''}`, tab:'ncf'});
+    }
+    if (ncf.gravite === 'Majeure' && ncf.statut === 'Ouverte') {
+      const age = ncf.date_detection ? Math.floor((today - new Date(ncf.date_detection)) / 86400000) : 0;
+      if (age >= 14) alerts.push({sev:'warning', icon:'bi-exclamation-circle',
+        msg:`NCF majeure « ${ncf.titre} » sans traitement depuis ${age} jours`, tab:'ncf'});
+    }
+  });
+
+  // 2. Phases en retard
+  Object.entries(_ALERT_PHASES || {}).forEach(([phId, ph]) => {
+    if (ph.date_fin_prevue && ph.statut !== 'termine') {
+      const fin = new Date(ph.date_fin_prevue);
+      const days = Math.floor((today - fin) / 86400000);
+      if (days > 0) alerts.push({sev:'warning', icon:'bi-clock-history',
+        msg:`Phase <strong>${phId.toUpperCase()}</strong> en retard de ${days} jour${days>1?'s':''}`, tab: phId});
+    }
+  });
+
+  // 3. Factures en retard de paiement
+  (_ALERT_FAC || []).forEach(f => {
+    if (f.statut === 'retard') alerts.push({sev:'warning', icon:'bi-cash-coin',
+      msg:`Facture <strong>${f.numero||f.id.slice(0,8)}</strong> en retard de paiement`, tab:'facturation'});
+  });
+
+  // 4. DOE manquants si fin de projet proche
+  if (_ALERT_FIN_PROJ) {
+    const fin = new Date(_ALERT_FIN_PROJ);
+    const daysLeft = Math.floor((fin - today) / 86400000);
+    if (daysLeft < 45) {
+      const missing = Object.values(_ALERT_DOE || {}).filter(d => d.statut === 'A_etablir').length;
+      if (missing > 0) alerts.push({
+        sev: daysLeft < 0 ? 'danger' : 'warning',
+        icon: 'bi-folder2-open',
+        msg: `<strong>${missing}</strong> document${missing>1?'s':''} DOE non établi${missing>1?'s':''} — ${daysLeft < 0 ? 'projet terminé' : `fin dans ${daysLeft} j`}`,
+        tab: 'doe'
+      });
+    }
+  }
+
+  // 5. Intervenants dont la période expire dans ≤ 7 jours
+  (_ivData || []).forEach(iv => {
+    if (iv.date_fin) {
+      const fin = new Date(iv.date_fin);
+      const days = Math.floor((fin - today) / 86400000);
+      if (days >= 0 && days <= 7) alerts.push({sev:'info', icon:'bi-person-x',
+        msg:`<strong>${iv.nom}</strong> (${iv.entreprise||iv.role}) : période expire dans ${days} j`, tab:'intervenants'});
+      else if (days < 0 && days > -7) alerts.push({sev:'warning', icon:'bi-person-dash',
+        msg:`<strong>${iv.nom}</strong> : période expirée depuis ${-days} j — renouveler ?`, tab:'intervenants'});
+    }
+  });
+
+  // 6. 0 NCF = bonne nouvelle
+  if (!alerts.length) alerts.push({sev:'success', icon:'bi-check-circle-fill',
+    msg:'Aucune alerte active — chantier dans les clous ✅', tab:null, noNav:true});
+
+  return alerts;
+}
+
+function renderAlerts(show) {
+  const alerts = computeAlerts();
+  const panel = document.getElementById('alertsPanel');
+  const list  = document.getElementById('alertsList');
+  const cnt   = document.getElementById('alertsCount');
+  const badge = document.getElementById('bellBadge');
+  const criticals = alerts.filter(a => a.sev === 'danger').length;
+  const total = alerts.filter(a => a.sev !== 'success').length;
+  cnt.textContent = total || '0';
+  badge.textContent = criticals || total;
+  badge.style.display = (criticals || total) ? 'flex' : 'none';
+  badge.style.background = criticals ? '#ff7675' : '#fdcb6e';
+  list.innerHTML = alerts.map(a =>
+    `<div class="alert-row a-${a.sev}" onclick="${a.tab && !a.noNav ? `switchTab('${a.tab}')` : ''}">
+      <i class="bi ${a.icon}" style="flex-shrink:0;font-size:.85rem;margin-top:1px"></i>
+      <div>${a.msg}</div>
+      ${a.tab && !a.noNav ? '<i class="bi bi-arrow-right ms-auto text-muted" style="font-size:.7rem;flex-shrink:0"></i>' : ''}
+    </div>`
+  ).join('');
+  if (show !== false) panel.style.display = 'block';
+}
+
 // ─── Bootstrap modal instances ────────────────────────────────────────────────
 const mConfig  = new bootstrap.Modal(document.getElementById('modalConfig'));
 const mTache   = new bootstrap.Modal(document.getElementById('modalTache'));
@@ -1572,6 +1696,7 @@ async function saveNcf() {
         mNcf.hide();
         updateNcfStats(d.stats);
         reloadNcfList();
+        renderAlerts(false);
     }
 }
 async function deleteNcf(id) {
@@ -2231,7 +2356,7 @@ async function saveIv() {
   if (d.ok) {
     if (id) { const i = _ivData.findIndex(x => x.id===id); if(i>=0) _ivData[i]={..._ivData[i],...payload}; }
     else _ivData.push(d.intervenant);
-    mIv.hide(); reloadIntervenants(); buildEquipeGantt();
+    mIv.hide(); reloadIntervenants(); buildEquipeGantt(); renderAlerts(false);
   }
 }
 
@@ -2243,7 +2368,7 @@ async function deleteIv() {
   if (d.ok) {
     _ivData = _ivData.filter(x => x.id !== id);
     _prData = _prData.filter(x => x.intervenant_id !== id);
-    mIv.hide(); reloadIntervenants(); reloadPresences(); buildEquipeGantt();
+    mIv.hide(); reloadIntervenants(); reloadPresences(); buildEquipeGantt(); renderAlerts(false);
   }
 }
 
@@ -2394,6 +2519,7 @@ function buildEquipeGantt() {
 document.addEventListener('DOMContentLoaded', () => {
   if (_ivData.length || _prData.length) { reloadIntervenants(); reloadPresences(); buildEquipeGantt(); }
   else { reloadIntervenants(); }
+  renderAlerts(false); // populate bell badge silently
 });
 </script>
 </body>
