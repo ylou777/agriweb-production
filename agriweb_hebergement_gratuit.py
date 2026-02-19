@@ -2794,30 +2794,49 @@ Définitions:
 
 Pour la direction du faîtage, indique l'orientation géographique approximative."""
 
-        vision_model = os.getenv('GROQ_VISION_MODEL', 'llama-3.2-90b-vision-preview')
-        
-        response = client.chat.completions.create(
-            model=vision_model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{img_b64}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            temperature=0.1,
-            max_tokens=300
-        )
-        
+        # Modèles vision Groq par ordre de préférence (fallback si déprécié)
+        vision_model_env = os.getenv('GROQ_VISION_MODEL', '')
+        vision_model_candidates = (
+            [vision_model_env] if vision_model_env else []
+        ) + [
+            'meta-llama/llama-4-scout-17b-16e-instruct',  # Llama 4 Scout — vision multimodal
+            'llama-3.2-11b-vision-preview',               # Llama 3.2 11B vision (stable)
+            'llama-3.2-90b-vision-preview',               # Llama 3.2 90B (peut être déprécié)
+        ]
+
+        response = None
+        vision_model = None
+        last_err = None
+        msg_payload = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}
+                ]
+            }
+        ]
+        for candidate in vision_model_candidates:
+            try:
+                print(f"🤖 AI Roof: tentative modèle {candidate}")
+                response = client.chat.completions.create(
+                    model=candidate,
+                    messages=msg_payload,
+                    temperature=0.1,
+                    max_tokens=300
+                )
+                vision_model = candidate
+                break
+            except Exception as e_model:
+                print(f"🤖 AI Roof: modèle {candidate} échoué: {e_model}")
+                last_err = e_model
+                continue
+
+        if response is None:
+            raise Exception(f"Aucun modèle vision disponible. Dernier: {last_err}")
+
         ai_text = response.choices[0].message.content.strip()
-        print(f"🤖 AI Roof réponse brute: {ai_text}")
+        print(f"🤖 AI Roof [{vision_model}] réponse brute: {ai_text}")
         
         # 4. Parser le JSON de réponse
         # Extraire le JSON même si l'IA ajoute du texte autour
@@ -2845,7 +2864,7 @@ Pour la direction du faîtage, indique l'orientation géographique approximative
             "ridge_direction": ai_result.get("ridge_direction", "unknown"),
             "confidence": round(float(ai_result.get("confidence", 0)), 2),
             "details": ai_result.get("details", ""),
-            "model": vision_model,
+            "model": vision_model or 'unknown',
             "lat": lat,
             "lon": lon
         }
@@ -2860,13 +2879,13 @@ Pour la direction du faîtage, indique l'orientation géographique approximative
         import traceback
         traceback.print_exc()
         return jsonify({
-            "success": False, 
+            "success": False,
             "ai_available": True,
             "error": str(e),
             "roof_type": "unknown",
             "nb_pans": 0,
             "confidence": 0
-        }), 500
+        })  # 200 — erreur controlée, le frontend se rabat sur l'analyse LiDAR
 
 
 # API: Proxy satellite IGN (évite CORS pour Three.js)
