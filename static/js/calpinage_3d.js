@@ -744,7 +744,7 @@ class Calpinage3DViewer {
                 _pivotX = _bldgOffX + _pcx;
                 _pivotZ = _bldgOffZ - _pcy;
                 const _mnh = panel.mnh_a * _pcx + panel.mnh_b * _pcy + panel.mnh_c;
-                _pivotY = terrainH + Math.max(wallH * 0.5, _mnh);
+                _pivotY = terrainH + Math.max(wallH, _mnh);
             }
             panGroup.position.set(_pivotX, _pivotY, _pivotZ);
             
@@ -849,7 +849,7 @@ class Calpinage3DViewer {
                         // Composante Y de l'offset perpendiculaire (0.06m le long de la normale)
                         const normLen = Math.sqrt(panel.mnh_a*panel.mnh_a + panel.mnh_b*panel.mnh_b + 1);
                         const offsetY = 0.06 * normLen; // ≈ 0.06 for gentle slopes
-                        const modY = terrainH + Math.max(wallH * 0.3, mnh) + offsetY;
+                        const modY = terrainH + Math.max(wallH, mnh) + offsetY;
                         // panel3d.position est en espace LOCAL du panGroup → soustraire le pivot monde
                         panel3d.position.set(worldX - _pivotX, modY - _pivotY, worldZ - _pivotZ);
                         // Orienter le module : long axe (X) perpendiculaire au versant (axe faîtage),
