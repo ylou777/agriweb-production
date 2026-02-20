@@ -493,13 +493,13 @@
                         </button>
                         <span id="solarStatus" class="ms-2" style="font-size:0.72rem;"></span>
 
-                        <!-- Bouton DSM Google Solar (remplace LiDAR IGN si indisponible) -->
+                        <!-- Bouton Vue 3D (reconstruction toiture) -->
                         <button type="button" id="btnDSMSolar"
                                 onclick="triggerDSMSolarAnalysis()"
                                 class="btn btn-sm ms-2"
                                 style="background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;font-size:0.78rem;padding:4px 12px;border-radius:6px;"
-                                title="Reconstruction 3D depuis le modèle de surface Google Solar (DSM). Alternative au LiDAR IGN.">
-                            🌐 DSM Google
+                                title="Reconstruction 3D de la toiture">
+                            🏠 Vue 3D
                         </button>
                         <span id="dsmSolarStatus" class="ms-2" style="font-size:0.72rem;"></span>
                     </div>
@@ -5954,11 +5954,11 @@
             const lon = viewer3D.centerLon;
             if (!lat || !lon) {
                 status.innerHTML = '<span class="text-danger">⚠ Coordonnées introuvables</span>';
-                btn.disabled = false; btn.textContent = '🌐 DSM Google'; return;
+                btn.disabled = false; btn.textContent = '� Vue 3D'; return;
             }
 
-            btn.textContent = '⏳ DSM Google…';
-            status.innerHTML = '<span class="text-info">Téléchargement DSM Google Solar…</span>'
+            btn.textContent = '⏳ Vue 3D…';
+status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</span>'
 
             try {
                 const t0     = Date.now();
@@ -6003,16 +6003,16 @@
                 updateRoofPanelsInfoPanel();
 
                 const hasSunshine = data.roof_planes.some(p => p.sunshine_annual_kwh_m2 != null);
-                status.innerHTML = `<span class="text-success">✅ ${data.roof_planes.length} plan(s) DSM`
-                    + ` — ${data.nb_pixels_roof} px — ${elapsed}s`
-                    + (hasSunshine ? ' | ☀️ flux injecté' : '') + `</span>`;
+                status.innerHTML = `<span class="text-success">✅ ${data.roof_planes.length} pan(s) détectés`
+                    + ` — ${elapsed}s`
+                    + (hasSunshine ? ' | ☀️ données solaires injectées' : '') + `</span>`;
 
             } catch (e) {
                 console.error('DSM Solar error:', e);
                 status.innerHTML = `<span class="text-danger">❌ ${e.message}</span>`;
             } finally {
                 btn.disabled    = false;
-                btn.textContent = '🌐 DSM Google';
+                btn.textContent = '� Vue 3D';
             }
         }
 
