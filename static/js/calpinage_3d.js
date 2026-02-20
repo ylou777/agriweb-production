@@ -1920,7 +1920,7 @@ class Calpinage3DViewer {
             console.log(`🔬 Toit RANSAC: ${_planes.length} plan(s) disponibles pour le bâtiment principal`);
             const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
             if (_rok) {
-                this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc);
+                this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc, roofType);
                 // Compléter les coordonnées locales (pour matchZones…)
                 this.roofPanelsInfo.buildingLocalCoords = localCoords.map(c => ({ x: c.x, z: c.z }));
                 if (this.pvBuildingCoords && this.pvBuildingCoords.length) {
@@ -3919,7 +3919,7 @@ class Calpinage3DViewer {
      * @param {Object} bldgCenter - {lat, lon}
      * @returns {Object} roofPanelsInfo compatible avec matchZonesToRoofPanels()
      */
-    _computeRoofPanelsInfoFromPlanes(planes, obb, terrainH, bh, bldgCenter) {
+    _computeRoofPanelsInfoFromPlanes(planes, obb, terrainH, bh, bldgCenter, roofType = 'tuile') {
         if (!planes || planes.length === 0) return null;
 
         const inclined = planes.filter(p => p.slope_deg >= 1.0);
@@ -3947,7 +3947,7 @@ class Calpinage3DViewer {
                 pente_deg:         plane.slope_deg,
                 orientation_deg:   plane.azimuth_deg,
                 orientation_label: this._getOrientationLabel ? this._getOrientationLabel(plane.azimuth_deg) : '',
-                surface_m2:        Math.round(realArea * 10) / 10,
+                surface:           Math.round(realArea * 10) / 10,
                 longueur:          Math.round(w * 10) / 10,
                 largeur:           Math.round(l * 10) / 10,
                 source:            'ransac',
@@ -3963,9 +3963,13 @@ class Calpinage3DViewer {
 
         const nInc = inclined.length;
         const roofTypeName = nInc >= 4 ? 'hip' : nInc >= 2 ? 'gable' : nInc === 1 ? 'shed' : 'flat';
+        const typeLabels = { 'gable': 'Bi-pan (2 versants)', 'hip': '4 pans (croupe)', 'shed': 'Mono-pente', 'flat': 'Toit plat' };
 
         return {
             type:               roofTypeName,
+            typeLabel:          typeLabels[roofTypeName] || 'Toiture RANSAC',
+            couverture:         roofType,
+            surfaceTotale:      Math.round(panelList.reduce((s, p) => s + (p.surface || 0), 0) * 10) / 10,
             panels:             panelList,
             source:             'ransac',
             buildingOBB: {
