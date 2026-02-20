@@ -1853,6 +1853,157 @@ def api_solar_building_insights():
 
 
 # ──────────────────────────────────────────────────────────────
+# API: Google Solar Data Layers — DSM + Flux pour reconstruction toiture 3D
+# Alternative LiDAR IGN (pas de couverture COPC ou COPC insuffisant)
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/solar/dsm-roof', methods=['POST'])
+def api_solar_dsm_roof():
+    """
+    Pipeline Google Solar Data Layers → reconstruction toiture 3D.
+    Alternative au LiDAR HD IGN (COPC) quand la couverture est absente.
+
+    POST body: lat, lon, building_coords, wall_h, quality
+    Retourne: roof_planes au format identique /api/lidar/copc-roof
+    """
+    try:
+        import numpy as np
+        body    = request.get_json(force=True) or {}
+        lat     = float(body['lat'])
+        lon     = float(body['lon'])
+        wall_h  = float(body.get('wall_h', 6.0))
+        quality = body.get('quality', 'HIGH')
+        bcoords = body.get('building_coords', [])
+
+        from config import GOOGLE_SOLAR_API_KEY
+
+        # ── 1. Récupérer les URLs des couches Data Layers ───────────────────
+        radius_m = 50
+        layers_url = (
+            "https://solar.googleapis.com/v1/dataLayers:get"
+            f"?location.latitude={lat}&location.longitude={lon}"
+            f"&radiusMeters={radius_m}&view=FULL_LAYERS"
+            f"&requiredQuality={quality}&key={GOOGLE_SOLAR_API_KEY}"
+        )
+        r_layers = requests.get(layers_url, timeout=20)
+        if r_layers.status_code == 403:
+            return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
+        if r_layers.status_code == 404 and quality == 'HIGH':
+            layers_url2 = layers_url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM')
+            r_layers = requests.get(layers_url2, timeout=20)
+            quality = 'MEDIUM'
+        r_layers.raise_for_status()
+        layers = r_layers.json()
+
+        dsm_url      = layers.get('dsmUrl', '')
+        mask_url     = layers.get('maskUrl', '')
+        flux_url     = layers.get('annualFluxUrl', '')
+        pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
+        bbox         = layers.get('boundingBox', {})
+        sw           = bbox.get('sw', {}); ne = bbox.get('ne', {})
+        bbox_south   = float(sw.get('latitude',  lat - 0.001))
+        bbox_north   = float(ne.get('latitude',  lat + 0.001))
+        bbox_west    = float(sw.get('longitude', lon - 0.001))
+        bbox_east    = float(ne.get('longitude', lon + 0.001))
+
+        if not dsm_url:
+            return jsonify({"error": "Pas de DSM disponible pour ce point"}), 422
+
+        print(f"🌍 DSM Google Solar: pixel={pixel_size_m}m, quality={quality}")
+
+        # ── 2. Télécharger DSM + mask + annualFlux ──────────────────────────
+        def _get_tiff_array(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+            r.raise_for_status()
+            return np.array(PILImage.open(io.BytesIO(r.content)), dtype=np.float32)
+
+        dsm_arr  = _get_tiff_array(dsm_url)
+        mask_arr = _get_tiff_array(mask_url) if mask_url else None
+        flux_arr = _get_tiff_array(flux_url) if flux_url else None
+
+        H, W = dsm_arr.shape[:2]
+        if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
+        if flux_arr is not None and flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
+
+        # ── 3. Coordonnées locales de chaque pixel ──────────────────────────
+        lat_to_m = 111320.0
+        lng_to_m = 111320.0 * math.cos(math.radians(lat))
+
+        rows_idx = np.arange(H); cols_idx = np.arange(W)
+        lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
+        lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
+        lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
+        x_grid = (lon_grid - lon) * lng_to_m
+        y_grid = (lat_grid - lat) * lat_to_m
+
+        # ── 4. Filtrer les pixels bâtiment ──────────────────────────────────
+        if mask_arr is not None:
+            bld_mask = mask_arr > 0
+        else:
+            valid_all = dsm_arr > (dsm_arr.min() + 0.1)
+            baseline_tmp = float(np.percentile(dsm_arr[valid_all], 10))
+            bld_mask = dsm_arr > (baseline_tmp + 1.5)
+
+        if bcoords and len(bcoords) >= 3:
+            from shapely.geometry import Polygon, Point
+            try:
+                poly_bld = Polygon([(float(c[0]), float(c[1])) for c in bcoords])
+                idx_r, idx_c = np.where(bld_mask)
+                for k in range(len(idx_r)):
+                    ri, ci = idx_r[k], idx_c[k]
+                    if not poly_bld.contains(Point(float(lon_grid[ri, ci]), float(lat_grid[ri, ci]))):
+                        bld_mask[ri, ci] = False
+            except Exception as e_poly:
+                print(f"  ⚠ Filtre polygone échoué: {e_poly}")
+
+        nb_pts = int(bld_mask.sum())
+        if nb_pts < 20:
+            return jsonify({"error": f"Trop peu de pixels bâtiment: {nb_pts}", "error_code": "INSUFFICIENT_DATA"}), 422
+
+        # ── 5. Normaliser z → MNH ────────────────────────────────────────────
+        z_bld = dsm_arr[bld_mask]; x_bld = x_grid[bld_mask]; y_bld = y_grid[bld_mask]
+        valid_all = dsm_arr > (dsm_arr.min() + 0.1)
+        z_baseline = float(np.percentile(dsm_arr[valid_all], 5))
+        z_mnh = (z_bld - z_baseline + wall_h).tolist()
+        print(f"  📏 DSM MNH: baseline={z_baseline:.1f}m + wall_h={wall_h:.1f}m → [{min(z_mnh):.1f},{max(z_mnh):.1f}]m, {nb_pts} px")
+
+        # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
+        roof_planes = _segment_roof_planes_ransac(
+            x_bld.tolist(), y_bld.tolist(), z_mnh,
+            grid_res=max(0.25, pixel_size_m)
+        )
+        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s)")
+
+        # ── 7. Ensoleillement moyen par plan ─────────────────────────────────
+        if flux_arr is not None:
+            flux_bld  = flux_arr[bld_mask]
+            z_mnh_arr = np.array(z_mnh)
+            for plane in roof_planes:
+                a = plane.get('mnh_a', 0); b = plane.get('mnh_b', 0); c = plane.get('mnh_c', 0)
+                z_pred  = a * x_bld + b * y_bld + c
+                inliers = np.where(np.abs(z_mnh_arr - z_pred) < 0.20)[0]
+                if len(inliers) > 0:
+                    vals = flux_bld[inliers]
+                    plane['sunshine_annual_kwh_m2'] = round(float(np.median(vals[vals > 0])), 0) if np.any(vals > 0) else None
+
+        return jsonify({
+            "success": True, "source": "google_solar_dsm", "quality": quality,
+            "pixel_size_m": pixel_size_m, "nb_pixels_roof": nb_pts,
+            "z_baseline_abs": round(z_baseline, 2),
+            "imagery_date": layers.get('imageryDate'),
+            "roof_planes": roof_planes,
+            "building_center": {"lat": lat, "lon": lon},
+        })
+
+    except KeyError as e:
+        return jsonify({"error": f"Paramètre manquant: {e}"}), 400
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Timeout Google Solar Data Layers (30s)", "error_code": "TIMEOUT"}), 504
+    except Exception as e:
+        app.logger.error(f"DSM Solar error: {e}", exc_info=True)
+        return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
+
+
+# ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/3d-data', methods=['GET'])

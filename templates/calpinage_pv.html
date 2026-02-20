@@ -5897,6 +5897,86 @@
         }
 
         /**
+         * Reconstruction 3D de toiture via Google Solar Data Layers (DSM).
+         * Alternative au LiDAR HD IGN quand la couverture COPC est absente.
+         * Pipeline identique à triggerCopcRoofAnalysis() — même rendu 3D.
+         */
+        async function triggerDSMSolarAnalysis() {
+            if (!viewer3D || !viewer3D.isActive) {
+                alert('Activez d\'abord la vue 3D.');
+                return;
+            }
+            const btn    = document.getElementById('btnDSMSolar');
+            const status = document.getElementById('dsmSolarStatus');
+
+            const buildingCoords = viewer3D.pvBuildingCoords;
+            const lat = viewer3D.centerLat;
+            const lon = viewer3D.centerLon;
+            if (!lat || !lon) {
+                status.innerHTML = '<span class="text-danger">⚠ Coordonnées introuvables</span>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ DSM Google…';
+            status.innerHTML = '<span class="text-info">Téléchargement DSM Google Solar…</span>';
+
+            try {
+                const t0     = Date.now();
+                const wall_h = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur
+                             || viewer3D.roofPanelsInfo?.buildingWallH
+                             || 6.0;
+
+                const resp = await fetch('/api/solar/dsm-roof', {
+                    method:  'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body:    JSON.stringify({ lat, lon, building_coords: buildingCoords || [], wall_h }),
+                    signal:  AbortSignal.timeout(90_000),
+                });
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    if (resp.status === 403) {
+                        status.innerHTML = `<span class="text-danger">❌ 403 — <a href="https://console.cloud.google.com/apis/library/solar.googleapis.com" target="_blank">Activer l'API Solar</a></span>`;
+                        return;
+                    }
+                    throw new Error(data.error || `HTTP ${resp.status}`);
+                }
+
+                if (!data.success || !data.roof_planes?.length) {
+                    throw new Error(`Aucun plan détecté dans le DSM (${data.error || 'pixels insuffisants'})`);
+                }
+
+                const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+                console.log(`🌐 DSM Solar: ${data.roof_planes.length} plan(s), ${data.nb_pixels_roof} px, ${elapsed}s`, data);
+
+                if (!viewer3D.lidarData) viewer3D.lidarData = {};
+                if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
+                viewer3D.lidarData.building_hd.roof_planes     = data.roof_planes;
+                viewer3D.lidarData.building_hd.building_center = data.building_center;
+                viewer3D.lidarData.building_hd.building_index  = 0;
+                viewer3D.lidarData.building_hd._source         = 'google_solar_dsm';
+                viewer3D._dsmSolarData = data;
+
+                await viewer3D._buildBuildings(viewer3D.lidarData);
+                ajusterZonesDepuisToiture3D();
+                updateRoofPanelsInfoPanel();
+
+                const hasSunshine = data.roof_planes.some(p => p.sunshine_annual_kwh_m2 != null);
+                status.innerHTML = `<span class="text-success">✅ ${data.roof_planes.length} plan(s) DSM`
+                    + ` — ${data.nb_pixels_roof} px — ${elapsed}s`
+                    + (hasSunshine ? ' | ☀️ flux injecté' : '') + `</span>`;
+
+            } catch (e) {
+                console.error('DSM Solar error:', e);
+                status.innerHTML = `<span class="text-danger">❌ ${e.message}</span>`;
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = '🌐 DSM Google';
+            }
+        }
+
+        /**
          * Google Solar API — analyse toiture + croisement LiDAR
          */
         async function triggerGoogleSolarAnalysis() {
