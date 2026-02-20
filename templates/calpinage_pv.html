@@ -5904,24 +5904,61 @@
          * Pipeline identique à triggerCopcRoofAnalysis() — même rendu 3D.
          */
         async function triggerDSMSolarAnalysis() {
-            if (!viewer3D || !viewer3D.isActive) {
-                alert('Activez d\'abord la vue 3D.');
+            if (!viewer3D) {
+                alert('⚠️ Le module 3D n\'est pas disponible');
                 return;
             }
             const btn    = document.getElementById('btnDSMSolar');
             const status = document.getElementById('dsmSolarStatus');
+            btn.disabled = true;
 
+            // ── 1. Activer la vue 3D automatiquement si pas encore active ───────────
+            if (!viewer3D.isActive) {
+                btn.textContent = '⏳ Activation 3D…';
+                status.innerHTML = '<span class="text-info">🌍 Activation vue 3D…</span>';
+                const container3D = document.getElementById('viewer3DContainer');
+                const mapCard     = document.getElementById('mapCard');
+                container3D.style.display = 'block';
+                mapCard.style.display     = 'none';
+                viewer3D.toggle();
+
+                // Même logique de centre/rayon que toggle3DView()
+                let centerLat3D = prospectLat, centerLon3D = prospectLon, radius3D = 60;
+                if (zones && zones.length > 0) {
+                    let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity, hasM = false;
+                    zones.forEach(zone => {
+                        if (zone.layer) {
+                            const b = zone.layer.getBounds();
+                            minLat = Math.min(minLat, b.getSouthWest().lat); maxLat = Math.max(maxLat, b.getNorthEast().lat);
+                            minLon = Math.min(minLon, b.getSouthWest().lng); maxLon = Math.max(maxLon, b.getNorthEast().lng);
+                            hasM = true;
+                        }
+                    });
+                    if (hasM) {
+                        centerLat3D = (minLat + maxLat) / 2; centerLon3D = (minLon + maxLon) / 2;
+                        const dLat = (maxLat - minLat) * 111320;
+                        const dLon = (maxLon - minLon) * 111320 * Math.cos(centerLat3D * Math.PI / 180);
+                        radius3D = Math.max(60, Math.ceil(Math.sqrt(dLat*dLat + dLon*dLon) / 2 + 30));
+                    }
+                }
+                radius3D = Math.min(radius3D, 250);
+                try {
+                    await viewer3D.loadLidarData(centerLat3D, centerLon3D, radius3D);
+                    update3DFromZones();
+                } catch(e) { console.warn('⚠️ Terrain 3D non chargé (non bloquant):', e.message); }
+            }
+
+            // ── 2. DSM Solar ──────────────────────────────────────────────────
             const buildingCoords = viewer3D.pvBuildingCoords;
             const lat = viewer3D.centerLat;
             const lon = viewer3D.centerLon;
             if (!lat || !lon) {
                 status.innerHTML = '<span class="text-danger">⚠ Coordonnées introuvables</span>';
-                return;
+                btn.disabled = false; btn.textContent = '🌐 DSM Google'; return;
             }
 
-            btn.disabled = true;
             btn.textContent = '⏳ DSM Google…';
-            status.innerHTML = '<span class="text-info">Téléchargement DSM Google Solar…</span>';
+            status.innerHTML = '<span class="text-info">Téléchargement DSM Google Solar…</span>'
 
             try {
                 const t0     = Date.now();
