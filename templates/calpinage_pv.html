@@ -6550,7 +6550,7 @@
          */
         function autoRemplissageToiture() {
             if (!viewer3D || !viewer3D.roofPanelsInfo || !viewer3D.roofPanelsInfo.panels.length) {
-                alert('⚠️ Aucune information de toiture détectée. Assurez-vous que les données LiDAR sont chargées.');
+                console.warn('autoRemplissageToiture: roofPanelsInfo non disponible ou aucun pan');
                 return;
             }
             
