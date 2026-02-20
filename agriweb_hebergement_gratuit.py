@@ -1790,6 +1790,24 @@ def api_solar_building_insights():
         r = requests.get(url, timeout=15)
         if r.status_code == 404:
             return jsonify({"error": "Bâtiment non trouvé dans Google Solar", "error_code": "NOT_FOUND"}), 404
+        if r.status_code == 403:
+            try:
+                msg = r.json().get('error', {}).get('message', 'Accès refusé')
+            except Exception:
+                msg = 'Accès refusé (403)'
+            return jsonify({
+                "error": msg,
+                "error_code": "FORBIDDEN",
+                "help": "Activez l'API Solar dans Google Cloud Console et vérifiez que la facturation est active sur ce projet."
+            }), 403
+        if r.status_code == 400:
+            if quality == 'HIGH':
+                url2 = url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM')
+                r2 = requests.get(url2, timeout=15)
+                if r2.ok:
+                    r = r2
+            else:
+                return jsonify({"error": "Erreur Google Solar 400", "error_code": "BAD_REQUEST"}), 400
         r.raise_for_status()
         data   = r.json()
         solar  = data.get('solarPotential', {})

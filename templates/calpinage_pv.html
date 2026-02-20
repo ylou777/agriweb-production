@@ -5922,6 +5922,12 @@
                 const data = await resp.json();
 
                 if (!resp.ok) {
+                    // 403 = API Solar non activée ou facturation manquante
+                    if (resp.status === 403) {
+                        const helpUrl = 'https://console.cloud.google.com/apis/library/solar.googleapis.com';
+                        status.innerHTML = `<span class="text-danger">❌ 403 Accès refusé — <a href="${helpUrl}" target="_blank">Activer l'API Solar</a> dans Google Cloud Console (vérifier facturation & clé API)</span>`;
+                        return;
+                    }
                     if (resp.status === 404 || data.error_code === 'BAD_REQUEST') {
                         const resp2 = await fetch(`/api/solar/building-insights?lat=${lat}&lon=${lon}&quality=MEDIUM`);
                         const data2 = await resp2.json();
