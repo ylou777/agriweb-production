@@ -3558,7 +3558,12 @@ def api_ai_roof_type():
         
         # 3. Appeler Groq Vision
         from groq import Groq
-        client = Groq(api_key=groq_key)
+        import httpx
+        try:
+            client = Groq(api_key=groq_key)
+        except TypeError:
+            # Groq SDK >= 0.9 raises TypeError if HTTP_PROXY env var injects 'proxies' kwarg
+            client = Groq(api_key=groq_key, http_client=httpx.Client())
         
         prompt = """Analyse cette image satellite aérienne d'un bâtiment vu du dessus.
 Identifie le TYPE DE TOITURE visible. Réponds UNIQUEMENT avec un JSON valide, sans texte avant ni après.
