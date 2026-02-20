@@ -3868,10 +3868,10 @@ class Calpinage3DViewer {
             for (const [px, py] of poly) {
                 const wx = bldgOffsetX + px;
                 const wz = bldgOffsetZ - py;
-                // mnh_a*px + mnh_b*py + mnh_c = MNH normalisé (0 à l'avant-toit, ridgeExtra au faîtage)
-                // wy = top-des-murs + hauteur relative sur le pan
+                // mnh = MNH en m au-dessus du terrain (même référentiel MNH-grid et COPC corrigé)
+                // wy = terrainH + MNH — formule universelle des deux chemins
                 const mnh = mnh_a * px + mnh_b * py + mnh_c;
-                const wy = terrainH + bh + Math.max(0, mnh);
+                const wy = terrainH + Math.max(bh * 0.5, mnh);
                 positions.push(wx, wy, wz);
                 uvs.push(px / 4.0, py / 4.0);
             }

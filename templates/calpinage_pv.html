@@ -5812,10 +5812,14 @@
 
             try {
                 const t0 = Date.now();
+                // Passer wall_h (hauteur mur BD TOPO) pour normaliser z→MNH correct
+                const wall_h = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur
+                            || viewer3D.roofPanelsInfo?.buildingWallH
+                            || 6.0;
                 const resp = await fetch('/api/lidar/copc-roof', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ lat, lon, building_coords: buildingCoords }),
+                    body: JSON.stringify({ lat, lon, building_coords: buildingCoords, wall_h }),
                     signal: AbortSignal.timeout(120_000),   // 2 min max
                 });
 
