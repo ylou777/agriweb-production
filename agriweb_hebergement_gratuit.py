@@ -1941,6 +1941,7 @@ def api_solar_dsm_roof():
     """
     try:
         import numpy as np
+        from PIL import Image as PILImage
         body     = request.get_json(force=True) or {}
         lat      = float(body['lat'])
         lon      = float(body['lon'])
