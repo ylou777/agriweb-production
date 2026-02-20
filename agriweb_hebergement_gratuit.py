@@ -1942,10 +1942,13 @@ def api_solar_roof_planes():
         r = requests.get(url, timeout=15)
         if r.status_code == 403:
             return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
-        if r.status_code == 404:
-            return jsonify({"error": "Bâtiment non référencé dans Google Solar", "error_code": "NOT_FOUND"}), 404
+        # Fallback HIGH → MEDIUM → LOW (couverture France partielle)
         if not r.ok and quality == 'HIGH':
             r = requests.get(url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM'), timeout=15)
+        if not r.ok:
+            r = requests.get(url.replace(f'requiredQuality={quality}', 'requiredQuality=LOW'), timeout=15)
+        if r.status_code == 404:
+            return jsonify({"error": "Bâtiment non référencé dans Google Solar", "error_code": "NOT_FOUND"}), 404
         r.raise_for_status()
         data  = r.json()
         solar = data.get('solarPotential', {})
