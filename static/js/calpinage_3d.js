@@ -1088,7 +1088,7 @@ class Calpinage3DViewer {
         const pvBuilding = selectedIdx >= 0 ? allBuildings[selectedIdx] : null;
         // Stocker les coordonnées géo du bâtiment PV pour le matching zone→pan
         this.pvBuildingCoords = pvBuilding ? pvBuilding.coords : null;
-        console.log(`🏗️ Construction du bâtiment PV (le plus proche du centre, dist=${closestDist.toFixed(1)}m)...`);
+        console.log(`🏗️ Construction du bâtiment PV (idx=${selectedIdx}, ${allBuildings.length} candidats)...`);
         
         let successCount = 0;
         try {
