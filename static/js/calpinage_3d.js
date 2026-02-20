@@ -1912,7 +1912,12 @@ class Calpinage3DViewer {
         // Vosselman & Maas (2010), CityGML LOD2 — le plus précis disponible
         // ═══════════════════════════════════════════════════════════════════
         const _buildingHD    = this.lidarData?.building_hd;
-        const _isMainBldg    = _buildingHD && _buildingHD.building_index === buildingData._bdtopoIdx;
+        // _isMainBldg: vrai si index BD TOPO correspond, OU si source DSM/COPC forcée (OSM buildings n'ont pas _bdtopoIdx)
+        const _isMainBldg    = _buildingHD && (
+            _buildingHD.building_index === buildingData._bdtopoIdx ||
+            _buildingHD._source === 'google_solar_dsm' ||
+            _buildingHD._source === 'copc'
+        );
         let   usedRansac     = false;
         if (_isMainBldg && Array.isArray(_buildingHD.roof_planes) && _buildingHD.roof_planes.length > 0) {
             const _planes = _buildingHD.roof_planes;
