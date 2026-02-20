@@ -874,6 +874,13 @@
                                 <button class="btn btn-sm btn-success me-1" id="btnAutoFillRoof" onclick="autoRemplissageToiture()" title="Remplir automatiquement les pans de toiture avec des modules PV">
                                     ⚡ Remplissage auto
                                 </button>
+                                <span style="font-size:0.74rem;display:inline-flex;align-items:center;gap:3px;vertical-align:middle;">
+                                    <input type="number" id="targetPowerKw" class="form-control form-control-sm p-0 text-center" style="width:52px;height:24px;font-size:0.74rem;" placeholder="kWc" min="1" max="9999" step="0.5" title="Puissance cible (kWc) — laisser vide pour tout remplir">
+                                    <span class="text-muted">kWc</span>
+                                    <span class="text-muted ms-1">☀️≥</span>
+                                    <input type="number" id="sunshineThreshold" class="form-control form-control-sm p-0 text-center" style="width:50px;height:24px;font-size:0.74rem;" value="900" min="0" max="2000" step="50" title="Seuil ensoleillement min (h/an) — exclut les pans trop orientés nord">
+                                    <span class="text-muted">h/an</span>
+                                </span>
                                 <button class="btn btn-sm btn-light me-1" id="updateSunPosition" onclick="updateSunDemo()" title="Simuler le soleil">
                                     ☀️ Soleil
                                 </button>
@@ -1035,7 +1042,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=36"></script>
+    <script src="/static/js/calpinage_3d.js?v=37"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6951,7 +6958,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             
             // Appeler la méthode 3D pour remplir les pans (avec obstacles)
             const obstacleRects = getObstaclesAsLocalPolygons();
-            const generatedZones = viewer3D.autoFillRoofPanels(moduleW, moduleL, espacement, disposition, null, obstacleRects);
+            const targetKw = parseFloat(document.getElementById('targetPowerKw')?.value) || 0;
+            const sunThreshold = parseFloat(document.getElementById('sunshineThreshold')?.value) || 0;
+            const generatedZones = viewer3D.autoFillRoofPanels(moduleW, moduleL, espacement, disposition, null, obstacleRects, {
+                maxPowerKw:         targetKw > 0 ? targetKw : Infinity,
+                sunshineThresholdH: sunThreshold,
+                modulePowerW:       modulePuissance,
+            });
             
             if (!generatedZones || generatedZones.length === 0) {
                 alert('⚠️ Aucun module n\'a pu être placé sur les pans de toiture.');
