@@ -201,6 +201,10 @@ class Calpinage3DViewer {
                 });
             }
             
+            // ⚡ Ignorer le RANSAC LiDAR — on utilise exclusivement Google Solar buildingInsights
+            // _autoSolarRoofPlanes() injectera building_hd après le chargement terrain
+            delete this.lidarData.building_hd;
+
             // Construire la scène 3D
             if (this.lidarData.terrain) {
                 this._buildTerrainMesh(this.lidarData.terrain, radius || 100);
@@ -1908,8 +1912,8 @@ class Calpinage3DViewer {
         this.buildings.push(mesh);
 
         // ═══════════════════════════════════════════════════════════════════
-        // PRIORITÉ 0 : Toit RANSAC depuis backend (segmentation multi-plans)
-        // Vosselman & Maas (2010), CityGML LOD2 — le plus précis disponible
+        // PRIORITÉ 0 : Toit depuis Google Solar buildingInsights
+        // building_hd injecté par _autoSolarRoofPlanes() après chargement terrain
         // ═══════════════════════════════════════════════════════════════════
         const _buildingHD    = this.lidarData?.building_hd;
         // _isMainBldg: vrai si index BD TOPO correspond, OU si source DSM/COPC forcée (OSM buildings n'ont pas _bdtopoIdx)
@@ -1923,7 +1927,7 @@ class Calpinage3DViewer {
         if (_isMainBldg && Array.isArray(_buildingHD.roof_planes) && _buildingHD.roof_planes.length > 0) {
             const _planes = _buildingHD.roof_planes;
             const _bc     = _buildingHD.building_center;   // {lat, lon}
-            console.log(`🔬 Toit RANSAC: ${_planes.length} plan(s) disponibles pour le bâtiment principal`);
+            console.log(`�️ Toit Solar: ${_planes.length} plan(s) Google Solar disponibles`);
             const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
             if (_rok) {
                 this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc, roofType);
@@ -1935,8 +1939,8 @@ class Calpinage3DViewer {
                     this.roofPanelsInfo.buildingCenterGeo = { lat: gc.y ?? _bc.lat, lng: gc.x ?? _bc.lon };
                 }
                 usedRansac = true;
-                console.log('✅ Toit RANSAC: rendu réussi — skip analyse paramétrique');
-                console.log('📐 Pans de toiture (RANSAC):', this.roofPanelsInfo);
+                console.log('✅ Toit Solar: rendu réussi — skip analyse paramétrique');
+                console.log('📐 Pans de toiture (Solar):', this.roofPanelsInfo);
             }
         }
         if (usedRansac) return;
@@ -3966,7 +3970,7 @@ class Calpinage3DViewer {
             const l  = (Math.max(...ys) - Math.min(...ys)) || obb.shortDim;
 
             return {
-                name:              `Pan RANSAC ${idx + 1}`,
+                name:              `Pan Solar ${idx + 1}`,
                 pente_deg:         plane.slope_deg,
                 orientation_deg:   plane.azimuth_deg,
                 orientation_label: this._getOrientationLabel ? this._getOrientationLabel(plane.azimuth_deg) : '',
