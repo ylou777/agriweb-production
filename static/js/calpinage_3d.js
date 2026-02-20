@@ -3849,7 +3849,11 @@ class Calpinage3DViewer {
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
 
-        const roofMat = this._getRoofMaterial(roofType);
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: this._getRoofTexture(roofType),
+            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+        });
         let nBuilt = 0;
 
         // ── Pans inclinés ──────────────────────────────────────────────
