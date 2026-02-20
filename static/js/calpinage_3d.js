@@ -615,8 +615,29 @@ class Calpinage3DViewer {
             
             // === Calculer le rectangle disponible sur ce pan ===
             let panAlongStart, panAlongEnd, panAcrossStart, panAcrossEnd;
-            
-            if (info.type === 'gable') {
+
+            // ── Priorité : bornes dérivées du polygone Google Solar ──
+            // Évite toute hypothèse sur l'ordre des pans (pi===0 → côté positif, etc.)
+            // et place les modules exactement dans l'emprise réelle de chaque plan.
+            if (panel.polygon_2d && panel.polygon_2d.length >= 3) {
+                let minAl = Infinity, maxAl = -Infinity;
+                let minAc = Infinity, maxAc = -Infinity;
+                for (const [px, py] of panel.polygon_2d) {
+                    const wx = _bldgOffX + px;
+                    const wz = _bldgOffZ - py;
+                    const dwx = wx - obb.cx, dwz = wz - obb.cz;
+                    const al =  dwx * cosA + dwz * sinA;
+                    const ac = -dwx * sinA + dwz * cosA;
+                    if (al < minAl) minAl = al;
+                    if (al > maxAl) maxAl = al;
+                    if (ac < minAc) minAc = ac;
+                    if (ac > maxAc) maxAc = ac;
+                }
+                panAlongStart  = minAl + marge;
+                panAlongEnd    = maxAl - marge;
+                panAcrossStart = minAc + marge;
+                panAcrossEnd   = maxAc - marge;
+            } else if (info.type === 'gable') {
                 // Pan rectangulaire : longueur = axe principal, largeur = demi-shortDim
                 panAlongStart = -halfLong + marge;
                 panAlongEnd = halfLong - marge;
@@ -709,20 +730,23 @@ class Calpinage3DViewer {
                 ? panAcrossStart + (usableAcross - gridAcross) / 2
                 : panAcrossEnd + (usableAcross - gridAcross) / 2;
             
-            // Créer le groupe 3D pour ce pan
-            // Le pivot doit être exactement sur la surface du toit au centre OBB.
-            // Pour les pans Solar, on calcule le Y réel depuis l'équation de plan ;
-            // pour les pans paramétriques on utilise eaveY + ridgeExtra (faîtage).
+            // Créer le groupe 3D pour ce pan.
+            // Pour les pans Solar : pivot au centroïde 3D du plan (via équation du plan),
+            // pas au centre OBB — sinon la rotation emporte les modules vers le mauvais côté.
+            // Pour les pans paramétriques : pivot au faîtage (eaveY + ridgeExtra).
             const panGroup = new THREE.Group();
+            let _pivotX = obb.cx, _pivotZ = obb.cz;
             let _pivotY = eaveY + ridgeExtra;
-            if (panel.mnh_a !== undefined && panel.mnh_b !== undefined) {
-                // Évaluer l'équation de plan au centre OBB
-                const _px = obb.cx - _bldgOffX;
-                const _py = -(obb.cz - _bldgOffZ);
-                const _mnh = panel.mnh_a * _px + panel.mnh_b * _py + panel.mnh_c;
+            if (panel.mnh_a !== undefined && panel.mnh_b !== undefined && panel.polygon_2d) {
+                // Centroïde du polygone du plan Solar en coordonnées Solar locales
+                const _pcx = panel.polygon_2d.reduce((s, p) => s + p[0], 0) / panel.polygon_2d.length;
+                const _pcy = panel.polygon_2d.reduce((s, p) => s + p[1], 0) / panel.polygon_2d.length;
+                _pivotX = _bldgOffX + _pcx;
+                _pivotZ = _bldgOffZ - _pcy;
+                const _mnh = panel.mnh_a * _pcx + panel.mnh_b * _pcy + panel.mnh_c;
                 _pivotY = terrainH + Math.max(wallH * 0.5, _mnh);
             }
-            panGroup.position.set(obb.cx, _pivotY, obb.cz);
+            panGroup.position.set(_pivotX, _pivotY, _pivotZ);
             
             const modules = [];
             
@@ -789,9 +813,9 @@ class Calpinage3DViewer {
                         if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
                     
-                    // Offset par rapport au centre du groupe
-                    const localX = along * cosA - across * sinA;
-                    const localZ = along * sinA + across * cosA;
+                    // Offset par rapport au pivot du groupe (centroïde pan Solar ou centre OBB)
+                    const localX = worldX - _pivotX;
+                    const localZ = worldZ - _pivotZ;
                     
                     // Créer le mesh du module
                     const panel3d = new THREE.Mesh(
@@ -3924,16 +3948,30 @@ class Calpinage3DViewer {
 
             const { mnh_a, mnh_b, mnh_c } = plane;
 
-            // ── Expansion légère du polygone (15cm) pour éliminer les joints ──
-            // Chaque plan est dilaté depuis son centroïde pour que les plans adjacents
-            // se chevauchent légèrement au faîtage et aux gouttières → pas de lacune visible.
+            // ── Expansion du polygone par offset de bord (Minkowski) ──
+            // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.25m.
+            // Contrairement à l'expansion depuis le centroïde, le faîtage partagé
+            // entre deux plans adjacents reçoit un offset vers l'extérieur de CHAQUE plan
+            // → les deux plans se chevauchent au faîtage → plus de lacune visible.
+            const EXP = 0.25;
             const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
             const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
-            const EXP = 0.15; // 15 cm d'expansion
-            const expandedPoly = poly.map(([px, py]) => {
-                const dx = px - cx_poly, dy = py - cy_poly;
-                const len = Math.sqrt(dx * dx + dy * dy) || 1;
-                return [px + dx / len * EXP, py + dy / len * EXP];
+            const n_poly = poly.length;
+            const expandedPoly = poly.map(([px, py], i) => {
+                const [ax, ay] = poly[(i - 1 + n_poly) % n_poly];
+                const [bx, by] = poly[(i + 1) % n_poly];
+                // Normales sortantes des deux arêtes adjacentes à ce sommet
+                const e1x = px - ax, e1y = py - ay, l1 = Math.sqrt(e1x*e1x + e1y*e1y) || 1;
+                let n1x = e1y / l1, n1y = -e1x / l1;
+                if (n1x*(px-cx_poly) + n1y*(py-cy_poly) < 0) { n1x=-n1x; n1y=-n1y; }
+                const e2x = bx - px, e2y = by - py, l2 = Math.sqrt(e2x*e2x + e2y*e2y) || 1;
+                let n2x = e2y / l2, n2y = -e2x / l2;
+                if (n2x*(px-cx_poly) + n2y*(py-cy_poly) < 0) { n2x=-n2x; n2y=-n2y; }
+                // Bissectrice des deux normales + scaling pour maintenir distance EXP
+                const bsx = n1x + n2x, bsy = n1y + n2y, bsLen = Math.sqrt(bsx*bsx + bsy*bsy) || 1;
+                const sinHalf = Math.max(0.1, bsLen / 2);
+                const scale = EXP / sinHalf;
+                return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
             });
 
             const positions = [];
