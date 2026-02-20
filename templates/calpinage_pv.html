@@ -473,35 +473,11 @@
                         </div>
                     </div>
 
-                    <!-- Bouton analyse COPC haute précision (nuage de points brut IGN) -->
-                    <div id="copcAnalysisRow" class="mt-2" style="display:block;">
-                        <button type="button" id="btnCopcAnalysis"
-                                onclick="triggerCopcRoofAnalysis()"
-                                class="btn btn-sm"
-                                style="background:linear-gradient(135deg,#0f172a,#1e3a5f);color:#e0f2fe;border:1px solid #2563eb;font-size:0.78rem;padding:4px 12px;border-radius:6px;">
-                            🔬 Analyse précision COPC
-                        </button>
-                        <span class="text-muted ms-2" style="font-size:0.72rem;">Nuage de points brut IGN (~20s)</span>
-                        <span id="copcStatus" class="ms-2" style="font-size:0.72rem;"></span>
-
-                        <!-- Bouton Google Solar -->
-                        <button type="button" id="btnGoogleSolar"
-                                onclick="triggerGoogleSolarAnalysis()"
-                                class="btn btn-sm ms-2"
-                                style="background:linear-gradient(135deg,#ea4335,#fbbc04);color:#fff;border:none;font-size:0.78rem;padding:4px 12px;border-radius:6px;">
-                            ☀️ Google Solar
-                        </button>
-                        <span id="solarStatus" class="ms-2" style="font-size:0.72rem;"></span>
-
-                        <!-- Bouton Vue 3D (reconstruction toiture) -->
-                        <button type="button" id="btnDSMSolar"
-                                onclick="triggerDSMSolarAnalysis()"
-                                class="btn btn-sm ms-2"
-                                style="background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border:none;font-size:0.78rem;padding:4px 12px;border-radius:6px;"
-                                title="Reconstruction 3D de la toiture">
-                            🏠 Vue 3D
-                        </button>
-                        <span id="dsmSolarStatus" class="ms-2" style="font-size:0.72rem;"></span>
+                    <!-- Boutons d'analyse (cachés, logique auto) -->
+                    <div id="copcAnalysisRow" class="mt-2" style="display:none;">
+                        <span id="copcStatus"></span>
+                        <span id="solarStatus"></span>
+                        <span id="dsmSolarStatus"></span>
                     </div>
                 </div>
 
@@ -5665,8 +5641,8 @@
                     }
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
-                    // Vérifier silencieusement la couverture COPC pour ce point
-                    checkCopcCoverage(centerLat3D, centerLon3D);
+                    // Reconstruction 3D toiture auto depuis données satellites
+                    _autoSolarRoofPlanes(centerLat3D, centerLon3D);
                 });
             }
         }
@@ -5785,6 +5761,38 @@
          * Met à jour le bouton + tooltip en conséquence.
          * Lancé automatiquement après le chargement de la vue 3D.
          */
+        /**
+         * Injection automatique silencieuse des plans de toiture depuis Google Solar.
+         * Appelée au chargement de la vue 3D — aucune interaction requise.
+         */
+        async function _autoSolarRoofPlanes(lat, lon) {
+            if (!viewer3D || !viewer3D.isActive) return;
+            try {
+                const wall_h = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur || 6.0;
+                const resp = await fetch('/api/solar/roof-planes', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body:    JSON.stringify({lat, lon, wall_h}),
+                    signal:  AbortSignal.timeout(20000),
+                });
+                if (!resp.ok) { console.warn('⚠ Solar roof-planes:', resp.status); return; }
+                const data = await resp.json();
+                if (!data.success || !data.roof_planes?.length) return;
+                if (!viewer3D.lidarData) viewer3D.lidarData = {};
+                if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
+                viewer3D.lidarData.building_hd.roof_planes     = data.roof_planes;
+                viewer3D.lidarData.building_hd.building_center = data.building_center;
+                viewer3D.lidarData.building_hd.building_index  = 0;
+                viewer3D.lidarData.building_hd._source         = 'google_solar_building_insights';
+                await viewer3D._buildBuildings(viewer3D.lidarData);
+                ajusterZonesDepuisToiture3D();
+                updateRoofPanelsInfoPanel();
+                console.log(`✅ Toiture 3D: ${data.nb_segments} pan(s) satellites (${data.imagery_date || ''})`);
+            } catch(e) {
+                console.warn('⚠ Auto roof-planes:', e.message);
+            }
+        }
+
         async function checkCopcCoverage(lat, lon) {
             const btn    = document.getElementById('btnCopcAnalysis');
             const status = document.getElementById('copcStatus');
