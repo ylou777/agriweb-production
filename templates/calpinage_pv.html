@@ -1042,7 +1042,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=40"></script>
+    <script src="/static/js/calpinage_3d.js?v=41"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -5649,7 +5649,17 @@
                     // Afficher les infos des pans de toiture
                     updateRoofPanelsInfoPanel();
                     // Reconstruction 3D toiture auto depuis données satellites
-                    _autoSolarRoofPlanes(centerLat3D, centerLon3D);
+                    // Utiliser le centroïde du bâtiment sélectionné (pas le point prospect qui peut
+                    // être sur la route) → Google Solar findClosest retourne le bon bâtiment
+                    let solarLat = centerLat3D, solarLon = centerLon3D;
+                    if (viewer3D.pvBuildingCoords && viewer3D.pvBuildingCoords.length) {
+                        let sLon = 0, sLat = 0;
+                        viewer3D.pvBuildingCoords.forEach(c => { sLon += c[0]; sLat += c[1]; });
+                        solarLon = sLon / viewer3D.pvBuildingCoords.length;
+                        solarLat = sLat / viewer3D.pvBuildingCoords.length;
+                        console.log(`☀️ Solar: centroïde bâtiment (${solarLat.toFixed(6)}, ${solarLon.toFixed(6)}) au lieu du point prospect`);
+                    }
+                    _autoSolarRoofPlanes(solarLat, solarLon);
                 });
             }
         }
