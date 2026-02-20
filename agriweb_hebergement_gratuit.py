@@ -1864,12 +1864,12 @@ def api_solar_roof_planes():
     """
     try:
         import math
-        from config import GOOGLE_SOLAR_API_KEY
         body    = request.get_json(force=True) or {}
         lat     = float(body['lat'])
         lon     = float(body['lon'])
         wall_h  = float(body.get('wall_h', 6.0))
         quality = body.get('quality', 'HIGH')
+        GOOGLE_SOLAR_API_KEY = os.getenv('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
         url = (
             "https://solar.googleapis.com/v1/buildingInsights:findClosest"
             f"?location.latitude={lat}&location.longitude={lon}"
