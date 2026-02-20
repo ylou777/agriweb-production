@@ -568,6 +568,12 @@ class Calpinage3DViewer {
         const eaveY = terrainH + wallH;
         // Hauteur du faîtage au-dessus de l'égout (pour positionner le pivot de rotation)
         const ridgeExtra = info.hauteurFaitageRelatif || 0;
+
+        // Offsets bâtiment → monde pour conversion des coordonnées plans Solar
+        const _bCenterGeo = info.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
+        const _lngToM = this.LAT_TO_M * Math.cos(_bCenterGeo.lat * Math.PI / 180);
+        const _bldgOffX = (_bCenterGeo.lng - this.centerLon) * _lngToM;
+        const _bldgOffZ = -(_bCenterGeo.lat - this.centerLat) * this.LAT_TO_M;
         
         // Polygone réel du bâtiment pour filtrer les modules hors emprise
         const buildingPoly = info.buildingLocalCoords || null;
@@ -704,10 +710,19 @@ class Calpinage3DViewer {
                 : panAcrossEnd + (usableAcross - gridAcross) / 2;
             
             // Créer le groupe 3D pour ce pan
-            // Le pivot est au faîtage (eaveY + ridgeExtra) pour que la rotation
-            // fasse descendre les modules correctement vers l'égout au lieu de "rentrer" dans le bâtiment
+            // Le pivot doit être exactement sur la surface du toit au centre OBB.
+            // Pour les pans Solar, on calcule le Y réel depuis l'équation de plan ;
+            // pour les pans paramétriques on utilise eaveY + ridgeExtra (faîtage).
             const panGroup = new THREE.Group();
-            panGroup.position.set(obb.cx, eaveY + ridgeExtra, obb.cz);
+            let _pivotY = eaveY + ridgeExtra;
+            if (panel.mnh_a !== undefined && panel.mnh_b !== undefined) {
+                // Évaluer l'équation de plan au centre OBB
+                const _px = obb.cx - _bldgOffX;
+                const _py = -(obb.cz - _bldgOffZ);
+                const _mnh = panel.mnh_a * _px + panel.mnh_b * _py + panel.mnh_c;
+                _pivotY = terrainH + Math.max(wallH * 0.5, _mnh);
+            }
+            panGroup.position.set(obb.cx, _pivotY, obb.cz);
             
             const modules = [];
             
@@ -783,8 +798,7 @@ class Calpinage3DViewer {
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
                         panelMat
                     );
-                    // Y = 0.15m au-dessus de la surface du groupe (normal au toit après rotation)
-                    panel3d.position.set(localX, 0.15, localZ);
+                    panel3d.position.set(localX, 0.06, localZ);
                     panel3d.rotation.y = -obb.angle;
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
@@ -3909,16 +3923,30 @@ class Calpinage3DViewer {
             if (!poly || poly.length < 3) continue;
 
             const { mnh_a, mnh_b, mnh_c } = plane;
+
+            // ── Expansion légère du polygone (15cm) pour éliminer les joints ──
+            // Chaque plan est dilaté depuis son centroïde pour que les plans adjacents
+            // se chevauchent légèrement au faîtage et aux gouttières → pas de lacune visible.
+            const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
+            const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+            const EXP = 0.15; // 15 cm d'expansion
+            const expandedPoly = poly.map(([px, py]) => {
+                const dx = px - cx_poly, dy = py - cy_poly;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                return [px + dx / len * EXP, py + dy / len * EXP];
+            });
+
             const positions = [];
             const uvs = [];
 
-            for (const [px, py] of poly) {
+            for (const [px, py] of expandedPoly) {
                 const wx = bldgOffsetX + px;
                 const wz = bldgOffsetZ - py;
                 // mnh = MNH en m au-dessus du terrain (même référentiel MNH-grid et COPC corrigé)
                 // wy = terrainH + MNH — formule universelle des deux chemins
+                // On s'assure que l'égout du toit rejoint le haut des murs (≤0.3m d'écart)
                 const mnh = mnh_a * px + mnh_b * py + mnh_c;
-                const wy = terrainH + Math.max(bh * 0.5, mnh);
+                const wy = terrainH + Math.max(bh - 0.3, mnh);
                 positions.push(wx, wy, wz);
                 uvs.push(px / 4.0, py / 4.0);
             }
@@ -3927,7 +3955,7 @@ class Calpinage3DViewer {
 
             // Triangulation en éventail (valide pour convex hull)
             const indices = [];
-            const n = poly.length;
+            const n = expandedPoly.length;
             for (let i = 1; i < n - 1; i++) indices.push(0, i, i + 1);
             if (indices.length < 3) continue;
 
@@ -3950,6 +3978,35 @@ class Calpinage3DViewer {
             this.scene.add(mesh);
             this.buildings.push(mesh);
             nBuilt++;
+
+            // ── Jupe (skirt) sous l'égout — comble le joint entre toit et murs ──
+            // Chaque arête du polygone dilaté reçoit un quad vertical descendant jusqu'à
+            // bh−1m sous le terrain pour couvrir tout interstice avec le haut des murs.
+            const skirtVerts = [];
+            const skirtBottom = terrainH - 0.5;
+            for (let si = 0; si < expandedPoly.length; si++) {
+                const [px1, py1] = expandedPoly[si];
+                const [px2, py2] = expandedPoly[(si + 1) % expandedPoly.length];
+                const wx1 = bldgOffsetX + px1, wz1 = bldgOffsetZ - py1;
+                const wx2 = bldgOffsetX + px2, wz2 = bldgOffsetZ - py2;
+                const mnh1 = mnh_a * px1 + mnh_b * py1 + mnh_c;
+                const mnh2 = mnh_a * px2 + mnh_b * py2 + mnh_c;
+                const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
+                const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
+                skirtVerts.push(
+                    wx1, skirtBottom, wz1,  wx2, wy2, wz2,        wx2, skirtBottom, wz2,
+                    wx1, skirtBottom, wz1,  wx1, wy1, wz1,         wx2, wy2, wz2
+                );
+            }
+            if (skirtVerts.length > 0) {
+                const sGeo = new THREE.BufferGeometry();
+                sGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(skirtVerts), 3));
+                sGeo.computeVertexNormals();
+                const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
+                sMesh.castShadow = false;
+                this.scene.add(sMesh);
+                this.buildings.push(sMesh);
+            }
         }
 
         if (nBuilt > 0) {
