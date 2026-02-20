@@ -2061,7 +2061,12 @@ def api_solar_dsm_roof():
         y_bld     = y_grid[bld_mask]
 
         # Baseline = p5 du DSM région (terrain autour du bâtiment)
-        valid_all = dsm_arr > (dsm_arr.min() + 0.1)  # exclure NoData (≈0)
+        # NoData Google Solar DSM = 0 ou très négatif → exclure
+        valid_all = (dsm_arr > 0) & np.isfinite(dsm_arr)
+        if not valid_all.any():
+            valid_all = np.isfinite(dsm_arr)   # fallback : tout pixel fini
+        if not valid_all.any():
+            valid_all = np.ones(dsm_arr.shape, dtype=bool)  # dernier recours
         z_baseline = float(np.percentile(dsm_arr[valid_all], 5))
         z_mnh = (z_bld - z_baseline + wall_h).tolist()
         print(f"  📏 DSM MNH: baseline={z_baseline:.1f}m + wall_h={wall_h:.1f}m → mnh=[{min(z_mnh):.1f},{max(z_mnh):.1f}]m")
