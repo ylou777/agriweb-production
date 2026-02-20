@@ -3976,60 +3976,134 @@ class Calpinage3DViewer {
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Toit bi-pan (gable) depuis le polygone réel du bâtiment.
-     * Profil en V : hauteur maximale au faîtage (across=0), zéro aux bords.
+     * Toit bi-pan (gable) depuis le polygone réel, avec fallback OBB fiable.
      */
     _createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType) {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
-        
         const heightFunc = (across, along) => {
             const t = Math.min(Math.abs(across) / Math.max(halfShort, 0.5), 1.0);
             return ridgeExtra * (1 - t);
         };
-        
-        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        try {
+            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        } catch(e) {
+            console.warn('⚠️ gable polygon échoué, fallback OBB:', e.message);
+            this._createOBBGableRoof(obb, roofBaseY, ridgeExtra, roofType);
+        }
     }
-    
+
     /**
-     * Toit 4 pans (hip/croupe) depuis le polygone réel.
-     * Faîtage raccourci au centre, croupes aux extrémités.
+     * Toit 4 pans (hip/croupe) depuis le polygone réel, avec fallback OBB.
      */
     _createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType) {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         const halfLong = obb.longDim / 2;
         const ridgeHalfLen = halfLong * 0.45;
-        
         const heightFunc = (across, along) => {
             const tAcross = Math.min(Math.abs(across) / Math.max(halfShort, 0.5), 1.0);
             const alongAbs = Math.abs(along);
             let tAlong = 0;
-            if (alongAbs > ridgeHalfLen) {
+            if (alongAbs > ridgeHalfLen)
                 tAlong = Math.min((alongAbs - ridgeHalfLen) / Math.max(halfLong - ridgeHalfLen, 0.5), 1.0);
-            }
             return ridgeExtra * Math.max(0, 1 - Math.max(tAcross, tAlong));
         };
-        
-        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        try {
+            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        } catch(e) {
+            console.warn('⚠️ hip polygon échoué, fallback OBB:', e.message);
+            this._createOBBHipRoof(obb, roofBaseY, ridgeExtra, roofType);
+        }
     }
-    
+
     /**
-     * Toit mono-pente (shed) depuis le polygone réel.
-     * Un côté est plus haut que l'autre.
+     * Toit mono-pente (shed) depuis le polygone réel, avec fallback OBB.
      */
     _createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, ridgeOffset) {
         const roofBaseY = terrainH + bh;
         const halfShort = obb.shortDim / 2;
         const highSide = ridgeOffset < 0 ? -1 : 1;
-        
         const heightFunc = (across, along) => {
             const normalizedPos = across / Math.max(halfShort, 0.5);
             const t = Math.min(Math.max((normalizedPos * highSide + 1) / 2, 0), 1);
             return ridgeExtra * t;
         };
-        
-        this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        try {
+            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
+        } catch(e) {
+            console.warn('⚠️ shed polygon échoué, fallback OBB:', e.message);
+            this._createOBBShedRoof(obb, roofBaseY, ridgeExtra, highSide, roofType);
+        }
+    }
+
+    /** Helpers OBB fiables (géométrie directe depuis l’OBB, sans triangulation) */
+    _obbCorners(obb) {
+        const cA = Math.cos(obb.angle), sA = Math.sin(obb.angle);
+        const hL = obb.longDim / 2, hS = obb.shortDim / 2;
+        return {
+            cA, sA, hL, hS,
+            flx: obb.cx + cA*hL + sA*hS, flz: obb.cz + sA*hL - cA*hS,
+            frx: obb.cx + cA*hL - sA*hS, frz: obb.cz + sA*hL + cA*hS,
+            blx: obb.cx - cA*hL + sA*hS, blz: obb.cz - sA*hL - cA*hS,
+            brx: obb.cx - cA*hL - sA*hS, brz: obb.cz - sA*hL + cA*hS,
+            r1x: obb.cx + cA*hL, r1z: obb.cz + sA*hL,
+            r2x: obb.cx - cA*hL, r2z: obb.cz - sA*hL,
+        };
+    }
+    _addTriMesh(verts, roofType) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        geo.computeVertexNormals();
+        const mat = new THREE.MeshPhongMaterial({
+            map: this._getRoofTexture(roofType),
+            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        this.scene.add(mesh);
+        this.buildings.push(mesh);
+    }
+    _createOBBGableRoof(obb, roofBaseY, ridgeExtra, roofType) {
+        const c = this._obbCorners(obb);
+        const ry = roofBaseY + ridgeExtra;
+        const verts = [
+            c.r1x,ry,c.r1z,  c.flx,roofBaseY,c.flz,  c.blx,roofBaseY,c.blz,
+            c.r1x,ry,c.r1z,  c.blx,roofBaseY,c.blz,  c.r2x,ry,c.r2z,
+            c.r1x,ry,c.r1z,  c.r2x,ry,c.r2z,  c.brx,roofBaseY,c.brz,
+            c.r1x,ry,c.r1z,  c.brx,roofBaseY,c.brz,  c.frx,roofBaseY,c.frz,
+        ];
+        this._addTriMesh(new Float32Array(verts), roofType);
+    }
+    _createOBBHipRoof(obb, roofBaseY, ridgeExtra, roofType) {
+        const c = this._obbCorners(obb);
+        const ry = roofBaseY + ridgeExtra;
+        const rhl = obb.longDim * 0.45 / 2;
+        const r1x = obb.cx + c.cA*rhl, r1z = obb.cz + c.sA*rhl;
+        const r2x = obb.cx - c.cA*rhl, r2z = obb.cz - c.sA*rhl;
+        const verts = [
+            r1x,ry,r1z,  c.frx,roofBaseY,c.frz,  c.flx,roofBaseY,c.flz,
+            r2x,ry,r2z,  c.blx,roofBaseY,c.blz,  c.brx,roofBaseY,c.brz,
+            r1x,ry,r1z,  c.flx,roofBaseY,c.flz,  c.blx,roofBaseY,c.blz,
+            r1x,ry,r1z,  c.blx,roofBaseY,c.blz,  r2x,ry,r2z,
+            r1x,ry,r1z,  r2x,ry,r2z,  c.brx,roofBaseY,c.brz,
+            r1x,ry,r1z,  c.brx,roofBaseY,c.brz,  c.frx,roofBaseY,c.frz,
+        ];
+        this._addTriMesh(new Float32Array(verts), roofType);
+    }
+    _createOBBShedRoof(obb, roofBaseY, ridgeExtra, highSide, roofType) {
+        const c = this._obbCorners(obb);
+        const [hx1,hz1,hx2,hz2] = highSide > 0
+            ? [c.flx,c.flz,c.blx,c.blz] : [c.frx,c.frz,c.brx,c.brz];
+        const [lx1,lz1,lx2,lz2] = highSide > 0
+            ? [c.frx,c.frz,c.brx,c.brz] : [c.flx,c.flz,c.blx,c.blz];
+        const hy = roofBaseY + ridgeExtra;
+        const verts = [
+            hx1,hy,hz1,  hx2,hy,hz2,  lx2,roofBaseY,lz2,
+            hx1,hy,hz1,  lx2,roofBaseY,lz2,  lx1,roofBaseY,lz1,
+        ];
+        this._addTriMesh(new Float32Array(verts), roofType);
     }
     
     /**
