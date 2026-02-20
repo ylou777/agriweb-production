@@ -1706,14 +1706,13 @@ def api_lidar_copc_roof():
             app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
             rx_f, ry_f, rz_f = rx_np, ry_np, rz_np
 
-        # ── 5. Normaliser z → MNH (hauteur/terrain) ─────────────────────────
-        # rz_f contient les altitudes brutes NGF-IGN69 (ex. 45-200m MSL).
-        # RANSAC attend du MNH = hauteur au-dessus du terrain (m).
-        # Approximation : soustraire le percentile 5 des z (≈ avant-toit).
+        # ── 5. Normaliser z → vrai MNH (hauteur au-dessus du terrain) ─────
+        wall_h  = float(body.get('wall_h', 6.0))
         z_arr_f = np.array(rz_f, dtype=np.float64)
-        z_baseline = float(np.percentile(z_arr_f, 5))
-        z_mnh = (z_arr_f - z_baseline).tolist()
-        print(f"  📏 COPC z-normalisation: baseline={z_baseline:.1f}m NGF, range={z_arr_f.min():.1f}-{z_arr_f.max():.1f}m")
+        z_baseline = float(np.percentile(z_arr_f, 5))     # ≈ altitude avant-toit NGF
+        z_mnh = (z_arr_f - z_baseline + wall_h).tolist()  # → MNH : ≈wall_h à l'égout, > wall_h au faîtage
+        print(f"  📏 COPC MNH: baseline={z_baseline:.1f}m NGF + wall_h={wall_h:.1f}m → "  
+              f"mnh_range=[{min(z_mnh):.1f},{max(z_mnh):.1f}]m")
 
         # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
         roof_planes = _segment_roof_planes_ransac(
