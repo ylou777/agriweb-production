@@ -1916,6 +1916,7 @@ class Calpinage3DViewer {
         const _isMainBldg    = _buildingHD && (
             _buildingHD.building_index === buildingData._bdtopoIdx ||
             _buildingHD._source === 'google_solar_dsm' ||
+            _buildingHD._source === 'google_solar_building_insights' ||
             _buildingHD._source === 'copc'
         );
         let   usedRansac     = false;

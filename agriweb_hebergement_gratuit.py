@@ -1853,6 +1853,122 @@ def api_solar_building_insights():
 
 
 # ──────────────────────────────────────────────────────────────
+# API: Google Solar buildingInsights → roof_planes 3D
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/solar/roof-planes', methods=['POST'])
+def api_solar_roof_planes():
+    """
+    Convertit roofSegmentStats de buildingInsights en roof_planes 3D.
+    Format identique COPC/RANSAC — injecté directement dans la vue 3D.
+    POST body: lat, lon, wall_h (défaut 6.0), quality (défaut HIGH)
+    """
+    try:
+        import math
+        from config import GOOGLE_SOLAR_API_KEY
+        body    = request.get_json(force=True) or {}
+        lat     = float(body['lat'])
+        lon     = float(body['lon'])
+        wall_h  = float(body.get('wall_h', 6.0))
+        quality = body.get('quality', 'HIGH')
+        url = (
+            "https://solar.googleapis.com/v1/buildingInsights:findClosest"
+            f"?location.latitude={lat}&location.longitude={lon}"
+            f"&requiredQuality={quality}&key={GOOGLE_SOLAR_API_KEY}"
+        )
+        r = requests.get(url, timeout=15)
+        if r.status_code == 403:
+            return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
+        if r.status_code == 404:
+            return jsonify({"error": "Bâtiment non référencé dans Google Solar", "error_code": "NOT_FOUND"}), 404
+        if not r.ok and quality == 'HIGH':
+            r = requests.get(url.replace('requiredQuality=HIGH', 'requiredQuality=MEDIUM'), timeout=15)
+        r.raise_for_status()
+        data  = r.json()
+        solar = data.get('solarPotential', {})
+        segs  = solar.get('roofSegmentStats', [])
+        if not segs:
+            return jsonify({"error": "Aucun pan de toiture dans Google Solar", "error_code": "NO_SEGMENTS"}), 422
+        lat_to_m = 111320.0
+        lng_to_m = 111320.0 * math.cos(math.radians(lat))
+        all_h    = [s.get('planeHeightAtCenterMeters', 0) for s in segs if s.get('planeHeightAtCenterMeters')]
+        h_ground = min(all_h) - wall_h if all_h else 0.0
+        roof_planes = []
+        for i, seg in enumerate(segs):
+            pitch_deg = float(seg.get('pitchDegrees', 0))
+            az_deg    = float(seg.get('azimuthDegrees', 0))
+            h_abs     = float(seg.get('planeHeightAtCenterMeters', h_ground + wall_h))
+            ctr       = seg.get('center', {})
+            lat_c     = float(ctr.get('latitude', lat))
+            lon_c     = float(ctr.get('longitude', lon))
+            area_m2   = float(seg.get('stats', {}).get('areaMeters2', 0))
+            sunshine  = seg.get('stats', {}).get('sunshineQuantiles', [])
+            cx = (lon_c - lon) * lng_to_m
+            cy = (lat_c - lat) * lat_to_m
+            p_rad  = math.radians(pitch_deg)
+            az_rad = math.radians(az_deg)
+            tan_p  = math.tan(p_rad)
+            a_p    = -tan_p * math.sin(az_rad)
+            b_p    = -tan_p * math.cos(az_rad)
+            h_mnh  = h_abs - h_ground
+            c_p    = h_mnh - a_p * cx - b_p * cy
+            bbox = seg.get('boundingBox', {})
+            sw_  = bbox.get('sw', {}); ne_ = bbox.get('ne', {})
+            if sw_ and ne_:
+                cxs = [(float(sw_.get('longitude', lon_c)) - lon) * lng_to_m,
+                       (float(ne_.get('longitude', lon_c)) - lon) * lng_to_m]
+                cys = [(float(sw_.get('latitude',  lat_c)) - lat) * lat_to_m,
+                       (float(ne_.get('latitude',  lat_c)) - lat) * lat_to_m]
+                eave_mnh   = min(a_p * x + b_p * y + c_p for x in cxs for y in cys)
+                polygon_2d = [[cxs[0], cys[0]], [cxs[1], cys[0]],
+                              [cxs[1], cys[1]], [cxs[0], cys[1]]]
+            else:
+                half       = math.sqrt(max(area_m2, 1)) / 2
+                eave_mnh   = h_mnh - tan_p * half
+                polygon_2d = [[-half, -half], [half, -half], [half, half], [-half, half]]
+            norm_n = math.sqrt(a_p**2 + b_p**2 + 1.0)
+            n_vec  = [-a_p / norm_n, -b_p / norm_n, 1.0 / norm_n]
+            sunshine_med = round(sunshine[len(sunshine)//2], 0) if sunshine else None
+            roof_planes.append({
+                'plane_id':   i + 1,
+                'mnh_a':      round(a_p, 6),
+                'mnh_b':      round(b_p, 6),
+                'mnh_c':      round(c_p, 3),
+                'normal':     [round(n_vec[0], 4), round(n_vec[1], 4), round(n_vec[2], 4)],
+                'slope_deg':  round(pitch_deg, 1),
+                'azimuth_deg': round(az_deg, 1),
+                'eave_mnh':   round(max(eave_mnh, 0.5), 2),
+                'rmse':       0.0,
+                'nb_points':  max(int(area_m2 / 0.25), 1),
+                'centroid':   [round(cx, 2), round(cy, 2)],
+                'polygon_2d': [[round(p[0], 2), round(p[1], 2)] for p in polygon_2d],
+                'z_min_mnh':  round(max(eave_mnh, 0.5), 2),
+                'z_max_mnh':  round(h_mnh, 2),
+                'confidence': 'high' if area_m2 >= 10 else 'medium',
+                'sunshine_annual_kwh_m2': sunshine_med,
+                'area_m2':    round(area_m2, 1),
+            })
+        inclined    = sorted([p for p in roof_planes if p['slope_deg'] >= 1.0], key=lambda p: -p['area_m2'])
+        flat        = [p for p in roof_planes if p['slope_deg'] < 1.0]
+        roof_planes = inclined + flat
+        return jsonify({
+            "success":         True,
+            "source":          "google_solar_building_insights",
+            "quality":         data.get('imageryQuality', quality),
+            "imagery_date":    data.get('imageryDate'),
+            "roof_planes":     roof_planes,
+            "nb_segments":     len(roof_planes),
+            "building_center": {"lat": lat, "lon": lon},
+        })
+    except KeyError as e:
+        return jsonify({"error": f"Paramètre manquant: {e}"}), 400
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Timeout Google Solar (15s)"}), 504
+    except Exception as e:
+        app.logger.error(f"Solar roof-planes error: {e}", exc_info=True)
+        return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
+
+
+# ──────────────────────────────────────────────────────────────
 # API: Google Solar Data Layers — DSM + Flux pour reconstruction toiture 3D
 # Alternative LiDAR IGN (pas de couverture COPC ou COPC insuffisant)
 # ──────────────────────────────────────────────────────────────
