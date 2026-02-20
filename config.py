@@ -1,3 +1,8 @@
+# ── Google Solar API ──────────────────────────────────────────────────────────
+import os as _os
+GOOGLE_SOLAR_API_KEY = _os.environ.get('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
+
+# ── Configuration GeoServer ───────────────────────────────────────────────────
 # Configuration pour le serveur GeoServer
 # URL locale pour développement
 GEOSERVER_URL_LOCAL = "http://localhost:8080/geoserver"

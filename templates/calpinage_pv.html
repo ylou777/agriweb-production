@@ -483,6 +483,15 @@
                         </button>
                         <span class="text-muted ms-2" style="font-size:0.72rem;">Nuage de points brut IGN (~20s)</span>
                         <span id="copcStatus" class="ms-2" style="font-size:0.72rem;"></span>
+
+                        <!-- Bouton Google Solar -->
+                        <button type="button" id="btnGoogleSolar"
+                                onclick="triggerGoogleSolarAnalysis()"
+                                class="btn btn-sm ms-2"
+                                style="background:linear-gradient(135deg,#ea4335,#fbbc04);color:#fff;border:none;font-size:0.78rem;padding:4px 12px;border-radius:6px;">
+                            ☀️ Google Solar
+                        </button>
+                        <span id="solarStatus" class="ms-2" style="font-size:0.72rem;"></span>
                     </div>
                 </div>
 
@@ -908,6 +917,17 @@
                                     <button class="btn btn-sm btn-link p-0" onclick="document.getElementById('roofPanelsInfoPanel').style.display='none'" title="Fermer">✕</button>
                                 </div>
                                 <div id="roofPanelsInfoContent"></div>
+                            </div>
+                            <!-- Panneau Google Solar -->
+                            <div id="googleSolarPanel" style="display:none; position:absolute; top:10px; right:10px; z-index:10;
+                                 background:rgba(255,255,255,0.95); border-radius:10px; padding:10px 14px;
+                                 box-shadow:0 2px 14px rgba(234,67,53,0.18); max-width:480px; max-height:320px; overflow-y:auto;
+                                 backdrop-filter:blur(6px); border:1px solid rgba(251,188,4,0.4);">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong style="font-size:0.85rem;">☀️ Google Solar API</strong>
+                                    <button class="btn btn-sm btn-link p-0" onclick="document.getElementById('googleSolarPanel').style.display='none'" title="Fermer">✕</button>
+                                </div>
+                                <div id="googleSolarContent"></div>
                             </div>
                         </div>
                         <div class="card-footer">
@@ -5874,6 +5894,110 @@
                     btn.textContent = '🔬 Analyse précision COPC';
                 }
             }
+        }
+
+        /**
+         * Google Solar API — analyse toiture + croisement LiDAR
+         */
+        async function triggerGoogleSolarAnalysis() {
+            const btn    = document.getElementById('btnGoogleSolar');
+            const status = document.getElementById('solarStatus');
+            const panel  = document.getElementById('googleSolarPanel');
+            const content = document.getElementById('googleSolarContent');
+
+            const lat = (viewer3D && viewer3D.centerLat) || window._lastClickedLat;
+            const lon = (viewer3D && viewer3D.centerLon) || window._lastClickedLon;
+            if (!lat || !lon) {
+                status.innerHTML = '<span class="text-danger">⚠ Activez d\'abord la vue 3D</span>';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = '⏳ Google Solar…';
+            status.innerHTML = '<span class="text-info">Interrogation Google Solar API…</span>';
+
+            try {
+                const t0   = Date.now();
+                const resp = await fetch(`/api/solar/building-insights?lat=${lat}&lon=${lon}&quality=HIGH`);
+                const data = await resp.json();
+
+                if (!resp.ok) {
+                    if (resp.status === 404 || data.error_code === 'BAD_REQUEST') {
+                        const resp2 = await fetch(`/api/solar/building-insights?lat=${lat}&lon=${lon}&quality=MEDIUM`);
+                        const data2 = await resp2.json();
+                        if (!resp2.ok) throw new Error(data2.error || `HTTP ${resp2.status}`);
+                        renderGoogleSolarPanel(data2, panel, content, Date.now() - t0);
+                        status.innerHTML = `<span class="text-warning">☀️ ${data2.nbSegments} segments (qualité MEDIUM)</span>`;
+                        return;
+                    }
+                    throw new Error(data.error || `HTTP ${resp.status}`);
+                }
+
+                renderGoogleSolarPanel(data, panel, content, Date.now() - t0);
+                status.innerHTML = `<span class="text-success">☀️ ${data.nbSegments} segments — ${((Date.now()-t0)/1000).toFixed(1)}s</span>`;
+
+            } catch(e) {
+                console.error('Google Solar error:', e);
+                status.innerHTML = `<span class="text-danger">❌ ${e.message}</span>`;
+            } finally {
+                btn.disabled   = false;
+                btn.textContent = '☀️ Google Solar';
+            }
+        }
+
+        function renderGoogleSolarPanel(data, panel, content, elapsed) {
+            const segs = data.roofSegments || [];
+            const lidarPans = viewer3D?.roofPanelsInfo?.panels || [];
+
+            let html = `<div style="font-size:0.78rem; color:#555;">
+                <div class="mb-1">
+                    <strong style="color:#ea4335;">Imagery:</strong> ${data.imageryDate?.year || '?'}/${data.imageryDate?.month || '?'}
+                    &nbsp;<strong>Qualité:</strong> ${data.imageryQuality || data.quality}
+                    &nbsp;<strong>Segments:</strong> ${segs.length}
+                    ${ data.maxPanelsCount ? `&nbsp;<strong>Panneaux max:</strong> ${data.maxPanelsCount}` : '' }
+                    ${ data.annualSunshineHours ? `&nbsp;<strong>☀️ max:</strong> ${Math.round(data.annualSunshineHours)}h/an` : '' }
+                </div>`;
+
+            html += `<table class="table table-sm table-bordered mb-1" style="font-size:0.75rem;">`;
+            html += `<thead><tr style="background:#fff3cd;"><th>Pan</th><th>Surface</th><th>Pente</th><th>Orient.</th><th>☀️ kWh/m²/an</th><th>Correspondance LiDAR</th></tr></thead><tbody>`;
+
+            for (const seg of segs) {
+                let matchLabel = '—';
+                let matchScore = 999;
+                for (const lp of lidarPans) {
+                    const dPitch = Math.abs((lp.pente_deg || 0) - seg.pitchDegrees);
+                    const dAz    = Math.abs(((lp.orientation_deg || 0) - seg.azimuthDegrees + 360) % 360);
+                    const dAzSym = Math.min(dAz, 360 - dAz);
+                    const score  = dPitch + dAzSym;
+                    if (score < matchScore && score < 20) {
+                        matchScore = score;
+                        matchLabel = `${lp.name} (Δ${score.toFixed(0)}°)`;
+                    }
+                }
+                const sunColor = seg.sunshineAnnual > 1200 ? '#16a34a' :
+                                 seg.sunshineAnnual > 900  ? '#ca8a04' : '#dc2626';
+                html += `<tr>
+                    <td><strong>${seg.id}</strong></td>
+                    <td>${seg.areaM2} m²</td>
+                    <td>${seg.pitchDegrees}°</td>
+                    <td><span style="color:#2563eb">${seg.azimuthDegrees}° ${seg.orientationLabel}</span></td>
+                    <td style="color:${sunColor};font-weight:600;">${seg.sunshineAnnual ?? '?'}</td>
+                    <td style="color:#6b7280;font-size:0.72rem;">${matchLabel}</td>
+                </tr>`;
+            }
+            html += `</tbody></table>`;
+
+            if (data.maxAreaM2) {
+                html += `<div class="text-end" style="font-size:0.77rem;">
+                    Surface utile max : <strong>${Math.round(data.maxAreaM2)} m²</strong>
+                    ${ data.maxPanelsCount ? ` &mdash; <strong>${data.maxPanelsCount} panneaux</strong> selon Google` : '' }
+                </div>`;
+            }
+
+            window._googleSolarData = data;
+            html += `</div>`;
+            content.innerHTML = html;
+            panel.style.display = 'block';
         }
 
         /**

@@ -1741,6 +1741,100 @@ def api_lidar_copc_roof():
 
 
 # ──────────────────────────────────────────────────────────────
+# Route légère : vérifie si le LiDAR HD IGN est disponible
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/lidar/copc-coverage', methods=['GET'])
+def api_lidar_copc_coverage():
+    try:
+        lat = float(request.args['lat'])
+        lon = float(request.args['lon'])
+    except (KeyError, ValueError):
+        return jsonify({"error": "lat et lon requis"}), 400
+    delta = 0.003
+    bbox  = f"{lon-delta},{lat-delta},{lon+delta},{lat+delta},EPSG:4326"
+    wfs_url = (
+        "https://data.geopf.fr/wfs/ows"
+        "?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature"
+        "&TYPENAMES=IGNF_NUAGES-DE-POINTS-LIDAR-HD:dalle"
+        f"&BBOX={bbox}&OUTPUTFORMAT=application/json&COUNT=1"
+    )
+    try:
+        r = requests.get(wfs_url, timeout=10)
+        r.raise_for_status()
+        features = r.json().get("features", [])
+        if not features:
+            return jsonify({"covered": False, "tile_name": None, "timestamp": None})
+        props = features[0]["properties"]
+        return jsonify({"covered": True, "tile_name": props.get("name"),
+                        "timestamp": props.get("timestamp"), "tile_url": props.get("url")})
+    except Exception as e:
+        return jsonify({"covered": None, "error": str(e)})
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Google Solar API — proxy sécurisé
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/solar/building-insights', methods=['GET'])
+def api_solar_building_insights():
+    try:
+        from config import GOOGLE_SOLAR_API_KEY
+        lat     = float(request.args['lat'])
+        lon     = float(request.args['lon'])
+        quality = request.args.get('quality', 'MEDIUM')
+        url = (
+            "https://solar.googleapis.com/v1/buildingInsights:findClosest"
+            f"?location.latitude={lat}&location.longitude={lon}"
+            f"&requiredQuality={quality}&key={GOOGLE_SOLAR_API_KEY}"
+        )
+        r = requests.get(url, timeout=15)
+        if r.status_code == 404:
+            return jsonify({"error": "Bâtiment non trouvé dans Google Solar", "error_code": "NOT_FOUND"}), 404
+        r.raise_for_status()
+        data   = r.json()
+        solar  = data.get('solarPotential', {})
+
+        def azimuth_label(deg):
+            dirs = [('N',0),('NE',45),('E',90),('SE',135),('S',180),('SO',225),('O',270),('NO',315)]
+            return min(dirs, key=lambda d: abs((deg - d[1] + 180) % 360 - 180))[0]
+
+        segments = []
+        for i, seg in enumerate(solar.get('roofSegmentStats', [])):
+            sunshine = seg.get('stats', {}).get('sunshineQuantiles', [])
+            area     = seg.get('stats', {}).get('areaMeters2', 0)
+            pitch    = round(seg.get('pitchDegrees', 0), 1)
+            azimuth  = round(seg.get('azimuthDegrees', 0), 1)
+            sunshine_med = round(sunshine[len(sunshine)//2], 0) if sunshine else None
+            segments.append({
+                'id': i + 1, 'pitchDegrees': pitch, 'azimuthDegrees': azimuth,
+                'orientationLabel': azimuth_label(azimuth), 'areaM2': round(area, 1),
+                'sunshineAnnual': sunshine_med,
+                'sunshineMin': round(sunshine[0], 0) if sunshine else None,
+                'sunshineMax': round(sunshine[-1], 0) if sunshine else None,
+                'center': seg.get('center'), 'boundingBox': seg.get('boundingBox'),
+            })
+        segments.sort(key=lambda s: -s['areaM2'])
+
+        return jsonify({
+            "success": True, "source": "google_solar", "quality": quality,
+            "imageryDate": data.get('imageryDate'), "imageryQuality": data.get('imageryQuality'),
+            "name": data.get('name'), "center": data.get('center'),
+            "roofSegments": segments,
+            "maxPanelsCount": solar.get('maxArrayPanelsCount'),
+            "maxAreaM2": solar.get('maxArrayAreaMeters2'),
+            "annualSunshineHours": solar.get('maxSunshineHoursPerYear'),
+            "nbSegments": len(segments),
+        })
+    except KeyError:
+        return jsonify({"error": "lat et lon requis"}), 400
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Timeout Google Solar API (15s)"}), 504
+    except Exception as e:
+        app.logger.error(f"Google Solar error: {e}", exc_info=True)
+        return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
+
+
+# ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/3d-data', methods=['GET'])
