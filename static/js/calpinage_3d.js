@@ -1019,21 +1019,73 @@ class Calpinage3DViewer {
             });
         }
         
-        // === Ne garder que le bâtiment le plus proche du centre (celui qui porte la centrale PV) ===
-        let closestIdx = 0;
-        let closestDist = Infinity;
-        allBuildings.forEach((b, i) => {
-            const c = this._polygonCenter(b.coords);
-            const dx = (c.x - this.centerLon) * this.LNG_TO_M;
-            const dy = (c.y - this.centerLat) * this.LAT_TO_M;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < closestDist) {
-                closestDist = dist;
-                closestIdx = i;
-            }
-        });
+        // === Sélectionner le bâtiment cible (celui qui porte la centrale PV) ===
+        //
+        // Stratégie en 3 niveaux, du plus précis au moins précis :
+        //  1. Le bâtiment dont le polygone CONTIENT le centre de la scène
+        //     (cas normal : adresse sur le bâtiment, polygone BD TOPO couvre l'adresse)
+        //  2. Le bâtiment dont l'ARÊTE du polygone est la plus proche du centre
+        //     (cas : adresse sur la route devant le bâtiment — le bâtiment cible est
+        //      à quelques mètres, pas son centroïde)
+        //
+        // Attention : NE PAS utiliser la distance centroïde-à-centre comme critère
+        // principal — un voisin avec un petit polygone peut avoir un centroïde plus proche
+        // même si le bâtiment cible est juste de l'autre côté de la route.
 
-        const pvBuilding = allBuildings[closestIdx];
+        const _pInPolyGeo = (lon, lat, coords) => {
+            let inside = false;
+            const n = coords.length;
+            for (let i = 0, j = n - 1; i < n; j = i++) {
+                const xi = coords[i][0], yi = coords[i][1];
+                const xj = coords[j][0], yj = coords[j][1];
+                if (((yi > lat) !== (yj > lat)) &&
+                    (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        };
+
+        // Distance minimale d'un point (lon,lat) à chaque arête du polygone
+        const _minEdgeDistGeo = (lon, lat, coords) => {
+            let minD = Infinity;
+            const n = coords.length;
+            const sx = this.LNG_TO_M, sy = this.LAT_TO_M;
+            for (let i = 0, j = n - 1; i < n; j = i++) {
+                const ax = (coords[i][0] - lon) * sx, ay = (coords[i][1] - lat) * sy;
+                const bx = (coords[j][0] - lon) * sx, by = (coords[j][1] - lat) * sy;
+                const dxAB = bx - ax, dyAB = by - ay;
+                const lenSq = dxAB*dxAB + dyAB*dyAB;
+                let t = lenSq > 0 ? Math.max(0, Math.min(1, -(ax*dxAB + ay*dyAB) / lenSq)) : 0;
+                const px = ax + t*dxAB, py = ay + t*dyAB;
+                const d = Math.sqrt(px*px + py*py);
+                if (d < minD) minD = d;
+            }
+            return minD;
+        };
+
+        // Niveau 1 : containment (centre exact dans le polygone)
+        let selectedIdx = -1;
+        for (let i = 0; i < allBuildings.length; i++) {
+            if (_pInPolyGeo(this.centerLon, this.centerLat, allBuildings[i].coords)) {
+                selectedIdx = i;
+                console.log(`🏗️ Bâtiment PV sélectionné par containment (idx=${i})`);
+                break;
+            }
+        }
+
+        // Niveau 2 : distance à l'arête la plus proche (centre sur route)
+        if (selectedIdx === -1) {
+            let minEdgeDist = Infinity;
+            allBuildings.forEach((b, i) => {
+                const d = _minEdgeDistGeo(this.centerLon, this.centerLat, b.coords);
+                if (d < minEdgeDist) { minEdgeDist = d; selectedIdx = i; }
+            });
+            if (selectedIdx >= 0)
+                console.log(`🏗️ Bâtiment PV sélectionné par distance bord (${minEdgeDist.toFixed(1)}m au centre)`);
+        }
+
+        const pvBuilding = selectedIdx >= 0 ? allBuildings[selectedIdx] : null;
         // Stocker les coordonnées géo du bâtiment PV pour le matching zone→pan
         this.pvBuildingCoords = pvBuilding ? pvBuilding.coords : null;
         console.log(`🏗️ Construction du bâtiment PV (le plus proche du centre, dist=${closestDist.toFixed(1)}m)...`);
