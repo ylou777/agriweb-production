@@ -3975,6 +3975,7 @@ class Calpinage3DViewer {
                 polygon_2d:        plane.polygon_2d,
                 centroid:          plane.centroid,
                 confidence:        plane.confidence,
+                sunshineAnnual:    plane.sunshine_annual_kwh_m2 !== undefined ? plane.sunshine_annual_kwh_m2 : undefined,
             };
         });
 
