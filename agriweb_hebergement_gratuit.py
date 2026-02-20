@@ -1706,9 +1706,18 @@ def api_lidar_copc_roof():
             app.logger.warning(f"COPC: filtre acrotère échoué ({e_acr}), on continue sans filtre")
             rx_f, ry_f, rz_f = rx_np, ry_np, rz_np
 
-        # ── 5. RANSAC multi-plans ─────────────────────────────────────────────
+        # ── 5. Normaliser z → MNH (hauteur/terrain) ─────────────────────────
+        # rz_f contient les altitudes brutes NGF-IGN69 (ex. 45-200m MSL).
+        # RANSAC attend du MNH = hauteur au-dessus du terrain (m).
+        # Approximation : soustraire le percentile 5 des z (≈ avant-toit).
+        z_arr_f = np.array(rz_f, dtype=np.float64)
+        z_baseline = float(np.percentile(z_arr_f, 5))
+        z_mnh = (z_arr_f - z_baseline).tolist()
+        print(f"  📏 COPC z-normalisation: baseline={z_baseline:.1f}m NGF, range={z_arr_f.min():.1f}-{z_arr_f.max():.1f}m")
+
+        # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
         roof_planes = _segment_roof_planes_ransac(
-            rx_f.tolist(), ry_f.tolist(), rz_f.tolist(),
+            rx_f.tolist(), ry_f.tolist(), z_mnh,
             grid_res=0.25
         )
         print(f"  ✅ COPC RANSAC: {len(roof_planes)} plan(s) détecté(s)")
@@ -1719,6 +1728,7 @@ def api_lidar_copc_roof():
             "tile_url": copc_url,
             "nb_points_raw": nb_raw,
             "nb_points_filtered": int(len(rx_f)),
+            "z_baseline_abs": round(z_baseline, 2),
             "roof_planes": roof_planes,
             "building_center": {"lat": cx_lat, "lon": cx_lon},
         })
