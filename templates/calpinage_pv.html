@@ -5996,6 +5996,121 @@
             html += `</div>`;
             content.innerHTML = html;
             panel.style.display = 'block';
+
+            // == CROISEMENT RÉEL avec le rendu 3D ==
+            injectGoogleSolarIntoViewer3D(data);
+        }
+
+        /**
+         * Injecte les données Google Solar dans le viewer 3D :
+         * - Si LiDAR disponible : enrichit chaque pan avec sunshineAnnual, refresh panel infos
+         * - Si pas de LiDAR   : crée un roofPanelsInfo synthétique + reconstruit géométrie 3D
+         *                       + déclenche ajusterZonesDepuisToiture3D()
+         */
+        function injectGoogleSolarIntoViewer3D(data) {
+            if (!viewer3D || !viewer3D.isActive) return;
+            const segs = data.roofSegments || [];
+            if (!segs.length) return;
+
+            const hasLidar = viewer3D.roofPanelsInfo
+                          && viewer3D.roofPanelsInfo.source !== 'google_solar'
+                          && viewer3D.roofPanelsInfo.panels?.length > 0;
+
+            if (hasLidar) {
+                // ─── Mode enrichissement ────────────────────────────────────
+                // Croiser chaque pan LiDAR avec le segment Google Solar le plus proche
+                let enriched = 0;
+                for (const lp of viewer3D.roofPanelsInfo.panels) {
+                    let best = null, bestScore = 999;
+                    for (const seg of segs) {
+                        const dP  = Math.abs((lp.pente_deg || 0) - seg.pitchDegrees);
+                        const dA0 = Math.abs(((lp.orientation_deg || 0) - seg.azimuthDegrees + 360) % 360);
+                        const dA  = Math.min(dA0, 360 - dA0);
+                        const score = dP + dA;
+                        if (score < bestScore && score < 25) { bestScore = score; best = seg; }
+                    }
+                    if (best) {
+                        lp.sunshineAnnual = best.sunshineAnnual;
+                        lp.googleSolarId  = best.id;
+                        enriched++;
+                    }
+                }
+                updateRoofPanelsInfoPanel();
+                if (enriched > 0) {
+                    const t = document.createElement('div');
+                    t.className = 'alert alert-info';
+                    t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:400px;font-size:0.86rem;box-shadow:0 4px 12px rgba(0,0,0,.25);';
+                    t.innerHTML = `<i class="fas fa-sun me-2"></i><strong>☀️ Google Solar × LiDAR</strong><br>${enriched} pan(s) enrichi(s) avec données d'ensoleillement — voir panneau Toiture ⬆`;
+                    document.body.appendChild(t);
+                    setTimeout(() => { t.style.transition='opacity .5s'; t.style.opacity='0'; setTimeout(()=>t.remove(),500); }, 5000);
+                }
+                return;
+            }
+
+            // ─── Mode injection complète (pas de LiDAR) ─────────────────────
+            // Trier les segments par surface décroissante
+            const sorted  = [...segs].sort((a, b) => b.areaM2 - a.areaM2);
+            const dominant  = sorted[0];
+            const secondary = sorted[1];
+
+            // Déterminer type de toit
+            let roofType = 'flat', typeLabel = 'Toiture plate';
+            if (dominant.pitchDegrees > 3) {
+                if (!secondary || secondary.areaM2 < dominant.areaM2 * 0.3) {
+                    roofType = 'shed'; typeLabel = 'Toiture mono-pente (Google Solar)';
+                } else if (sorted.length >= 4 && secondary.areaM2 > dominant.areaM2 * 0.6) {
+                    roofType = 'hip';  typeLabel = 'Toiture 4 pans (Google Solar)';
+                } else {
+                    roofType = 'gable'; typeLabel = 'Toiture 2 pans (Google Solar)';
+                }
+            }
+
+            // Construire panels array
+            const panels = sorted.map((seg, i) => ({
+                name:             seg.id,
+                pente_deg:        seg.pitchDegrees,
+                inclinaison:      Math.round(seg.pitchDegrees),
+                orientation_deg:  seg.azimuthDegrees,
+                orientationLabel: seg.orientationLabel,
+                surface:          seg.areaM2,
+                sunshineAnnual:   seg.sunshineAnnual,
+                source:           'google_solar',
+            }));
+
+            // Récupérer l'OBB existant (depuis BD TOPO chargé)
+            const prevInfo = viewer3D.roofPanelsInfo || {};
+
+            viewer3D.roofPanelsInfo = {
+                type:                roofType,
+                typeLabel,
+                couverture:          prevInfo.couverture || roofType,
+                surfaceTotale:       sorted.reduce((s, seg) => s + seg.areaM2, 0),
+                panels,
+                source:              'google_solar',
+                buildingOBB:         prevInfo.buildingOBB         || null,
+                buildingTerrainH:    prevInfo.buildingTerrainH    ?? 0,
+                buildingWallH:       prevInfo.buildingWallH       ?? 6,
+                buildingCenterGeo:   prevInfo.buildingCenterGeo   || { lat: viewer3D.centerLat, lng: viewer3D.centerLon },
+            };
+
+            // Reconstruire la géométrie 3D si OBB disponible
+            if (viewer3D.roofPanelsInfo.buildingOBB && typeof viewer3D.rebuildRoofFromGoogleSolar === 'function') {
+                viewer3D.rebuildRoofFromGoogleSolar(dominant, secondary, roofType);
+            }
+
+            // Appliquer les pentes aux zones PV
+            ajusterZonesDepuisToiture3D();
+            updateRoofPanelsInfoPanel();
+
+            // Notification
+            const t = document.createElement('div');
+            t.className = 'alert alert-success';
+            t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;font-size:0.86rem;box-shadow:0 4px 12px rgba(0,0,0,.25);';
+            t.innerHTML = `<i class="fas fa-mountain me-2"></i><strong>☀️ Toiture 3D depuis Google Solar</strong><br>`
+                + `Type : ${typeLabel}<br>`
+                + `${panels.length} pan(s) détecté(s) — pentes auto-appliquées aux zones PV`;
+            document.body.appendChild(t);
+            setTimeout(() => { t.style.transition='opacity .5s'; t.style.opacity='0'; setTimeout(()=>t.remove(),500); }, 7000);
         }
 
         function toggleRoofPanelsInfo() {
