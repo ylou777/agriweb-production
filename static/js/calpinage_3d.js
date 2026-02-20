@@ -568,6 +568,12 @@ class Calpinage3DViewer {
         const eaveY = terrainH + wallH;
         // Hauteur du faîtage au-dessus de l'égout (pour positionner le pivot de rotation)
         const ridgeExtra = info.hauteurFaitageRelatif || 0;
+
+        // Offsets bâtiment → monde pour conversion des coordonnées plans Solar
+        const _bCenterGeo = info.buildingCenterGeo || { lat: this.centerLat, lng: this.centerLon };
+        const _lngToM = this.LAT_TO_M * Math.cos(_bCenterGeo.lat * Math.PI / 180);
+        const _bldgOffX = (_bCenterGeo.lng - this.centerLon) * _lngToM;
+        const _bldgOffZ = -(_bCenterGeo.lat - this.centerLat) * this.LAT_TO_M;
         
         // Polygone réel du bâtiment pour filtrer les modules hors emprise
         const buildingPoly = info.buildingLocalCoords || null;
@@ -704,10 +710,19 @@ class Calpinage3DViewer {
                 : panAcrossEnd + (usableAcross - gridAcross) / 2;
             
             // Créer le groupe 3D pour ce pan
-            // Le pivot est au faîtage (eaveY + ridgeExtra) pour que la rotation
-            // fasse descendre les modules correctement vers l'égout au lieu de "rentrer" dans le bâtiment
+            // Le pivot doit être exactement sur la surface du toit au centre OBB.
+            // Pour les pans Solar, on calcule le Y réel depuis l'équation de plan ;
+            // pour les pans paramétriques on utilise eaveY + ridgeExtra (faîtage).
             const panGroup = new THREE.Group();
-            panGroup.position.set(obb.cx, eaveY + ridgeExtra, obb.cz);
+            let _pivotY = eaveY + ridgeExtra;
+            if (panel.mnh_a !== undefined && panel.mnh_b !== undefined) {
+                // Évaluer l'équation de plan au centre OBB
+                const _px = obb.cx - _bldgOffX;
+                const _py = -(obb.cz - _bldgOffZ);
+                const _mnh = panel.mnh_a * _px + panel.mnh_b * _py + panel.mnh_c;
+                _pivotY = terrainH + Math.max(wallH * 0.5, _mnh);
+            }
+            panGroup.position.set(obb.cx, _pivotY, obb.cz);
             
             const modules = [];
             
@@ -783,8 +798,7 @@ class Calpinage3DViewer {
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
                         panelMat
                     );
-                    // Y = 0.15m au-dessus de la surface du groupe (normal au toit après rotation)
-                    panel3d.position.set(localX, 0.15, localZ);
+                    panel3d.position.set(localX, 0.06, localZ);
                     panel3d.rotation.y = -obb.angle;
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
@@ -2616,6 +2630,7 @@ class Calpinage3DViewer {
         if (!this.roofPanelsInfo) return '<small class="text-muted">Aucune information de toiture</small>';
         
         const info = this.roofPanelsInfo;
+        // Vérifier si des altitudes sont disponibles (profil LiDAR réel)
         const hasAltitudes  = info.panels.some(p => p.altitude_base !== undefined);
         const hasWidthH     = info.panels.some(p => p.largeur_horizontale !== undefined);
         const hasDims       = info.panels.some(p => p.longueur !== undefined);
@@ -2663,6 +2678,7 @@ class Calpinage3DViewer {
         
         html += `</tbody></table>`;
         
+        // Calcul surface totale
         const surfaceTotale = info.surfaceTotale || info.panels.reduce((s, p) => s + (p.surface || 0), 0);
         html += `<div class="text-end"><strong>Surface totale : ${Math.round(surfaceTotale * 10) / 10} m²</strong></div>`;
         html += `</div>`;
@@ -3907,16 +3923,30 @@ class Calpinage3DViewer {
             if (!poly || poly.length < 3) continue;
 
             const { mnh_a, mnh_b, mnh_c } = plane;
+
+            // ── Expansion légère du polygone (15cm) pour éliminer les joints ──
+            // Chaque plan est dilaté depuis son centroïde pour que les plans adjacents
+            // se chevauchent légèrement au faîtage et aux gouttières → pas de lacune visible.
+            const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
+            const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
+            const EXP = 0.15; // 15 cm d'expansion
+            const expandedPoly = poly.map(([px, py]) => {
+                const dx = px - cx_poly, dy = py - cy_poly;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                return [px + dx / len * EXP, py + dy / len * EXP];
+            });
+
             const positions = [];
             const uvs = [];
 
-            for (const [px, py] of poly) {
+            for (const [px, py] of expandedPoly) {
                 const wx = bldgOffsetX + px;
                 const wz = bldgOffsetZ - py;
                 // mnh = MNH en m au-dessus du terrain (même référentiel MNH-grid et COPC corrigé)
                 // wy = terrainH + MNH — formule universelle des deux chemins
+                // On s'assure que l'égout du toit rejoint le haut des murs (≤0.3m d'écart)
                 const mnh = mnh_a * px + mnh_b * py + mnh_c;
-                const wy = terrainH + Math.max(bh * 0.5, mnh);
+                const wy = terrainH + Math.max(bh - 0.3, mnh);
                 positions.push(wx, wy, wz);
                 uvs.push(px / 4.0, py / 4.0);
             }
@@ -3925,7 +3955,7 @@ class Calpinage3DViewer {
 
             // Triangulation en éventail (valide pour convex hull)
             const indices = [];
-            const n = poly.length;
+            const n = expandedPoly.length;
             for (let i = 1; i < n - 1; i++) indices.push(0, i, i + 1);
             if (indices.length < 3) continue;
 
@@ -3948,6 +3978,35 @@ class Calpinage3DViewer {
             this.scene.add(mesh);
             this.buildings.push(mesh);
             nBuilt++;
+
+            // ── Jupe (skirt) sous l'égout — comble le joint entre toit et murs ──
+            // Chaque arête du polygone dilaté reçoit un quad vertical descendant jusqu'à
+            // bh−1m sous le terrain pour couvrir tout interstice avec le haut des murs.
+            const skirtVerts = [];
+            const skirtBottom = terrainH - 0.5;
+            for (let si = 0; si < expandedPoly.length; si++) {
+                const [px1, py1] = expandedPoly[si];
+                const [px2, py2] = expandedPoly[(si + 1) % expandedPoly.length];
+                const wx1 = bldgOffsetX + px1, wz1 = bldgOffsetZ - py1;
+                const wx2 = bldgOffsetX + px2, wz2 = bldgOffsetZ - py2;
+                const mnh1 = mnh_a * px1 + mnh_b * py1 + mnh_c;
+                const mnh2 = mnh_a * px2 + mnh_b * py2 + mnh_c;
+                const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
+                const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
+                skirtVerts.push(
+                    wx1, skirtBottom, wz1,  wx2, wy2, wz2,        wx2, skirtBottom, wz2,
+                    wx1, skirtBottom, wz1,  wx1, wy1, wz1,         wx2, wy2, wz2
+                );
+            }
+            if (skirtVerts.length > 0) {
+                const sGeo = new THREE.BufferGeometry();
+                sGeo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(skirtVerts), 3));
+                sGeo.computeVertexNormals();
+                const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
+                sMesh.castShadow = false;
+                this.scene.add(sMesh);
+                this.buildings.push(sMesh);
+            }
         }
 
         if (nBuilt > 0) {
@@ -4060,12 +4119,18 @@ class Calpinage3DViewer {
     _obbCorners(obb) {
         const cA = Math.cos(obb.angle), sA = Math.sin(obb.angle);
         const hL = obb.longDim / 2, hS = obb.shortDim / 2;
+        // along = (cA, sA), across = (sA, -cA)  in XZ
         return {
             cA, sA, hL, hS,
+            // along+, across+
             flx: obb.cx + cA*hL + sA*hS, flz: obb.cz + sA*hL - cA*hS,
+            // along+, across-
             frx: obb.cx + cA*hL - sA*hS, frz: obb.cz + sA*hL + cA*hS,
+            // along-, across+
             blx: obb.cx - cA*hL + sA*hS, blz: obb.cz - sA*hL - cA*hS,
+            // along-, across-
             brx: obb.cx - cA*hL - sA*hS, brz: obb.cz - sA*hL + cA*hS,
+            // ridge ends (along=±hL, across=0)
             r1x: obb.cx + cA*hL, r1z: obb.cz + sA*hL,
             r2x: obb.cx - cA*hL, r2z: obb.cz - sA*hL,
         };
@@ -4119,11 +4184,16 @@ class Calpinage3DViewer {
         const ridgeExtra = Math.tan(pitchRad) * obb.shortDim / 2;
 
         // Déterminer quel côté est en haut pour toit mono-pente via azimut Google Solar
-        let highSide = 1;
+        // La direction "along+" dans l'OBB est angle depuis X (Est)
+        // L'azimut Google Solar est depuis le Nord, sens horaire
+        let highSide = 1; // défaut: côté across+
         if (roofType === 'shed' && dominantSeg.azimuthDegrees !== undefined) {
+            // across+ direction en boussole = OBB angle + 90° en local → bearing
+            // OBB angle en radians depuis X (Est) → bearing depuis N = 90° - OBB_deg
             const obbBearingDeg = (90 - obb.angle * 180 / Math.PI + 360) % 360;
-            const acrossPlusBearing = (obbBearingDeg + 90) % 360;
+            const acrossPlusBearing = (obbBearingDeg + 90) % 360;  // perpendiculaire = pente montante
             const deltaAz = ((dominantSeg.azimuthDegrees - acrossPlusBearing) + 360) % 360;
+            // Si azimut est à moins de 90° du across+ → across+ est côté bas (downslope)
             highSide = (deltaAz < 90 || deltaAz > 270) ? -1 : 1;
         }
 
@@ -4135,14 +4205,18 @@ class Calpinage3DViewer {
         } else if (roofType === 'hip') {
             this._createOBBHipRoof(obb, roofBaseY, ridgeExtra, coverType);
         }
+        // flat: pas de géométrie de toit supplémentaire
         console.log(`✅ Toit reconstruit depuis Google Solar: type=${roofType}, pente=${dominantSeg.pitchDegrees}°, ridgeExtra=${ridgeExtra.toFixed(2)}m`);
     }
     _createOBBGableRoof(obb, roofBaseY, ridgeExtra, roofType) {
         const c = this._obbCorners(obb);
         const ry = roofBaseY + ridgeExtra;
+        // Pan across+ : r1→fl→bl→r2  | Pan across- : r1→r2→br→fr
         const verts = [
+            // pan +
             c.r1x,ry,c.r1z,  c.flx,roofBaseY,c.flz,  c.blx,roofBaseY,c.blz,
             c.r1x,ry,c.r1z,  c.blx,roofBaseY,c.blz,  c.r2x,ry,c.r2z,
+            // pan -
             c.r1x,ry,c.r1z,  c.r2x,ry,c.r2z,  c.brx,roofBaseY,c.brz,
             c.r1x,ry,c.r1z,  c.brx,roofBaseY,c.brz,  c.frx,roofBaseY,c.frz,
         ];
@@ -4152,13 +4226,18 @@ class Calpinage3DViewer {
         const c = this._obbCorners(obb);
         const ry = roofBaseY + ridgeExtra;
         const rhl = obb.longDim * 0.45 / 2;
+        // ridge points retraités
         const r1x = obb.cx + c.cA*rhl, r1z = obb.cz + c.sA*rhl;
         const r2x = obb.cx - c.cA*rhl, r2z = obb.cz - c.sA*rhl;
         const verts = [
+            // pan along+
             r1x,ry,r1z,  c.frx,roofBaseY,c.frz,  c.flx,roofBaseY,c.flz,
+            // pan along-
             r2x,ry,r2z,  c.blx,roofBaseY,c.blz,  c.brx,roofBaseY,c.brz,
+            // pan across+
             r1x,ry,r1z,  c.flx,roofBaseY,c.flz,  c.blx,roofBaseY,c.blz,
             r1x,ry,r1z,  c.blx,roofBaseY,c.blz,  r2x,ry,r2z,
+            // pan across-
             r1x,ry,r1z,  r2x,ry,r2z,  c.brx,roofBaseY,c.brz,
             r1x,ry,r1z,  c.brx,roofBaseY,c.brz,  c.frx,roofBaseY,c.frz,
         ];
@@ -4166,10 +4245,13 @@ class Calpinage3DViewer {
     }
     _createOBBShedRoof(obb, roofBaseY, ridgeExtra, highSide, roofType) {
         const c = this._obbCorners(obb);
+        // highSide>0 → across+ est haut
         const [hx1,hz1,hx2,hz2] = highSide > 0
-            ? [c.flx,c.flz,c.blx,c.blz] : [c.frx,c.frz,c.brx,c.brz];
+            ? [c.flx,c.flz,c.blx,c.blz]
+            : [c.frx,c.frz,c.brx,c.brz];
         const [lx1,lz1,lx2,lz2] = highSide > 0
-            ? [c.frx,c.frz,c.brx,c.brz] : [c.flx,c.flz,c.blx,c.blz];
+            ? [c.frx,c.frz,c.brx,c.brz]
+            : [c.flx,c.flz,c.blx,c.blz];
         const hy = roofBaseY + ridgeExtra;
         const verts = [
             hx1,hy,hz1,  hx2,hy,hz2,  lx2,roofBaseY,lz2,
