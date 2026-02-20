@@ -1864,9 +1864,12 @@ class Calpinage3DViewer {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
             };
-            // Cap : toit plat visible par défaut (toit en pente le recouvre avec polygonOffset)
+            // Cap : transparent - le toit en pente (OBB) le recouvre toujours
             const capMat = new THREE.MeshLambertMaterial({
-                color: 0x888888,
+                color: 0x666666,
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
@@ -3979,62 +3982,21 @@ class Calpinage3DViewer {
      * Toit bi-pan (gable) depuis le polygone réel, avec fallback OBB fiable.
      */
     _createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType) {
-        const roofBaseY = terrainH + bh;
-        const halfShort = obb.shortDim / 2;
-        const heightFunc = (across, along) => {
-            const t = Math.min(Math.abs(across) / Math.max(halfShort, 0.5), 1.0);
-            return ridgeExtra * (1 - t);
-        };
-        try {
-            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
-        } catch(e) {
-            console.warn('⚠️ gable polygon échoué, fallback OBB:', e.message);
-            this._createOBBGableRoof(obb, roofBaseY, ridgeExtra, roofType);
-        }
+        this._createOBBGableRoof(obb, terrainH + bh, ridgeExtra, roofType);
     }
 
     /**
      * Toit 4 pans (hip/croupe) depuis le polygone réel, avec fallback OBB.
      */
     _createHipRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType) {
-        const roofBaseY = terrainH + bh;
-        const halfShort = obb.shortDim / 2;
-        const halfLong = obb.longDim / 2;
-        const ridgeHalfLen = halfLong * 0.45;
-        const heightFunc = (across, along) => {
-            const tAcross = Math.min(Math.abs(across) / Math.max(halfShort, 0.5), 1.0);
-            const alongAbs = Math.abs(along);
-            let tAlong = 0;
-            if (alongAbs > ridgeHalfLen)
-                tAlong = Math.min((alongAbs - ridgeHalfLen) / Math.max(halfLong - ridgeHalfLen, 0.5), 1.0);
-            return ridgeExtra * Math.max(0, 1 - Math.max(tAcross, tAlong));
-        };
-        try {
-            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
-        } catch(e) {
-            console.warn('⚠️ hip polygon échoué, fallback OBB:', e.message);
-            this._createOBBHipRoof(obb, roofBaseY, ridgeExtra, roofType);
-        }
+        this._createOBBHipRoof(obb, terrainH + bh, ridgeExtra, roofType);
     }
 
     /**
      * Toit mono-pente (shed) depuis le polygone réel, avec fallback OBB.
      */
     _createShedRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType, ridgeOffset) {
-        const roofBaseY = terrainH + bh;
-        const halfShort = obb.shortDim / 2;
-        const highSide = ridgeOffset < 0 ? -1 : 1;
-        const heightFunc = (across, along) => {
-            const normalizedPos = across / Math.max(halfShort, 0.5);
-            const t = Math.min(Math.max((normalizedPos * highSide + 1) / 2, 0), 1);
-            return ridgeExtra * t;
-        };
-        try {
-            this._createPolygonRoof(localCoords, obb, roofBaseY, heightFunc, roofType, wallType);
-        } catch(e) {
-            console.warn('⚠️ shed polygon échoué, fallback OBB:', e.message);
-            this._createOBBShedRoof(obb, roofBaseY, ridgeExtra, highSide, roofType);
-        }
+        this._createOBBShedRoof(obb, terrainH + bh, ridgeExtra, (ridgeOffset < 0 ? -1 : 1), roofType);
     }
 
     /** Helpers OBB fiables (géométrie directe depuis l’OBB, sans triangulation) */
