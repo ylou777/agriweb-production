@@ -510,7 +510,7 @@ class Calpinage3DViewer {
      * @param {Array<number>} [panelIndices] - Indices des pans à remplir (null = tous)
      * @returns {Array<Object>} Zones générées [{panelName, orientation, inclinaison, modules: [{lat, lng, corners}]}]
      */
-    autoFillRoofPanels(moduleW, moduleH, espacement, disposition, panelIndices, obstacleRects) {
+    autoFillRoofPanels(moduleW, moduleH, espacement, disposition, panelIndices, obstacleRects, options) {
         if (!this.roofPanelsInfo || !this.roofPanelsInfo.panels.length) {
             console.warn('⚠️ Pas de roofPanelsInfo pour le remplissage auto');
             return [];
@@ -573,11 +573,32 @@ class Calpinage3DViewer {
         const buildingPoly = info.buildingLocalCoords || null;
         
         const panels = info.panels;
-        const indicesToProcess = panelIndices || panels.map((_, i) => i);
-        
+        const opts = options || {};
+        const sunshineThresholdH = opts.sunshineThresholdH || 0;
+        const maxPowerKw         = (opts.maxPowerKw > 0 && isFinite(opts.maxPowerKw)) ? opts.maxPowerKw : Infinity;
+        const modulePowerW       = opts.modulePowerW || 400;
+
+        // Trier par ensoleillement décroissant — placer en priorité les meilleurs pans
+        let indicesToProcess = panelIndices || panels.map((_, i) => i);
+        indicesToProcess = [...indicesToProcess].sort((a, b) =>
+            ((panels[b]?.sunshineAnnual || 0) - (panels[a]?.sunshineAnnual || 0))
+        );
+        // Exclure pans sous le seuil (pans sans donnée sunshine conservés)
+        if (sunshineThresholdH > 0) {
+            indicesToProcess = indicesToProcess.filter(i =>
+                panels[i]?.sunshineAnnual === undefined ||
+                panels[i].sunshineAnnual >= sunshineThresholdH
+            );
+            if (indicesToProcess.length === 0)
+                console.warn(`⚠️ Aucun pan au-dessus du seuil ${sunshineThresholdH} h/an`);
+        }
+
         let totalModules = 0;
-        
+        let modulesRemaining = isFinite(maxPowerKw) ? Math.floor(maxPowerKw * 1000 / modulePowerW) : Infinity;
+        let powerLimitReached = false;
+
         indicesToProcess.forEach(pi => {
+            if (powerLimitReached) return;
             const panel = panels[pi];
             if (!panel) return;
             
@@ -690,7 +711,7 @@ class Calpinage3DViewer {
             
             const modules = [];
             
-            for (let iAlong = 0; iAlong < nbAlong; iAlong++) {
+            outerLoop: for (let iAlong = 0; iAlong < nbAlong; iAlong++) {
                 for (let iAcross = 0; iAcross < nbAcross; iAcross++) {
                     // Position dans le repère OBB (along = axe principal, across = perpendiculaire)
                     const along = offsetAlong + iAlong * (modAlong + espacement) + modAlong / 2;
@@ -788,8 +809,12 @@ class Calpinage3DViewer {
                         lng: centerGeo.lng,
                         corners: cornersGeo
                     });
-                    
+
                     totalModules++;
+                    if (isFinite(modulesRemaining)) {
+                        modulesRemaining--;
+                        if (modulesRemaining <= 0) { powerLimitReached = true; break outerLoop; }
+                    }
                 }
             }
             
@@ -2591,7 +2616,6 @@ class Calpinage3DViewer {
         if (!this.roofPanelsInfo) return '<small class="text-muted">Aucune information de toiture</small>';
         
         const info = this.roofPanelsInfo;
-        const isGoogleSolar = info.source === 'google_solar';
         // Vérifier si des altitudes sont disponibles (profil LiDAR réel)
         const hasAltitudes  = info.panels.some(p => p.altitude_base !== undefined);
         const hasWidthH     = info.panels.some(p => p.largeur_horizontale !== undefined);
@@ -2601,7 +2625,6 @@ class Calpinage3DViewer {
         let html = `<div style="font-size:0.82rem;">`;
         html += `<div class="mb-2"><strong>🏠 ${info.typeLabel}</strong>`;
         html += ` <span class="badge bg-secondary">${info.couverture}</span>`;
-        if (isGoogleSolar) html += ` <span class="badge" style="background:#ea4335;">☀️ Google Solar</span>`;
         html += `</div>`;
         html += `<table class="table table-sm table-bordered mb-1" style="font-size:0.78rem;">`;
         html += `<thead><tr style="background:#f0f4ff;"><th>Pan</th>`;
