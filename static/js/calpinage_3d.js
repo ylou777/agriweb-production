@@ -2581,28 +2581,36 @@ class Calpinage3DViewer {
         if (!this.roofPanelsInfo) return '<small class="text-muted">Aucune information de toiture</small>';
         
         const info = this.roofPanelsInfo;
-        // Vérifier si des altitudes sont disponibles (profil LiDAR réel)
-        const hasAltitudes = info.panels.some(p => p.altitude_base !== undefined);
-        const hasWidthH = info.panels.some(p => p.largeur_horizontale !== undefined);
+        const isGoogleSolar = info.source === 'google_solar';
+        const hasAltitudes  = info.panels.some(p => p.altitude_base !== undefined);
+        const hasWidthH     = info.panels.some(p => p.largeur_horizontale !== undefined);
+        const hasDims       = info.panels.some(p => p.longueur !== undefined);
+        const hasSunshine   = info.panels.some(p => p.sunshineAnnual !== undefined);
         
         let html = `<div style="font-size:0.82rem;">`;
         html += `<div class="mb-2"><strong>🏠 ${info.typeLabel}</strong>`;
-        html += ` <span class="badge bg-secondary">${info.couverture}</span></div>`;
+        html += ` <span class="badge bg-secondary">${info.couverture}</span>`;
+        if (isGoogleSolar) html += ` <span class="badge" style="background:#ea4335;">☀️ Google Solar</span>`;
+        html += `</div>`;
         html += `<table class="table table-sm table-bordered mb-1" style="font-size:0.78rem;">`;
-        html += `<thead><tr style="background:#f0f4ff;"><th>Pan</th><th>Long.</th><th>Larg.</th>`;
+        html += `<thead><tr style="background:#f0f4ff;"><th>Pan</th>`;
+        if (hasDims) html += `<th>Long.</th><th>Larg.</th>`;
         if (hasWidthH) html += `<th>Larg.H</th>`;
         html += `<th>Surface</th><th>Pente</th><th>Orientation</th>`;
         if (hasAltitudes) html += `<th>Alt.</th>`;
+        if (hasSunshine) html += `<th>☀️ kWh/m²/an</th>`;
         html += `</tr></thead><tbody>`;
         
         for (const p of info.panels) {
             const orientBadge = p.pente_deg > 0 
-                ? `<span class="badge bg-info">${p.orientation_deg}° ${p.orientation_label}</span>`
+                ? `<span class="badge bg-info">${p.orientation_deg}° ${p.orientation_label || p.orientationLabel || ''}</span>`
                 : '—';
             html += `<tr>`;
             html += `<td><strong>${p.name}</strong></td>`;
-            html += `<td>${p.longueur} m</td>`;
-            html += `<td>${p.largeur} m</td>`;
+            if (hasDims) {
+                html += `<td>${p.longueur !== undefined ? p.longueur + ' m' : '—'}</td>`;
+                html += `<td>${p.largeur  !== undefined ? p.largeur  + ' m' : '—'}</td>`;
+            }
             if (hasWidthH) html += `<td>${p.largeur_horizontale !== undefined ? p.largeur_horizontale + ' m' : '—'}</td>`;
             html += `<td>${p.surface} m²</td>`;
             html += `<td>${p.pente_deg}°</td>`;
@@ -2612,12 +2620,16 @@ class Calpinage3DViewer {
                 if (p.altitude_faitage !== undefined) html += `<br><small>↑${p.altitude_faitage} m</small>`;
                 html += `</td>`;
             }
+            if (hasSunshine) {
+                const sun = p.sunshineAnnual;
+                const c   = sun > 1200 ? '#16a34a' : sun > 900 ? '#ca8a04' : '#dc2626';
+                html += `<td style="color:${c};font-weight:600;">${sun !== undefined ? sun : '—'}</td>`;
+            }
             html += `</tr>`;
         }
         
         html += `</tbody></table>`;
         
-        // Calcul surface totale
         const surfaceTotale = info.surfaceTotale || info.panels.reduce((s, p) => s + (p.surface || 0), 0);
         html += `<div class="text-end"><strong>Surface totale : ${Math.round(surfaceTotale * 10) / 10} m²</strong></div>`;
         html += `</div>`;
@@ -4035,8 +4047,61 @@ class Calpinage3DViewer {
         });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.castShadow = true;
+        mesh.userData.isRoofMesh = true;  // Tagged for selective removal (Google Solar rebuild)
         this.scene.add(mesh);
         this.buildings.push(mesh);
+    }
+
+    /**
+     * Reconstruit la géométrie 3D du toit depuis les données Google Solar.
+     * Remplace uniquement les mesh de toit OBB, conserve les murs.
+     * @param {Object} dominantSeg  - Segment Google Solar dominant (surface la plus grande)
+     * @param {Object} secondarySeg - Segment secondaire (null pour mono-pente)
+     * @param {string} roofType     - 'gable' | 'shed' | 'hip' | 'flat'
+     */
+    rebuildRoofFromGoogleSolar(dominantSeg, secondarySeg, roofType) {
+        // Supprimer uniquement les mesh de toit OBB (pas les murs ni RANSAC)
+        const toRemove = this.buildings.filter(b => b.userData && b.userData.isRoofMesh);
+        toRemove.forEach(b => {
+            this.scene.remove(b);
+            if (b.geometry) b.geometry.dispose();
+            if (b.material) {
+                if (Array.isArray(b.material)) b.material.forEach(m => m.dispose());
+                else b.material.dispose();
+            }
+        });
+        this.buildings = this.buildings.filter(b => !(b.userData && b.userData.isRoofMesh));
+
+        const obb      = this.roofPanelsInfo?.buildingOBB;
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH ?? 0;
+        const wallH    = this.roofPanelsInfo?.buildingWallH    ?? 6;
+        if (!obb) {
+            console.warn('rebuildRoofFromGoogleSolar: OBB manquant, impossible de reconstruire la géométrie');
+            return;
+        }
+
+        const roofBaseY  = terrainH + wallH;
+        const pitchRad   = (dominantSeg.pitchDegrees || 20) * Math.PI / 180;
+        const ridgeExtra = Math.tan(pitchRad) * obb.shortDim / 2;
+
+        // Déterminer quel côté est en haut pour toit mono-pente via azimut Google Solar
+        let highSide = 1;
+        if (roofType === 'shed' && dominantSeg.azimuthDegrees !== undefined) {
+            const obbBearingDeg = (90 - obb.angle * 180 / Math.PI + 360) % 360;
+            const acrossPlusBearing = (obbBearingDeg + 90) % 360;
+            const deltaAz = ((dominantSeg.azimuthDegrees - acrossPlusBearing) + 360) % 360;
+            highSide = (deltaAz < 90 || deltaAz > 270) ? -1 : 1;
+        }
+
+        const coverType = this.roofPanelsInfo?.couverture || 'tuile';
+        if (roofType === 'gable') {
+            this._createOBBGableRoof(obb, roofBaseY, ridgeExtra, coverType);
+        } else if (roofType === 'shed') {
+            this._createOBBShedRoof(obb, roofBaseY, ridgeExtra, highSide, coverType);
+        } else if (roofType === 'hip') {
+            this._createOBBHipRoof(obb, roofBaseY, ridgeExtra, coverType);
+        }
+        console.log(`✅ Toit reconstruit depuis Google Solar: type=${roofType}, pente=${dominantSeg.pitchDegrees}°, ridgeExtra=${ridgeExtra.toFixed(2)}m`);
     }
     _createOBBGableRoof(obb, roofBaseY, ridgeExtra, roofType) {
         const c = this._obbCorners(obb);
