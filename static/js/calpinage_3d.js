@@ -759,6 +759,25 @@ class Calpinage3DViewer {
                     // Convertir en coordonnées locales monde (rotation OBB)
                     const worldX = obb.cx + along * cosA - across * sinA;
                     const worldZ = obb.cz + along * sinA + across * cosA;
+
+                    // === Filtrage par polygone Solar du plan (PRIORITÉ 0) ===
+                    // Evite tout chevauchement inter-zones lorsque les AABB OBB se recoupent.
+                    if (panel.polygon_2d && panel.polygon_2d.length >= 3) {
+                        const sPx = worldX - _bldgOffX;
+                        const sPy = -(worldZ - _bldgOffZ);
+                        // Point-in-polygon Raycasting en coords Solar 2D
+                        let insideSolar = false;
+                        const spoly = panel.polygon_2d;
+                        for (let si = 0, sj = spoly.length - 1; si < spoly.length; sj = si++) {
+                            const xi = spoly[si][0], yi = spoly[si][1];
+                            const xj = spoly[sj][0], yj = spoly[sj][1];
+                            if (((yi > sPy) !== (yj > sPy)) &&
+                                (sPx < (xj - xi) * (sPy - yi) / (yj - yi) + xi)) {
+                                insideSolar = !insideSolar;
+                            }
+                        }
+                        if (!insideSolar) continue;
+                    }
                     
                     // === Filtrage par polygone réel du bâtiment ===
                     // Vérifier que les 4 coins du module sont dans l'emprise réelle
@@ -812,18 +831,42 @@ class Calpinage3DViewer {
                         }
                         if (hitObstacle) continue; // Module touche un obstacle → skip
                     }
-                    
-                    // Offset par rapport au pivot du groupe (centroïde pan Solar ou centre OBB)
-                    const localX = worldX - _pivotX;
-                    const localZ = worldZ - _pivotZ;
-                    
-                    // Créer le mesh du module
+
+                    // === Position et rotation du module 3D ===
                     const panel3d = new THREE.Mesh(
                         new THREE.BoxGeometry(modAlong, 0.04, modAcross),
                         panelMat
                     );
-                    panel3d.position.set(localX, 0.06, localZ);
-                    panel3d.rotation.y = -obb.angle;
+
+                    if (panel.mnh_a !== undefined && panel.mnh_b !== undefined) {
+                        // ── Positionnement direct depuis l'équation de plan Solar ──
+                        // Chaque module est positionné à son Y exact sur la surface du plan
+                        // + offset perpendiculaire ≈ 0.06m. Pas de rotation du groupe.
+                        // → élimine tout chevauchement géométrique inter-zones.
+                        const sPx = worldX - _bldgOffX;
+                        const sPy = -(worldZ - _bldgOffZ);
+                        const mnh = panel.mnh_a * sPx + panel.mnh_b * sPy + panel.mnh_c;
+                        // Composante Y de l'offset perpendiculaire (0.06m le long de la normale)
+                        const normLen = Math.sqrt(panel.mnh_a*panel.mnh_a + panel.mnh_b*panel.mnh_b + 1);
+                        const offsetY = 0.06 * normLen; // ≈ 0.06 for gentle slopes
+                        const modY = terrainH + Math.max(wallH * 0.3, mnh) + offsetY;
+                        // panel3d.position est en espace LOCAL du panGroup → soustraire le pivot monde
+                        panel3d.position.set(worldX - _pivotX, modY - _pivotY, worldZ - _pivotZ);
+                        // Orienter le module : long axe (X) perpendiculaire au versant (axe faîtage),
+                        // puis incliner rotation.x pour suivre la pente du pan.
+                        // rotation.y = π - az → X aligne le long du faîtage, Z pointe dans le sens de descente
+                        // rotation.x = penteRad → incline le côté "bas" dans la direction de descente
+                        panel3d.rotation.order = 'YXZ';
+                        panel3d.rotation.y = Math.PI - azimutRad;
+                        panel3d.rotation.x = penteRad;
+                    } else {
+                        // ── Positionnement OBB paramétrique (fallback) ──
+                        const localX = worldX - _pivotX;
+                        const localZ = worldZ - _pivotZ;
+                        panel3d.position.set(localX, 0.06, localZ);
+                        panel3d.rotation.y = -obb.angle;
+                    }
+
                     panel3d.castShadow = true;
                     panel3d.receiveShadow = true;
                     panel3d.renderOrder = 10; // S'afficher au-dessus du toit
@@ -856,8 +899,10 @@ class Calpinage3DViewer {
                 }
             }
             
-            // Appliquer la pente au groupe
-            if (penteRad > 0.001) {
+            // Appliquer la pente au groupe (uniquement pans paramétriques OBB)
+            // Les pans Solar sont déjà positionnés directement en world space → pas de rotation groupe
+            const isSolarPlan = (panel.mnh_a !== undefined && panel.mnh_b !== undefined);
+            if (!isSolarPlan && penteRad > 0.001) {
                 const tiltAxis = new THREE.Vector3(
                     -Math.cos(azimutRad), 0, -Math.sin(azimutRad)
                 ).normalize();
