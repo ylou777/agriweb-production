@@ -1940,8 +1940,10 @@ def api_solar_dsm_roof():
         if mask_arr is not None:
             bld_mask = mask_arr > 0
         else:
-            valid_all = dsm_arr > (dsm_arr.min() + 0.1)
-            baseline_tmp = float(np.percentile(dsm_arr[valid_all], 10))
+            valid_all_tmp = (dsm_arr > 0) & np.isfinite(dsm_arr)
+            if not valid_all_tmp.any(): valid_all_tmp = np.isfinite(dsm_arr)
+            if not valid_all_tmp.any(): valid_all_tmp = np.ones(dsm_arr.shape, dtype=bool)
+            baseline_tmp = float(np.percentile(dsm_arr[valid_all_tmp], 10))
             bld_mask = dsm_arr > (baseline_tmp + 1.5)
 
         if bcoords and len(bcoords) >= 3:
@@ -1962,7 +1964,13 @@ def api_solar_dsm_roof():
 
         # ── 5. Normaliser z → MNH ────────────────────────────────────────────
         z_bld = dsm_arr[bld_mask]; x_bld = x_grid[bld_mask]; y_bld = y_grid[bld_mask]
-        valid_all = dsm_arr > (dsm_arr.min() + 0.1)
+        # Baseline = p5 du DSM région (terrain autour du bâtiment)
+        # NoData Google Solar DSM = 0 → exclure
+        valid_all = (dsm_arr > 0) & np.isfinite(dsm_arr)
+        if not valid_all.any():
+            valid_all = np.isfinite(dsm_arr)
+        if not valid_all.any():
+            valid_all = np.ones(dsm_arr.shape, dtype=bool)
         z_baseline = float(np.percentile(dsm_arr[valid_all], 5))
         z_mnh = (z_bld - z_baseline + wall_h).tolist()
         print(f"  📏 DSM MNH: baseline={z_baseline:.1f}m + wall_h={wall_h:.1f}m → [{min(z_mnh):.1f},{max(z_mnh):.1f}]m, {nb_pts} px")
