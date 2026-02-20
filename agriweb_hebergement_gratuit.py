@@ -1799,6 +1799,106 @@ def api_lidar_copc_coverage():
         return jsonify({"covered": None, "error": str(e)})
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Google Solar API — proxy sécurisé (clé non exposée côté client)
+# Docs: https://developers.google.com/maps/documentation/solar
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/solar/building-insights', methods=['GET'])
+def api_solar_building_insights():
+    """
+    Proxy Google Solar API → buildingInsights:findClosest
+    GET ?lat=XX&lon=YY&quality=HIGH|MEDIUM|LOW
+
+    Retourne les infos de toiture Google Solar + segments croisés avec labels lisibles.
+    """
+    try:
+        from config import GOOGLE_SOLAR_API_KEY
+        lat     = float(request.args['lat'])
+        lon     = float(request.args['lon'])
+        quality = request.args.get('quality', 'MEDIUM')   # HIGH nécessite couverture premium
+
+        url = (
+            "https://solar.googleapis.com/v1/buildingInsights:findClosest"
+            f"?location.latitude={lat}&location.longitude={lon}"
+            f"&requiredQuality={quality}&key={GOOGLE_SOLAR_API_KEY}"
+        )
+        r = requests.get(url, timeout=15)
+
+        if r.status_code == 404:
+            return jsonify({"error": "Bâtiment non trouvé dans Google Solar", "error_code": "NOT_FOUND"}), 404
+        if r.status_code == 400:
+            # Essai fallback avec qualité inférieure
+            if quality == 'HIGH':
+                return api_solar_building_insights.__wrapped__(lat, lon, 'MEDIUM')
+            return jsonify({"error": f"Google Solar: {r.json().get('error', {}).get('message', 'Erreur 400')}", "error_code": "BAD_REQUEST"}), 400
+        r.raise_for_status()
+
+        data = r.json()
+        solar = data.get('solarPotential', {})
+
+        # ── Enrichir les segments avec des labels d'orientation ──────────────
+        def azimuth_label(deg):
+            dirs = [('N', 0), ('NE', 45), ('E', 90), ('SE', 135),
+                    ('S', 180), ('SO', 225), ('O', 270), ('NO', 315)]
+            closest = min(dirs, key=lambda d: abs((deg - d[1] + 180) % 360 - 180))
+            return closest[0]
+
+        segments = []
+        for i, seg in enumerate(solar.get('roofSegmentStats', [])):
+            sunshine = seg.get('stats', {}).get('sunshineQuantiles', [])
+            area = seg.get('stats', {}).get('areaMeters2', 0)
+            pitch = round(seg.get('pitchDegrees', 0), 1)
+            azimuth = round(seg.get('azimuthDegrees', 0), 1)
+            # Ensoleillement annuel : médiane des quantiles (kWh/m²/an)
+            sunshine_med = round(sunshine[len(sunshine)//2], 0) if sunshine else None
+            segments.append({
+                'id':              i + 1,
+                'pitchDegrees':    pitch,
+                'azimuthDegrees':  azimuth,
+                'orientationLabel': azimuth_label(azimuth),
+                'areaM2':          round(area, 1),
+                'sunshineAnnual':  sunshine_med,   # kWh/m²/an (médiane)
+                'sunshineMin':     round(sunshine[0], 0) if sunshine else None,
+                'sunshineMax':     round(sunshine[-1], 0) if sunshine else None,
+                'center':          seg.get('center'),
+                'boundingBox':     seg.get('boundingBox'),
+            })
+
+        # Trier par surface décroissante
+        segments.sort(key=lambda s: -s['areaM2'])
+
+        result = {
+            "success":         True,
+            "source":          "google_solar",
+            "quality":         quality,
+            "imageryDate":     data.get('imageryDate'),
+            "imageryQuality":  data.get('imageryQuality'),
+            "name":            data.get('name'),
+            "center":          data.get('center'),
+            "roofSegments":    segments,
+            "maxPanelsCount":  solar.get('maxArrayPanelsCount'),
+            "maxAreaM2":       solar.get('maxArrayAreaMeters2'),
+            "annualSunshineHours": solar.get('maxSunshineHoursPerYear'),
+            "carbonOffsetKgPerYear": solar.get('carbonOffsetFactorKgPerMwh'),
+            "nbSegments":      len(segments),
+            "financial": {
+                "defaultBill": solar.get('financialAnalyses', [{}])[0]
+                               .get('monthlyBill', {}).get('units') if solar.get('financialAnalyses') else None,
+                "currency": "EUR"
+            }
+        }
+        return jsonify(result)
+
+    except KeyError:
+        return jsonify({"error": "lat et lon requis"}), 400
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Timeout Google Solar API (15s)"}), 504
+    except Exception as e:
+        app.logger.error(f"Google Solar error: {e}", exc_info=True)
+        return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
+
+
 # ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
