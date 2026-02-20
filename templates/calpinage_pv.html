@@ -5767,6 +5767,8 @@
          */
         async function _autoSolarRoofPlanes(lat, lon) {
             if (!viewer3D || !viewer3D.isActive) return;
+            // Si le chargement LiDAR a échoué (503/erreur), lidarData est null → inutile d'appeler roof-planes
+            if (!viewer3D.lidarData) { console.warn('⚠ Auto roof-planes: skip (LiDAR non chargé)'); return; }
             try {
                 const wall_h = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur || 6.0;
                 const resp = await fetch('/api/solar/roof-planes', {
