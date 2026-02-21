@@ -1065,7 +1065,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=44"></script>
+    <script src="/static/js/calpinage_3d.js?v=45"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6330,7 +6330,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     heatLon = cs.reduce((s,c)=>s+c[0],0) / cs.length;
                 }
                 const resp = await fetch(
-                    `/api/solar/flux-heatmap?lat=${heatLat}&lon=${heatLon}&radius_m=80`,
+                    `/api/solar/flux-heatmap?lat=${heatLat}&lon=${heatLon}&radius_m=50`,  // 50m = bâtiment seul sans déborder
                     { signal: AbortSignal.timeout(30000) }
                 );
                 if (!resp.ok) {

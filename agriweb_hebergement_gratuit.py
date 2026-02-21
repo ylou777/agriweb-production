@@ -2191,7 +2191,11 @@ def api_solar_flux_heatmap():
             r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
             r.raise_for_status()
             img = PILImage.open(io.BytesIO(r.content))
-            return np.array(img, dtype=np.float32)
+            arr = np.array(img)
+            # PIL lit les flux float32 GeoTIFF comme int32 → réinterpréter
+            if arr.dtype == np.int32:
+                arr = arr.view(np.float32)
+            return arr.astype(np.float32)
 
         flux_arr = _get_tiff_array(flux_url)
         mask_arr = _get_tiff_array(mask_url) if mask_url else None

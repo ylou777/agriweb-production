@@ -5581,7 +5581,6 @@ class Calpinage3DViewer {
         const planeY   = terrainH + wallH + 0.25;
         const loader = new THREE.TextureLoader();
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
-            tex.flipY = false;
             const geom = new THREE.PlaneGeometry(planeW, planeD);
             const mat  = new THREE.MeshBasicMaterial({
                 map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
