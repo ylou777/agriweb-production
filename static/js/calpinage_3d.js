@@ -5593,8 +5593,8 @@ class Calpinage3DViewer {
 
         const loader = new THREE.TextureLoader();
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
-            // Google Solar PNG : row 0 = Nord → pas de flip vertical
-            tex.flipY = false;
+            // flipY = true (défaut Three.js) : row 0 du PNG (= Nord géographique)
+            // est mappé à V=1 → bord nord du plan → orientation correcte
             const geom = new THREE.PlaneGeometry(planeW, planeD);
             const mat  = new THREE.MeshBasicMaterial({
                 map:         tex,
