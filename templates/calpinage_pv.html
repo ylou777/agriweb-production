@@ -6323,12 +6323,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Chargement…'; }
             try {
-                let heatLat = prospectLat, heatLon = prospectLon;
-                if (viewer3D?.pvBuildingCoords?.length) {
-                    const cs = viewer3D.pvBuildingCoords;
-                    heatLat = cs.reduce((s,c)=>s+c[1],0) / cs.length;
-                    heatLon = cs.reduce((s,c)=>s+c[0],0) / cs.length;
-                }
+                // Utiliser l'origine de la scène 3D (centerLat/centerLon) comme point de requête
+                // Solar pour garantir que le bbox retourné est bien centré sur l'origine 3D.
+                // Sinon le centroïde vertex ≠ bbox-midpoint pour un bâtiment en L → décalage visuel.
+                const heatLat = viewer3D?.centerLat ?? prospectLat;
+                const heatLon = viewer3D?.centerLon ?? prospectLon;
                 const resp = await fetch('/api/solar/flux-heatmap', {
                     method:  'POST',
                     headers: {'Content-Type': 'application/json'},

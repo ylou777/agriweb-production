@@ -2195,12 +2195,23 @@ def api_solar_flux_heatmap():
             r.raise_for_status()
             img = PILImage.open(io.BytesIO(r.content))
             w, h = img.size
+            print(f'  [flux-heatmap] GeoTIFF mode={img.mode} size={w}x{h}')
             if img.mode == 'F':
+                # float32 natif
                 return np.array(img, dtype=np.float32)
             elif img.mode == 'I':
-                return np.frombuffer(img.tobytes(), dtype=np.float32).reshape(h, w).copy()
-            else:
+                # int32 → il faut convertir les VALEURS, pas réinterpréter les bits
+                arr = np.array(img, dtype=np.int32)
+                return arr.astype(np.float32)
+            elif img.mode in ('L', 'P'):
+                # uint8 — peu probable pour un flux GeoTIFF mais géré
                 return np.array(img, dtype=np.float32)
+            else:
+                # Autres modes (RGB, etc.) : utiliser le premier canal
+                arr = np.array(img)
+                if arr.ndim == 3:
+                    arr = arr[:, :, 0]
+                return arr.astype(np.float32)
 
         flux_arr = _read_flux_tiff(flux_url)
         mask_arr = None
