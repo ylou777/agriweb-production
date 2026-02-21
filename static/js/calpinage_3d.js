@@ -5621,20 +5621,27 @@ class Calpinage3DViewer {
         const planeD = southZ - northZ;
         const cx     = (westX  + eastX)  / 2;
         const cz     = (northZ + southZ) / 2;
-        const terrainH = this.roofPanelsInfo?.buildingTerrainH    ?? 0;
-        const wallH    = this.roofPanelsInfo?.buildingWallH       ?? 6;
-        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0;
-        const planeY   = terrainH + wallH + ridgeH + 0.4;
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
+        const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
+        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;
+        // Positionner le plan JUSTE AU-DESSUS du faîtage + marge de 0.6m
+        // depthTest: false garantit l'affichage même si la géométrie du toit
+        // occupe la même position dans le depth buffer (z-fighting sinon inévitable)
+        const planeY = terrainH + wallH + ridgeH + 0.6;
         const loader = new THREE.TextureLoader();
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
             const geom = new THREE.PlaneGeometry(planeW, planeD);
             const mat  = new THREE.MeshBasicMaterial({
-                map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+                map: tex,
+                transparent: true,
+                depthWrite: false,
+                depthTest: false,   // ← clé : ignore le depth buffer du toit
+                side: THREE.DoubleSide,
             });
             const mesh = new THREE.Mesh(geom, mat);
             mesh.rotation.x = -Math.PI / 2;
             mesh.position.set(cx, planeY, cz);
-            mesh.renderOrder = 6;
+            mesh.renderOrder = 8; // après toit(0) et avant modules(10)
             this._fluxMesh = mesh;
             this.scene.add(mesh);
         });
