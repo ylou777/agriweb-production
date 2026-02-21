@@ -2266,7 +2266,7 @@ def api_solar_flux_heatmap():
 
         flux_norm = np.where(
             valid_mask,
-            (flux_arr - flux_min) / max(flux_max - flux_min, 1.0), 0.0
+            (flux_arr - color_min) / max(color_max - color_min, 1.0), 0.0
         ).clip(0.0, 1.0)
 
         r_out = np.zeros((H, W), np.float32)
@@ -2292,6 +2292,7 @@ def api_solar_flux_heatmap():
         return jsonify({
             "success": True, "quality": quality, "pixel_size_m": pixel_size_m,
             "flux_min": round(flux_min, 0), "flux_max": round(flux_max, 0), "flux_mean": round(flux_mean, 0),
+            "color_min": round(color_min, 0), "color_max": round(color_max, 0),
             "imagery_date": layers.get('imageryDate'),
             "bbox": {"north": bbox_north, "south": bbox_south, "east": bbox_east, "west": bbox_west},
             "image_base64": img_b64
