@@ -2193,36 +2193,54 @@ def api_solar_flux_heatmap():
         def _read_flux_tiff(url):
             r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
             r.raise_for_status()
-            img = PILImage.open(io.BytesIO(r.content))
+            raw_content = r.content
+            img = PILImage.open(io.BytesIO(raw_content))
             w, h = img.size
             print(f'  [flux-heatmap] GeoTIFF mode={img.mode} size={w}x{h}')
-            if img.mode == 'F':
-                # float32 natif — cas normal Google Solar
-                arr = np.array(img, dtype=np.float32)
-                print(f'  [flux-heatmap] float32 natif p50={float(np.nanpercentile(arr,50)):.1f}')
-                return arr
-            elif img.mode in ('I', 'I;16', 'I;32'):
-                # TIFF 32-bit : peut être float32 stocké en mode int OU vraies valeurs int.
-                # On teste les deux interprétations et on garde celle qui donne
-                # des valeurs plausibles pour l'irradiance (100–5000 kWh/m²/an).
-                raw_bytes = img.tobytes()
-                n_pixels  = h * w
-                # Interprétation A : bytes = IEEE float32 (cas fréquent Google Solar)
-                arr_f = np.frombuffer(raw_bytes[:n_pixels*4], dtype=np.float32).reshape(h, w).copy()
-                ok_f  = int(np.sum((arr_f > 100) & (arr_f < 5000)))
-                # Interprétation B : valeurs entières kWh/m²/an stockées en int32
-                arr_i = np.array(img, dtype=np.int32).astype(np.float32)
-                ok_i  = int(np.sum((arr_i > 100) & (arr_i < 5000)))
-                print(f'  [flux-heatmap] mode={img.mode} → float32_ok={ok_f} int32_ok={ok_i}')
-                arr = arr_f if ok_f >= ok_i else arr_i
-                print(f'  [flux-heatmap] choix={"float32" if ok_f>=ok_i else "int32"} p50={float(np.nanpercentile(arr[arr>0],50) if np.any(arr>0) else 0):.1f}')
-                return arr
-            elif img.mode in ('L', 'P'):
-                return np.array(img, dtype=np.float32)
-            else:
-                arr = np.array(img)
-                if arr.ndim == 3: arr = arr[:, :, 0]
-                return arr.astype(np.float32)
+
+            # ── Stratégie : tester 3 interprétations, choisir la plus plausible ────────
+            # Les valeurs d'irradiance annuelle (Google Solar) sont typiquement 100-2500 kWh/m²/an.
+            # Un pixel "valide" = valeur dans [80, 4000].
+            def _count_plausible(a):
+                return int(np.sum(np.isfinite(a) & (a > 80) & (a < 4000)))
+
+            candidates = []
+
+            # Interprétation 1 : np.array direct (fonctionne pour mode F et mode I natif)
+            try:
+                a1 = np.array(img, dtype=np.float32)
+                if a1.ndim > 2: a1 = a1[:,:,0]
+                candidates.append(('array_direct', a1, _count_plausible(a1)))
+            except Exception as e:
+                print(f'  [flux-heatmap] array_direct failed: {e}')
+
+            # Interprétation 2 : frombuffer float32 (float32 GeoTIFF mal identifié par PIL)
+            try:
+                raw = img.tobytes()
+                n   = h * w
+                if len(raw) >= n * 4:
+                    a2 = np.frombuffer(raw[:n*4], dtype=np.float32).reshape(h, w).copy()
+                    candidates.append(('frombuffer_f32', a2, _count_plausible(a2)))
+            except Exception as e:
+                print(f'  [flux-heatmap] frombuffer_f32 failed: {e}')
+
+            # Interprétation 3 : int32 → float (TIFF entier natif type I;32)
+            try:
+                a3 = np.array(img, dtype=np.int32).astype(np.float32)
+                candidates.append(('int32_cast', a3, _count_plausible(a3)))
+            except Exception as e:
+                print(f'  [flux-heatmap] int32_cast failed: {e}')
+
+            if not candidates:
+                raise ValueError(f'Impossible de lire le GeoTIFF (mode={img.mode})')
+
+            # Garder le candidat avec le plus de pixels plausibles
+            candidates.sort(key=lambda x: x[2], reverse=True)
+            best_name, best_arr, best_ok = candidates[0]
+            print(f'  [flux-heatmap] → choix={best_name} ok={best_ok} '
+                  f'p50={float(np.nanpercentile(best_arr[best_arr>0], 50)) if best_ok > 0 else 0:.1f}')
+            print(f'  [flux-heatmap] autres: ' + ', '.join(f'{n}={k}' for n,_,k in candidates[1:]))
+            return best_arr
 
         flux_arr = _read_flux_tiff(flux_url)
         mask_arr = None
@@ -2260,14 +2278,19 @@ def api_solar_flux_heatmap():
                 poly_mask ^= cond
             bld_mask = bld_mask & poly_mask
 
-        valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 0) & (flux_arr < 5000)
+        valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
         valid = flux_arr[valid_mask]
         if len(valid) == 0:
-            valid_mask = np.isfinite(flux_arr) & (flux_arr > 0) & (flux_arr < 5000)
+            # Fallback sans masque bâtiment
+            valid_mask = np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
             if bcoords and len(bcoords) >= 3: valid_mask = valid_mask & poly_mask
             valid = flux_arr[valid_mask]
         if len(valid) == 0:
-            return jsonify({"error": f"Aucun pixel valide (range flux: {flux_arr.min():.1f}–{flux_arr.max():.1f})"}), 422
+            # Diagnostic : afficher la vraie distribution du tableau brut
+            raw_flat = flux_arr.flatten()
+            raw_flat = raw_flat[np.isfinite(raw_flat)]
+            diag = f"min={raw_flat.min():.3g} max={raw_flat.max():.3g} p50={float(np.percentile(raw_flat,50)):.3g}" if len(raw_flat) > 0 else "vide"
+            return jsonify({"error": f"Aucun pixel valide [80–4000]. Distribution brute: {diag}"}), 422
 
         flux_min  = float(np.percentile(valid, 2))
         flux_max  = float(np.percentile(valid, 98))
@@ -2326,10 +2349,15 @@ def api_solar_flux_heatmap():
         PILImage.fromarray(rgba, mode='RGBA').save(buf, format='PNG')
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
+        # Info de diagnostic visible dans la console navigateur
+        tiff_raw_range = f"{float(flux_arr.min()):.1f}–{float(flux_arr.max()):.1f}"
+
         return jsonify({
             "success": True, "quality": quality, "pixel_size_m": pixel_size_m,
             "flux_min": round(flux_min, 0), "flux_max": round(flux_max, 0), "flux_mean": round(flux_mean, 0),
             "color_min": round(color_min, 0), "color_max": round(color_max, 0),
+            "n_valid": int(len(valid)),
+            "tiff_raw_range": tiff_raw_range,
             "imagery_date": layers.get('imageryDate'),
             "bbox": {"north": bbox_north, "south": bbox_south, "east": bbox_east, "west": bbox_west},
             "image_base64": img_b64

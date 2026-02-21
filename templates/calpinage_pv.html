@@ -6412,7 +6412,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     ).addTo(map);
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
-                console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an, ${data.quality}`);
+                console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an (color: ${data.color_min}–${data.color_max}), quality=${data.quality}, n_valid=${data.n_valid}, tiff_range=${data.tiff_raw_range}`);
             } catch(e) {
                 console.error('Flux heatmap error:', e);
                 alert(`❌ Carte d'irradiation indisponible : ${e.message}`);
