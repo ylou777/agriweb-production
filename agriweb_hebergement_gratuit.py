@@ -2200,13 +2200,18 @@ def api_solar_flux_heatmap():
         H, W = flux_arr.shape
 
         bld_mask = (mask_arr > 0) if mask_arr is not None else (flux_arr > 0)
-        valid    = flux_arr[bld_mask & (flux_arr > 0)]
+        valid_mask = bld_mask & (flux_arr > 0) & np.isfinite(flux_arr) & (flux_arr < 9999)
+        valid    = flux_arr[valid_mask]
         if len(valid) == 0:
             return jsonify({"error": "Aucun pixel valide dans la zone bâtiment"}), 422
 
         flux_min  = float(np.percentile(valid, 2))
         flux_max  = float(np.percentile(valid, 98))
         flux_mean = float(np.mean(valid))
+        import math
+        if not math.isfinite(flux_min):  flux_min  = 0.0
+        if not math.isfinite(flux_max):  flux_max  = 0.0
+        if not math.isfinite(flux_mean): flux_mean = 0.0
 
         COLORMAP = np.array([
             [0.00,  20,   0, 100],
@@ -2236,7 +2241,7 @@ def api_solar_flux_heatmap():
             b_out += seg * (b0 + t * (b1 - b0))
 
         rgb   = np.stack([r_out, g_out, b_out], axis=-1).clip(0, 255).astype(np.uint8)
-        alpha = np.where(bld_mask & (flux_arr > 0), 210, 0).astype(np.uint8)
+        alpha = np.where(valid_mask, 210, 0).astype(np.uint8)
         rgba  = np.dstack([rgb, alpha])
 
         buf = io.BytesIO()
