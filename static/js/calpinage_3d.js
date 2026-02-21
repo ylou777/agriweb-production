@@ -539,7 +539,15 @@ class Calpinage3DViewer {
         }
         
         // Marge depuis le bord du toit (acrotère, rive, etc.)
-        const marge = 0.30; // 30cm de marge depuis les bords
+        // Pour un toit plat avec acrotère (parapet), 80cm ; pour toit incliné, 30cm.
+        // Si le LiDAR a détecté un acrotère, on utilise sa largeur + 20cm de sécurité.
+        const isFlat = info.type === 'flat' || !info.type;
+        const marge = (() => {
+            if (this.roofPanelsInfo && this.roofPanelsInfo._acrotereWidth) {
+                return this.roofPanelsInfo._acrotereWidth + 0.20;
+            }
+            return isFlat ? 0.80 : 0.30;
+        })();
         
         const generatedZones = [];
         
@@ -863,7 +871,7 @@ class Calpinage3DViewer {
                         // ── Positionnement OBB paramétrique (fallback) ──
                         const localX = worldX - _pivotX;
                         const localZ = worldZ - _pivotZ;
-                        panel3d.position.set(localX, 0.06, localZ);
+                        panel3d.position.set(localX, 0.25, localZ);
                         panel3d.rotation.y = -obb.angle;
                     }
 
@@ -2217,9 +2225,11 @@ class Calpinage3DViewer {
             if (useDirectLidar) {
                 console.log(`🛰️ Direct LiDAR candidat: ${roofPoints.length} pts, densité=${pointDensity.toFixed(1)} pts/m², HD=${hasHDData}, complex=${isComplexRoof}, R²=${roofAnalysis?.bestR2?.toFixed(3)}`);
                 try {
-                    // Calculer la hauteur d'acrotère (percentile 10 du MNH = bord du toit)
-                    const sortedMNH = roofPoints.map(p => p.mnh).sort((a, b) => a - b);
-                    const eaveHeight = sortedMNH[Math.floor(sortedMNH.length * 0.10)];
+                    // Calculer la hauteur d'acrotère (percentile du MNH = bord du toit)
+                    // Filtre MNH < 1m (bruit sol/végétation) ; percentile 15% pour robustesse
+                    const validMNH = roofPoints.map(p => p.mnh).filter(h => h > 1.0).sort((a, b) => a - b);
+                    const mnhArray = validMNH.length >= 10 ? validMNH : roofPoints.map(p => p.mnh).sort((a, b) => a - b);
+                    const eaveHeight = mnhArray[Math.floor(mnhArray.length * 0.15)];
                     const roofBaseY = terrainH + eaveHeight;
                     
                     usedDirectLidar = this._createDirectLidarRoof(
@@ -2319,6 +2329,35 @@ class Calpinage3DViewer {
         if (this.pvBuildingCoords) {
             const bCenter = this._polygonCenter(this.pvBuildingCoords);
             this.roofPanelsInfo.buildingCenterGeo = { lat: bCenter.y, lng: bCenter.x };
+        }
+        
+        // === Détection de l'acrotère (parapet) depuis le LiDAR ===
+        // Analyse distribution MNH bords vs centre pour les toits plats
+        if (roofPoints && roofPoints.length >= 20 && (!hasPitchedRoof || roofShape === 'flat')) {
+            try {
+                const halfS = obb.shortDim / 2;
+                const halfL = obb.longDim / 2;
+                const cosA = Math.cos(obb.angle), sinA = Math.sin(obb.angle);
+                const edgeThreshold = Math.min(halfS, halfL) * 0.25;
+                const edgeH = [], centerH = [];
+                roofPoints.forEach(p => {
+                    const lp = this._geoToLocal(p.lat, p.lng);
+                    const dx = lp.x - obb.cx, dz = lp.z - obb.cz;
+                    const along = dx * cosA + dz * sinA;
+                    const across = -dx * sinA + dz * cosA;
+                    const distEdge = Math.min(halfL - Math.abs(along), halfS - Math.abs(across));
+                    (distEdge < edgeThreshold ? edgeH : centerH).push(p.mnh);
+                });
+                if (edgeH.length >= 5 && centerH.length >= 5) {
+                    const medEdge = edgeH.sort((a,b)=>a-b)[Math.floor(edgeH.length/2)];
+                    const medCenter = centerH.sort((a,b)=>a-b)[Math.floor(centerH.length/2)];
+                    if (medEdge - medCenter > 0.25) {
+                        this.roofPanelsInfo._acrotereWidth = Math.max(0.30, edgeThreshold * 0.5);
+                        this.roofPanelsInfo._acrotereHeight = medEdge - medCenter;
+                        console.log(`🏗️ Acrotère détecté: h=${this.roofPanelsInfo._acrotereHeight.toFixed(2)}m, l=${this.roofPanelsInfo._acrotereWidth.toFixed(2)}m`);
+                    }
+                }
+            } catch(e) { console.warn('⚠️ Erreur détection acrotère:', e.message); }
         }
         
         console.log('📐 Pans de toiture:', this.roofPanelsInfo);
@@ -5150,7 +5189,11 @@ class Calpinage3DViewer {
                 specular: 0x4444ff,
                 shininess: 80,
                 transparent: true,
-                opacity: 0.92
+                opacity: 0.92,
+                depthWrite: true,
+                polygonOffset: true,
+                polygonOffsetFactor: -4,
+                polygonOffsetUnits: -4,
             });
             
             zone.modulesPositions.forEach(modPos => {
@@ -5183,7 +5226,8 @@ class Calpinage3DViewer {
                 );
                 
                 // Position directe depuis lat/lng (encodent déjà la rotation 2D)
-                panel.position.set(dx, 0, dz);
+                // Y = 0.20m au-dessus de la surface pour éviter z-fighting avec le toit
+                panel.position.set(dx, 0.20, dz);
                 
                 // Rotation individuelle pour aligner les bords du rectangle
                 // BoxGeometry a sa largeur le long de X ; on tourne pour matcher l'arête 2D
@@ -5191,6 +5235,7 @@ class Calpinage3DViewer {
                 
                 panel.castShadow = true;
                 panel.receiveShadow = true;
+                panel.renderOrder = 10;
                 
                 panGroup.add(panel);
                 totalModules++;
