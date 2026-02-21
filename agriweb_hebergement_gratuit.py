@@ -2327,13 +2327,20 @@ def api_solar_flux_heatmap():
         bld_mask = (mask_arr > 0) if mask_arr is not None else (flux_arr > 0)
 
         # ── 4. Statistiques flux sur la toiture ───────────────────────────
-        valid = flux_arr[bld_mask & (flux_arr > 0)]
+        # Filtrer : pixels bâtiment, valeur > 0, finie, et < 9999 (écarter sentinelles NoData float32)
+        valid_mask = bld_mask & (flux_arr > 0) & np.isfinite(flux_arr) & (flux_arr < 9999)
+        valid = flux_arr[valid_mask]
         if len(valid) == 0:
             return jsonify({"error": "Aucun pixel valide dans la zone bâtiment"}), 422
 
         flux_min  = float(np.percentile(valid, 2))
         flux_max  = float(np.percentile(valid, 98))
         flux_mean = float(np.mean(valid))
+        # Garde-fou JSON : Infinity/NaN ne sont pas sérialisables
+        import math
+        if not math.isfinite(flux_min):  flux_min  = 0.0
+        if not math.isfinite(flux_max):  flux_max  = 0.0
+        if not math.isfinite(flux_mean): flux_mean = 0.0
 
         # ── 5. Colorisation spectrale (bleu→cyan→vert→jaune→orange→rouge) ─
         # Chaque point d'ancrage : (valeur_normalisée, R, G, B)
@@ -2348,7 +2355,7 @@ def api_solar_flux_heatmap():
         ], dtype=np.float32)
 
         flux_norm = np.where(
-            bld_mask & (flux_arr > 0),
+            valid_mask,
             (flux_arr - flux_min) / max(flux_max - flux_min, 1.0),
             0.0
         ).clip(0.0, 1.0)
@@ -2368,7 +2375,7 @@ def api_solar_flux_heatmap():
         rgb = np.stack([r_out, g_out, b_out], axis=-1).clip(0, 255).astype(np.uint8)
 
         # Alpha : 210 sur le bâtiment (légèrement transparent), 0 hors bâtiment
-        alpha = np.where(bld_mask & (flux_arr > 0), 210, 0).astype(np.uint8)
+        alpha = np.where(valid_mask, 210, 0).astype(np.uint8)
         rgba  = np.dstack([rgb, alpha])
 
         # ── 6. Encoder en PNG base64 ──────────────────────────────────────
