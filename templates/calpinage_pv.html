@@ -1065,7 +1065,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=45"></script>
+    <script src="/static/js/calpinage_3d.js?v=46"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6329,10 +6329,17 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     heatLat = cs.reduce((s,c)=>s+c[1],0) / cs.length;
                     heatLon = cs.reduce((s,c)=>s+c[0],0) / cs.length;
                 }
-                const resp = await fetch(
-                    `/api/solar/flux-heatmap?lat=${heatLat}&lon=${heatLon}&radius_m=50`,  // 50m = bâtiment seul sans déborder
-                    { signal: AbortSignal.timeout(30000) }
-                );
+                const resp = await fetch('/api/solar/flux-heatmap', {
+                    method:  'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        lat:             heatLat,
+                        lon:             heatLon,
+                        radius_m:        50,
+                        building_coords: viewer3D?.pvBuildingCoords || []
+                    }),
+                    signal: AbortSignal.timeout(30000)
+                });
                 if (!resp.ok) {
                     const err = await resp.json().catch(() => ({}));
                     throw new Error(err.error || `HTTP ${resp.status}`);

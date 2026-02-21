@@ -2134,23 +2134,26 @@ def api_solar_dsm_roof():
 # ──────────────────────────────────────────────────────────────
 # API: Google Solar Annual Flux Heatmap — carte d'irradiation pixel par pixel
 # ──────────────────────────────────────────────────────────────
-@app.route('/api/solar/flux-heatmap')
+@app.route('/api/solar/flux-heatmap', methods=['GET', 'POST'])
 def api_solar_flux_heatmap():
     """
-    Génère une heatmap de l'irradiance annuelle (kWh/m²/an) d'une toiture
-    à partir du GeoTIFF annualFlux Google Solar.
-    Params GET: lat, lon, quality, radius_m
+    Heatmap irradiance annuelle (kWh/m²/an) depuis Google Solar annualFlux GeoTIFF.
+    POST body JSON: lat, lon, quality, radius_m, building_coords [[lon,lat],...]
     Returns JSON: image_base64 (PNG RGBA), bbox, flux_min/max/mean, pixel_size_m
     """
     try:
         import numpy as np
         from PIL import Image as PILImage
-        import base64
+        import base64, math
 
-        lat      = request.args.get('lat', type=float)
-        lon      = request.args.get('lon', type=float)
-        quality  = request.args.get('quality', 'HIGH')
-        radius_m = request.args.get('radius_m', 50, type=int)
+        body     = request.get_json(force=True, silent=True) or {}
+        lat      = body.get('lat')     or request.args.get('lat',      type=float)
+        lon      = body.get('lon')     or request.args.get('lon',      type=float)
+        quality  = body.get('quality') or request.args.get('quality',  'HIGH')
+        radius_m = int(body.get('radius_m', 0) or request.args.get('radius_m', 50, type=int))
+        bcoords  = body.get('building_coords', [])
+        lat = float(lat); lon = float(lon)
+        if not radius_m: radius_m = 50
         if lat is None or lon is None:
             return jsonify({"error": "lat et lon requis"}), 400
 
@@ -2187,32 +2190,66 @@ def api_solar_flux_heatmap():
         if not flux_url:
             return jsonify({"error": "Pas de données flux annuel pour ce point"}), 422
 
-        def _get_tiff_array(url):
+        def _read_flux_tiff(url):
             r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
             r.raise_for_status()
             img = PILImage.open(io.BytesIO(r.content))
-            arr = np.array(img)
-            # PIL lit les flux float32 GeoTIFF comme int32 → réinterpréter
-            if arr.dtype == np.int32:
-                arr = arr.view(np.float32)
-            return arr.astype(np.float32)
+            w, h = img.size
+            if img.mode == 'F':
+                return np.array(img, dtype=np.float32)
+            elif img.mode == 'I':
+                return np.frombuffer(img.tobytes(), dtype=np.float32).reshape(h, w).copy()
+            else:
+                return np.array(img, dtype=np.float32)
 
-        flux_arr = _get_tiff_array(flux_url)
-        mask_arr = _get_tiff_array(mask_url) if mask_url else None
+        flux_arr = _read_flux_tiff(flux_url)
+        mask_arr = None
+        if mask_url:
+            try:
+                rm = requests.get(mask_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+                rm.raise_for_status()
+                imgm = PILImage.open(io.BytesIO(rm.content))
+                mask_arr = np.array(imgm, dtype=np.uint8)
+                if mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
+            except Exception: pass
+
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
-        if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
         H, W = flux_arr.shape
 
-        bld_mask = (mask_arr > 0) if mask_arr is not None else (flux_arr > 0)
-        valid_mask = bld_mask & (flux_arr > 0) & np.isfinite(flux_arr) & (flux_arr < 9999)
-        valid    = flux_arr[valid_mask]
+        # Niveau 1 : masque Google Solar
+        bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
+
+        # Niveau 2 : raycasting polygone bâtiment cible
+        if bcoords and len(bcoords) >= 3:
+            poly_lon = [float(c[0]) for c in bcoords]
+            poly_lat = [float(c[1]) for c in bcoords]
+            n = len(poly_lon)
+            rows_idx = np.arange(H)
+            cols_idx = np.arange(W)
+            lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
+            lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
+            lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
+            poly_mask = np.zeros((H, W), dtype=bool)
+            for i in range(n):
+                xi, yi = poly_lon[i],       poly_lat[i]
+                xj, yj = poly_lon[(i-1)%n], poly_lat[(i-1)%n]
+                cond = ((yi > lat_grid) != (yj > lat_grid)) & \
+                       (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
+                poly_mask ^= cond
+            bld_mask = bld_mask & poly_mask
+
+        valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 0) & (flux_arr < 5000)
+        valid = flux_arr[valid_mask]
         if len(valid) == 0:
-            return jsonify({"error": "Aucun pixel valide dans la zone bâtiment"}), 422
+            valid_mask = np.isfinite(flux_arr) & (flux_arr > 0) & (flux_arr < 5000)
+            if bcoords and len(bcoords) >= 3: valid_mask = valid_mask & poly_mask
+            valid = flux_arr[valid_mask]
+        if len(valid) == 0:
+            return jsonify({"error": f"Aucun pixel valide (range flux: {flux_arr.min():.1f}–{flux_arr.max():.1f})"}), 422
 
         flux_min  = float(np.percentile(valid, 2))
         flux_max  = float(np.percentile(valid, 98))
         flux_mean = float(np.mean(valid))
-        import math
         if not math.isfinite(flux_min):  flux_min  = 0.0
         if not math.isfinite(flux_max):  flux_max  = 0.0
         if not math.isfinite(flux_mean): flux_mean = 0.0
@@ -2228,7 +2265,7 @@ def api_solar_flux_heatmap():
         ], dtype=np.float32)
 
         flux_norm = np.where(
-            bld_mask & (flux_arr > 0),
+            valid_mask,
             (flux_arr - flux_min) / max(flux_max - flux_min, 1.0), 0.0
         ).clip(0.0, 1.0)
 
