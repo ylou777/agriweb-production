@@ -6323,19 +6323,59 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }
             if (btn) { btn.disabled = true; btn.textContent = '⏳ Chargement…'; }
             try {
-                // Utiliser l'origine de la scène 3D (centerLat/centerLon) comme point de requête
-                // Solar pour garantir que le bbox retourné est bien centré sur l'origine 3D.
-                // Sinon le centroïde vertex ≠ bbox-midpoint pour un bâtiment en L → décalage visuel.
-                const heatLat = viewer3D?.centerLat ?? prospectLat;
-                const heatLon = viewer3D?.centerLon ?? prospectLon;
+                // ── Calcul du centre et du rayon depuis les zones dessinées ──────────────────
+                // On assemble tous les sommets de toutes les zones + pvBuildingCoords,
+                // puis on calcule le bbox → centre exact + rayon dynamique (demi-diagonale + 25m).
+                // Cela garantit l'alignement même en vue 2D (pas de viewer3D.centerLat disponible).
+                let heatLat, heatLon, radius_m = 50, bCoords = [];
+
+                // Collecter les points depuis les zones dessinées (2D Leaflet)
+                const allPts = [];
+                if (typeof zones !== 'undefined' && zones.length > 0) {
+                    zones.forEach(z => {
+                        try {
+                            const lls = z.layer.getLatLngs()[0] || z.layer.getLatLngs();
+                            lls.forEach(ll => allPts.push({ lat: ll.lat, lon: ll.lng }));
+                        } catch(e) {}
+                    });
+                }
+                // Ajouter les coordonnées du bâtiment PV 3D si disponibles
+                if (viewer3D?.pvBuildingCoords?.length) {
+                    viewer3D.pvBuildingCoords.forEach(c => allPts.push({ lat: c[1], lon: c[0] }));
+                }
+
+                if (allPts.length >= 3) {
+                    const lats = allPts.map(p => p.lat);
+                    const lons = allPts.map(p => p.lon);
+                    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+                    const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+                    heatLat = (minLat + maxLat) / 2;
+                    heatLon = (minLon + maxLon) / 2;
+                    // Rayon = demi-diagonale du bbox des zones + 25m de marge
+                    const dLat = (maxLat - minLat) * 111320;
+                    const dLon = (maxLon - minLon) * 111320 * Math.cos(heatLat * Math.PI / 180);
+                    radius_m = Math.max(35, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 25, 250));
+                    bCoords  = allPts.map(p => [p.lon, p.lat]);
+                } else if (viewer3D?.isActive && viewer3D?.centerLat) {
+                    // Fallback 3D : origine exacte de la scène
+                    heatLat  = viewer3D.centerLat;
+                    heatLon  = viewer3D.centerLon;
+                    bCoords  = viewer3D.pvBuildingCoords || [];
+                } else {
+                    // Fallback ultime : coordonnées prospect
+                    heatLat  = prospectLat;
+                    heatLon  = prospectLon;
+                }
+                // ─────────────────────────────────────────────────────────────────────────────
+
                 const resp = await fetch('/api/solar/flux-heatmap', {
                     method:  'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         lat:             heatLat,
                         lon:             heatLon,
-                        radius_m:        50,
-                        building_coords: viewer3D?.pvBuildingCoords || []
+                        radius_m,
+                        building_coords: bCoords
                     }),
                     signal: AbortSignal.timeout(30000)
                 });
