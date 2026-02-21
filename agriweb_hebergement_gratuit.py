@@ -2197,20 +2197,31 @@ def api_solar_flux_heatmap():
             w, h = img.size
             print(f'  [flux-heatmap] GeoTIFF mode={img.mode} size={w}x{h}')
             if img.mode == 'F':
-                # float32 natif
-                return np.array(img, dtype=np.float32)
-            elif img.mode == 'I':
-                # int32 → il faut convertir les VALEURS, pas réinterpréter les bits
-                arr = np.array(img, dtype=np.int32)
-                return arr.astype(np.float32)
+                # float32 natif — cas normal Google Solar
+                arr = np.array(img, dtype=np.float32)
+                print(f'  [flux-heatmap] float32 natif p50={float(np.nanpercentile(arr,50)):.1f}')
+                return arr
+            elif img.mode in ('I', 'I;16', 'I;32'):
+                # TIFF 32-bit : peut être float32 stocké en mode int OU vraies valeurs int.
+                # On teste les deux interprétations et on garde celle qui donne
+                # des valeurs plausibles pour l'irradiance (100–5000 kWh/m²/an).
+                raw_bytes = img.tobytes()
+                n_pixels  = h * w
+                # Interprétation A : bytes = IEEE float32 (cas fréquent Google Solar)
+                arr_f = np.frombuffer(raw_bytes[:n_pixels*4], dtype=np.float32).reshape(h, w).copy()
+                ok_f  = int(np.sum((arr_f > 100) & (arr_f < 5000)))
+                # Interprétation B : valeurs entières kWh/m²/an stockées en int32
+                arr_i = np.array(img, dtype=np.int32).astype(np.float32)
+                ok_i  = int(np.sum((arr_i > 100) & (arr_i < 5000)))
+                print(f'  [flux-heatmap] mode={img.mode} → float32_ok={ok_f} int32_ok={ok_i}')
+                arr = arr_f if ok_f >= ok_i else arr_i
+                print(f'  [flux-heatmap] choix={"float32" if ok_f>=ok_i else "int32"} p50={float(np.nanpercentile(arr[arr>0],50) if np.any(arr>0) else 0):.1f}')
+                return arr
             elif img.mode in ('L', 'P'):
-                # uint8 — peu probable pour un flux GeoTIFF mais géré
                 return np.array(img, dtype=np.float32)
             else:
-                # Autres modes (RGB, etc.) : utiliser le premier canal
                 arr = np.array(img)
-                if arr.ndim == 3:
-                    arr = arr[:, :, 0]
+                if arr.ndim == 3: arr = arr[:, :, 0]
                 return arr.astype(np.float32)
 
         flux_arr = _read_flux_tiff(flux_url)
