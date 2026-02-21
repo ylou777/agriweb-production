@@ -5560,4 +5560,66 @@ class Calpinage3DViewer {
         
         console.log('🧹 Viewer 3D nettoyé');
     }
+
+    // ── Heatmap d'irradiance annuelle (Google Solar annualFlux) ──────────
+
+    /**
+     * Superpose une heatmap de flux annuel sur la toiture en 3D.
+     * Les zones bleues = ombragées, orange/rouge = très ensoleillées.
+     * @param {Object} data - Réponse de /api/solar/flux-heatmap
+     */
+    showFluxHeatmap(data) {
+        this.hideFluxHeatmap();
+        if (!this.scene) return;
+
+        const { bbox, image_base64 } = data;
+
+        // Convertir le bbox géographique → coordonnées locales scène (mètres)
+        const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
+        const westX  = (bbox.west  - this.centerLon) * lngToM;
+        const eastX  = (bbox.east  - this.centerLon) * lngToM;
+        const northZ = -(bbox.north - this.centerLat) * this.LAT_TO_M;
+        const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
+
+        const planeW = eastX  - westX;   // étendue en X
+        const planeD = southZ - northZ;  // étendue en Z
+        const cx     = (westX  + eastX)  / 2;
+        const cz     = (northZ + southZ) / 2;
+
+        // Hauteur : légèrement au-dessus de la toiture
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH ?? 0;
+        const wallH    = this.roofPanelsInfo?.buildingWallH    ?? 6;
+        const planeY   = terrainH + wallH + 0.25;
+
+        const loader = new THREE.TextureLoader();
+        loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
+            // Google Solar PNG : row 0 = Nord → pas de flip vertical
+            tex.flipY = false;
+            const geom = new THREE.PlaneGeometry(planeW, planeD);
+            const mat  = new THREE.MeshBasicMaterial({
+                map:         tex,
+                transparent: true,
+                depthWrite:  false,
+                side:        THREE.DoubleSide,
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.rotation.x  = -Math.PI / 2;  // plan horizontal
+            mesh.position.set(cx, planeY, cz);
+            mesh.renderOrder = 6;
+            this._fluxMesh = mesh;
+            this.scene.add(mesh);
+            console.log(`🌡️ Flux heatmap 3D: ${planeW.toFixed(1)}×${planeD.toFixed(1)}m @ Y=${planeY.toFixed(1)}m`);
+        });
+    }
+
+    /** Enlève l'overlay heatmap de la scène 3D. */
+    hideFluxHeatmap() {
+        if (this._fluxMesh) {
+            this.scene?.remove(this._fluxMesh);
+            this._fluxMesh.material?.map?.dispose();
+            this._fluxMesh.material?.dispose();
+            this._fluxMesh.geometry?.dispose();
+            this._fluxMesh = null;
+        }
+    }
 }
