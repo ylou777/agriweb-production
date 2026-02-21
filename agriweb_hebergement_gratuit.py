@@ -2254,6 +2254,21 @@ def api_solar_flux_heatmap():
         if not math.isfinite(flux_max):  flux_max  = 0.0
         if not math.isfinite(flux_mean): flux_mean = 0.0
 
+        # Plage colorimétrique dynamique basée sur la distribution réelle des pixels :
+        # - color_min = p5  (valeur basse réelle : zones ombragées / orientations défavorables)
+        # - color_max = p95 (valeur haute réelle : zones les mieux exposées)
+        # → l'échelle de couleur s'étire automatiquement sur l'amplitude du bâtiment,
+        #   ce qui maximise le contraste visuel entre les différentes zones/champs.
+        color_min = float(np.percentile(valid, 5))
+        color_max = float(np.percentile(valid, 95))
+        # Garantir une plage minimale de 50 kWh/m²/an pour éviter une image aplatie
+        if color_max - color_min < 50.0:
+            mid = (color_min + color_max) / 2.0
+            color_min = mid - 25.0
+            color_max = mid + 25.0
+        if not math.isfinite(color_min): color_min = flux_min
+        if not math.isfinite(color_max): color_max = flux_max if flux_max > flux_min else flux_min + 50.0
+
         COLORMAP = np.array([
             [0.00,  20,   0, 100],
             [0.15,   0,  60, 220],
