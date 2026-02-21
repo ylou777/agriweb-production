@@ -5560,4 +5560,48 @@ class Calpinage3DViewer {
         
         console.log('🧹 Viewer 3D nettoyé');
     }
+
+    // ── Heatmap d'irradiance annuelle (Google Solar annualFlux) ──────────
+
+    showFluxHeatmap(data) {
+        this.hideFluxHeatmap();
+        if (!this.scene) return;
+        const { bbox, image_base64 } = data;
+        const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
+        const westX  = (bbox.west  - this.centerLon) * lngToM;
+        const eastX  = (bbox.east  - this.centerLon) * lngToM;
+        const northZ = -(bbox.north - this.centerLat) * this.LAT_TO_M;
+        const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
+        const planeW = eastX  - westX;
+        const planeD = southZ - northZ;
+        const cx     = (westX  + eastX)  / 2;
+        const cz     = (northZ + southZ) / 2;
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH ?? 0;
+        const wallH    = this.roofPanelsInfo?.buildingWallH    ?? 6;
+        const planeY   = terrainH + wallH + 0.25;
+        const loader = new THREE.TextureLoader();
+        loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
+            tex.flipY = false;
+            const geom = new THREE.PlaneGeometry(planeW, planeD);
+            const mat  = new THREE.MeshBasicMaterial({
+                map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(cx, planeY, cz);
+            mesh.renderOrder = 6;
+            this._fluxMesh = mesh;
+            this.scene.add(mesh);
+        });
+    }
+
+    hideFluxHeatmap() {
+        if (this._fluxMesh) {
+            this.scene?.remove(this._fluxMesh);
+            this._fluxMesh.material?.map?.dispose();
+            this._fluxMesh.material?.dispose();
+            this._fluxMesh.geometry?.dispose();
+            this._fluxMesh = null;
+        }
+    }
 }

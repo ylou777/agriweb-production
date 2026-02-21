@@ -887,6 +887,9 @@
                                 <button class="btn btn-sm btn-light me-1" onclick="toggleRoofPanelsInfo()" title="Infos pans de toiture">
                                     📐 Toiture
                                 </button>
+                                <button class="btn btn-sm btn-light me-1" id="btnFluxHeatmap" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire pixel par pixel (kWh/m²/an) — zones d'ombrage acrotères/obstacles visibles">
+                                    🌡️ Irradiation
+                                </button>
                                 <button class="btn btn-sm btn-secondary" onclick="toggle3DView()" title="Retour vue 2D">
                                     🗺️ Retour 2D
                                 </button>
@@ -921,6 +924,26 @@
                                     <button class="btn btn-sm btn-link p-0" onclick="document.getElementById('googleSolarPanel').style.display='none'" title="Fermer">✕</button>
                                 </div>
                                 <div id="googleSolarContent"></div>
+                            </div>
+                            <!-- Légende Heatmap d'irradiation -->
+                            <div id="fluxLegendPanel" style="display:none; position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
+                                 z-index:10; background:rgba(20,20,30,0.88); border-radius:10px; padding:8px 14px;
+                                 box-shadow:0 2px 12px rgba(0,0,0,0.35); backdrop-filter:blur(6px);
+                                 border:1px solid rgba(255,255,255,0.15); min-width:260px; text-align:center;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong style="color:#fff;font-size:0.78rem;">🌡️ Irradiance annuelle (kWh/m²/an)</strong>
+                                    <button class="btn btn-sm btn-link p-0 ms-2" style="color:rgba(255,255,255,0.6);font-size:0.7rem;"
+                                        onclick="toggleFluxHeatmap()" title="Masquer">✕</button>
+                                </div>
+                                <div style="height:12px;border-radius:6px;
+                                    background:linear-gradient(to right,#14006e,#003cdc,#00c8ff,#32d232,#ffe600,#ff7800,#dc0000);
+                                    margin-bottom:4px;"></div>
+                                <div class="d-flex justify-content-between" style="color:rgba(255,255,255,0.75);font-size:0.7rem;">
+                                    <span id="fluxLegendMin">—</span>
+                                    <span id="fluxLegendMean" style="color:rgba(255,255,255,0.55);">moy: —</span>
+                                    <span id="fluxLegendMax">—</span>
+                                </div>
+                                <div id="fluxLegendDate" style="color:rgba(255,255,255,0.4);font-size:0.65rem;margin-top:2px;"></div>
                             </div>
                         </div>
                         <div class="card-footer">
@@ -1042,7 +1065,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=43"></script>
+    <script src="/static/js/calpinage_3d.js?v=44"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6278,6 +6301,68 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 panel.style.display = 'block';
             } else {
                 panel.style.display = 'none';
+            }
+        }
+
+        // ── Carte d'irradiation solaire (Google Solar annualFlux heatmap) ──
+        let _fluxActive    = false;
+        let _flux2DOverlay = null;
+
+        async function toggleFluxHeatmap() {
+            const btn    = document.getElementById('btnFluxHeatmap');
+            const legend = document.getElementById('fluxLegendPanel');
+            if (_fluxActive) {
+                _fluxActive = false;
+                if (btn) { btn.classList.remove('btn-warning'); btn.classList.add('btn-light'); }
+                if (legend) legend.style.display = 'none';
+                if (_flux2DOverlay && typeof map !== 'undefined' && map) {
+                    map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
+                }
+                if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
+                return;
+            }
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Chargement…'; }
+            try {
+                let heatLat = prospectLat, heatLon = prospectLon;
+                if (viewer3D?.pvBuildingCoords?.length) {
+                    const cs = viewer3D.pvBuildingCoords;
+                    heatLat = cs.reduce((s,c)=>s+c[1],0) / cs.length;
+                    heatLon = cs.reduce((s,c)=>s+c[0],0) / cs.length;
+                }
+                const resp = await fetch(
+                    `/api/solar/flux-heatmap?lat=${heatLat}&lon=${heatLon}&radius_m=80`,
+                    { signal: AbortSignal.timeout(30000) }
+                );
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || `HTTP ${resp.status}`);
+                }
+                const data = await resp.json();
+                _fluxActive = true;
+                if (btn) { btn.classList.remove('btn-light'); btn.classList.add('btn-warning'); btn.textContent = '🌡️ Irradiation'; }
+                if (legend) {
+                    legend.style.display = 'block';
+                    document.getElementById('fluxLegendMin').textContent  = `${data.flux_min} kWh`;
+                    document.getElementById('fluxLegendMax').textContent  = `${data.flux_max} kWh`;
+                    document.getElementById('fluxLegendMean').textContent = `moy: ${data.flux_mean} kWh`;
+                    const d = data.imagery_date;
+                    document.getElementById('fluxLegendDate').textContent =
+                        d ? `Imagerie Google Solar — ${d.year || ''}/${String(d.month||'').padStart(2,'0')}` : '';
+                }
+                const imgSrc = `data:image/png;base64,${data.image_base64}`;
+                const b = data.bbox;
+                if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
+                    _flux2DOverlay = L.imageOverlay(
+                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.8, interactive: false }
+                    ).addTo(map);
+                }
+                if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
+                console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an, ${data.quality}`);
+            } catch(e) {
+                console.error('Flux heatmap error:', e);
+                alert(`❌ Carte d'irradiation indisponible : ${e.message}`);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '🌡️ Irradiation'; }
             }
         }
         

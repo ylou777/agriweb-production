@@ -2132,6 +2132,133 @@ def api_solar_dsm_roof():
 
 
 # ──────────────────────────────────────────────────────────────
+# API: Google Solar Annual Flux Heatmap — carte d'irradiation pixel par pixel
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/solar/flux-heatmap')
+def api_solar_flux_heatmap():
+    """
+    Génère une heatmap de l'irradiance annuelle (kWh/m²/an) d'une toiture
+    à partir du GeoTIFF annualFlux Google Solar.
+    Params GET: lat, lon, quality, radius_m
+    Returns JSON: image_base64 (PNG RGBA), bbox, flux_min/max/mean, pixel_size_m
+    """
+    try:
+        import numpy as np
+        from PIL import Image as PILImage
+        import base64
+
+        lat      = request.args.get('lat', type=float)
+        lon      = request.args.get('lon', type=float)
+        quality  = request.args.get('quality', 'HIGH')
+        radius_m = request.args.get('radius_m', 50, type=int)
+        if lat is None or lon is None:
+            return jsonify({"error": "lat et lon requis"}), 400
+
+        from config import GOOGLE_SOLAR_API_KEY
+
+        def _fetch_layers(q):
+            url = (
+                "https://solar.googleapis.com/v1/dataLayers:get"
+                f"?location.latitude={lat}&location.longitude={lon}"
+                f"&radiusMeters={radius_m}&view=ANNUAL_FLUX"
+                f"&requiredQuality={q}&key={GOOGLE_SOLAR_API_KEY}"
+            )
+            return requests.get(url, timeout=20)
+
+        r_layers = _fetch_layers(quality)
+        if r_layers.status_code == 404 and quality == 'HIGH':
+            r_layers = _fetch_layers('MEDIUM'); quality = 'MEDIUM'
+        if r_layers.status_code == 404 and quality == 'MEDIUM':
+            r_layers = _fetch_layers('LOW');    quality = 'LOW'
+        if r_layers.status_code == 403:
+            return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
+        r_layers.raise_for_status()
+        layers = r_layers.json()
+
+        flux_url     = layers.get('annualFluxUrl', '')
+        mask_url     = layers.get('maskUrl', '')
+        pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
+        bbox         = layers.get('boundingBox', {})
+        sw = bbox.get('sw', {}); ne = bbox.get('ne', {})
+        bbox_south = float(sw.get('latitude',  lat - 0.001))
+        bbox_north = float(ne.get('latitude',  lat + 0.001))
+        bbox_west  = float(sw.get('longitude', lon - 0.001))
+        bbox_east  = float(ne.get('longitude', lon + 0.001))
+        if not flux_url:
+            return jsonify({"error": "Pas de données flux annuel pour ce point"}), 422
+
+        def _get_tiff_array(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+            r.raise_for_status()
+            img = PILImage.open(io.BytesIO(r.content))
+            return np.array(img, dtype=np.float32)
+
+        flux_arr = _get_tiff_array(flux_url)
+        mask_arr = _get_tiff_array(mask_url) if mask_url else None
+        if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
+        if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
+        H, W = flux_arr.shape
+
+        bld_mask = (mask_arr > 0) if mask_arr is not None else (flux_arr > 0)
+        valid    = flux_arr[bld_mask & (flux_arr > 0)]
+        if len(valid) == 0:
+            return jsonify({"error": "Aucun pixel valide dans la zone bâtiment"}), 422
+
+        flux_min  = float(np.percentile(valid, 2))
+        flux_max  = float(np.percentile(valid, 98))
+        flux_mean = float(np.mean(valid))
+
+        COLORMAP = np.array([
+            [0.00,  20,   0, 100],
+            [0.15,   0,  60, 220],
+            [0.35,   0, 200, 255],
+            [0.55,  50, 210,  50],
+            [0.70, 255, 230,   0],
+            [0.85, 255, 120,   0],
+            [1.00, 220,   0,   0],
+        ], dtype=np.float32)
+
+        flux_norm = np.where(
+            bld_mask & (flux_arr > 0),
+            (flux_arr - flux_min) / max(flux_max - flux_min, 1.0), 0.0
+        ).clip(0.0, 1.0)
+
+        r_out = np.zeros((H, W), np.float32)
+        g_out = np.zeros((H, W), np.float32)
+        b_out = np.zeros((H, W), np.float32)
+        for i in range(len(COLORMAP) - 1):
+            v0, r0, g0, b0 = COLORMAP[i]
+            v1, r1, g1, b1 = COLORMAP[i + 1]
+            seg = (flux_norm >= v0) & (flux_norm <= v1)
+            t   = np.where(seg, (flux_norm - v0) / (v1 - v0 + 1e-9), 0.0)
+            r_out += seg * (r0 + t * (r1 - r0))
+            g_out += seg * (g0 + t * (g1 - g0))
+            b_out += seg * (b0 + t * (b1 - b0))
+
+        rgb   = np.stack([r_out, g_out, b_out], axis=-1).clip(0, 255).astype(np.uint8)
+        alpha = np.where(bld_mask & (flux_arr > 0), 210, 0).astype(np.uint8)
+        rgba  = np.dstack([rgb, alpha])
+
+        buf = io.BytesIO()
+        PILImage.fromarray(rgba, mode='RGBA').save(buf, format='PNG')
+        img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+        return jsonify({
+            "success": True, "quality": quality, "pixel_size_m": pixel_size_m,
+            "flux_min": round(flux_min, 0), "flux_max": round(flux_max, 0), "flux_mean": round(flux_mean, 0),
+            "imagery_date": layers.get('imageryDate'),
+            "bbox": {"north": bbox_north, "south": bbox_south, "east": bbox_east, "west": bbox_west},
+            "image_base64": img_b64
+        })
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Timeout Google Solar (30s)", "error_code": "TIMEOUT"}), 504
+    except Exception as e:
+        app.logger.error(f"flux-heatmap error: {e}", exc_info=True)
+        return jsonify({"error": str(e), "error_code": "SERVER_ERROR"}), 500
+# ──────────────────────────────────────────────────────────────
+
+
+# ──────────────────────────────────────────────────────────────
 # API: Données 3D LiDAR + BD TOPO + OSM pour visualisation 3D
 # ──────────────────────────────────────────────────────────────
 @app.route('/api/lidar/3d-data', methods=['GET'])
