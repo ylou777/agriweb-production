@@ -5586,10 +5586,11 @@ class Calpinage3DViewer {
         const cx     = (westX  + eastX)  / 2;
         const cz     = (northZ + southZ) / 2;
 
-        // Hauteur : légèrement au-dessus de la toiture
-        const terrainH = this.roofPanelsInfo?.buildingTerrainH ?? 0;
-        const wallH    = this.roofPanelsInfo?.buildingWallH    ?? 6;
-        const planeY   = terrainH + wallH + 0.25;
+        // Hauteur : au-dessus du faîtage (terrainH + H_mur + H_faîtage + marge)
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH    ?? 0;
+        const wallH    = this.roofPanelsInfo?.buildingWallH       ?? 6;
+        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0;
+        const planeY   = terrainH + wallH + ridgeH + 0.4;
 
         const loader = new THREE.TextureLoader();
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {

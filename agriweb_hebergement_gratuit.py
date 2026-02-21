@@ -2380,7 +2380,14 @@ def api_solar_flux_heatmap():
         if not math.isfinite(flux_min):  flux_min  = 0.0
         if not math.isfinite(flux_max):  flux_max  = 0.0
         if not math.isfinite(flux_mean): flux_mean = 0.0
-        print(f"  ✅ Flux valide: {len(valid)} pixels, [{flux_min:.0f}, {flux_max:.0f}] kWh/m²/an")
+        # Plage colorimétrique : percentiles 10–90 pour éviter les valeurs extrêmes
+        # et plancher réaliste (>400 kWh/m²/an = min physique sous ombrage partiel)
+        color_min = max(float(np.percentile(valid, 10)), 400.0)
+        color_max = float(np.percentile(valid, 90))
+        if not math.isfinite(color_min) or not math.isfinite(color_max):
+            color_min, color_max = flux_min, flux_max
+        if color_max <= color_min: color_max = color_min + 200.0
+        print(f"  ✅ Flux valide: {len(valid)} pixels, stats=[{flux_min:.0f},{flux_max:.0f}], color=[{color_min:.0f},{color_max:.0f}] kWh/m²/an")
 
         # ── 5. Colorisation spectrale (bleu→cyan→vert→jaune→orange→rouge) ─
         # Chaque point d'ancrage : (valeur_normalisée, R, G, B)
@@ -2396,7 +2403,7 @@ def api_solar_flux_heatmap():
 
         flux_norm = np.where(
             valid_mask,
-            (flux_arr - flux_min) / max(flux_max - flux_min, 1.0),
+            (flux_arr - color_min) / max(color_max - color_min, 1.0),
             0.0
         ).clip(0.0, 1.0)
 
@@ -2431,6 +2438,8 @@ def api_solar_flux_heatmap():
             "pixel_size_m": pixel_size_m,
             "flux_min":     round(flux_min,  0),
             "flux_max":     round(flux_max,  0),
+            "color_min":    round(color_min, 0),
+            "color_max":    round(color_max, 0),
             "flux_mean":    round(flux_mean, 0),
             "imagery_date": layers.get('imageryDate'),
             "bbox": {

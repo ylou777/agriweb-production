@@ -1065,7 +1065,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=46"></script>
+    <script src="/static/js/calpinage_3d.js?v=47"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6361,12 +6361,14 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _fluxActive = true;
                 if (btn) { btn.classList.remove('btn-light'); btn.classList.add('btn-warning'); btn.textContent = '🌡️ Irradiation'; }
 
-                // Légende
+                // Légende — utilise color_min/color_max (plage colorimétrique réelle)
                 if (legend) {
                     legend.style.display = 'block';
-                    document.getElementById('fluxLegendMin').textContent  = `${data.flux_min} kWh`;
-                    document.getElementById('fluxLegendMax').textContent  = `${data.flux_max} kWh`;
-                    document.getElementById('fluxLegendMean').textContent = `moy: ${data.flux_mean} kWh`;
+                    const cMin = data.color_min ?? data.flux_min;
+                    const cMax = data.color_max ?? data.flux_max;
+                    document.getElementById('fluxLegendMin').textContent  = `${cMin} kWh/m²/an`;
+                    document.getElementById('fluxLegendMax').textContent  = `${cMax} kWh/m²/an`;
+                    document.getElementById('fluxLegendMean').textContent = `moy: ${data.flux_mean} kWh/m²/an`;
                     const d = data.imagery_date;
                     document.getElementById('fluxLegendDate').textContent =
                         d ? `Imagerie Google Solar — ${d.year || ''}/${String(d.month||'').padStart(2,'0')}` : '';
