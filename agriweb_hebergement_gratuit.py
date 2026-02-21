@@ -2160,7 +2160,7 @@ def api_solar_flux_heatmap():
             url = (
                 "https://solar.googleapis.com/v1/dataLayers:get"
                 f"?location.latitude={lat}&location.longitude={lon}"
-                f"&radiusMeters={radius_m}&view=ANNUAL_FLUX"
+                f"&radiusMeters={radius_m}&view=IMAGERY_AND_ALL_FLUX_LAYERS"
                 f"&requiredQuality={q}&key={GOOGLE_SOLAR_API_KEY}"
             )
             return requests.get(url, timeout=20)
