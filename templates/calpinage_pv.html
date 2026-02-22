@@ -6332,17 +6332,21 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 let heatLat, heatLon, radius_m = 50, bCoords = [];
 
                 if (viewer3D?.isActive && viewer3D?.centerLat) {
-                    // ── MODE 3D : origine de scène ────────────────────────────────────────────
-                    heatLat  = viewer3D.centerLat;
-                    heatLon  = viewer3D.centerLon;
+                    // ── MODE 3D : centroïde du polygone bâtiment ──────────────────────────────
                     bCoords  = viewer3D.pvBuildingCoords || [];
-                    // Rayon depuis les coordonnées du bâtiment PV
-                    if (bCoords.length >= 2) {
+                    if (bCoords.length >= 3) {
+                        // Centroïde réel du polygone bâtiment (peut différer du point cliqué)
                         const lats = bCoords.map(c => c[1]);
                         const lons = bCoords.map(c => c[0]);
+                        heatLat = lats.reduce((a, b) => a + b, 0) / lats.length;
+                        heatLon = lons.reduce((a, b) => a + b, 0) / lons.length;
                         const dLat = (Math.max(...lats) - Math.min(...lats)) * 111320;
                         const dLon = (Math.max(...lons) - Math.min(...lons)) * 111320 * Math.cos(heatLat * Math.PI / 180);
                         radius_m = Math.max(40, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 30, 250));
+                    } else {
+                        // Fallback : origine de scène (point cliqué)
+                        heatLat = viewer3D.centerLat;
+                        heatLon = viewer3D.centerLon;
                     }
                 } else {
                     // ── MODE 2D : bbox des zones dessinées ───────────────────────────────────
