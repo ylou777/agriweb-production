@@ -2198,38 +2198,73 @@ def api_solar_flux_heatmap():
             w, h = img.size
             print(f'  [flux-heatmap] GeoTIFF mode={img.mode} size={w}x{h}')
 
-            # ── Stratégie : tester 3 interprétations, choisir la plus plausible ────────
+            # ── Stratégie : tester toutes les interprétations, choisir la plus plausible ──
             # Les valeurs d'irradiance annuelle (Google Solar) sont typiquement 100-2500 kWh/m²/an.
             # Un pixel "valide" = valeur dans [80, 4000].
             def _count_plausible(a):
                 return int(np.sum(np.isfinite(a) & (a > 80) & (a < 4000)))
 
             candidates = []
+            raw = img.tobytes()
+            n_px = h * w
 
-            # Interprétation 1 : np.array direct (fonctionne pour mode F et mode I natif)
+            # Interprétation 1 : np.array direct (mode F natif PIL = float32 LE)
             try:
                 a1 = np.array(img, dtype=np.float32)
                 if a1.ndim > 2: a1 = a1[:,:,0]
                 candidates.append(('array_direct', a1, _count_plausible(a1)))
+                print(f'  [flux-heatmap] array_direct: min={a1.min():.3g} max={a1.max():.3g} ok={_count_plausible(a1)}')
             except Exception as e:
                 print(f'  [flux-heatmap] array_direct failed: {e}')
 
-            # Interprétation 2 : frombuffer float32 (float32 GeoTIFF mal identifié par PIL)
+            # Interprétation 2 : frombuffer float32 little-endian
             try:
-                raw = img.tobytes()
-                n   = h * w
-                if len(raw) >= n * 4:
-                    a2 = np.frombuffer(raw[:n*4], dtype=np.float32).reshape(h, w).copy()
-                    candidates.append(('frombuffer_f32', a2, _count_plausible(a2)))
+                if len(raw) >= n_px * 4:
+                    a2 = np.frombuffer(raw[:n_px*4], dtype='<f4').reshape(h, w).copy()
+                    candidates.append(('frombuffer_f32_le', a2, _count_plausible(a2)))
+                    print(f'  [flux-heatmap] frombuffer_f32_le: min={a2.min():.3g} max={a2.max():.3g} ok={_count_plausible(a2)}')
             except Exception as e:
-                print(f'  [flux-heatmap] frombuffer_f32 failed: {e}')
+                print(f'  [flux-heatmap] frombuffer_f32_le failed: {e}')
 
-            # Interprétation 3 : int32 → float (TIFF entier natif type I;32)
+            # Interprétation 3 : frombuffer float32 BIG-ENDIAN (GeoTIFF standard = big-endian)
             try:
-                a3 = np.array(img, dtype=np.int32).astype(np.float32)
-                candidates.append(('int32_cast', a3, _count_plausible(a3)))
+                if len(raw) >= n_px * 4:
+                    a3 = np.frombuffer(raw[:n_px*4], dtype='>f4').astype(np.float32).reshape(h, w).copy()
+                    candidates.append(('frombuffer_f32_be', a3, _count_plausible(a3)))
+                    print(f'  [flux-heatmap] frombuffer_f32_be: min={a3.min():.3g} max={a3.max():.3g} ok={_count_plausible(a3)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] frombuffer_f32_be failed: {e}')
+
+            # Interprétation 4 : int32 → float (TIFF entier mode I;32)
+            try:
+                a4 = np.array(img, dtype=np.int32).astype(np.float32)
+                if a4.ndim > 2: a4 = a4[:,:,0]
+                candidates.append(('int32_cast', a4, _count_plausible(a4)))
+                print(f'  [flux-heatmap] int32_cast: min={a4.min():.3g} max={a4.max():.3g} ok={_count_plausible(a4)}')
             except Exception as e:
                 print(f'  [flux-heatmap] int32_cast failed: {e}')
+
+            # Interprétation 5 : float64 (certains GeoTIFF sont en double précision)
+            try:
+                if len(raw) >= n_px * 8:
+                    a5 = np.frombuffer(raw[:n_px*8], dtype='<f8').astype(np.float32).reshape(h, w).copy()
+                    candidates.append(('frombuffer_f64_le', a5, _count_plausible(a5)))
+                    print(f'  [flux-heatmap] frombuffer_f64_le: min={a5.min():.3g} max={a5.max():.3g} ok={_count_plausible(a5)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] frombuffer_f64_le failed: {e}')
+
+            # Interprétation 6 : int16 → float (GeoTIFF 16-bit, Google parfois en Wh×0.1)
+            try:
+                if len(raw) >= n_px * 2:
+                    a6 = np.frombuffer(raw[:n_px*2], dtype='<i2').astype(np.float32).reshape(h, w).copy()
+                    # Google peut stocker en Wh/m²/an → diviser par 1000
+                    a6_k = a6 / 1000.0
+                    c6 = _count_plausible(a6_k)
+                    if c6 == 0: a6_k = a6  # essai sans diviser
+                    candidates.append(('int16_raw', a6_k, _count_plausible(a6_k)))
+                    print(f'  [flux-heatmap] int16_raw: min={a6_k.min():.3g} max={a6_k.max():.3g} ok={_count_plausible(a6_k)}')
+            except Exception as e:
+                print(f'  [flux-heatmap] int16_raw failed: {e}')
 
             if not candidates:
                 raise ValueError(f'Impossible de lire le GeoTIFF (mode={img.mode})')
@@ -2237,9 +2272,8 @@ def api_solar_flux_heatmap():
             # Garder le candidat avec le plus de pixels plausibles
             candidates.sort(key=lambda x: x[2], reverse=True)
             best_name, best_arr, best_ok = candidates[0]
-            print(f'  [flux-heatmap] → choix={best_name} ok={best_ok} '
+            print(f'  [flux-heatmap] → CHOIX={best_name} ok={best_ok} '
                   f'p50={float(np.nanpercentile(best_arr[best_arr>0], 50)) if best_ok > 0 else 0:.1f}')
-            print(f'  [flux-heatmap] autres: ' + ', '.join(f'{n}={k}' for n,_,k in candidates[1:]))
             return best_arr
 
         flux_arr = _read_flux_tiff(flux_url)
