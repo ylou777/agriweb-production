@@ -2111,7 +2111,42 @@ class Calpinage3DViewer {
                 console.log('📐 Pans de toiture (Solar):', this.roofPanelsInfo);
             }
         }
-        if (usedRansac) return;
+        if (usedRansac) {
+            // ─── Acrotère sur le chemin Solar ───────────────────────────────────
+            // Vérifier si l'IA (si déjà résolue) ou le type de toit confirme un toit plat
+            const _solarInfo  = this.roofPanelsInfo;
+            const _isSolarFlat = _solarInfo?.type === 'flat' ||
+                // Tous les pans Solar ont pente < 5° → toit effectivement plat
+                (_solarInfo?.panels?.length > 0 &&
+                 _solarInfo.panels.every(p => (p.pente_deg || 0) < 5));
+            // Si IA déjà résolue, on peut affiner
+            let _aiFlat = false;
+            if (this.aiRoofPromise && typeof this.aiRoofPromise.then !== 'function') {
+                // aiRoofPromise est déjà une valeur résolue (cas rare)
+                _aiFlat = this.aiRoofPromise?.roof_type === 'flat';
+            }
+            if (_isSolarFlat || _aiFlat) {
+                this.roofPanelsInfo._acrotereWidth  = 0.30;
+                this.roofPanelsInfo._acrotereHeight = 0.50;
+                console.log('🏗️ Acrotère Solar (toit plat): h=0.50m, l=0.30m');
+                try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
+                catch(ae) { console.warn('⚠️ Rendu acrotère Solar échoué:', ae.message); }
+            } else {
+                // Toit incliné Solar : acrotère après résolution de l'IA (async)
+                if (this.aiRoofPromise) {
+                    this.aiRoofPromise.then(aiResult => {
+                        if (aiResult?.roof_type === 'flat' && aiResult.confidence >= 0.7) {
+                            this.roofPanelsInfo._acrotereWidth  = 0.30;
+                            this.roofPanelsInfo._acrotereHeight = 0.50;
+                            console.log(`🏗️ Acrotère Solar async IA (flat conf=${aiResult.confidence}): h=0.50m`);
+                            try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
+                            catch(ae) { console.warn('⚠️ Rendu acrotère Solar async échoué:', ae.message); }
+                        }
+                    }).catch(() => {});
+                }
+            }
+            return;
+        }
 
         // === Toit : analyse LiDAR MNS pour forme réaliste ===
         let roofAnalysis = null;
