@@ -5633,6 +5633,19 @@ class Calpinage3DViewer {
         const { bbox, image_base64 } = data;
         const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
 
+        // Debug : vérification de l'alignement bbox ↔ scène
+        if (this.pvBuildingCoords?.length) {
+            const lons = this.pvBuildingCoords.map(c => c[0]);
+            const lats = this.pvBuildingCoords.map(c => c[1]);
+            const bldgCenterLon = lons.reduce((a,b)=>a+b,0)/lons.length;
+            const bldgCenterLat = lats.reduce((a,b)=>a+b,0)/lats.length;
+            const bboxCenterLon = (bbox.west + bbox.east) / 2;
+            const bboxCenterLat = (bbox.south + bbox.north) / 2;
+            const offX = (bboxCenterLon - bldgCenterLon) * lngToM;
+            const offZ = (bboxCenterLat - bldgCenterLat) * this.LAT_TO_M;
+            console.log(`🌡️ Heatmap align: bboxCenter=(${bboxCenterLon.toFixed(6)},${bboxCenterLat.toFixed(6)}) bldgCenter=(${bldgCenterLon.toFixed(6)},${bldgCenterLat.toFixed(6)}) offset=(${offX.toFixed(1)}m,${offZ.toFixed(1)}m)`);
+        }
+
         // Convertit des coordonnées de scène (m) en UV normalisé dans la bbox heatmap
         const sceneToUV = (x, z) => [
             Math.max(0, Math.min(1, (this.centerLon + x / lngToM          - bbox.west)  / (bbox.east  - bbox.west))),
@@ -5685,14 +5698,23 @@ class Calpinage3DViewer {
             group.renderOrder = 8;
 
             if (!hasPitch || !obb) {
-                // ── Toit plat : couvrir l'empreinte OBB exacte ──
+                // ── Toit plat : polygone bâtiment réel en priorité ──
                 if (obb) {
                     const c = this._obbCorners(obb);
                     group.add(makeMesh(m, [
                         { x: c.flx, y: flatY, z: c.flz }, { x: c.frx, y: flatY, z: c.frz },
                         { x: c.brx, y: flatY, z: c.brz }, { x: c.blx, y: flatY, z: c.blz },
                     ]));
+                } else if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+                    // Fallback : polygone bâtiment BD TOPO converti en coordonnées scène
+                    const polyPts = this.pvBuildingCoords.map(c => ({
+                        x:  (c[0] - this.centerLon) * lngToM,
+                        y: flatY,
+                        z: -(c[1] - this.centerLat) * this.LAT_TO_M,
+                    }));
+                    group.add(makeMesh(m, polyPts));
                 } else {
+                    // Dernier recours : plein tile Solar (peut être large)
                     const wx = (bbox.west  - this.centerLon) * lngToM;
                     const ex = (bbox.east  - this.centerLon) * lngToM;
                     const nz = -(bbox.north - this.centerLat) * this.LAT_TO_M;
