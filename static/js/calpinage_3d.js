@@ -2299,11 +2299,11 @@ class Calpinage3DViewer {
                         this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                     } catch (e2) {
                         console.error('⚠️ Fallback gable échoué aussi:', e2);
-                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, obb.angle);
                     }
                 }
             } else {
-                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, obb.angle);
             }
         }
         
@@ -2352,9 +2352,12 @@ class Calpinage3DViewer {
                     const medEdge = edgeH.sort((a,b)=>a-b)[Math.floor(edgeH.length/2)];
                     const medCenter = centerH.sort((a,b)=>a-b)[Math.floor(centerH.length/2)];
                     if (medEdge - medCenter > 0.25) {
-                        this.roofPanelsInfo._acrotereWidth = Math.max(0.30, edgeThreshold * 0.5);
+                        this.roofPanelsInfo._acrotereWidth  = Math.max(0.30, edgeThreshold * 0.5);
                         this.roofPanelsInfo._acrotereHeight = medEdge - medCenter;
                         console.log(`🏗️ Acrotère détecté: h=${this.roofPanelsInfo._acrotereHeight.toFixed(2)}m, l=${this.roofPanelsInfo._acrotereWidth.toFixed(2)}m`);
+                        // ── Rendu 3D visuel de l'acrotère ──
+                        try { this._renderAcrotere(obb, terrainH + bh, this.roofPanelsInfo._acrotereHeight, this.roofPanelsInfo._acrotereWidth); }
+                        catch(ae) { console.warn('⚠️ Rendu acrotère échoué:', ae.message); }
                     }
                 }
             } catch(e) { console.warn('⚠️ Erreur détection acrotère:', e.message); }
@@ -4520,18 +4523,29 @@ class Calpinage3DViewer {
     /**
      * Crée un toit plat texturé
      */
-    _createFlatRoof(local, bx, bz, bh, terrainH, roofType) {
-        const roofGeo = new THREE.PlaneGeometry(bx, bz);
+    _createFlatRoof(local, bx, bz, bh, terrainH, roofType, obbAngle = 0) {
+        // Utiliser BufferGeometry avec les vrais coins OBB (rotation correcte)
+        const cA  = Math.cos(obbAngle), sA = Math.sin(obbAngle);
+        const hL  = bx / 2, hS = bz / 2;
+        const y   = terrainH + bh + 0.05;
+        // Coins OBB : fl, fr, br, bl  (convention _obbCorners)
+        const verts = new Float32Array([
+            local.x + cA*hL + sA*hS,  y,  local.z + sA*hL - cA*hS,  // fl
+            local.x + cA*hL - sA*hS,  y,  local.z + sA*hL + cA*hS,  // fr
+            local.x - cA*hL - sA*hS,  y,  local.z - sA*hL + cA*hS,  // br
+            local.x - cA*hL + sA*hS,  y,  local.z - sA*hL - cA*hS,  // bl
+        ]);
+        const roofGeo = new THREE.BufferGeometry();
+        roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+        roofGeo.setIndex([0,1,2, 0,2,3]);
+        roofGeo.computeVertexNormals();
         const roofTex = this._getRoofTexture(roofType);
         const roofMat = new THREE.MeshPhongMaterial({
-            map: roofTex,
-            side: THREE.DoubleSide,
-            specular: 0x111111
+            map: roofTex, side: THREE.DoubleSide, specular: 0x111111,
         });
         const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-        roofMesh.rotation.x = -Math.PI / 2;
-        roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
         roofMesh.castShadow = true;
+        roofMesh.userData.isRoofMesh = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
     }
@@ -5607,52 +5621,177 @@ class Calpinage3DViewer {
     }
 
     // ── Heatmap d'irradiance annuelle (Google Solar annualFlux) ──────────
+    //
+    // Stratégie : au lieu d'un plan horizontal flottant, on drape la texture
+    // sur la géométrie réelle du toit (gable/hip/shed/flat) en calculant les
+    // UV de chaque sommet depuis sa position géographique dans la bbox TIFF.
 
     showFluxHeatmap(data) {
         this.hideFluxHeatmap();
         if (!this.scene) return;
+
         const { bbox, image_base64 } = data;
         const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
-        const westX  = (bbox.west  - this.centerLon) * lngToM;
-        const eastX  = (bbox.east  - this.centerLon) * lngToM;
-        const northZ = -(bbox.north - this.centerLat) * this.LAT_TO_M;
-        const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
-        const planeW = eastX  - westX;
-        const planeD = southZ - northZ;
-        const cx     = (westX  + eastX)  / 2;
-        const cz     = (northZ + southZ) / 2;
-        const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
-        const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
-        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;
-        // Positionner le plan JUSTE AU-DESSUS du faîtage + marge de 0.6m
-        // depthTest: false garantit l'affichage même si la géométrie du toit
-        // occupe la même position dans le depth buffer (z-fighting sinon inévitable)
-        const planeY = terrainH + wallH + ridgeH + 0.6;
+
+        // Convertit des coordonnées de scène (m) en UV normalisé dans la bbox heatmap
+        const sceneToUV = (x, z) => [
+            Math.max(0, Math.min(1, (this.centerLon + x / lngToM          - bbox.west)  / (bbox.east  - bbox.west))),
+            Math.max(0, Math.min(1, 1 - (this.centerLat - z / this.LAT_TO_M - bbox.south) / (bbox.north - bbox.south))),
+        ];
+
+        const obb      = this.roofPanelsInfo?.buildingOBB;
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH ?? this._getTerrainHeight(0, 0);
+        const wallH    = this.roofPanelsInfo?.buildingWallH    ?? 6;
+        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0;
+        const roofType = this.roofPanelsInfo?.type ?? 'flat';
+        const nRidges  = this.roofPanelsInfo?.nRidges ?? 1;
+        const hasPitch = obb && ridgeH > 0.2 && roofType !== 'flat';
+
+        const eaveY  = terrainH + wallH + 0.12;  // légèrement au-dessus de la gouttière
+        const ridgeY = eaveY + ridgeH;
+        const flatY  = eaveY + 0.30;              // toit plat
+
+        // Crée un mesh BufferGeometry avec UV géographiques
+        const makeMesh = (m, pts) => {
+            const n   = pts.length;
+            const pos = new Float32Array(n * 3);
+            const uvs = new Float32Array(n * 2);
+            for (let i = 0; i < n; i++) {
+                pos[i*3] = pts[i].x; pos[i*3+1] = pts[i].y; pos[i*3+2] = pts[i].z;
+                const [u, v] = sceneToUV(pts[i].x, pts[i].z);
+                uvs[i*2] = u; uvs[i*2+1] = v;
+            }
+            const idx = [];
+            for (let i = 1; i < n - 1; i++) idx.push(0, i, i + 1);
+            const geom = new THREE.BufferGeometry();
+            geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geom.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2));
+            geom.setIndex(idx);
+            const mesh = new THREE.Mesh(geom, m);
+            mesh.renderOrder = 8;
+            return mesh;
+        };
+
         const loader = new THREE.TextureLoader();
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
-            const geom = new THREE.PlaneGeometry(planeW, planeD);
-            const mat  = new THREE.MeshBasicMaterial({
-                map: tex,
-                transparent: true,
-                depthWrite: false,
-                depthTest: false,   // ← clé : ignore le depth buffer du toit
+            tex.flipY = false;  // UV gérés manuellement
+            const m = new THREE.MeshBasicMaterial({
+                map: tex, transparent: true, opacity: 0.88,
+                depthWrite: false, depthTest: false,
                 side: THREE.DoubleSide,
             });
-            const mesh = new THREE.Mesh(geom, mat);
-            mesh.rotation.x = -Math.PI / 2;
-            mesh.position.set(cx, planeY, cz);
-            mesh.renderOrder = 8; // après toit(0) et avant modules(10)
-            this._fluxMesh = mesh;
-            this.scene.add(mesh);
+
+            const group = new THREE.Group();
+            group.renderOrder = 8;
+
+            if (!hasPitch || !obb) {
+                // ── Toit plat : couvrir l'empreinte OBB exacte ──
+                if (obb) {
+                    const c = this._obbCorners(obb);
+                    group.add(makeMesh(m, [
+                        { x: c.flx, y: flatY, z: c.flz }, { x: c.frx, y: flatY, z: c.frz },
+                        { x: c.brx, y: flatY, z: c.brz }, { x: c.blx, y: flatY, z: c.blz },
+                    ]));
+                } else {
+                    const wx = (bbox.west  - this.centerLon) * lngToM;
+                    const ex = (bbox.east  - this.centerLon) * lngToM;
+                    const nz = -(bbox.north - this.centerLat) * this.LAT_TO_M;
+                    const sz = -(bbox.south - this.centerLat) * this.LAT_TO_M;
+                    group.add(makeMesh(m, [{x:wx,y:flatY,z:nz},{x:ex,y:flatY,z:nz},{x:ex,y:flatY,z:sz},{x:wx,y:flatY,z:sz}]));
+                }
+            } else {
+                const c = this._obbCorners(obb);
+                // Helper : convertit (along, across) OBB → point 3D
+                // Convention _obbCorners : along=(cA,sA), across=(sA,-cA) en XZ
+                const pt = (along, across, y) => ({
+                    x: obb.cx + c.cA * along + c.sA * across,
+                    y,
+                    z: obb.cz + c.sA * along - c.cA * across,
+                });
+
+                if (roofType === 'hip') {
+                    // ── 4 pans croupe ──
+                    const rHL = obb.longDim * 0.45 / 2;
+                    const r1  = { x: obb.cx + c.cA * rHL, y: ridgeY, z: obb.cz + c.sA * rHL };
+                    const r2  = { x: obb.cx - c.cA * rHL, y: ridgeY, z: obb.cz - c.sA * rHL };
+                    group.add(makeMesh(m, [ r1, {x:c.flx,y:eaveY,z:c.flz}, {x:c.frx,y:eaveY,z:c.frz} ]));
+                    group.add(makeMesh(m, [ r2, {x:c.brx,y:eaveY,z:c.brz}, {x:c.blx,y:eaveY,z:c.blz} ]));
+                    group.add(makeMesh(m, [ r1, {x:c.flx,y:eaveY,z:c.flz}, {x:c.blx,y:eaveY,z:c.blz}, r2 ]));
+                    group.add(makeMesh(m, [ r1, r2, {x:c.brx,y:eaveY,z:c.brz}, {x:c.frx,y:eaveY,z:c.frz} ]));
+
+                } else if (roofType === 'shed') {
+                    // ── Mono-pente : détecter côté haut depuis azimut du pan ──
+                    const shedAzDeg = this.roofPanelsInfo.panels?.[0]?.orientation_deg ?? 180;
+                    const acrossAz  = ((90 + (obb.angle - Math.PI / 2) * 180 / Math.PI) % 360 + 360) % 360;
+                    const highIsAcrossPlus = Math.abs(((shedAzDeg - acrossAz) + 540) % 360 - 180) > 90;
+                    if (highIsAcrossPlus) {
+                        group.add(makeMesh(m, [
+                            {x:c.flx,y:ridgeY,z:c.flz},{x:c.blx,y:ridgeY,z:c.blz},
+                            {x:c.brx,y:eaveY, z:c.brz},{x:c.frx,y:eaveY, z:c.frz},
+                        ]));
+                    } else {
+                        group.add(makeMesh(m, [
+                            {x:c.frx,y:ridgeY,z:c.frz},{x:c.brx,y:ridgeY,z:c.brz},
+                            {x:c.blx,y:eaveY, z:c.blz},{x:c.flx,y:eaveY, z:c.flz},
+                        ]));
+                    }
+
+                } else if (roofType === 'multi-gable' || roofType === 'multi-shed') {
+                    // ── Multi-sections : N mini-gables ou N sheds ──
+                    const n   = Math.max(nRidges, 1);
+                    const secW = obb.shortDim / n;
+                    for (let s = 0; s < n; s++) {
+                        const acrStart = -obb.shortDim / 2 + s * secW;
+                        const acrMid   = acrStart + secW / 2;
+                        const acrEnd   = acrStart + secW;
+                        if (roofType === 'multi-shed') {
+                            // Tous les versants dans la même direction (acrStart→acrEnd = bas→haut)
+                            group.add(makeMesh(m, [
+                                pt(-c.hL, acrStart, eaveY), pt(c.hL, acrStart, eaveY),
+                                pt(c.hL,  acrEnd,   ridgeY), pt(-c.hL, acrEnd, ridgeY),
+                            ]));
+                        } else {
+                            // mini-gable : 2 pans par section
+                            group.add(makeMesh(m, [
+                                pt(-c.hL, acrEnd, eaveY),  pt(c.hL, acrEnd, eaveY),
+                                pt(c.hL,  acrMid, ridgeY), pt(-c.hL, acrMid, ridgeY),
+                            ]));
+                            group.add(makeMesh(m, [
+                                pt(-c.hL, acrMid,  ridgeY), pt(c.hL, acrMid,  ridgeY),
+                                pt(c.hL,  acrStart, eaveY), pt(-c.hL, acrStart, eaveY),
+                            ]));
+                        }
+                    }
+
+                } else {
+                    // ── Bi-pente (gable) — défaut pour tout toit incliné ──
+                    group.add(makeMesh(m, [
+                        {x:c.r2x,y:ridgeY,z:c.r2z},{x:c.r1x,y:ridgeY,z:c.r1z},
+                        {x:c.flx,y:eaveY, z:c.flz},{x:c.blx,y:eaveY, z:c.blz},
+                    ]));
+                    group.add(makeMesh(m, [
+                        {x:c.r1x,y:ridgeY,z:c.r1z},{x:c.r2x,y:ridgeY,z:c.r2z},
+                        {x:c.brx,y:eaveY, z:c.brz},{x:c.frx,y:eaveY, z:c.frz},
+                    ]));
+                }
+            }
+
+            this._fluxMesh = group;
+            this.scene.add(group);
         });
     }
 
     hideFluxHeatmap() {
         if (this._fluxMesh) {
             this.scene?.remove(this._fluxMesh);
-            this._fluxMesh.material?.map?.dispose();
-            this._fluxMesh.material?.dispose();
-            this._fluxMesh.geometry?.dispose();
+            // Traverser le groupe pour disposer chaque sous-mesh
+            this._fluxMesh.traverse(o => {
+                if (o.isMesh) {
+                    o.material?.map?.dispose();
+                    o.material?.dispose();
+                    o.geometry?.dispose();
+                }
+            });
             this._fluxMesh = null;
         }
     }
