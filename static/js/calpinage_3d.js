@@ -4192,7 +4192,7 @@ class Calpinage3DViewer {
             const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
             const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
             const n_poly = poly.length;
-            const expandedPoly = poly.map(([px, py], i) => {
+            let expandedPoly = poly.map(([px, py], i) => {
                 const [ax, ay] = poly[(i - 1 + n_poly) % n_poly];
                 const [bx, by] = poly[(i + 1) % n_poly];
                 // Normales sortantes des deux arêtes adjacentes à ce sommet
