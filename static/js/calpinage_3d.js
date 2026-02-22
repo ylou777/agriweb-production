@@ -4235,10 +4235,10 @@ class Calpinage3DViewer {
             if (plane.slope_deg >= 5) {
                 let bestEdgeScore = -Infinity;
                 let bestP1 = null, bestP2 = null;
-                const n_ep = expandedPoly.length;
+                const n_ep = poly.length;
                 for (let ei = 0; ei < n_ep; ei++) {
-                    const [ex1, ey1] = expandedPoly[ei];
-                    const [ex2, ey2] = expandedPoly[(ei + 1) % n_ep];
+                    const [ex1, ey1] = poly[ei];
+                    const [ex2, ey2] = poly[(ei + 1) % n_ep];
                     const mnh1 = mnh_a * ex1 + mnh_b * ey1 + mnh_c;
                     const mnh2 = mnh_a * ex2 + mnh_b * ey2 + mnh_c;
                     const score = (mnh1 + mnh2) / 2;
