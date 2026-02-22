@@ -4230,8 +4230,7 @@ class Calpinage3DViewer {
             }
 
             // ── Chaperon de faîtage : isoline de hauteur max clippée sur poly ──
-            // Méthode : on coupe le polygone Solar par la droite horizontale
-            // "là où mnh est maximal dans ce pan" → segment garanti dans poly.
+            // puis clampée sur le footprint pvBuildingCoords
             if (plane.slope_deg >= 5) {
                 const gradLen = Math.sqrt(mnh_a*mnh_a + mnh_b*mnh_b) || 1e-6;
                 const su = mnh_a / gradLen, sv = mnh_b / gradLen; // vecteur montant
@@ -4260,25 +4259,44 @@ class Calpinage3DViewer {
                 if (intersections.length >= 2) {
                     // Trier selon l'axe faîtage et prendre les deux extrêmes
                     intersections.sort((a, b) => (a[0]*ru + a[1]*rv) - (b[0]*ru + b[1]*rv));
-                    const [ix1, iy1] = intersections[0];
-                    const [ix2, iy2] = intersections[intersections.length - 1];
-                    const mnh1 = mnh_a*ix1 + mnh_b*iy1 + mnh_c;
-                    const mnh2 = mnh_a*ix2 + mnh_b*iy2 + mnh_c;
-                    const wx1 = bldgOffsetX + ix1, wz1 = bldgOffsetZ - iy1;
-                    const wx2 = bldgOffsetX + ix2, wz2 = bldgOffsetZ - iy2;
-                    const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
-                    const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
-                    const ridgeLen = Math.sqrt((wx2-wx1)**2 + (wy2-wy1)**2 + (wz2-wz1)**2);
-                    if (ridgeLen > 0.4) {
-                        const ridgeGeo = new THREE.BoxGeometry(ridgeLen, 0.12, 0.15);
-                        const ridgeMat = new THREE.MeshPhongMaterial({ color: 0x8B4513, specular: 0x111111, shininess: 15 });
-                        const ridgeMesh = new THREE.Mesh(ridgeGeo, ridgeMat);
-                        ridgeMesh.position.set((wx1+wx2)/2, (wy1+wy2)/2 + 0.06, (wz1+wz2)/2);
-                        const edgeAngle = Math.atan2(wz2 - wz1, wx2 - wx1);
-                        ridgeMesh.rotation.y = -edgeAngle;
-                        ridgeMesh.castShadow = true;
-                        this.scene.add(ridgeMesh);
-                        this.buildings.push(ridgeMesh);
+                    let r1 = intersections[0][0]*ru + intersections[0][1]*rv;
+                    let r2 = intersections[intersections.length - 1][0]*ru + intersections[intersections.length - 1][1]*rv;
+
+                    // ── Clamp sur le footprint réel (pvBuildingCoords) ───────────
+                    // Poly Solar peut déborder du bâtiment → on intersecte avec
+                    // l'étendue du footprint projeté sur l'axe faîtage.
+                    if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+                        const fpLocal = this.pvBuildingCoords.map(([flon, flat]) => [
+                            (flon - bldgCenter.lon) * LNG_TO_M,
+                            (flat - bldgCenter.lat) * this.LAT_TO_M
+                        ]);
+                        const fpR = fpLocal.map(([fx, fy]) => fx*ru + fy*rv);
+                        r1 = Math.max(r1, Math.min(...fpR));
+                        r2 = Math.min(r2, Math.max(...fpR));
+                    }
+
+                    if (r2 - r1 > 0.3) {
+                        // Reconstruire les points 2D à partir de s_ridge et r1/r2
+                        const ix1 = su*s_ridge + ru*r1, iy1 = sv*s_ridge + rv*r1;
+                        const ix2 = su*s_ridge + ru*r2, iy2 = sv*s_ridge + rv*r2;
+                        const mnh1 = mnh_a*ix1 + mnh_b*iy1 + mnh_c;
+                        const mnh2 = mnh_a*ix2 + mnh_b*iy2 + mnh_c;
+                        const wx1 = bldgOffsetX + ix1, wz1 = bldgOffsetZ - iy1;
+                        const wx2 = bldgOffsetX + ix2, wz2 = bldgOffsetZ - iy2;
+                        const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
+                        const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
+                        const ridgeLen = Math.sqrt((wx2-wx1)**2 + (wy2-wy1)**2 + (wz2-wz1)**2);
+                        if (ridgeLen > 0.4) {
+                            const ridgeGeo = new THREE.BoxGeometry(ridgeLen, 0.12, 0.15);
+                            const ridgeMat = new THREE.MeshPhongMaterial({ color: 0x8B4513, specular: 0x111111, shininess: 15 });
+                            const ridgeMesh = new THREE.Mesh(ridgeGeo, ridgeMat);
+                            ridgeMesh.position.set((wx1+wx2)/2, (wy1+wy2)/2 + 0.06, (wz1+wz2)/2);
+                            const edgeAngle = Math.atan2(wz2 - wz1, wx2 - wx1);
+                            ridgeMesh.rotation.y = -edgeAngle;
+                            ridgeMesh.castShadow = true;
+                            this.scene.add(ridgeMesh);
+                            this.buildings.push(ridgeMesh);
+                        }
                     }
                 }
             }
