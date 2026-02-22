@@ -2112,38 +2112,28 @@ class Calpinage3DViewer {
             }
         }
         if (usedRansac) {
-            // ─── Acrotère sur le chemin Solar ───────────────────────────────────
-            // Vérifier si l'IA (si déjà résolue) ou le type de toit confirme un toit plat
+            // ─── Acrotère sur le chemin Solar (await direct — _createBuilding3D est async) ───
             const _solarInfo  = this.roofPanelsInfo;
-            const _isSolarFlat = _solarInfo?.type === 'flat' ||
+            let _isSolarFlat = _solarInfo?.type === 'flat' ||
                 // Tous les pans Solar ont pente < 5° → toit effectivement plat
                 (_solarInfo?.panels?.length > 0 &&
                  _solarInfo.panels.every(p => (p.pente_deg || 0) < 5));
-            // Si IA déjà résolue, on peut affiner
-            let _aiFlat = false;
-            if (this.aiRoofPromise && typeof this.aiRoofPromise.then !== 'function') {
-                // aiRoofPromise est déjà une valeur résolue (cas rare)
-                _aiFlat = this.aiRoofPromise?.roof_type === 'flat';
+            // Attendre l'IA si nécessaire (la fonction est async, await autorisé ici)
+            if (!_isSolarFlat && this.aiRoofPromise) {
+                try {
+                    const _aiRes = await this.aiRoofPromise;
+                    if (_aiRes?.roof_type === 'flat' && _aiRes.confidence >= 0.7) {
+                        _isSolarFlat = true;
+                        console.log(`🤖 Solar: IA confirme toit plat (conf=${_aiRes.confidence}) → acrotère`);
+                    }
+                } catch (_e) { /* ignore */ }
             }
-            if (_isSolarFlat || _aiFlat) {
+            if (_isSolarFlat) {
                 this.roofPanelsInfo._acrotereWidth  = 0.30;
                 this.roofPanelsInfo._acrotereHeight = 0.50;
                 console.log('🏗️ Acrotère Solar (toit plat): h=0.50m, l=0.30m');
                 try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
                 catch(ae) { console.warn('⚠️ Rendu acrotère Solar échoué:', ae.message); }
-            } else {
-                // Toit incliné Solar : acrotère après résolution de l'IA (async)
-                if (this.aiRoofPromise) {
-                    this.aiRoofPromise.then(aiResult => {
-                        if (aiResult?.roof_type === 'flat' && aiResult.confidence >= 0.7) {
-                            this.roofPanelsInfo._acrotereWidth  = 0.30;
-                            this.roofPanelsInfo._acrotereHeight = 0.50;
-                            console.log(`🏗️ Acrotère Solar async IA (flat conf=${aiResult.confidence}): h=0.50m`);
-                            try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
-                            catch(ae) { console.warn('⚠️ Rendu acrotère Solar async échoué:', ae.message); }
-                        }
-                    }).catch(() => {});
-                }
             }
             return;
         }
@@ -2226,6 +2216,14 @@ class Calpinage3DViewer {
                                     roofShape = aiType;
                                     if (roofAnalysis) roofAnalysis.type = aiType;
                                 }
+                            }
+                            // IA dit flat avec haute confiance → LiDAR mal interprété (relief minime)
+                            else if (aiType === 'flat' && aiResult.confidence >= 0.80) {
+                                console.log(`🤖→🏠 IA override: ${lidarType} → flat (conf=${aiResult.confidence}) → acrotère probable`);
+                                roofShape = 'flat';
+                                hasPitchedRoof = false;
+                                ridgeExtra = 0;
+                                if (roofAnalysis) roofAnalysis.type = 'flat';
                             }
                             else {
                                 console.log(`🤖 IA dit ${aiType} vs LiDAR ${lidarType} — on garde LiDAR (types trop différents)`);
