@@ -144,26 +144,21 @@
 
     /* === SIDEBAR FOOTER === */
     .sidebar-footer {
-      padding: 12px 24px;
+      padding: 8px 16px;
       border-top: 1px solid var(--c-border);
-      background: var(--c-surface-2);
+      background: var(--c-surface);
       flex-shrink: 0;
     }
     .sidebar-footer .settings-btn {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px 16px;
-      font-size: 0.85rem;
-      font-weight: 500;
+      gap: 8px;
+      padding: 6px 10px;
+      font-size: 0.8rem;
       color: var(--c-text-secondary);
-      background: var(--c-bg);
-      border: 1px solid var(--c-border);
       border-radius: var(--radius-sm);
       text-decoration: none;
       transition: all var(--transition);
-      width: 100%;
-      justify-content: flex-start;
     }
     .sidebar-footer .settings-btn:hover {
       color: var(--c-accent);
@@ -458,25 +453,19 @@
       <!-- Navigation pills -->
       <div class="nav-pills-row">
         <a href="/crm" target="_blank" class="nav-pill"><i class="bi bi-folder2-open"></i> Projets</a>
+        <a href="/ao-pv-batiment" target="_blank" class="nav-pill" style="border-color:rgba(247,151,30,0.5);color:#f7971e;"><i class="bi bi-sun-fill"></i> AO PV</a>
         {% if is_admin %}
         <a href="/crm/stats" target="_blank" class="nav-pill"><i class="bi bi-bar-chart-line"></i> KPI</a>
         <a href="/admin" target="_blank" class="nav-pill" style="border-color:rgba(241,196,15,0.4);color:#f1c40f;"><i class="bi bi-shield-lock"></i> Admin</a>
         {% endif %}
+        <a href="/api/crm/parametrage" target="_blank" class="nav-pill" title="Paramètres" style="margin-left:auto;"><i class="bi bi-gear"></i></a>
       </div>
 
       <!-- Sections -->
-      <div style="flex:1; overflow-y:auto; padding-bottom:16px;">
+      <div style="flex:1; overflow-y:auto; min-height:0;">
         <div class="accordion" id="searchAccordion">
           {% include 'search_panel.html' %}
         </div>
-      </div>
-
-      <!-- Footer -->
-      <div class="sidebar-footer">
-        <a href="/api/crm/parametrage" class="settings-btn" target="_blank">
-          <i class="bi bi-gear"></i>
-          <span>Paramètres</span>
-        </a>
       </div>
     </div>
     <!-- CARTE DOIT ÊTRE À DROITE - DEUXIÈME ÉLÉMENT -->
