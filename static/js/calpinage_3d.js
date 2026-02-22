@@ -4246,6 +4246,29 @@ class Calpinage3DViewer {
                         bestP2 = [ex2, ey2, mnh2];
                     }
                 }
+                // ── Clip du chaperon aux limites du bâtiment projeté ──────────────
+                // Project all footprint vertices onto the ridge axis and clamp P1/P2
+                // so the cap never overshoots the gable ends.
+                if (bestP1 && bestP2 && this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+                    const fpLocal = this.pvBuildingCoords.map(([flon, flat]) => [
+                        (flon - bldgCenter.lon) * LNG_TO_M,
+                        (flat - bldgCenter.lat) * this.LAT_TO_M
+                    ]);
+                    const rdx = bestP2[0] - bestP1[0];
+                    const rdy = bestP2[1] - bestP1[1];
+                    const rLen = Math.sqrt(rdx*rdx + rdy*rdy) || 1;
+                    const rux = rdx / rLen, ruy = rdy / rLen;
+                    const rox = bestP1[0], roy = bestP1[1];
+                    const projs = fpLocal.map(([fx, fy]) => (fx - rox)*rux + (fy - roy)*ruy);
+                    const tc1 = Math.max(Math.min(...projs), 0);
+                    const tc2 = Math.min(Math.max(...projs), rLen);
+                    if (tc2 - tc1 > 0.3) {
+                        const nx1 = rox + rux*tc1, ny1 = roy + ruy*tc1;
+                        const nx2 = rox + rux*tc2, ny2 = roy + ruy*tc2;
+                        bestP1 = [nx1, ny1, mnh_a*nx1 + mnh_b*ny1 + mnh_c];
+                        bestP2 = [nx2, ny2, mnh_a*nx2 + mnh_b*ny2 + mnh_c];
+                    }
+                }
                 if (bestP1 && bestP2) {
                     const wx1 = bldgOffsetX + bestP1[0], wz1 = bldgOffsetZ - bestP1[1];
                     const wx2 = bldgOffsetX + bestP2[0], wz2 = bldgOffsetZ - bestP2[1];
