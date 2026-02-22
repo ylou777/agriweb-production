@@ -4227,60 +4227,57 @@ class Calpinage3DViewer {
                 this.buildings.push(sMesh);
             }
 
-            // ── Chaperon de faîtage : arête haute du polygone ──────────────────
-            // Trouve l'arête du polygone dont la moyenne des MNH est la plus haute
-            // (= arête de faîtage ou d'about) et y pose un bandeau de 0.15×0.12m.
-            if (plane.slope_deg >= 5) {
-                let bestEdgeScore = -Infinity;
-                let bestP1 = null, bestP2 = null;
-                const n_ep = poly.length;
-                for (let ei = 0; ei < n_ep; ei++) {
-                    const [ex1, ey1] = poly[ei];
-                    const [ex2, ey2] = poly[(ei + 1) % n_ep];
-                    const mnh1 = mnh_a * ex1 + mnh_b * ey1 + mnh_c;
-                    const mnh2 = mnh_a * ex2 + mnh_b * ey2 + mnh_c;
-                    const score = (mnh1 + mnh2) / 2;
-                    if (score > bestEdgeScore) {
-                        bestEdgeScore = score;
-                        bestP1 = [ex1, ey1, mnh1];
-                        bestP2 = [ex2, ey2, mnh2];
-                    }
-                }
-                // ── Clip du chaperon aux limites du bâtiment projeté ──────────────
-                // Project all footprint vertices onto the ridge axis and clamp P1/P2
-                // so the cap never overshoots the gable ends.
-                if (bestP1 && bestP2 && this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-                    const fpLocal = this.pvBuildingCoords.map(([flon, flat]) => [
-                        (flon - bldgCenter.lon) * LNG_TO_M,
-                        (flat - bldgCenter.lat) * this.LAT_TO_M
-                    ]);
-                    const rdx = bestP2[0] - bestP1[0];
-                    const rdy = bestP2[1] - bestP1[1];
-                    const rLen = Math.sqrt(rdx*rdx + rdy*rdy) || 1;
-                    const rux = rdx / rLen, ruy = rdy / rLen;
-                    const rox = bestP1[0], roy = bestP1[1];
-                    const projs = fpLocal.map(([fx, fy]) => (fx - rox)*rux + (fy - roy)*ruy);
-                    const tc1 = Math.max(Math.min(...projs), 0);
-                    const tc2 = Math.min(Math.max(...projs), rLen);
-                    if (tc2 - tc1 > 0.3) {
-                        const nx1 = rox + rux*tc1, ny1 = roy + ruy*tc1;
-                        const nx2 = rox + rux*tc2, ny2 = roy + ruy*tc2;
-                        bestP1 = [nx1, ny1, mnh_a*nx1 + mnh_b*ny1 + mnh_c];
-                        bestP2 = [nx2, ny2, mnh_a*nx2 + mnh_b*ny2 + mnh_c];
-                    }
-                }
-                if (bestP1 && bestP2) {
-                    const wx1 = bldgOffsetX + bestP1[0], wz1 = bldgOffsetZ - bestP1[1];
-                    const wx2 = bldgOffsetX + bestP2[0], wz2 = bldgOffsetZ - bestP2[1];
-                    const wy1 = terrainH + Math.max(bh - 0.3, bestP1[2]);
-                    const wy2 = terrainH + Math.max(bh - 0.3, bestP2[2]);
+            // ── Chaperon de faîtage : dérivé de l'équation du plan + footprint ─
+            // On ne se fie pas à polygon_2d (Solar peut déborder) :
+            // 1. Direction de pente = gradient du plan (mnh_a, mnh_b) normalisé
+            // 2. Direction faîtage  = perpendiculaire à la pente
+            // 3. On projette pvBuildingCoords sur ces deux axes :
+            //    - axe pente  → s_max = position du faîtage dans le plan
+            //    - axe faîtage → [r_min, r_max] = longueur du faîtage
+            // 4. On intersecte avec l'étendue de poly sur l'axe faîtage pour ne
+            //    pas déborder sur les plans adjacents.
+            if (plane.slope_deg >= 5 && this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+                // Gradient horizontal du plan de toiture (2D, espace local mètres)
+                const gradLen = Math.sqrt(mnh_a*mnh_a + mnh_b*mnh_b) || 1e-6;
+                // Vecteur unitaire dans la direction de la pente (vers le faîtage)
+                const su = mnh_a / gradLen, sv = mnh_b / gradLen;
+                // Vecteur unitaire du faîtage (perpendiculaire à la pente)
+                const ru = -sv, rv = su;
+
+                // Convertir footprint en coordonnées locales (mètres / bldgCenter)
+                const fpLocal = this.pvBuildingCoords.map(([flon, flat]) => [
+                    (flon - bldgCenter.lon) * LNG_TO_M,
+                    (flat - bldgCenter.lat) * this.LAT_TO_M
+                ]);
+                // Projections sur axe pente → position du faîtage = max
+                const sProjs = fpLocal.map(([fx, fy]) => fx*su + fy*sv);
+                const s_max = Math.max(...sProjs);
+                // Projections sur axe faîtage → étendue du chaperon
+                const rProjs = fpLocal.map(([fx, fy]) => fx*ru + fy*rv);
+                let r_min = Math.min(...rProjs);
+                let r_max = Math.max(...rProjs);
+
+                // Réduire encore en intersectant avec l'étendue de poly sur l'axe faîtage
+                // (évite de sortir du pan Solar si le bâtiment est plus grand)
+                const polyRProjs = poly.map(([px, py]) => px*ru + py*rv);
+                r_min = Math.max(r_min, Math.min(...polyRProjs));
+                r_max = Math.min(r_max, Math.max(...polyRProjs));
+
+                if (r_max - r_min > 0.3) {
+                    const lx1 = su*s_max + ru*r_min, ly1 = sv*s_max + rv*r_min;
+                    const lx2 = su*s_max + ru*r_max, ly2 = sv*s_max + rv*r_max;
+                    const mnh1 = mnh_a*lx1 + mnh_b*ly1 + mnh_c;
+                    const mnh2 = mnh_a*lx2 + mnh_b*ly2 + mnh_c;
+                    const wx1 = bldgOffsetX + lx1, wz1 = bldgOffsetZ - ly1;
+                    const wx2 = bldgOffsetX + lx2, wz2 = bldgOffsetZ - ly2;
+                    const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
+                    const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
                     const ridgeLen = Math.sqrt((wx2-wx1)**2 + (wy2-wy1)**2 + (wz2-wz1)**2);
                     if (ridgeLen > 0.5) {
                         const ridgeGeo = new THREE.BoxGeometry(ridgeLen, 0.12, 0.15);
                         const ridgeMat = new THREE.MeshPhongMaterial({ color: 0x8B4513, specular: 0x111111, shininess: 15 });
                         const ridgeMesh = new THREE.Mesh(ridgeGeo, ridgeMat);
                         ridgeMesh.position.set((wx1+wx2)/2, (wy1+wy2)/2 + 0.06, (wz1+wz2)/2);
-                        // Orienter le chaperon : aligner l'axe X local avec la direction de l'arête
                         const edgeAngle = Math.atan2(wz2 - wz1, wx2 - wx1);
                         ridgeMesh.rotation.y = -edgeAngle;
                         ridgeMesh.castShadow = true;
