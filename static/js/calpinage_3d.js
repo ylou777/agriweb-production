@@ -4151,7 +4151,9 @@ class Calpinage3DViewer {
                 // Bissectrice des deux normales + scaling pour maintenir distance EXP
                 const bsx = n1x + n2x, bsy = n1y + n2y, bsLen = Math.sqrt(bsx*bsx + bsy*bsy) || 1;
                 const sinHalf = Math.max(0.1, bsLen / 2);
-                const scale = EXP / sinHalf;
+                // Plafonner le déplacement à 2×EXP pour éviter les sommets fuyants
+                // aux angles aigus (sinHalf→0 → scale→∞ → vertex projeté à 5-10m)
+                const scale = Math.min(EXP / sinHalf, EXP * 2.0);
                 return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
             });
 
@@ -4227,53 +4229,47 @@ class Calpinage3DViewer {
                 this.buildings.push(sMesh);
             }
 
-            // ── Chaperon de faîtage : dérivé de l'équation du plan + footprint ─
-            // On ne se fie pas à polygon_2d (Solar peut déborder) :
-            // 1. Direction de pente = gradient du plan (mnh_a, mnh_b) normalisé
-            // 2. Direction faîtage  = perpendiculaire à la pente
-            // 3. On projette pvBuildingCoords sur ces deux axes :
-            //    - axe pente  → s_max = position du faîtage dans le plan
-            //    - axe faîtage → [r_min, r_max] = longueur du faîtage
-            // 4. On intersecte avec l'étendue de poly sur l'axe faîtage pour ne
-            //    pas déborder sur les plans adjacents.
-            if (plane.slope_deg >= 5 && this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-                // Gradient horizontal du plan de toiture (2D, espace local mètres)
+            // ── Chaperon de faîtage : isoline de hauteur max clippée sur poly ──
+            // Méthode : on coupe le polygone Solar par la droite horizontale
+            // "là où mnh est maximal dans ce pan" → segment garanti dans poly.
+            if (plane.slope_deg >= 5) {
                 const gradLen = Math.sqrt(mnh_a*mnh_a + mnh_b*mnh_b) || 1e-6;
-                // Vecteur unitaire dans la direction de la pente (vers le faîtage)
-                const su = mnh_a / gradLen, sv = mnh_b / gradLen;
-                // Vecteur unitaire du faîtage (perpendiculaire à la pente)
-                const ru = -sv, rv = su;
+                const su = mnh_a / gradLen, sv = mnh_b / gradLen; // vecteur montant
+                const ru = -sv,            rv =  su;              // vecteur faîtage
 
-                // Convertir footprint en coordonnées locales (mètres / bldgCenter)
-                const fpLocal = this.pvBuildingCoords.map(([flon, flat]) => [
-                    (flon - bldgCenter.lon) * LNG_TO_M,
-                    (flat - bldgCenter.lat) * this.LAT_TO_M
-                ]);
-                // Projections sur axe pente → position du faîtage = max
-                const sProjs = fpLocal.map(([fx, fy]) => fx*su + fy*sv);
-                const s_max = Math.max(...sProjs);
-                // Projections sur axe faîtage → étendue du chaperon
-                const rProjs = fpLocal.map(([fx, fy]) => fx*ru + fy*rv);
-                let r_min = Math.min(...rProjs);
-                let r_max = Math.max(...rProjs);
+                // Position du faîtage = max projection de poly sur l'axe montant
+                const polyS = poly.map(([px, py]) => px*su + py*sv);
+                const s_ridge = Math.max(...polyS);
 
-                // Réduire encore en intersectant avec l'étendue de poly sur l'axe faîtage
-                // (évite de sortir du pan Solar si le bâtiment est plus grand)
-                const polyRProjs = poly.map(([px, py]) => px*ru + py*rv);
-                r_min = Math.max(r_min, Math.min(...polyRProjs));
-                r_max = Math.min(r_max, Math.max(...polyRProjs));
+                // Clip de la droite (x·su+y·sv = s_ridge) contre les arêtes de poly
+                const intersections = [];
+                const np = poly.length;
+                for (let ei = 0; ei < np; ei++) {
+                    const [x1, y1] = poly[ei];
+                    const [x2, y2] = poly[(ei + 1) % np];
+                    const s1 = x1*su + y1*sv;
+                    const s2 = x2*su + y2*sv;
+                    const ds = s2 - s1;
+                    if (Math.abs(ds) < 1e-9) continue;
+                    const t = (s_ridge - s1) / ds;
+                    if (t >= -1e-4 && t <= 1 + 1e-4) {
+                        intersections.push([x1 + t*(x2-x1), y1 + t*(y2-y1)]);
+                    }
+                }
 
-                if (r_max - r_min > 0.3) {
-                    const lx1 = su*s_max + ru*r_min, ly1 = sv*s_max + rv*r_min;
-                    const lx2 = su*s_max + ru*r_max, ly2 = sv*s_max + rv*r_max;
-                    const mnh1 = mnh_a*lx1 + mnh_b*ly1 + mnh_c;
-                    const mnh2 = mnh_a*lx2 + mnh_b*ly2 + mnh_c;
-                    const wx1 = bldgOffsetX + lx1, wz1 = bldgOffsetZ - ly1;
-                    const wx2 = bldgOffsetX + lx2, wz2 = bldgOffsetZ - ly2;
+                if (intersections.length >= 2) {
+                    // Trier selon l'axe faîtage et prendre les deux extrêmes
+                    intersections.sort((a, b) => (a[0]*ru + a[1]*rv) - (b[0]*ru + b[1]*rv));
+                    const [ix1, iy1] = intersections[0];
+                    const [ix2, iy2] = intersections[intersections.length - 1];
+                    const mnh1 = mnh_a*ix1 + mnh_b*iy1 + mnh_c;
+                    const mnh2 = mnh_a*ix2 + mnh_b*iy2 + mnh_c;
+                    const wx1 = bldgOffsetX + ix1, wz1 = bldgOffsetZ - iy1;
+                    const wx2 = bldgOffsetX + ix2, wz2 = bldgOffsetZ - iy2;
                     const wy1 = terrainH + Math.max(bh - 0.3, mnh1);
                     const wy2 = terrainH + Math.max(bh - 0.3, mnh2);
                     const ridgeLen = Math.sqrt((wx2-wx1)**2 + (wy2-wy1)**2 + (wz2-wz1)**2);
-                    if (ridgeLen > 0.5) {
+                    if (ridgeLen > 0.4) {
                         const ridgeGeo = new THREE.BoxGeometry(ridgeLen, 0.12, 0.15);
                         const ridgeMat = new THREE.MeshPhongMaterial({ color: 0x8B4513, specular: 0x111111, shininess: 15 });
                         const ridgeMesh = new THREE.Mesh(ridgeGeo, ridgeMat);
