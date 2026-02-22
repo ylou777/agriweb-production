@@ -4141,8 +4141,8 @@ class Calpinage3DViewer {
             for (let j = 0; j < input.length; j++) {
                 const cur  = input[j];
                 const prev = input[(j - 1 + input.length) % input.length];
-                const inCur  = inside(cur,  A[0],A[1],B[0],B[1]);
-                const inPrev = inside(prev, A[0],A[1],B[0],B[1]);
+                const inCur  = inside(cur,  A, B);
+                const inPrev = inside(prev, A, B);
                 if (inCur)  { if (!inPrev) output.push(intersect(prev, cur, A, B)); output.push(cur); }
                 else if (inPrev) output.push(intersect(prev, cur, A, B));
             }
