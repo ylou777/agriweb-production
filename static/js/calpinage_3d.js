@@ -2331,9 +2331,11 @@ class Calpinage3DViewer {
             this.roofPanelsInfo.buildingCenterGeo = { lat: bCenter.y, lng: bCenter.x };
         }
         
-        // === Détection de l'acrotère (parapet) depuis le LiDAR ===
-        // Analyse distribution MNH bords vs centre pour les toits plats
-        if (roofPoints && roofPoints.length >= 20 && (!hasPitchedRoof || roofShape === 'flat')) {
+        // === Détection et rendu de l'acrotère (parapet) ===
+        // Chemin 1 : analyse distribution MNH bords vs centre (LiDAR disponible)
+        const isFlat = !hasPitchedRoof || roofShape === 'flat';
+        let acrotereRendered = false;
+        if (roofPoints && roofPoints.length >= 20 && isFlat) {
             try {
                 const halfS = obb.shortDim / 2;
                 const halfL = obb.longDim / 2;
@@ -2354,13 +2356,20 @@ class Calpinage3DViewer {
                     if (medEdge - medCenter > 0.25) {
                         this.roofPanelsInfo._acrotereWidth  = Math.max(0.30, edgeThreshold * 0.5);
                         this.roofPanelsInfo._acrotereHeight = medEdge - medCenter;
-                        console.log(`🏗️ Acrotère détecté: h=${this.roofPanelsInfo._acrotereHeight.toFixed(2)}m, l=${this.roofPanelsInfo._acrotereWidth.toFixed(2)}m`);
-                        // ── Rendu 3D visuel de l'acrotère ──
-                        try { this._renderAcrotere(obb, terrainH + bh, this.roofPanelsInfo._acrotereHeight, this.roofPanelsInfo._acrotereWidth); }
+                        console.log(`🏗️ Acrotère LiDAR: h=${this.roofPanelsInfo._acrotereHeight.toFixed(2)}m, l=${this.roofPanelsInfo._acrotereWidth.toFixed(2)}m`);
+                        try { this._renderAcrotere(obb, terrainH + bh, this.roofPanelsInfo._acrotereHeight, this.roofPanelsInfo._acrotereWidth); acrotereRendered = true; }
                         catch(ae) { console.warn('⚠️ Rendu acrotère échoué:', ae.message); }
                     }
                 }
             } catch(e) { console.warn('⚠️ Erreur détection acrotère:', e.message); }
+        }
+        // Chemin 2 : toit plat sans donnée LiDAR → acrotère standard 0.50m×0.30m
+        if (!acrotereRendered && isFlat) {
+            this.roofPanelsInfo._acrotereWidth  = 0.30;
+            this.roofPanelsInfo._acrotereHeight = 0.50;
+            console.log('🏗️ Acrotère standard (toit plat sans LiDAR): h=0.50m, l=0.30m');
+            try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
+            catch(ae) { console.warn('⚠️ Rendu acrotère standard échoué:', ae.message); }
         }
         
         console.log('📐 Pans de toiture:', this.roofPanelsInfo);
@@ -4088,11 +4097,11 @@ class Calpinage3DViewer {
             const { mnh_a, mnh_b, mnh_c } = plane;
 
             // ── Expansion du polygone par offset de bord (Minkowski) ──
-            // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.25m.
+            // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.50m.
             // Contrairement à l'expansion depuis le centroïde, le faîtage partagé
             // entre deux plans adjacents reçoit un offset vers l'extérieur de CHAQUE plan
             // → les deux plans se chevauchent au faîtage → plus de lacune visible.
-            const EXP = 0.25;
+            const EXP = 0.50;
             const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
             const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
             const n_poly = poly.length;
@@ -4184,6 +4193,46 @@ class Calpinage3DViewer {
                 this.scene.add(sMesh);
                 this.buildings.push(sMesh);
             }
+
+            // ── Chaperon de faîtage : arête haute du polygone ──────────────────
+            // Trouve l'arête du polygone dont la moyenne des MNH est la plus haute
+            // (= arête de faîtage ou d'about) et y pose un bandeau de 0.15×0.12m.
+            if (plane.slope_deg >= 5) {
+                let bestEdgeScore = -Infinity;
+                let bestP1 = null, bestP2 = null;
+                const n_ep = expandedPoly.length;
+                for (let ei = 0; ei < n_ep; ei++) {
+                    const [ex1, ey1] = expandedPoly[ei];
+                    const [ex2, ey2] = expandedPoly[(ei + 1) % n_ep];
+                    const mnh1 = mnh_a * ex1 + mnh_b * ey1 + mnh_c;
+                    const mnh2 = mnh_a * ex2 + mnh_b * ey2 + mnh_c;
+                    const score = (mnh1 + mnh2) / 2;
+                    if (score > bestEdgeScore) {
+                        bestEdgeScore = score;
+                        bestP1 = [ex1, ey1, mnh1];
+                        bestP2 = [ex2, ey2, mnh2];
+                    }
+                }
+                if (bestP1 && bestP2) {
+                    const wx1 = bldgOffsetX + bestP1[0], wz1 = bldgOffsetZ - bestP1[1];
+                    const wx2 = bldgOffsetX + bestP2[0], wz2 = bldgOffsetZ - bestP2[1];
+                    const wy1 = terrainH + Math.max(bh - 0.3, bestP1[2]);
+                    const wy2 = terrainH + Math.max(bh - 0.3, bestP2[2]);
+                    const ridgeLen = Math.sqrt((wx2-wx1)**2 + (wy2-wy1)**2 + (wz2-wz1)**2);
+                    if (ridgeLen > 0.5) {
+                        const ridgeGeo = new THREE.BoxGeometry(ridgeLen, 0.12, 0.15);
+                        const ridgeMat = new THREE.MeshPhongMaterial({ color: 0x8B4513, specular: 0x111111, shininess: 15 });
+                        const ridgeMesh = new THREE.Mesh(ridgeGeo, ridgeMat);
+                        ridgeMesh.position.set((wx1+wx2)/2, (wy1+wy2)/2 + 0.06, (wz1+wz2)/2);
+                        // Orienter le chaperon : aligner l'axe X local avec la direction de l'arête
+                        const edgeAngle = Math.atan2(wz2 - wz1, wx2 - wx1);
+                        ridgeMesh.rotation.y = -edgeAngle;
+                        ridgeMesh.castShadow = true;
+                        this.scene.add(ridgeMesh);
+                        this.buildings.push(ridgeMesh);
+                    }
+                }
+            }
         }
 
         if (nBuilt > 0) {
@@ -4270,6 +4319,84 @@ class Calpinage3DViewer {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Rendu 3D de l'acrotère (parapet) autour du toit plat.
+     * Crée un bandeau en béton/pierre sur le pourtour du bâtiment.
+     *
+     * @param {Object} obb          - OBB du bâtiment {cx, cz, angle, longDim, shortDim}
+     * @param {number} baseY        - Altitude Y Three.js du sommet des murs (terrainH + bh)
+     * @param {number} acrotereH    - Hauteur visible au-dessus du niveau du toit (m)
+     * @param {number} acrotereW    - Épaisseur du parapet (m)
+     */
+    _renderAcrotere(obb, baseY, acrotereH, acrotereW) {
+        if (!obb || acrotereH <= 0 || acrotereW <= 0) return;
+
+        // Récupérer l'empreinte réelle du bâtiment si disponible
+        let footprint;
+        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+            footprint = this.pvBuildingCoords.map(c => ({
+                x: (c[0] - this.centerLon) * this.LNG_TO_M,
+                z: -(c[1] - this.centerLat) * this.LAT_TO_M,
+            }));
+            // Supprimer le point de fermeture dupliqué
+            const f = footprint[0], l = footprint[footprint.length - 1];
+            if (Math.abs(f.x - l.x) < 0.05 && Math.abs(f.z - l.z) < 0.05) footprint.pop();
+        } else {
+            // Fallback OBB : 4 coins
+            const cosA = Math.cos(obb.angle), sinA = Math.sin(obb.angle);
+            const hL = obb.longDim / 2, hS = obb.shortDim / 2;
+            footprint = [
+                { x: obb.cx + cosA*hL - sinA*hS, z: obb.cz + sinA*hL + cosA*hS },
+                { x: obb.cx + cosA*hL + sinA*hS, z: obb.cz + sinA*hL - cosA*hS },
+                { x: obb.cx - cosA*hL + sinA*hS, z: obb.cz - sinA*hL - cosA*hS },
+                { x: obb.cx - cosA*hL - sinA*hS, z: obb.cz - sinA*hL + cosA*hS },
+            ];
+        }
+        if (footprint.length < 3) return;
+
+        const mat = new THREE.MeshPhongMaterial({
+            color: 0xC0B8A8, specular: 0x222222, shininess: 12
+        });
+        const topMat = new THREE.MeshPhongMaterial({
+            color: 0xD0C8B8, specular: 0x111111, shininess: 5
+        });
+
+        const n = footprint.length;
+        for (let i = 0; i < n; i++) {
+            const p1 = footprint[i];
+            const p2 = footprint[(i + 1) % n];
+            const dx = p2.x - p1.x;
+            const dz = p2.z - p1.z;
+            const len = Math.sqrt(dx*dx + dz*dz);
+            if (len < 0.1) continue;
+
+            const angle = Math.atan2(dx, dz);   // rotation autour de Y
+            const midX = (p1.x + p2.x) / 2;
+            const midZ = (p1.z + p2.z) / 2;
+
+            // Face verticale de l'acrotère (centré sur le bord)
+            const wallGeo = new THREE.BoxGeometry(acrotereW, acrotereH, len);
+            const wallMesh = new THREE.Mesh(wallGeo, mat);
+            wallMesh.position.set(midX, baseY + acrotereH / 2, midZ);
+            wallMesh.rotation.y = -angle;
+            wallMesh.castShadow = true;
+            wallMesh.receiveShadow = true;
+            this.scene.add(wallMesh);
+            this.buildings.push(wallMesh);
+
+            // Chaperon horizontal au sommet (légère saillie)
+            const capW = acrotereW + 0.08;
+            const capGeo = new THREE.BoxGeometry(capW, 0.07, len + 0.04);
+            const capMesh = new THREE.Mesh(capGeo, topMat);
+            capMesh.position.set(midX, baseY + acrotereH + 0.035, midZ);
+            capMesh.rotation.y = -angle;
+            capMesh.castShadow = true;
+            this.scene.add(capMesh);
+            this.buildings.push(capMesh);
+        }
+        console.log(`🏗️ Acrotère rendu: ${n} segments, h=${acrotereH.toFixed(2)}m, l=${acrotereW.toFixed(2)}m`);
+    }
 
     /**
      * Toit bi-pan (gable) depuis le polygone réel, avec fallback OBB fiable.
