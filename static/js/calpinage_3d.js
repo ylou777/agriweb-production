@@ -4108,6 +4108,48 @@ class Calpinage3DViewer {
      * @param {string} roofType    - matériau de toit
      * @returns {boolean} true si au moins un pan rendu
      */
+
+    /**
+     * Sutherland-Hodgman polygon clipping.
+     * Clips `subject` polygon against a convex `clip` polygon.
+     * Both polygons are arrays of [x, y] in the same coordinate space.
+     * `clip` must be in CCW order (or the caller ensures correct winding).
+     */
+    _clipPolygonSH(subject, clip) {
+        const inside = ([px, py], [x1, y1], [x2, y2]) =>
+            (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1) >= 0;
+        const intersect = ([p1x,p1y],[p2x,p2y],[x1,y1],[x2,y2]) => {
+            const d1x=p2x-p1x, d1y=p2y-p1y, d2x=x2-x1, d2y=y2-y1;
+            const denom = d1x*d2y - d1y*d2x;
+            if (Math.abs(denom) < 1e-12) return [p1x, p1y];
+            const t = ((x1-p1x)*d2y - (y1-p1y)*d2x) / denom;
+            return [p1x + t*d1x, p1y + t*d1y];
+        };
+        // Ensure clip is CCW (positive signed area)
+        let area = 0;
+        for (let i = 0; i < clip.length; i++) {
+            const [ax, ay] = clip[i], [bx, by] = clip[(i+1) % clip.length];
+            area += ax*by - bx*ay;
+        }
+        const clipCCW = area >= 0 ? clip : [...clip].reverse();
+
+        let output = subject.slice();
+        const n = clipCCW.length;
+        for (let i = 0; i < n && output.length > 0; i++) {
+            const A = clipCCW[i], B = clipCCW[(i+1) % n];
+            const input = output; output = [];
+            for (let j = 0; j < input.length; j++) {
+                const cur  = input[j];
+                const prev = input[(j - 1 + input.length) % input.length];
+                const inCur  = inside(cur,  A[0],A[1],B[0],B[1]);
+                const inPrev = inside(prev, A[0],A[1],B[0],B[1]);
+                if (inCur)  { if (!inPrev) output.push(intersect(prev, cur, A, B)); output.push(cur); }
+                else if (inPrev) output.push(intersect(prev, cur, A, B));
+            }
+        }
+        return output;
+    }
+
     _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
         if (!planes || planes.length === 0) return false;
 
@@ -4128,6 +4170,18 @@ class Calpinage3DViewer {
             if (!poly || poly.length < 3) continue;
 
             const { mnh_a, mnh_b, mnh_c } = plane;
+
+            // ── Footprint local en mètres (bldgCenter comme origine) ──────────
+            // Utilisé pour clamper chaque pan Solar dans les limites du bâtiment.
+            const _fpLocal = (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3)
+                ? this.pvBuildingCoords
+                    .filter((c, i, arr) => !(i === arr.length-1 &&
+                        c[0]===arr[0][0] && c[1]===arr[0][1]))  // retire doublon fermeture
+                    .map(([flon, flat]) => [
+                        (flon - bldgCenter.lon) * LNG_TO_M,
+                        (flat - bldgCenter.lat) * this.LAT_TO_M
+                    ])
+                : null;
 
             // ── Expansion du polygone par offset de bord (Minkowski) ──
             // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.50m.
@@ -4156,6 +4210,17 @@ class Calpinage3DViewer {
                 const scale = Math.min(EXP / sinHalf, EXP * 2.0);
                 return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
             });
+
+            // ── Clip contre le footprint réel du bâtiment ──────────────────────
+            // La bbox axis-aligned de Google Solar dépasse le contour du bâtiment,
+            // surtout si le bâtiment est en diagonale. On clippe chaque pan pour
+            // le ramener dans les limites de pvBuildingCoords.
+            if (_fpLocal && _fpLocal.length >= 3) {
+                try {
+                    const clipped = this._clipPolygonSH(expandedPoly, _fpLocal);
+                    if (clipped && clipped.length >= 3) expandedPoly = clipped;
+                } catch (_e) { /* gardons expandedPoly original si clip échoue */ }
+            }
 
             const positions = [];
             const uvs = [];
