@@ -2169,12 +2169,16 @@ def api_solar_flux_heatmap():
             return requests.get(url, timeout=20)
 
         r_layers = _fetch_layers(quality)
-        if r_layers.status_code == 404 and quality == 'HIGH':
+        # Google Solar renvoie 404 OU 400 quand la qualité demandée n'est pas
+        # disponible pour cette zone géographique → on tente les qualités inférieures.
+        if r_layers.status_code in (400, 404) and quality == 'HIGH':
             r_layers = _fetch_layers('MEDIUM'); quality = 'MEDIUM'
-        if r_layers.status_code == 404 and quality == 'MEDIUM':
+        if r_layers.status_code in (400, 404) and quality == 'MEDIUM':
             r_layers = _fetch_layers('LOW');    quality = 'LOW'
         if r_layers.status_code == 403:
             return jsonify({"error": "API Solar non activée (403)", "error_code": "FORBIDDEN"}), 403
+        if r_layers.status_code in (400, 404):
+            return jsonify({"error": f"Irradiation indisponible pour cette zone (aucune qualité LOW/MEDIUM/HIGH disponible)", "error_code": "NO_COVERAGE"}), 422
         r_layers.raise_for_status()
         layers = r_layers.json()
 
