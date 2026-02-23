@@ -4066,6 +4066,15 @@ class Calpinage3DViewer {
     _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, obb = null) {
         if (!planes || planes.length === 0) return false;
 
+        // Filtrer les plans quasi-plats (slope < 10°).
+        // Un toit plat commercial renvoie souvent 15-30 plans à 0-5° à des
+        // hauteurs légèrement différentes (bruit LiDAR ±10cm) → rendu en
+        // "marches d'escalier". On les exclut et on laisse _createFlatRoof
+        // (déclenché si on retourne false) produire un toit plat propre.
+        const pitchedPlanes = planes.filter(p => (p.slope_deg || 0) >= 10);
+        if (pitchedPlanes.length === 0) return false;
+        planes = pitchedPlanes;
+
         const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
