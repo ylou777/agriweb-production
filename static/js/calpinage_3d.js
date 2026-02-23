@@ -2333,11 +2333,11 @@ class Calpinage3DViewer {
                         this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                     } catch (e2) {
                         console.error('⚠️ Fallback gable échoué aussi:', e2);
-                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, localCoords);
                     }
                 }
             } else {
-                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
+                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, localCoords);
             }
         }
         
@@ -4554,8 +4554,25 @@ class Calpinage3DViewer {
     /**
      * Crée un toit plat texturé
      */
-    _createFlatRoof(local, bx, bz, bh, terrainH, roofType) {
-        const roofGeo = new THREE.PlaneGeometry(bx, bz);
+    _createFlatRoof(local, bx, bz, bh, terrainH, roofType, localCoords = null) {
+        // Méthode rigoureuse : ShapeGeometry depuis le polygone réel des murs
+        // → le toit plat épouse EXACTEMENT l'emprise BD TOPO, sans débordement OBB
+        let roofGeo;
+        if (localCoords && localCoords.length >= 3) {
+            const shapeCoords = localCoords.map(c => ({ x: c.x, y: -c.z }));
+            if (this._signedArea2D(shapeCoords) < 0) shapeCoords.reverse();
+            const shape = new THREE.Shape();
+            shape.moveTo(shapeCoords[0].x, shapeCoords[0].y);
+            for (let i = 1; i < shapeCoords.length; i++) shape.lineTo(shapeCoords[i].x, shapeCoords[i].y);
+            shape.closePath();
+            roofGeo = new THREE.ShapeGeometry(shape);
+            roofGeo.rotateX(-Math.PI / 2);
+        } else {
+            // Fallback OBB (si localCoords absent, cas rare)
+            roofGeo = new THREE.PlaneGeometry(bx, bz);
+            roofGeo.rotateX(-Math.PI / 2);
+            if (local._obbAngle) roofGeo.rotateY(-local._obbAngle);
+        }
         const roofTex = this._getRoofTexture(roofType);
         const roofMat = new THREE.MeshPhongMaterial({
             map: roofTex,
@@ -4563,8 +4580,8 @@ class Calpinage3DViewer {
             specular: 0x111111
         });
         const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-        roofMesh.rotation.x = -Math.PI / 2;
-        roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
+        // ShapeGeometry est déjà en espace monde (pas besoin de translation XZ)
+        roofMesh.position.set(localCoords ? 0 : local.x, terrainH + bh + 0.05, localCoords ? 0 : local.z);
         roofMesh.castShadow = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
