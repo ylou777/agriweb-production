@@ -1970,7 +1970,16 @@ def api_solar_roof_planes():
                 filtered = [p for p in roof_planes
                             if poly_sh.contains(Point(_centroid_latlon(p)))]
                 if filtered:
-                    app.logger.info(f"Solar roof-planes filtrés Shapely: {len(filtered)}/{len(roof_planes)}")
+                    if len(filtered) > 12:
+                        # Polygone BD TOPO trop grand (complexe industriel) :
+                        # garder les 8 plans les plus proches du centroïde requêté
+                        filtered.sort(key=lambda p: p['centroid'][0]**2 + p['centroid'][1]**2)
+                        app.logger.warning(
+                            f"Solar roof-planes: polygone trop large → {len(filtered)} plans, "
+                            f"conserve 8 plus proches du centroïde")
+                        filtered = filtered[:8]
+                    else:
+                        app.logger.info(f"Solar roof-planes filtrés Shapely: {len(filtered)}/{len(roof_planes)}")
                     roof_planes = filtered
                 else:
                     # Aucun centroïde dans le polygone → garder les 8 plus grands inclinés
@@ -2133,7 +2142,27 @@ def api_solar_dsm_roof():
                 threshold=0.25, min_pts=6, min_area_m2=4.0,
                 grid_res=max(0.25, pixel_size_m)
             )
+        # Dernier recours : désactiver le pre_filter (qui peut supprimer trop de points
+        # sur un toit très peu incliné < 8° où les variations de pente ressemblent à des
+        # anomalies locales pour le filtre MAD/sigma DSM 0.5m/pixel)
+        if not roof_planes:
+            print(f"  ⚠ RANSAC relaxé: 0 plans — retry sans pre_filter (toit plat/peu incliné)")
+            roof_planes = _segment_roof_planes_ransac(
+                x_bld.tolist(), y_bld.tolist(), z_mnh,
+                threshold=0.35, min_pts=5, min_area_m2=3.0,
+                max_planes=12, pre_filter=False,
+                grid_res=max(0.25, pixel_size_m)
+            )
         print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s)")
+
+        if not roof_planes:
+            return jsonify({
+                "success": False,
+                "error": f"RANSAC n'a trouvé aucun plan sur {nb_pts} px (toit trop plat ou bruit DSM)",
+                "error_code": "NO_PLANES",
+                "nb_pixels_roof": nb_pts,
+                "z_baseline_abs": round(z_baseline, 2),
+            }), 422
 
         # ── 7. Ensoleillement moyen par plan ─────────────────────────────────
         if flux_arr is not None:

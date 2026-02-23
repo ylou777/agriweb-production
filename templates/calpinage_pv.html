@@ -5839,7 +5839,9 @@
                         console.log(`✅ Toiture 3D DSM: ${data.roof_planes.length} pan(s) réels, ${data.nb_pixels_roof} px DSM (${data.imagery_date || ''})`);
                         dsmOk = true;
                     } else {
-                        console.warn('⚠ DSM Solar: réponse ok mais pas de plans →', data.error || 'inconnu');
+                        const reason = data.error || (data.success ? 'aucun plan trouvé (roof_planes vide)' : 'succès=false');
+                        const extra  = data.nb_pixels_roof ? ` — ${data.nb_pixels_roof} px toit` : '';
+                        console.warn(`⚠ DSM Solar: réponse ok mais pas de plans → ${reason}${extra}`);
                     }
                 } else {
                     const errData = await resp.json().catch(() => ({}));
@@ -5874,6 +5876,14 @@
                     if (!data2.success || !data2.roof_planes?.length) return;
 
                     const planes = data2.roof_planes;
+
+                    // Si > 12 plans : complexe industriel détecté (polygone BD TOPO trop grand)
+                    // Le résultat LiDAR déjà calculé est meilleur → abandonner le fallback Solar
+                    if (planes.length > 12) {
+                        console.warn(`⚠ Fallback Solar: ${planes.length} plans (complexe trop grand) → LiDAR conservé`);
+                        viewer3D._hideLoading();
+                        return;
+                    }
                     console.log(`☀️ Fallback filtré (serveur): ${planes.length} plan(s) retenus`);
 
                     if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
