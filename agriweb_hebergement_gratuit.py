@@ -2099,6 +2099,14 @@ def api_solar_dsm_roof():
             x_bld.tolist(), y_bld.tolist(), z_mnh,
             grid_res=max(0.25, pixel_size_m)
         )
+        # Si RANSAC strict échoue (toit très peu incliné ou bruit), retry relaxé
+        if not roof_planes:
+            print(f"  ⚠ RANSAC strict: 0 plans — retry avec seuil relaxé (threshold=0.25m, min_pts=6)")
+            roof_planes = _segment_roof_planes_ransac(
+                x_bld.tolist(), y_bld.tolist(), z_mnh,
+                threshold=0.25, min_pts=6, min_area_m2=4.0,
+                grid_res=max(0.25, pixel_size_m)
+            )
         print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s)")
 
         # ── 7. Ensoleillement moyen par plan ─────────────────────────────────

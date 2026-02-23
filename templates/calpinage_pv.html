@@ -5851,6 +5851,9 @@
             }
 
             // ── ÉTAPE 2 : Fallback buildingInsights (stats segments, bbox) ──
+            // IMPORTANT : Google Solar findClosest peut retourner un complexe entier
+            // avec des dizaines de segments. On filtre par centroïde dans le polygone
+            // BD TOPO du bâtiment + cap à 15 plans max pour éviter le chaos 3D.
             if (!dsmOk) {
                 try {
                     viewer3D._showLoading('☀️ Toiture 3D (fallback segments Solar)…');
@@ -5865,15 +5868,51 @@
                     if (!resp2.ok) return;
                     const data2 = await resp2.json();
                     if (!data2.success || !data2.roof_planes?.length) return;
+
+                    // Filtrer les plans dont le centroïde est dans le polygone BD TOPO
+                    let planes = data2.roof_planes;
+                    if (buildingCoords && buildingCoords.length >= 3) {
+                        const _inPoly = (cx, cy, poly) => {
+                            // cx=x_est_m, cy=y_nord_m relatifs au centre Solar
+                            // Convertir en lon/lat pour comparer au poly BD TOPO [lon,lat]
+                            const LNG_TO_M = 111320 * Math.cos(lat * Math.PI / 180);
+                            const pLon = lon + cx / LNG_TO_M;
+                            const pLat = lat + cy / 111320;
+                            let inside = false;
+                            for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+                                const xi = poly[i][0], yi = poly[i][1];
+                                const xj = poly[j][0], yj = poly[j][1];
+                                if (((yi > pLat) !== (yj > pLat)) &&
+                                    (pLon < (xj - xi) * (pLat - yi) / (yj - yi) + xi))
+                                    inside = !inside;
+                            }
+                            return inside;
+                        };
+                        const filtered = planes.filter(p => {
+                            const [cx, cy] = p.centroid || [0, 0];
+                            return _inPoly(cx, cy, buildingCoords);
+                        });
+                        if (filtered.length > 0) {
+                            console.log(`☀️ Fallback filtré: ${filtered.length}/${planes.length} plans dans le polygone`);
+                            planes = filtered;
+                        } else {
+                            // Filtre trop strict (décalage coord) → garder les N plans les plus grands
+                            console.warn('⚠ Filtre centroïde: 0 plans → garder les 8 plus grands');
+                            planes = planes.sort((a, b) => (b.area_m2 || 0) - (a.area_m2 || 0)).slice(0, 8);
+                        }
+                    }
+                    // Cap de sécurité
+                    if (planes.length > 15) planes = planes.slice(0, 15);
+
                     if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
-                    viewer3D.lidarData.building_hd.roof_planes     = data2.roof_planes;
+                    viewer3D.lidarData.building_hd.roof_planes     = planes;
                     viewer3D.lidarData.building_hd.building_center = data2.building_center;
                     viewer3D.lidarData.building_hd.building_index  = 0;
                     viewer3D.lidarData.building_hd._source         = 'google_solar_building_insights';
                     await viewer3D._buildBuildings(viewer3D.lidarData);
                     ajusterZonesDepuisToiture3D();
                     updateRoofPanelsInfoPanel();
-                    console.log(`⚠️ Toiture 3D fallback: ${data2.nb_segments} pan(s) bbox (${data2.imagery_date || ''})`);
+                    console.log(`⚠️ Toiture 3D fallback: ${planes.length} pan(s) bbox (${data2.imagery_date || ''})`);
                 } catch(e2) {
                     viewer3D._hideLoading();
                     console.warn('⚠ Auto roof-planes fallback:', e2.message);
