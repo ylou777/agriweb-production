@@ -2096,7 +2096,7 @@ class Calpinage3DViewer {
             const _planes = _buildingHD.roof_planes;
             const _bc     = _buildingHD.building_center;   // {lat, lon}
             console.log(`�️ Toit Solar: ${_planes.length} plan(s) Google Solar disponibles`);
-            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType, obb);
+            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
             if (_rok) {
                 this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc, roofType);
                 // Compléter les coordonnées locales (pour matchZones…)
@@ -2111,32 +2111,7 @@ class Calpinage3DViewer {
                 console.log('📐 Pans de toiture (Solar):', this.roofPanelsInfo);
             }
         }
-        if (usedRansac) {
-            // ─── Acrotère sur le chemin Solar (await direct — _createBuilding3D est async) ───
-            const _solarInfo  = this.roofPanelsInfo;
-            let _isSolarFlat = _solarInfo?.type === 'flat' ||
-                // Tous les pans Solar ont pente < 5° → toit effectivement plat
-                (_solarInfo?.panels?.length > 0 &&
-                 _solarInfo.panels.every(p => (p.pente_deg || 0) < 5));
-            // Attendre l'IA si nécessaire (la fonction est async, await autorisé ici)
-            if (!_isSolarFlat && this.aiRoofPromise) {
-                try {
-                    const _aiRes = await this.aiRoofPromise;
-                    if (_aiRes?.roof_type === 'flat' && _aiRes.confidence >= 0.7) {
-                        _isSolarFlat = true;
-                        console.log(`🤖 Solar: IA confirme toit plat (conf=${_aiRes.confidence}) → acrotère`);
-                    }
-                } catch (_e) { /* ignore */ }
-            }
-            if (_isSolarFlat) {
-                this.roofPanelsInfo._acrotereWidth  = 0.30;
-                this.roofPanelsInfo._acrotereHeight = 0.50;
-                console.log('🏗️ Acrotère Solar (toit plat): h=0.50m, l=0.30m');
-                try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
-                catch(ae) { console.warn('⚠️ Rendu acrotère Solar échoué:', ae.message); }
-            }
-            return;
-        }
+        if (usedRansac) return;
 
         // === Toit : analyse LiDAR MNS pour forme réaliste ===
         let roofAnalysis = null;
@@ -2216,14 +2191,6 @@ class Calpinage3DViewer {
                                     roofShape = aiType;
                                     if (roofAnalysis) roofAnalysis.type = aiType;
                                 }
-                            }
-                            // IA dit flat avec haute confiance → LiDAR mal interprété (relief minime)
-                            else if (aiType === 'flat' && aiResult.confidence >= 0.80) {
-                                console.log(`🤖→🏠 IA override: ${lidarType} → flat (conf=${aiResult.confidence}) → acrotère probable`);
-                                roofShape = 'flat';
-                                hasPitchedRoof = false;
-                                ridgeExtra = 0;
-                                if (roofAnalysis) roofAnalysis.type = 'flat';
                             }
                             else {
                                 console.log(`🤖 IA dit ${aiType} vs LiDAR ${lidarType} — on garde LiDAR (types trop différents)`);
@@ -2332,11 +2299,11 @@ class Calpinage3DViewer {
                         this._createGableRoof(localCoords, obb, bh, terrainH, ridgeExtra, roofType, wallType);
                     } catch (e2) {
                         console.error('⚠️ Fallback gable échoué aussi:', e2);
-                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, obb.angle);
+                        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
                     }
                 }
             } else {
-                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, obb.angle);
+                this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType);
             }
         }
         
@@ -2364,11 +2331,9 @@ class Calpinage3DViewer {
             this.roofPanelsInfo.buildingCenterGeo = { lat: bCenter.y, lng: bCenter.x };
         }
         
-        // === Détection et rendu de l'acrotère (parapet) ===
-        // Chemin 1 : analyse distribution MNH bords vs centre (LiDAR disponible)
-        const isFlat = !hasPitchedRoof || roofShape === 'flat';
-        let acrotereRendered = false;
-        if (roofPoints && roofPoints.length >= 20 && isFlat) {
+        // === Détection de l'acrotère (parapet) depuis le LiDAR ===
+        // Analyse distribution MNH bords vs centre pour les toits plats
+        if (roofPoints && roofPoints.length >= 20 && (!hasPitchedRoof || roofShape === 'flat')) {
             try {
                 const halfS = obb.shortDim / 2;
                 const halfL = obb.longDim / 2;
@@ -2387,22 +2352,12 @@ class Calpinage3DViewer {
                     const medEdge = edgeH.sort((a,b)=>a-b)[Math.floor(edgeH.length/2)];
                     const medCenter = centerH.sort((a,b)=>a-b)[Math.floor(centerH.length/2)];
                     if (medEdge - medCenter > 0.25) {
-                        this.roofPanelsInfo._acrotereWidth  = Math.max(0.30, edgeThreshold * 0.5);
+                        this.roofPanelsInfo._acrotereWidth = Math.max(0.30, edgeThreshold * 0.5);
                         this.roofPanelsInfo._acrotereHeight = medEdge - medCenter;
-                        console.log(`🏗️ Acrotère LiDAR: h=${this.roofPanelsInfo._acrotereHeight.toFixed(2)}m, l=${this.roofPanelsInfo._acrotereWidth.toFixed(2)}m`);
-                        try { this._renderAcrotere(obb, terrainH + bh, this.roofPanelsInfo._acrotereHeight, this.roofPanelsInfo._acrotereWidth); acrotereRendered = true; }
-                        catch(ae) { console.warn('⚠️ Rendu acrotère échoué:', ae.message); }
+                        console.log(`🏗️ Acrotère détecté: h=${this.roofPanelsInfo._acrotereHeight.toFixed(2)}m, l=${this.roofPanelsInfo._acrotereWidth.toFixed(2)}m`);
                     }
                 }
             } catch(e) { console.warn('⚠️ Erreur détection acrotère:', e.message); }
-        }
-        // Chemin 2 : toit plat sans donnée LiDAR → acrotère standard 0.50m×0.30m
-        if (!acrotereRendered && isFlat) {
-            this.roofPanelsInfo._acrotereWidth  = 0.30;
-            this.roofPanelsInfo._acrotereHeight = 0.50;
-            console.log('🏗️ Acrotère standard (toit plat sans LiDAR): h=0.50m, l=0.30m');
-            try { this._renderAcrotere(obb, terrainH + bh, 0.50, 0.30); }
-            catch(ae) { console.warn('⚠️ Rendu acrotère standard échoué:', ae.message); }
         }
         
         console.log('📐 Pans de toiture:', this.roofPanelsInfo);
@@ -4108,88 +4063,12 @@ class Calpinage3DViewer {
      * @param {string} roofType    - matériau de toit
      * @returns {boolean} true si au moins un pan rendu
      */
-
-    /**
-     * Sutherland-Hodgman polygon clipping.
-     * Clips `subject` polygon against a convex `clip` polygon.
-     * Both polygons are arrays of [x, y] in the same coordinate space.
-     * `clip` must be in CCW order (or the caller ensures correct winding).
-     */
-    _clipPolygonSH(subject, clip) {
-        const inside = ([px, py], [x1, y1], [x2, y2]) =>
-            (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1) >= 0;
-        const intersect = ([p1x,p1y],[p2x,p2y],[x1,y1],[x2,y2]) => {
-            const d1x=p2x-p1x, d1y=p2y-p1y, d2x=x2-x1, d2y=y2-y1;
-            const denom = d1x*d2y - d1y*d2x;
-            if (Math.abs(denom) < 1e-12) return [p1x, p1y];
-            const t = ((x1-p1x)*d2y - (y1-p1y)*d2x) / denom;
-            return [p1x + t*d1x, p1y + t*d1y];
-        };
-        // Ensure clip is CCW (positive signed area)
-        let area = 0;
-        for (let i = 0; i < clip.length; i++) {
-            const [ax, ay] = clip[i], [bx, by] = clip[(i+1) % clip.length];
-            area += ax*by - bx*ay;
-        }
-        const clipCCW = area >= 0 ? clip : [...clip].reverse();
-
-        let output = subject.slice();
-        const n = clipCCW.length;
-        for (let i = 0; i < n && output.length > 0; i++) {
-            const A = clipCCW[i], B = clipCCW[(i+1) % n];
-            const input = output; output = [];
-            for (let j = 0; j < input.length; j++) {
-                const cur  = input[j];
-                const prev = input[(j - 1 + input.length) % input.length];
-                const inCur  = inside(cur,  A, B);
-                const inPrev = inside(prev, A, B);
-                if (inCur)  { if (!inPrev) output.push(intersect(prev, cur, A, B)); output.push(cur); }
-                else if (inPrev) output.push(intersect(prev, cur, A, B));
-            }
-        }
-        return output;
-    }
-
-    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, obb = null) {
+    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
         if (!planes || planes.length === 0) return false;
-
-        // Filtrer les plans quasi-plats (slope < 10°).
-        // Un toit plat commercial renvoie souvent 15-30 plans à 0-5° à des
-        // hauteurs légèrement différentes (bruit LiDAR ±10cm) → rendu en
-        // "marches d'escalier". On les exclut et on laisse _createFlatRoof
-        // (déclenché si on retourne false) produire un toit plat propre.
-        const pitchedPlanes = planes.filter(p => (p.slope_deg || 0) >= 10);
-        if (pitchedPlanes.length === 0) return false;
-        planes = pitchedPlanes;
 
         const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
-
-        // ── Footprint local calculé UNE FOIS pour tous les plans ──────────────
-        // Priorité 1 : pvBuildingCoords (footprint BD TOPO réel)
-        // Priorité 2 : coins de l'OBB du bâtiment (toujours disponible)
-        // Sans clip, les bboxes Solar (parfois 80m×50m) débordent massivement.
-        let _fpLocal = null;
-        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-            _fpLocal = this.pvBuildingCoords
-                .filter((c, i, arr) => !(i === arr.length - 1 && c[0] === arr[0][0] && c[1] === arr[0][1]))
-                .map(([flon, flat]) => [
-                    (flon - bldgCenter.lon) * LNG_TO_M,
-                    (flat - bldgCenter.lat) * this.LAT_TO_M
-                ]);
-        } else if (obb) {
-            // Convertir les 4 coins OBB (world XZ) en coords locales (m, bldgCenter=origine)
-            const cA = Math.cos(obb.angle), sA = Math.sin(obb.angle);
-            const hL = obb.longDim / 2, hS = obb.shortDim / 2;
-            const toLocal = (wx, wz) => [wx - bldgOffsetX, -(wz - bldgOffsetZ)];
-            _fpLocal = [
-                toLocal(obb.cx + cA*hL + sA*hS, obb.cz + sA*hL - cA*hS),
-                toLocal(obb.cx - cA*hL + sA*hS, obb.cz - sA*hL - cA*hS),
-                toLocal(obb.cx - cA*hL - sA*hS, obb.cz - sA*hL + cA*hS),
-                toLocal(obb.cx + cA*hL - sA*hS, obb.cz + sA*hL + cA*hS),
-            ];
-        }
 
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture(roofType),
@@ -4206,15 +4085,15 @@ class Calpinage3DViewer {
             const { mnh_a, mnh_b, mnh_c } = plane;
 
             // ── Expansion du polygone par offset de bord (Minkowski) ──
-            // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.50m.
+            // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.25m.
             // Contrairement à l'expansion depuis le centroïde, le faîtage partagé
             // entre deux plans adjacents reçoit un offset vers l'extérieur de CHAQUE plan
             // → les deux plans se chevauchent au faîtage → plus de lacune visible.
-            const EXP = 0.50;
+            const EXP = 0.25;
             const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
             const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
             const n_poly = poly.length;
-            let expandedPoly = poly.map(([px, py], i) => {
+            const expandedPoly = poly.map(([px, py], i) => {
                 const [ax, ay] = poly[(i - 1 + n_poly) % n_poly];
                 const [bx, by] = poly[(i + 1) % n_poly];
                 // Normales sortantes des deux arêtes adjacentes à ce sommet
@@ -4227,22 +4106,9 @@ class Calpinage3DViewer {
                 // Bissectrice des deux normales + scaling pour maintenir distance EXP
                 const bsx = n1x + n2x, bsy = n1y + n2y, bsLen = Math.sqrt(bsx*bsx + bsy*bsy) || 1;
                 const sinHalf = Math.max(0.1, bsLen / 2);
-                // Plafonner le déplacement à 2×EXP pour éviter les sommets fuyants
-                // aux angles aigus (sinHalf→0 → scale→∞ → vertex projeté à 5-10m)
-                const scale = Math.min(EXP / sinHalf, EXP * 2.0);
+                const scale = EXP / sinHalf;
                 return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
             });
-
-            // ── Clip contre le footprint réel du bâtiment ──────────────────────
-            // La bbox axis-aligned de Google Solar dépasse le contour du bâtiment,
-            // surtout si le bâtiment est en diagonale. On clippe chaque pan pour
-            // le ramener dans les limites de pvBuildingCoords.
-            if (_fpLocal && _fpLocal.length >= 3) {
-                try {
-                    const clipped = this._clipPolygonSH(expandedPoly, _fpLocal);
-                    if (clipped && clipped.length >= 3) expandedPoly = clipped;
-                } catch (_e) { /* gardons expandedPoly original si clip échoue */ }
-            }
 
             const positions = [];
             const uvs = [];
@@ -4315,8 +4181,6 @@ class Calpinage3DViewer {
                 this.scene.add(sMesh);
                 this.buildings.push(sMesh);
             }
-
-            // Chaperon de faîtage supprimé : l'expansion EXP=0.50 couvre déjà le faîtage
         }
 
         if (nBuilt > 0) {
@@ -4403,84 +4267,6 @@ class Calpinage3DViewer {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * Rendu 3D de l'acrotère (parapet) autour du toit plat.
-     * Crée un bandeau en béton/pierre sur le pourtour du bâtiment.
-     *
-     * @param {Object} obb          - OBB du bâtiment {cx, cz, angle, longDim, shortDim}
-     * @param {number} baseY        - Altitude Y Three.js du sommet des murs (terrainH + bh)
-     * @param {number} acrotereH    - Hauteur visible au-dessus du niveau du toit (m)
-     * @param {number} acrotereW    - Épaisseur du parapet (m)
-     */
-    _renderAcrotere(obb, baseY, acrotereH, acrotereW) {
-        if (!obb || acrotereH <= 0 || acrotereW <= 0) return;
-
-        // Récupérer l'empreinte réelle du bâtiment si disponible
-        let footprint;
-        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-            footprint = this.pvBuildingCoords.map(c => ({
-                x: (c[0] - this.centerLon) * this.LNG_TO_M,
-                z: -(c[1] - this.centerLat) * this.LAT_TO_M,
-            }));
-            // Supprimer le point de fermeture dupliqué
-            const f = footprint[0], l = footprint[footprint.length - 1];
-            if (Math.abs(f.x - l.x) < 0.05 && Math.abs(f.z - l.z) < 0.05) footprint.pop();
-        } else {
-            // Fallback OBB : 4 coins
-            const cosA = Math.cos(obb.angle), sinA = Math.sin(obb.angle);
-            const hL = obb.longDim / 2, hS = obb.shortDim / 2;
-            footprint = [
-                { x: obb.cx + cosA*hL - sinA*hS, z: obb.cz + sinA*hL + cosA*hS },
-                { x: obb.cx + cosA*hL + sinA*hS, z: obb.cz + sinA*hL - cosA*hS },
-                { x: obb.cx - cosA*hL + sinA*hS, z: obb.cz - sinA*hL - cosA*hS },
-                { x: obb.cx - cosA*hL - sinA*hS, z: obb.cz - sinA*hL + cosA*hS },
-            ];
-        }
-        if (footprint.length < 3) return;
-
-        const mat = new THREE.MeshPhongMaterial({
-            color: 0xC0B8A8, specular: 0x222222, shininess: 12
-        });
-        const topMat = new THREE.MeshPhongMaterial({
-            color: 0xD0C8B8, specular: 0x111111, shininess: 5
-        });
-
-        const n = footprint.length;
-        for (let i = 0; i < n; i++) {
-            const p1 = footprint[i];
-            const p2 = footprint[(i + 1) % n];
-            const dx = p2.x - p1.x;
-            const dz = p2.z - p1.z;
-            const len = Math.sqrt(dx*dx + dz*dz);
-            if (len < 0.1) continue;
-
-            const angle = Math.atan2(dx, dz);   // rotation autour de Y
-            const midX = (p1.x + p2.x) / 2;
-            const midZ = (p1.z + p2.z) / 2;
-
-            // Face verticale de l'acrotère (centré sur le bord)
-            const wallGeo = new THREE.BoxGeometry(acrotereW, acrotereH, len);
-            const wallMesh = new THREE.Mesh(wallGeo, mat);
-            wallMesh.position.set(midX, baseY + acrotereH / 2, midZ);
-            wallMesh.rotation.y = -angle;
-            wallMesh.castShadow = true;
-            wallMesh.receiveShadow = true;
-            this.scene.add(wallMesh);
-            this.buildings.push(wallMesh);
-
-            // Chaperon horizontal au sommet (légère saillie)
-            const capW = acrotereW + 0.08;
-            const capGeo = new THREE.BoxGeometry(capW, 0.07, len + 0.04);
-            const capMesh = new THREE.Mesh(capGeo, topMat);
-            capMesh.position.set(midX, baseY + acrotereH + 0.035, midZ);
-            capMesh.rotation.y = -angle;
-            capMesh.castShadow = true;
-            this.scene.add(capMesh);
-            this.buildings.push(capMesh);
-        }
-        console.log(`🏗️ Acrotère rendu: ${n} segments, h=${acrotereH.toFixed(2)}m, l=${acrotereW.toFixed(2)}m`);
-    }
 
     /**
      * Toit bi-pan (gable) depuis le polygone réel, avec fallback OBB fiable.
@@ -4734,29 +4520,18 @@ class Calpinage3DViewer {
     /**
      * Crée un toit plat texturé
      */
-    _createFlatRoof(local, bx, bz, bh, terrainH, roofType, obbAngle = 0) {
-        // Utiliser BufferGeometry avec les vrais coins OBB (rotation correcte)
-        const cA  = Math.cos(obbAngle), sA = Math.sin(obbAngle);
-        const hL  = bx / 2, hS = bz / 2;
-        const y   = terrainH + bh + 0.05;
-        // Coins OBB : fl, fr, br, bl  (convention _obbCorners)
-        const verts = new Float32Array([
-            local.x + cA*hL + sA*hS,  y,  local.z + sA*hL - cA*hS,  // fl
-            local.x + cA*hL - sA*hS,  y,  local.z + sA*hL + cA*hS,  // fr
-            local.x - cA*hL - sA*hS,  y,  local.z - sA*hL + cA*hS,  // br
-            local.x - cA*hL + sA*hS,  y,  local.z - sA*hL - cA*hS,  // bl
-        ]);
-        const roofGeo = new THREE.BufferGeometry();
-        roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
-        roofGeo.setIndex([0,1,2, 0,2,3]);
-        roofGeo.computeVertexNormals();
+    _createFlatRoof(local, bx, bz, bh, terrainH, roofType) {
+        const roofGeo = new THREE.PlaneGeometry(bx, bz);
         const roofTex = this._getRoofTexture(roofType);
         const roofMat = new THREE.MeshPhongMaterial({
-            map: roofTex, side: THREE.DoubleSide, specular: 0x111111,
+            map: roofTex,
+            side: THREE.DoubleSide,
+            specular: 0x111111
         });
         const roofMesh = new THREE.Mesh(roofGeo, roofMat);
+        roofMesh.rotation.x = -Math.PI / 2;
+        roofMesh.position.set(local.x, terrainH + bh + 0.05, local.z);
         roofMesh.castShadow = true;
-        roofMesh.userData.isRoofMesh = true;
         this.scene.add(roofMesh);
         this.buildings.push(roofMesh);
     }
@@ -5832,199 +5607,52 @@ class Calpinage3DViewer {
     }
 
     // ── Heatmap d'irradiance annuelle (Google Solar annualFlux) ──────────
-    //
-    // Stratégie : au lieu d'un plan horizontal flottant, on drape la texture
-    // sur la géométrie réelle du toit (gable/hip/shed/flat) en calculant les
-    // UV de chaque sommet depuis sa position géographique dans la bbox TIFF.
 
     showFluxHeatmap(data) {
         this.hideFluxHeatmap();
         if (!this.scene) return;
-
         const { bbox, image_base64 } = data;
         const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
-
-        // Debug : vérification de l'alignement bbox ↔ scène
-        if (this.pvBuildingCoords?.length) {
-            const lons = this.pvBuildingCoords.map(c => c[0]);
-            const lats = this.pvBuildingCoords.map(c => c[1]);
-            const bldgCenterLon = lons.reduce((a,b)=>a+b,0)/lons.length;
-            const bldgCenterLat = lats.reduce((a,b)=>a+b,0)/lats.length;
-            const bboxCenterLon = (bbox.west + bbox.east) / 2;
-            const bboxCenterLat = (bbox.south + bbox.north) / 2;
-            const offX = (bboxCenterLon - bldgCenterLon) * lngToM;
-            const offZ = (bboxCenterLat - bldgCenterLat) * this.LAT_TO_M;
-            console.log(`🌡️ Heatmap align: bboxCenter=(${bboxCenterLon.toFixed(6)},${bboxCenterLat.toFixed(6)}) bldgCenter=(${bldgCenterLon.toFixed(6)},${bldgCenterLat.toFixed(6)}) offset=(${offX.toFixed(1)}m,${offZ.toFixed(1)}m)`);
-        }
-
-        // Convertit des coordonnées de scène (m) en UV normalisé dans la bbox heatmap
-        const sceneToUV = (x, z) => [
-            Math.max(0, Math.min(1, (this.centerLon + x / lngToM          - bbox.west)  / (bbox.east  - bbox.west))),
-            Math.max(0, Math.min(1, 1 - (this.centerLat - z / this.LAT_TO_M - bbox.south) / (bbox.north - bbox.south))),
-        ];
-
-        const obb      = this.roofPanelsInfo?.buildingOBB;
-        const terrainH = this.roofPanelsInfo?.buildingTerrainH ?? this._getTerrainHeight(0, 0);
-        const wallH    = this.roofPanelsInfo?.buildingWallH    ?? 6;
-        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0;
-        const roofType = this.roofPanelsInfo?.type ?? 'flat';
-        const nRidges  = this.roofPanelsInfo?.nRidges ?? 1;
-        const hasPitch = obb && ridgeH > 0.2 && roofType !== 'flat';
-
-        const eaveY  = terrainH + wallH + 0.12;  // légèrement au-dessus de la gouttière
-        const ridgeY = eaveY + ridgeH;
-        const flatY  = eaveY + 0.30;              // toit plat
-
-        // Crée un mesh BufferGeometry avec UV géographiques
-        const makeMesh = (m, pts) => {
-            const n   = pts.length;
-            const pos = new Float32Array(n * 3);
-            const uvs = new Float32Array(n * 2);
-            for (let i = 0; i < n; i++) {
-                pos[i*3] = pts[i].x; pos[i*3+1] = pts[i].y; pos[i*3+2] = pts[i].z;
-                const [u, v] = sceneToUV(pts[i].x, pts[i].z);
-                uvs[i*2] = u; uvs[i*2+1] = v;
-            }
-            const idx = [];
-            for (let i = 1; i < n - 1; i++) idx.push(0, i, i + 1);
-            const geom = new THREE.BufferGeometry();
-            geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            geom.setAttribute('uv',       new THREE.BufferAttribute(uvs, 2));
-            geom.setIndex(idx);
-            const mesh = new THREE.Mesh(geom, m);
-            mesh.renderOrder = 8;
-            return mesh;
-        };
-
+        const westX  = (bbox.west  - this.centerLon) * lngToM;
+        const eastX  = (bbox.east  - this.centerLon) * lngToM;
+        const northZ = -(bbox.north - this.centerLat) * this.LAT_TO_M;
+        const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
+        const planeW = eastX  - westX;
+        const planeD = southZ - northZ;
+        const cx     = (westX  + eastX)  / 2;
+        const cz     = (northZ + southZ) / 2;
+        const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
+        const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
+        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;
+        // Positionner le plan JUSTE AU-DESSUS du faîtage + marge de 0.6m
+        // depthTest: false garantit l'affichage même si la géométrie du toit
+        // occupe la même position dans le depth buffer (z-fighting sinon inévitable)
+        const planeY = terrainH + wallH + ridgeH + 0.6;
         const loader = new THREE.TextureLoader();
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
-            tex.flipY = false;  // UV gérés manuellement
-            const m = new THREE.MeshBasicMaterial({
-                map: tex, transparent: true, opacity: 0.88,
-                depthWrite: false, depthTest: false,
+            const geom = new THREE.PlaneGeometry(planeW, planeD);
+            const mat  = new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true,
+                depthWrite: false,
+                depthTest: false,   // ← clé : ignore le depth buffer du toit
                 side: THREE.DoubleSide,
             });
-
-            const group = new THREE.Group();
-            group.renderOrder = 8;
-
-            if (!hasPitch || !obb) {
-                // ── Toit plat : polygone bâtiment réel en priorité ──
-                if (obb) {
-                    const c = this._obbCorners(obb);
-                    group.add(makeMesh(m, [
-                        { x: c.flx, y: flatY, z: c.flz }, { x: c.frx, y: flatY, z: c.frz },
-                        { x: c.brx, y: flatY, z: c.brz }, { x: c.blx, y: flatY, z: c.blz },
-                    ]));
-                } else if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-                    // Fallback : polygone bâtiment BD TOPO converti en coordonnées scène
-                    const polyPts = this.pvBuildingCoords.map(c => ({
-                        x:  (c[0] - this.centerLon) * lngToM,
-                        y: flatY,
-                        z: -(c[1] - this.centerLat) * this.LAT_TO_M,
-                    }));
-                    group.add(makeMesh(m, polyPts));
-                } else {
-                    // Dernier recours : plein tile Solar (peut être large)
-                    const wx = (bbox.west  - this.centerLon) * lngToM;
-                    const ex = (bbox.east  - this.centerLon) * lngToM;
-                    const nz = -(bbox.north - this.centerLat) * this.LAT_TO_M;
-                    const sz = -(bbox.south - this.centerLat) * this.LAT_TO_M;
-                    group.add(makeMesh(m, [{x:wx,y:flatY,z:nz},{x:ex,y:flatY,z:nz},{x:ex,y:flatY,z:sz},{x:wx,y:flatY,z:sz}]));
-                }
-            } else {
-                const c = this._obbCorners(obb);
-                // Helper : convertit (along, across) OBB → point 3D
-                // Convention _obbCorners : along=(cA,sA), across=(sA,-cA) en XZ
-                const pt = (along, across, y) => ({
-                    x: obb.cx + c.cA * along + c.sA * across,
-                    y,
-                    z: obb.cz + c.sA * along - c.cA * across,
-                });
-
-                if (roofType === 'hip') {
-                    // ── 4 pans croupe ──
-                    const rHL = obb.longDim * 0.45 / 2;
-                    const r1  = { x: obb.cx + c.cA * rHL, y: ridgeY, z: obb.cz + c.sA * rHL };
-                    const r2  = { x: obb.cx - c.cA * rHL, y: ridgeY, z: obb.cz - c.sA * rHL };
-                    group.add(makeMesh(m, [ r1, {x:c.flx,y:eaveY,z:c.flz}, {x:c.frx,y:eaveY,z:c.frz} ]));
-                    group.add(makeMesh(m, [ r2, {x:c.brx,y:eaveY,z:c.brz}, {x:c.blx,y:eaveY,z:c.blz} ]));
-                    group.add(makeMesh(m, [ r1, {x:c.flx,y:eaveY,z:c.flz}, {x:c.blx,y:eaveY,z:c.blz}, r2 ]));
-                    group.add(makeMesh(m, [ r1, r2, {x:c.brx,y:eaveY,z:c.brz}, {x:c.frx,y:eaveY,z:c.frz} ]));
-
-                } else if (roofType === 'shed') {
-                    // ── Mono-pente : détecter côté haut depuis azimut du pan ──
-                    const shedAzDeg = this.roofPanelsInfo.panels?.[0]?.orientation_deg ?? 180;
-                    const acrossAz  = ((90 + (obb.angle - Math.PI / 2) * 180 / Math.PI) % 360 + 360) % 360;
-                    const highIsAcrossPlus = Math.abs(((shedAzDeg - acrossAz) + 540) % 360 - 180) > 90;
-                    if (highIsAcrossPlus) {
-                        group.add(makeMesh(m, [
-                            {x:c.flx,y:ridgeY,z:c.flz},{x:c.blx,y:ridgeY,z:c.blz},
-                            {x:c.brx,y:eaveY, z:c.brz},{x:c.frx,y:eaveY, z:c.frz},
-                        ]));
-                    } else {
-                        group.add(makeMesh(m, [
-                            {x:c.frx,y:ridgeY,z:c.frz},{x:c.brx,y:ridgeY,z:c.brz},
-                            {x:c.blx,y:eaveY, z:c.blz},{x:c.flx,y:eaveY, z:c.flz},
-                        ]));
-                    }
-
-                } else if (roofType === 'multi-gable' || roofType === 'multi-shed') {
-                    // ── Multi-sections : N mini-gables ou N sheds ──
-                    const n   = Math.max(nRidges, 1);
-                    const secW = obb.shortDim / n;
-                    for (let s = 0; s < n; s++) {
-                        const acrStart = -obb.shortDim / 2 + s * secW;
-                        const acrMid   = acrStart + secW / 2;
-                        const acrEnd   = acrStart + secW;
-                        if (roofType === 'multi-shed') {
-                            // Tous les versants dans la même direction (acrStart→acrEnd = bas→haut)
-                            group.add(makeMesh(m, [
-                                pt(-c.hL, acrStart, eaveY), pt(c.hL, acrStart, eaveY),
-                                pt(c.hL,  acrEnd,   ridgeY), pt(-c.hL, acrEnd, ridgeY),
-                            ]));
-                        } else {
-                            // mini-gable : 2 pans par section
-                            group.add(makeMesh(m, [
-                                pt(-c.hL, acrEnd, eaveY),  pt(c.hL, acrEnd, eaveY),
-                                pt(c.hL,  acrMid, ridgeY), pt(-c.hL, acrMid, ridgeY),
-                            ]));
-                            group.add(makeMesh(m, [
-                                pt(-c.hL, acrMid,  ridgeY), pt(c.hL, acrMid,  ridgeY),
-                                pt(c.hL,  acrStart, eaveY), pt(-c.hL, acrStart, eaveY),
-                            ]));
-                        }
-                    }
-
-                } else {
-                    // ── Bi-pente (gable) — défaut pour tout toit incliné ──
-                    group.add(makeMesh(m, [
-                        {x:c.r2x,y:ridgeY,z:c.r2z},{x:c.r1x,y:ridgeY,z:c.r1z},
-                        {x:c.flx,y:eaveY, z:c.flz},{x:c.blx,y:eaveY, z:c.blz},
-                    ]));
-                    group.add(makeMesh(m, [
-                        {x:c.r1x,y:ridgeY,z:c.r1z},{x:c.r2x,y:ridgeY,z:c.r2z},
-                        {x:c.brx,y:eaveY, z:c.brz},{x:c.frx,y:eaveY, z:c.frz},
-                    ]));
-                }
-            }
-
-            this._fluxMesh = group;
-            this.scene.add(group);
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.rotation.x = -Math.PI / 2;
+            mesh.position.set(cx, planeY, cz);
+            mesh.renderOrder = 8; // après toit(0) et avant modules(10)
+            this._fluxMesh = mesh;
+            this.scene.add(mesh);
         });
     }
 
     hideFluxHeatmap() {
         if (this._fluxMesh) {
             this.scene?.remove(this._fluxMesh);
-            // Traverser le groupe pour disposer chaque sous-mesh
-            this._fluxMesh.traverse(o => {
-                if (o.isMesh) {
-                    o.material?.map?.dispose();
-                    o.material?.dispose();
-                    o.geometry?.dispose();
-                }
-            });
+            this._fluxMesh.material?.map?.dispose();
+            this._fluxMesh.material?.dispose();
+            this._fluxMesh.geometry?.dispose();
             this._fluxMesh = null;
         }
     }
