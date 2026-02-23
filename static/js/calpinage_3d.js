@@ -2271,12 +2271,9 @@ class Calpinage3DViewer {
                 }
             }
             
-            // 4. Fallback universel : toit gable par défaut pour tout bâtiment < 15m
-            if (!hasPitchedRoof && buildingData.roof_shape !== 'flat' && bh < 15) {
-                hasPitchedRoof = true;
-                roofShape = 'gable';
-                ridgeExtra = obb.shortDim * 0.25;
-            }
+            // 4. Fallback universel supprimé : sans données explicites de toit,
+            //    on utilise toit plat (plus sûr pour bâtiments commerciaux/industriels)
+            //    Seul le toit gable avec preuve concrète (alt_toit_min/max ou OSM tags) est autorisé.
             
             if (hasPitchedRoof) {
                 ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
