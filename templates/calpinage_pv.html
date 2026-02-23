@@ -5807,31 +5807,70 @@
          */
         async function _autoSolarRoofPlanes(lat, lon) {
             if (!viewer3D || !viewer3D.isActive) return;
-            // Si le chargement LiDAR a échoué (503/erreur), lidarData est null → inutile d'appeler roof-planes
             if (!viewer3D.lidarData) { console.warn('⚠ Auto roof-planes: skip (LiDAR non chargé)'); return; }
+
+            const wall_h         = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur || 6.0;
+            const buildingCoords = viewer3D.pvBuildingCoords || [];
+
+            // ── ÉTAPE 1 : DSM Google Solar (géométrie réelle par RANSAC pixel/pixel) ──
+            // Priorité absolue — donne les vrais polygones de chaque pan, identique
+            // au rendu LiDAR COPC. Timeout 90s pour couvrir les 3 téléchargements GeoTIFF.
+            let dsmOk = false;
             try {
-                const wall_h = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur || 6.0;
-                const resp = await fetch('/api/solar/roof-planes', {
+                console.log('☀️ Auto toiture 3D: tentative DSM Solar (géométrie réelle)...');
+                const resp = await fetch('/api/solar/dsm-roof', {
                     method:  'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body:    JSON.stringify({lat, lon, wall_h}),
-                    signal:  AbortSignal.timeout(20000),
+                    body:    JSON.stringify({lat, lon, wall_h, building_coords: buildingCoords}),
+                    signal:  AbortSignal.timeout(90000),
                 });
-                if (!resp.ok) { console.warn('⚠ Solar roof-planes:', resp.status); return; }
-                const data = await resp.json();
-                if (!data.success || !data.roof_planes?.length) return;
-                if (!viewer3D.lidarData) viewer3D.lidarData = {};
-                if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
-                viewer3D.lidarData.building_hd.roof_planes     = data.roof_planes;
-                viewer3D.lidarData.building_hd.building_center = data.building_center;
-                viewer3D.lidarData.building_hd.building_index  = 0;
-                viewer3D.lidarData.building_hd._source         = 'google_solar_building_insights';
-                await viewer3D._buildBuildings(viewer3D.lidarData);
-                ajusterZonesDepuisToiture3D();
-                updateRoofPanelsInfoPanel();
-                console.log(`✅ Toiture 3D: ${data.nb_segments} pan(s) satellites (${data.imagery_date || ''})`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.roof_planes?.length) {
+                        if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
+                        viewer3D.lidarData.building_hd.roof_planes     = data.roof_planes;
+                        viewer3D.lidarData.building_hd.building_center = data.building_center;
+                        viewer3D.lidarData.building_hd.building_index  = 0;
+                        viewer3D.lidarData.building_hd._source         = 'google_solar_dsm';
+                        viewer3D._dsmSolarData = data;
+                        await viewer3D._buildBuildings(viewer3D.lidarData);
+                        ajusterZonesDepuisToiture3D();
+                        updateRoofPanelsInfoPanel();
+                        console.log(`✅ Toiture 3D DSM: ${data.roof_planes.length} pan(s) réels, ${data.nb_pixels_roof} px DSM (${data.imagery_date || ''})`);
+                        dsmOk = true;
+                    }
+                }
             } catch(e) {
-                console.warn('⚠ Auto roof-planes:', e.message);
+                console.warn('⚠ DSM Solar timeout/erreur (fallback roof-planes):', e.message);
+            }
+
+            // ── ÉTAPE 2 : Fallback buildingInsights (stats segments, bbox) ──
+            // Utilisé uniquement si le DSM a échoué. Moins précis géométriquement
+            // (polygones rectangulaires), mais donne quand même pente + azimut corrects.
+            if (!dsmOk) {
+                try {
+                    console.warn('⚠ Auto toiture 3D: fallback roof-planes (géométrie bbox)');
+                    const resp2 = await fetch('/api/solar/roof-planes', {
+                        method:  'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body:    JSON.stringify({lat, lon, wall_h}),
+                        signal:  AbortSignal.timeout(20000),
+                    });
+                    if (!resp2.ok) return;
+                    const data2 = await resp2.json();
+                    if (!data2.success || !data2.roof_planes?.length) return;
+                    if (!viewer3D.lidarData.building_hd) viewer3D.lidarData.building_hd = {};
+                    viewer3D.lidarData.building_hd.roof_planes     = data2.roof_planes;
+                    viewer3D.lidarData.building_hd.building_center = data2.building_center;
+                    viewer3D.lidarData.building_hd.building_index  = 0;
+                    viewer3D.lidarData.building_hd._source         = 'google_solar_building_insights';
+                    await viewer3D._buildBuildings(viewer3D.lidarData);
+                    ajusterZonesDepuisToiture3D();
+                    updateRoofPanelsInfoPanel();
+                    console.log(`⚠️ Toiture 3D fallback: ${data2.nb_segments} pan(s) bbox (${data2.imagery_date || ''})`);
+                } catch(e2) {
+                    console.warn('⚠ Auto roof-planes fallback:', e2.message);
+                }
             }
         }
 
