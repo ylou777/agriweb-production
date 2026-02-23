@@ -2153,12 +2153,23 @@ def api_solar_dsm_roof():
                 max_planes=12, pre_filter=False,
                 grid_res=max(0.25, pixel_size_m)
             )
-        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s)")
+        print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) bruts")
+
+        # ── Filtre pente aberrante ─────────────────────────────────────────────
+        # Les plans issus d'artefacts de bord (pixels sol/mur à l'extérieur du masque)
+        # ont souvent une pente > 65° : on les écarte pour éviter la géométrie explosée.
+        MAX_SLOPE_DEG = 65.0
+        n_before_slope = len(roof_planes)
+        roof_planes = [p for p in roof_planes if p.get('slope_deg', 0) <= MAX_SLOPE_DEG]
+        n_removed_slope = n_before_slope - len(roof_planes)
+        if n_removed_slope:
+            print(f"  🧹 Filtre pente > {MAX_SLOPE_DEG}°: {n_removed_slope} plan(s) artefact retirés")
+        print(f"  ✅ DSM RANSAC final: {len(roof_planes)} plan(s) valides")
 
         if not roof_planes:
             return jsonify({
                 "success": False,
-                "error": f"RANSAC n'a trouvé aucun plan sur {nb_pts} px (toit trop plat ou bruit DSM)",
+                "error": f"RANSAC n'a trouvé aucun plan valide sur {nb_pts} px (toit trop plat ou bruit DSM)",
                 "error_code": "NO_PLANES",
                 "nb_pixels_roof": nb_pts,
                 "z_baseline_abs": round(z_baseline, 2),
@@ -2176,11 +2187,21 @@ def api_solar_dsm_roof():
                     vals = flux_bld[inliers]
                     plane['sunshine_annual_kwh_m2'] = round(float(np.median(vals[vals > 0])), 0) if np.any(vals > 0) else None
 
+        # Formater imageryDate: l'API Solar renvoie un dict {year, month, day}
+        imagery_date_raw = layers.get('imageryDate')
+        if isinstance(imagery_date_raw, dict):
+            y = imagery_date_raw.get('year', '')
+            m = imagery_date_raw.get('month', '')
+            d = imagery_date_raw.get('day', '')
+            imagery_date_str = f"{y}-{str(m).zfill(2)}-{str(d).zfill(2)}" if y else None
+        else:
+            imagery_date_str = imagery_date_raw  # déjà string ou None
+
         return jsonify({
             "success": True, "source": "google_solar_dsm", "quality": quality,
             "pixel_size_m": pixel_size_m, "nb_pixels_roof": nb_pts,
             "z_baseline_abs": round(z_baseline, 2),
-            "imagery_date": layers.get('imageryDate'),
+            "imagery_date": imagery_date_str,
             "roof_planes": roof_planes,
             "building_center": {"lat": lat, "lon": lon},
         })
