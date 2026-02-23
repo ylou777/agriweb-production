@@ -1860,7 +1860,8 @@ def api_solar_roof_planes():
     """
     Convertit roofSegmentStats de buildingInsights en roof_planes 3D.
     Format identique COPC/RANSAC — injecté directement dans la vue 3D.
-    POST body: lat, lon, wall_h (défaut 6.0), quality (défaut HIGH)
+    POST body: lat, lon, wall_h (défaut 6.0), quality (défaut HIGH),
+               building_coords (opt): [[lon,lat],...] polygone BD TOPO pour filtrage
     """
     try:
         import math
@@ -1869,6 +1870,7 @@ def api_solar_roof_planes():
         lon     = float(body['lon'])
         wall_h  = float(body.get('wall_h', 6.0))
         quality = body.get('quality', 'HIGH')
+        bldg_coords = body.get('building_coords')  # [[lon, lat], ...] polygone BD TOPO
         GOOGLE_SOLAR_API_KEY = os.getenv('GOOGLE_SOLAR_API_KEY', 'AIzaSyCzZGqZYWJe2O-hGDBAbUv68c3URzEkZmw')
         url = (
             "https://solar.googleapis.com/v1/buildingInsights:findClosest"
@@ -1953,11 +1955,35 @@ def api_solar_roof_planes():
         inclined    = sorted([p for p in roof_planes if p['slope_deg'] >= 1.0], key=lambda p: -p['area_m2'])
         flat        = [p for p in roof_planes if p['slope_deg'] < 1.0]
         roof_planes = inclined + flat
+
+        # ── Filtre Shapely : garder uniquement les plans dont le centroïde
+        #    tombe dans le polygone BD TOPO passé par le frontend ──────────
+        if bldg_coords and len(bldg_coords) >= 3:
+            try:
+                from shapely.geometry import Point, Polygon
+                poly_sh = Polygon([(c[0], c[1]) for c in bldg_coords])  # (lon, lat)
+                lat_to_m = 111320.0
+                lng_to_m = 111320.0 * math.cos(math.radians(lat))
+                def _centroid_latlon(p):
+                    cx, cy = p['centroid']
+                    return float(lon + cx / lng_to_m), float(lat + cy / lat_to_m)
+                filtered = [p for p in roof_planes
+                            if poly_sh.contains(Point(_centroid_latlon(p)))]
+                if filtered:
+                    app.logger.info(f"Solar roof-planes filtrés Shapely: {len(filtered)}/{len(roof_planes)}")
+                    roof_planes = filtered
+                else:
+                    # Aucun centroïde dans le polygone → garder les 8 plus grands inclinés
+                    app.logger.warning(f"Solar roof-planes: 0 centroides dans polygone → top 8 par surface")
+                    roof_planes = sorted(roof_planes, key=lambda p: -p['area_m2'])[:8]
+            except Exception as e_shp:
+                app.logger.warning(f"Filtre Shapely roof-planes ignoré: {e_shp}")
+
         return jsonify({
             "success":         True,
             "source":          "google_solar_building_insights",
             "quality":         data.get('imageryQuality', quality),
-            "imagery_date":    data.get('imageryDate'),
+            "imagery_date":    str(data.get('imageryDate', '')),
             "roof_planes":     roof_planes,
             "nb_segments":     len(roof_planes),
             "building_center": {"lat": lat, "lon": lon},
