@@ -2096,7 +2096,7 @@ class Calpinage3DViewer {
             const _planes = _buildingHD.roof_planes;
             const _bc     = _buildingHD.building_center;   // {lat, lon}
             console.log(`�️ Toit Solar: ${_planes.length} plan(s) Google Solar disponibles`);
-            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
+            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType, obb);
             if (_rok) {
                 this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc, roofType);
                 // Compléter les coordonnées locales (pour matchZones…)
@@ -4150,7 +4150,7 @@ class Calpinage3DViewer {
         return output;
     }
 
-    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
+    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, obb = null) {
         if (!planes || planes.length === 0) return false;
 
         // Filtrer les plans quasi-plats (slope < 10°).
@@ -4166,6 +4166,31 @@ class Calpinage3DViewer {
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
 
+        // ── Footprint local calculé UNE FOIS pour tous les plans ──────────────
+        // Priorité 1 : pvBuildingCoords (footprint BD TOPO réel)
+        // Priorité 2 : coins de l'OBB du bâtiment (toujours disponible)
+        // Sans clip, les bboxes Solar (parfois 80m×50m) débordent massivement.
+        let _fpLocal = null;
+        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+            _fpLocal = this.pvBuildingCoords
+                .filter((c, i, arr) => !(i === arr.length - 1 && c[0] === arr[0][0] && c[1] === arr[0][1]))
+                .map(([flon, flat]) => [
+                    (flon - bldgCenter.lon) * LNG_TO_M,
+                    (flat - bldgCenter.lat) * this.LAT_TO_M
+                ]);
+        } else if (obb) {
+            // Convertir les 4 coins OBB (world XZ) en coords locales (m, bldgCenter=origine)
+            const cA = Math.cos(obb.angle), sA = Math.sin(obb.angle);
+            const hL = obb.longDim / 2, hS = obb.shortDim / 2;
+            const toLocal = (wx, wz) => [wx - bldgOffsetX, -(wz - bldgOffsetZ)];
+            _fpLocal = [
+                toLocal(obb.cx + cA*hL + sA*hS, obb.cz + sA*hL - cA*hS),
+                toLocal(obb.cx - cA*hL + sA*hS, obb.cz - sA*hL - cA*hS),
+                toLocal(obb.cx - cA*hL - sA*hS, obb.cz - sA*hL + cA*hS),
+                toLocal(obb.cx + cA*hL - sA*hS, obb.cz + sA*hL + cA*hS),
+            ];
+        }
+
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture(roofType),
             side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
@@ -4179,18 +4204,6 @@ class Calpinage3DViewer {
             if (!poly || poly.length < 3) continue;
 
             const { mnh_a, mnh_b, mnh_c } = plane;
-
-            // ── Footprint local en mètres (bldgCenter comme origine) ──────────
-            // Utilisé pour clamper chaque pan Solar dans les limites du bâtiment.
-            const _fpLocal = (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3)
-                ? this.pvBuildingCoords
-                    .filter((c, i, arr) => !(i === arr.length-1 &&
-                        c[0]===arr[0][0] && c[1]===arr[0][1]))  // retire doublon fermeture
-                    .map(([flon, flat]) => [
-                        (flon - bldgCenter.lon) * LNG_TO_M,
-                        (flat - bldgCenter.lat) * this.LAT_TO_M
-                    ])
-                : null;
 
             // ── Expansion du polygone par offset de bord (Minkowski) ──
             // Repousse chaque arête VERS L'EXTÉRIEUR de d=0.50m.
