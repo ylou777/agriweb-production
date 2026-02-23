@@ -1112,17 +1112,76 @@ class Calpinage3DViewer {
         const pvBuilding = selectedIdx >= 0 ? allBuildings[selectedIdx] : null;
         // Stocker les coordonnées géo du bâtiment PV pour le matching zone→pan
         this.pvBuildingCoords = pvBuilding ? pvBuilding.coords : null;
-        console.log(`🏗️ Construction du bâtiment PV (idx=${selectedIdx}, ${allBuildings.length} candidats)...`);
-        
-        let successCount = 0;
-        try {
-            await this._createBuilding3D(pvBuilding);
-            successCount = 1;
-        } catch(err) {
-            console.warn(`⚠ Bâtiment PV échoué:`, err.message);
+        console.log(`🏗️ Construction ${allBuildings.length} bâtiments (PV idx=${selectedIdx})...`);
+
+        // ═══════════════════════════════════════════════════════════════════
+        // FETCH PARALLÈLE Google Solar pour les bâtiments voisins
+        // Chaque bâtiment voisin reçoit ses propres roof_planes réels via
+        // /api/solar/roof-planes sur son centroïde — max 8 voisins pour ne
+        // pas surcharger l'API (le PV principal est déjà traité séparément)
+        // ═══════════════════════════════════════════════════════════════════
+        const MAX_NEIGHBOR_SOLAR = 8;
+        const neighborSolarMap = {}; // index → {roof_planes, building_center}
+
+        const neighborsToFetch = allBuildings
+            .map((b, i) => ({ b, i }))
+            .filter(({ i }) => i !== selectedIdx && allBuildings[i].source === 'bdtopo')
+            .slice(0, MAX_NEIGHBOR_SOLAR);
+
+        if (neighborsToFetch.length > 0) {
+            console.log(`🌞 Fetch Solar pour ${neighborsToFetch.length} bâtiments voisins...`);
+            const solarFetches = neighborsToFetch.map(async ({ b, i }) => {
+                try {
+                    const center = this._polygonCenter(b.coords);
+                    const resp = await fetch('/api/solar/roof-planes', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ lat: center.y, lon: center.x, wall_h: b.height || 6 }),
+                        signal: AbortSignal.timeout(12000),
+                    });
+                    if (!resp.ok) return;
+                    const d = await resp.json();
+                    if (d.success && d.roof_planes?.length) {
+                        neighborSolarMap[i] = { roof_planes: d.roof_planes, building_center: d.building_center };
+                        console.log(`✅ Solar voisin idx=${i}: ${d.roof_planes.length} plan(s)`);
+                    }
+                } catch (e) { /* timeout ou erreur réseau → LiDAR/fallback */ }
+            });
+            await Promise.allSettled(solarFetches);
         }
-        
-        console.log(`✅ ${successCount}/1 bâtiment PV créé`);
+
+        // Stocker la map pour que _createBuilding3D y accède
+        this._neighborSolarMap = neighborSolarMap;
+
+        // ═══════════════════════════════════════════════════════════════════
+        // CONSTRUCTION 3D de TOUS les bâtiments
+        // Ordre : PV principal en premier (priorité affichage + roofPanelsInfo)
+        // puis tous les voisins
+        // ═══════════════════════════════════════════════════════════════════
+        let successCount = 0;
+
+        // 1. Bâtiment PV principal
+        if (pvBuilding) {
+            try {
+                await this._createBuilding3D(pvBuilding);
+                successCount++;
+            } catch(err) {
+                console.warn(`⚠ Bâtiment PV échoué:`, err.message);
+            }
+        }
+
+        // 2. Bâtiments voisins (tous sauf le PV)
+        for (let i = 0; i < allBuildings.length; i++) {
+            if (i === selectedIdx) continue;
+            try {
+                await this._createBuilding3D(allBuildings[i], i);
+                successCount++;
+            } catch(err) {
+                console.warn(`⚠ Bâtiment voisin idx=${i} échoué:`, err.message);
+            }
+        }
+
+        console.log(`✅ ${successCount}/${allBuildings.length} bâtiments créés`);
     }
     
     /**
@@ -1980,7 +2039,7 @@ class Calpinage3DViewer {
      * Utilise l'emprise polygonale réelle (ExtrudeGeometry) avec fallback BoxGeometry orientée.
      * Toit bi-pan (gable) par défaut pour les bâtiments résidentiels.
      */
-    async _createBuilding3D(buildingData) {
+    async _createBuilding3D(buildingData, neighborIdx = null) {
         const coords = buildingData.coords;
         if (!coords || coords.length < 3) return;
         
@@ -2128,7 +2187,19 @@ class Calpinage3DViewer {
         }
         if (usedRansac) return;
 
-        // === Toit : analyse LiDAR MNS pour forme réaliste ===
+        // ═══════════════════════════════════════════════════════════════════
+        // PRIORITÉ 1 : Toit Solar pour bâtiments VOISINS (si disponible)
+        // Même qualité que le bâtiment principal — roof_planes réels de l'API
+        // ═══════════════════════════════════════════════════════════════════
+        if (neighborIdx !== null && this._neighborSolarMap?.[neighborIdx]) {
+            const ns = this._neighborSolarMap[neighborIdx];
+            const nok = this._buildRoofFromPlanes(ns.roof_planes, ns.building_center, bh, terrainH, roofType);
+            if (nok) {
+                console.log(`✅ Solar voisin idx=${neighborIdx}: ${ns.roof_planes.length} plan(s)`);
+                return;
+            }
+        }
+
         let roofAnalysis = null;
         let hasPitchedRoof = false;
         let ridgeExtra = 0;
