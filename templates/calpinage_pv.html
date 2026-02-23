@@ -5813,10 +5813,9 @@
             const buildingCoords = viewer3D.pvBuildingCoords || [];
 
             // ── ÉTAPE 1 : DSM Google Solar (géométrie réelle par RANSAC pixel/pixel) ──
-            // Priorité absolue — donne les vrais polygones de chaque pan, identique
-            // au rendu LiDAR COPC. Timeout 90s pour couvrir les 3 téléchargements GeoTIFF.
             let dsmOk = false;
             try {
+                viewer3D._showLoading('☀️ Reconstruction toiture 3D (DSM satellite)…');
                 console.log('☀️ Auto toiture 3D: tentative DSM Solar (géométrie réelle)...');
                 const resp = await fetch('/api/solar/dsm-roof', {
                     method:  'POST',
@@ -5824,6 +5823,7 @@
                     body:    JSON.stringify({lat, lon, wall_h, building_coords: buildingCoords}),
                     signal:  AbortSignal.timeout(90000),
                 });
+                viewer3D._hideLoading();
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.success && data.roof_planes?.length) {
@@ -5838,17 +5838,22 @@
                         updateRoofPanelsInfoPanel();
                         console.log(`✅ Toiture 3D DSM: ${data.roof_planes.length} pan(s) réels, ${data.nb_pixels_roof} px DSM (${data.imagery_date || ''})`);
                         dsmOk = true;
+                    } else {
+                        console.warn('⚠ DSM Solar: réponse ok mais pas de plans →', data.error || 'inconnu');
                     }
+                } else {
+                    const errData = await resp.json().catch(() => ({}));
+                    console.warn(`⚠ DSM Solar HTTP ${resp.status}:`, errData.error || '(pas de détail)');
                 }
             } catch(e) {
+                viewer3D._hideLoading();
                 console.warn('⚠ DSM Solar timeout/erreur (fallback roof-planes):', e.message);
             }
 
             // ── ÉTAPE 2 : Fallback buildingInsights (stats segments, bbox) ──
-            // Utilisé uniquement si le DSM a échoué. Moins précis géométriquement
-            // (polygones rectangulaires), mais donne quand même pente + azimut corrects.
             if (!dsmOk) {
                 try {
+                    viewer3D._showLoading('☀️ Toiture 3D (fallback segments Solar)…');
                     console.warn('⚠ Auto toiture 3D: fallback roof-planes (géométrie bbox)');
                     const resp2 = await fetch('/api/solar/roof-planes', {
                         method:  'POST',
@@ -5856,6 +5861,7 @@
                         body:    JSON.stringify({lat, lon, wall_h}),
                         signal:  AbortSignal.timeout(20000),
                     });
+                    viewer3D._hideLoading();
                     if (!resp2.ok) return;
                     const data2 = await resp2.json();
                     if (!data2.success || !data2.roof_planes?.length) return;
@@ -5869,6 +5875,7 @@
                     updateRoofPanelsInfoPanel();
                     console.log(`⚠️ Toiture 3D fallback: ${data2.nb_segments} pan(s) bbox (${data2.imagery_date || ''})`);
                 } catch(e2) {
+                    viewer3D._hideLoading();
                     console.warn('⚠ Auto roof-planes fallback:', e2.message);
                 }
             }
