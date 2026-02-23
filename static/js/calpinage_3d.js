@@ -2084,9 +2084,9 @@ class Calpinage3DViewer {
         // building_hd injecté par _autoSolarRoofPlanes() après chargement terrain
         // ═══════════════════════════════════════════════════════════════════
         const _buildingHD    = this.lidarData?.building_hd;
-        // _isMainBldg: vrai uniquement si l'index BD TOPO correspond au bâtiment principal (idx 0).
-        // IMPORTANT: ne pas utiliser _source comme critère — il rendrait _isMainBldg=true
-        // pour TOUS les bâtiments (voisins inclus), causant un rendu chaotique sur chacun.
+        // _isMainBldg: vrai UNIQUEMENT si l'index correspond au bâtiment principal.
+        // IMPORTANT: ne JAMAIS utiliser _source comme critère — rendrait _isMainBldg=true
+        // pour TOUS les bâtiments voisins → plans Solar appliqués sur chaque voisin → chaos.
         const _isMainBldg    = _buildingHD && (
             _buildingHD.building_index === buildingData._bdtopoIdx
         );
@@ -2095,7 +2095,7 @@ class Calpinage3DViewer {
             const _planes = _buildingHD.roof_planes;
             const _bc     = _buildingHD.building_center;   // {lat, lon}
             console.log(`�️ Toit Solar: ${_planes.length} plan(s) Google Solar disponibles`);
-            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType, obb);
+            const _rok = this._buildRoofFromPlanes(_planes, _bc, bh, terrainH, roofType);
             if (_rok) {
                 this.roofPanelsInfo = this._computeRoofPanelsInfoFromPlanes(_planes, obb, terrainH, bh, _bc, roofType);
                 // Compléter les coordonnées locales (pour matchZones…)
@@ -4062,88 +4062,12 @@ class Calpinage3DViewer {
      * @param {string} roofType    - matériau de toit
      * @returns {boolean} true si au moins un pan rendu
      */
-
-    /**
-     * Sutherland-Hodgman polygon clipping.
-     * Clips `subject` polygon against a convex `clip` polygon.
-     * Both polygons are arrays of [x, y] in the same coordinate space.
-     * `clip` must be in CCW order (or the caller ensures correct winding).
-     */
-    _clipPolygonSH(subject, clip) {
-        const inside = ([px, py], [x1, y1], [x2, y2]) =>
-            (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1) >= 0;
-        const intersect = ([p1x,p1y],[p2x,p2y],[x1,y1],[x2,y2]) => {
-            const d1x=p2x-p1x, d1y=p2y-p1y, d2x=x2-x1, d2y=y2-y1;
-            const denom = d1x*d2y - d1y*d2x;
-            if (Math.abs(denom) < 1e-12) return [p1x, p1y];
-            const t = ((x1-p1x)*d2y - (y1-p1y)*d2x) / denom;
-            return [p1x + t*d1x, p1y + t*d1y];
-        };
-        // Ensure clip is CCW (positive signed area)
-        let area = 0;
-        for (let i = 0; i < clip.length; i++) {
-            const [ax, ay] = clip[i], [bx, by] = clip[(i+1) % clip.length];
-            area += ax*by - bx*ay;
-        }
-        const clipCCW = area >= 0 ? clip : [...clip].reverse();
-
-        let output = subject.slice();
-        const n = clipCCW.length;
-        for (let i = 0; i < n && output.length > 0; i++) {
-            const A = clipCCW[i], B = clipCCW[(i+1) % n];
-            const input = output; output = [];
-            for (let j = 0; j < input.length; j++) {
-                const cur  = input[j];
-                const prev = input[(j - 1 + input.length) % input.length];
-                const inCur  = inside(cur,  A, B);
-                const inPrev = inside(prev, A, B);
-                if (inCur)  { if (!inPrev) output.push(intersect(prev, cur, A, B)); output.push(cur); }
-                else if (inPrev) output.push(intersect(prev, cur, A, B));
-            }
-        }
-        return output;
-    }
-
-    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, obb = null) {
+    _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
         if (!planes || planes.length === 0) return false;
-
-        // Filtrer les plans quasi-plats (slope < 10°).
-        // Un toit plat commercial renvoie souvent 15-30 plans à 0-5° à des
-        // hauteurs légèrement différentes (bruit LiDAR ±10cm) → rendu en
-        // "marches d'escalier". On les exclut et on laisse _createFlatRoof
-        // (déclenché si on retourne false) produire un toit plat propre.
-        const pitchedPlanes = planes.filter(p => (p.slope_deg || 0) >= 10);
-        if (pitchedPlanes.length === 0) return false;
-        planes = pitchedPlanes;
 
         const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
-
-        // ── Footprint local calculé UNE FOIS pour tous les plans ──────────────
-        // Priorité 1 : pvBuildingCoords (footprint BD TOPO réel)
-        // Priorité 2 : coins de l'OBB du bâtiment (toujours disponible)
-        // Sans clip, les bboxes Solar (parfois 80m×50m) débordent massivement.
-        let _fpLocal = null;
-        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-            _fpLocal = this.pvBuildingCoords
-                .filter((c, i, arr) => !(i === arr.length - 1 && c[0] === arr[0][0] && c[1] === arr[0][1]))
-                .map(([flon, flat]) => [
-                    (flon - bldgCenter.lon) * LNG_TO_M,
-                    (flat - bldgCenter.lat) * this.LAT_TO_M
-                ]);
-        } else if (obb) {
-            // Convertir les 4 coins OBB (world XZ) en coords locales (m, bldgCenter=origine)
-            const cA = Math.cos(obb.angle), sA = Math.sin(obb.angle);
-            const hL = obb.longDim / 2, hS = obb.shortDim / 2;
-            const toLocal = (wx, wz) => [wx - bldgOffsetX, -(wz - bldgOffsetZ)];
-            _fpLocal = [
-                toLocal(obb.cx + cA*hL + sA*hS, obb.cz + sA*hL - cA*hS),
-                toLocal(obb.cx - cA*hL + sA*hS, obb.cz - sA*hL - cA*hS),
-                toLocal(obb.cx - cA*hL - sA*hS, obb.cz - sA*hL + cA*hS),
-                toLocal(obb.cx + cA*hL - sA*hS, obb.cz + sA*hL + cA*hS),
-            ];
-        }
 
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture(roofType),
@@ -4168,7 +4092,7 @@ class Calpinage3DViewer {
             const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
             const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
             const n_poly = poly.length;
-            let expandedPoly = poly.map(([px, py], i) => {
+            const expandedPoly = poly.map(([px, py], i) => {
                 const [ax, ay] = poly[(i - 1 + n_poly) % n_poly];
                 const [bx, by] = poly[(i + 1) % n_poly];
                 // Normales sortantes des deux arêtes adjacentes à ce sommet
@@ -4184,17 +4108,6 @@ class Calpinage3DViewer {
                 const scale = EXP / sinHalf;
                 return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
             });
-
-            // ── Clip contre le footprint réel du bâtiment ─────────────────────────
-            // La bbox axis-aligned de Google Solar dépasse le contour du bâtiment,
-            // surtout si le bâtiment est en diagonale. On clippe chaque pan pour
-            // le ramener dans les limites de pvBuildingCoords.
-            if (_fpLocal && _fpLocal.length >= 3) {
-                try {
-                    const clipped = this._clipPolygonSH(expandedPoly, _fpLocal);
-                    if (clipped && clipped.length >= 3) expandedPoly = clipped;
-                } catch (_e) { /* gardons expandedPoly original si clip échoue */ }
-            }
 
             const positions = [];
             const uvs = [];
@@ -5705,23 +5618,16 @@ class Calpinage3DViewer {
         const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
         const planeW = eastX  - westX;
         const planeD = southZ - northZ;
-        
-        // ── Centre de la heatmap : centroïde bâtiment réel si disponible ──
+        // Centre heatmap : centroïde bâtiment réel si disponible, sinon centre bbox Solar
         let cx, cz;
         if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-            // Calculer le centroïde réel du polygone bâtiment
             const lons = this.pvBuildingCoords.map(c => c[0]);
             const lats = this.pvBuildingCoords.map(c => c[1]);
-            const centroidLon = lons.reduce((a,b)=>a+b,0) / lons.length;
-            const centroidLat = lats.reduce((a,b)=>a+b,0) / lats.length;
-            cx = (centroidLon - this.centerLon) * lngToM;
-            cz = -(centroidLat - this.centerLat) * this.LAT_TO_M;
-            console.log(`🌡️ Heatmap centrée sur centroïde bâtiment (${centroidLon.toFixed(6)}, ${centroidLat.toFixed(6)})`);
+            cx = (lons.reduce((a,b)=>a+b,0)/lons.length - this.centerLon) * lngToM;
+            cz = -((lats.reduce((a,b)=>a+b,0)/lats.length) - this.centerLat) * this.LAT_TO_M;
         } else {
-            // Fallback : centre de la bbox Solar (peut être décalé)
             cx = (westX  + eastX)  / 2;
             cz = (northZ + southZ) / 2;
-            console.log(`⚠️ Heatmap centrée sur bbox Solar (pvBuildingCoords absent)`);
         }
         const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
         const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
