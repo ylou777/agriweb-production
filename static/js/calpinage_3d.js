@@ -986,9 +986,24 @@ class Calpinage3DViewer {
         // BD TOPO buildings (prioritaire - ont hauteur réelle)
         if (data.buildings_bdtopo) {
             data.buildings_bdtopo.forEach((b, idx) => {
+                // === Hiérarchie de calcul de la hauteur des murs (méthode CityGML LOD2) ===
+                // Priorité 1 : champ hauteur BD TOPO direct (hauteur des murs extérieurs)
+                let computedH = (b.hauteur && b.hauteur > 1.0) ? b.hauteur : null;
+                // Priorité 2 : différence altitudes absolues NGF toit - sol
+                if (!computedH && b.altitude_toit_max && b.altitude_sol_min) {
+                    const derived = b.altitude_toit_max - b.altitude_sol_min;
+                    if (derived > 1.0 && derived < 80) computedH = derived;
+                }
+                // Priorité 3 : nb_etages × 3.0m (standard CityGML floor height)
+                if (!computedH && b.nb_etages && b.nb_etages > 0) {
+                    computedH = b.nb_etages * 3.0;
+                }
+                // Priorité 4 : défaut 6m
+                if (!computedH) computedH = 6;
+
                 allBuildings.push({
                     coords: b.coords,
-                    height: b.hauteur || 6,
+                    height: computedH,
                     source: 'bdtopo',
                     _bdtopoIdx: idx,
                     usage: b.usage,
@@ -997,6 +1012,7 @@ class Calpinage3DViewer {
                     materiaux_murs: b.materiaux_murs,
                     alt_toit_min: b.altitude_toit_min,
                     alt_toit_max: b.altitude_toit_max,
+                    nb_etages: b.nb_etages,
                 });
             });
         }
@@ -2271,10 +2287,32 @@ class Calpinage3DViewer {
                 }
             }
             
-            // 4. Fallback universel supprimé : sans données explicites de toit,
-            //    on utilise toit plat (plus sûr pour bâtiments commerciaux/industriels)
-            //    Seul le toit gable avec preuve concrète (alt_toit_min/max ou OSM tags) est autorisé.
-            
+            // 4. Fallback conditionnel : toit à pente UNIQUEMENT si les matériaux BD TOPO
+            //    l'impliquent (Tuile rouge/sombre, Ardoise → résidentiel à 2 pans).
+            //    Béton, Tôle, Commercial, Industriel → flat (chemin else ci-dessous).
+            if (!hasPitchedRoof) {
+                const _pitchedMats = ['Tuile rouge', 'Tuile sombre', 'Ardoise', 'Tuile'];
+                const _matToit = buildingData.materiaux_toit || '';
+                const _nature = (buildingData.nature || '').toLowerCase();
+                const _isFlatNature = _nature.includes('commercial') || _nature.includes('industriel') ||
+                                      _nature.includes('agricole') || _nature.includes('militaire');
+                const _isFlatMat = ['Béton', 'Tôle', 'Zinc'].includes(_matToit);
+                const _isFlatOSM = buildingData.roof_shape === 'flat';
+
+                // N'autoriser un gable que si on a preuve matériau ET pas de nature plate
+                if (_pitchedMats.includes(_matToit) && !_isFlatNature && !_isFlatOSM && bh < 20) {
+                    hasPitchedRoof = true;
+                    roofShape = 'gable';
+                    ridgeExtra = obb.shortDim * 0.25;
+                    console.log(`🏠 Fallback matériau ${_matToit} → gable`);
+                }
+                // Forcer flat si matériau ou nature l'indique explicitement
+                // (hasPitchedRoof reste false → else → _createFlatRoof)
+                if (_isFlatMat || _isFlatNature) {
+                    console.log(`🏠 Fallback nature/matériau (${_nature || _matToit}) → toit plat`);
+                }
+            }
+
             if (hasPitchedRoof) {
                 ridgeExtra = Math.min(ridgeExtra, obb.shortDim / 2 * 0.8);
                 try {
