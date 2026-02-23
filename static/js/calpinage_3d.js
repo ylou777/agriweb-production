@@ -4063,6 +4063,48 @@ class Calpinage3DViewer {
      * @param {string} roofType    - matériau de toit
      * @returns {boolean} true si au moins un pan rendu
      */
+
+    /**
+     * Sutherland-Hodgman polygon clipping.
+     * Clips `subject` polygon against a convex `clip` polygon.
+     * Both polygons are arrays of [x, y] in the same coordinate space.
+     * `clip` must be in CCW order (or the caller ensures correct winding).
+     */
+    _clipPolygonSH(subject, clip) {
+        const inside = ([px, py], [x1, y1], [x2, y2]) =>
+            (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1) >= 0;
+        const intersect = ([p1x,p1y],[p2x,p2y],[x1,y1],[x2,y2]) => {
+            const d1x=p2x-p1x, d1y=p2y-p1y, d2x=x2-x1, d2y=y2-y1;
+            const denom = d1x*d2y - d1y*d2x;
+            if (Math.abs(denom) < 1e-12) return [p1x, p1y];
+            const t = ((x1-p1x)*d2y - (y1-p1y)*d2x) / denom;
+            return [p1x + t*d1x, p1y + t*d1y];
+        };
+        // Ensure clip is CCW (positive signed area)
+        let area = 0;
+        for (let i = 0; i < clip.length; i++) {
+            const [ax, ay] = clip[i], [bx, by] = clip[(i+1) % clip.length];
+            area += ax*by - bx*ay;
+        }
+        const clipCCW = area >= 0 ? clip : [...clip].reverse();
+
+        let output = subject.slice();
+        const n = clipCCW.length;
+        for (let i = 0; i < n && output.length > 0; i++) {
+            const A = clipCCW[i], B = clipCCW[(i+1) % n];
+            const input = output; output = [];
+            for (let j = 0; j < input.length; j++) {
+                const cur  = input[j];
+                const prev = input[(j - 1 + input.length) % input.length];
+                const inCur  = inside(cur,  A, B);
+                const inPrev = inside(prev, A, B);
+                if (inCur)  { if (!inPrev) output.push(intersect(prev, cur, A, B)); output.push(cur); }
+                else if (inPrev) output.push(intersect(prev, cur, A, B));
+            }
+        }
+        return output;
+    }
+
     _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType, obb = null) {
         if (!planes || planes.length === 0) return false;
 
@@ -4127,7 +4169,7 @@ class Calpinage3DViewer {
             const cx_poly = poly.reduce((s, p) => s + p[0], 0) / poly.length;
             const cy_poly = poly.reduce((s, p) => s + p[1], 0) / poly.length;
             const n_poly = poly.length;
-            const expandedPoly = poly.map(([px, py], i) => {
+            let expandedPoly = poly.map(([px, py], i) => {
                 const [ax, ay] = poly[(i - 1 + n_poly) % n_poly];
                 const [bx, by] = poly[(i + 1) % n_poly];
                 // Normales sortantes des deux arêtes adjacentes à ce sommet
@@ -4143,6 +4185,17 @@ class Calpinage3DViewer {
                 const scale = EXP / sinHalf;
                 return [px + bsx/bsLen*scale, py + bsy/bsLen*scale];
             });
+
+            // ── Clip contre le footprint réel du bâtiment ─────────────────────────
+            // La bbox axis-aligned de Google Solar dépasse le contour du bâtiment,
+            // surtout si le bâtiment est en diagonale. On clippe chaque pan pour
+            // le ramener dans les limites de pvBuildingCoords.
+            if (_fpLocal && _fpLocal.length >= 3) {
+                try {
+                    const clipped = this._clipPolygonSH(expandedPoly, _fpLocal);
+                    if (clipped && clipped.length >= 3) expandedPoly = clipped;
+                } catch (_e) { /* gardons expandedPoly original si clip échoue */ }
+            }
 
             const positions = [];
             const uvs = [];
