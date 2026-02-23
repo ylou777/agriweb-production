@@ -2142,15 +2142,16 @@ def api_solar_dsm_roof():
                 threshold=0.25, min_pts=6, min_area_m2=4.0,
                 grid_res=max(0.25, pixel_size_m)
             )
-        # Dernier recours : désactiver le pre_filter (qui peut supprimer trop de points
-        # sur un toit très peu incliné < 8° où les variations de pente ressemblent à des
-        # anomalies locales pour le filtre MAD/sigma DSM 0.5m/pixel)
+        # Dernier recours : utiliser le pre_filter avec sigma très relaxé (sigma=4.0)
+        # Sigma 1.8 filtre trop agressivement un toit < 8° (variation naturelle
+        # de pente ≈ bruit pour le filtre MAD). Sigma 4.0 ne retire que les
+        # vraies anomalies extrêmes (cheminées, antennes, bruit DSM évid. cassé).
         if not roof_planes:
-            print(f"  ⚠ RANSAC relaxé: 0 plans — retry sans pre_filter (toit plat/peu incliné)")
+            print(f"  ⚠ RANSAC relaxé: 0 plans — retry avec filtre obstacles sigma=4.0 (toit plat/peu incliné)")
             roof_planes = _segment_roof_planes_ransac(
                 x_bld.tolist(), y_bld.tolist(), z_mnh,
-                threshold=0.35, min_pts=5, min_area_m2=3.0,
-                max_planes=12, pre_filter=False,
+                threshold=0.30, min_pts=5, min_area_m2=3.0,
+                max_planes=10, pre_filter=True, filter_sigma=4.0,
                 grid_res=max(0.25, pixel_size_m)
             )
         print(f"  ✅ DSM RANSAC: {len(roof_planes)} plan(s) bruts")
