@@ -2084,12 +2084,11 @@ class Calpinage3DViewer {
         // building_hd injecté par _autoSolarRoofPlanes() après chargement terrain
         // ═══════════════════════════════════════════════════════════════════
         const _buildingHD    = this.lidarData?.building_hd;
-        // _isMainBldg: vrai si index BD TOPO correspond, OU si source DSM/COPC forcée (OSM buildings n'ont pas _bdtopoIdx)
+        // _isMainBldg: vrai uniquement si l'index BD TOPO correspond au bâtiment principal (idx 0).
+        // IMPORTANT: ne pas utiliser _source comme critère — il rendrait _isMainBldg=true
+        // pour TOUS les bâtiments (voisins inclus), causant un rendu chaotique sur chacun.
         const _isMainBldg    = _buildingHD && (
-            _buildingHD.building_index === buildingData._bdtopoIdx ||
-            _buildingHD._source === 'google_solar_dsm' ||
-            _buildingHD._source === 'google_solar_building_insights' ||
-            _buildingHD._source === 'copc'
+            _buildingHD.building_index === buildingData._bdtopoIdx
         );
         let   usedRansac     = false;
         if (_isMainBldg && Array.isArray(_buildingHD.roof_planes) && _buildingHD.roof_planes.length > 0) {
