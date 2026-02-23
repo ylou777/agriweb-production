@@ -993,7 +993,7 @@ def _largest_connected_component_mask(xi, yi, grid_res=0.5):
 def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
                                 threshold=0.12, min_pts=8, max_planes=8, n_iter=150,
                                 pre_filter=True, min_area_m2=1.5, density_check=True,
-                                grid_res=0.25):
+                                grid_res=0.25, filter_sigma=1.8):
     """
     Segmentation planaire RANSAC itérative avec robustesse obstacles/discontinuités.
 
@@ -1032,7 +1032,7 @@ def _segment_roof_planes_ransac(x_arr, y_arr, z_arr,
 
     # ── Niveau 1 : Pré-filtrage des obstacles (cheminées, superstructures…) ──────
     if pre_filter and len(x) >= 8:
-        valid_mask = _filter_roof_obstacles(x, y, z)
+        valid_mask = _filter_roof_obstacles(x, y, z, sigma=filter_sigma)
         n_before = len(x)
         x, y, z = x[valid_mask], y[valid_mask], z[valid_mask]
         if len(x) < min_pts:
