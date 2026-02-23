@@ -5619,8 +5619,24 @@ class Calpinage3DViewer {
         const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
         const planeW = eastX  - westX;
         const planeD = southZ - northZ;
-        const cx     = (westX  + eastX)  / 2;
-        const cz     = (northZ + southZ) / 2;
+        
+        // ── Centre de la heatmap : centroïde bâtiment réel si disponible ──
+        let cx, cz;
+        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
+            // Calculer le centroïde réel du polygone bâtiment
+            const lons = this.pvBuildingCoords.map(c => c[0]);
+            const lats = this.pvBuildingCoords.map(c => c[1]);
+            const centroidLon = lons.reduce((a,b)=>a+b,0) / lons.length;
+            const centroidLat = lats.reduce((a,b)=>a+b,0) / lats.length;
+            cx = (centroidLon - this.centerLon) * lngToM;
+            cz = -(centroidLat - this.centerLat) * this.LAT_TO_M;
+            console.log(`🌡️ Heatmap centrée sur centroïde bâtiment (${centroidLon.toFixed(6)}, ${centroidLat.toFixed(6)})`);
+        } else {
+            // Fallback : centre de la bbox Solar (peut être décalé)
+            cx = (westX  + eastX)  / 2;
+            cz = (northZ + southZ) / 2;
+            console.log(`⚠️ Heatmap centrée sur bbox Solar (pvBuildingCoords absent)`);
+        }
         const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
         const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
         const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;
