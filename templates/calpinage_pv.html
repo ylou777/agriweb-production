@@ -6570,15 +6570,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 let _flux2DRgbOverlay = null;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
                     if (data.rgb_base64) {
-                        // Image RGB co-enregistrée Google Solar → alignement parfait par construction
-                        // On l'affiche comme fond sous la heatmap sans changer les tuiles de fond
                         _flux2DRgbOverlay = L.imageOverlay(
                             data.rgb_base64,
                             [[b.south, b.west], [b.north, b.east]],
                             { opacity: 1.0, interactive: false, zIndex: 200 }
                         ).addTo(map);
-                        // Mémoriser pour nettoyage à la désactivation
-                        _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
                     } else {
                         // Fallback : basculer vers Google Satellite (même source que Solar)
                         const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
@@ -6591,6 +6587,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     _flux2DOverlay = L.imageOverlay(
                         imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false, zIndex: 201 }
                     ).addTo(map);
+                    if (_flux2DRgbOverlay) _flux2DOverlay._rgbLayer = _flux2DRgbOverlay; // après assignation
                     // Appliquer l'offset mémorisé immédiatement
                     _applyFluxOffset();
                 }
