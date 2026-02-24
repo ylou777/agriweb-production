@@ -6435,6 +6435,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     // ── MODE 2D : bbox des zones dessinées ───────────────────────────────────
                     const allPts = [];
                     if (typeof zones !== 'undefined' && zones.length > 0) {
+                        console.log(`[heatmap] zones.length=${zones.length}, layers:`, zones.map(z => ({id:z.id, hasLayer:!!z.layer, layerType:z.layer?.constructor?.name, hasBounds:typeof z.layer?.getBounds==='function'})));
                         zones.forEach(z => {
                             try {
                                 const b = z.layer.getBounds();
@@ -6445,6 +6446,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 allPts.push({ lat: ne.lat, lon: sw.lng });
                             } catch(e) { console.warn('[heatmap] getBounds failed:', e); }
                         });
+                    } else {
+                        console.log(`[heatmap] zones indisponible ou vide: typeof=${typeof zones}, length=${typeof zones !== 'undefined' ? zones.length : 'N/A'}`);
                     }
                     if (allPts.length >= 3) {
                         const lats = allPts.map(p => p.lat);
