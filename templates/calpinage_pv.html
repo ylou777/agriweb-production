@@ -731,6 +731,9 @@
                             <button class="btn btn-sm btn-info me-1" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">
                                 🌐 Vue 3D
                             </button>
+                            <button class="btn btn-sm btn-light me-1" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire pixel par pixel (kWh/m²/an) — zones d'ombrage acrotères/obstacles visibles">
+                                🌡️ Irradiation
+                            </button>
                             <button class="btn btn-sm btn-info me-1" id="toggleFullscreen" title="Plein écran">
                                 🔲 Plein écran
                             </button>
@@ -925,26 +928,7 @@
                                 </div>
                                 <div id="googleSolarContent"></div>
                             </div>
-                            <!-- Légende Heatmap d'irradiation -->
-                            <div id="fluxLegendPanel" style="display:none; position:absolute; bottom:12px; left:50%; transform:translateX(-50%);
-                                 z-index:10; background:rgba(20,20,30,0.88); border-radius:10px; padding:8px 14px;
-                                 box-shadow:0 2px 12px rgba(0,0,0,0.35); backdrop-filter:blur(6px);
-                                 border:1px solid rgba(255,255,255,0.15); min-width:260px; text-align:center;">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <strong style="color:#fff;font-size:0.78rem;">🌡️ Irradiance annuelle (kWh/m²/an)</strong>
-                                    <button class="btn btn-sm btn-link p-0 ms-2" style="color:rgba(255,255,255,0.6);font-size:0.7rem;"
-                                        onclick="toggleFluxHeatmap()" title="Masquer">✕</button>
-                                </div>
-                                <div style="height:12px;border-radius:6px;
-                                    background:linear-gradient(to right,#14006e,#003cdc,#00c8ff,#32d232,#ffe600,#ff7800,#dc0000);
-                                    margin-bottom:4px;"></div>
-                                <div class="d-flex justify-content-between" style="color:rgba(255,255,255,0.75);font-size:0.7rem;">
-                                    <span id="fluxLegendMin">—</span>
-                                    <span id="fluxLegendMean" style="color:rgba(255,255,255,0.55);">moy: —</span>
-                                    <span id="fluxLegendMax">—</span>
-                                </div>
-                                <div id="fluxLegendDate" style="color:rgba(255,255,255,0.4);font-size:0.65rem;margin-top:2px;"></div>
-                            </div>
+
                         </div>
                         <div class="card-footer">
                             <small class="text-success">
@@ -6375,12 +6359,23 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _fluxActive    = false;
         let _flux2DOverlay = null;
 
+        function _syncFluxBtns(active, loading) {
+            ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
+                const b = document.getElementById(id);
+                if (!b) return;
+                b.disabled = !!loading;
+                if (loading) { b.textContent = '⏳ Chargement…'; return; }
+                b.textContent = '🌡️ Irradiation';
+                if (active) { b.classList.remove('btn-light'); b.classList.add('btn-warning'); }
+                else { b.classList.remove('btn-warning'); b.classList.add('btn-light'); }
+            });
+        }
+
         async function toggleFluxHeatmap() {
-            const btn    = document.getElementById('btnFluxHeatmap');
             const legend = document.getElementById('fluxLegendPanel');
             if (_fluxActive) {
                 _fluxActive = false;
-                if (btn) { btn.classList.remove('btn-warning'); btn.classList.add('btn-light'); }
+                _syncFluxBtns(false, false);
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
@@ -6388,7 +6383,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
                 return;
             }
-            if (btn) { btn.disabled = true; btn.textContent = '⏳ Chargement…'; }
+            _syncFluxBtns(false, true);
             try {
                 // ── Centre & rayon de la requête Google Solar ─────────────────────────────────
                 // En vue 3D : on utilise OBLIGATOIREMENT viewer3D.centerLat/centerLon.
@@ -6462,7 +6457,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 const data = await resp.json();
                 _fluxActive = true;
-                if (btn) { btn.classList.remove('btn-light'); btn.classList.add('btn-warning'); btn.textContent = '🌡️ Irradiation'; }
+                _syncFluxBtns(true, false);
                 // Légende — color_min/color_max = plage colorimétrique réelle
                 if (legend) {
                     legend.style.display = 'block';
@@ -6488,7 +6483,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 console.error('Flux heatmap error:', e);
                 alert(`❌ Carte d'irradiation indisponible : ${e.message}`);
             } finally {
-                if (btn) { btn.disabled = false; btn.textContent = '🌡️ Irradiation'; }
+                _syncFluxBtns(_fluxActive, false);
             }
         }
         
@@ -7687,6 +7682,27 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             }, 200); // Animation toutes les 200ms
         }
     </script>
+
+    <!-- Légende Heatmap d'irradiation — position:fixed, visible en mode 2D et 3D -->
+    <div id="fluxLegendPanel" style="display:none; position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+         z-index:5000; background:rgba(20,20,30,0.88); border-radius:10px; padding:8px 14px;
+         box-shadow:0 2px 12px rgba(0,0,0,0.35); backdrop-filter:blur(6px);
+         border:1px solid rgba(255,255,255,0.15); min-width:260px; text-align:center;">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <strong style="color:#fff;font-size:0.78rem;">🌡️ Irradiance annuelle (kWh/m²/an)</strong>
+            <button class="btn btn-sm btn-link p-0 ms-2" style="color:rgba(255,255,255,0.6);font-size:0.7rem;"
+                onclick="toggleFluxHeatmap()" title="Masquer">✕</button>
+        </div>
+        <div style="height:12px;border-radius:6px;
+            background:linear-gradient(to right,#14006e,#003cdc,#00c8ff,#32d232,#ffe600,#ff7800,#dc0000);
+            margin-bottom:4px;"></div>
+        <div class="d-flex justify-content-between" style="color:rgba(255,255,255,0.75);font-size:0.7rem;">
+            <span id="fluxLegendMin">—</span>
+            <span id="fluxLegendMean" style="color:rgba(255,255,255,0.55);">moy: —</span>
+            <span id="fluxLegendMax">—</span>
+        </div>
+        <div id="fluxLegendDate" style="color:rgba(255,255,255,0.4);font-size:0.65rem;margin-top:2px;"></div>
+    </div>
 
 </body>
 </html>
