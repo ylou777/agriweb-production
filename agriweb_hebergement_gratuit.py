@@ -2340,8 +2340,10 @@ def api_solar_flux_heatmap():
         layers = r_layers.json()
 
         flux_url     = layers.get('annualFluxUrl', '')
-        mask_url     = layers.get('maskUrl', '')
-        rgb_url      = layers.get('rgbUrl', '')
+        mask_url         = layers.get('maskUrl', '')
+        rgb_url          = layers.get('rgbUrl', '')
+        dsm_url          = layers.get('dsmUrl', '')
+        monthly_flux_url = layers.get('monthlyFluxUrl', '')
         pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
         # bbox API conservé comme fallback mais on recalcule depuis les dims réelles de l'image
         bbox_api     = layers.get('boundingBox', {})
@@ -2353,11 +2355,8 @@ def api_solar_flux_heatmap():
         if not flux_url:
             return jsonify({"error": "Pas de données flux annuel pour ce point"}), 422
 
-        def _read_flux_tiff(url):
-            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
-            r.raise_for_status()
-            raw_content = r.content
-            img = PILImage.open(io.BytesIO(raw_content))
+        def _read_flux_tiff(content):
+            img = PILImage.open(io.BytesIO(content))
             w, h = img.size
             print(f'  [flux-heatmap] GeoTIFF mode={img.mode} size={w}x{h}')
 
@@ -2439,24 +2438,79 @@ def api_solar_flux_heatmap():
                   f'p50={float(np.nanpercentile(best_arr[best_arr>0], 50)) if best_ok > 0 else 0:.1f}')
             return best_arr
 
-        flux_arr = _read_flux_tiff(flux_url)
+        # ── Télécharger TOUTES les couches Solar en parallèle ────────────────────
+        from concurrent.futures import ThreadPoolExecutor as _TPE
+
+        def _dl_raw(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=35)
+            r.raise_for_status()
+            return r.content
+
+        _dl_tasks = {k: v for k, v in {
+            'flux':    flux_url,
+            'mask':    mask_url,
+            'rgb':     rgb_url,
+            'dsm':     dsm_url,
+            'monthly': monthly_flux_url,
+        }.items() if v}
+
+        _raw = {}
+        with _TPE(max_workers=5) as _ex:
+            _futs = {k: _ex.submit(_dl_raw, v) for k, v in _dl_tasks.items()}
+            for k, f in _futs.items():
+                try:
+                    _raw[k] = f.result()
+                    print(f'  [flux-heatmap] ✓ {k} {len(_raw[k])//1024}KB')
+                except Exception as _e:
+                    print(f'  [flux-heatmap] ✗ {k} failed: {_e}')
+                    _raw[k] = None
+
+        if not _raw.get('flux'):
+            return jsonify({'error': 'Téléchargement flux annuel impossible'}), 502
+        flux_arr = _read_flux_tiff(_raw['flux'])
+
+        # ── Parser masque bâtiment (0.1 m/px) ───────────────────────────────────
         mask_arr = None
-        if mask_url:
+        if _raw.get('mask'):
             try:
-                rm = requests.get(mask_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
-                rm.raise_for_status()
-                imgm = PILImage.open(io.BytesIO(rm.content))
+                imgm = PILImage.open(io.BytesIO(_raw['mask']))
                 mask_arr = np.array(imgm, dtype=np.uint8)
                 if mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
             except Exception: pass
 
-        _rgb_content = None
-        if rgb_url:
+        # ── Parser DSM (altitude surface, 0.1 m/px) ─────────────────────────────
+        dsm_arr_raw = None
+        if _raw.get('dsm'):
             try:
-                r_rgb = requests.get(rgb_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
-                r_rgb.raise_for_status()
-                _rgb_content = r_rgb.content
-            except Exception: pass
+                imgd = PILImage.open(io.BytesIO(_raw['dsm']))
+                dsm_arr_raw = np.array(imgd, dtype=np.float32)
+                if dsm_arr_raw.ndim > 2: dsm_arr_raw = dsm_arr_raw[:, :, 0]
+                print(f'  [flux-heatmap] DSM {dsm_arr_raw.shape} alt={dsm_arr_raw.min():.1f}–{dsm_arr_raw.max():.1f}m')
+            except Exception as _e:
+                print(f'  [flux-heatmap] DSM parse failed: {_e}')
+
+        # ── Parser flux mensuel 12 bandes ────────────────────────────────────────
+        monthly_arr = None  # shape (12, H, W) ou None
+        if _raw.get('monthly'):
+            try:
+                img_mo = PILImage.open(io.BytesIO(_raw['monthly']))
+                n_frames = getattr(img_mo, 'n_frames', 1)
+                if n_frames >= 12:
+                    bands = []
+                    for _mi in range(12):
+                        img_mo.seek(_mi)
+                        _b = np.array(img_mo, dtype=np.float32)
+                        if _b.ndim > 2: _b = _b[:, :, 0]
+                        bands.append(_b)
+                    monthly_arr = np.stack(bands, axis=0)
+                    print(f'  [flux-heatmap] monthly {monthly_arr.shape} '
+                          f'sum={float(monthly_arr.sum(axis=0).mean()):.0f} kWh/m²/an equiv')
+                else:
+                    print(f'  [flux-heatmap] monthly only {n_frames} frames, skip')
+            except Exception as _e:
+                print(f'  [flux-heatmap] monthly parse failed: {_e}')
+
+        _rgb_content = _raw.get('rgb')
 
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
@@ -2696,23 +2750,95 @@ def api_solar_flux_heatmap():
 
         tiff_raw_range = f"{float(flux_arr.min()):.1f}–{float(flux_arr.max()):.1f}"
 
+        # ── Stats flux mensuel (12 valeurs moyennes sur pixels valides) ──────────
+        _MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
+        monthly_means = None
+        if monthly_arr is not None:
+            try:
+                mH, mW = monthly_arr.shape[1], monthly_arr.shape[2]
+                if mH != H or mW != W:
+                    # Redimensionner chaque bande mensuelle à la résolution du flux annuel
+                    _bands_r = []
+                    for _bi in range(12):
+                        _pil_b = PILImage.fromarray(monthly_arr[_bi], mode='F')
+                        _pil_b = _pil_b.resize((W, H), PILImage.BILINEAR)
+                        _bands_r.append(np.array(_pil_b, dtype=np.float32))
+                    monthly_arr = np.stack(_bands_r, axis=0)
+                monthly_means = []
+                for _mi in range(12):
+                    _band = monthly_arr[_mi]
+                    _vals_m = _band[valid_mask & np.isfinite(_band) & (_band > 0)]
+                    monthly_means.append(round(float(np.mean(_vals_m)), 1) if len(_vals_m) > 0 else 0.0)
+                _peak_idx = int(np.argmax(monthly_means))
+                _low_idx  = int(np.argmin(monthly_means))
+                print(f'  [flux-heatmap] monthly means: {monthly_means}')
+                print(f'  [flux-heatmap] peak={_MONTHS_FR[_peak_idx]}({monthly_means[_peak_idx]:.0f}) '
+                      f'low={_MONTHS_FR[_low_idx]}({monthly_means[_low_idx]:.0f}) kWh/m²/mois')
+            except Exception as _e:
+                print(f'  [flux-heatmap] monthly stats failed: {_e}')
+
+        # ── Stats DSM (hauteurs de toiture) ──────────────────────────────────────
+        dsm_stats = None
+        if dsm_arr_raw is not None:
+            try:
+                dH, dW = dsm_arr_raw.shape
+                if dH != H or dW != W:
+                    _pil_dsm = PILImage.fromarray(dsm_arr_raw, mode='F')
+                    _pil_dsm = _pil_dsm.resize((W, H), PILImage.BILINEAR)
+                    dsm_resized = np.array(_pil_dsm, dtype=np.float32)
+                else:
+                    dsm_resized = dsm_arr_raw
+                _dsm_bld = dsm_resized[valid_mask & np.isfinite(dsm_resized) & (dsm_resized > 0)]
+                if len(_dsm_bld) > 10:
+                    # Estimation sol = p5 du DSM sur l'empreinte (pixels de rive bas)
+                    _ground = float(np.percentile(_dsm_bld, 5))
+                    _heights = np.clip(_dsm_bld - _ground, 0, None)
+                    dsm_stats = {
+                        'altitude_min_m':   round(float(_dsm_bld.min()), 1),
+                        'altitude_max_m':   round(float(_dsm_bld.max()), 1),
+                        'altitude_mean_m':  round(float(np.mean(_dsm_bld)), 1),
+                        'height_egout_m':   round(float(np.percentile(_heights, 10)), 1),
+                        'height_faitage_m': round(float(np.percentile(_heights, 90)), 1),
+                        'height_mean_m':    round(float(np.mean(_heights)), 1),
+                    }
+                    print(f'  [flux-heatmap] DSM stats: {dsm_stats}')
+            except Exception as _e:
+                print(f'  [flux-heatmap] DSM stats failed: {_e}')
+
         return jsonify({
-            "success": True, "quality": quality, "pixel_size_m": pixel_size_m,
-            "flux_min": round(flux_min, 0), "flux_max": round(flux_max, 0), "flux_mean": round(flux_mean, 0),
-            "color_min": round(color_min, 0), "color_max": round(color_max, 0),
-            "n_valid": int(len(valid)),
-            "tiff_raw_range": tiff_raw_range,
-            "imagery_date": layers.get('imageryDate'),
-            "bbox": {"north": bbox_north_out, "south": bbox_south_out,
-                     "east":  bbox_east_out,  "west":  bbox_west_out},
-            "diag": {
-                "api_bbox_m": f"{api_w_m:.0f}x{api_h_m:.0f}",
-                "px_real_m":  f"{px_w_m:.3f}x{px_h_m:.3f}",
-                "H_W": f"{H}x{W}",
-                "pixel_size_native_m": pixel_size_m
+            'success': True, 'quality': quality, 'pixel_size_m': pixel_size_m,
+            'flux_min':   round(flux_min, 0),
+            'flux_max':   round(flux_max, 0),
+            'flux_mean':  round(flux_mean, 0),
+            'color_min':  round(color_min, 0),
+            'color_max':  round(color_max, 0),
+            'n_valid':    int(len(valid)),
+            'tiff_raw_range': tiff_raw_range,
+            'imagery_date': layers.get('imageryDate'),
+            'layers_available': {
+                'annual_flux':   bool(flux_url),
+                'monthly_flux':  bool(monthly_flux_url),
+                'dsm':           bool(dsm_url),
+                'mask':          bool(mask_url),
+                'rgb':           bool(rgb_url),
             },
-            "image_base64": img_b64,
-            "rgb_base64":   _rgb_b64
+            # Flux mensuel : [Jan, Fév, Mar, Avr, Mai, Jun, Jul, Aoû, Sep, Oct, Nov, Déc] kWh/m²/mois
+            'monthly_flux':   monthly_means,
+            'month_labels':   _MONTHS_FR if monthly_means else None,
+            'month_peak':     _MONTHS_FR[int(np.argmax(monthly_means))] if monthly_means else None,
+            'month_low':      _MONTHS_FR[int(np.argmin(monthly_means))] if monthly_means else None,
+            # DSM — hauteurs de toiture
+            'dsm_stats':      dsm_stats,
+            'bbox': {'north': bbox_north_out, 'south': bbox_south_out,
+                     'east':  bbox_east_out,  'west':  bbox_west_out},
+            'diag': {
+                'api_bbox_m': f'{api_w_m:.0f}x{api_h_m:.0f}',
+                'px_real_m':  f'{px_w_m:.3f}x{px_h_m:.3f}',
+                'H_W': f'{H}x{W}',
+                'pixel_size_native_m': pixel_size_m
+            },
+            'image_base64': img_b64,
+            'rgb_base64':   _rgb_b64,
         })
     except requests.exceptions.Timeout:
         return jsonify({"error": "Timeout Google Solar (30s)", "error_code": "TIMEOUT"}), 504

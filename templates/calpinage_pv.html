@@ -6520,6 +6520,54 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     const d = data.imagery_date;
                     document.getElementById('fluxLegendDate').textContent =
                         d ? `Imagerie Google Solar — ${d.year || ''}/${String(d.month||'').padStart(2,'0')}` : '';
+
+                    // ── Histogramme mensuel ───────────────────────────────────────────
+                    const moSection = document.getElementById('fluxMonthlySection');
+                    const moBars    = document.getElementById('fluxMonthlyBars');
+                    const moLabels  = document.getElementById('fluxMonthlyLabels');
+                    if (data.monthly_flux && data.monthly_flux.length === 12) {
+                        moSection.style.display = 'block';
+                        document.getElementById('fluxMonthPeak').textContent = data.month_peak || '';
+                        document.getElementById('fluxMonthLow').textContent  = data.month_low  || '';
+                        const mVals  = data.monthly_flux;
+                        const mMax   = Math.max(...mVals);
+                        const mMin   = Math.min(...mVals);
+                        const labels = data.month_labels || ['J','F','M','A','M','J','J','A','S','O','N','D'];
+                        moBars.innerHTML   = '';
+                        moLabels.innerHTML = '';
+                        mVals.forEach((v, i) => {
+                            const pct  = mMax > 0 ? v / mMax : 0;
+                            const hPx  = Math.max(2, Math.round(pct * 34));
+                            // Couleur : bleu hiver → rouge été
+                            const heat = Math.round(pct * 255);
+                            const cold = 255 - heat;
+                            const bar = document.createElement('div');
+                            bar.title = `${labels[i]}: ${v} kWh/m²/mois`;
+                            bar.style.cssText = `flex:1;height:${hPx}px;border-radius:2px 2px 0 0;
+                                background:rgb(${heat},${Math.round(pct*120)},${cold});
+                                align-self:flex-end;cursor:default;`;
+                            moBars.appendChild(bar);
+                            const lbl = document.createElement('div');
+                            lbl.textContent = labels[i].charAt(0);
+                            lbl.style.cssText = 'flex:1;text-align:center;color:rgba(255,255,255,0.4);font-size:0.55rem;';
+                            moLabels.appendChild(lbl);
+                        });
+                    } else {
+                        moSection.style.display = 'none';
+                    }
+
+                    // ── Stats DSM (hauteurs de toiture) ──────────────────────────────
+                    const dsmSection = document.getElementById('fluxDsmSection');
+                    if (data.dsm_stats) {
+                        dsmSection.style.display = 'flex';
+                        const ds = data.dsm_stats;
+                        document.getElementById('fluxDsmEgout'  ).textContent = ds.height_egout_m   ?? '—';
+                        document.getElementById('fluxDsmMean'   ).textContent = ds.height_mean_m    ?? '—';
+                        document.getElementById('fluxDsmFaitage').textContent = ds.height_faitage_m ?? '—';
+                        document.getElementById('fluxDsmAlt'    ).textContent = ds.altitude_mean_m  ?? '—';
+                    } else {
+                        dsmSection.style.display = 'none';
+                    }
                 }
                 const imgSrc = `data:image/png;base64,${data.image_base64}`;
                 const b = data.bbox;
@@ -7760,7 +7808,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
     <div id="fluxLegendPanel" style="display:none; position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
          z-index:5000; background:rgba(20,20,30,0.88); border-radius:10px; padding:8px 14px;
          box-shadow:0 2px 12px rgba(0,0,0,0.35); backdrop-filter:blur(6px);
-         border:1px solid rgba(255,255,255,0.15); min-width:260px; text-align:center;">
+         border:1px solid rgba(255,255,255,0.15); min-width:320px; max-width:90vw; text-align:center;">
         <div class="d-flex justify-content-between align-items-center mb-1">
             <strong style="color:#fff;font-size:0.78rem;">🌡️ Irradiance annuelle (kWh/m²/an)</strong>
             <button class="btn btn-sm btn-link p-0 ms-2" style="color:rgba(255,255,255,0.6);font-size:0.7rem;"
@@ -7775,6 +7823,20 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             <span id="fluxLegendMax">—</span>
         </div>
         <div id="fluxLegendDate" style="color:rgba(255,255,255,0.4);font-size:0.65rem;margin-top:2px;"></div>
+        <!-- Histogramme mensuel -->
+        <div id="fluxMonthlySection" style="display:none; margin-top:8px; border-top:1px solid rgba(255,255,255,0.12); padding-top:6px;">
+            <div style="color:rgba(255,255,255,0.55);font-size:0.65rem;margin-bottom:3px;">Flux mensuel (kWh/m²/mois) — <span id="fluxMonthPeak" style="color:#ffe600;"></span> ☀️ max · <span id="fluxMonthLow" style="color:#6ac9ff;"></span> ❄️ min</div>
+            <div id="fluxMonthlyBars" style="display:flex;align-items:flex-end;gap:2px;height:36px;"></div>
+            <div id="fluxMonthlyLabels" style="display:flex;gap:2px;margin-top:1px;"></div>
+        </div>
+        <!-- Stats DSM -->
+        <div id="fluxDsmSection" style="display:none; margin-top:6px; border-top:1px solid rgba(255,255,255,0.12); padding-top:5px;
+             color:rgba(255,255,255,0.6);font-size:0.67rem; justify-content:space-around; flex-wrap:wrap; gap:4px;">
+            <span>🏚️ Égout&nbsp;<strong id="fluxDsmEgout" style="color:#fff;">—</strong>&nbsp;m</span>
+            <span>🏠 Moy&nbsp;<strong id="fluxDsmMean" style="color:#fff;">—</strong>&nbsp;m</span>
+            <span>🏔️ Faîtage&nbsp;<strong id="fluxDsmFaitage" style="color:#fff;">—</strong>&nbsp;m</span>
+            <span style="color:rgba(255,255,255,0.35);">Alt.&nbsp;<span id="fluxDsmAlt">—</span>&nbsp;m IGN</span>
+        </div>
     </div>
 
 </body>
