@@ -1093,6 +1093,7 @@
         // Tile layers (globaux pour capture screenshot)
         let tileLayerSatellite;
         let tileLayerOSM;
+        let tileLayerGoogle;
         
         // Équipements électriques
         let equipments = {
@@ -1749,11 +1750,18 @@
                 attributionControl: true
             }).setView([prospectLat, prospectLon], 19);
             
-            // Fond satellite Esri (WorldImagery) - Vue orthogonale parfaite sans perspective
+            // Fond satellite Esri (WorldImagery)
             tileLayerSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                 maxZoom: 22,
                 maxNativeZoom: 19,
                 attribution: 'Esri, DigitalGlobe, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN'
+            });
+
+            // Fond Google Satellite — même source que Google Solar → alignement parfait pour la heatmap
+            tileLayerGoogle = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+                maxZoom: 22,
+                maxNativeZoom: 20,
+                attribution: '© Google'
             });
             
             // Fond OSM pour capture orthogonale (sans perspective)
@@ -1765,17 +1773,12 @@
             // Contrôle de couches pour basculer entre les fonds
             const baseMaps = {
                 "🛰️ Satellite Esri (recommandé)": tileLayerSatellite,
+                "🛰️ Satellite Google (aligné heatmap)": tileLayerGoogle,
                 "🗺️ Carte OSM (capture)": tileLayerOSM
             };
             
             // Ajouter Esri par défaut
             tileLayerSatellite.addTo(map);
-            
-            // Ajouter le contrôle de couches
-            L.control.layers(baseMaps, null, {
-                position: 'topright',
-                collapsed: true
-            }).addTo(map);
             
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
@@ -6356,8 +6359,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         }
 
         // ── Carte d'irradiation solaire (Google Solar annualFlux heatmap) ──
-        let _fluxActive    = false;
-        let _flux2DOverlay = null;
+        let _fluxActive      = false;
+        let _flux2DOverlay   = null;
+        let _prevTileLayer   = null;  // fond de carte avant activation heatmap
 
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
@@ -6379,6 +6383,14 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
+                }
+                // Restaurer le fond de carte précédent
+                if (_prevTileLayer && typeof map !== 'undefined' && map) {
+                    if (!map.hasLayer(_prevTileLayer)) {
+                        map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
+                        _prevTileLayer.addTo(map);
+                    }
+                    _prevTileLayer = null;
                 }
                 if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
                 return;
@@ -6473,8 +6485,15 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const imgSrc = `data:image/png;base64,${data.image_base64}`;
                 const b = data.bbox;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
+                    // Basculer vers Google Satellite pour aligner avec Google Solar
+                    const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
+                    if (activeTile && activeTile !== tileLayerGoogle) {
+                        _prevTileLayer = activeTile;
+                        map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
+                        tileLayerGoogle.addTo(map);
+                    }
                     _flux2DOverlay = L.imageOverlay(
-                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.8, interactive: false }
+                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false }
                     ).addTo(map);
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
