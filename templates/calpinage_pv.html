@@ -6443,10 +6443,22 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const dLat = (maxLat - minLat) * 111320;
                         const dLon = (maxLon - minLon) * 111320 * Math.cos(heatLat * Math.PI / 180);
                         radius_m = Math.max(35, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 25, 120));
-                        bCoords  = allPts.map(p => [p.lon, p.lat]);
+                        // ⚠️ NE PAS envoyer la liste plate de coins (plusieurs rectangles) comme un seul polygone
+                        // → le raycasting backend l'interpréterait comme un polygone auto-intersecté.
+                        // On envoie le BBOX rectangulaire avec un léger buffer (+15%) comme polygone propre.
+                        const bufLat = (maxLat - minLat) * 0.08;
+                        const bufLon = (maxLon - minLon) * 0.08;
+                        bCoords = [
+                            [minLon - bufLon, minLat - bufLat],
+                            [maxLon + bufLon, minLat - bufLat],
+                            [maxLon + bufLon, maxLat + bufLat],
+                            [minLon - bufLon, maxLat + bufLat]
+                        ];
                     } else {
                         heatLat = prospectLat;
                         heatLon = prospectLon;
+                        radius_m = 50; // Sans zones : rayon minimal
+                        // Pas de bCoords → le masque Google Solar seul s'applique (tous bâtiments proches)
                     }
                 }
                 console.log(`🌡️ Solar query: (${heatLat?.toFixed(6)}, ${heatLon?.toFixed(6)}) r=${radius_m}m mode=${viewer3D?.isActive?'3D':'2D'}`);
