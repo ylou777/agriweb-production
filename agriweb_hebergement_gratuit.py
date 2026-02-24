@@ -2270,12 +2270,13 @@ def api_solar_flux_heatmap():
         flux_url     = layers.get('annualFluxUrl', '')
         mask_url     = layers.get('maskUrl', '')
         pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
-        bbox         = layers.get('boundingBox', {})
-        sw = bbox.get('sw', {}); ne = bbox.get('ne', {})
-        bbox_south = float(sw.get('latitude',  lat - 0.001))
-        bbox_north = float(ne.get('latitude',  lat + 0.001))
-        bbox_west  = float(sw.get('longitude', lon - 0.001))
-        bbox_east  = float(ne.get('longitude', lon + 0.001))
+        # bbox API conservé comme fallback mais on recalcule depuis les dims réelles de l'image
+        bbox_api     = layers.get('boundingBox', {})
+        sw_api = bbox_api.get('sw', {}); ne_api = bbox_api.get('ne', {})
+        bbox_south_api = float(sw_api.get('latitude',  lat - 0.001))
+        bbox_north_api = float(ne_api.get('latitude',  lat + 0.001))
+        bbox_west_api  = float(sw_api.get('longitude', lon - 0.001))
+        bbox_east_api  = float(ne_api.get('longitude', lon + 0.001))
         if not flux_url:
             return jsonify({"error": "Pas de données flux annuel pour ce point"}), 422
 
@@ -2378,6 +2379,22 @@ def api_solar_flux_heatmap():
 
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
+
+        # ── Recalcul précis du bbox géographique depuis les vraies dimensions de l'image ──
+        # Le centre de l'image = (lat, lon) demandé ; chaque pixel = pixel_size_m mètres.
+        # Le bbox API Google Solar peut différer légèrement des dims réelles → décalage visible.
+        import math as _math
+        _lat_rad  = _math.radians(lat)
+        _deg_per_m_lat = 1.0 / 111320.0
+        _deg_per_m_lon = 1.0 / (111320.0 * _math.cos(_lat_rad))
+        _half_h_deg = (H / 2.0) * pixel_size_m * _deg_per_m_lat
+        _half_w_deg = (W / 2.0) * pixel_size_m * _deg_per_m_lon
+        bbox_north = lat + _half_h_deg
+        bbox_south = lat - _half_h_deg
+        bbox_east  = lon + _half_w_deg
+        bbox_west  = lon - _half_w_deg
+        print(f'  [flux-heatmap] bbox recalculé: N={bbox_north:.6f} S={bbox_south:.6f} '
+              f'E={bbox_east:.6f} W={bbox_west:.6f} (API: N={bbox_north_api:.6f} S={bbox_south_api:.6f})')
 
         # Niveau 1 : masque Google Solar
         bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
