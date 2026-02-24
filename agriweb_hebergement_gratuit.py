@@ -2486,53 +2486,65 @@ def api_solar_flux_heatmap():
         lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
         lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
 
-        # Niveau 1 : masque Google Solar (utilisé en fallback seulement)
+        # Masque Google Solar — identifie les pixels où GSolar a détecté un bâtiment
         gsolar_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
 
-        # Niveau 2 : raycasting polygone bâtiment cible
-        poly_mask = None
+        # ── Raycasting polygone bâtiment (empreinte OSM ou coordonnées fournies) ──
+        poly_mask  = None   # polygone exact (sans buffer)
+        poly_mask_d = None  # polygone dilaté de _buffer_m mètres
         _has_precise_polygon = bool(bcoords and len(bcoords) >= 3)
+
         if _has_precise_polygon:
             poly_lon = [float(c[0]) for c in bcoords]
             poly_lat = [float(c[1]) for c in bcoords]
             n = len(poly_lon)
-
-            # Dilater le polygone d'~1,5 pixel vers l'extérieur du centroïde
-            # pour ne pas couper les pixels de bord de toiture.
-            _px_lon = (bbox_east  - bbox_west)  / W * 1.5
-            _px_lat = (bbox_north - bbox_south) / H * 1.5
             _cx = sum(poly_lon) / n
             _cy = sum(poly_lat) / n
-            _exp_lon, _exp_lat = [], []
+
+            # Buffer en degrés correspondant à _buffer_m mètres
+            _buffer_m  = 2.5   # débordement réel de toiture par rapport à l'empreinte OSM
+            _buf_lat = _buffer_m / 111320.0
+            _buf_lon = _buffer_m / (111320.0 * math.cos(math.radians(lat)))
+
+            def _raytrace(plon, plat):
+                """Raycasting point-in-polygon vectorisé (grille entière)."""
+                m = np.zeros((H, W), dtype=bool)
+                nn = len(plon)
+                for ii in range(nn):
+                    xi, yi = plon[ii],        plat[ii]
+                    xj, yj = plon[(ii-1)%nn], plat[(ii-1)%nn]
+                    cond = ((yi > lat_grid) != (yj > lat_grid)) & \
+                           (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
+                    m ^= cond
+                return m
+
+            # Polygone exact (pour repérer les pixels intérieurs confirmés par GSolar)
+            poly_mask = _raytrace(poly_lon, poly_lat)
+
+            # Polygone dilaté : chaque sommet poussé de _buffer_m vers l'extérieur
+            _dlon, _dlat = [], []
             for x, y in zip(poly_lon, poly_lat):
                 dx, dy = x - _cx, y - _cy
                 dist = math.hypot(dx, dy)
                 if dist < 1e-12:
-                    _exp_lon.append(x); _exp_lat.append(y)
+                    _dlon.append(x + _buf_lon); _dlat.append(y + _buf_lat)
                 else:
-                    _exp_lon.append(_cx + dx / dist * (dist + _px_lon))
-                    _exp_lat.append(_cy + dy / dist * (dist + _px_lat))
-            poly_lon, poly_lat = _exp_lon, _exp_lat
+                    _dlon.append(_cx + dx / dist * (dist + _buf_lon))
+                    _dlat.append(_cy + dy / dist * (dist + _buf_lat))
+            poly_mask_d = _raytrace(_dlon, _dlat)
 
-            poly_mask = np.zeros((H, W), dtype=bool)
-            for i in range(n):
-                xi, yi = poly_lon[i],       poly_lat[i]
-                xj, yj = poly_lon[(i-1)%n], poly_lat[(i-1)%n]
-                cond = ((yi > lat_grid) != (yj > lat_grid)) & \
-                       (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
-                poly_mask ^= cond
-
-            # Quand on a un polygone OSM précis, on l'utilise DIRECTEMENT
-            # (sans intersection avec mask_arr) : le masque Google Solar est souvent
-            # légèrement en retrait du vrai bord de toiture et rongerait la périphérie.
-            bld_mask = poly_mask
+            # Masque final :
+            #   • polygone dilaté → couvre le débord de corniche / toit
+            #   • OU (GSolar & polygone exact) → récupère les pixels GSolar dans l'empreinte stricte
+            # On n'utilise PAS gsolar comme seul masque car GSolar érode les bords.
+            bld_mask = poly_mask_d | (gsolar_mask & poly_mask)
+            print(f'  [flux-heatmap] poly px: exact={int(poly_mask.sum())} dilated={int(poly_mask_d.sum())} combined={int(bld_mask.sum())}')
         else:
-            # Pas de polygone précis → masque GSolar + flood-fill depuis le centre
+            # Pas de polygone → masque GSolar seul + flood-fill plus bas
             bld_mask = gsolar_mask
 
-        # Niveau 3 : flood-fill depuis le pixel central — UNIQUEMENT si aucun
-        # polygone précis n'est disponible (évite d'afficher tout le quartier
-        # sans rogner le bâtiment cible quand le masque Google Solar couvre tout).
+        # ── Flood-fill (uniquement sans polygone précis) ──────────────────────────
+        # Isole la composante connexe du bâtiment étudié dans le masque GSolar.
         if not _has_precise_polygon and mask_arr is not None and bld_mask.any():
             try:
                 ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
@@ -2568,7 +2580,7 @@ def api_solar_flux_heatmap():
         if len(valid) == 0:
             # Fallback sans masque bâtiment
             valid_mask = np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
-            if bcoords and len(bcoords) >= 3: valid_mask = valid_mask & poly_mask
+            if poly_mask_d is not None: valid_mask = valid_mask & poly_mask_d
             valid = flux_arr[valid_mask]
         if len(valid) == 0:
             # Diagnostic : afficher la vraie distribution du tableau brut
