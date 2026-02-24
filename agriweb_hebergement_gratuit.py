@@ -2264,35 +2264,9 @@ def api_solar_flux_heatmap():
         if lat is None or lon is None:
             return jsonify({"error": "lat et lon requis"}), 400
 
-        # ── Auto-fetch OSM building footprint si aucun polygone précis fourni ──
-        # Un polygone "circulaire de fallback" généré côté JS a exactement 12 pts
-        # équidistants du centre → il couvre tout le quartier dans le masque GSolar.
-        # On le remplace par l'empreinte réelle du bâtiment OSM contenant lat/lon.
-        _is_circle_fallback = (len(bcoords) == 12)
-        if _is_circle_fallback:
-            bcoords = []  # on efface le cercle JS avant d'essayer OSM
-        if not bcoords:
-            try:
-                _ovp_q = (
-                    f"[out:json][timeout:8];"
-                    f"way[\"building\"](around:25,{lat},{lon});"
-                    f"out geom;"
-                )
-                _r_ovp = requests.post(
-                    "https://overpass-api.de/api/interpreter",
-                    data=_ovp_q, timeout=9
-                )
-                if _r_ovp.status_code == 200:
-                    for _el in _r_ovp.json().get("elements", []):
-                        if _el.get("type") != "way": continue
-                        _geom = _el.get("geometry", [])
-                        if len(_geom) >= 3:
-                            bcoords = [[float(g["lon"]), float(g["lat"])] for g in _geom]
-                            print(f"  [flux-heatmap] OSM footprint: {len(bcoords)} pts (id={_el.get('id')})")
-                            break
-            except Exception as _e_osm:
-                print(f"  [flux-heatmap] OSM fetch skipped: {_e_osm}")
-        # Si OSM a échoué, bcoords reste [] → flood-fill sur mask GSolar (voir plus bas)
+        # bcoords n'est plus utilisé pour le masque : on utilise exclusivement
+        # le maskUrl Google Solar (découpe pixel-perfect de chaque bâtiment).
+        # Le flood-fill depuis le point cliqué isole le bâtiment cible.
 
         from config import GOOGLE_SOLAR_API_KEY
 
@@ -2495,6 +2469,16 @@ def api_solar_flux_heatmap():
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
 
+        # ── Normaliser mask_arr à la résolution du flux ──────────────────────────
+        # maskUrl est à 0.1 m/px, annualFluxUrl à 0.5 m/px → shape ~5× différente.
+        # On redimensionne le masque pour qu'il soit exactement (H, W).
+        if mask_arr is not None:
+            H_m, W_m = mask_arr.shape
+            if H_m != H or W_m != W:
+                _m_pil = PILImage.fromarray(mask_arr).resize((W, H), PILImage.NEAREST)
+                mask_arr = np.array(_m_pil, dtype=np.uint8)
+                print(f'  [flux-heatmap] mask resized {H_m}×{W_m} → {H}×{W}')
+
         # bbox_api = étendue géographique réelle du GeoTIFF livré par Google Solar.
         # pixel_size_m = résolution NATIVE du capteur, PAS de l'image downsamplée livrée.
         # La vraie résolution livrée = bbox_width_m / W, bbox_height_m / H.
@@ -2520,102 +2504,55 @@ def api_solar_flux_heatmap():
         lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
         lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
 
-        # Masque Google Solar — identifie les pixels où GSolar a détecté un bâtiment
-        gsolar_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
+        # ── Masque bâtiment exclusivement depuis Google Solar maskUrl ────────────
+        # maskUrl est la source la plus précise : découpe pixel-perfect de chaque
+        # bâtiment individuel. Flood-fill depuis le point cliqué = isolation exacte.
+        poly_mask_d = None  # gardé pour compatibilité (fallback valid_mask plus bas)
 
-        # ── Raycasting polygone bâtiment (empreinte OSM ou coordonnées fournies) ──
-        poly_mask  = None   # polygone exact (sans buffer)
-        poly_mask_d = None  # polygone dilaté de _buffer_m mètres
-        _has_precise_polygon = bool(bcoords and len(bcoords) >= 3)
-
-        if _has_precise_polygon:
-            poly_lon = [float(c[0]) for c in bcoords]
-            poly_lat = [float(c[1]) for c in bcoords]
-            n = len(poly_lon)
-            _cx = sum(poly_lon) / n
-            _cy = sum(poly_lat) / n
-
-            # Buffer en degrés correspondant à _buffer_m mètres
-            _buffer_m  = 2.5   # débordement réel de toiture par rapport à l'empreinte OSM
-            _buf_lat = _buffer_m / 111320.0
-            _buf_lon = _buffer_m / (111320.0 * math.cos(math.radians(lat)))
-
-            def _raytrace(plon, plat):
-                """Raycasting point-in-polygon vectorisé (grille entière)."""
-                m = np.zeros((H, W), dtype=bool)
-                nn = len(plon)
-                for ii in range(nn):
-                    xi, yi = plon[ii],        plat[ii]
-                    xj, yj = plon[(ii-1)%nn], plat[(ii-1)%nn]
-                    cond = ((yi > lat_grid) != (yj > lat_grid)) & \
-                           (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
-                    m ^= cond
-                return m
-
-            # Polygone exact (pour repérer les pixels intérieurs confirmés par GSolar)
-            poly_mask = _raytrace(poly_lon, poly_lat)
-
-            # Polygone dilaté : chaque sommet poussé de _buffer_m vers l'extérieur
-            _dlon, _dlat = [], []
-            for x, y in zip(poly_lon, poly_lat):
-                dx, dy = x - _cx, y - _cy
-                dist = math.hypot(dx, dy)
-                if dist < 1e-12:
-                    _dlon.append(x + _buf_lon); _dlat.append(y + _buf_lat)
-                else:
-                    _dlon.append(_cx + dx / dist * (dist + _buf_lon))
-                    _dlat.append(_cy + dy / dist * (dist + _buf_lat))
-            poly_mask_d = _raytrace(_dlon, _dlat)
-
-            # Masque final :
-            #   • polygone dilaté → couvre le débord de corniche / toit
-            #   • OU (GSolar & polygone exact) → récupère les pixels GSolar dans l'empreinte stricte
-            # On n'utilise PAS gsolar comme seul masque car GSolar érode les bords.
-            bld_mask = poly_mask_d | (gsolar_mask & poly_mask)
-            print(f'  [flux-heatmap] poly px: exact={int(poly_mask.sum())} dilated={int(poly_mask_d.sum())} combined={int(bld_mask.sum())}')
+        if mask_arr is not None:
+            bld_mask = mask_arr > 0
+            print(f'  [flux-heatmap] GSolar mask: {int(bld_mask.sum())} px bâtiment sur {H}×{W}')
         else:
-            # Pas de polygone précis.
-            # Si GSolar a un masque bâtiment → flood-fill depuis le centre (isolera le bâtiment).
-            # Si PAS de masque → créer un cercle raster de 20 m autour du point pour limiter la zone.
-            if mask_arr is not None:
-                bld_mask = gsolar_mask  # flood-fill ci-dessous isolera le bâtiment cible
-            else:
-                _cr_m    = 20.0
-                _cr_lat  = _cr_m / 111320.0
-                _cr_lon  = _cr_m / (111320.0 * math.cos(math.radians(lat)))
-                bld_mask = (((lat_grid - lat) / _cr_lat) ** 2 +
-                            ((lon_grid - lon) / _cr_lon) ** 2) <= 1.0
-                print(f'  [flux-heatmap] fallback cercle 20m: {int(bld_mask.sum())} px')
+            # Pas de masque GSolar → cercle raster 20 m autour du point cliqué
+            _cr_m   = 20.0
+            _cr_lat = _cr_m / 111320.0
+            _cr_lon = _cr_m / (111320.0 * math.cos(math.radians(lat)))
+            bld_mask = (((lat_grid - lat) / _cr_lat) ** 2 +
+                        ((lon_grid - lon) / _cr_lon) ** 2) <= 1.0
+            print(f'  [flux-heatmap] fallback cercle 20m: {int(bld_mask.sum())} px')
 
-        # ── Flood-fill (sans polygone précis, masque GSolar disponible) ──────────
-        # Isole la composante connexe du bâtiment situé au centre (lat/lon).
-        if not _has_precise_polygon and mask_arr is not None and bld_mask.any():
+        # ── Flood-fill : isole le bâtiment contenant le point cliqué (lat/lon) ──
+        # Sans flood-fill, bld_mask contient TOUS les bâtiments du masque GSolar.
+        if mask_arr is not None and bld_mask.any():
             try:
-                ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
-                ctr_col = int(np.clip((lon - bbox_west)   / (bbox_east  - bbox_west)  * W, 0, W - 1))
-                # Si le pixel central est déjà dans le masque → flood-fill direct.
-                # Sinon → chercher le pixel masqué le plus proche du centre (jusqu'à 20px).
+                ctr_row = int(np.clip((bbox_north - lat) / (bbox_north - bbox_south) * H, 0, H - 1))
+                ctr_col = int(np.clip((lon - bbox_west)  / (bbox_east  - bbox_west)  * W, 0, W - 1))
                 seed_r, seed_c = ctr_row, ctr_col
+                # Si le pixel central n'est pas dans un bâtiment → pixel bâtiment le plus proche
                 if not bld_mask[seed_r, seed_c]:
                     pts = np.argwhere(bld_mask)
                     if len(pts):
                         dists = np.hypot(pts[:, 0] - ctr_row, pts[:, 1] - ctr_col)
-                        nearest = pts[int(np.argmin(dists))]
-                        if float(dists.min()) <= 20:
-                            seed_r, seed_c = int(nearest[0]), int(nearest[1])
-                # Flood-fill itératif (pas de récursion → pas de stack overflow)
+                        near_idx = int(np.argmin(dists))
+                        if float(dists[near_idx]) <= 60:
+                            seed_r, seed_c = int(pts[near_idx, 0]), int(pts[near_idx, 1])
+                # Flood-fill itératif (stack-safe, pas de récursion)
                 if bld_mask[seed_r, seed_c]:
                     filled = np.zeros((H, W), dtype=bool)
-                    stack = [(seed_r, seed_c)]
-                    while stack:
-                        r, c = stack.pop()
+                    stk = [(seed_r, seed_c)]
+                    while stk:
+                        r, c = stk.pop()
                         if r < 0 or r >= H or c < 0 or c >= W: continue
                         if filled[r, c] or not bld_mask[r, c]: continue
                         filled[r, c] = True
-                        stack.extend([(r+1, c), (r-1, c), (r, c+1), (r, c-1)])
+                        stk.extend([(r+1,c),(r-1,c),(r,c+1),(r,c-1)])
                     if filled.any():
                         bld_mask = filled
-                        print(f'  [flux-heatmap] flood-fill: seed=({seed_r},{seed_c}) → {int(bld_mask.sum())} px gardés')
+                        print(f'  [flux-heatmap] flood-fill OK: seed=({seed_r},{seed_c}) → {int(bld_mask.sum())} px')
+                    else:
+                        print(f'  [flux-heatmap] flood-fill empty → masque GSolar complet utilisé')
+                else:
+                    print(f'  [flux-heatmap] aucun pixel bâtiment proche du centre → masque GSolar complet')
             except Exception as _e_ff:
                 print(f'  [flux-heatmap] flood-fill skipped: {_e_ff}')
 
