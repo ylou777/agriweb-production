@@ -2793,17 +2793,40 @@ def api_solar_flux_heatmap():
                     # Estimation sol = p5 du DSM sur l'empreinte (pixels de rive bas)
                     _ground = float(np.percentile(_dsm_bld, 5))
                     _heights = np.clip(_dsm_bld - _ground, 0, None)
+                    def _sf(v):  # safe float : None si inf/nan
+                        f = float(v)
+                        return round(f, 1) if math.isfinite(f) else None
                     dsm_stats = {
-                        'altitude_min_m':   round(float(_dsm_bld.min()), 1),
-                        'altitude_max_m':   round(float(_dsm_bld.max()), 1),
-                        'altitude_mean_m':  round(float(np.mean(_dsm_bld)), 1),
-                        'height_egout_m':   round(float(np.percentile(_heights, 10)), 1),
-                        'height_faitage_m': round(float(np.percentile(_heights, 90)), 1),
-                        'height_mean_m':    round(float(np.mean(_heights)), 1),
+                        'altitude_min_m':   _sf(_dsm_bld.min()),
+                        'altitude_max_m':   _sf(_dsm_bld.max()),
+                        'altitude_mean_m':  _sf(np.mean(_dsm_bld)),
+                        'height_egout_m':   _sf(np.percentile(_heights, 10)),
+                        'height_faitage_m': _sf(np.percentile(_heights, 90)),
+                        'height_mean_m':    _sf(np.mean(_heights)),
                     }
                     print(f'  [flux-heatmap] DSM stats: {dsm_stats}')
             except Exception as _e:
                 print(f'  [flux-heatmap] DSM stats failed: {_e}')
+
+        # Sanitize : remplacer tout inf/nan par None pour JSON valide
+        def _jf(v):
+            if v is None: return None
+            f = float(v)
+            return round(f, 1) if math.isfinite(f) else None
+        def _jfr(v, d=0):
+            if v is None: return None
+            f = float(v)
+            return round(f, d) if math.isfinite(f) else None
+
+        flux_min  = _jfr(flux_min,  0) or 0.0
+        flux_max  = _jfr(flux_max,  0) or 0.0
+        flux_mean = _jfr(flux_mean, 0) or 0.0
+        color_min = _jfr(color_min, 0) or 0.0
+        color_max = _jfr(color_max, 0) or 0.0
+        if monthly_means:
+            monthly_means = [_jf(v) or 0.0 for v in monthly_means]
+        if dsm_stats:
+            dsm_stats = {k: _jf(v) for k, v in dsm_stats.items()}
 
         return jsonify({
             'success': True, 'quality': quality, 'pixel_size_m': pixel_size_m,
