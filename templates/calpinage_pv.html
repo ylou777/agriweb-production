@@ -6428,10 +6428,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     if (typeof zones !== 'undefined' && zones.length > 0) {
                         zones.forEach(z => {
                             try {
-                                const raw = z.layer.getLatLngs();
-                                const lls = Array.isArray(raw[0]) ? raw[0] : raw;
-                                lls.forEach(ll => allPts.push({ lat: ll.lat, lon: ll.lng }));
-                            } catch(e) { console.warn('[heatmap] getLatLngs failed:', e); }
+                                const b = z.layer.getBounds();
+                                const sw = b.getSouthWest(), ne = b.getNorthEast();
+                                allPts.push({ lat: sw.lat, lon: sw.lng });
+                                allPts.push({ lat: ne.lat, lon: ne.lng });
+                                allPts.push({ lat: sw.lat, lon: ne.lng });
+                                allPts.push({ lat: ne.lat, lon: sw.lng });
+                            } catch(e) { console.warn('[heatmap] getBounds failed:', e); }
                         });
                     }
                     if (allPts.length >= 3) {
