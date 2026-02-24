@@ -2279,7 +2279,28 @@ def api_solar_flux_heatmap():
             )
             return requests.get(url, timeout=20)
 
-        r_layers = _fetch_layers(quality)
+        # Fetch buildingInsights en parallèle des dataLayers
+        from concurrent.futures import ThreadPoolExecutor as _TPE_bi
+        def _fetch_building_insights():
+            url = (
+                "https://solar.googleapis.com/v1/buildingInsights:findClosest"
+                f"?location.latitude={lat}&location.longitude={lon}"
+                f"&requiredQuality=LOW&key={GOOGLE_SOLAR_API_KEY}"
+            )
+            try:
+                r = requests.get(url, timeout=15)
+                if r.status_code == 200:
+                    return r.json()
+            except Exception as _e:
+                print(f'  [flux-heatmap] buildingInsights failed: {_e}')
+            return None
+
+        with _TPE_bi(max_workers=2) as _ex_bi:
+            _fut_bi    = _ex_bi.submit(_fetch_building_insights)
+            _fut_layers = _ex_bi.submit(lambda: _fetch_layers(quality))
+            building_insights = _fut_bi.result(timeout=18)
+            r_layers          = _fut_layers.result(timeout=25)
+        print(f'  [flux-heatmap] buildingInsights: {"OK" if building_insights else "N/A"}')
         # Google Solar renvoie 404 OU 400 quand la qualité demandée n'est pas
         # disponible pour cette zone géographique → on tente les qualités inférieures.
         if r_layers.status_code in (400, 404) and quality == 'HIGH':
@@ -2735,6 +2756,53 @@ def api_solar_flux_heatmap():
             except Exception as _e:
                 print(f'  [flux-heatmap] DSM stats failed: {_e}')
 
+        # ── Pans de toiture depuis buildingInsights ─────────────────────────────
+        roof_segments = []
+        solar_potential = {}
+        if building_insights:
+            try:
+                sp = building_insights.get('solarPotential', {})
+                solar_potential = {
+                    'max_sunshine_hours':    sp.get('maxSunshineHoursPerYear'),
+                    'max_panel_count':       sp.get('maxArrayPanelsCount'),
+                    'max_area_m2':           sp.get('maxArrayAreaMeters2'),
+                    'carbon_offset_kg_mwh':  sp.get('carbonOffsetFactorKgPerMwh'),
+                }
+                def _az_to_dir(az):
+                    """Azimut (0=N, 90=E, 180=S, 270=O) → label cardinal"""
+                    az = az % 360
+                    dirs = [
+                        (22.5,  'N'), (67.5,  'NE'), (112.5, 'E'), (157.5, 'SE'),
+                        (202.5, 'S'), (247.5, 'SO'), (292.5, 'O'), (337.5, 'NO'), (360, 'N')
+                    ]
+                    for limit, label in dirs:
+                        if az < limit: return label
+                    return 'N'
+
+                for i, seg in enumerate(sp.get('roofSegmentStats', [])):
+                    pitch   = seg.get('pitchDegrees')
+                    azimuth = seg.get('azimuthDegrees')
+                    height  = seg.get('planeHeightAtCenterMeters')
+                    stats   = seg.get('stats', {})
+                    area    = stats.get('areaMeters2')
+                    sunshine_q = stats.get('sunshineQuantiles', [])
+                    # Irradiation médiane du pan (quantile central = index nb//2)
+                    irr_med = sunshine_q[len(sunshine_q)//2] if sunshine_q else None
+                    roof_segments.append({
+                        'id':           i + 1,
+                        'pitch_deg':    round(pitch, 1)   if pitch   is not None else None,
+                        'azimuth_deg':  round(azimuth, 1) if azimuth is not None else None,
+                        'orientation':  _az_to_dir(azimuth) if azimuth is not None else None,
+                        'height_m':     round(height, 1)  if height  is not None else None,
+                        'area_m2':      round(area, 1)    if area    is not None else None,
+                        'irr_med_kwh':  round(irr_med, 0) if irr_med is not None else None,
+                    })
+                # Trier par surface décroissante (pans les plus grands en premier)
+                roof_segments.sort(key=lambda s: s.get('area_m2') or 0, reverse=True)
+                print(f'  [flux-heatmap] {len(roof_segments)} pans de toiture')
+            except Exception as _e:
+                print(f'  [flux-heatmap] roof_segments failed: {_e}')
+
         # Sanitize : remplacer tout inf/nan par None pour JSON valide
         def _jf(v):
             if v is None: return None
@@ -2779,6 +2847,8 @@ def api_solar_flux_heatmap():
             'month_low':      _MONTHS_FR[int(np.argmin(monthly_means))] if monthly_means else None,
             # DSM — hauteurs de toiture
             'dsm_stats':      dsm_stats,
+            'roof_segments':  roof_segments,
+            'solar_potential': solar_potential,
             'bbox': {'north': bbox_north_out, 'south': bbox_south_out,
                      'east':  bbox_east_out,  'west':  bbox_west_out},
             'diag': {
