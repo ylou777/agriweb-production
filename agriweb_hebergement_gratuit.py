@@ -2480,20 +2480,40 @@ def api_solar_flux_heatmap():
         bbox_east  = bbox_east_api
         bbox_west  = bbox_west_api
 
-        # Niveau 1 : masque Google Solar
-        bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
+        rows_idx = np.arange(H)
+        cols_idx = np.arange(W)
+        lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
+        lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
+        lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
+
+        # Niveau 1 : masque Google Solar (utilisé en fallback seulement)
+        gsolar_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
 
         # Niveau 2 : raycasting polygone bâtiment cible
         poly_mask = None
-        if bcoords and len(bcoords) >= 3:
+        _has_precise_polygon = bool(bcoords and len(bcoords) >= 3)
+        if _has_precise_polygon:
             poly_lon = [float(c[0]) for c in bcoords]
             poly_lat = [float(c[1]) for c in bcoords]
             n = len(poly_lon)
-            rows_idx = np.arange(H)
-            cols_idx = np.arange(W)
-            lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
-            lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
-            lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
+
+            # Dilater le polygone d'~1,5 pixel vers l'extérieur du centroïde
+            # pour ne pas couper les pixels de bord de toiture.
+            _px_lon = (bbox_east  - bbox_west)  / W * 1.5
+            _px_lat = (bbox_north - bbox_south) / H * 1.5
+            _cx = sum(poly_lon) / n
+            _cy = sum(poly_lat) / n
+            _exp_lon, _exp_lat = [], []
+            for x, y in zip(poly_lon, poly_lat):
+                dx, dy = x - _cx, y - _cy
+                dist = math.hypot(dx, dy)
+                if dist < 1e-12:
+                    _exp_lon.append(x); _exp_lat.append(y)
+                else:
+                    _exp_lon.append(_cx + dx / dist * (dist + _px_lon))
+                    _exp_lat.append(_cy + dy / dist * (dist + _px_lat))
+            poly_lon, poly_lat = _exp_lon, _exp_lat
+
             poly_mask = np.zeros((H, W), dtype=bool)
             for i in range(n):
                 xi, yi = poly_lon[i],       poly_lat[i]
@@ -2501,11 +2521,19 @@ def api_solar_flux_heatmap():
                 cond = ((yi > lat_grid) != (yj > lat_grid)) & \
                        (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
                 poly_mask ^= cond
-            bld_mask = bld_mask & poly_mask
 
-        # Niveau 3 : flood-fill depuis le pixel central → ne garder QUE la
-        # composante connexe du bâtiment étudié (pas besoin de scipy).
-        if mask_arr is not None and bld_mask.any():
+            # Quand on a un polygone OSM précis, on l'utilise DIRECTEMENT
+            # (sans intersection avec mask_arr) : le masque Google Solar est souvent
+            # légèrement en retrait du vrai bord de toiture et rongerait la périphérie.
+            bld_mask = poly_mask
+        else:
+            # Pas de polygone précis → masque GSolar + flood-fill depuis le centre
+            bld_mask = gsolar_mask
+
+        # Niveau 3 : flood-fill depuis le pixel central — UNIQUEMENT si aucun
+        # polygone précis n'est disponible (évite d'afficher tout le quartier
+        # sans rogner le bâtiment cible quand le masque Google Solar couvre tout).
+        if not _has_precise_polygon and mask_arr is not None and bld_mask.any():
             try:
                 ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
                 ctr_col = int(np.clip((lon - bbox_west)   / (bbox_east  - bbox_west)  * W, 0, W - 1))
@@ -2610,7 +2638,7 @@ def api_solar_flux_heatmap():
         if rows_any.any() and cols_any.any():
             rmin, rmax = int(np.where(rows_any)[0][0]),  int(np.where(rows_any)[0][-1])
             cmin, cmax = int(np.where(cols_any)[0][0]),  int(np.where(cols_any)[0][-1])
-            pad = 4  # 4 px de marge pour ne pas couper le bord coloré
+            pad = 2  # 2 px de marge (le polygon est déjà dilaté de 1.5 px)
             rmin = max(0, rmin - pad); rmax = min(H - 1, rmax + pad)
             cmin = max(0, cmin - pad); cmax = min(W - 1, cmax + pad)
             rgba = rgba[rmin:rmax + 1, cmin:cmax + 1]
