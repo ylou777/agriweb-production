@@ -6362,6 +6362,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _fluxActive      = false;
         let _flux2DOverlay   = null;
         let _prevTileLayer   = null;  // fond de carte avant activation heatmap
+        let _prevMapView     = null;  // zoom/centre avant activation heatmap
 
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
@@ -6392,6 +6393,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         _prevTileLayer.addTo(map);
                     }
                     _prevTileLayer = null;
+                }
+                // Restaurer le zoom/centre précédent
+                if (_prevMapView && typeof map !== 'undefined' && map) {
+                    map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
+                    _prevMapView = null;
                 }
                 if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
                 return;
@@ -6549,6 +6555,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false, zIndex: 201 }
                     ).addTo(map);
                     if (_flux2DRgbOverlay) _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
+                    // Centrer et zoomer sur l'étendue de l'image Solar
+                    _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
+                    map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [20, 20], animate: true });
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
                 console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an (color: ${data.color_min}–${data.color_max}), quality=${data.quality}, n_valid=${data.n_valid}, tiff_range=${data.tiff_raw_range}`);
