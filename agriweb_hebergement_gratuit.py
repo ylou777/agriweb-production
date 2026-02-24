@@ -2264,6 +2264,56 @@ def api_solar_flux_heatmap():
         if lat is None or lon is None:
             return jsonify({"error": "lat et lon requis"}), 400
 
+        # ── Auto-fetch OSM building footprint si aucun polygone précis fourni ──
+        # Un polygone "circulaire de fallback" généré côté JS a exactement 12 pts
+        # équidistants du centre → il couvre tout le quartier dans le masque GSolar.
+        # On le remplace par l'empreinte réelle du bâtiment OSM contenant lat/lon.
+        _is_circle_fallback = (len(bcoords) == 12)
+        if not bcoords or _is_circle_fallback:
+            try:
+                _ovp_q = (
+                    f"[out:json][timeout:8];"
+                    f"way[\"building\"](around:2,{lat},{lon});"
+                    f"out geom;"
+                )
+                _r_ovp = requests.post(
+                    "https://overpass-api.de/api/interpreter",
+                    data=_ovp_q, timeout=9
+                )
+                if _r_ovp.status_code == 200:
+                    _ovp = _r_ovp.json()
+                    _elements = _ovp.get("elements", [])
+                    # Prendre le 1er way qui contient le point lat/lon
+                    for _el in _elements:
+                        if _el.get("type") != "way": continue
+                        _geom = _el.get("geometry", [])
+                        if len(_geom) >= 3:
+                            _coords = [[float(g["lon"]), float(g["lat"])] for g in _geom]
+                            bcoords = _coords
+                            print(f"  [flux-heatmap] OSM building footprint: {len(bcoords)} pts (id={_el.get('id')})")
+                            break
+                    if not _elements or _is_circle_fallback and not bcoords:
+                        print(f"  [flux-heatmap] Overpass: aucun bâtiment à 2m, élargissement 15m")
+                        _ovp_q2 = (
+                            f"[out:json][timeout:8];"
+                            f"way[\"building\"](around:15,{lat},{lon});"
+                            f"out geom;"
+                        )
+                        _r_ovp2 = requests.post(
+                            "https://overpass-api.de/api/interpreter",
+                            data=_ovp_q2, timeout=9
+                        )
+                        if _r_ovp2.status_code == 200:
+                            for _el in _r_ovp2.json().get("elements", []):
+                                if _el.get("type") != "way": continue
+                                _geom = _el.get("geometry", [])
+                                if len(_geom) >= 3:
+                                    bcoords = [[float(g["lon"]), float(g["lat"])] for g in _geom]
+                                    print(f"  [flux-heatmap] OSM building footprint (15m): {len(bcoords)} pts")
+                                    break
+            except Exception as _e_osm:
+                print(f"  [flux-heatmap] OSM fetch skipped: {_e_osm}")
+
         from config import GOOGLE_SOLAR_API_KEY
 
         def _fetch_layers(q):
@@ -2453,35 +2503,37 @@ def api_solar_flux_heatmap():
                 poly_mask ^= cond
             bld_mask = bld_mask & poly_mask
 
-        # Niveau 3 : composante connexe — ne garder QUE le bâtiment le plus proche
-        # du centre (lat/lon) parmi les régions détectées dans le masque.
-        # Évite d'afficher l'irradiation de tout le quartier quand aucun polygone
-        # de bâtiment précis n'est disponible (fallback circulaire).
+        # Niveau 3 : flood-fill depuis le pixel central → ne garder QUE la
+        # composante connexe du bâtiment étudié (pas besoin de scipy).
         if mask_arr is not None and bld_mask.any():
             try:
-                from scipy.ndimage import label as _ndlabel
-                labeled, n_comp = _ndlabel(bld_mask)
-                if n_comp > 1:
-                    # Pixel central = lat/lon du prospect dans les coords image
-                    ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
-                    ctr_col = int(np.clip((lon - bbox_west)   / (bbox_east  - bbox_west)  * W, 0, W - 1))
-                    # Chercher l'étiquette au centre ; si 0 (hors masque), prendre la composante la plus proche
-                    center_label = int(labeled[ctr_row, ctr_col])
-                    if center_label == 0:
-                        # Trouver la composante la plus proche du centre
-                        min_dist = np.inf
-                        for lbl in range(1, n_comp + 1):
-                            pts = np.argwhere(labeled == lbl)
-                            dists = np.hypot(pts[:, 0] - ctr_row, pts[:, 1] - ctr_col)
-                            d_min = float(dists.min())
-                            if d_min < min_dist:
-                                min_dist = d_min
-                                center_label = lbl
-                    if center_label > 0:
-                        bld_mask = (labeled == center_label)
-                        print(f'  [flux-heatmap] connected-components: {n_comp} régions → gardée={center_label} ({int(bld_mask.sum())} px)')
-            except Exception as _e_cc:
-                print(f'  [flux-heatmap] connected-components skipped: {_e_cc}')
+                ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
+                ctr_col = int(np.clip((lon - bbox_west)   / (bbox_east  - bbox_west)  * W, 0, W - 1))
+                # Si le pixel central est déjà dans le masque → flood-fill direct.
+                # Sinon → chercher le pixel masqué le plus proche du centre (jusqu'à 20px).
+                seed_r, seed_c = ctr_row, ctr_col
+                if not bld_mask[seed_r, seed_c]:
+                    pts = np.argwhere(bld_mask)
+                    if len(pts):
+                        dists = np.hypot(pts[:, 0] - ctr_row, pts[:, 1] - ctr_col)
+                        nearest = pts[int(np.argmin(dists))]
+                        if float(dists.min()) <= 20:
+                            seed_r, seed_c = int(nearest[0]), int(nearest[1])
+                # Flood-fill itératif (pas de récursion → pas de stack overflow)
+                if bld_mask[seed_r, seed_c]:
+                    filled = np.zeros((H, W), dtype=bool)
+                    stack = [(seed_r, seed_c)]
+                    while stack:
+                        r, c = stack.pop()
+                        if r < 0 or r >= H or c < 0 or c >= W: continue
+                        if filled[r, c] or not bld_mask[r, c]: continue
+                        filled[r, c] = True
+                        stack.extend([(r+1, c), (r-1, c), (r, c+1), (r, c-1)])
+                    if filled.any():
+                        bld_mask = filled
+                        print(f'  [flux-heatmap] flood-fill: seed=({seed_r},{seed_c}) → {int(bld_mask.sum())} px gardés')
+            except Exception as _e_ff:
+                print(f'  [flux-heatmap] flood-fill skipped: {_e_ff}')
 
         valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
         valid = flux_arr[valid_mask]
