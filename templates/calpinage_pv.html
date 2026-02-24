@@ -6361,7 +6361,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         // ── Carte d'irradiation solaire (Google Solar annualFlux heatmap) ──
         let _fluxActive      = false;
         let _flux2DOverlay   = null;
-        let _prevTileLayer   = null;  // fond de carte avant activation heatmap
         let _prevMapView     = null;  // zoom/centre avant activation heatmap
 
         function _syncFluxBtns(active, loading) {
@@ -6385,14 +6384,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     if (_flux2DOverlay._rgbLayer) { map.removeLayer(_flux2DOverlay._rgbLayer); }
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
-                }
-                // Restaurer le fond de carte précédent
-                if (_prevTileLayer && typeof map !== 'undefined' && map) {
-                    if (!map.hasLayer(_prevTileLayer)) {
-                        map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
-                        _prevTileLayer.addTo(map);
-                    }
-                    _prevTileLayer = null;
                 }
                 // Restaurer le zoom/centre précédent
                 if (_prevMapView && typeof map !== 'undefined' && map) {
@@ -6534,22 +6525,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const b = data.bbox;
                 let _flux2DRgbOverlay = null;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                    // Sauvegarder et masquer les tuiles de fond dans tous les cas
-                    const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
-                    if (activeTile) {
-                        _prevTileLayer = activeTile;
-                        map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
-                    }
                     if (data.rgb_base64) {
-                        // Image RGB co-enregistrée = fond parfaitement aligné
+                        // Image RGB co-enregistrée — couvre les tuiles de fond (opacity:1)
                         _flux2DRgbOverlay = L.imageOverlay(
                             data.rgb_base64,
                             [[b.south, b.west], [b.north, b.east]],
                             { opacity: 1.0, interactive: false, zIndex: 200 }
                         ).addTo(map);
-                    } else {
-                        // Fallback : Google Satellite (même source que Solar)
-                        tileLayerGoogle.addTo(map);
                     }
                     _flux2DOverlay = L.imageOverlay(
                         imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false, zIndex: 201 }
