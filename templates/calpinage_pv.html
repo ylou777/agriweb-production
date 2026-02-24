@@ -6362,6 +6362,43 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _fluxActive      = false;
         let _flux2DOverlay   = null;
         let _prevTileLayer   = null;  // fond de carte avant activation heatmap
+        let _fluxBaseBbox    = null;  // bbox original retourné par le backend (sans offset)
+
+        // ── Offset heatmap (correction parallaxe satellite) ───────────────
+        const _FLUX_OFFSET_KEY = `flux_offset_${prospectLat?.toFixed(4)}_${prospectLon?.toFixed(4)}`;
+        function _loadFluxOffset() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(_FLUX_OFFSET_KEY) || '{"ns":0,"ew":0}');
+                document.getElementById('fluxOffsetNS').value = saved.ns || 0;
+                document.getElementById('fluxOffsetEW').value = saved.ew || 0;
+                document.getElementById('fluxOffsetNSVal').textContent = (saved.ns || 0) + ' m';
+                document.getElementById('fluxOffsetEWVal').textContent = (saved.ew || 0) + ' m';
+            } catch(e) {}
+        }
+        function _saveFluxOffset(ns, ew) {
+            try { localStorage.setItem(_FLUX_OFFSET_KEY, JSON.stringify({ns, ew})); } catch(e) {}
+        }
+        function _applyFluxOffset() {
+            const ns = parseInt(document.getElementById('fluxOffsetNS').value) || 0;
+            const ew = parseInt(document.getElementById('fluxOffsetEW').value) || 0;
+            document.getElementById('fluxOffsetNSVal').textContent = ns + ' m';
+            document.getElementById('fluxOffsetEWVal').textContent = ew + ' m';
+            _saveFluxOffset(ns, ew);
+            if (!_flux2DOverlay || !_fluxBaseBbox) return;
+            const mPerDegLat = 111320;
+            const mPerDegLon = 111320 * Math.cos(((_fluxBaseBbox.north + _fluxBaseBbox.south) / 2) * Math.PI / 180);
+            const dLat =  ns / mPerDegLat;
+            const dLon =  ew / mPerDegLon;
+            _flux2DOverlay.setBounds([
+                [_fluxBaseBbox.south + dLat, _fluxBaseBbox.west + dLon],
+                [_fluxBaseBbox.north + dLat, _fluxBaseBbox.east + dLon]
+            ]);
+        }
+        function _resetFluxOffset() {
+            document.getElementById('fluxOffsetNS').value = 0;
+            document.getElementById('fluxOffsetEW').value = 0;
+            _applyFluxOffset();
+        }
 
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
@@ -6525,6 +6562,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 const imgSrc = `data:image/png;base64,${data.image_base64}`;
                 const b = data.bbox;
+                _fluxBaseBbox = b; // sauvegarder le bbox original pour l'offset
+                _loadFluxOffset();
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
                     // Basculer vers Google Satellite pour aligner avec Google Solar
                     const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
@@ -6536,6 +6575,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     _flux2DOverlay = L.imageOverlay(
                         imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false }
                     ).addTo(map);
+                    // Appliquer l'offset mémorisé immédiatement
+                    _applyFluxOffset();
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
                 console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an (color: ${data.color_min}–${data.color_max}), quality=${data.quality}, n_valid=${data.n_valid}, tiff_range=${data.tiff_raw_range}`);
@@ -7756,7 +7797,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
     <div id="fluxLegendPanel" style="display:none; position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
          z-index:5000; background:rgba(20,20,30,0.88); border-radius:10px; padding:8px 14px;
          box-shadow:0 2px 12px rgba(0,0,0,0.35); backdrop-filter:blur(6px);
-         border:1px solid rgba(255,255,255,0.15); min-width:260px; text-align:center;">
+         border:1px solid rgba(255,255,255,0.15); min-width:300px; text-align:center;">
         <div class="d-flex justify-content-between align-items-center mb-1">
             <strong style="color:#fff;font-size:0.78rem;">🌡️ Irradiance annuelle (kWh/m²/an)</strong>
             <button class="btn btn-sm btn-link p-0 ms-2" style="color:rgba(255,255,255,0.6);font-size:0.7rem;"
@@ -7771,6 +7812,26 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             <span id="fluxLegendMax">—</span>
         </div>
         <div id="fluxLegendDate" style="color:rgba(255,255,255,0.4);font-size:0.65rem;margin-top:2px;"></div>
+        <!-- Sliders d'offset pour corriger la parallaxe satellite -->
+        <div style="margin-top:7px;border-top:1px solid rgba(255,255,255,0.12);padding-top:6px;">
+            <div style="color:rgba(255,255,255,0.5);font-size:0.62rem;margin-bottom:4px;">⚙️ Calage heatmap (m)</div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <span style="color:rgba(255,255,255,0.6);font-size:0.65rem;width:20px;">N/S</span>
+                <input type="range" id="fluxOffsetNS" min="-60" max="60" step="1" value="0"
+                    style="flex:1;accent-color:#00c8ff;height:4px;"
+                    oninput="_applyFluxOffset()">
+                <span id="fluxOffsetNSVal" style="color:#00c8ff;font-size:0.65rem;width:32px;text-align:right;">0 m</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span style="color:rgba(255,255,255,0.6);font-size:0.65rem;width:20px;">E/O</span>
+                <input type="range" id="fluxOffsetEW" min="-60" max="60" step="1" value="0"
+                    style="flex:1;accent-color:#ff7800;height:4px;"
+                    oninput="_applyFluxOffset()">
+                <span id="fluxOffsetEWVal" style="color:#ff7800;font-size:0.65rem;width:32px;text-align:right;">0 m</span>
+            </div>
+            <button onclick="_resetFluxOffset()" style="margin-top:4px;background:none;border:none;
+                color:rgba(255,255,255,0.3);font-size:0.6rem;cursor:pointer;padding:0;">↺ reset</button>
+        </div>
     </div>
 
 </body>
