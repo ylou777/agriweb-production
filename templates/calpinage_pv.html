@@ -6528,20 +6528,22 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const b = data.bbox;
                 let _flux2DRgbOverlay = null;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
+                    // Sauvegarder et masquer les tuiles de fond dans tous les cas
+                    const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
+                    if (activeTile) {
+                        _prevTileLayer = activeTile;
+                        map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
+                    }
                     if (data.rgb_base64) {
+                        // Image RGB co-enregistrée = fond parfaitement aligné
                         _flux2DRgbOverlay = L.imageOverlay(
                             data.rgb_base64,
                             [[b.south, b.west], [b.north, b.east]],
                             { opacity: 1.0, interactive: false, zIndex: 200 }
                         ).addTo(map);
                     } else {
-                        // Fallback : basculer vers Google Satellite (même source que Solar)
-                        const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
-                        if (activeTile && activeTile !== tileLayerGoogle) {
-                            _prevTileLayer = activeTile;
-                            map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
-                            tileLayerGoogle.addTo(map);
-                        }
+                        // Fallback : Google Satellite (même source que Solar)
+                        tileLayerGoogle.addTo(map);
                     }
                     _flux2DOverlay = L.imageOverlay(
                         imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false, zIndex: 201 }
