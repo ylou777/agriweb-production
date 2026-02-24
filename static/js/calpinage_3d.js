@@ -5741,17 +5741,11 @@ class Calpinage3DViewer {
         const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
         const planeW = eastX  - westX;
         const planeD = southZ - northZ;
-        // Centre heatmap : centroïde bâtiment réel si disponible, sinon centre bbox Solar
-        let cx, cz;
-        if (this.pvBuildingCoords && this.pvBuildingCoords.length >= 3) {
-            const lons = this.pvBuildingCoords.map(c => c[0]);
-            const lats = this.pvBuildingCoords.map(c => c[1]);
-            cx = (lons.reduce((a,b)=>a+b,0)/lons.length - this.centerLon) * lngToM;
-            cz = -((lats.reduce((a,b)=>a+b,0)/lats.length) - this.centerLat) * this.LAT_TO_M;
-        } else {
-            cx = (westX  + eastX)  / 2;
-            cz = (northZ + southZ) / 2;
-        }
+        // Centre heatmap = milieu du bbox livré par Google Solar.
+        // On N'utilise PAS pvBuildingCoords centroid : le bbox Solar est centré sur le point
+        // demandé, pas forcément sur le centroïde du polygone bâtiment.
+        const cx = (westX  + eastX)  / 2;
+        const cz = (northZ + southZ) / 2;
         const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
         const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
         const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;

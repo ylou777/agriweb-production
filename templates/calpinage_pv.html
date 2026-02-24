@@ -1049,7 +1049,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=47"></script>
+    <script src="/static/js/calpinage_3d.js?v=48"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6418,9 +6418,18 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         const dLon = (Math.max(...lons) - Math.min(...lons)) * 111320 * Math.cos(heatLat * Math.PI / 180);
                         radius_m = Math.max(40, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 30, 250));
                     } else {
-                        // Fallback : origine de scène (point cliqué)
+                        // Fallback : pas de polygone bâtiment → masque circulaire 60m
                         heatLat = viewer3D.centerLat;
                         heatLon = viewer3D.centerLon;
+                        const mPerDegLat3 = 111320;
+                        const mPerDegLon3 = 111320 * Math.cos(heatLat * Math.PI / 180);
+                        const N3 = 12, R3 = 60;
+                        bCoords = Array.from({length: N3}, (_, i) => {
+                            const a = (2 * Math.PI * i) / N3;
+                            return [heatLon + (R3 * Math.sin(a)) / mPerDegLon3,
+                                    heatLat + (R3 * Math.cos(a)) / mPerDegLat3];
+                        });
+                        console.warn('⚠️ [3D] pvBuildingCoords absent — masque circulaire 60m');
                     }
                 } else {
                     // ── MODE 2D : bbox des zones dessinées ───────────────────────────────────
