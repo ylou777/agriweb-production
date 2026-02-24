@@ -2697,71 +2697,79 @@ def api_lidar_3d_data():
         else:
             sr_offsets = [(0, 0)]
         
-        # Assemblage : pour chaque offset, on récupère la grille complète
+        # Assemblage : téléchargement PARALLÈLE de toutes les tuiles WMS
+        # (toutes passes SR × toutes tuiles × MNS+MNT en une seule vague)
         mns_grids = []
         mnt_grids = []
-        
-        for sr_idx, (d_lat, d_lon) in enumerate(sr_offsets):
-            mns_grid = np.zeros((base_grid_size, base_grid_size), dtype=np.float32)
-            mnt_grid = np.zeros((base_grid_size, base_grid_size), dtype=np.float32)
-            tiles_ok_sr = 0
-            
-            for ty in range(nb_tiles):
-                for tx in range(nb_tiles):
-                    t_south = south + ty * lat_step + d_lat
-                    t_north = south + (ty + 1) * lat_step + d_lat
-                    t_west = west + tx * lon_step + d_lon
-                    t_east = west + (tx + 1) * lon_step + d_lon
-                    t_bbox = f"{t_south},{t_west},{t_north},{t_east}"
-                    
-                    wms_params = {
-                        "SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
-                        "CRS": "EPSG:4326", "BBOX": t_bbox,
-                        "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
-                        "FORMAT": "image/tiff", "STYLES": ""
-                    }
-                    
-                    try:
-                        r_mns = requests.get(wms_url, params={
-                            **wms_params,
-                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"
-                        }, timeout=12)
-                        
-                        r_mnt = requests.get(wms_url, params={
-                            **wms_params,
-                            "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"
-                        }, timeout=12)
-                        
-                        if (r_mns.status_code == 200 and r_mnt.status_code == 200 and
-                            'image' in r_mns.headers.get('content-type', '')):
-                            
-                            mns_tile = np.array(PILImage.open(io.BytesIO(r_mns.content)), dtype=np.float32)
-                            mnt_tile = np.array(PILImage.open(io.BytesIO(r_mnt.content)), dtype=np.float32)
-                            
-                            if mns_tile.shape != (tile_pixel_size, tile_pixel_size):
-                                mns_tile = np.array(PILImage.fromarray(mns_tile).resize(
-                                    (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
-                            if mnt_tile.shape != (tile_pixel_size, tile_pixel_size):
-                                mnt_tile = np.array(PILImage.fromarray(mnt_tile).resize(
-                                    (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
-                            
-                            py = (nb_tiles - 1 - ty) * tile_pixel_size
-                            px = tx * tile_pixel_size
-                            mns_grid[py:py+tile_pixel_size, px:px+tile_pixel_size] = mns_tile
-                            mnt_grid[py:py+tile_pixel_size, px:px+tile_pixel_size] = mnt_tile
-                            tiles_ok_sr += 1
-                            
-                    except Exception as te:
-                        print(f"  ⚠ Tuile [{ty},{tx}] SR offset {sr_idx} erreur: {te}")
-            
-            if tiles_ok_sr > 0:
-                mns_grids.append(mns_grid)
-                mnt_grids.append(mnt_grid)
-                if sr_idx == 0:
-                    tiles_ok = tiles_ok_sr
-                    tiles_total = nb_tiles * nb_tiles
-            
-            print(f"  📡 SR pass {sr_idx+1}/{len(sr_offsets)}: {tiles_ok_sr}/{nb_tiles**2} tuiles OK")
+
+        from concurrent.futures import ThreadPoolExecutor as _WmsTPE
+
+        def _fetch_wms(args):
+            """Télécharge une seule tuile WMS, retourne (key, content_or_None)."""
+            key, params = args
+            try:
+                r = requests.get(wms_url, params=params, timeout=15)
+                if r.status_code == 200 and 'image' in r.headers.get('content-type', ''):
+                    return key, r.content
+            except Exception as _e:
+                print(f"  ⚠ WMS {key}: {_e}")
+            return key, None
+
+        # Construire toutes les requêtes à lancer
+        _wms_tasks = []
+        for _si, (_d_lat, _d_lon) in enumerate(sr_offsets):
+            for _ty in range(nb_tiles):
+                for _tx in range(nb_tiles):
+                    _t_bbox = (f"{south + _ty * lat_step + _d_lat},"
+                               f"{west  + _tx * lon_step + _d_lon},"
+                               f"{south + (_ty+1)*lat_step + _d_lat},"
+                               f"{west  + (_tx+1)*lon_step + _d_lon}")
+                    _base = {"SERVICE": "WMS", "VERSION": "1.3.0", "REQUEST": "GetMap",
+                             "CRS": "EPSG:4326", "BBOX": _t_bbox,
+                             "WIDTH": str(tile_pixel_size), "HEIGHT": str(tile_pixel_size),
+                             "FORMAT": "image/tiff", "STYLES": ""}
+                    _wms_tasks.append(((_si, _ty, _tx, 'mns'),
+                                       {**_base, "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES.MNS"}))
+                    _wms_tasks.append(((_si, _ty, _tx, 'mnt'),
+                                       {**_base, "LAYERS": "ELEVATION.ELEVATIONGRIDCOVERAGE.HIGHRES"}))
+
+        # Lancer toutes les requêtes en parallèle
+        with _WmsTPE(max_workers=min(32, len(_wms_tasks))) as _pool:
+            _wms_results = dict(_pool.map(_fetch_wms, _wms_tasks))
+
+        # Réassembler les grilles par passe SR
+        _sr_data = {_si: {
+            'mns': np.zeros((base_grid_size, base_grid_size), dtype=np.float32),
+            'mnt': np.zeros((base_grid_size, base_grid_size), dtype=np.float32),
+            'ok': 0
+        } for _si in range(len(sr_offsets))}
+
+        for (_si, _ty, _tx, _layer), _content in _wms_results.items():
+            if _content is None:
+                continue
+            try:
+                _tile = np.array(PILImage.open(io.BytesIO(_content)), dtype=np.float32)
+                if _tile.shape != (tile_pixel_size, tile_pixel_size):
+                    _tile = np.array(PILImage.fromarray(_tile).resize(
+                        (tile_pixel_size, tile_pixel_size), PILImage.BILINEAR), dtype=np.float32)
+                _py = (nb_tiles - 1 - _ty) * tile_pixel_size
+                _px = _tx * tile_pixel_size
+                _sr_data[_si][_layer][_py:_py+tile_pixel_size, _px:_px+tile_pixel_size] = _tile
+                if _layer == 'mns':
+                    _sr_data[_si]['ok'] += 1
+            except Exception as _pe:
+                print(f"  ⚠ Décodage tuile [{_ty},{_tx}] SR{_si} {_layer}: {_pe}")
+
+        tiles_ok = 0
+        tiles_total = nb_tiles * nb_tiles
+        for _si in range(len(sr_offsets)):
+            _g = _sr_data[_si]
+            if _g['ok'] > 0:
+                mns_grids.append(_g['mns'])
+                mnt_grids.append(_g['mnt'])
+                if _si == 0:
+                    tiles_ok = _g['ok']
+            print(f"  📡 SR pass {_si+1}/{len(sr_offsets)}: {_g['ok']}/{nb_tiles**2} tuiles OK")
         
         if len(mns_grids) > 0:
             if use_superres and len(mns_grids) == 4:
