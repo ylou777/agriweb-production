@@ -6389,10 +6389,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             const mPerDegLon = 111320 * Math.cos(((_fluxBaseBbox.north + _fluxBaseBbox.south) / 2) * Math.PI / 180);
             const dLat =  ns / mPerDegLat;
             const dLon =  ew / mPerDegLon;
-            _flux2DOverlay.setBounds([
+            const newBounds = [
                 [_fluxBaseBbox.south + dLat, _fluxBaseBbox.west + dLon],
                 [_fluxBaseBbox.north + dLat, _fluxBaseBbox.east + dLon]
-            ]);
+            ];
+            _flux2DOverlay.setBounds(newBounds);
+            if (_flux2DOverlay._rgbLayer) _flux2DOverlay._rgbLayer.setBounds(newBounds);
         }
         function _resetFluxOffset() {
             document.getElementById('fluxOffsetNS').value = 0;
@@ -6419,6 +6421,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _syncFluxBtns(false, false);
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
+                    if (_flux2DOverlay._rgbLayer) { map.removeLayer(_flux2DOverlay._rgbLayer); }
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
                 }
                 // Restaurer le fond de carte précédent
@@ -6564,16 +6567,29 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const b = data.bbox;
                 _fluxBaseBbox = b; // sauvegarder le bbox original pour l'offset
                 _loadFluxOffset();
+                let _flux2DRgbOverlay = null;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                    // Basculer vers Google Satellite pour aligner avec Google Solar
-                    const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
-                    if (activeTile && activeTile !== tileLayerGoogle) {
-                        _prevTileLayer = activeTile;
-                        map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
-                        tileLayerGoogle.addTo(map);
+                    if (data.rgb_base64) {
+                        // Image RGB co-enregistrée Google Solar → alignement parfait par construction
+                        // On l'affiche comme fond sous la heatmap sans changer les tuiles de fond
+                        _flux2DRgbOverlay = L.imageOverlay(
+                            data.rgb_base64,
+                            [[b.south, b.west], [b.north, b.east]],
+                            { opacity: 1.0, interactive: false, zIndex: 200 }
+                        ).addTo(map);
+                        // Mémoriser pour nettoyage à la désactivation
+                        _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
+                    } else {
+                        // Fallback : basculer vers Google Satellite (même source que Solar)
+                        const activeTile = [tileLayerSatellite, tileLayerOSM, tileLayerGoogle].find(l => l && map.hasLayer(l));
+                        if (activeTile && activeTile !== tileLayerGoogle) {
+                            _prevTileLayer = activeTile;
+                            map.eachLayer(l => { if (l instanceof L.TileLayer) map.removeLayer(l); });
+                            tileLayerGoogle.addTo(map);
+                        }
                     }
                     _flux2DOverlay = L.imageOverlay(
-                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false }
+                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false, zIndex: 201 }
                     ).addTo(map);
                     // Appliquer l'offset mémorisé immédiatement
                     _applyFluxOffset();

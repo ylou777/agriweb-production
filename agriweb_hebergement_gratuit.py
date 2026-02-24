@@ -2269,6 +2269,7 @@ def api_solar_flux_heatmap():
 
         flux_url     = layers.get('annualFluxUrl', '')
         mask_url     = layers.get('maskUrl', '')
+        rgb_url      = layers.get('rgbUrl', '')
         pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
         # bbox API conservé comme fallback mais on recalcule depuis les dims réelles de l'image
         bbox_api     = layers.get('boundingBox', {})
@@ -2516,6 +2517,32 @@ def api_solar_flux_heatmap():
         PILImage.fromarray(rgba, mode='RGBA').save(buf, format='PNG')
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
+        # ── Image RGB co-enregistrée (même prise de vue que le flux) ─────────────
+        # → affichée comme fond aligné parfaitement sous la heatmap
+        _rgb_b64 = None
+        if rgb_url:
+            try:
+                r_rgb = requests.get(rgb_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=20)
+                r_rgb.raise_for_status()
+                img_rgb = PILImage.open(io.BytesIO(r_rgb.content)).convert('RGB')
+                arr_rgb = np.array(img_rgb)
+                # Même crop que le flux (rmin/rmax/cmin/cmax calculés plus haut)
+                if rows_any.any() and cols_any.any():
+                    # Adapter le crop si le RGB a une résolution différente du flux
+                    rH, rW = arr_rgb.shape[:2]
+                    _rmin = max(0, int(rmin * rH / H) - 1)
+                    _rmax = min(rH - 1, int((rmax + 1) * rH / H) + 1)
+                    _cmin = max(0, int(cmin * rW / W) - 1)
+                    _cmax = min(rW - 1, int((cmax + 1) * rW / W) + 1)
+                    arr_rgb = arr_rgb[_rmin:_rmax + 1, _cmin:_cmax + 1]
+                buf_rgb = io.BytesIO()
+                PILImage.fromarray(arr_rgb, 'RGB').save(buf_rgb, format='JPEG', quality=82)
+                _rgb_b64 = 'data:image/jpeg;base64,' + base64.b64encode(buf_rgb.getvalue()).decode('utf-8')
+                print(f'  [flux-heatmap] rgb: {arr_rgb.shape[1]}x{arr_rgb.shape[0]}px JPEG')
+            except Exception as e:
+                print(f'  [flux-heatmap] rgb fetch failed: {e}')
+        # ─────────────────────────────────────────────────────────────────────────
+
         tiff_raw_range = f"{float(flux_arr.min()):.1f}–{float(flux_arr.max()):.1f}"
 
         return jsonify({
@@ -2533,7 +2560,8 @@ def api_solar_flux_heatmap():
                 "H_W": f"{H}x{W}",
                 "pixel_size_native_m": pixel_size_m
             },
-            "image_base64": img_b64
+            "image_base64": img_b64,
+            "rgb_base64":   _rgb_b64
         })
     except requests.exceptions.Timeout:
         return jsonify({"error": "Timeout Google Solar (30s)", "error_code": "TIMEOUT"}), 504
