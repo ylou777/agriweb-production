@@ -5733,7 +5733,7 @@ class Calpinage3DViewer {
     showFluxHeatmap(data) {
         this.hideFluxHeatmap();
         if (!this.scene) return;
-        const { bbox, image_base64 } = data;
+        const { bbox, image_base64, rgb_base64 } = data;
         const lngToM = this.LAT_TO_M * Math.cos(this.centerLat * Math.PI / 180);
         const westX  = (bbox.west  - this.centerLon) * lngToM;
         const eastX  = (bbox.east  - this.centerLon) * lngToM;
@@ -5741,38 +5741,55 @@ class Calpinage3DViewer {
         const southZ = -(bbox.south - this.centerLat) * this.LAT_TO_M;
         const planeW = eastX  - westX;
         const planeD = southZ - northZ;
-        // Centre heatmap = milieu du bbox livré par Google Solar.
-        // On N'utilise PAS pvBuildingCoords centroid : le bbox Solar est centré sur le point
-        // demandé, pas forcément sur le centroïde du polygone bâtiment.
         const cx = (westX  + eastX)  / 2;
         const cz = (northZ + southZ) / 2;
         const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
         const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
         const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;
-        // Positionner le plan JUSTE AU-DESSUS du faîtage + marge de 0.6m
-        // depthTest: false garantit l'affichage même si la géométrie du toit
-        // occupe la même position dans le depth buffer (z-fighting sinon inévitable)
-        const planeY = terrainH + wallH + ridgeH + 0.6;
-        const loader = new THREE.TextureLoader();
+        const planeY   = terrainH + wallH + ridgeH + 0.6;
+        const loader   = new THREE.TextureLoader();
+
+        // Plan RGB Solar co-enregistré (fond parfaitement aligné, légèrement en-dessous)
+        if (rgb_base64) {
+            loader.load(rgb_base64, (texRgb) => {
+                const geomRgb = new THREE.PlaneGeometry(planeW, planeD);
+                const matRgb  = new THREE.MeshBasicMaterial({
+                    map: texRgb, transparent: false,
+                    depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+                });
+                const meshRgb = new THREE.Mesh(geomRgb, matRgb);
+                meshRgb.rotation.x = -Math.PI / 2;
+                meshRgb.position.set(cx, planeY - 0.05, cz);
+                meshRgb.renderOrder = 7;
+                this._fluxRgbMesh = meshRgb;
+                this.scene.add(meshRgb);
+            });
+        }
+
+        // Plan heatmap flux semi-transparent par-dessus
         loader.load(`data:image/png;base64,${image_base64}`, (tex) => {
             const geom = new THREE.PlaneGeometry(planeW, planeD);
             const mat  = new THREE.MeshBasicMaterial({
-                map: tex,
-                transparent: true,
-                depthWrite: false,
-                depthTest: false,   // ← clé : ignore le depth buffer du toit
-                side: THREE.DoubleSide,
+                map: tex, transparent: true,
+                depthWrite: false, depthTest: false, side: THREE.DoubleSide,
             });
             const mesh = new THREE.Mesh(geom, mat);
             mesh.rotation.x = -Math.PI / 2;
             mesh.position.set(cx, planeY, cz);
-            mesh.renderOrder = 8; // après toit(0) et avant modules(10)
+            mesh.renderOrder = 8;
             this._fluxMesh = mesh;
             this.scene.add(mesh);
         });
     }
 
     hideFluxHeatmap() {
+        if (this._fluxRgbMesh) {
+            this.scene?.remove(this._fluxRgbMesh);
+            this._fluxRgbMesh.material?.map?.dispose();
+            this._fluxRgbMesh.material?.dispose();
+            this._fluxRgbMesh.geometry?.dispose();
+            this._fluxRgbMesh = null;
+        }
         if (this._fluxMesh) {
             this.scene?.remove(this._fluxMesh);
             this._fluxMesh.material?.map?.dispose();
