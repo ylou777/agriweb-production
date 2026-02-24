@@ -4314,6 +4314,16 @@ class Calpinage3DViewer {
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
 
+        // ── Garde : si le toit a déjà été construit par RANSAC DSM (haute qualité),
+        //    ne pas écraser avec les rectangles bbox de buildingInsights (basse qualité).
+        //    Les plans RANSAC sont des polygones réels issus du point cloud ;
+        //    les plans buildingInsights sont de simples boîtes englobantes.
+        const hasRansacRoof = !!(this.lidarData?.building_hd?.roof_planes?.length > 0);
+        if (hasRansacRoof) {
+            console.log('ℹ️ Solar roof: plans RANSAC DSM déjà présents — injection buildingInsights ignorée');
+            return;
+        }
+
         // Supprimer les toits Solar précédemment injectés
         if (this._solarRoofMeshes) {
             this._solarRoofMeshes.forEach(m => {
