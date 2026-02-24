@@ -6510,7 +6510,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
                 console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an (color: ${data.color_min}–${data.color_max}), quality=${data.quality}, n_valid=${data.n_valid}, tiff_range=${data.tiff_raw_range}`);
-                if (data.diag) console.log(`🔬 DIAG bbox_api=${data.diag.api_bbox_m}m  img_pixel=${data.diag.img_pixel_m}m  ratio=${data.diag.ratio}  HxW=${data.diag.H_W}  pixel_size=${data.diag.pixel_size_m}m  →bbox_used: N=${data.bbox?.north?.toFixed(6)} S=${data.bbox?.south?.toFixed(6)}`);
+                if (data.diag) console.log(`🔬 DIAG bbox_api=${data.diag.api_bbox_m}m  px_real=${data.diag.px_real_m}m/px  HxW=${data.diag.H_W}  →overlay: N=${data.bbox?.north?.toFixed(6)} S=${data.bbox?.south?.toFixed(6)} E=${data.bbox?.east?.toFixed(6)} W=${data.bbox?.west?.toFixed(6)}`);
             } catch(e) {
                 console.error('Flux heatmap error:', e);
                 alert(`❌ Carte d'irradiation indisponible : ${e.message}`);

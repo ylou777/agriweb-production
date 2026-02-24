@@ -2380,30 +2380,24 @@ def api_solar_flux_heatmap():
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
 
-        # ── Diagnostic : comparer bbox API vs pixel_size_m ──────────────────────────
+        # bbox_api = étendue géographique réelle du GeoTIFF livré par Google Solar.
+        # pixel_size_m = résolution NATIVE du capteur, PAS de l'image downsamplée livrée.
+        # La vraie résolution livrée = bbox_width_m / W, bbox_height_m / H.
         import math as _math
         _lat_rad       = _math.radians(lat)
         _m_per_deg_lat = 111320.0
         _m_per_deg_lon = 111320.0 * _math.cos(_lat_rad)
         api_h_m = (bbox_north_api - bbox_south_api) * _m_per_deg_lat
         api_w_m = (bbox_east_api  - bbox_west_api)  * _m_per_deg_lon
-        img_h_m = H * pixel_size_m
-        img_w_m = W * pixel_size_m
-        print(f'  [flux-heatmap] DIAG bbox_api={api_w_m:.1f}x{api_h_m:.1f}m  '
-              f'pixel_calc={img_w_m:.1f}x{img_h_m:.1f}m  '
-              f'H={H} W={W} pixel_size_m={pixel_size_m}  '
-              f'ratio_h={api_h_m/img_h_m:.2f} ratio_w={api_w_m/img_w_m:.2f}')
+        px_h_m  = api_h_m / H   # résolution réelle verticale
+        px_w_m  = api_w_m / W   # résolution réelle horizontale
+        print(f'  [flux-heatmap] bbox_api={api_w_m:.1f}x{api_h_m:.1f}m  '
+              f'HxW={H}x{W}  px_real={px_w_m:.3f}x{px_h_m:.3f}m/px  pixel_size_native={pixel_size_m}m')
 
-        # Reconstruire le bbox depuis les dimensions réelles de l'image (pixel_size_m = résolution livrée)
-        # Le centre de l'image = (lat, lon) du point demandé
-        _half_h_deg = (H / 2.0) * pixel_size_m / _m_per_deg_lat
-        _half_w_deg = (W / 2.0) * pixel_size_m / _m_per_deg_lon
-        bbox_north = lat + _half_h_deg
-        bbox_south = lat - _half_h_deg
-        bbox_east  = lon + _half_w_deg
-        bbox_west  = lon - _half_w_deg
-        print(f'  [flux-heatmap] bbox_pixel: N={bbox_north:.6f} S={bbox_south:.6f} '
-              f'E={bbox_east:.6f} W={bbox_west:.6f}  ({img_w_m:.1f}x{img_h_m:.1f}m)')
+        bbox_north = bbox_north_api
+        bbox_south = bbox_south_api
+        bbox_east  = bbox_east_api
+        bbox_west  = bbox_west_api
 
         # Niveau 1 : masque Google Solar
         bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
@@ -2535,10 +2529,9 @@ def api_solar_flux_heatmap():
                      "east":  bbox_east_out,  "west":  bbox_west_out},
             "diag": {
                 "api_bbox_m": f"{api_w_m:.0f}x{api_h_m:.0f}",
-                "img_pixel_m": f"{img_w_m:.0f}x{img_h_m:.0f}",
-                "ratio": f"{api_h_m/img_h_m:.2f}",
+                "px_real_m":  f"{px_w_m:.3f}x{px_h_m:.3f}",
                 "H_W": f"{H}x{W}",
-                "pixel_size_m": pixel_size_m
+                "pixel_size_native_m": pixel_size_m
             },
             "image_base64": img_b64
         })
