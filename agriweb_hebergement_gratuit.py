@@ -2065,15 +2065,37 @@ def api_solar_dsm_roof():
 
         print(f"🌍 DSM Google Solar: pixel={pixel_size_m}m, quality={quality}")
 
-        # ── 2. Télécharger DSM + mask + annualFlux ──────────────────────────
+        # ── 2. Télécharger DSM + mask + annualFlux + RGB en parallèle ────────
         def _get_tiff_array(url):
             r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
             r.raise_for_status()
             return np.array(PILImage.open(io.BytesIO(r.content)), dtype=np.float32)
 
-        dsm_arr  = _get_tiff_array(dsm_url)
-        mask_arr = _get_tiff_array(mask_url) if mask_url else None
-        flux_arr = _get_tiff_array(flux_url) if flux_url else None
+        def _get_rgb_bytes(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+            r.raise_for_status()
+            return r.content
+
+        from concurrent.futures import ThreadPoolExecutor
+        _dl_tasks = {'dsm': dsm_url}
+        if mask_url: _dl_tasks['mask'] = mask_url
+        if flux_url: _dl_tasks['flux'] = flux_url
+        if rgb_url:  _dl_tasks['rgb']  = rgb_url
+
+        _dl_results = {}
+        with ThreadPoolExecutor(max_workers=4) as _ex:
+            _futures = {
+                k: _ex.submit(_get_tiff_array if k != 'rgb' else _get_rgb_bytes, v)
+                for k, v in _dl_tasks.items()
+            }
+            for k, f in _futures.items():
+                _dl_results[k] = f.result()  # raises on error
+
+        dsm_arr      = _dl_results['dsm']
+        mask_arr     = _dl_results.get('mask')
+        flux_arr     = _dl_results.get('flux')
+        _rgb_content = _dl_results.get('rgb')  # raw bytes, processed later
+        rgb_url      = ''  # already downloaded, skip later fetch
 
         H, W = dsm_arr.shape[:2]
         if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
@@ -2520,11 +2542,9 @@ def api_solar_flux_heatmap():
         # ── Image RGB co-enregistrée (même prise de vue que le flux) ─────────────
         # → affichée comme fond aligné parfaitement sous la heatmap
         _rgb_b64 = None
-        if rgb_url:
+        if _rgb_content:
             try:
-                r_rgb = requests.get(rgb_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=20)
-                r_rgb.raise_for_status()
-                img_rgb = PILImage.open(io.BytesIO(r_rgb.content)).convert('RGB')
+                img_rgb = PILImage.open(io.BytesIO(_rgb_content)).convert('RGB')
                 arr_rgb = np.array(img_rgb)
                 # Même crop que le flux (rmin/rmax/cmin/cmax calculés plus haut)
                 if rows_any.any() and cols_any.any():
