@@ -6428,9 +6428,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     if (typeof zones !== 'undefined' && zones.length > 0) {
                         zones.forEach(z => {
                             try {
-                                const lls = z.layer.getLatLngs()[0] || z.layer.getLatLngs();
+                                const raw = z.layer.getLatLngs();
+                                const lls = Array.isArray(raw[0]) ? raw[0] : raw;
                                 lls.forEach(ll => allPts.push({ lat: ll.lat, lon: ll.lng }));
-                            } catch(e) {}
+                            } catch(e) { console.warn('[heatmap] getLatLngs failed:', e); }
                         });
                     }
                     if (allPts.length >= 3) {
@@ -6457,8 +6458,21 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     } else {
                         heatLat = prospectLat;
                         heatLon = prospectLon;
-                        radius_m = 50; // Sans zones : rayon minimal
-                        // Pas de bCoords → le masque Google Solar seul s'applique (tous bâtiments proches)
+                        radius_m = 80;
+                        // Pas de zone dessinée → polygone circulaire ~60m autour du prospect
+                        // (évite d'afficher tous les bâtiments du quartier)
+                        const mPerDegLat = 111320;
+                        const mPerDegLon = 111320 * Math.cos(heatLat * Math.PI / 180);
+                        const circR_m = 60;
+                        const N_PTS = 12;
+                        bCoords = Array.from({length: N_PTS}, (_, i) => {
+                            const a = (2 * Math.PI * i) / N_PTS;
+                            return [
+                                heatLon + (circR_m * Math.sin(a)) / mPerDegLon,
+                                heatLat + (circR_m * Math.cos(a)) / mPerDegLat
+                            ];
+                        });
+                        console.log(`⚠️ Aucune zone dessinée — masque circulaire 60m autour du prospect. Dessinez une zone sur le bâtiment pour un masque précis.`);
                     }
                 }
                 console.log(`🌡️ Solar query: (${heatLat?.toFixed(6)}, ${heatLon?.toFixed(6)}) r=${radius_m}m mode=${viewer3D?.isActive?'3D':'2D'}`);
