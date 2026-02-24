@@ -1049,7 +1049,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <!-- Module de visualisation 3D -->
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=49"></script>
+    <script src="/static/js/calpinage_3d.js?v=50"></script>
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';
@@ -6630,6 +6630,15 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     }
                 }
                 const imgSrc = `data:image/png;base64,${data.image_base64}`;
+
+                // ── Reconstruction 3D fidèle du toit depuis Google Solar ──
+                if (viewer3D?.isActive && data.roof_segments?.length > 0 && data.building_center) {
+                    viewer3D.applySolarRoofFromInsights(
+                        data.roof_segments,
+                        data.building_center,
+                        data.dsm_stats
+                    );
+                }
                 const b = data.bbox;
                 let _flux2DRgbOverlay = null;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {

@@ -2077,6 +2077,14 @@ class Calpinage3DViewer {
         const bh = Math.max(height, 2);
         const wallType = this._getWallType(buildingData);
         const roofType = this._getRoofType(buildingData);
+
+        // Mémoriser les paramètres du bâtiment principal (sans voisin)
+        // pour permettre l'injection ultérieure des toits Solar depuis la heatmap.
+        if (neighborIdx === null) {
+            this._mainBldgTerrainH  = terrainH;
+            this._mainBldgBh        = bh;
+            this._mainBldgRoofType  = roofType;
+        }
         
         // === Méthode 1 : ExtrudeGeometry depuis l'emprise polygonale réelle ===
         let mesh = null;
@@ -4292,6 +4300,97 @@ class Calpinage3DViewer {
             console.log(`✅ _buildRoofFromPlanes: ${nBuilt} pan(s) depuis ${planes.length} plan(s) RANSAC`);
         }
         return nBuilt > 0;
+    }
+
+    /**
+     * Injecte les pans de toiture Google Solar (buildingInsights) dans la vue 3D.
+     * Convertit roofSegmentStats → roof_planes (mnh_a/b/c) et appelle _buildRoofFromPlanes.
+     * À appeler depuis toggleFluxHeatmap() après réception de la réponse heatmap.
+     *
+     * @param {Array}  segments     - data.roof_segments (pitch_deg, azimuth_deg, height_m, seg_sw, seg_ne)
+     * @param {Object} bldgCenter   - {lat, lon} centre du bâtiment (data.building_center)
+     * @param {Object} dsmStats     - data.dsm_stats (height_faitage_m, height_egout_m) — optionnel
+     */
+    applySolarRoofFromInsights(segments, bldgCenter, dsmStats) {
+        if (!segments || segments.length === 0 || !bldgCenter) return;
+
+        // Supprimer les toits Solar précédemment injectés
+        if (this._solarRoofMeshes) {
+            this._solarRoofMeshes.forEach(m => {
+                this.scene.remove(m);
+                const idx = this.buildings.indexOf(m);
+                if (idx >= 0) this.buildings.splice(idx, 1);
+            });
+        }
+        this._solarRoofMeshes = [];
+
+        const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+
+        // Hauteur de mur (terrainH + bh) depuis le bâtiment principal déjà rendu
+        // Fallback : utiliser dsm_stats.height_egout_m ou 5m
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const bh = this._mainBldgBh ??
+                   (dsmStats?.height_egout_m ?? 5);
+        const roofType = this._mainBldgRoofType ?? 'tuile';
+
+        // Convertir chaque segment Solar en roof_plane (format _buildRoofFromPlanes)
+        const planes = [];
+        for (const seg of segments) {
+            if (!seg.seg_sw || !seg.seg_ne) continue;
+            const pitch_rad   = (seg.pitch_deg   || 0) * Math.PI / 180;
+            const az_rad      = (seg.azimuth_deg || 0) * Math.PI / 180;
+            const slope_tan   = Math.tan(pitch_rad);
+
+            // Coordonnées locales (East, North) des coins bbox, relatives à bldgCenter
+            const sw_x = (seg.seg_sw.lon - bldgCenter.lon) * LNG_TO_M;
+            const sw_y = (seg.seg_sw.lat - bldgCenter.lat) * this.LAT_TO_M;
+            const ne_x = (seg.seg_ne.lon - bldgCenter.lon) * LNG_TO_M;
+            const ne_y = (seg.seg_ne.lat - bldgCenter.lat) * this.LAT_TO_M;
+
+            // Ajouter un léger buffer pour supprimer les lacunes entre pans adjacents
+            const buf = 0.3;
+            const polygon_2d = [
+                [sw_x - buf, sw_y - buf],
+                [ne_x + buf, sw_y - buf],
+                [ne_x + buf, ne_y + buf],
+                [sw_x - buf, ne_y + buf],
+            ];
+
+            // Centre du pan en local
+            const cx = (sw_x + ne_x) / 2;
+            const cy = (sw_y + ne_y) / 2;
+
+            // Équation du plan h(x,y) = mnh_a*x + mnh_b*y + mnh_c
+            // Pente descend dans la direction (sin(az), cos(az)) en (East, North)
+            // h décroît dans cette direction → gradient négatif
+            const mnh_a = -slope_tan * Math.sin(az_rad);  // dh/d_east
+            const mnh_b = -slope_tan * Math.cos(az_rad);  // dh/d_north
+            // mnh_c = h à (0,0) = bldgCenter, déduit de h au centre du pan
+            const h_center = seg.height_m ?? (bh + 1);
+            const mnh_c = h_center - mnh_a * cx - mnh_b * cy;
+
+            planes.push({
+                polygon_2d,
+                mnh_a, mnh_b, mnh_c,
+                slope_deg:   seg.pitch_deg,
+                azimuth_deg: seg.azimuth_deg,
+                plane_id:    seg.id,
+            });
+        }
+
+        if (planes.length === 0) {
+            console.warn('applySolarRoofFromInsights: aucun plan convertible (seg_sw/seg_ne manquants?)');
+            return;
+        }
+
+        // Mémoriser la taille du buildings array avant l'ajout
+        const nBefore = this.buildings.length;
+        const ok = this._buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType);
+        if (ok) {
+            // Mémoriser les nouveaux meshes pour pouvoir les supprimer plus tard
+            this._solarRoofMeshes = this.buildings.slice(nBefore);
+            console.log(`🏠 Solar roof 3D: ${planes.length} pans injectés depuis buildingInsights`);
+        }
     }
 
     /**

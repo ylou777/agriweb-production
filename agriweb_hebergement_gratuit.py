@@ -2823,13 +2823,16 @@ def api_solar_flux_heatmap():
                     irr_min = round(sunshine_q[0],  0) if sunshine_q else None
                     irr_max = round(sunshine_q[-1], 0) if sunshine_q else None
                     irr_med = round(sunshine_q[len(sunshine_q)//2], 0) if sunshine_q else None
-                    # Dimensions du pan depuis sa boundingBox propre
+                    # Dimensions + bbox géo du pan (pour reconstruction 3D)
                     _sb  = seg.get('boundingBox', {})
                     _ssw = _sb.get('sw', {}); _sne = _sb.get('ne', {})
                     _seg_l = None; _seg_w = None
+                    _seg_sw_geo = None; _seg_ne_geo = None
                     if _ssw and _sne:
-                        _seg_l = round((float(_sne.get('latitude', 0))  - float(_ssw.get('latitude', 0)))  * 111320.0, 1)
-                        _seg_w = round((float(_sne.get('longitude', 0)) - float(_ssw.get('longitude', 0))) * 111320.0 * math.cos(math.radians(lat)), 1)
+                        _seg_sw_geo = {'lat': float(_ssw.get('latitude', 0)), 'lon': float(_ssw.get('longitude', 0))}
+                        _seg_ne_geo = {'lat': float(_sne.get('latitude', 0)), 'lon': float(_sne.get('longitude', 0))}
+                        _seg_l = round((_seg_ne_geo['lat'] - _seg_sw_geo['lat']) * 111320.0, 1)
+                        _seg_w = round((_seg_ne_geo['lon'] - _seg_sw_geo['lon']) * 111320.0 * math.cos(math.radians(lat)), 1)
                     roof_segments.append({
                         'id':          i + 1,
                         'pitch_deg':   round(pitch,   1) if pitch   is not None else None,
@@ -2839,6 +2842,8 @@ def api_solar_flux_heatmap():
                         'area_m2':     round(area,    1) if area    is not None else None,
                         'seg_l_m':     _seg_l,
                         'seg_w_m':     _seg_w,
+                        'seg_sw':      _seg_sw_geo,
+                        'seg_ne':      _seg_ne_geo,
                         'irr_min_kwh': irr_min,
                         'irr_med_kwh': irr_med,
                         'irr_max_kwh': irr_max,
@@ -2895,6 +2900,10 @@ def api_solar_flux_heatmap():
             'roof_segments':   roof_segments,
             'building_dims':   building_dims,
             'solar_potential': solar_potential,
+            'building_center': ({'lat': float(building_insights['center']['latitude']),
+                                  'lon': float(building_insights['center']['longitude'])}
+                                 if building_insights and building_insights.get('center') else
+                                 {'lat': lat, 'lon': lon}),
             'bbox': {'north': bbox_north_out, 'south': bbox_south_out,
                      'east':  bbox_east_out,  'west':  bbox_west_out},
             'diag': {
