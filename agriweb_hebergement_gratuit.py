@@ -2434,6 +2434,7 @@ def api_solar_flux_heatmap():
         bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
 
         # Niveau 2 : raycasting polygone bâtiment cible
+        poly_mask = None
         if bcoords and len(bcoords) >= 3:
             poly_lon = [float(c[0]) for c in bcoords]
             poly_lat = [float(c[1]) for c in bcoords]
@@ -2451,6 +2452,36 @@ def api_solar_flux_heatmap():
                        (lon_grid < (xj - xi) * (lat_grid - yi) / (yj - yi + 1e-16) + xi)
                 poly_mask ^= cond
             bld_mask = bld_mask & poly_mask
+
+        # Niveau 3 : composante connexe — ne garder QUE le bâtiment le plus proche
+        # du centre (lat/lon) parmi les régions détectées dans le masque.
+        # Évite d'afficher l'irradiation de tout le quartier quand aucun polygone
+        # de bâtiment précis n'est disponible (fallback circulaire).
+        if mask_arr is not None and bld_mask.any():
+            try:
+                from scipy.ndimage import label as _ndlabel
+                labeled, n_comp = _ndlabel(bld_mask)
+                if n_comp > 1:
+                    # Pixel central = lat/lon du prospect dans les coords image
+                    ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
+                    ctr_col = int(np.clip((lon - bbox_west)   / (bbox_east  - bbox_west)  * W, 0, W - 1))
+                    # Chercher l'étiquette au centre ; si 0 (hors masque), prendre la composante la plus proche
+                    center_label = int(labeled[ctr_row, ctr_col])
+                    if center_label == 0:
+                        # Trouver la composante la plus proche du centre
+                        min_dist = np.inf
+                        for lbl in range(1, n_comp + 1):
+                            pts = np.argwhere(labeled == lbl)
+                            dists = np.hypot(pts[:, 0] - ctr_row, pts[:, 1] - ctr_col)
+                            d_min = float(dists.min())
+                            if d_min < min_dist:
+                                min_dist = d_min
+                                center_label = lbl
+                    if center_label > 0:
+                        bld_mask = (labeled == center_label)
+                        print(f'  [flux-heatmap] connected-components: {n_comp} régions → gardée={center_label} ({int(bld_mask.sum())} px)')
+            except Exception as _e_cc:
+                print(f'  [flux-heatmap] connected-components skipped: {_e_cc}')
 
         valid_mask = bld_mask & np.isfinite(flux_arr) & (flux_arr > 80) & (flux_arr < 4000)
         valid = flux_arr[valid_mask]
