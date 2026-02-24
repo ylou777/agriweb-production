@@ -2269,11 +2269,13 @@ def api_solar_flux_heatmap():
         # équidistants du centre → il couvre tout le quartier dans le masque GSolar.
         # On le remplace par l'empreinte réelle du bâtiment OSM contenant lat/lon.
         _is_circle_fallback = (len(bcoords) == 12)
-        if not bcoords or _is_circle_fallback:
+        if _is_circle_fallback:
+            bcoords = []  # on efface le cercle JS avant d'essayer OSM
+        if not bcoords:
             try:
                 _ovp_q = (
                     f"[out:json][timeout:8];"
-                    f"way[\"building\"](around:2,{lat},{lon});"
+                    f"way[\"building\"](around:25,{lat},{lon});"
                     f"out geom;"
                 )
                 _r_ovp = requests.post(
@@ -2281,38 +2283,16 @@ def api_solar_flux_heatmap():
                     data=_ovp_q, timeout=9
                 )
                 if _r_ovp.status_code == 200:
-                    _ovp = _r_ovp.json()
-                    _elements = _ovp.get("elements", [])
-                    # Prendre le 1er way qui contient le point lat/lon
-                    for _el in _elements:
+                    for _el in _r_ovp.json().get("elements", []):
                         if _el.get("type") != "way": continue
                         _geom = _el.get("geometry", [])
                         if len(_geom) >= 3:
-                            _coords = [[float(g["lon"]), float(g["lat"])] for g in _geom]
-                            bcoords = _coords
-                            print(f"  [flux-heatmap] OSM building footprint: {len(bcoords)} pts (id={_el.get('id')})")
+                            bcoords = [[float(g["lon"]), float(g["lat"])] for g in _geom]
+                            print(f"  [flux-heatmap] OSM footprint: {len(bcoords)} pts (id={_el.get('id')})")
                             break
-                    if not _elements or _is_circle_fallback and not bcoords:
-                        print(f"  [flux-heatmap] Overpass: aucun bâtiment à 2m, élargissement 15m")
-                        _ovp_q2 = (
-                            f"[out:json][timeout:8];"
-                            f"way[\"building\"](around:15,{lat},{lon});"
-                            f"out geom;"
-                        )
-                        _r_ovp2 = requests.post(
-                            "https://overpass-api.de/api/interpreter",
-                            data=_ovp_q2, timeout=9
-                        )
-                        if _r_ovp2.status_code == 200:
-                            for _el in _r_ovp2.json().get("elements", []):
-                                if _el.get("type") != "way": continue
-                                _geom = _el.get("geometry", [])
-                                if len(_geom) >= 3:
-                                    bcoords = [[float(g["lon"]), float(g["lat"])] for g in _geom]
-                                    print(f"  [flux-heatmap] OSM building footprint (15m): {len(bcoords)} pts")
-                                    break
             except Exception as _e_osm:
                 print(f"  [flux-heatmap] OSM fetch skipped: {_e_osm}")
+        # Si OSM a échoué, bcoords reste [] → flood-fill sur mask GSolar (voir plus bas)
 
         from config import GOOGLE_SOLAR_API_KEY
 
@@ -2594,11 +2574,21 @@ def api_solar_flux_heatmap():
             bld_mask = poly_mask_d | (gsolar_mask & poly_mask)
             print(f'  [flux-heatmap] poly px: exact={int(poly_mask.sum())} dilated={int(poly_mask_d.sum())} combined={int(bld_mask.sum())}')
         else:
-            # Pas de polygone → masque GSolar seul + flood-fill plus bas
-            bld_mask = gsolar_mask
+            # Pas de polygone précis.
+            # Si GSolar a un masque bâtiment → flood-fill depuis le centre (isolera le bâtiment).
+            # Si PAS de masque → créer un cercle raster de 20 m autour du point pour limiter la zone.
+            if mask_arr is not None:
+                bld_mask = gsolar_mask  # flood-fill ci-dessous isolera le bâtiment cible
+            else:
+                _cr_m    = 20.0
+                _cr_lat  = _cr_m / 111320.0
+                _cr_lon  = _cr_m / (111320.0 * math.cos(math.radians(lat)))
+                bld_mask = (((lat_grid - lat) / _cr_lat) ** 2 +
+                            ((lon_grid - lon) / _cr_lon) ** 2) <= 1.0
+                print(f'  [flux-heatmap] fallback cercle 20m: {int(bld_mask.sum())} px')
 
-        # ── Flood-fill (uniquement sans polygone précis) ──────────────────────────
-        # Isole la composante connexe du bâtiment étudié dans le masque GSolar.
+        # ── Flood-fill (sans polygone précis, masque GSolar disponible) ──────────
+        # Isole la composante connexe du bâtiment situé au centre (lat/lon).
         if not _has_precise_polygon and mask_arr is not None and bld_mask.any():
             try:
                 ctr_row = int(np.clip((bbox_north - lat)  / (bbox_north - bbox_south) * H, 0, H - 1))
