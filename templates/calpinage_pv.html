@@ -6416,7 +6416,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         heatLon = lons.reduce((a, b) => a + b, 0) / lons.length;
                         const dLat = (Math.max(...lats) - Math.min(...lats)) * 111320;
                         const dLon = (Math.max(...lons) - Math.min(...lons)) * 111320 * Math.cos(heatLat * Math.PI / 180);
-                        radius_m = Math.max(40, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 30, 250));
+                        radius_m = Math.max(40, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 30, 120));
                     } else {
                         // Fallback : origine de scène (point cliqué)
                         heatLat = viewer3D.centerLat;
@@ -6442,7 +6442,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         heatLon  = (minLon + maxLon) / 2;
                         const dLat = (maxLat - minLat) * 111320;
                         const dLon = (maxLon - minLon) * 111320 * Math.cos(heatLat * Math.PI / 180);
-                        radius_m = Math.max(35, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 25, 250));
+                        radius_m = Math.max(35, Math.min(Math.ceil(Math.hypot(dLat, dLon) / 2) + 25, 120));
                         bCoords  = allPts.map(p => [p.lon, p.lat]);
                     } else {
                         heatLat = prospectLat;

@@ -2485,11 +2485,34 @@ def api_solar_flux_heatmap():
         alpha = np.where(valid_mask, 210, 0).astype(np.uint8)
         rgba  = np.dstack([rgb, alpha])
 
+        # ── Crop serré au bbox des pixels valides ─────────────────────────────────
+        # → l'overlay Leaflet/Three.js aura exactement la taille du bâtiment,
+        #   quelle que soit la taille de l'image Google Solar brute.
+        rows_any = np.any(valid_mask, axis=1)
+        cols_any = np.any(valid_mask, axis=0)
+        if rows_any.any() and cols_any.any():
+            rmin, rmax = int(np.where(rows_any)[0][0]),  int(np.where(rows_any)[0][-1])
+            cmin, cmax = int(np.where(cols_any)[0][0]),  int(np.where(cols_any)[0][-1])
+            pad = 4  # 4 px de marge pour ne pas couper le bord coloré
+            rmin = max(0, rmin - pad); rmax = min(H - 1, rmax + pad)
+            cmin = max(0, cmin - pad); cmax = min(W - 1, cmax + pad)
+            rgba = rgba[rmin:rmax + 1, cmin:cmax + 1]
+            # Recalculer le bbox géographique pour la portion croppée
+            bbox_north_out = bbox_north - rmin       / H * (bbox_north - bbox_south)
+            bbox_south_out = bbox_north - (rmax + 1) / H * (bbox_north - bbox_south)
+            bbox_west_out  = bbox_west  + cmin       / W * (bbox_east  - bbox_west)
+            bbox_east_out  = bbox_west  + (cmax + 1) / W * (bbox_east  - bbox_west)
+            print(f'  [flux-heatmap] crop: rows={rmin}:{rmax} cols={cmin}:{cmax} '
+                  f'→ {rgba.shape[1]}x{rgba.shape[0]}px '
+                  f'bbox N={bbox_north_out:.6f} S={bbox_south_out:.6f}')
+        else:
+            bbox_north_out, bbox_south_out = bbox_north, bbox_south
+            bbox_east_out,  bbox_west_out  = bbox_east,  bbox_west
+
         buf = io.BytesIO()
         PILImage.fromarray(rgba, mode='RGBA').save(buf, format='PNG')
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
-        # Info de diagnostic visible dans la console navigateur
         tiff_raw_range = f"{float(flux_arr.min()):.1f}–{float(flux_arr.max()):.1f}"
 
         return jsonify({
@@ -2499,7 +2522,8 @@ def api_solar_flux_heatmap():
             "n_valid": int(len(valid)),
             "tiff_raw_range": tiff_raw_range,
             "imagery_date": layers.get('imageryDate'),
-            "bbox": {"north": bbox_north, "south": bbox_south, "east": bbox_east, "west": bbox_west},
+            "bbox": {"north": bbox_north_out, "south": bbox_south_out,
+                     "east":  bbox_east_out,  "west":  bbox_west_out},
             "image_base64": img_b64
         })
     except requests.exceptions.Timeout:
