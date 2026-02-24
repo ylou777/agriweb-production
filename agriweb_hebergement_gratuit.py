@@ -2380,21 +2380,12 @@ def api_solar_flux_heatmap():
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
 
-        # ── Recalcul précis du bbox géographique depuis les vraies dimensions de l'image ──
-        # Le centre de l'image = (lat, lon) demandé ; chaque pixel = pixel_size_m mètres.
-        # Le bbox API Google Solar peut différer légèrement des dims réelles → décalage visible.
-        import math as _math
-        _lat_rad  = _math.radians(lat)
-        _deg_per_m_lat = 1.0 / 111320.0
-        _deg_per_m_lon = 1.0 / (111320.0 * _math.cos(_lat_rad))
-        _half_h_deg = (H / 2.0) * pixel_size_m * _deg_per_m_lat
-        _half_w_deg = (W / 2.0) * pixel_size_m * _deg_per_m_lon
-        bbox_north = lat + _half_h_deg
-        bbox_south = lat - _half_h_deg
-        bbox_east  = lon + _half_w_deg
-        bbox_west  = lon - _half_w_deg
-        print(f'  [flux-heatmap] bbox recalculé: N={bbox_north:.6f} S={bbox_south:.6f} '
-              f'E={bbox_east:.6f} W={bbox_west:.6f} (API: N={bbox_north_api:.6f} S={bbox_south_api:.6f})')
+        # Utiliser le bbox de l'API Google Solar — c'est le géoréférentiel exact de l'image livrée.
+        # (pixel_size_m est la résolution NATIVE, pas celle de l'image downsamplée → ne pas l'utiliser pour recalculer)
+        bbox_north = bbox_north_api
+        bbox_south = bbox_south_api
+        bbox_east  = bbox_east_api
+        bbox_west  = bbox_west_api
 
         # Niveau 1 : masque Google Solar
         bld_mask = (mask_arr > 0) if mask_arr is not None else np.ones((H, W), dtype=bool)
