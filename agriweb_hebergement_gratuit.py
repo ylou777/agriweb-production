@@ -2400,6 +2400,14 @@ def api_solar_flux_heatmap():
                 if mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
             except Exception: pass
 
+        _rgb_content = None
+        if rgb_url:
+            try:
+                r_rgb = requests.get(rgb_url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+                r_rgb.raise_for_status()
+                _rgb_content = r_rgb.content
+            except Exception: pass
+
         if flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
         H, W = flux_arr.shape
 
