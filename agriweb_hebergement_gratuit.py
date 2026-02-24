@@ -2756,26 +2756,60 @@ def api_solar_flux_heatmap():
             except Exception as _e:
                 print(f'  [flux-heatmap] DSM stats failed: {_e}')
 
-        # ── Pans de toiture depuis buildingInsights ─────────────────────────────
-        roof_segments = []
+        # ── Pans de toiture + dimensions bâtiment depuis buildingInsights ──────────
+        roof_segments  = []
         solar_potential = {}
+        building_dims  = {}
         if building_insights:
             try:
                 sp = building_insights.get('solarPotential', {})
-                solar_potential = {
-                    'max_sunshine_hours':    sp.get('maxSunshineHoursPerYear'),
-                    'max_panel_count':       sp.get('maxArrayPanelsCount'),
-                    'max_area_m2':           sp.get('maxArrayAreaMeters2'),
-                    'carbon_offset_kg_mwh':  sp.get('carbonOffsetFactorKgPerMwh'),
+                _mpc = sp.get('maxArrayPanelsCount')
+                _pcw = sp.get('panelCapacityWatts', 400)   # W par panneau
+                _max_kwp = round(_mpc * _pcw / 1000, 1) if _mpc else None
+
+                # Dimensions du bâtiment depuis la boundingBox de buildingInsights
+                _bb  = building_insights.get('boundingBox', {})
+                _sw  = _bb.get('sw', {}); _ne = _bb.get('ne', {})
+                _bb_s = float(_sw.get('latitude',  lat))
+                _bb_n = float(_ne.get('latitude',  lat))
+                _bb_w = float(_sw.get('longitude', lon))
+                _bb_e = float(_ne.get('longitude', lon))
+                _bld_l = round((_bb_n - _bb_s) * 111320.0, 1)                         # N-S en m
+                _bld_w = round((_bb_e - _bb_w) * 111320.0 * math.cos(math.radians(lat)), 1)  # E-W en m
+                _bld_fp = round(_bld_l * _bld_w, 0)                                   # empreinte bbox (approximative)
+
+                # Statistiques toiture globale
+                _wrs       = sp.get('wholeRoofStats', {})
+                _roof_area = _wrs.get('areaMeters2')
+                _wrs_q     = _wrs.get('sunshineQuantiles', [])
+                _roof_irr  = round(_wrs_q[len(_wrs_q)//2], 0) if _wrs_q else None  # irr médiane globale
+
+                building_dims = {
+                    'length_m':          _bld_l,
+                    'width_m':           _bld_w,
+                    'footprint_bbox_m2': _bld_fp,
+                    'roof_total_m2':     round(_roof_area, 1) if _roof_area else None,
+                    'roof_usable_m2':    round(sp.get('maxArrayAreaMeters2') or 0, 1) or None,
+                    'max_panels':        _mpc,
+                    'panel_wc':          int(_pcw),
+                    'max_kwp':           _max_kwp,
+                    'sunshine_h_yr':     sp.get('maxSunshineHoursPerYear'),
+                    'roof_irr_med_kwh':  _roof_irr,
+                    'n_segments':        len(sp.get('roofSegmentStats', [])),
                 }
+
+                solar_potential = {
+                    'max_sunshine_hours':   building_dims['sunshine_h_yr'],
+                    'max_panel_count':      _mpc,
+                    'max_area_m2':          building_dims['roof_usable_m2'],
+                    'max_kwp':              _max_kwp,
+                    'carbon_offset_kg_mwh': sp.get('carbonOffsetFactorKgPerMwh'),
+                }
+
                 def _az_to_dir(az):
-                    """Azimut (0=N, 90=E, 180=S, 270=O) → label cardinal"""
                     az = az % 360
-                    dirs = [
-                        (22.5,  'N'), (67.5,  'NE'), (112.5, 'E'), (157.5, 'SE'),
-                        (202.5, 'S'), (247.5, 'SO'), (292.5, 'O'), (337.5, 'NO'), (360, 'N')
-                    ]
-                    for limit, label in dirs:
+                    for limit, label in [(22.5,'N'),(67.5,'NE'),(112.5,'E'),(157.5,'SE'),
+                                         (202.5,'S'),(247.5,'SO'),(292.5,'O'),(337.5,'NO'),(360,'N')]:
                         if az < limit: return label
                     return 'N'
 
@@ -2786,20 +2820,31 @@ def api_solar_flux_heatmap():
                     stats   = seg.get('stats', {})
                     area    = stats.get('areaMeters2')
                     sunshine_q = stats.get('sunshineQuantiles', [])
-                    # Irradiation médiane du pan (quantile central = index nb//2)
-                    irr_med = sunshine_q[len(sunshine_q)//2] if sunshine_q else None
+                    irr_min = round(sunshine_q[0],  0) if sunshine_q else None
+                    irr_max = round(sunshine_q[-1], 0) if sunshine_q else None
+                    irr_med = round(sunshine_q[len(sunshine_q)//2], 0) if sunshine_q else None
+                    # Dimensions du pan depuis sa boundingBox propre
+                    _sb  = seg.get('boundingBox', {})
+                    _ssw = _sb.get('sw', {}); _sne = _sb.get('ne', {})
+                    _seg_l = None; _seg_w = None
+                    if _ssw and _sne:
+                        _seg_l = round((float(_sne.get('latitude', 0))  - float(_ssw.get('latitude', 0)))  * 111320.0, 1)
+                        _seg_w = round((float(_sne.get('longitude', 0)) - float(_ssw.get('longitude', 0))) * 111320.0 * math.cos(math.radians(lat)), 1)
                     roof_segments.append({
-                        'id':           i + 1,
-                        'pitch_deg':    round(pitch, 1)   if pitch   is not None else None,
-                        'azimuth_deg':  round(azimuth, 1) if azimuth is not None else None,
-                        'orientation':  _az_to_dir(azimuth) if azimuth is not None else None,
-                        'height_m':     round(height, 1)  if height  is not None else None,
-                        'area_m2':      round(area, 1)    if area    is not None else None,
-                        'irr_med_kwh':  round(irr_med, 0) if irr_med is not None else None,
+                        'id':          i + 1,
+                        'pitch_deg':   round(pitch,   1) if pitch   is not None else None,
+                        'azimuth_deg': round(azimuth, 1) if azimuth is not None else None,
+                        'orientation': _az_to_dir(azimuth) if azimuth is not None else None,
+                        'height_m':    round(height,  1) if height  is not None else None,
+                        'area_m2':     round(area,    1) if area    is not None else None,
+                        'seg_l_m':     _seg_l,
+                        'seg_w_m':     _seg_w,
+                        'irr_min_kwh': irr_min,
+                        'irr_med_kwh': irr_med,
+                        'irr_max_kwh': irr_max,
                     })
-                # Trier par surface décroissante (pans les plus grands en premier)
                 roof_segments.sort(key=lambda s: s.get('area_m2') or 0, reverse=True)
-                print(f'  [flux-heatmap] {len(roof_segments)} pans de toiture')
+                print(f'  [flux-heatmap] {len(roof_segments)} pans  bld={_bld_l}x{_bld_w}m')
             except Exception as _e:
                 print(f'  [flux-heatmap] roof_segments failed: {_e}')
 
@@ -2847,7 +2892,8 @@ def api_solar_flux_heatmap():
             'month_low':      _MONTHS_FR[int(np.argmin(monthly_means))] if monthly_means else None,
             # DSM — hauteurs de toiture
             'dsm_stats':      dsm_stats,
-            'roof_segments':  roof_segments,
+            'roof_segments':   roof_segments,
+            'building_dims':   building_dims,
             'solar_potential': solar_potential,
             'bbox': {'north': bbox_north_out, 'south': bbox_south_out,
                      'east':  bbox_east_out,  'west':  bbox_west_out},

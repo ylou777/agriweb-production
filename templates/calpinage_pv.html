@@ -6570,28 +6570,58 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     }
 
                     // ── Pans de toiture ───────────────────────────────────────
+                    // ── Dimensions bâtiment ───────────────────────────────────────
+                    const bldSection = document.getElementById('fluxBuildingSection');
+                    const bd = data.building_dims;
+                    if (bd && (bd.length_m || bd.roof_total_m2)) {
+                        bldSection.style.display = 'block';
+                        document.getElementById('fluxBldLen'   ).textContent = bd.length_m         ?? '—';
+                        document.getElementById('fluxBldWid'   ).textContent = bd.width_m          ?? '—';
+                        document.getElementById('fluxBldFp'    ).textContent = bd.footprint_bbox_m2 ?? '—';
+                        document.getElementById('fluxBldRoof'  ).textContent = bd.roof_total_m2    ?? '—';
+                        document.getElementById('fluxBldUsable').textContent = bd.roof_usable_m2   ?? '—';
+                        document.getElementById('fluxBldKwp'   ).textContent = bd.max_kwp          ?? '—';
+                        document.getElementById('fluxBldPanels').textContent =
+                            bd.max_panels ? `${bd.max_panels} panneaux × ${bd.panel_wc} Wc` : '';
+                        document.getElementById('fluxBldSun'   ).textContent =
+                            bd.sunshine_h_yr ? `☀️ ${bd.sunshine_h_yr} h/an` : '';
+                    } else {
+                        bldSection.style.display = 'none';
+                    }
+
+                    // ── Pans de toiture ───────────────────────────────────────
                     const roofSection = document.getElementById('fluxRoofSection');
                     const roofBody    = document.getElementById('fluxRoofBody');
                     if (data.roof_segments && data.roof_segments.length > 0) {
                         roofSection.style.display = 'block';
+                        const nSeg = data.roof_segments.length;
+                        document.getElementById('fluxRoofTitle').textContent =
+                            `📐 ${nSeg} pan${nSeg>1?'s':''} de toiture`;
                         roofBody.innerHTML = '';
-                        // Couleur par orientation (cardinal)
                         const _orColors = {N:'#6ac9ff',NE:'#a0d8ef',E:'#ffe066',SE:'#ffb347',
                                            S:'#ff6b35',SO:'#d4a017',O:'#c8a2c8',NO:'#90c9e8'};
                         data.roof_segments.forEach(s => {
                             const tr = document.createElement('tr');
                             tr.style.borderBottom = '1px solid rgba(255,255,255,0.07)';
                             const orColor = _orColors[s.orientation] || '#fff';
+                            // Dimension du pan (LxW si disponible)
+                            const dimTxt = (s.seg_l_m != null && s.seg_w_m != null)
+                                ? `${s.seg_l_m}×${s.seg_w_m}` : (s.area_m2 ? '' : '—');
+                            // Plage irradiation : min–max
+                            const irrTxt = (s.irr_min_kwh != null && s.irr_max_kwh != null)
+                                ? `<span style="color:rgba(255,255,255,0.4);">${s.irr_min_kwh}–</span><span style="color:#ffe600;">${s.irr_max_kwh}</span>`
+                                : `<span style="color:#ffe600;">${s.irr_med_kwh ?? '—'}</span>`;
                             tr.innerHTML = `
-                                <td style="padding:2px 4px;color:rgba(255,255,255,0.45);">${s.id}</td>
-                                <td style="padding:2px 4px;text-align:center;">
+                                <td style="padding:2px 3px;color:rgba(255,255,255,0.4);">${s.id}</td>
+                                <td style="padding:2px 3px;text-align:center;">
                                     <span style="color:${orColor};font-weight:600;">${s.orientation ?? '—'}</span>
-                                    <span style="color:rgba(255,255,255,0.35);font-size:0.6rem;"> ${s.azimuth_deg != null ? s.azimuth_deg+'°' : ''}</span>
+                                    <span style="color:rgba(255,255,255,0.3);font-size:0.58rem;"> ${s.azimuth_deg != null ? s.azimuth_deg+'°' : ''}</span>
                                 </td>
-                                <td style="padding:2px 4px;text-align:center;">${s.pitch_deg != null ? s.pitch_deg+'°' : '—'}</td>
-                                <td style="padding:2px 4px;text-align:center;">${s.height_m != null ? s.height_m+' m' : '—'}</td>
-                                <td style="padding:2px 4px;text-align:center;">${s.area_m2 != null ? s.area_m2+' m²' : '—'}</td>
-                                <td style="padding:2px 4px;text-align:center;color:#ffe600;">${s.irr_med_kwh ?? '—'}</td>
+                                <td style="padding:2px 3px;text-align:center;">${s.pitch_deg != null ? s.pitch_deg+'°' : '—'}</td>
+                                <td style="padding:2px 3px;text-align:center;color:rgba(255,255,255,0.6);">${s.height_m != null ? s.height_m+' m' : '—'}</td>
+                                <td style="padding:2px 3px;text-align:center;color:rgba(255,255,255,0.5);">${dimTxt}</td>
+                                <td style="padding:2px 3px;text-align:center;">${s.area_m2 != null ? s.area_m2+' m²' : '—'}</td>
+                                <td style="padding:2px 3px;text-align:center;">${irrTxt}</td>
                             `;
                             roofBody.appendChild(tr);
                         });
@@ -7867,18 +7897,33 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             <span>🏔️ Faîtage&nbsp;<strong id="fluxDsmFaitage" style="color:#fff;">—</strong>&nbsp;m</span>
             <span style="color:rgba(255,255,255,0.35);">Alt.&nbsp;<span id="fluxDsmAlt">—</span>&nbsp;m IGN</span>
         </div>
+        <!-- Dimensions bâtiment + potentiel solaire -->
+        <div id="fluxBuildingSection" style="display:none; margin-top:8px; border-top:1px solid rgba(255,255,255,0.12); padding-top:6px;">
+            <div style="color:rgba(255,255,255,0.55);font-size:0.65rem;margin-bottom:4px;">🏗️ Bâtiment (Google Solar)</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px 14px;font-size:0.65rem;color:rgba(255,255,255,0.8);">
+                <span>L&nbsp;<strong id="fluxBldLen" style="color:#fff;">—</strong>&nbsp;m</span>
+                <span>l&nbsp;<strong id="fluxBldWid" style="color:#fff;">—</strong>&nbsp;m</span>
+                <span>≈&nbsp;<strong id="fluxBldFp" style="color:#fff;">—</strong>&nbsp;m² empreinte</span>
+                <span>🛖&nbsp;<strong id="fluxBldRoof" style="color:#fff;">—</strong>&nbsp;m² toiture</span>
+                <span>☀️&nbsp;<strong id="fluxBldUsable" style="color:#ffe600;">—</strong>&nbsp;m² utilisables</span>
+                <span>⚡&nbsp;max&nbsp;<strong id="fluxBldKwp" style="color:#6dffb3;">—</strong>&nbsp;kWc</span>
+                <span id="fluxBldPanels" style="color:rgba(255,255,255,0.45);"></span>
+                <span id="fluxBldSun" style="color:rgba(255,255,255,0.45);"></span>
+            </div>
+        </div>
         <!-- Pans de toiture -->
         <div id="fluxRoofSection" style="display:none; margin-top:8px; border-top:1px solid rgba(255,255,255,0.12); padding-top:6px;">
-            <div style="color:rgba(255,255,255,0.55);font-size:0.65rem;margin-bottom:4px;">📐 Pans de toiture (Google Solar)</div>
-            <table id="fluxRoofTable" style="width:100%;border-collapse:collapse;font-size:0.64rem;color:rgba(255,255,255,0.85);">
+            <div id="fluxRoofTitle" style="color:rgba(255,255,255,0.55);font-size:0.65rem;margin-bottom:4px;">📐 Pans de toiture</div>
+            <table id="fluxRoofTable" style="width:100%;border-collapse:collapse;font-size:0.63rem;color:rgba(255,255,255,0.85);">
                 <thead>
                     <tr style="color:rgba(255,255,255,0.4);border-bottom:1px solid rgba(255,255,255,0.12);">
-                        <th style="padding:1px 4px;text-align:left;">#</th>
-                        <th style="padding:1px 4px;">Orient.</th>
-                        <th style="padding:1px 4px;">Inclin.</th>
-                        <th style="padding:1px 4px;">Haut.</th>
-                        <th style="padding:1px 4px;">Surface</th>
-                        <th style="padding:1px 4px;">kWh/m²</th>
+                        <th style="padding:1px 3px;text-align:left;">#</th>
+                        <th style="padding:1px 3px;">Orient.</th>
+                        <th style="padding:1px 3px;">Inclin.</th>
+                        <th style="padding:1px 3px;">Haut.</th>
+                        <th style="padding:1px 3px;">Dim.</th>
+                        <th style="padding:1px 3px;">Surface</th>
+                        <th style="padding:1px 3px;">kWh/m²&nbsp;▾</th>
                     </tr>
                 </thead>
                 <tbody id="fluxRoofBody"></tbody>
