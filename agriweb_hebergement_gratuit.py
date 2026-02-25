@@ -2664,7 +2664,7 @@ def api_solar_flux_heatmap():
         if rows_any.any() and cols_any.any():
             rmin, rmax = int(np.where(rows_any)[0][0]),  int(np.where(rows_any)[0][-1])
             cmin, cmax = int(np.where(cols_any)[0][0]),  int(np.where(cols_any)[0][-1])
-            pad = 2  # 2 px de marge (le polygon est déjà dilaté de 1.5 px)
+            pad = 4  # 4 px de marge pour capturer les coins/protrusions fins
             rmin = max(0, rmin - pad); rmax = min(H - 1, rmax + pad)
             cmin = max(0, cmin - pad); cmax = min(W - 1, cmax + pad)
             rgba = rgba[rmin:rmax + 1, cmin:cmax + 1]
