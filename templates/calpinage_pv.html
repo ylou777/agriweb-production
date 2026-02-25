@@ -464,7 +464,8 @@
                             <small class="text-muted" id="typeInfo">Installation en toiture - Modules fixés sur la charpente existante</small>
                         </div>
                     </div>
-                    <!-- Checkbox auto 3D inclinaison (visible uniquement pour toiture) -->
+                    <!-- Checkbox auto 3D inclinaison (admin uniquement) -->
+                    {% if is_admin %}
                     <div id="auto3DInclinaisonRow" class="mt-2" style="display:block;">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="auto3DInclinaisonCheck" checked
@@ -475,6 +476,7 @@
                             </label>
                         </div>
                     </div>
+                    {% endif %}
 
                     <!-- Bouton analyse COPC haute précision (nuage de points brut IGN) -->
                     <!-- Boutons d'analyse (cachés, logique auto) -->
@@ -731,9 +733,11 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <strong><i class="bi bi-map"></i> Carte de calpinage</strong>
                         <div>
+                            {% if is_admin %}
                             <button class="btn btn-sm btn-info me-1" id="toggle3DView" onclick="toggle3DView()" title="Vue 3D immersive">
                                 🌐 Vue 3D
                             </button>
+                            {% endif %}
                             <button class="btn btn-sm btn-light me-1" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire pixel par pixel (kWh/m²/an) — zones d'ombrage acrotères/obstacles visibles">
                                 🌡️ Irradiation
                             </button>
@@ -871,7 +875,8 @@
                     </div>
                 </div>
                 
-                <!-- Visualisation 3D WebGL -->
+                <!-- Visualisation 3D WebGL (admin uniquement) -->
+                {% if is_admin %}
                 <div id="viewer3DContainer">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
@@ -940,6 +945,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
             </div>
 
             <!-- Colonne droite : Zones et calculs -->
@@ -1118,9 +1124,11 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-    <!-- Module de visualisation 3D -->
+    <!-- Module de visualisation 3D (admin uniquement) -->
+    {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
     <script src="/static/js/calpinage_3d.js?v=51"></script>
+    {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
         L.drawLocal.draw.toolbar.buttons.rectangle = '📐 Dessiner un champ PV';

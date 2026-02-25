@@ -2586,7 +2586,8 @@ def register_crm_routes(app):
                 print(f"[CALPINAGE PAGE] data_json est vide/None")
                 prospect_dict['data_json'] = {}
             
-            return render_template('calpinage_pv.html', prospect=prospect_dict)
+            _, is_admin = get_current_crm_user()
+            return render_template('calpinage_pv.html', prospect=prospect_dict, is_admin=is_admin)
             
         except Exception as e:
             import traceback
