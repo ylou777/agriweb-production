@@ -2544,10 +2544,20 @@ def api_solar_flux_heatmap():
 
         # ── Flood-fill : isole le bâtiment contenant le point cliqué (lat/lon) ──
         # Sans flood-fill, bld_mask contient TOUS les bâtiments du masque GSolar.
+        # Seed de préférence = centroïde du polygone building_coords (OSM/3D) envoyé
+        # par le frontend — c'est le centre réel du bâtiment sélectionné sur la carte,
+        # indépendamment du point de requête Google Solar (lat/lon) qui peut être décalé.
         if mask_arr is not None and bld_mask.any():
             try:
-                ctr_row = int(np.clip((bbox_north - lat) / (bbox_north - bbox_south) * H, 0, H - 1))
-                ctr_col = int(np.clip((lon - bbox_west)  / (bbox_east  - bbox_west)  * W, 0, W - 1))
+                # Calculer le seed : centroïde building_coords ou fallback lat/lon
+                if bcoords and len(bcoords) >= 3:
+                    _seed_lat = sum(float(p[1]) for p in bcoords) / len(bcoords)
+                    _seed_lon = sum(float(p[0]) for p in bcoords) / len(bcoords)
+                    print(f'  [flux-heatmap] seed = centroïde building_coords ({_seed_lat:.6f},{_seed_lon:.6f})')
+                else:
+                    _seed_lat, _seed_lon = lat, lon
+                ctr_row = int(np.clip((bbox_north - _seed_lat) / (bbox_north - bbox_south) * H, 0, H - 1))
+                ctr_col = int(np.clip((_seed_lon  - bbox_west) / (bbox_east  - bbox_west)  * W, 0, W - 1))
                 seed_r, seed_c = ctr_row, ctr_col
                 # Si le pixel central n'est pas dans un bâtiment → pixel bâtiment le plus proche
                 if not bld_mask[seed_r, seed_c]:
