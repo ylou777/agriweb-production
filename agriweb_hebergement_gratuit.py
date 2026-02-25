@@ -2567,7 +2567,8 @@ def api_solar_flux_heatmap():
                         near_idx = int(np.argmin(dists))
                         if float(dists[near_idx]) <= 60:
                             seed_r, seed_c = int(pts[near_idx, 0]), int(pts[near_idx, 1])
-                # Flood-fill itératif (stack-safe, pas de récursion)
+                # Flood-fill itératif 8-connexité (stack-safe, pas de récursion)
+                # 8-connexité = inclut les diagonales → capture coins et protrusions fines
                 if bld_mask[seed_r, seed_c]:
                     filled = np.zeros((H, W), dtype=bool)
                     stk = [(seed_r, seed_c)]
@@ -2576,7 +2577,8 @@ def api_solar_flux_heatmap():
                         if r < 0 or r >= H or c < 0 or c >= W: continue
                         if filled[r, c] or not bld_mask[r, c]: continue
                         filled[r, c] = True
-                        stk.extend([(r+1,c),(r-1,c),(r,c+1),(r,c-1)])
+                        stk.extend([(r+1,c),(r-1,c),(r,c+1),(r,c-1),
+                                    (r+1,c+1),(r+1,c-1),(r-1,c+1),(r-1,c-1)])
                     if filled.any():
                         bld_mask = filled
                         print(f'  [flux-heatmap] flood-fill OK: seed=({seed_r},{seed_c}) → {int(bld_mask.sum())} px')
