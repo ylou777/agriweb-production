@@ -2933,9 +2933,12 @@ def api_solar_flux_heatmap():
                 print(f'  [flux-heatmap] DSM stats failed: {_e}')
 
         # ── Pans de toiture + dimensions bâtiment depuis buildingInsights ──────────
-        roof_segments  = []
+        roof_segments   = []
+        solar_panels_data = []
+        api_panel_w_m   = 1.045
+        api_panel_h_m   = 1.879
         solar_potential = {}
-        building_dims  = {}
+        building_dims   = {}
         if building_insights:
             try:
                 sp = building_insights.get('solarPotential', {})
@@ -3011,6 +3014,7 @@ def api_solar_flux_heatmap():
                         _seg_w = round((_seg_ne_geo['lon'] - _seg_sw_geo['lon']) * 111320.0 * math.cos(math.radians(lat)), 1)
                     roof_segments.append({
                         'id':          i + 1,
+                        'orig_idx':    i,          # index 0-based dans roofSegmentStats (pour solar_panels.segmentIndex)
                         'pitch_deg':   round(pitch,   1) if pitch   is not None else None,
                         'azimuth_deg': round(azimuth, 1) if azimuth is not None else None,
                         'orientation': _az_to_dir(azimuth) if azimuth is not None else None,
@@ -3025,7 +3029,23 @@ def api_solar_flux_heatmap():
                         'irr_max_kwh': irr_max,
                     })
                 roof_segments.sort(key=lambda s: s.get('area_m2') or 0, reverse=True)
-                print(f'  [flux-heatmap] {len(roof_segments)} pans  bld={_bld_l}x{_bld_w}m')
+
+                # ── Panneaux individuels Google Solar (positions GPS exactes) ─────
+                api_panel_w_m = sp.get('panelWidthMeters',  1.045)
+                api_panel_h_m = sp.get('panelHeightMeters', 1.879)
+                for _p in sp.get('solarPanels', []):
+                    _pc = _p.get('center', {})
+                    _plat = _pc.get('latitude')
+                    _plon = _pc.get('longitude')
+                    if _plat is not None and _plon is not None:
+                        solar_panels_data.append({
+                            'lat':         _plat,
+                            'lon':         _plon,
+                            'orientation': _p.get('orientation', 'LANDSCAPE'),  # PORTRAIT | LANDSCAPE
+                            'seg_idx':     _p.get('segmentIndex', 0),            # 0-based → roofSegmentStats
+                            'irr_kwh':     round(_p.get('yearlyEnergyDcKwh', 0), 0),
+                        })
+                print(f'  [flux-heatmap] {len(roof_segments)} pans  bld={_bld_l}x{_bld_w}m  {len(solar_panels_data)} solar_panels GPS')
             except Exception as _e:
                 print(f'  [flux-heatmap] roof_segments failed: {_e}')
 
@@ -3074,6 +3094,9 @@ def api_solar_flux_heatmap():
             # DSM — hauteurs de toiture
             'dsm_stats':      dsm_stats,
             'roof_segments':   roof_segments,
+            'solar_panels':    solar_panels_data,
+            'api_panel_w_m':   api_panel_w_m,
+            'api_panel_h_m':   api_panel_h_m,
             'building_dims':   building_dims,
             'solar_potential': solar_potential,
             'building_center': ({'lat': float(building_insights['center']['latitude']),

@@ -6663,7 +6663,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (_fluxActive) {
                 _fluxActive = false;
                 _syncFluxBtns(false, false);
-                window._fluxRoofSegments = null; // Nettoyer les pans à la fermeture
+                window._fluxRoofSegments = null;
+                window._fluxSolarPanels  = null; // Nettoyer à la fermeture
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
@@ -6794,8 +6795,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const data = await resp.json();
                 _fluxActive = true;
                 _syncFluxBtns(true, false);
-                // Sauvegarder les pans pour le remplissage auto irradiation
-                window._fluxRoofSegments = data.roof_segments || [];
+                // Sauvegarder les données Solar pour le remplissage auto
+                window._fluxRoofSegments = data.roof_segments  || [];
+                window._fluxSolarPanels  = data.solar_panels   || [];
+                window._fluxApiPanelW    = data.api_panel_w_m  || 1.045;
+                window._fluxApiPanelH    = data.api_panel_h_m  || 1.879;
                 // Légende — color_min/color_max = plage colorimétrique réelle
                 if (legend) {
                     legend.style.display = 'block';
@@ -7623,30 +7627,53 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             // ─── Pas de LiDAR 3D → fallback 2D ──────────────────────────────────────
             if (!viewer3D || !viewer3D.roofPanelsInfo || !viewer3D.roofPanelsInfo.panels.length) {
 
-                // ── MODE IRRADIATION : Google Solar roof_segments avec GPS ────────
-                const fluxSegs = window._fluxRoofSegments;
-                if (fluxSegs && fluxSegs.length > 0 && fluxSegs.some(s => s.seg_sw && s.seg_ne)) {
+                // ── MODE IRRADIATION GPS : positions exactes de chaque panneau Google Solar ──
+                // Reproduit la logique du démo officiel js-solar-potential :
+                // panel.center.lat/lon + azimuth du pan → coin GPS précis de chaque module
+                const fluxSegs    = window._fluxRoofSegments || [];
+                const solarPanels = window._fluxSolarPanels  || [];
+
+                if (fluxSegs.length > 0 || solarPanels.length > 0) {
                     const irrMin    = parseFloat(document.getElementById('fluxIrrMin')?.value)  || 0;
                     const irrMaxRaw = document.getElementById('fluxIrrMax')?.value;
                     const irrMax    = irrMaxRaw && irrMaxRaw.trim() !== '' ? parseFloat(irrMaxRaw) : Infinity;
                     const targetKw  = parseFloat(document.getElementById('fluxTargetKw')?.value) || 0;
                     const modPuissF = parseFloat(document.getElementById('modulePuissance').value) || 0;
                     const dispF     = document.getElementById('moduleOrientation').value;
-                    // Lire les dimensions une seule fois
-                    const _modL = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
-                    const _modW = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
-                    const _esp  = parseFloat(document.getElementById('moduleEspacement').value) / 100;
-                    const _modH = dispF === 'paysage' ? _modL : _modW; // dimension horizontale
-                    const _modV = dispF === 'paysage' ? _modW : _modL; // dimension verticale
+                    const _modL     = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+                    const _modW     = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+                    // En portrait : long côté vertical → largeur horiz = modW, haut = modL
+                    // En paysage  : long côté horizontal → largeur horiz = modL, haut = modW
+                    const _mW = dispF === 'paysage' ? _modL : _modW; // demi-largeur ×2
+                    const _mH = dispF === 'paysage' ? _modW : _modL; // demi-hauteur ×2
 
-                    const eligible = fluxSegs.filter(s =>
-                        s.seg_sw && s.seg_ne &&
-                        (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) >= irrMin &&
-                        (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) <= irrMax
+                    // Fonction coin GPS (logique computeOffset en JS pur — comme le démo Google)
+                    function _panelCorners(clat, clon, mw, mh, azDeg) {
+                        const mPerDegLat = 111320.0;
+                        const mPerDegLon = 111320.0 * Math.cos(clat * Math.PI / 180);
+                        const hw = mw / 2, hh = mh / 2;
+                        const az = azDeg * Math.PI / 180;
+                        return [[-hw,-hh],[+hw,-hh],[+hw,+hh],[-hw,+hh]].map(([x,y]) => {
+                            const xr = x * Math.cos(az) - y * Math.sin(az);
+                            const yr = x * Math.sin(az) + y * Math.cos(az);
+                            return L.latLng(clat + yr / mPerDegLat, clon + xr / mPerDegLon);
+                        });
+                    }
+
+                    // Map orig_idx → azimuth_deg (pour lookup rapide par segmentIndex de solarPanels)
+                    const segAzimuth = new Map(fluxSegs.map(s => [s.orig_idx ?? (s.id - 1), s.azimuth_deg ?? 180]));
+                    const segIrrOk   = new Set(fluxSegs
+                        .filter(s => (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) >= irrMin &&
+                                     (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) <= irrMax)
+                        .map(s => s.orig_idx ?? (s.id - 1)));
+
+                    // Filtrer les panneaux : irradiation du pan OK + position GPS valide
+                    const panelsOk = solarPanels.filter(p =>
+                        segIrrOk.size === 0 ? true : segIrrOk.has(p.seg_idx)
                     );
 
-                    if (eligible.length === 0) {
-                        alert(`⚠️ Aucun pan de toiture dans la plage d'irradiance ${irrMin}–${irrMax} kWh/m²/an.\nAjustez les seuils ou rechargez la carte d'irradiation.`);
+                    if (panelsOk.length === 0 && solarPanels.length > 0) {
+                        alert(`⚠️ Aucun panneau dans la plage d'irradiance ${irrMin}–${irrMax} kWh/m²/an.\nAjustez les seuils ou rechargez la carte d'irradiation.`);
                         return;
                     }
 
@@ -7658,61 +7685,155 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     zones = [];
                     document.getElementById('zonesList').innerHTML = '';
 
-                    let totalKwAccum = 0;
-                    eligible.forEach((seg, i) => {
-                        if (targetKw > 0 && totalKwAccum >= targetKw) return;
-                        const sw = seg.seg_sw, ne = seg.seg_ne;
-                        const zoneBounds = L.latLngBounds([sw.lat, sw.lon], [ne.lat, ne.lon]);
-                        const zoneLayer = L.rectangle(zoneBounds, {
-                            color: '#ff7800', weight: 2, fillOpacity: 0.05,
-                            dashArray: '5,5', interactive: true
+                    if (solarPanels.length > 0 && panelsOk.length > 0) {
+                        // ── CAS A : positions individuelles GPS disponibles ────────────────
+                        // Grouper par segmentIndex, créer une zone par segment
+                        const bySegment = new Map();
+                        panelsOk.forEach(p => {
+                            if (!bySegment.has(p.seg_idx)) bySegment.set(p.seg_idx, []);
+                            bySegment.get(p.seg_idx).push(p);
                         });
-                        zoneLayer.addTo(drawnItems);
-                        const largeurM  = map.distance([sw.lat, sw.lon], [sw.lat, ne.lon]);
-                        const longueurM = map.distance([sw.lat, sw.lon], [ne.lat, sw.lon]);
 
-                        // Calcul inline (afficherZone n'a pas encore été appelé → pas de DOM)
-                        const nbCols    = Math.floor(largeurM  / (_modH + _esp));
-                        const nbRows    = Math.floor(longueurM / (_modV + _esp));
-                        const nbModules = nbCols * nbRows;
-                        const puissKw   = (nbModules * modPuissF) / 1000;
+                        let zoneNum = 0;
+                        let totalKwAccum = 0;
+                        bySegment.forEach((panels, segIdx) => {
+                            if (targetKw > 0 && totalKwAccum >= targetKw) return;
+                            const az = segAzimuth.get(segIdx) ?? 180;
+                            const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
 
-                        const zone = {
-                            id: zoneLayer._leaflet_id,
-                            numero: i + 1,
-                            layer: zoneLayer,
-                            surfaceM2: largeurM * longueurM,
-                            nbModules, nbCols, nbRows, puissanceKw: puissKw,
-                            orientation: seg.azimuth_deg ?? 180,
-                            inclinaison: seg.pitch_deg  ?? 15,
-                            rotationAngle: 0,
-                            productible: 0,
-                            moduleOrientation: dispF,
-                            largeurMetres: largeurM,
-                            longueurMetres: longueurM,
-                            typeInstallation: 'toiture',
-                            modulesPositions: [],
-                            panToiture: `Pan ${i+1} (${seg.orientation ?? ''} ${seg.pitch_deg != null ? seg.pitch_deg+'°' : ''})`,
-                            _fromFluxSegment: true,
-                        };
-                        zones.push(zone);
-                        dessinerModulesDansZone(zone); // dessine les modules sur la carte
-                        afficherZone(zone);            // crée la fiche zone dans le DOM
-                        calculerProductibleZone(zone.id); // maintenant le DOM existe
-                        totalKwAccum += zone.puissanceKw || 0;
-                    });
+                            // Bounding box des centres pour le layer zone
+                            let minLat=Infinity,maxLat=-Infinity,minLon=Infinity,maxLon=-Infinity;
+                            panels.forEach(p => {
+                                minLat=Math.min(minLat,p.lat); maxLat=Math.max(maxLat,p.lat);
+                                minLon=Math.min(minLon,p.lon); maxLon=Math.max(maxLon,p.lon);
+                            });
+                            const buf = 0.00003; // ~3m buffer
+                            const zoneBounds = L.latLngBounds(
+                                [minLat - buf, minLon - buf], [maxLat + buf, maxLon + buf]
+                            );
+                            const zoneLayer = L.rectangle(zoneBounds, {
+                                color: '#ff7800', weight: 2, fillOpacity: 0.03,
+                                dashArray: '5,5', interactive: true
+                            });
+                            zoneLayer.addTo(drawnItems);
+
+                            const largeurM  = map.distance([minLat, minLon], [minLat, maxLon]);
+                            const longueurM = map.distance([minLat, minLon], [maxLat, minLon]);
+                            const nbModules = panels.length;
+                            const puissKw   = (nbModules * modPuissF) / 1000;
+
+                            zoneNum++;
+                            const zone = {
+                                id: zoneLayer._leaflet_id,
+                                numero: zoneNum,
+                                layer: zoneLayer,
+                                surfaceM2: largeurM * longueurM,
+                                nbModules, nbCols: nbModules, nbRows: 1,
+                                puissanceKw: puissKw,
+                                orientation: az,
+                                inclinaison: seg?.pitch_deg ?? 15,
+                                rotationAngle: az,
+                                productible: 0,
+                                moduleOrientation: dispF,
+                                largeurMetres: largeurM,
+                                longueurMetres: longueurM,
+                                typeInstallation: 'toiture',
+                                modulesPositions: [],
+                                panToiture: `Pan ${zoneNum} (${seg?.orientation ?? ''} ${seg?.pitch_deg != null ? seg.pitch_deg+'°' : ''} — ${nbModules} mod.)`,
+                                _fromSolarPanels: true,
+                            };
+                            zones.push(zone);
+
+                            // Dessiner chaque module à sa position GPS exacte
+                            const moduleGroup = L.layerGroup();
+                            panels.forEach(p => {
+                                const corners = _panelCorners(p.lat, p.lon, _mW, _mH, az);
+                                const poly = L.polygon(corners, {
+                                    color: '#0066cc', weight: 1,
+                                    fillColor: '#4d94ff', fillOpacity: 0.7,
+                                    interactive: false
+                                });
+                                moduleGroup.addLayer(poly);
+                                zone.modulesPositions.push({
+                                    lat: p.lat, lng: p.lon,
+                                    corners: corners.map(c => ({lat:c.lat, lng:c.lng}))
+                                });
+                            });
+                            // Contour de zone
+                            const outline = L.rectangle(zoneBounds, {
+                                color:'#ff7800', weight:2, fillOpacity:0, dashArray:'5,5', interactive:false
+                            });
+                            outline._isZoneOutline = true;
+                            moduleGroup.addLayer(outline);
+                            moduleGroup.addTo(map);
+                            zone.moduleGroup = moduleGroup;
+
+                            afficherZone(zone);
+                            calculerProductibleZone(zone.id);
+                            totalKwAccum += puissKw;
+                        });
+
+                    } else {
+                        // ── CAS B : pas de solar_panels → bounding boxes des segments ────
+                        const eligibleSegs = fluxSegs.filter(s =>
+                            s.seg_sw && s.seg_ne &&
+                            (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) >= irrMin &&
+                            (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) <= irrMax
+                        );
+                        if (eligibleSegs.length === 0) {
+                            alert(`⚠️ Aucun pan dans la plage ${irrMin}–${irrMax} kWh/m²/an. Ajustez les seuils.`);
+                            return;
+                        }
+                        const _esp = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+                        const _mWh = dispF === 'paysage' ? _modL : _modW;
+                        const _mVh = dispF === 'paysage' ? _modW : _modL;
+                        let totalKwAccum = 0;
+                        eligibleSegs.forEach((seg, i) => {
+                            if (targetKw > 0 && totalKwAccum >= targetKw) return;
+                            const sw = seg.seg_sw, ne = seg.seg_ne;
+                            const zoneBounds = L.latLngBounds([sw.lat, sw.lon], [ne.lat, ne.lon]);
+                            const zoneLayer = L.rectangle(zoneBounds, {
+                                color:'#ff7800', weight:2, fillOpacity:0.05, dashArray:'5,5', interactive:true
+                            });
+                            zoneLayer.addTo(drawnItems);
+                            const largeurM  = map.distance([sw.lat, sw.lon], [sw.lat, ne.lon]);
+                            const longueurM = map.distance([sw.lat, sw.lon], [ne.lat, sw.lon]);
+                            const nbCols    = Math.floor(largeurM  / (_mWh + _esp));
+                            const nbRows    = Math.floor(longueurM / (_mVh + _esp));
+                            const nbModules = nbCols * nbRows;
+                            const puissKw   = (nbModules * modPuissF) / 1000;
+                            const zone = {
+                                id: zoneLayer._leaflet_id, numero: i+1, layer: zoneLayer,
+                                surfaceM2: largeurM * longueurM,
+                                nbModules, nbCols, nbRows, puissanceKw: puissKw,
+                                orientation: seg.azimuth_deg ?? 180, inclinaison: seg.pitch_deg ?? 15,
+                                rotationAngle: 0, productible: 0, moduleOrientation: dispF,
+                                largeurMetres: largeurM, longueurMetres: longueurM,
+                                typeInstallation: 'toiture', modulesPositions: [],
+                                panToiture: `Pan ${i+1} (${seg.orientation ?? ''} ${seg.pitch_deg != null ? seg.pitch_deg+'°' : ''})`,
+                                _fromFluxSegment: true,
+                            };
+                            zones.push(zone);
+                            dessinerModulesDansZone(zone);
+                            afficherZone(zone);
+                            calculerProductibleZone(zone.id);
+                            totalKwAccum += puissKw;
+                        });
+                    }
+
                     calculerTotaux();
-                    const totalModsF = zones.reduce((s, z) => s + (z.nbModules || 0), 0);
+                    const totalModsF = zones.reduce((s,z) => s+(z.nbModules||0), 0);
                     const totalKwcF  = (totalModsF * modPuissF / 1000).toFixed(2);
                     const toastF = document.createElement('div');
                     toastF.className = 'alert alert-success';
                     toastF.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
-                    toastF.innerHTML = `<i class="fas fa-bolt me-2"></i><strong>⚡ Remplissage irradiation (${eligible.length} pan${eligible.length>1?'s':''}) :</strong><br>` +
-                        zones.map(z => `• ${z.panToiture} : ${z.nbModules} modules (${z.nbCols||'-'}×${z.nbRows||'-'})`).join('<br>') +
+                    const modeLabel = solarPanels.length > 0 ? '⚡ Remplissage GPS Solar' : '⚡ Remplissage irradiation';
+                    toastF.innerHTML = `<i class="fas fa-bolt me-2"></i><strong>${modeLabel} (${zones.length} pan${zones.length>1?'s':''}) :</strong><br>` +
+                        zones.map(z => `• ${z.panToiture} : ${z.nbModules} modules`).join('<br>') +
                         `<br><strong>${totalModsF} modules — ${totalKwcF} kWc</strong>`;
                     document.body.appendChild(toastF);
                     setTimeout(() => { toastF.style.opacity='0'; toastF.style.transition='opacity 0.5s'; setTimeout(()=>toastF.remove(),500); }, 8000);
-                    console.log(`✅ Remplissage irradiation: ${totalModsF} modules, ${totalKwcF} kWc sur ${eligible.length} pan(s)`);
+                    console.log(`✅ Remplissage irradiation GPS: ${totalModsF} modules, ${totalKwcF} kWc sur ${zones.length} zone(s)`);
                     return;
                 }
 
