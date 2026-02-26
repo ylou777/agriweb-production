@@ -2189,8 +2189,8 @@ class Calpinage3DViewer {
         this.scene.add(mesh);
         this.buildings.push(mesh);
 
-        // ── Toit plat cap temporaire — Solar API fournira la geometrie via heatmap ──
-        this._createFlatRoof({x: obb.cx, z: obb.cz}, obb.longDim, obb.shortDim, bh, terrainH, roofType, localCoords);
+        // Pas de toit construit ici — Google Solar API (applySolarRoofFromInsights) fournit le toit exclusivement.
+        // Le cap ExtrudeGeometry est transparent (opacity:0) → sommet des murs propre sans cap visible.
         // roofPanelsInfo minimal (sera remplace par Solar quand heatmap chargee)
         this.roofPanelsInfo = this._computeRoofPanelsInfo(obb, 'flat', 0, bh, terrainH, false, roofType, 1, null);
         this.roofPanelsInfo.buildingOBB         = { cx: obb.cx, cz: obb.cz, angle: obb.angle, longDim: obb.longDim, shortDim: obb.shortDim };
