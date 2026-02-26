@@ -8324,38 +8324,34 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     // Priorité 1 : heatmap pixel à la position GPS exacte de chaque panneau
                     //   → _colorToIrr(r,g,b) donne la valeur kWh/m²/an réelle au pixel
                     //   → exclut les panneaux sur zone ombrée même si la médiane du segment est OK
-                    // Priorité 2 : médiane du segment (fallback si heatmap pas encore chargée)
-                    // Note: irr_kwh par panneau = yearlyEnergyDcKwh (~350 kWh/an produit) ≠ kWh/m²/an irradiance
-                    const heatmapAvailable = !!(_fluxCanvas && _fluxBbox);
-                    // Fallback segment-level (utilisé seulement si heatmap absente)
-                    const segIrrOk = new Set(fluxSegs
-                        .filter(s => (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) >= irrMin &&
-                                     (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) <= irrMax)
-                        .map(s => s.orig_idx ?? (s.id - 1)));
+                    // ── Filtrage pixel-précis STRICT : aucun fallback par moyenne de segment ──
+                    // La heatmap canvas DOIT être chargée, sinon on bloque.
+                    if (!_fluxCanvas || !_fluxBbox) {
+                        alert('⏳ La carte d\'irradiation est encore en cours de chargement.\nPatientez quelques secondes puis relancez le remplissage automatique.');
+                        return;
+                    }
 
-                    let _nPixelOk = 0, _nPixelKo = 0, _nSegFallback = 0;
+                    // Chaque panneau est testé à sa position GPS exacte sur le canvas heatmap :
+                    //   • pixel opaque  → valeur kWh/m²/an réelle décidée par _colorToIrr()
+                    //   • pixel transparent (hors emprise toiture) → exclus systématiquement
+                    // Aucune moyenne de segment n'est utilisée.
+                    let _nPixelOk = 0, _nPixelKo = 0, _nPixelTransp = 0;
                     const panelsOk = solarPanels.filter(p => {
-                        if (heatmapAvailable) {
-                            // Méthode précise : valeur réelle du pixel heatmap à la position du panneau
-                            const px = _sampleCanvas(_fluxCanvas, _fluxBbox, p.lat, p.lon);
-                            if (px && px[3] >= 10) {
-                                const irrPixel = _colorToIrr(px[0], px[1], px[2]);
-                                const ok = irrPixel >= irrMin && irrPixel <= irrMax;
-                                ok ? _nPixelOk++ : _nPixelKo++;
-                                return ok;
-                            }
+                        const px = _sampleCanvas(_fluxCanvas, _fluxBbox, p.lat, p.lon);
+                        if (!px || px[3] < 10) {
+                            // Hors emprise heatmap (pixel transparent) → exclus
+                            _nPixelTransp++;
+                            return false;
                         }
-                        // Fallback : médiane du segment (si heatmap absente ou pixel transparent)
-                        _nSegFallback++;
-                        if (fluxSegs.length === 0) return true;
-                        return segIrrOk.has(p.seg_idx);
+                        const irrPixel = _colorToIrr(px[0], px[1], px[2]);
+                        const ok = irrPixel >= irrMin && irrPixel <= irrMax;
+                        ok ? _nPixelOk++ : _nPixelKo++;
+                        return ok;
                     });
 
-                    console.log(`🔍 [autoFill] filtre ${irrMin}–${irrMax} kWh/m²/an → ` +
-                        (heatmapAvailable
-                            ? `pixel-précis: ${_nPixelOk} OK / ${_nPixelKo} exclus / ${_nSegFallback} fallback-segment`
-                            : `⚠️ heatmap absente → fallback segments: [${[...segIrrOk].join(',')}]`) +
-                        ` → ${panelsOk.length}/${solarPanels.length} panneaux retenus`);
+                    console.log(`🔍 [autoFill pixel-précis] filtre ${irrMin}–${irrMax} kWh/m²/an` +
+                        ` → ✅ ${_nPixelOk} OK / ❌ ${_nPixelKo} hors-plage / ⬜ ${_nPixelTransp} hors-toiture` +
+                        ` → ${panelsOk.length}/${solarPanels.length} retenus`);
 
                     if (panelsOk.length === 0 && solarPanels.length > 0) {
                         alert(`⚠️ Aucun panneau dans la plage d'irradiance ${irrMin}–${irrMax} kWh/m²/an.\nAjustez les seuils ou rechargez la carte d'irradiation.`);
@@ -8518,14 +8514,27 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         });
 
                     } else {
-                        // ── CAS B : pas de solar_panels → bounding boxes des segments ────
-                        const eligibleSegs = fluxSegs.filter(s =>
-                            s.seg_sw && s.seg_ne &&
-                            (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) >= irrMin &&
-                            (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) <= irrMax
-                        );
+                        // ── CAS B : pas de solar_panels → bbox des segments, filtrage pixel au centre ────
+                        // Pour chaque segment on échantillonne la valeur heatmap au centre exact de sa bbox.
+                        // Si la heatmap n'est pas chargée → blocage (même règle que CAS A).
+                        if (!_fluxCanvas || !_fluxBbox) {
+                            alert('⏳ La carte d\'irradiation est encore en cours de chargement.\nPatientez quelques secondes puis relancez le remplissage automatique.');
+                            return;
+                        }
+                        const eligibleSegs = fluxSegs.filter(s => {
+                            if (!s.seg_sw || !s.seg_ne) return false;
+                            // Centre du segment
+                            const cLat = (s.seg_sw.lat + s.seg_ne.lat) / 2;
+                            const cLon = (s.seg_sw.lon + s.seg_ne.lon) / 2;
+                            const px = _sampleCanvas(_fluxCanvas, _fluxBbox, cLat, cLon);
+                            if (!px || px[3] < 10) return false; // hors emprise
+                            const irrC = _colorToIrr(px[0], px[1], px[2]);
+                            const ok = irrC >= irrMin && irrC <= irrMax;
+                            console.log(`📐 [Seg CAS-B] ctr=(${cLat.toFixed(5)},${cLon.toFixed(5)}) irr=${Math.round(irrC)} kWh/m²/an → ${ok ? '✅' : '❌'}`);
+                            return ok;
+                        });
                         if (eligibleSegs.length === 0) {
-                            alert(`⚠️ Aucun pan dans la plage ${irrMin}–${irrMax} kWh/m²/an. Ajustez les seuils.`);
+                            alert(`⚠️ Aucun pan dans la plage ${irrMin}–${irrMax} kWh/m²/an (filtrage pixel). Ajustez les seuils.`);
                             return;
                         }
                         const _poseB = getPoseParams();
