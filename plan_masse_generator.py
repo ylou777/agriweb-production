@@ -170,6 +170,34 @@ class PlanMasseGenerator:
         
         lat = self.data.get('latitude')
         lon = self.data.get('longitude')
+
+        # ═══════════════════════════════════════════════════════════════════╗
+        # CORRECTION DÉCALAGE : centrer sur les zones PV réelles             ║
+        # lat/lon du prospect = adresse géocodée, peut être à 50–300m        ║
+        # de la toiture réelle → gps_bounds serait décalé → modules décalés  ║
+        # ═══════════════════════════════════════════════════════════════════╝
+        if self.calpinage and 'zones' in self.calpinage and self.calpinage['zones']:
+            all_lats, all_lons = [], []
+            for z in self.calpinage['zones']:
+                for coord in z.get('coordinates', []):
+                    all_lats.append(coord['lat'])
+                    all_lons.append(coord['lng'])
+                # aussi regarder bounds si coordinates vides
+                if not z.get('coordinates'):
+                    b = z.get('bounds', {})
+                    if b:
+                        for k in ('_southWest', '_northEast'):
+                            pt = b.get(k, {})
+                            if pt.get('lat'):
+                                all_lats.append(pt['lat'])
+                                all_lons.append(pt['lng'])
+            if all_lats and all_lons:
+                lat_zones = (min(all_lats) + max(all_lats)) / 2
+                lon_zones = (min(all_lons) + max(all_lons)) / 2
+                print(f"[PLAN] 🎯 Centre recalé sur zones PV: ({lat_zones:.6f}, {lon_zones:.6f})"
+                      f" — adresse: ({lat:.6f}, {lon:.6f})"
+                      f" — écart: {abs(lat_zones-lat)*111320:.0f}m lat / {abs(lon_zones-lon)*111320*0.7:.0f}m lon")
+                lat, lon = lat_zones, lon_zones
         
         print(f"[PLAN] ­ƒôî D├®marrage _draw_plan_cadastral: lat={lat}, lon={lon}")
         
@@ -1388,16 +1416,27 @@ class PlanMasseGenerator:
             print(f"[PLAN] ❌ Seulement {tile_count} tuiles récupérées, abandon")
             return None
         
-        # Recadrer au centre pour obtenir la bonne taille
-        cx = composite.width // 2
-        cy = composite.height // 2
+        # ════════════════════════════════════════════════════════════════════
+        # RECADRAGE PRÉCIS : centrer sur la position GPS exacte (x_center/y_center)
+        # et NON sur le milieu entier du composite.
+        # x_center/y_center sont des coordonnées de tuile FRACTIONNAIRES → position
+        # sub-pixel exacte du point (lat, lon) dans le composite.
+        # Erreur de l'ancienne méthode (cx = composite.width//2) : jusqu'à ±128px
+        # = ±76m à zoom 18 → 15cm sur le PDF à l'échelle 1/500 !
+        # ════════════════════════════════════════════════════════════════════
+        px_center = (x_center - x_start) * tile_size   # position exacte en pixels
+        py_center = (y_center - y_start) * tile_size
+        
         crop_w = int(width_meters / meters_per_pixel)
         crop_h = int(height_meters / meters_per_pixel)
         
-        left = max(0, cx - crop_w // 2)
-        top = max(0, cy - crop_h // 2)
-        right = min(composite.width, cx + crop_w // 2)
-        bottom = min(composite.height, cy + crop_h // 2)
+        left   = max(0, int(px_center) - crop_w // 2)
+        top    = max(0, int(py_center) - crop_h // 2)
+        right  = min(composite.width,  int(px_center) + crop_w // 2)
+        bottom = min(composite.height, int(py_center) + crop_h // 2)
+        
+        print(f"[PLAN] 🎯 Recadrage précis: centre pixel ({px_center:.1f}, {py_center:.1f})"
+              f" → crop ({left},{top},{right},{bottom}) sur composite {composite.width}×{composite.height}")
         
         cropped = composite.crop((left, top, right, bottom))
         cropped = cropped.resize((img_width, img_height), Image.LANCZOS)
