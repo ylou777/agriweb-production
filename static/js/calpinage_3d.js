@@ -1005,32 +1005,32 @@ class Calpinage3DViewer {
         // BD TOPO buildings (prioritaire - ont hauteur réelle)
         if (data.buildings_bdtopo) {
             data.buildings_bdtopo.forEach((b, idx) => {
-                // === Hiérarchie de calcul de la hauteur des murs (méthode CityGML LOD2) ===
-                // Priorité 1 : altitude_toit_min - altitude_sol_min = hauteur corniche (murs seuls)
-                // bd topo "hauteur" = faîtage (ridge) = murs + toit → sur-estime les murs d'un étage
-                // altitude_minimale_toit = altitude acrotère/corniche = sommet réel des murs
-                let computedH = null;
+                // === Hauteur corniche = hauteur réelle des murs (pour extrusion) ===
+                // altitude_toit_min = corniche/acrotère = sommet des murs sans le toit
+                let computedEave = null;
                 if (b.altitude_toit_min != null && b.altitude_sol_min != null) {
-                    const eaveDerived = b.altitude_toit_min - b.altitude_sol_min;
-                    if (eaveDerived > 1.0 && eaveDerived < 80) computedH = eaveDerived;
+                    const d = b.altitude_toit_min - b.altitude_sol_min;
+                    if (d > 1.0 && d < 80) computedEave = d;
                 }
-                // Priorité 2 : champ hauteur BD TOPO (= faîtage, légèrement surestimé pour toits en pente)
-                if (!computedH && b.hauteur && b.hauteur > 1.0) computedH = b.hauteur;
-                // Priorité 3 : différence altitudes absolues NGF toit_max - sol (fallback = hauteur totale)
-                if (!computedH && b.altitude_toit_max && b.altitude_sol_min) {
-                    const derived = b.altitude_toit_max - b.altitude_sol_min;
-                    if (derived > 1.0 && derived < 80) computedH = derived;
+                // Fallback : 70% du faîtage (approximation corniche pour toit avec pente)
+                if (!computedEave && b.hauteur && b.hauteur > 1.0) computedEave = b.hauteur * 0.7;
+                if (!computedEave && b.nb_etages && b.nb_etages > 0) computedEave = b.nb_etages * 3.0;
+                if (!computedEave) computedEave = 6;
+
+                // === Hauteur faîtage (compat, non utilisée pour extrusion) ===
+                let computedH = null;
+                if (b.hauteur && b.hauteur > 1.0) computedH = b.hauteur;
+                else if (b.altitude_toit_max != null && b.altitude_sol_min != null) {
+                    const d = b.altitude_toit_max - b.altitude_sol_min;
+                    if (d > 1.0 && d < 80) computedH = d;
                 }
-                // Priorité 4 : nb_etages × 3.0m (standard CityGML floor height)
-                if (!computedH && b.nb_etages && b.nb_etages > 0) {
-                    computedH = b.nb_etages * 3.0;
-                }
-                // Priorité 5 : défaut 6m
-                if (!computedH) computedH = 6;
+                if (!computedH && b.nb_etages && b.nb_etages > 0) computedH = b.nb_etages * 3.0;
+                if (!computedH) computedH = computedEave;
 
                 allBuildings.push({
                     coords: b.coords,
-                    height: computedH,
+                    height: computedH,       // faîtage (non utilisé pour extrusion)
+                    height_eave: computedEave, // corniche → extrusion des murs
                     source: 'bdtopo',
                     _bdtopoIdx: idx,
                     usage: b.usage,
