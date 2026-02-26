@@ -756,6 +756,72 @@
                     </div>
                 </div>
 
+                <!-- ─── Paramètres de pose : type de toiture, reculs, shed ─── -->
+                <div class="card mb-2" id="poseParamsCard">
+                    <div class="card-header p-2 d-flex justify-content-between align-items-center"
+                         style="cursor:pointer;" onclick="document.getElementById('poseParamsBody').classList.toggle('d-none')">
+                        <strong style="font-size:0.87rem;">🏗️ Paramètres de pose</strong>
+                        <span id="poseSummary" class="text-muted small">Toiture inclinée — GR 30 · FR 50 · LP 20 cm</span>
+                    </div>
+                    <div class="card-body p-2" id="poseParamsBody">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label form-label-sm mb-0">Type de pose</label>
+                                <select class="form-select form-select-sm" id="poseProfil" onchange="updatePoseParams()">
+                                    <option value="toiture_pente" selected>🏠 Toiture inclinée (surimposition)</option>
+                                    <option value="toiture_plate_shed">🏢 Toiture plate — Shed (chevalet)</option>
+                                    <option value="toiture_plate_plat">🟦 Toiture plate — Pose à plat</option>
+                                </select>
+                            </div>
+                            <!-- Inclinaison + distance inter-rangées (shed uniquement) -->
+                            <div class="col-md-2" id="shedInclinCol" style="display:none;">
+                                <label class="form-label form-label-sm mb-0">Inclinaison shed (°)</label>
+                                <input type="number" class="form-control form-control-sm" id="shedInclinaison"
+                                       value="20" min="5" max="45" step="1" onchange="updatePoseParams()">
+                            </div>
+                            <div class="col-md-2" id="shedDistCol" style="display:none;">
+                                <label class="form-label form-label-sm mb-0">
+                                    Inter-rangées (cm)
+                                    <span title="Auto-calculée : ombre nulle au solstice d'hiver" style="cursor:help;">ℹ️</span>
+                                </label>
+                                <input type="number" class="form-control form-control-sm" id="shedDistInterRangees" value="200" readonly
+                                       style="background:rgba(255,255,255,0.06);color:#adf;border-color:rgba(255,255,255,0.2);">
+                            </div>
+                            <!-- Recul périmétrique (toiture plate) -->
+                            <div class="col-md-2" id="reculPlatCol" style="display:none;">
+                                <label class="form-label form-label-sm mb-0">Recul périmétrique (cm)</label>
+                                <input type="number" class="form-control form-control-sm" id="reculPerim"
+                                       value="100" min="0" max="500" step="10" onchange="updateAllZones()">
+                            </div>
+                            <!-- Reculs par côté (toiture inclinée) -->
+                            <div class="col-md-5" id="reculPenteDiv">
+                                <div class="row g-1">
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm mb-0 text-muted"
+                                               title="Bas de pente — égout / gouttière">🏚️ Gouttière (cm)</label>
+                                        <input type="number" class="form-control form-control-sm" id="reculGouttiere"
+                                               value="30" min="0" max="300" step="5" onchange="updateAllZones()">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm mb-0 text-muted"
+                                               title="Haut de pente — faîtière">🏔️ Faîtage (cm)</label>
+                                        <input type="number" class="form-control form-control-sm" id="reculFaitage"
+                                               value="50" min="0" max="300" step="5" onchange="updateAllZones()">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label form-label-sm mb-0 text-muted"
+                                               title="Côtés — pignons">↔️ Pignon (cm)</label>
+                                        <input type="number" class="form-control form-control-sm" id="reculPignon"
+                                               value="20" min="0" max="300" step="5" onchange="updateAllZones()">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="poseParamsInfo" class="mt-1"
+                             style="font-size:0.72rem;color:rgba(255,255,255,0.55);"></div>
+                    </div>
+                </div>
+
                 <!-- Carte interactive -->
                 <div class="card" id="mapCard">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -4387,26 +4453,133 @@
             }
         }
 
+        // ═══════════════════════════════════════════════════════
+        // PARAMÈTRES DE POSE — reculs, shed inter-rangées
+        // ═══════════════════════════════════════════════════════
+
+        /**
+         * Retourne les paramètres de pose actifs (reculs en mètres, espacement H et V en mètres).
+         * Appelé par recalculerZone() et dessinerModulesDansZone().
+         */
+        function getPoseParams() {
+            const profil = document.getElementById('poseProfil')?.value ?? 'toiture_pente';
+            const espH   = (parseFloat(document.getElementById('moduleEspacement')?.value) || 5) / 100;
+            const isFlat = profil.startsWith('toiture_plate');
+            const isShed = profil === 'toiture_plate_shed';
+
+            if (isFlat) {
+                const rp       = (parseFloat(document.getElementById('reculPerim')?.value)  || 100) / 100;
+                const shedDist = isShed
+                    ? (parseFloat(document.getElementById('shedDistInterRangees')?.value) || 200) / 100
+                    : espH;
+                return {
+                    profil, isShed,
+                    reculBas: rp, reculHaut: rp, reculGauche: rp, reculDroite: rp,
+                    spacingH: espH,
+                    spacingV: shedDist,
+                };
+            } else {
+                // Toiture inclinée : reculs différents par côté
+                const rg = (parseFloat(document.getElementById('reculGouttiere')?.value) || 30) / 100;
+                const rf = (parseFloat(document.getElementById('reculFaitage')?.value)   || 50) / 100;
+                const rp = (parseFloat(document.getElementById('reculPignon')?.value)    || 20) / 100;
+                return {
+                    profil, isShed: false,
+                    reculBas: rg, reculHaut: rf, reculGauche: rp, reculDroite: rp,
+                    spacingH: espH,
+                    spacingV: espH,
+                };
+            }
+        }
+
+        /**
+         * Calcule la distance inter-rangées pour un shed incliné (cm).
+         * Formule : d = (H_shed × sin β) / tan(élévation solaire solstice d'hiver)
+         * où H_shed = dimension du module dans le sens de la pente × sin(β).
+         * Aucune ombre au 21 décembre à midi solaire.
+         */
+        function calcShedInterRangees() {
+            const beta  = (parseFloat(document.getElementById('shedInclinaison')?.value) || 20) * Math.PI / 180;
+            const modL  = (parseFloat(document.getElementById('moduleLongueur')?.value)  || 2278) / 1000;
+            const modW  = (parseFloat(document.getElementById('moduleLargeur')?.value)   || 1134) / 1000;
+            const dispF = document.getElementById('moduleOrientation')?.value ?? 'paysage';
+            // Dimension du module dans la direction perpendiculaire au faîte du shed
+            const modHaut = (dispF === 'portrait') ? modL : modW;
+            const hShed   = modHaut * Math.sin(beta);  // hauteur de l'ombre projetée
+            const lat     = (typeof map !== 'undefined' && map) ? map.getCenter().lat : 46.0;
+            const sunElev = Math.max(5, lat - 23.45);  // élévation solaire au 21 déc. (°)
+            const dShadow = hShed / Math.tan(sunElev * Math.PI / 180);
+            return Math.max(50, Math.ceil((dShadow * 100) / 5) * 5);  // arrondi 5 cm sup., min 50 cm
+        }
+
+        /**
+         * Met à jour la visibilité des champs de pose et recalcule les inter-rangées shed.
+         * Appelé lors du changement de profil ou d'inclinaison shed.
+         */
+        function updatePoseParams() {
+            const profil = document.getElementById('poseProfil')?.value ?? 'toiture_pente';
+            const isFlat = profil.startsWith('toiture_plate');
+            const isShed = profil === 'toiture_plate_shed';
+            const show   = (id, vis) => { const el = document.getElementById(id); if (el) el.style.display = vis ? '' : 'none'; };
+
+            show('shedInclinCol', isShed);
+            show('shedDistCol',   isShed);
+            show('reculPlatCol',  isFlat);
+            show('reculPenteDiv', !isFlat);
+
+            let summary = '';
+            if (isShed) {
+                const d     = calcShedInterRangees();
+                const el    = document.getElementById('shedDistInterRangees');
+                if (el) el.value = d;
+                const beta  = parseFloat(document.getElementById('shedInclinaison')?.value) || 20;
+                const lat   = (typeof map !== 'undefined' && map) ? map.getCenter().lat.toFixed(1) : '46.0';
+                const sunEl = Math.max(5, lat - 23.45).toFixed(1);
+                const rp    = document.getElementById('reculPerim')?.value || 100;
+                const info  = document.getElementById('poseParamsInfo');
+                if (info) info.innerHTML = `☀️ Shed <strong>${beta}°</strong> | Lat <strong>${lat}°</strong> | ` +
+                    `Soleil 21 déc. ≈ <strong>${sunEl}°</strong> | Inter-rangées : <strong>${d} cm</strong> (ombre nulle)` +
+                    ` | Recul pér. <strong>${rp} cm</strong>`;
+                summary = `Shed ${beta}° — inter-rangées ${d} cm — recul pér. ${rp} cm`;
+            } else if (isFlat) {
+                const info = document.getElementById('poseParamsInfo');
+                if (info) info.innerHTML = '';
+                const rp = document.getElementById('reculPerim')?.value || 100;
+                summary  = `Toiture plate (à plat) — recul pér. ${rp} cm`;
+            } else {
+                const info = document.getElementById('poseParamsInfo');
+                if (info) info.innerHTML = '';
+                const rg = document.getElementById('reculGouttiere')?.value || 30;
+                const rf = document.getElementById('reculFaitage')?.value   || 50;
+                const rp = document.getElementById('reculPignon')?.value    || 20;
+                summary  = `Toiture inclinée — GR ${rg} · FR ${rf} · LP ${rp} cm`;
+            }
+            const sumEl = document.getElementById('poseSummary');
+            if (sumEl) sumEl.textContent = summary;
+            updateAllZones();
+        }
+
         // Recalculer nombre de modules
         function recalculerZone(zone) {
-            const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
-            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+            const moduleLongueur  = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+            const moduleLargeur   = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
             const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
-            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
-            
-            // PAYSAGE: module couché - longueur (grande dim) est horizontale
-            // PORTRAIT: module debout - largeur (petite dim) est horizontale
+
             let moduleHorizontal, moduleVertical;
             if (zone.moduleOrientation === 'paysage') {
                 moduleHorizontal = moduleLongueur;
-                moduleVertical = moduleLargeur;
+                moduleVertical   = moduleLargeur;
             } else {
                 moduleHorizontal = moduleLargeur;
-                moduleVertical = moduleLongueur;
+                moduleVertical   = moduleLongueur;
             }
-            
-            const nbCols = Math.floor(zone.largeurMetres / (moduleHorizontal + espacement));
-            const nbRows = Math.floor(zone.longueurMetres / (moduleVertical + espacement));
+
+            // Appliquer reculs et espacement selon le profil de pose
+            const pose    = getPoseParams();
+            const effLarg = Math.max(0, zone.largeurMetres  - pose.reculGauche - pose.reculDroite);
+            const effLong = Math.max(0, zone.longueurMetres - pose.reculBas    - pose.reculHaut);
+            const nbCols  = Math.floor(effLarg / (moduleHorizontal + pose.spacingH));
+            const nbRows  = Math.floor(effLong / (moduleVertical   + pose.spacingV));
             const nbModules = nbCols * nbRows;
             const puissanceKw = (nbModules * modulePuissance) / 1000;
             
@@ -4438,34 +4611,33 @@
 
         // Dessiner les modules dans une zone (correction distorsion)
         function dessinerModulesDansZone(zone) {
-            // Supprimer l'ancien groupe de modules s'il existe
-            if (zone.moduleGroup) {
-                map.removeLayer(zone.moduleGroup);
-            }
-            
+            if (zone.moduleGroup) map.removeLayer(zone.moduleGroup);
+
             const moduleLongueur = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
-            const moduleLargeur = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
-            const espacement = parseFloat(document.getElementById('moduleEspacement').value) / 100;
-            
-            // PAYSAGE: module couché - longueur module (grande dim) = horizontal
-            // PORTRAIT: module debout - largeur module (petite dim) = horizontal
+            const moduleLargeur  = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+
             let moduleHorizontal, moduleVertical;
             if (zone.moduleOrientation === 'paysage') {
                 moduleHorizontal = moduleLongueur;
-                moduleVertical = moduleLargeur;
+                moduleVertical   = moduleLargeur;
             } else {
                 moduleHorizontal = moduleLargeur;
-                moduleVertical = moduleLongueur;
+                moduleVertical   = moduleLongueur;
             }
-            
+
+            // Reculs et espacements selon profil de pose
+            const pose    = getPoseParams();
+            const effLarg = Math.max(0, zone.largeurMetres  - pose.reculGauche - pose.reculDroite);
+            const effLong = Math.max(0, zone.longueurMetres - pose.reculBas    - pose.reculHaut);
+
             const bounds = zone.layer.getBounds();
             const sw = bounds.getSouthWest();
             const ne = bounds.getNorthEast();
             const center = bounds.getCenter();
-            
+
             // Calculer nombre de modules
-            const nbCols = Math.floor(zone.largeurMetres / (moduleHorizontal + espacement));
-            const nbRows = Math.floor(zone.longueurMetres / (moduleVertical + espacement));
+            const nbCols = Math.floor(effLarg / (moduleHorizontal + pose.spacingH));
+            const nbRows = Math.floor(effLong / (moduleVertical   + pose.spacingV));
             
             const moduleGroup = L.layerGroup();
             
@@ -4492,15 +4664,15 @@
             // Calculer les coins de chaque module en coordonnées métriques relatives au centre
             const allModuleCorners = [];
             
-            // Coin SW du champ en mètres relatifs au centre
-            const fieldStartX = -(zone.largeurMetres / 2);
-            const fieldStartY = -(zone.longueurMetres / 2);
-            
+            // Coin de départ (SW + reculs) en mètres relatifs au centre de la zone
+            const fieldStartX = -(zone.largeurMetres / 2) + pose.reculGauche;
+            const fieldStartY = -(zone.longueurMetres / 2) + pose.reculBas;
+
             for (let row = 0; row < nbRows; row++) {
                 for (let col = 0; col < nbCols; col++) {
                     // Position du module en mètres relatifs au centre du champ
-                    const modX = fieldStartX + (col * (moduleHorizontal + espacement));
-                    const modY = fieldStartY + (row * (moduleVertical + espacement));
+                    const modX = fieldStartX + (col * (moduleHorizontal + pose.spacingH));
+                    const modY = fieldStartY + (row * (moduleVertical   + pose.spacingV));
                     
                     // Les 4 coins du module en mètres
                     const cornersMeters = [
@@ -7928,9 +8100,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             alert(`⚠️ Aucun pan dans la plage ${irrMin}–${irrMax} kWh/m²/an. Ajustez les seuils.`);
                             return;
                         }
-                        const _esp = parseFloat(document.getElementById('moduleEspacement').value) / 100;
-                        const _mWh = dispF === 'paysage' ? _modL : _modW;
-                        const _mVh = dispF === 'paysage' ? _modW : _modL;
+                        const _poseB = getPoseParams();
+                        const _mWh   = dispF === 'paysage' ? _modL : _modW;
+                        const _mVh   = dispF === 'paysage' ? _modW : _modL;
                         let totalKwAccum = 0;
                         eligibleSegs.forEach((seg, i) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
@@ -7942,8 +8114,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             zoneLayer.addTo(drawnItems);
                             const largeurM  = map.distance([sw.lat, sw.lon], [sw.lat, ne.lon]);
                             const longueurM = map.distance([sw.lat, sw.lon], [ne.lat, sw.lon]);
-                            const nbCols    = Math.floor(largeurM  / (_mWh + _esp));
-                            const nbRows    = Math.floor(longueurM / (_mVh + _esp));
+                            const effLargB  = Math.max(0, largeurM  - _poseB.reculGauche - _poseB.reculDroite);
+                            const effLongB  = Math.max(0, longueurM - _poseB.reculBas    - _poseB.reculHaut);
+                            const nbCols    = Math.floor(effLargB / (_mWh + _poseB.spacingH));
+                            const nbRows    = Math.floor(effLongB / (_mVh + _poseB.spacingV));
                             const nbModules = nbCols * nbRows;
                             const puissKw   = (nbModules * modPuissF) / 1000;
                             const zone = {
