@@ -2193,6 +2193,10 @@ class Calpinage3DViewer {
         
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        mesh.userData = {
+            isMainBuilding: neighborIdx === null,
+            originalHeight: bh
+        };
         this.scene.add(mesh);
         this.buildings.push(mesh);
 
@@ -4105,6 +4109,24 @@ class Calpinage3DViewer {
         const wallH     = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
         const roofType  = this._mainBldgRoofType ?? 'tuile';
 
+        // ── Ajustement de la hauteur des murs du bâtiment principal ───────────────
+        // Si les murs (BD TOPO) sont plus hauts que le toit Google Solar, on les réduit
+        let minSolarHeight = Infinity;
+        for (const seg of segments) {
+            if (seg.height_m != null) {
+                // height_m est la hauteur au centre du pan. On prend une marge pour le bas du pan.
+                minSolarHeight = Math.min(minSolarHeight, seg.height_m - 1.0);
+            }
+        }
+        if (minSolarHeight !== Infinity && minSolarHeight > 0) {
+            const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
+            if (mainMesh && mainMesh.userData.originalHeight > minSolarHeight) {
+                const scaleY = minSolarHeight / mainMesh.userData.originalHeight;
+                mainMesh.scale.y = scaleY;
+                console.log(`📉 Ajustement hauteur murs: ${mainMesh.userData.originalHeight.toFixed(1)}m -> ${minSolarHeight.toFixed(1)}m (scale: ${scaleY.toFixed(2)})`);
+            }
+        }
+
         // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
         // IMPORTANT : NE PAS utiliser bldgCenter comme origine, c'est this.centerLon/Lat
         const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
@@ -4141,7 +4163,7 @@ class Calpinage3DViewer {
 
             // ── 4 coins GPS de la bbox + buffer 0.25 m (supprime les lacunes faîtage) ──
             const BUF = 0.25 / this.LAT_TO_M; // ~0.25 m en degrés lat
-            const BUFL = BUF * (this.LAT_TO_M / LNG_TO_M);
+            const BUFL = BUF * (this.LAT_TO_M / this.LNG_TO_M);
             const gpsCornersRaw = [
                 { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_sw.lon - BUFL },
                 { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_ne.lon + BUFL },
