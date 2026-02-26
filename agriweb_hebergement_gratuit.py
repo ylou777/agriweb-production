@@ -2501,13 +2501,22 @@ def api_solar_flux_heatmap():
                 print(f'  [flux-heatmap] PIL/pyproj tags failed: {_e}')
             return None
 
-        _tiff_bbox = _bbox_from_tiff(_raw['flux'])
+        # Priorité : mask (référence officielle du sample Google) → flux → JSON API
+        # Le mask est co-enregistré avec tous les layers et sert de référence géo
+        _tiff_bbox = None
+        if _raw.get('mask'):
+            _tiff_bbox = _bbox_from_tiff(_raw['mask'])
+            if _tiff_bbox:
+                print(f'  [flux-heatmap] ✅ bbox depuis MASK GeoTIFF (référence Google)')
+        if not _tiff_bbox:
+            _tiff_bbox = _bbox_from_tiff(_raw['flux'])
+            if _tiff_bbox:
+                print(f'  [flux-heatmap] ✅ bbox depuis FLUX GeoTIFF (fallback)')
         if _tiff_bbox:
             bbox_north = _tiff_bbox['north']
             bbox_south = _tiff_bbox['south']
             bbox_east  = _tiff_bbox['east']
             bbox_west  = _tiff_bbox['west']
-            print(f'  [flux-heatmap] ✅ bbox depuis GeoTIFF natif (précis)')
         else:
             bbox_north = bbox_north_api
             bbox_south = bbox_south_api
