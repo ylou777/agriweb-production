@@ -6492,13 +6492,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
                     _prevMapView = null;
                 }
-                // Restaurer le fond de carte précédent
-                if (_prevTileLayer && typeof map !== 'undefined' && map &&
-                    typeof tileLayerGoogle !== 'undefined') {
-                    map.removeLayer(tileLayerGoogle);
-                    if (!map.hasLayer(_prevTileLayer)) _prevTileLayer.addTo(map);
-                    _prevTileLayer = null;
-                }
                 if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
                 return;
             }
@@ -6750,25 +6743,23 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 const b = data.bbox;
                 let _flux2DRgbOverlay = null;
-                // ── Basculer vers Google Satellite pour alignement parfait avec la heatmap ──
-                if (typeof map !== 'undefined' && map && !(viewer3D?.isActive) &&
-                    typeof tileLayerGoogle !== 'undefined' && !map.hasLayer(tileLayerGoogle)) {
-                    // Identifier quelle couche est active
-                    const _candidates = [tileLayerSatellite, tileLayerOSM];
-                    for (const _l of _candidates) {
-                        if (_l && map.hasLayer(_l)) { _prevTileLayer = _l; break; }
-                    }
-                    if (_prevTileLayer) map.removeLayer(_prevTileLayer);
-                    tileLayerGoogle.addTo(map);
-                }
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                    // ⚠️ On n'affiche PAS le RGB overlay en 2D :
-                    //   • Le fond Google Satellite (même source) sert de référence
-                    //   • L'overlay RGB opaque créait un rectangle satellite parasite
-                    // Seule la heatmap RGBA (alpha=0 hors bâtiment) est affichée.
+                    // Fond RGB Solar API (même GeoTIFF que le flux → co-enregistrement parfait).
+                    // C'est la seule façon d'avoir heatmap + satellite parfaitement alignés :
+                    // on remplace les tuiles de fond par l'image Solar pour la zone du bâtiment.
+                    if (data.rgb_base64) {
+                        _flux2DRgbOverlay = L.imageOverlay(
+                            data.rgb_base64,
+                            [[b.south, b.west], [b.north, b.east]],
+                            { opacity: 1.0, interactive: false, zIndex: 200 }
+                        ).addTo(map);
+                        _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
+                    }
+                    // Heatmap RGBA semi-transparente par-dessus (alpha=0 hors bâtiment)
                     _flux2DOverlay = L.imageOverlay(
-                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.85, interactive: false, zIndex: 201 }
+                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.82, interactive: false, zIndex: 201 }
                     ).addTo(map);
+                    if (_flux2DRgbOverlay) _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
                     // Centrer et zoomer sur l'étendue de l'image Solar
                     _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
                     map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [20, 20], animate: true });

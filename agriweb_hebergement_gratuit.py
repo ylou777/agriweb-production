@@ -2685,23 +2685,26 @@ def api_solar_flux_heatmap():
         img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
 
         # ── Image RGB co-enregistrée (même prise de vue que le flux) ─────────────
-        # → affichée comme fond aligné parfaitement sous la heatmap
+        # → fond parfaitement aligné sous la heatmap (même GeoTIFF origin)
+        # Crop EXACT proportionnel au flux (pas de ±1 qui crée de la dérive).
         _rgb_b64 = None
         if _rgb_content:
             try:
                 img_rgb = PILImage.open(io.BytesIO(_rgb_content)).convert('RGB')
                 arr_rgb = np.array(img_rgb)
-                # Même crop que le flux (rmin/rmax/cmin/cmax calculés plus haut)
+                # Même crop fractionnel que le flux, sans offset ±1
                 if rows_any.any() and cols_any.any():
-                    # Adapter le crop si le RGB a une résolution différente du flux
                     rH, rW = arr_rgb.shape[:2]
-                    _rmin = max(0, int(rmin * rH / H) - 1)
-                    _rmax = min(rH - 1, int((rmax + 1) * rH / H) + 1)
-                    _cmin = max(0, int(cmin * rW / W) - 1)
-                    _cmax = min(rW - 1, int((cmax + 1) * rW / W) + 1)
-                    arr_rgb = arr_rgb[_rmin:_rmax + 1, _cmin:_cmax + 1]
+                    # Ratios fractionnels exacts → même bbox_out que la heatmap
+                    _rmin_f = rmin / H;  _rmax_f = (rmax + 1) / H
+                    _cmin_f = cmin / W;  _cmax_f = (cmax + 1) / W
+                    _rmin_r = max(0,      int(round(_rmin_f * rH)))
+                    _rmax_r = min(rH - 1, int(round(_rmax_f * rH)))
+                    _cmin_r = max(0,      int(round(_cmin_f * rW)))
+                    _cmax_r = min(rW - 1, int(round(_cmax_f * rW)))
+                    arr_rgb = arr_rgb[_rmin_r:_rmax_r + 1, _cmin_r:_cmax_r + 1]
                 buf_rgb = io.BytesIO()
-                PILImage.fromarray(arr_rgb, 'RGB').save(buf_rgb, format='JPEG', quality=82)
+                PILImage.fromarray(arr_rgb, 'RGB').save(buf_rgb, format='JPEG', quality=85)
                 _rgb_b64 = 'data:image/jpeg;base64,' + base64.b64encode(buf_rgb.getvalue()).decode('utf-8')
                 print(f'  [flux-heatmap] rgb: {arr_rgb.shape[1]}x{arr_rgb.shape[0]}px JPEG')
             except Exception as e:
