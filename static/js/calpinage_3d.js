@@ -6004,16 +6004,20 @@ class Calpinage3DViewer {
         // Priorité 3 : roofPanelsInfo (RANSAC)
         // Priorité 4 : fallback brut
         const ds       = data.dsm_stats;
+
+        // Sanity check DSM : les GeoTIFF mal décodés (byte-order) donnent des valeurs 1e30+
+        const _dsmOk = v => v != null && isFinite(v) && v > 0 && v < 500;
+
         const terrainH = this._mainBldgTerrainH
                       ?? this.roofPanelsInfo?.buildingTerrainH
                       ?? this._getTerrainHeight(cx, cz)
                       ?? 0;
         const wallH    = this._mainBldgBh
                       ?? this.roofPanelsInfo?.buildingWallH
-                      ?? (ds?.height_egout_m ?? 6);
+                      ?? (_dsmOk(ds?.height_egout_m) ? ds.height_egout_m : 6);
         // ridge = hauteur du faîtage AU-DESSUS de l'égout (ou roofPanelsInfo)
-        const ridgeH   = ds?.height_faitage_m != null
-                      ? Math.max(0, ds.height_faitage_m - (ds.height_egout_m ?? wallH))
+        const ridgeH   = (_dsmOk(ds?.height_faitage_m) && _dsmOk(ds?.height_egout_m))
+                      ? Math.max(0, ds.height_faitage_m - ds.height_egout_m)
                       : (this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0);
         const planeY   = terrainH + wallH + ridgeH + 0.5;
         console.log(`📐 showFluxHeatmap planeY=${planeY.toFixed(2)}  (terrainH=${terrainH.toFixed(2)} wallH=${wallH.toFixed(2)} ridgeH=${ridgeH.toFixed(2)})`);

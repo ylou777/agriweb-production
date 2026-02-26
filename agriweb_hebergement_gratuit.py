@@ -2912,7 +2912,8 @@ def api_solar_flux_heatmap():
                     dsm_resized = np.array(_pil_dsm, dtype=np.float32)
                 else:
                     dsm_resized = dsm_arr_raw
-                _dsm_bld = dsm_resized[valid_mask & np.isfinite(dsm_resized) & (dsm_resized > 0)]
+                # Filtre plage altitude raisonnable (France 0−9000m) — élimine overflows résiduels
+                _dsm_bld = dsm_resized[valid_mask & np.isfinite(dsm_resized) & (dsm_resized > 0) & (dsm_resized < 9000)]
                 if len(_dsm_bld) > 10:
                     # Estimation sol = p5 du DSM sur l'empreinte (pixels de rive bas)
                     _ground = float(np.percentile(_dsm_bld, 5))
