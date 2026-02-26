@@ -2184,6 +2184,14 @@ def api_solar_dsm_roof():
         if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
         if flux_arr is not None and flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
 
+        # Grille de coordonnées géographiques pour chaque pixel (centre de pixel)
+        lat_to_m = 111320.0
+        lng_to_m = 111320.0 * math.cos(math.radians(lat))
+        rows_idx = np.arange(H)
+        cols_idx = np.arange(W)
+        lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
+        lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
+
         lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
         x_grid = (lon_grid - lon) * lng_to_m
         y_grid = (lat_grid - lat) * lat_to_m
@@ -2216,16 +2224,16 @@ def api_solar_dsm_roof():
 
         # ── 5. Normaliser z → MNH ────────────────────────────────────────────
         z_bld = dsm_arr[bld_mask]; x_bld = x_grid[bld_mask]; y_bld = y_grid[bld_mask]
-        # Baseline = p5 du DSM région (terrain autour du bâtiment)
-        # NoData Google Solar DSM = 0 → exclure
-        valid_all = (dsm_arr > 0) & np.isfinite(dsm_arr)
-        if not valid_all.any():
-            valid_all = np.isfinite(dsm_arr)
-        if not valid_all.any():
-            valid_all = np.ones(dsm_arr.shape, dtype=bool)
-        z_baseline = float(np.percentile(dsm_arr[valid_all], 5))
+        # Baseline = p5 des pixels BÂTIMENT uniquement (≈ altitude avant-toit/égout).
+        # Cohérent avec le pipeline COPC qui fait pareil sur les pts LiDAR classe 6.
+        # NE PAS utiliser le p5 de toute l'image (terrain) : z_mnh_égout serait
+        # ≈ 2×wall_h au lieu de ≈wall_h, ce qui fait flotter le toit 3D en l'air.
+        z_bld_finite = z_bld[np.isfinite(z_bld) & (z_bld > 0)]
+        if len(z_bld_finite) == 0:
+            z_bld_finite = z_bld[np.isfinite(z_bld)]
+        z_baseline = float(np.percentile(z_bld_finite if len(z_bld_finite) > 0 else z_bld, 5))
         z_mnh = (z_bld - z_baseline + wall_h).tolist()
-        print(f"  📏 DSM MNH: baseline={z_baseline:.1f}m + wall_h={wall_h:.1f}m → [{min(z_mnh):.1f},{max(z_mnh):.1f}]m, {nb_pts} px")
+        print(f"  📏 DSM MNH: baseline_bld={z_baseline:.1f}m + wall_h={wall_h:.1f}m → [{min(z_mnh):.1f},{max(z_mnh):.1f}]m, {nb_pts} px")
 
         # ── 6. RANSAC multi-plans ─────────────────────────────────────────────
         roof_planes = _segment_roof_planes_ransac(

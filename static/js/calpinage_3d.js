@@ -4240,16 +4240,27 @@ class Calpinage3DViewer {
 
             if (positions.length < 9) continue;   // < 3 sommets
 
-            // Triangulation en éventail (valide pour convex hull)
-            const indices = [];
-            const n = expandedPoly.length;
-            for (let i = 1; i < n - 1; i++) indices.push(0, i, i + 1);
-            if (indices.length < 3) continue;
+            // Triangulation earcut (ShapeUtils) — robuste pour tout polygone
+            // Le fan-triangulation ne fonctionne que pour les polygones convexes
+            // parfaitement ordonnés ; earcut gère toute forme correctement.
+            let flatIndices;
+            try {
+                const shapeVerts2D = expandedPoly.map(([ex, ey]) => new THREE.Vector2(ex, ey));
+                const tris = THREE.ShapeUtils.triangulateShape(shapeVerts2D, []);
+                // tris = [[a,b,c], ...]
+                flatIndices = tris.reduce((acc, t) => { acc.push(...t); return acc; }, []);
+            } catch (_) {
+                // Fallback éventail
+                flatIndices = [];
+                for (let i = 1; i < expandedPoly.length - 1; i++) flatIndices.push(0, i, i + 1);
+            }
+            if (flatIndices.length < 3) continue;
+            const indices = flatIndices;
 
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geo.setAttribute('uv',       new THREE.Float32BufferAttribute(uvs, 2));
-            geo.setIndex(indices);
+            geo.setIndex(flatIndices);
             geo.computeVertexNormals();
 
             const mat = roofMat.clone();
