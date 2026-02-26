@@ -8372,74 +8372,30 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
                     if (solarPanels.length > 0 && panelsOk.length > 0) {
                         // ── CAS A : positions individuelles GPS disponibles ────────────────
-                        // Grouper par PAN = même azimuth (±15°) ET même inclinaison (±5°)
-                        // → évite les dizaines de bandes créées par la sur-segmentation Google Solar
-                        const byPan = new Map();
+                        // Grouper par segmentIndex Google Solar (un segment = un pan)
+                        const bySegment = new Map();
                         panelsOk.forEach(p => {
-                            const seg  = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === p.seg_idx);
-                            const az   = segAzimuth.get(p.seg_idx) ?? 180;
-                            const pit  = seg?.pitch_deg ?? 15;
-                            // Clé de fusion : azimuth arrondi à 15°, inclinaison arrondie à 5°
-                            const key  = `${Math.round(az / 15) * 15}_${Math.round(pit / 5) * 5}`;
-                            if (!byPan.has(key)) byPan.set(key, { panels: [], segIdxs: new Set(), az, pit });
-                            byPan.get(key).panels.push(p);
-                            byPan.get(key).segIdxs.add(p.seg_idx);
+                            if (!bySegment.has(p.seg_idx)) bySegment.set(p.seg_idx, []);
+                            bySegment.get(p.seg_idx).push(p);
                         });
-                        console.log(`🗂️ [CAS A] ${panelsOk.length} panneaux → ${byPan.size} pan(s) fusionnés (était ${new Set(panelsOk.map(p=>p.seg_idx)).size} segs Google Solar)`);
 
                         let zoneNum = 0;
                         let totalKwAccum = 0;
-                        const poseA = getPoseParams();  // reculs + spacingV pour le CAS A
+                        const poseA = getPoseParams();
 
-                        byPan.forEach(({ panels, segIdxs, az, pit }, panKey) => {
+                        bySegment.forEach((panels, segIdx) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
-                            // segIdx représentatif (premier) pour lookup
-                            const segIdx = [...segIdxs][0];
+                            const az  = segAzimuth.get(segIdx) ?? 180;
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
+                            const pit = seg?.pitch_deg ?? 15;
 
-                            // ── Application des reculs par projection sur l'axe pente + perpendiculaire ────
-                            // Azimuth = direction vers laquelle la toiture fait face (goutière en bas)
-                            // proj_d > 0  =  vers la goutière (bas de pente)
-                            // proj_d < 0  =  vers le faîte (haut de pente)
-                            // proj_p      =  direction perpendiculaire aux pignons
-                            const az_rad = az * Math.PI / 180;
-                            const meanLat = panels.reduce((s, p) => s + p.lat, 0) / panels.length;
-                            const meanLon = panels.reduce((s, p) => s + p.lon, 0) / panels.length;
-                            const cosLat  = Math.cos(meanLat * Math.PI / 180);
-
-                            const projD = panels.map(p => {
-                                const dx_m = (p.lon - meanLon) * 111320 * cosLat;
-                                const dy_m = (p.lat - meanLat) * 111320;
-                                // composante le long de l'azimuth (downslope positif)
-                                return dx_m * Math.sin(az_rad) + dy_m * Math.cos(az_rad);
-                            });
-                            const projP = panels.map(p => {
-                                const dx_m = (p.lon - meanLon) * 111320 * cosLat;
-                                const dy_m = (p.lat - meanLat) * 111320;
-                                // composante perpendiculaire (pignon)
-                                return dx_m * Math.cos(az_rad) - dy_m * Math.sin(az_rad);
-                            });
-                            const minD = Math.min(...projD), maxD = Math.max(...projD);
-                            const minP = Math.min(...projP), maxP = Math.max(...projP);
-
-                            const panelsFiltered = panels.filter((p, i) =>
-                                projD[i] > minD + poseA.reculHaut   &&  // recul faîtage
-                                projD[i] < maxD - poseA.reculBas    &&  // recul goutière
-                                projP[i] > minP + poseA.reculGauche &&  // recul pignon gauche
-                                projP[i] < maxP - poseA.reculDroite     // recul pignon droit
-                            );
-                            console.log(`📏 [Seg ${segIdx}] azimuth=${az}° | ` +
-                                `reculs GR=${poseA.reculBas*100}cm FR=${poseA.reculHaut*100}cm P=${poseA.reculGauche*100}cm | ` +
-                                `${panels.length} → ${panelsFiltered.length} panneaux (${panels.length - panelsFiltered.length} exclus par reculs)`);
-                            if (panelsFiltered.length === 0) return; // segment entièrement exclu
-
-                            // Bounding box des centres pour le layer zone (panels filtrés)
+                            // Bounding box des panneaux du segment
                             let minLat=Infinity,maxLat=-Infinity,minLon=Infinity,maxLon=-Infinity;
-                            panelsFiltered.forEach(p => {
+                            panels.forEach(p => {
                                 minLat=Math.min(minLat,p.lat); maxLat=Math.max(maxLat,p.lat);
                                 minLon=Math.min(minLon,p.lon); maxLon=Math.max(maxLon,p.lon);
                             });
-                            const buf = 0.00003; // ~3m buffer
+                            const buf = 0.00003;
                             const zoneBounds = L.latLngBounds(
                                 [minLat - buf, minLon - buf], [maxLat + buf, maxLon + buf]
                             );
@@ -8451,32 +8407,84 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
                             const largeurM  = map.distance([minLat, minLon], [minLat, maxLon]);
                             const longueurM = map.distance([minLat, minLon], [maxLat, minLon]);
+
+                            zoneNum++;
+
+                            // ── Toiture PLATE (pit < 4°) : grille régulière ──────────────────
+                            if (pit < 4) {
+                                const effLargP = Math.max(0, largeurM  - poseA.reculGauche - poseA.reculDroite);
+                                const effLongP = Math.max(0, longueurM - poseA.reculBas    - poseA.reculHaut);
+                                const _mWp = dispF === 'paysage' ? _modL : _modW;
+                                const _mVp = dispF === 'paysage' ? _modW : _modL;
+                                const nbCols = Math.floor(effLargP / (_mWp + poseA.spacingH));
+                                const nbRows = Math.floor(effLongP / (_mVp + poseA.spacingV));
+                                const nbModules = nbCols * nbRows;
+                                const puissKw   = (nbModules * modPuissF) / 1000;
+                                const zone = {
+                                    id: zoneLayer._leaflet_id, numero: zoneNum, layer: zoneLayer,
+                                    surfaceM2: largeurM * longueurM,
+                                    nbModules, nbCols, nbRows, puissanceKw: puissKw,
+                                    orientation: az, inclinaison: pit, rotationAngle: 0,
+                                    productible: 0, moduleOrientation: dispF,
+                                    largeurMetres: largeurM, longueurMetres: longueurM,
+                                    typeInstallation: 'toiture', modulesPositions: [],
+                                    panToiture: `Pan ${zoneNum} plat (${pit}° — ${nbModules} mod.)`,
+                                    _fromSolarPanels: true,
+                                };
+                                zones.push(zone);
+                                dessinerModulesDansZone(zone);
+                                afficherZone(zone);
+                                calculerProductibleZone(zone.id);
+                                totalKwAccum += puissKw;
+                                console.log(`🏠 [Seg ${segIdx}] PLAT pit=${pit}° → grille ${nbCols}×${nbRows}=${nbModules} mod.`);
+                                return;
+                            }
+
+                            // ── Toiture INCLINÉE (pit ≥ 4°) : positions GPS exactes + reculs azimuth ──
+                            const az_rad = az * Math.PI / 180;
+                            const meanLat = panels.reduce((s, p) => s + p.lat, 0) / panels.length;
+                            const meanLon = panels.reduce((s, p) => s + p.lon, 0) / panels.length;
+                            const cosLat  = Math.cos(meanLat * Math.PI / 180);
+
+                            const projD = panels.map(p => {
+                                const dx_m = (p.lon - meanLon) * 111320 * cosLat;
+                                const dy_m = (p.lat - meanLat) * 111320;
+                                return dx_m * Math.sin(az_rad) + dy_m * Math.cos(az_rad);
+                            });
+                            const projP = panels.map(p => {
+                                const dx_m = (p.lon - meanLon) * 111320 * cosLat;
+                                const dy_m = (p.lat - meanLat) * 111320;
+                                return dx_m * Math.cos(az_rad) - dy_m * Math.sin(az_rad);
+                            });
+                            const minD = Math.min(...projD), maxD = Math.max(...projD);
+                            const minP = Math.min(...projP), maxP = Math.max(...projP);
+
+                            const panelsFiltered = panels.filter((p, i) =>
+                                projD[i] > minD + poseA.reculHaut   &&
+                                projD[i] < maxD - poseA.reculBas    &&
+                                projP[i] > minP + poseA.reculGauche &&
+                                projP[i] < maxP - poseA.reculDroite
+                            );
+                            console.log(`📏 [Seg ${segIdx}] INCLINÉ pit=${pit}° az=${az}° | reculs GR=${poseA.reculBas*100}cm FR=${poseA.reculHaut*100}cm P=${poseA.reculGauche*100}cm | ${panels.length} → ${panelsFiltered.length} panneaux`);
+                            if (panelsFiltered.length === 0) return;
+
                             const nbModules = panelsFiltered.length;
                             const puissKw   = (nbModules * modPuissF) / 1000;
 
-                            zoneNum++;
                             const zone = {
-                                id: zoneLayer._leaflet_id,
-                                numero: zoneNum,
-                                layer: zoneLayer,
+                                id: zoneLayer._leaflet_id, numero: zoneNum, layer: zoneLayer,
                                 surfaceM2: largeurM * longueurM,
                                 nbModules, nbCols: nbModules, nbRows: 1,
                                 puissanceKw: puissKw,
-                                orientation: az,
-                                inclinaison: pit,
-                                rotationAngle: az,
-                                productible: 0,
-                                moduleOrientation: dispF,
-                                largeurMetres: largeurM,
-                                longueurMetres: longueurM,
-                                typeInstallation: 'toiture',
-                                modulesPositions: [],
-                                panToiture: `Pan ${zoneNum} (az ${az}° inc ${pit}° — ${nbModules} mod.)`,
+                                orientation: az, inclinaison: pit, rotationAngle: az,
+                                productible: 0, moduleOrientation: dispF,
+                                largeurMetres: largeurM, longueurMetres: longueurM,
+                                typeInstallation: 'toiture', modulesPositions: [],
+                                panToiture: `Pan ${zoneNum} (az ${az}° ${pit}° — ${nbModules} mod.)`,
                                 _fromSolarPanels: true,
                             };
                             zones.push(zone);
 
-                            // Dessiner chaque module à sa position GPS exacte
                             const moduleGroup = L.layerGroup();
                             panelsFiltered.forEach(p => {
                                 const azP     = segAzimuth.get(p.seg_idx) ?? az;
@@ -8492,7 +8500,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                     corners: corners.map(c => ({lat:c.lat, lng:c.lng}))
                                 });
                             });
-                            // Contour de zone
                             const outline = L.rectangle(zoneBounds, {
                                 color:'#ff7800', weight:2, fillOpacity:0, dashArray:'5,5', interactive:false
                             });
