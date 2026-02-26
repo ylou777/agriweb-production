@@ -1087,6 +1087,7 @@
         }
         
         let allProspects = [];
+        const isAdmin = {{ is_admin | tojson }};
         let filteredProspects = [];
         let currentPage = 1;
         const prospectsPerPage = 50; // Afficher 50 prospects par page
@@ -1911,9 +1912,10 @@
                             <button class="btn btn-warning action-btn" onclick="window.open('/crm/autoconso-collective/${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border: none; color: white;">
                                 <i class="bi bi-lightning-charge-fill"></i> Autoconso Collective
                             </button>
+                            ${isAdmin ? `
                             <button class="btn btn-warning action-btn" onclick="window.open('/ao-pv-batiment?prospect_id=${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #e05000 100%); border: none; color: white;">
-                                <i class="bi bi-sun-fill"></i> AO PV Bâtiment
-                            </button>
+                                <i class="bi bi-sun-fill"></i> AO PV B\u00e2timent
+                            </button>` : ''}
                             <button class="btn btn-warning action-btn" onclick="window.open('/chantier/${prospect.id}', '_blank'); event.stopPropagation();" style="background: linear-gradient(135deg, #f7971e 0%, #c0392b 100%); border: none; color: white;">
                                 <i class="bi bi-hammer"></i> Suivi Chantier
                             </button>
