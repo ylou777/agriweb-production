@@ -6663,6 +6663,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             if (_fluxActive) {
                 _fluxActive = false;
                 _syncFluxBtns(false, false);
+                window._fluxRoofSegments = null; // Nettoyer les pans à la fermeture
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
@@ -6793,6 +6794,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 const data = await resp.json();
                 _fluxActive = true;
                 _syncFluxBtns(true, false);
+                // Sauvegarder les pans pour le remplissage auto irradiation
+                window._fluxRoofSegments = data.roof_segments || [];
                 // Légende — color_min/color_max = plage colorimétrique réelle
                 if (legend) {
                     legend.style.display = 'block';
@@ -7617,13 +7620,94 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
          * 4. Quand on revient en 2D, les zones sont projetées sur la carte
          */
         function autoRemplissageToiture() {
-            // ─── MODE 2D : fallback si LiDAR 3D non disponible ──────────────────────
+            // ─── Pas de LiDAR 3D → fallback 2D ──────────────────────────────────────
             if (!viewer3D || !viewer3D.roofPanelsInfo || !viewer3D.roofPanelsInfo.panels.length) {
-                if (!zones || zones.length === 0) {
-                    alert('⚠️ Dessinez d\'abord des zones PV sur la carte, ou lancez l\'analyse LiDAR 3D pour le remplissage automatique.');
+
+                // ── MODE IRRADIATION : Google Solar roof_segments avec GPS ────────
+                const fluxSegs = window._fluxRoofSegments;
+                if (fluxSegs && fluxSegs.length > 0 && fluxSegs.some(s => s.seg_sw && s.seg_ne)) {
+                    const irrMin    = parseFloat(document.getElementById('fluxIrrMin')?.value)  || 0;
+                    const irrMaxRaw = document.getElementById('fluxIrrMax')?.value;
+                    const irrMax    = irrMaxRaw && irrMaxRaw.trim() !== '' ? parseFloat(irrMaxRaw) : Infinity;
+                    const targetKw  = parseFloat(document.getElementById('fluxTargetKw')?.value) || 0;
+                    const modPuissF = parseFloat(document.getElementById('modulePuissance').value) || 0;
+                    const dispF     = document.getElementById('moduleOrientation').value;
+
+                    const eligible = fluxSegs.filter(s =>
+                        s.seg_sw && s.seg_ne &&
+                        (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) >= irrMin &&
+                        (s.irr_med_kwh ?? s.irr_max_kwh ?? 0) <= irrMax
+                    );
+
+                    if (eligible.length === 0) {
+                        alert(`⚠️ Aucun pan de toiture dans la plage d'irradiance ${irrMin}–${irrMax} kWh/m²/an.\nAjustez les seuils ou rechargez la carte d'irradiation.`);
+                        return;
+                    }
+
+                    // Supprimer les anciennes zones
+                    zones.forEach(z => {
+                        if (z.moduleGroup) map.removeLayer(z.moduleGroup);
+                        if (z.layer) map.removeLayer(z.layer);
+                    });
+                    zones = [];
+                    document.getElementById('zonesList').innerHTML = '';
+
+                    let totalKwAccum = 0;
+                    eligible.forEach((seg, i) => {
+                        if (targetKw > 0 && totalKwAccum >= targetKw) return;
+                        const sw = seg.seg_sw, ne = seg.seg_ne;
+                        const zoneBounds = L.latLngBounds([sw.lat, sw.lon], [ne.lat, ne.lon]);
+                        const zoneLayer = L.rectangle(zoneBounds, {
+                            color: '#ff7800', weight: 2, fillOpacity: 0.05,
+                            dashArray: '5,5', interactive: true
+                        });
+                        zoneLayer.addTo(drawnItems);
+                        const largeurM  = map.distance([sw.lat, sw.lon], [sw.lat, ne.lon]);
+                        const longueurM = map.distance([sw.lat, sw.lon], [ne.lat, sw.lon]);
+                        const zone = {
+                            id: zoneLayer._leaflet_id,
+                            numero: i + 1,
+                            layer: zoneLayer,
+                            surfaceM2: largeurM * longueurM,
+                            nbModules: 0, nbCols: 0, nbRows: 0, puissanceKw: 0,
+                            orientation: seg.azimuth_deg ?? 180,
+                            inclinaison: seg.pitch_deg  ?? 15,
+                            rotationAngle: 0,
+                            productible: 0,
+                            moduleOrientation: dispF,
+                            largeurMetres: largeurM,
+                            longueurMetres: longueurM,
+                            typeInstallation: 'toiture',
+                            modulesPositions: [],
+                            panToiture: `Pan ${i+1} (${seg.orientation ?? ''} ${seg.pitch_deg != null ? seg.pitch_deg+'°' : ''})`,
+                            _fromFluxSegment: true,
+                        };
+                        zones.push(zone);
+                        recalculerZone(zone);
+                        dessinerModulesDansZone(zone);
+                        calculerProductibleZone(zone.id);
+                        totalKwAccum += zone.puissanceKw || 0;
+                    });
+                    calculerTotaux();
+                    const totalModsF = zones.reduce((s, z) => s + (z.nbModules || 0), 0);
+                    const totalKwcF  = (totalModsF * modPuissF / 1000).toFixed(2);
+                    const toastF = document.createElement('div');
+                    toastF.className = 'alert alert-success';
+                    toastF.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
+                    toastF.innerHTML = `<i class="fas fa-bolt me-2"></i><strong>⚡ Remplissage irradiation (${eligible.length} pan${eligible.length>1?'s':''}) :</strong><br>` +
+                        zones.map(z => `• ${z.panToiture} : ${z.nbModules} modules (${z.nbCols||'-'}×${z.nbRows||'-'})`).join('<br>') +
+                        `<br><strong>${totalModsF} modules — ${totalKwcF} kWc</strong>`;
+                    document.body.appendChild(toastF);
+                    setTimeout(() => { toastF.style.opacity='0'; toastF.style.transition='opacity 0.5s'; setTimeout(()=>toastF.remove(),500); }, 8000);
+                    console.log(`✅ Remplissage irradiation: ${totalModsF} modules, ${totalKwcF} kWc sur ${eligible.length} pan(s)`);
                     return;
                 }
-                // Remplir chaque zone existante avec des modules (mode 2D)
+
+                // ── MODE 2D : zones dessinées manuellement ────────────────────────
+                if (!zones || zones.length === 0) {
+                    alert('⚠️ Dessinez d\'abord des zones PV sur la carte, activez la carte d\'irradiation, ou lancez l\'analyse LiDAR 3D.');
+                    return;
+                }
                 console.log(`⚡ Remplissage auto 2D: ${zones.length} zone(s) dessinée(s)`);
                 zones.forEach(zone => {
                     recalculerZone(zone);
@@ -7631,7 +7715,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     calculerProductibleZone(zone.id);
                 });
                 calculerTotaux();
-                // Toast de confirmation
                 const totalMods2D = zones.reduce((s, z) => s + (z.nbModules || 0), 0);
                 const modPuissance2D = parseFloat(document.getElementById('modulePuissance').value) || 0;
                 const totalKwc2D = (totalMods2D * modPuissance2D / 1000).toFixed(2);
@@ -7639,10 +7722,10 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 toast2D.className = 'alert alert-success';
                 toast2D.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
                 toast2D.innerHTML = `<i class="fas fa-bolt me-2"></i><strong>⚡ Remplissage auto 2D :</strong><br>` +
-                    zones.map(z => `• Zone ${z.numero} : ${z.nbModules} modules (${z.nbCols || '-'}×${z.nbRows || '-'})`).join('<br>') +
+                    zones.map(z => `• Zone ${z.numero} : ${z.nbModules} modules (${z.nbCols||'-'}×${z.nbRows||'-'})`).join('<br>') +
                     `<br><strong>${totalMods2D} modules — ${totalKwc2D} kWc</strong>`;
                 document.body.appendChild(toast2D);
-                setTimeout(() => { toast2D.style.opacity = '0'; toast2D.style.transition = 'opacity 0.5s'; setTimeout(() => toast2D.remove(), 500); }, 6000);
+                setTimeout(() => { toast2D.style.opacity='0'; toast2D.style.transition='opacity 0.5s'; setTimeout(()=>toast2D.remove(),500); }, 6000);
                 console.log(`✅ Remplissage auto 2D terminé: ${totalMods2D} modules, ${totalKwc2D} kWc`);
                 return;
             }
