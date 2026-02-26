@@ -6893,9 +6893,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 buildingCenterGeo:   prevInfo.buildingCenterGeo   || { lat: viewer3D.centerLat, lng: viewer3D.centerLon },
             };
 
-            if (viewer3D.roofPanelsInfo.buildingOBB && typeof viewer3D.rebuildRoofFromGoogleSolar === 'function') {
-                viewer3D.rebuildRoofFromGoogleSolar(dominant, secondary, roofType);
-            }
+            // rebuildRoofFromGoogleSolar supprimé : applySolarRoofFromInsights() gère déjà le toit
+            // via toggleFluxHeatmap → pas de second toit paramétrique OBB par-dessus
 
             ajusterZonesDepuisToiture3D();
             updateRoofPanelsInfoPanel();
