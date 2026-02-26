@@ -7632,6 +7632,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     const targetKw  = parseFloat(document.getElementById('fluxTargetKw')?.value) || 0;
                     const modPuissF = parseFloat(document.getElementById('modulePuissance').value) || 0;
                     const dispF     = document.getElementById('moduleOrientation').value;
+                    // Lire les dimensions une seule fois
+                    const _modL = parseFloat(document.getElementById('moduleLongueur').value) / 1000;
+                    const _modW = parseFloat(document.getElementById('moduleLargeur').value) / 1000;
+                    const _esp  = parseFloat(document.getElementById('moduleEspacement').value) / 100;
+                    const _modH = dispF === 'paysage' ? _modL : _modW; // dimension horizontale
+                    const _modV = dispF === 'paysage' ? _modW : _modL; // dimension verticale
 
                     const eligible = fluxSegs.filter(s =>
                         s.seg_sw && s.seg_ne &&
@@ -7664,12 +7670,19 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         zoneLayer.addTo(drawnItems);
                         const largeurM  = map.distance([sw.lat, sw.lon], [sw.lat, ne.lon]);
                         const longueurM = map.distance([sw.lat, sw.lon], [ne.lat, sw.lon]);
+
+                        // Calcul inline (afficherZone n'a pas encore été appelé → pas de DOM)
+                        const nbCols    = Math.floor(largeurM  / (_modH + _esp));
+                        const nbRows    = Math.floor(longueurM / (_modV + _esp));
+                        const nbModules = nbCols * nbRows;
+                        const puissKw   = (nbModules * modPuissF) / 1000;
+
                         const zone = {
                             id: zoneLayer._leaflet_id,
                             numero: i + 1,
                             layer: zoneLayer,
                             surfaceM2: largeurM * longueurM,
-                            nbModules: 0, nbCols: 0, nbRows: 0, puissanceKw: 0,
+                            nbModules, nbCols, nbRows, puissanceKw: puissKw,
                             orientation: seg.azimuth_deg ?? 180,
                             inclinaison: seg.pitch_deg  ?? 15,
                             rotationAngle: 0,
@@ -7683,9 +7696,9 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             _fromFluxSegment: true,
                         };
                         zones.push(zone);
-                        recalculerZone(zone);
-                        dessinerModulesDansZone(zone);
-                        calculerProductibleZone(zone.id);
+                        dessinerModulesDansZone(zone); // dessine les modules sur la carte
+                        afficherZone(zone);            // crée la fiche zone dans le DOM
+                        calculerProductibleZone(zone.id); // maintenant le DOM existe
                         totalKwAccum += zone.puissanceKw || 0;
                     });
                     calculerTotaux();
