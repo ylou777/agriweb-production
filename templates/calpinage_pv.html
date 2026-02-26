@@ -6356,16 +6356,11 @@
          * Appelée au chargement de la vue 3D — aucune interaction requise.
          */
         async function _autoSolarRoofPlanes(lat, lon) {
-            if (!viewer3D || !viewer3D.isActive) return;
-            if (!viewer3D.lidarData) { console.warn('⚠ Auto roof-planes: skip (LiDAR non chargé)'); return; }
-
-            // Si la heatmap Solar est déjà affichée avec ses quads correct,
-            // ne pas lancer la reconstruction DSM/RANSAC qui écraserait tout.
-            if (typeof _fluxActive !== 'undefined' && _fluxActive
-                && viewer3D._solarRoofMeshes?.length > 0) {
-                console.log('ℹ️ _autoSolarRoofPlanes: heatmap Solar active → skip reconstruction toit');
-                return;
-            }
+            // Désactivé : la reconstruction de toit via DSM/RANSAC n'est plus utilisée.
+            // Le toit est fourni exclusivement par applySolarRoofFromInsights()
+            // lors du chargement de la heatmap (toggleFluxHeatmap).
+            console.log('ℹ️ _autoSolarRoofPlanes: désactivé — Solar heatmap gère le toit');
+            return;
 
             const wall_h         = viewer3D.lidarData?.buildings_bdtopo?.[0]?.hauteur || 6.0;
             const buildingCoords = viewer3D.pvBuildingCoords || [];
