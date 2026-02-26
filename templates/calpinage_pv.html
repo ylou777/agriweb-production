@@ -977,14 +977,12 @@
                 {% endif %}
             </div>
 
-        <!-- Colonne droite : Zones et calculs -->
-        <div class="calp-right">
-                <!-- Panneau irradiance solaire (affiché quand la heatmap est active) -->
-                <div id="fluxLegendPanel" style="display:none;
-                     position:fixed; bottom:0; left:0; right:0; width:100%; z-index:650;
-                     background:rgba(15,15,25,0.97); border-radius:14px 14px 0 0;
-                     padding:12px 20px 16px; border-top:1px solid rgba(255,255,255,0.18);
-                     max-height:72vh; overflow-y:auto; box-shadow:0 -4px 24px rgba(0,0,0,0.5);">
+            <!-- Panneau irradiance solaire (affiché quand la heatmap est active) — sous la carte, dans la colonne gauche -->
+            <div id="fluxLegendPanel" style="display:none;
+                 width:100%; margin-top:12px;
+                 background:rgba(15,15,25,0.97); border-radius:12px;
+                 padding:12px 20px 16px; border:1px solid rgba(255,255,255,0.15);
+                 box-shadow:0 4px 18px rgba(0,0,0,0.45);">
                     <!-- En-tête avec poignée de drag + bouton fermer -->
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <strong style="color:#fff;font-size:0.85rem;">🌡️ Irradiance annuelle (kWh/m²/an)
@@ -1067,7 +1065,11 @@
                         </table>
                         </div>
                     </div>
-                </div>
+            </div><!-- /fluxLegendPanel -->
+        </div><!-- /calp-left -->
+
+        <!-- Colonne droite : Zones et calculs -->
+        <div class="calp-right">
 
                 <!-- Statistiques globales -->
                 <div class="stats-card">
