@@ -7538,6 +7538,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                         cv.getContext('2d').drawImage(_pipImg, 0, 0);
                         _fluxCanvas = cv;
                         console.log(`🔍 Pipette canvas ready: ${cv.width}×${cv.height}px`);
+                        // Redessiner toutes les zones avec le filtre irradiation maintenant actif
+                        updateAllZones();
                     };
                     _pipImg.crossOrigin = 'anonymous';
                     _pipImg.src = imgSrc;
