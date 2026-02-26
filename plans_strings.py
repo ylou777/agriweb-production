@@ -26,6 +26,15 @@ class PlansStrings:
         self.module_longueur = float(self.module.get('longueur', 2.278))  # m
         self.module_largeur = float(self.module.get('largeur', 1.134))  # m
         
+        # FIX #1b: paramètres électriques onduleur depuis configuration sauvegardée
+        # (peuplés lors de la génération du schéma unifilaire)
+        self.onduleur_v_min = float(self.config_elec.get('onduleur_v_min', 150))
+        self.onduleur_v_max = float(self.config_elec.get('onduleur_v_max', 1000))
+        self.strings_par_zone_saved = self.config_elec.get('strings_par_zone', {})
+        
+        # FIX #4/1b: coeff température réel du module (défaut PERC: -0.27 %/°C)
+        self.coeff_temp_voc = float(self.module.get('coeff_temp_voc', -0.27))
+        
         # Distance DC champ → onduleur (en mètres)
         self.distance_dc_onduleur = float(self.distances.get('dc_strings', 25.0))
         
@@ -247,24 +256,38 @@ class PlansStrings:
         nb_cols = zone.get('nbCols', 1)
         nb_rows = zone.get('nbRows', 1)
         
-        # Configuration série optimale (10-20 modules par string)
-        modules_par_string = 20  # Standard
+        # FIX #1c: si le schéma unifilaire a déjà calculé les strings, les réutiliser
+        zone_key = str(zone.get('numero', ''))
+        if zone_key in self.strings_par_zone_saved:
+            saved = self.strings_par_zone_saved[zone_key]
+            nb_serie_optimal = int(saved.get('nb_serie', 20))
+        else:
+            # FIX #1c: calcul NF C 15-712 correct avec coeff_temp_voc réel
+            v_oc  = float(self.module.get('voc',  49.5))
+            v_mpp = float(self.module.get('vmpp', 41.8))
+            T_min, T_max, T_STC = -10.0, 70.0, 25.0
+            coeff = self.coeff_temp_voc  # %/°C (négatif)
+            v_oc_max  = v_oc  * (1.0 + coeff / 100.0 * (T_min - T_STC))
+            v_mpp_min = v_mpp * (1.0 + coeff / 100.0 * (T_max - T_STC))
+            # Limites onduleur depuis configuration_electrique (FIX #1c)
+            nb_serie_max = int(self.onduleur_v_max / v_oc_max)
+            nb_serie_min = math.ceil(self.onduleur_v_min / max(v_mpp_min, 1))
+            nb_serie_optimal = min(nb_serie_max, max(nb_serie_min, 20))  # standard 20 modules
         
-        # Ajuster selon tension max onduleur (1000V DC max)
-        v_oc = float(self.module.get('voc', 49.5))
-        max_modules_series = int(1000 / v_oc * 0.9)  # Marge sécurité 10%
-        modules_par_string = min(modules_par_string, max_modules_series)
+        # FIX #2: nb_modules réel (peut différer de nb_cols * nb_rows — filtres géométriques)
+        nb_modules = max(1, nb_modules)
+        nb_serie_optimal = min(nb_serie_optimal, nb_modules) if nb_modules < nb_serie_optimal else nb_serie_optimal
         
         # Nombre de strings
-        nb_strings = math.ceil(nb_modules / modules_par_string)
+        nb_strings = math.ceil(nb_modules / nb_serie_optimal)
         
-        # Ajuster pour distribution équilibrée
+        # Distribution équilibrée
         modules_par_string = math.ceil(nb_modules / nb_strings)
         
         # Créer configuration strings avec ordre optimisé pour câblage
         strings = []
         
-        # Créer un parcours en serpentin pour minimiser longueur câbles
+        # Parcours en serpentin sur la grille réelle (nb_rows x nb_cols, nb_modules éléments)
         module_order = self._calculer_parcours_serpentin(nb_rows, nb_cols, nb_modules)
         
         modules_restants = nb_modules
@@ -276,14 +299,13 @@ class PlansStrings:
             # Récupérer les indices des modules pour ce string dans l'ordre optimisé
             module_indices = module_order[start_idx:start_idx + nb_mod_string]
             
-            # Calculer tension et courant
-            v_oc_string = v_oc * nb_mod_string
+            # Calculer tension et courant (NF C 15-712)
+            v_oc_string  = float(self.module.get('voc',  49.5)) * nb_mod_string
             v_mpp_string = float(self.module.get('vmpp', 41.8)) * nb_mod_string
-            i_sc_string = float(self.module.get('isc', 13.9))
+            i_sc_string  = float(self.module.get('isc',  13.9))
             i_mpp_string = float(self.module.get('impp', 13.2))
             
-            # Calculer longueur de câble pour ce string (en mètres)
-            # Longueur intra-string (entre modules) + distance jusqu'à onduleur
+            # Longueur câble pour ce string (intra-string + distance onduleur)
             longueur_intra_string = self._calculer_longueur_cable_string(module_indices, nb_cols)
             longueur_totale_string = longueur_intra_string + self.distance_dc_onduleur
             
@@ -291,12 +313,12 @@ class PlansStrings:
                 'numero': i + 1,
                 'nb_modules': nb_mod_string,
                 'module_indices': module_indices,  # Ordre réel des modules
-                'v_oc': v_oc_string,
+                'v_oc':  v_oc_string,
                 'v_mpp': v_mpp_string,
-                'i_sc': i_sc_string,
+                'i_sc':  i_sc_string,
                 'i_mpp': i_mpp_string,
                 'longueur_cable': longueur_totale_string,
-                'longueur_intra_string': longueur_intra_string,  # Pour info
+                'longueur_intra_string': longueur_intra_string,
                 'color': self._get_string_color(i)
             })
             
@@ -435,15 +457,15 @@ class PlansStrings:
         start_x = x + (width - total_w) / 2
         start_y = y + (height - total_h) / 2
         
-        # Attribution modules aux strings selon ordre optimisé
+        # FIX #2b: attribution modules → strings sur la GRILLE COMPLÈTE (nbCols x nbRows)
+        # snake_order donne les grid_idx dans l'ordre serpentin, pour nb_modules positions
         module_to_string = {}
-        
         for string in strings_config:
             for grid_idx in string['module_indices']:
                 module_to_string[grid_idx] = string
         
-        # Dessiner chaque module dans la grille
-        for grid_idx in range(zone.get('nbModules', 0)):
+        # Dessiner chaque cellule de la grille (y compris les vides ± filtres géométriques)
+        for grid_idx in range(nb_cols * nb_rows):
             row = grid_idx // nb_cols
             col = grid_idx % nb_cols
             

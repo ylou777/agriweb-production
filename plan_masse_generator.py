@@ -181,6 +181,11 @@ class PlanMasseGenerator:
         gps_conversion = None
         if self.calpinage:
             gps_conversion = self.calpinage.get('gpsConversion')
+            # Fallback: chercher dans la première zone si non présent au niveau racine
+            if not gps_conversion and 'zones' in self.calpinage and self.calpinage['zones']:
+                gps_conversion = self.calpinage['zones'][0].get('gpsConversion')
+                if gps_conversion:
+                    print(f"[PLAN] ℹ️ gpsConversion récupéré depuis la zone 1 (fallback)")
         
         if gps_conversion and 'metersPerDegreeLat' in gps_conversion and 'metersPerDegreeLng' in gps_conversion:
             # Utiliser les facteurs de conversion PR├ëCIS du calpinage
@@ -1220,7 +1225,62 @@ class PlanMasseGenerator:
             print(f"[PLAN] 📌 GPS bbox: lat[{min_lat:.6f}, {max_lat:.6f}] lon[{min_lon:.6f}, {max_lon:.6f}]")
             
             # ========================================
-            # MÉTHODE 1: IGN Géoplateforme WMS (orthophotos françaises)
+            # MÉTHODE 1: Tuiles Google Satellite (même source que fond de carte Leaflet)
+            # → parfait alignement avec les polygones dessinés sur fond Google
+            # ========================================
+            try:
+                print(f"[PLAN] 🗺️ Tentative assemblage tuiles Google Satellite (alignement carte)...")
+                tile_img = self._fetch_satellite_from_tiles(
+                    lat, lon, width_meters, height_meters, width, height,
+                    tile_url_template="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+                )
+                if tile_img:
+                    print(f"[PLAN] ✅ Image Google Satellite assemblée — alignement carte OK")
+                    return tile_img
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Tuiles Google échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 2: ArcGIS World Imagery (fallback tuiles)
+            # ========================================
+            try:
+                print(f"[PLAN] 🌍 Tentative assemblage tuiles ArcGIS...")
+                tile_img = self._fetch_satellite_from_tiles(
+                    lat, lon, width_meters, height_meters, width, height,
+                    tile_url_template="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                )
+                if tile_img:
+                    print(f"[PLAN] ✅ Image ArcGIS assemblée")
+                    return tile_img
+            except Exception as e:
+                print(f"[PLAN] ⚠️ Tuiles ArcGIS échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 3: ArcGIS WMS Export (fallback WMS)
+            # ========================================
+            try:
+                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
+                arcgis_params = {
+                    'bbox': bbox_str,
+                    'bboxSR': '4326',
+                    'size': f'{width},{height}',
+                    'format': 'png',
+                    'f': 'image'
+                }
+                
+                print(f"[PLAN] 🌍 Tentative ArcGIS WMS Export...")
+                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
+                if response.status_code == 200:
+                    img_size_kb = len(response.content) / 1024
+                    print(f"[PLAN] ✅ Image satellite ArcGIS WMS OK ({img_size_kb:.1f} KB)")
+                    return io.BytesIO(response.content)
+                else:
+                    print(f"[PLAN] ❌ ArcGIS WMS: HTTP {response.status_code}")
+            except Exception as e:
+                print(f"[PLAN] ❌ ArcGIS WMS échoué: {e}")
+
+            # ========================================
+            # MÉTHODE 4: IGN Géoplateforme WMS (dernier recours)
             # ========================================
             try:
                 ign_url = "https://data.geopf.fr/wms-r"
@@ -1242,51 +1302,15 @@ class PlanMasseGenerator:
                 
                 if response.status_code == 200 and response.headers.get('content-type', '').startswith('image'):
                     img_size_kb = len(response.content) / 1024
-                    if img_size_kb > 5:  # Vérifier que ce n'est pas une image vide
+                    if img_size_kb > 5:
                         print(f"[PLAN] ✅ Image satellite IGN OK ({img_size_kb:.1f} KB)")
                         return io.BytesIO(response.content)
                     else:
-                        print(f"[PLAN] ⚠️ Image IGN trop petite ({img_size_kb:.1f} KB), tentative ArcGIS...")
+                        print(f"[PLAN] ⚠️ Image IGN trop petite ({img_size_kb:.1f} KB)")
                 else:
                     print(f"[PLAN] ⚠️ IGN WMS: HTTP {response.status_code}, content-type: {response.headers.get('content-type', 'N/A')}")
             except Exception as e:
                 print(f"[PLAN] ⚠️ IGN WMS échoué: {e}")
-            
-            # ========================================
-            # MÉTHODE 2: ArcGIS World Imagery (fallback)
-            # ========================================
-            try:
-                arcgis_url = "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-                arcgis_params = {
-                    'bbox': bbox_str,
-                    'bboxSR': '4326',
-                    'size': f'{width},{height}',
-                    'format': 'png',
-                    'f': 'image'
-                }
-                
-                print(f"[PLAN] 🌍 Tentative ArcGIS World Imagery...")
-                response = requests.get(arcgis_url, params=arcgis_params, timeout=15)
-                if response.status_code == 200:
-                    img_size_kb = len(response.content) / 1024
-                    print(f"[PLAN] ✅ Image satellite ArcGIS OK ({img_size_kb:.1f} KB)")
-                    return io.BytesIO(response.content)
-                else:
-                    print(f"[PLAN] ❌ ArcGIS: HTTP {response.status_code}")
-            except Exception as e:
-                print(f"[PLAN] ❌ ArcGIS échoué: {e}")
-            
-            # ========================================
-            # MÉTHODE 3: Google Maps Static API (dernier recours)
-            # ========================================
-            try:
-                # Assembler les tuiles depuis le serveur de tuiles ArcGIS (même URL que Leaflet)
-                print(f"[PLAN] 🗺️ Tentative assemblage tuiles ArcGIS...")
-                tile_img = self._fetch_satellite_from_tiles(lat, lon, width_meters, height_meters, width, height)
-                if tile_img:
-                    return tile_img
-            except Exception as e:
-                print(f"[PLAN] ❌ Assemblage tuiles échoué: {e}")
                     
         except Exception as e:
             print(f"[PLAN] ❌ Erreur téléchargement satellite: {e}")
@@ -1296,13 +1320,21 @@ class PlanMasseGenerator:
         print(f"[PLAN] ❌ TOUTES les méthodes satellite ont échoué!")
         return None
 
-    def _fetch_satellite_from_tiles(self, lat, lon, width_meters, height_meters, img_width=800, img_height=600):
+    def _fetch_satellite_from_tiles(self, lat, lon, width_meters, height_meters, img_width=800, img_height=600,
+                                       tile_url_template=None):
         """
         Assemble une image satellite à partir des tuiles XYZ (même serveur que Leaflet).
-        Utilisé en dernier recours si les API WMS/export échouent.
+        
+        Args:
+            tile_url_template: URL template avec {z}/{x}/{y} ou {z}/{y}/{x}.
+                Par défaut: Google Satellite (même fond que la carte → alignement parfait).
         """
         import math
         from PIL import Image
+        
+        # Google Satellite par défaut — même source que le fond Leaflet → alignement carte garantit
+        if tile_url_template is None:
+            tile_url_template = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
         
         # Zoom 18 pour bon compromis résolution/couverture
         zoom = 18
@@ -1339,9 +1371,12 @@ class PlanMasseGenerator:
                 tile_x = x_start + tx
                 tile_y = y_start + ty
                 
-                tile_url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{tile_y}/{tile_x}"
+                # Construire l'URL — supporte les deux conventions {z}/{y}/{x} et {z}/{x}/{y}
+                tile_url = tile_url_template.format(z=zoom, x=tile_x, y=tile_y)
                 try:
-                    r = requests.get(tile_url, timeout=5)
+                    # User-Agent nécessaire pour Google et certains serveurs
+                    headers = {'User-Agent': 'Mozilla/5.0 (compatible; AgriWeb/1.0)'}
+                    r = requests.get(tile_url, timeout=5, headers=headers)
                     if r.status_code == 200:
                         tile_img = Image.open(io.BytesIO(r.content))
                         composite.paste(tile_img, (tx * tile_size, ty * tile_size))

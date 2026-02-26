@@ -743,6 +743,8 @@
                             <label class="form-label" title="Courant au point de puissance max">Impp (A)</label>
                             <input type="number" step="0.1" class="form-control form-control-sm" id="moduleImpp" value="13.2" readonly>
                         </div>
+                        <!-- FIX #4c: coeff température Voc, utilisé pour calcul NF C 15-712 (non affiché) -->
+                        <input type="hidden" id="moduleCoeffTempVoc" value="-0.27">
                     </div>
                     <div class="row mt-2">
                         <div class="col-md-12">
@@ -1570,6 +1572,16 @@
             }
         };
         
+        // FIX #4b: coefficient température Voc selon technologie (NF C 15-712)
+        function getCoeffTempVoc(module) {
+            const tech = ((module && module.tech_cellule) || '').toLowerCase();
+            if (tech.includes('hjt'))                           return -0.20; // Meilleur coeff (hétérojonction)
+            if (tech.includes('n-topcon') || tech.includes('n-abc')) return -0.24; // N-type TOPCon / ABC
+            if (tech.includes('back contact'))                  return -0.25; // Back Contact (Low β)
+            if (tech.includes('ibc'))                           return -0.27; // IBC SunPower
+            return -0.27;  // Défaut P-PERC / Polycristallin
+        }
+
         // Fonction de chargement des spécifications module
         function loadModuleSpecs() {
             const moduleType = document.getElementById('moduleType').value;
@@ -1601,6 +1613,9 @@
             document.getElementById('moduleVmpp').value = module.vmpp;
             document.getElementById('moduleIsc').value = module.isc;
             document.getElementById('moduleImpp').value = module.impp;
+            // FIX #4c: mettre à jour le coeff température Voc selon la technologie
+            const coeffTempVoc = getCoeffTempVoc(module);
+            document.getElementById('moduleCoeffTempVoc').value = coeffTempVoc;
             
             // Verrouiller les champs pour modules prédéfinis (readOnly conserve le style)
             document.getElementById('moduleLongueur').readOnly = true;
@@ -1934,14 +1949,16 @@
             });
             
             // Contrôle de couches pour basculer entre les fonds
+            // ESRI est le fond par défaut : aligné WGS84 → cadastre correct
+            // Google s'active automatiquement avec la heatmap Google Solar
             const baseMaps = {
-                "🛰️ Satellite Google (aligné heatmap)": tileLayerGoogle,
-                "🛰️ Satellite Esri": tileLayerSatellite,
+                "🛰️ Satellite Esri (cadastre aligné)": tileLayerSatellite,
+                "🛰️ Satellite Google (heatmap auto)": tileLayerGoogle,
                 "🗺️ Carte OSM (capture)": tileLayerOSM
             };
             
-            // Google Satellite par défaut — même source que Google Solar → heatmap alignée sans overlay
-            tileLayerGoogle.addTo(map);
+            // ESRI par défaut — WGS84 précis → parcelles cadastrales alignées
+            tileLayerSatellite.addTo(map);
             
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
@@ -5304,7 +5321,9 @@
                         voc: document.getElementById('moduleVoc').value,
                         vmpp: document.getElementById('moduleVmpp').value,
                         isc: document.getElementById('moduleIsc').value,
-                        impp: document.getElementById('moduleImpp').value
+                        impp: document.getElementById('moduleImpp').value,
+                        // FIX #4c: coeff temp pour calcul NF C 15-712
+                        coeff_temp_voc: parseFloat(document.getElementById('moduleCoeffTempVoc').value || '-0.27')
                     };
                 })(),
                 typeInstallation: document.getElementById('typeInstallation').value,
@@ -5407,7 +5426,36 @@
                     dc_strings: 25,  // Défaut si pas calculé
                     ac_onduleur_tgbt: 15,
                     ac_tgbt_injection: 10
-                }
+                },
+                // 🔑 Facteurs GPS au niveau racine — utilisés par plan_masse_generator.py
+                // Calculés depuis la première zone (ou centre de la carte)
+                gpsConversion: (function() {
+                    if (zones.length > 0) {
+                        const z0 = zones[0];
+                        const b0 = z0.layer.getBounds();
+                        const sw0 = b0.getSouthWest();
+                        const ne0 = b0.getNorthEast();
+                        const rw = map.distance(sw0, [sw0.lat, ne0.lng]);
+                        const rh = map.distance(sw0, [ne0.lat, sw0.lng]);
+                        const wd = ne0.lng - sw0.lng;
+                        const hd = ne0.lat - sw0.lat;
+                        return {
+                            metersPerDegreeLng: parseFloat((wd / rw).toFixed(15)),
+                            metersPerDegreeLat: parseFloat((hd / rh).toFixed(15)),
+                            realWidthMeters: parseFloat(rw.toFixed(6)),
+                            realHeightMeters: parseFloat(rh.toFixed(6))
+                        };
+                    }
+                    // Fallback depuis le centre de la carte (si aucune zone)
+                    const center = map.getCenter();
+                    const latRad = center.lat * Math.PI / 180;
+                    const latMeters = 1 / 111320;
+                    const lngMeters = 1 / (111320 * Math.cos(latRad));
+                    return {
+                        metersPerDegreeLng: lngMeters,
+                        metersPerDegreeLat: latMeters
+                    };
+                })()
             };
         }
         
@@ -6575,6 +6623,41 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             });
         }
 
+        // Fond de tuile mémorisé avant activation de la heatmap (pour restauration)
+        let _tileBeforeHeatmap = null;
+
+        /**
+         * Bascule le fond de carte vers Google ou ESRI selon l'état de la heatmap.
+         * Google Solar est capturé depuis les tuiles Google → alignement parfait avec Google.
+         * Les données cadastrales françaises (WGS84) s'alignent mieux sur ESRI/IGN.
+         * → On utilise Google uniquement quand la heatmap est visible.
+         */
+        function _switchTileForHeatmap(activateGoogle) {
+            if (!map || !tileLayerGoogle || !tileLayerSatellite) return;
+            if (activateGoogle) {
+                if (!map.hasLayer(tileLayerGoogle)) {
+                    // Mémoriser le fond actuel
+                    _tileBeforeHeatmap = map.hasLayer(tileLayerSatellite) ? 'esri'
+                        : map.hasLayer(tileLayerOSM) ? 'osm' : 'google';
+                    map.removeLayer(tileLayerSatellite);
+                    map.removeLayer(tileLayerOSM);
+                    tileLayerGoogle.addTo(map);
+                    console.log('🛰️ [Heatmap ON] → Tuiles Google (alignées Google Solar)');
+                }
+            } else {
+                if (map.hasLayer(tileLayerGoogle) && _tileBeforeHeatmap !== 'google') {
+                    map.removeLayer(tileLayerGoogle);
+                    if (_tileBeforeHeatmap === 'osm') {
+                        tileLayerOSM.addTo(map);
+                    } else {
+                        tileLayerSatellite.addTo(map); // retour ESRI par défaut
+                    }
+                    console.log('🛰️ [Heatmap OFF] → Tuiles ESRI (cadastre aligné)');
+                    _tileBeforeHeatmap = null;
+                }
+            }
+        }
+
         async function toggleFluxHeatmap() {
             const legend = document.getElementById('fluxLegendPanel');
             if (_fluxActive) {
@@ -6589,6 +6672,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
                     _prevMapView = null;
                 }
+                // ← Retour au fond ESRI (cadastre aligné)
+                _switchTileForHeatmap(false);
                 if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
                 return;
             }
@@ -7563,11 +7648,32 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                              || parseFloat(document.getElementById('sunshineThreshold')?.value) || 0;
             const irrMaxRaw  = document.getElementById('fluxIrrMax')?.value;
             const irrMax     = irrMaxRaw && irrMaxRaw.trim() !== '' ? parseFloat(irrMaxRaw) : Infinity;
+
+            // FIX #3: calculer nb_serie_optimal pour arrondir la cible à un multiple de string complet
+            // Utilise les limites MPPT de l'onduleur sauvegardées + coeff temp réel du module (NF C 15-712)
+            let nbSerieOptimal = 20; // Standard modules en série
+            try {
+                const modVoc   = parseFloat(document.getElementById('moduleVoc').value   || 49.5);
+                const modVmpp  = parseFloat(document.getElementById('moduleVmpp').value  || 41.8);
+                const modCoeff = parseFloat(document.getElementById('moduleCoeffTempVoc').value || -0.27);
+                const T_min = -10, T_max = 70, T_STC = 25;
+                const vocMax  = modVoc  * (1.0 + modCoeff / 100 * (T_min - T_STC));
+                const vmppMin = modVmpp * (1.0 + modCoeff / 100 * (T_max - T_STC));
+                // Plage MPPT - depuis la config électrique sauvegardée si disponible
+                const vMpptMin = window.electricConfig?.onduleur_v_min || 140;
+                const vMpptMax = window.electricConfig?.onduleur_v_max || 1000;
+                const nbSerieMax = Math.floor(vMpptMax / vocMax);
+                const nbSerieMin = Math.ceil(vMpptMin / Math.max(vmppMin, 1));
+                nbSerieOptimal = Math.min(nbSerieMax, Math.max(nbSerieMin, 10));
+                console.log(`⚡ Calcul strings: nb_serie=${nbSerieOptimal} (max=${nbSerieMax} min=${nbSerieMin}, Voc_max=${vocMax.toFixed(1)}V, Vmpp_min=${vmppMin.toFixed(1)}V)`);
+            } catch(e) { console.warn('❓ Calcul nb_serie_optimal:', e); }
+
             const generatedZones = viewer3D.autoFillRoofPanels(moduleW, moduleL, espacement, disposition, null, obstacleRects, {
                 maxPowerKw:          targetKw > 0 ? targetKw : Infinity,
                 sunshineThresholdH:  irrMin,
                 sunshineThresholdMax: irrMax,
                 modulePowerW:        modulePuissance,
+                nbSerieOptimal:      nbSerieOptimal,  // FIX #3
             });
             
             if (!generatedZones || generatedZones.length === 0) {
@@ -7612,6 +7718,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     [minLat, minLng], [maxLat, minLng]
                 );
                 
+                // FIX #6: calculer la config string préliminaire pour cette zone
+                const nb_strings_zone = Math.ceil(gz.nbModules / nbSerieOptimal);
+                const nb_serie_reel   = Math.floor(gz.nbModules / Math.max(nb_strings_zone, 1));
+                const modVoc_val  = parseFloat(document.getElementById('moduleVoc').value  || 49.5);
+                const modVmpp_val = parseFloat(document.getElementById('moduleVmpp').value || 41.8);
+
                 // Créer l'objet zone
                 const zone = {
                     id: zoneLayer._leaflet_id,
@@ -7633,7 +7745,12 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     modulesPositions: gz.modulesPositions,
                     panToiture: gz.panelName,
                     ajuste3D: true,
-                    _autoFilled3D: true // Marker pour savoir que c'est un remplissage auto
+                    _autoFilled3D: true, // Marker pour savoir que c'est un remplissage auto
+                    // FIX #6: config string préliminaire (NF C 15-712)
+                    nb_strings:   nb_strings_zone,
+                    nb_serie:     nb_serie_reel,
+                    v_string_voc:  +(nb_serie_reel * modVoc_val).toFixed(1),
+                    v_string_vmpp: +(nb_serie_reel * modVmpp_val).toFixed(1),
                 };
                 
                 zones.push(zone);

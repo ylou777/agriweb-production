@@ -86,14 +86,28 @@ class SchemaUnifilaire:
         
         if onduleurs_saved and len(onduleurs_saved) > 0:
             ond = onduleurs_saved[0]
+            # FIX #5: utiliser les valeurs v_min/v_max réelles sauvegardées (ou chercher dans ONDULEURS_DATABASE)
+            ond_v_min = ond.get('tension_min') or ond.get('v_dc_min', 150)
+            ond_v_max = ond.get('tension_max') or ond.get('v_dc_max', 1000)
+            # Si jamais les deux champs sont absents, chercher dans la DB par modèle
+            if ond_v_min == 150 and ond_v_max == 1000:
+                try:
+                    from equipements_database import ONDULEURS_DATABASE
+                    ref = next((k for k, v in ONDULEURS_DATABASE.items()
+                                if v.get('modele') == ond.get('modele')), None)
+                    if ref:
+                        ond_v_min = ONDULEURS_DATABASE[ref]['v_dc_min']
+                        ond_v_max = ONDULEURS_DATABASE[ref]['v_dc_max']
+                except Exception:
+                    pass
             self.onduleur = {
                 'marque': ond.get('marque', 'Onduleur'),
                 'modele': ond.get('modele', 'Generic'),
                 'p_ac': ond.get('puissance_ac', int(self.puissance_totale_kwc * 1000)),
                 'p_dc_max': ond.get('puissance_dc_max', int(self.puissance_totale_kwc * 1000 * 1.2)),
                 'mppt': ond.get('nb_mppt', 2),
-                'v_min': 150,
-                'v_max': 1000,
+                'v_min': ond_v_min,
+                'v_max': ond_v_max,
                 'i_max': 30,
                 'rendement': 98,
                 'type_reseau': '230V',
@@ -309,9 +323,16 @@ class SchemaUnifilaire:
             v_mpp_zone = self.module_vmpp
             v_oc_zone = self.module_voc
             
-            # Facteur température (pire cas hiver: +25% Voc, été: -15% Vmpp)
-            v_oc_max = v_oc_zone * 1.25  # Température -10°C
-            v_mpp_min = v_mpp_zone * 0.85  # Température +70°C
+            # FIX #4: correction température NF C 15-712 §7 avec coeff_temp_voc réel du module
+            # coeff_temp_voc en %/°C (négatif), ex: -0.27 %/°C pour P-PERC, -0.24 pour N-TOPCon
+            coeff_temp_v = float(self.module.get('coeff_temp_voc', -0.27))  # %/°C
+            T_min = -10.0   # °C — pire cas hiver France hors montagne (NF C 15-712 zone H1b/H2b)
+            T_max = 70.0    # °C — pire cas été (module en plein soleil)
+            T_STC = 25.0    # °C — conditions standard de test
+            # Voc monte quand T descend → v_oc_max à T_min
+            v_oc_max  = v_oc_zone  * (1.0 + coeff_temp_v / 100.0 * (T_min - T_STC))
+            # Vmpp descend quand T monte → v_mpp_min à T_max
+            v_mpp_min = v_mpp_zone * (1.0 + coeff_temp_v / 100.0 * (T_max - T_STC))
             
             # Nombre max de modules en série (limite Voc max)
             nb_serie_max = int(self.onduleur['v_max'] / v_oc_max)
@@ -638,11 +659,26 @@ class SchemaUnifilaire:
         module_puissance = float(self.module.get('puissance', 550))
         puissance_totale = nb_modules_total * module_puissance / 1000
         
+        # FIX #1a: résumé strings par zone (pour plans_strings.py)
+        strings_par_zone = {}
+        for s in self.configuration_strings:
+            key = str(s['zone'])
+            if key not in strings_par_zone:
+                strings_par_zone[key] = {'nb_serie': s['nb_modules'], 'nb_strings': 0,
+                                         'v_mpp': round(s['v_mpp'], 1), 'v_oc': round(s['v_oc'], 1)}
+            strings_par_zone[key]['nb_strings'] += 1
+
         return {
             # Données calepinage (pour validation)
             'nb_modules': nb_modules_total,
             'puissance_totale_kwc': round(puissance_totale, 2),
-            
+
+            # FIX #1a: paramètres onduleur pour plans_strings.py
+            'onduleur_v_min': self.onduleur.get('v_min', 150),
+            'onduleur_v_max': self.onduleur.get('v_max', 1000),
+            'onduleur_modele': f"{self.onduleur.get('marque','')} {self.onduleur.get('modele','')}".strip(),
+            'strings_par_zone': strings_par_zone,
+
             # Protections DC
             'sectionneur_dc': self.calibre_sectionneur_dc,
             'parafoudre_dc': 'SPD Type 2',

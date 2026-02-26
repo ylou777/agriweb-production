@@ -3081,7 +3081,8 @@ def register_crm_routes(app):
                         'marque': schema.onduleur['marque'],
                         'puissance_ac': schema.onduleur['p_ac'],
                         'puissance_dc_max': schema.onduleur['p_dc_max'],
-                        'tension_max': schema.onduleur['v_max'],
+                        'tension_min': schema.onduleur.get('v_min', 150),   # FIX #5c
+                        'tension_max': schema.onduleur.get('v_max', 1000),
                         'nb_mppt': schema.onduleur['mppt']
                     })
                 
