@@ -2052,27 +2052,25 @@ def api_solar_dsm_roof():
         dsm_url      = layers.get('dsmUrl', '')
         mask_url     = layers.get('maskUrl', '')
         flux_url     = layers.get('annualFluxUrl', '')
+        rgb_url      = layers.get('rgbUrl', '')
         pixel_size_m = float(layers.get('pixelSizeMeters', 0.5))
-        bbox         = layers.get('boundingBox', {})
-        sw           = bbox.get('sw', {}); ne = bbox.get('ne', {})
-        bbox_south   = float(sw.get('latitude',  lat - 0.001))
-        bbox_north   = float(ne.get('latitude',  lat + 0.001))
-        bbox_west    = float(sw.get('longitude', lon - 0.001))
-        bbox_east    = float(ne.get('longitude', lon + 0.001))
+        # bbox JSON = footprint bâtiment uniquement (pas l'étendue réelle du GeoTIFF)
+        # → sera remplacé par la vraie bbox lue depuis l'en-tête GeoTIFF via rasterio
+        bbox_api     = layers.get('boundingBox', {})
+        sw_api = bbox_api.get('sw', {}); ne_api = bbox_api.get('ne', {})
+        bbox_south_api = float(sw_api.get('latitude',  lat - 0.001))
+        bbox_north_api = float(ne_api.get('latitude',  lat + 0.001))
+        bbox_west_api  = float(sw_api.get('longitude', lon - 0.001))
+        bbox_east_api  = float(ne_api.get('longitude', lon + 0.001))
 
         if not dsm_url:
             return jsonify({"error": "Pas de DSM disponible pour ce point"}), 422
 
         print(f"🌍 DSM Google Solar: pixel={pixel_size_m}m, quality={quality}")
 
-        # ── 2. Télécharger DSM + mask + annualFlux + RGB en parallèle ────────
-        def _get_tiff_array(url):
-            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
-            r.raise_for_status()
-            return np.array(PILImage.open(io.BytesIO(r.content)), dtype=np.float32)
-
-        def _get_rgb_bytes(url):
-            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=30)
+        # ── 2. Télécharger DSM + mask + flux + RGB en parallèle (raw bytes) ─
+        def _dl_raw(url):
+            r = requests.get(url + f'&key={GOOGLE_SOLAR_API_KEY}', timeout=35)
             r.raise_for_status()
             return r.content
 
@@ -2082,32 +2080,110 @@ def api_solar_dsm_roof():
         if flux_url: _dl_tasks['flux'] = flux_url
         if rgb_url:  _dl_tasks['rgb']  = rgb_url
 
-        _dl_results = {}
+        _raw = {}
         with ThreadPoolExecutor(max_workers=4) as _ex:
-            _futures = {
-                k: _ex.submit(_get_tiff_array if k != 'rgb' else _get_rgb_bytes, v)
-                for k, v in _dl_tasks.items()
-            }
-            for k, f in _futures.items():
-                _dl_results[k] = f.result()  # raises on error
+            _futs = {k: _ex.submit(_dl_raw, v) for k, v in _dl_tasks.items()}
+            for k, f in _futs.items():
+                try:
+                    _raw[k] = f.result()
+                    print(f'  [dsm-roof] ✓ {k} {len(_raw[k])//1024}KB')
+                except Exception as _e:
+                    print(f'  [dsm-roof] ✗ {k} failed: {_e}')
+                    _raw[k] = None
 
-        dsm_arr      = _dl_results['dsm']
-        mask_arr     = _dl_results.get('mask')
-        flux_arr     = _dl_results.get('flux')
-        _rgb_content = _dl_results.get('rgb')  # raw bytes, processed later
-        rgb_url      = ''  # already downloaded, skip later fetch
+        if not _raw.get('dsm'):
+            return jsonify({"error": "Téléchargement DSM impossible"}), 502
+
+        # ── Lire un GeoTIFF float32 en choisissant le meilleur byte-order ──
+        # Google Solar GeoTIFFs sont big-endian float32 ; on teste les deux
+        # pour être robuste (même logique que flux-heatmap).
+        def _read_tiff_best(raw_bytes, label=''):
+            img = PILImage.open(io.BytesIO(raw_bytes))
+            w, h = img.size
+            raw = img.tobytes()
+            n_px = h * w
+            best_arr = None; best_ok = -1
+
+            def _finite_range(a):
+                v = a[np.isfinite(a) & (a != 0)]
+                return int(len(v))
+
+            # Candidat 1 : frombuffer float32 big-endian
+            try:
+                if len(raw) >= n_px * 4:
+                    a = np.frombuffer(raw[:n_px*4], dtype='>f4').astype(np.float32).reshape(h, w).copy()
+                    ok = _finite_range(a)
+                    if ok > best_ok: best_arr, best_ok = a, ok
+                    print(f'  [dsm-roof] {label} f32_be range=[{a[np.isfinite(a)].min():.1f},{a[np.isfinite(a)].max():.1f}] ok={ok}')
+            except Exception as _e: print(f'  [dsm-roof] {label} f32_be failed: {_e}')
+            # Candidat 2 : np.array direct (float32 LE)
+            try:
+                a = np.array(img, dtype=np.float32)
+                if a.ndim > 2: a = a[:, :, 0]
+                ok = _finite_range(a)
+                if ok > best_ok: best_arr, best_ok = a, ok
+                print(f'  [dsm-roof] {label} direct range=[{a[np.isfinite(a)].min():.1f},{a[np.isfinite(a)].max():.1f}] ok={ok}')
+            except Exception as _e: print(f'  [dsm-roof] {label} direct failed: {_e}')
+            # Candidat 3 : frombuffer float32 little-endian
+            try:
+                if len(raw) >= n_px * 4:
+                    a = np.frombuffer(raw[:n_px*4], dtype='<f4').reshape(h, w).copy()
+                    ok = _finite_range(a)
+                    if ok > best_ok: best_arr, best_ok = a, ok
+            except Exception: pass
+            if best_arr is None:
+                raise ValueError(f'Impossible de lire GeoTIFF {label}')
+            return best_arr
+
+        # ── Lire la vraie bbox depuis le GeoTIFF du masque (référence Google) ─
+        def _bbox_from_tiff_dsm(raw_bytes):
+            try:
+                import rasterio
+                from rasterio.io import MemoryFile
+                from rasterio.warp import transform_bounds as _tb
+                with MemoryFile(raw_bytes) as mf:
+                    with mf.open() as ds:
+                        b = ds.bounds; crs = ds.crs
+                        print(f'  [dsm-roof] rasterio CRS={crs} bounds={b}')
+                        if crs and not crs.is_geographic:
+                            west, south, east, north = _tb(crs, 'EPSG:4326',
+                                                           b.left, b.bottom, b.right, b.top)
+                        else:
+                            west, south, east, north = b.left, b.bottom, b.right, b.top
+                        if east > west and north > south and -180 < west < 180:
+                            print(f'  [dsm-roof] ✅ bbox_rasterio N={north:.6f} S={south:.6f} E={east:.6f} W={west:.6f}')
+                            return dict(north=north, south=south, east=east, west=west)
+            except ImportError:
+                print('  [dsm-roof] rasterio indisponible')
+            except Exception as _e:
+                print(f'  [dsm-roof] rasterio failed: {_e}')
+            return None
+
+        dsm_arr  = _read_tiff_best(_raw['dsm'],  'DSM')
+        mask_arr = _read_tiff_best(_raw['mask'], 'mask').astype(np.uint8) if _raw.get('mask') else None
+        flux_arr = _read_tiff_best(_raw['flux'], 'flux') if _raw.get('flux') else None
+        _rgb_content = _raw.get('rgb')
+
+        # Priorité bbox : mask → dsm → JSON API
+        _tiff_bbox = None
+        if _raw.get('mask'):
+            _tiff_bbox = _bbox_from_tiff_dsm(_raw['mask'])
+        if not _tiff_bbox:
+            _tiff_bbox = _bbox_from_tiff_dsm(_raw['dsm'])
+        if _tiff_bbox:
+            bbox_north = _tiff_bbox['north']; bbox_south = _tiff_bbox['south']
+            bbox_east  = _tiff_bbox['east'];  bbox_west  = _tiff_bbox['west']
+            print(f'  [dsm-roof] ✅ bbox depuis GeoTIFF (précis)')
+        else:
+            bbox_north = bbox_north_api; bbox_south = bbox_south_api
+            bbox_east  = bbox_east_api;  bbox_west  = bbox_west_api
+            print(f'  [dsm-roof] ⚠️ bbox JSON fallback (approx)')
 
         H, W = dsm_arr.shape[:2]
+        print(f'  [dsm-roof] DSM {H}x{W} px  bbox={bbox_north:.5f}N {bbox_south:.5f}S {bbox_east:.5f}E {bbox_west:.5f}W')
         if mask_arr is not None and mask_arr.ndim > 2: mask_arr = mask_arr[:, :, 0]
         if flux_arr is not None and flux_arr.ndim > 2: flux_arr = flux_arr[:, :, 0]
 
-        # ── 3. Coordonnées locales de chaque pixel ──────────────────────────
-        lat_to_m = 111320.0
-        lng_to_m = 111320.0 * math.cos(math.radians(lat))
-
-        rows_idx = np.arange(H); cols_idx = np.arange(W)
-        lat_pix  = bbox_north - (rows_idx + 0.5) / H * (bbox_north - bbox_south)
-        lon_pix  = bbox_west  + (cols_idx + 0.5) / W * (bbox_east  - bbox_west)
         lat_grid, lon_grid = np.meshgrid(lat_pix, lon_pix, indexing='ij')
         x_grid = (lon_grid - lon) * lng_to_m
         y_grid = (lat_grid - lat) * lat_to_m
