@@ -4305,6 +4305,7 @@ class Calpinage3DViewer {
                 sGeo.computeVertexNormals();
                 const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
                 sMesh.castShadow = false;
+                sMesh.userData = { source: 'ransac' };
                 this.scene.add(sMesh);
                 this.buildings.push(sMesh);
             }
@@ -4339,17 +4340,13 @@ class Calpinage3DViewer {
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
 
-        // Garde RANSAC : si le toit haute qualité est déjà construit, on n'écrase pas.
-        const hasRansacRoof = !!(this.lidarData?.building_hd?.roof_planes?.length > 0);
-        if (hasRansacRoof) {
-            console.log('ℹ️ Solar roof: plans RANSAC présents — buildingInsights ignoré');
-            // Mémoriser quand même le centre pour les panneaux 3D
-            this._solarBldgCenter = bldgCenter;
-            this._solarSegments   = segments;
-            return;
-        }
+        // ── Masquer les pans RANSAC existants (éviter superposition) ─────────────
+        // Ils restent dans la scène mais invisibles ; Solar data prend le dessus.
+        this.buildings.forEach(m => {
+            if (m.userData?.source === 'ransac') m.visible = false;
+        });
 
-        // ── Nettoyage des meshes précédentes ──────────────────────────────────────
+        // ── Nettoyage des meshes Solar précédentes ────────────────────────────────
         if (this._solarRoofMeshes) {
             this._solarRoofMeshes.forEach(m => {
                 this.scene.remove(m);
@@ -4363,14 +4360,14 @@ class Calpinage3DViewer {
         this._solarRoofMeshes = [];
 
         // ── Constantes de projection ──────────────────────────────────────────────
-        const LNG_TO_M  = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const terrainH  = this._mainBldgTerrainH ?? 0;
         const wallH     = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
         const roofType  = this._mainBldgRoofType ?? 'tuile';
 
-        // GPS → Three.js local (X = East, Z = -North)
-        const toX = lon => (lon - bldgCenter.lon) * LNG_TO_M;
-        const toZ = lat => -(lat - bldgCenter.lat) * this.LAT_TO_M;
+        // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
+        // IMPORTANT : NE PAS utiliser bldgCenter comme origine, c'est this.centerLon/Lat
+        const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
+        const toZ = lat => -(lat - this.centerLat) * this.LAT_TO_M;
 
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture ? this._getRoofTexture(roofType) : null,
@@ -4394,11 +4391,11 @@ class Calpinage3DViewer {
             const hC   = seg.height_m ?? (wallH + 0.5);   // hauteur au centre (IGN MNH)
 
             // Hauteur en un point local (x, z) Three.js :
-            //   projection dans la direction de la pente (azimuth = direction vers le bas)
-            //   h(x,z) = hC - [(x−cx)·sin(az) − (z−cz)·cos(az)] · tan(pitch)
+            //   h(x,z) = terrainH + hC − proj·tan(pitch)
+            //   proj = (x−cx)·sin(az) − (z−cz)·cos(az)  [dist horizontale vers le bas]
             const hAt = (x, z) => {
                 const proj = (x - cx) * Math.sin(azRad) - (z - cz) * Math.cos(azRad);
-                return terrainH + Math.max(wallH * 0.80, hC - proj * tanPitch);
+                return terrainH + hC - proj * tanPitch;
             };
 
             // ── 4 coins GPS de la bbox + buffer 0.25 m (supprime les lacunes faîtage) ──
@@ -4471,12 +4468,12 @@ class Calpinage3DViewer {
         const segs   = roofSegments ?? this._solarSegments ?? [];
         if (!solarPanels?.length || !center) return;
 
-        const LNG_TO_M = this.LAT_TO_M * Math.cos(center.lat * Math.PI / 180);
         const terrainH = this._mainBldgTerrainH ?? 0;
         const wallH    = this._mainBldgBh ?? 5;
 
-        const toX = lon => (lon - center.lon) * LNG_TO_M;
-        const toZ = lat => -(lat - center.lat) * this.LAT_TO_M;
+        // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
+        const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
+        const toZ = lat => -(lat - this.centerLat) * this.LAT_TO_M;
 
         // ── Index segments : seg_idx → hauteur-au-point ──────────────────────────
         const segMap = new Map();
@@ -4514,7 +4511,7 @@ class Calpinage3DViewer {
             let py = terrainH + wallH + 0.1; // fallback si segment inconnu
             if (info) {
                 const proj = (px - info.cx) * Math.sin(info.azRad) - (pz - info.cz) * Math.cos(info.azRad);
-                py = terrainH + Math.max(wallH * 0.80, info.hC - proj * info.tanPit) + 0.06;
+                py = terrainH + info.hC - proj * info.tanPit + 0.06;
             }
 
             // ── Couleur dégradée bleu (faible irr) → rouge (forte irr) ────────
