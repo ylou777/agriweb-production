@@ -5997,10 +5997,26 @@ class Calpinage3DViewer {
         const planeD = southZ - northZ;
         const cx = (westX  + eastX)  / 2;
         const cz = (northZ + southZ) / 2;
-        const terrainH = this.roofPanelsInfo?.buildingTerrainH       ?? this._getTerrainHeight(cx, cz);
-        const wallH    = this.roofPanelsInfo?.buildingWallH          ?? 6;
-        const ridgeH   = this.roofPanelsInfo?.hauteurFaitageRelatif  ?? 0;
-        const planeY   = terrainH + wallH + ridgeH + 0.6;
+
+        // ── Hauteur du plan heatmap ────────────────────────────────────────────
+        // Priorité 1 : terrainH + height_faitage (DSM absolu depuis terrain)
+        // Priorité 2 : _mainBldgTerrainH + _mainBldgBh  (définis lors du 3D bâtiment)
+        // Priorité 3 : roofPanelsInfo (RANSAC)
+        // Priorité 4 : fallback brut
+        const ds       = data.dsm_stats;
+        const terrainH = this._mainBldgTerrainH
+                      ?? this.roofPanelsInfo?.buildingTerrainH
+                      ?? this._getTerrainHeight(cx, cz)
+                      ?? 0;
+        const wallH    = this._mainBldgBh
+                      ?? this.roofPanelsInfo?.buildingWallH
+                      ?? (ds?.height_egout_m ?? 6);
+        // ridge = hauteur du faîtage AU-DESSUS de l'égout (ou roofPanelsInfo)
+        const ridgeH   = ds?.height_faitage_m != null
+                      ? Math.max(0, ds.height_faitage_m - (ds.height_egout_m ?? wallH))
+                      : (this.roofPanelsInfo?.hauteurFaitageRelatif ?? 0);
+        const planeY   = terrainH + wallH + ridgeH + 0.5;
+        console.log(`📐 showFluxHeatmap planeY=${planeY.toFixed(2)}  (terrainH=${terrainH.toFixed(2)} wallH=${wallH.toFixed(2)} ridgeH=${ridgeH.toFixed(2)})`);
         const loader   = new THREE.TextureLoader();
 
         // Plan RGB Solar co-enregistré (fond parfaitement aligné, légèrement en-dessous)
