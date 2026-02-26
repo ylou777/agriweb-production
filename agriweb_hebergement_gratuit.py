@@ -2445,30 +2445,46 @@ def api_solar_flux_heatmap():
         flux_arr = _read_flux_tiff(_raw['flux'])
 
         # ── Lire le géo-référencement natif du GeoTIFF (tags TIFF 33922/33550) ──
-        # La boundingBox JSON est approx ; le GeoTIFF a sa propre géométrie exacte.
-        # Tags GeoTIFF standard :
-        #   33550 = ModelPixelScaleTag  : (scale_x°/px, scale_y°/px, 0)
-        #   33922 = ModelTiepointTag    : (px_col, px_row, 0, lon, lat, 0) ...
+        # Google Solar livre ses GeoTIFF en EPSG:3857 (Web Mercator, unité = mètres).
+        # La boundingBox JSON est une approximation ; les tags TIFF sont exacts.
+        # On convertit mètres → WGS84 via pyproj si nécessaire.
         def _bbox_from_tiff(raw_bytes):
             try:
+                from pyproj import Transformer
                 _img = PILImage.open(io.BytesIO(raw_bytes))
                 tags = getattr(_img, 'tag_v2', None) or getattr(_img, 'tag', {})
                 scale = tags.get(33550)  # ModelPixelScaleTag
                 tie   = tags.get(33922)  # ModelTiepointTag
-                if scale and tie and len(scale) >= 2 and len(tie) >= 6:
-                    sx, sy = float(scale[0]), float(scale[1])
-                    # tiepoint : (col_px, row_px, 0, model_lon, model_lat, 0)
-                    tie_lon = float(tie[3]); tie_lat = float(tie[4])
-                    W_t, H_t = _img.size
-                    west  = tie_lon
-                    north = tie_lat
-                    east  = tie_lon + W_t * sx
-                    south = tie_lat - H_t * sy
-                    # Sanity check : coordinats ~ lat/lon plausibles
-                    if -180 < west < 180 and -90 < south < 90 and east > west and north > south:
-                        print(f'  [flux-heatmap] bbox_tiff: N={north:.6f} S={south:.6f} '
-                              f'E={east:.6f} W={west:.6f}')
+                print(f'  [flux-heatmap] tiff_tags scale={scale} tie={list(tie)[:6] if tie else None}')
+                if not (scale and tie and len(scale) >= 2 and len(tie) >= 6):
+                    return None
+                sx, sy = float(scale[0]), float(scale[1])
+                # tiepoint = (col_px, row_px, 0, model_x, model_y, 0)
+                mx0 = float(tie[3]); my0 = float(tie[4])
+                W_t, H_t = _img.size
+                mx_west  = mx0
+                my_north = my0
+                mx_east  = mx0 + W_t * sx
+                my_south = my0 - H_t * sy
+
+                # Cas 1 : coordonnées déjà en degrés (WGS84 direct)
+                if -180 < mx_west < 180 and -90 < my_south < 90:
+                    west, east, south, north = mx_west, mx_east, my_south, my_north
+                    print(f'  [flux-heatmap] bbox_tiff WGS84: N={north:.6f} S={south:.6f} '
+                          f'E={east:.6f} W={west:.6f}')
+                    return dict(north=north, south=south, east=east, west=west)
+
+                # Cas 2 : coordonnées en mètres (Web Mercator EPSG:3857)
+                # Sanity check : plage EPSG:3857 ≈ ±20M m H, ±6M m V
+                if abs(mx_west) < 22_000_000 and abs(my_north) < 22_000_000:
+                    tf = Transformer.from_crs('EPSG:3857', 'EPSG:4326', always_xy=True)
+                    west,  south = tf.transform(mx_west,  my_south)
+                    east,  north = tf.transform(mx_east,  my_north)
+                    print(f'  [flux-heatmap] bbox_tiff 3857→4326: N={north:.6f} S={south:.6f} '
+                          f'E={east:.6f} W={west:.6f}')
+                    if east > west and north > south and -180 < west < 180:
                         return dict(north=north, south=south, east=east, west=west)
+
             except Exception as _e:
                 print(f'  [flux-heatmap] bbox_tiff failed: {_e}')
             return None
