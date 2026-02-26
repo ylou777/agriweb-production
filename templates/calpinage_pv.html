@@ -4804,8 +4804,14 @@
                 );
             }
             
-            // Dessiner les modules (avec filtre exclusion couleur)
+            // Dessiner les modules (avec filtre exclusion couleur + filtre irradiation)
+            const _irrMin    = parseFloat(document.getElementById('fluxIrrMin')?.value) || 0;
+            const _irrMaxRaw = document.getElementById('fluxIrrMax')?.value;
+            const _irrMax    = _irrMaxRaw && _irrMaxRaw.trim() !== '' ? parseFloat(_irrMaxRaw) : Infinity;
+            const _irrFilterOn = (_fluxCanvas && _fluxBbox) && (_irrMin > 0 || _irrMax < Infinity);
+
             let _nbExcluded = 0;
+            let _nbDrawn    = 0;
             allModuleCorners.forEach(cornersMeters => {
                 // ── Exclusion par couleur (photo aérienne Solar) ─────────────────────────
                 if (_exclusionColors.length > 0 && cornersMeters._cx !== undefined) {
@@ -4817,6 +4823,16 @@
                         if (px && _colorMatchesExclusion(px[0], px[1], px[2])) { _nbExcluded++; return; }
                     }
                 }
+                // ── Filtrage irradiation pixel-précis (heatmap flux) ─────────────────────
+                if (_irrFilterOn && cornersMeters._cx !== undefined) {
+                    const cLL = metersToLatLng({x: cornersMeters._cx, y: cornersMeters._cy});
+                    const px  = _sampleCanvas(_fluxCanvas, _fluxBbox, cLL.lat, cLL.lng);
+                    if (px && px[3] >= 10) {
+                        const irrPixel = _colorToIrr(px[0], px[1], px[2]);
+                        if (irrPixel < _irrMin || irrPixel > _irrMax) { _nbExcluded++; return; }
+                    }
+                }
+                _nbDrawn++;
                 const corners = cornersMeters.map(pt => metersToLatLng(pt, true));
 
                 const modulePolygon = L.polygon(corners, {
@@ -4829,7 +4845,16 @@
                 moduleGroup.addLayer(modulePolygon);
             });
             if (_nbExcluded > 0)
-                console.log(`🚫 [Zone ${zone.numero}] ${_nbExcluded}/${allModuleCorners.length} modules exclus (coloris satellite)`);
+                console.log(`🚫 [Zone ${zone.numero}] ${_nbExcluded}/${allModuleCorners.length} modules exclus (couleur/irradiation) → ${_nbDrawn} dessinés`);
+
+            // Mettre à jour le comptage réel si le filtre irradiation est actif
+            if (_irrFilterOn && _nbDrawn !== zone.nbModules) {
+                zone.nbModules  = _nbDrawn;
+                const modulePuissance = parseFloat(document.getElementById('modulePuissance').value);
+                zone.puissanceKw = (_nbDrawn * modulePuissance) / 1000;
+                updateZoneDisplay(zone);
+                calculerTotaux();
+            }
 
             // Dessiner le contour du champ
             const fieldCorners = fieldCornersMeters.map(pt => metersToLatLng(pt, rotationAngle !== 0));
