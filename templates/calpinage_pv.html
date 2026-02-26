@@ -6463,6 +6463,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _fluxActive      = false;
         let _flux2DOverlay   = null;
         let _prevMapView     = null;  // zoom/centre avant activation heatmap
+        let _prevTileLayer   = null;  // couche fond avant activation heatmap
 
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
@@ -6490,6 +6491,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (_prevMapView && typeof map !== 'undefined' && map) {
                     map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
                     _prevMapView = null;
+                }
+                // Restaurer le fond de carte précédent
+                if (_prevTileLayer && typeof map !== 'undefined' && map &&
+                    typeof tileLayerGoogle !== 'undefined') {
+                    map.removeLayer(tileLayerGoogle);
+                    if (!map.hasLayer(_prevTileLayer)) _prevTileLayer.addTo(map);
+                    _prevTileLayer = null;
                 }
                 if (viewer3D?.isActive) viewer3D.hideFluxHeatmap();
                 return;
@@ -6742,6 +6750,17 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 const b = data.bbox;
                 let _flux2DRgbOverlay = null;
+                // ── Basculer vers Google Satellite pour alignement parfait avec la heatmap ──
+                if (typeof map !== 'undefined' && map && !(viewer3D?.isActive) &&
+                    typeof tileLayerGoogle !== 'undefined' && !map.hasLayer(tileLayerGoogle)) {
+                    // Identifier quelle couche est active
+                    const _candidates = [tileLayerSatellite, tileLayerOSM];
+                    for (const _l of _candidates) {
+                        if (_l && map.hasLayer(_l)) { _prevTileLayer = _l; break; }
+                    }
+                    if (_prevTileLayer) map.removeLayer(_prevTileLayer);
+                    tileLayerGoogle.addTo(map);
+                }
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
                     if (data.rgb_base64) {
                         // Image RGB co-enregistrée — couvre les tuiles de fond (opacity:1)
