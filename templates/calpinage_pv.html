@@ -7647,16 +7647,37 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     const _mW = dispF === 'paysage' ? _modL : _modW; // demi-largeur ×2
                     const _mH = dispF === 'paysage' ? _modW : _modL; // demi-hauteur ×2
 
-                    // Fonction coin GPS (logique computeOffset en JS pur — comme le démo Google)
-                    function _panelCorners(clat, clon, mw, mh, azDeg) {
-                        const mPerDegLat = 111320.0;
-                        const mPerDegLon = 111320.0 * Math.cos(clat * Math.PI / 180);
-                        const hw = mw / 2, hh = mh / 2;
-                        const az = azDeg * Math.PI / 180;
-                        return [[-hw,-hh],[+hw,-hh],[+hw,+hh],[-hw,+hh]].map(([x,y]) => {
-                            const xr = x * Math.cos(az) - y * Math.sin(az);
-                            const yr = x * Math.sin(az) + y * Math.cos(az);
-                            return L.latLng(clat + yr / mPerDegLat, clon + xr / mPerDegLon);
+                    // ─── computeOffset + formule EXACTE du démo Google js-solar-potential ───
+                    // Source: BuildingInsightsSection.svelte
+                    //   heading = atan2(y, x) * (180/π) + orientation + azimuth
+                    //   corner  = computeOffset(center, sqrt(x²+y²), heading)
+                    // where orientation = panel.orientation == 'PORTRAIT' ? 90 : 0
+                    function _computeOffset(lat, lng, distMeters, headingDeg) {
+                        // Formule sphérique exacte (identique à Google Maps geometryLibrary.spherical.computeOffset)
+                        const R = 6371000;
+                        const d = distMeters / R;
+                        const lat1 = lat * Math.PI / 180;
+                        const h    = headingDeg * Math.PI / 180;
+                        const lat2 = Math.asin(
+                            Math.sin(lat1) * Math.cos(d) +
+                            Math.cos(lat1) * Math.sin(d) * Math.cos(h)
+                        );
+                        const lng2 = lng * Math.PI / 180 + Math.atan2(
+                            Math.sin(h) * Math.sin(d) * Math.cos(lat1),
+                            Math.cos(d) - Math.sin(lat1) * Math.sin(lat2)
+                        );
+                        return L.latLng(lat2 * 180 / Math.PI, lng2 * 180 / Math.PI);
+                    }
+                    // panelOrientation: 'PORTRAIT' | 'LANDSCAPE'  (champ API Google)
+                    function _panelCorners(clat, clon, mw, mh, panelOrientation, azimuthDeg) {
+                        const w = mw / 2, h = mh / 2;
+                        // PORTRAIT → rotation supplémentaire +90° (comme le démo Google)
+                        const orientOffset = (panelOrientation === 'PORTRAIT') ? 90 : 0;
+                        // Coins rectangulaires centrés sur (0,0) — même ordre que le démo
+                        return [{x:+w,y:+h},{x:+w,y:-h},{x:-w,y:-h},{x:-w,y:+h}].map(({x, y}) => {
+                            const dist    = Math.sqrt(x * x + y * y);
+                            const heading = Math.atan2(y, x) * (180 / Math.PI) + orientOffset + azimuthDeg;
+                            return _computeOffset(clat, clon, dist, heading);
                         });
                     }
 
@@ -7747,7 +7768,8 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                             // Dessiner chaque module à sa position GPS exacte
                             const moduleGroup = L.layerGroup();
                             panels.forEach(p => {
-                                const corners = _panelCorners(p.lat, p.lon, _mW, _mH, az);
+                                const az      = segAzimuth.get(p.seg_idx) ?? segAzimuth.get(segIdx) ?? 180;
+                                const corners = _panelCorners(p.lat, p.lon, _mW, _mH, p.orientation, az);
                                 const poly = L.polygon(corners, {
                                     color: '#0066cc', weight: 1,
                                     fillColor: '#4d94ff', fillOpacity: 0.7,
