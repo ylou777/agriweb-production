@@ -2141,17 +2141,20 @@ class Calpinage3DViewer {
             geo.rotateX(-Math.PI / 2);
             
             // Materials: group 0 = caps (haut/bas), group 1 = murs latéraux
-            // Cap couleur toiture (sera cachée par le toit en pente)
             const wallColorMap = {
                 plaster: 0xE8DCC8, brick: 0xB5651D, stone: 0xA09080,
                 concrete: 0xB0B0B0, industrial: 0x888888, commercial: 0xD0D0D0
             };
-            // Cap : transparent - le toit en pente (OBB) le recouvre toujours
-            const capMat = new THREE.MeshLambertMaterial({
-                color: 0x666666,
-                transparent: true,
-                opacity: 0,
-                depthWrite: false,
+            // Couleur du toit plat selon matériau
+            const roofCapColorMap = {
+                tuile: 0xC8824A, ardoise: 0x708090, zinc: 0x8FA8A0,
+                metal: 0x9AAAB0, bac_acier: 0x8FA8A0, membrane: 0xB0B0A8,
+                gravier: 0xA8A090, beton: 0xB4B0A8, unknown: 0xB0A898
+            };
+            const capMat = new THREE.MeshPhongMaterial({
+                color: roofCapColorMap[roofType] || 0xB0A898,
+                specular: 0x111111,
+                shininess: roofType === 'zinc' || roofType === 'metal' ? 20 : 3,
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
