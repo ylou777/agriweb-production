@@ -6762,18 +6762,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     tileLayerGoogle.addTo(map);
                 }
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                    if (data.rgb_base64) {
-                        // Image RGB co-enregistrée — couvre les tuiles de fond (opacity:1)
-                        _flux2DRgbOverlay = L.imageOverlay(
-                            data.rgb_base64,
-                            [[b.south, b.west], [b.north, b.east]],
-                            { opacity: 1.0, interactive: false, zIndex: 200 }
-                        ).addTo(map);
-                    }
+                    // ⚠️ On n'affiche PAS le RGB overlay en 2D :
+                    //   • Le fond Google Satellite (même source) sert de référence
+                    //   • L'overlay RGB opaque créait un rectangle satellite parasite
+                    // Seule la heatmap RGBA (alpha=0 hors bâtiment) est affichée.
                     _flux2DOverlay = L.imageOverlay(
-                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.75, interactive: false, zIndex: 201 }
+                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.85, interactive: false, zIndex: 201 }
                     ).addTo(map);
-                    if (_flux2DRgbOverlay) _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
                     // Centrer et zoomer sur l'étendue de l'image Solar
                     _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
                     map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [20, 20], animate: true });
