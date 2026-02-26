@@ -7617,8 +7617,33 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
          * 4. Quand on revient en 2D, les zones sont projetées sur la carte
          */
         function autoRemplissageToiture() {
+            // ─── MODE 2D : fallback si LiDAR 3D non disponible ──────────────────────
             if (!viewer3D || !viewer3D.roofPanelsInfo || !viewer3D.roofPanelsInfo.panels.length) {
-                console.warn('autoRemplissageToiture: roofPanelsInfo non disponible ou aucun pan');
+                if (!zones || zones.length === 0) {
+                    alert('⚠️ Dessinez d\'abord des zones PV sur la carte, ou lancez l\'analyse LiDAR 3D pour le remplissage automatique.');
+                    return;
+                }
+                // Remplir chaque zone existante avec des modules (mode 2D)
+                console.log(`⚡ Remplissage auto 2D: ${zones.length} zone(s) dessinée(s)`);
+                zones.forEach(zone => {
+                    recalculerZone(zone);
+                    dessinerModulesDansZone(zone);
+                    calculerProductibleZone(zone.id);
+                });
+                calculerTotaux();
+                // Toast de confirmation
+                const totalMods2D = zones.reduce((s, z) => s + (z.nbModules || 0), 0);
+                const modPuissance2D = parseFloat(document.getElementById('modulePuissance').value) || 0;
+                const totalKwc2D = (totalMods2D * modPuissance2D / 1000).toFixed(2);
+                const toast2D = document.createElement('div');
+                toast2D.className = 'alert alert-success';
+                toast2D.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:9999;max-width:450px;animation:fadeIn 0.3s;box-shadow:0 4px 12px rgba(0,0,0,0.3);font-size:0.88rem;';
+                toast2D.innerHTML = `<i class="fas fa-bolt me-2"></i><strong>⚡ Remplissage auto 2D :</strong><br>` +
+                    zones.map(z => `• Zone ${z.numero} : ${z.nbModules} modules (${z.nbCols || '-'}×${z.nbRows || '-'})`).join('<br>') +
+                    `<br><strong>${totalMods2D} modules — ${totalKwc2D} kWc</strong>`;
+                document.body.appendChild(toast2D);
+                setTimeout(() => { toast2D.style.opacity = '0'; toast2D.style.transition = 'opacity 0.5s'; setTimeout(() => toast2D.remove(), 500); }, 6000);
+                console.log(`✅ Remplissage auto 2D terminé: ${totalMods2D} modules, ${totalKwc2D} kWc`);
                 return;
             }
             
