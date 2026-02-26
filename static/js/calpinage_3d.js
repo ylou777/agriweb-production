@@ -4182,6 +4182,13 @@ class Calpinage3DViewer {
     _buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType) {
         if (!planes || planes.length === 0) return false;
 
+        // Si Solar a déjà injecté ses quads, masquer les meshes RANSAC à la création
+        // (évite l'écrasement visuel quand LiDAR HD arrive après la heatmap Solar)
+        const _solarActive = !!(this._solarRoofMeshes?.length > 0);
+        if (_solarActive) {
+            console.log('ℹ️ _buildRoofFromPlanes: Solar actif → nouveaux meshes RANSAC créés masqués');
+        }
+
         const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
         const bldgOffsetX =  (bldgCenter.lon - this.centerLon) * LNG_TO_M;
         const bldgOffsetZ = -(bldgCenter.lat - this.centerLat) * this.LAT_TO_M;
@@ -4270,6 +4277,7 @@ class Calpinage3DViewer {
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow    = true;
             mesh.receiveShadow = true;
+            mesh.visible = !_solarActive;
             mesh.userData = {
                 planId:    plane.plane_id,
                 slopeDeg:  plane.slope_deg,
@@ -4305,7 +4313,8 @@ class Calpinage3DViewer {
                 sGeo.computeVertexNormals();
                 const sMesh = new THREE.Mesh(sGeo, roofMat.clone());
                 sMesh.castShadow = false;
-                sMesh.userData = { source: 'ransac' };
+                sMesh.visible    = !_solarActive;
+                sMesh.userData   = { source: 'ransac' };
                 this.scene.add(sMesh);
                 this.buildings.push(sMesh);
             }
