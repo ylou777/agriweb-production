@@ -4684,8 +4684,8 @@ def register_autoconso_routes(app):
 
     # ========== API LiDAR 3D pour visualisation bâtiment ==========
     
-    @app.route('/api/lidar/3d-data')
-    def api_lidar_3d_data():
+    @app.route('/api/crm/lidar/3d-data')
+    def api_lidar_3d_data_crm():
         """
         Retourne les données 3D complètes pour un point GPS :
         - Terrain heightmap (MNS-MNT via WMS GeoTIFF)
