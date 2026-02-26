@@ -1873,13 +1873,13 @@
             
             // Contrôle de couches pour basculer entre les fonds
             const baseMaps = {
-                "🛰️ Satellite Esri (recommandé)": tileLayerSatellite,
                 "🛰️ Satellite Google (aligné heatmap)": tileLayerGoogle,
+                "🛰️ Satellite Esri": tileLayerSatellite,
                 "🗺️ Carte OSM (capture)": tileLayerOSM
             };
             
-            // Ajouter Esri par défaut
-            tileLayerSatellite.addTo(map);
+            // Google Satellite par défaut — même source que Google Solar → heatmap alignée sans overlay
+            tileLayerGoogle.addTo(map);
             
             // Ajouter le contrôle de couches
             L.control.layers(baseMaps, null, {
@@ -6463,7 +6463,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _fluxActive      = false;
         let _flux2DOverlay   = null;
         let _prevMapView     = null;  // zoom/centre avant activation heatmap
-        let _prevTileLayer   = null;  // couche fond avant activation heatmap
 
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
@@ -6484,7 +6483,6 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 _syncFluxBtns(false, false);
                 if (legend) legend.style.display = 'none';
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
-                    if (_flux2DOverlay._rgbLayer) { map.removeLayer(_flux2DOverlay._rgbLayer); }
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
                 }
                 // Restaurer le zoom/centre précédent
@@ -6742,24 +6740,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     );
                 }
                 const b = data.bbox;
-                let _flux2DRgbOverlay = null;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
-                    // Fond RGB Solar API (même GeoTIFF que le flux → co-enregistrement parfait).
-                    // C'est la seule façon d'avoir heatmap + satellite parfaitement alignés :
-                    // on remplace les tuiles de fond par l'image Solar pour la zone du bâtiment.
-                    if (data.rgb_base64) {
-                        _flux2DRgbOverlay = L.imageOverlay(
-                            data.rgb_base64,
-                            [[b.south, b.west], [b.north, b.east]],
-                            { opacity: 1.0, interactive: false, zIndex: 200 }
-                        ).addTo(map);
-                        _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
-                    }
-                    // Heatmap RGBA semi-transparente par-dessus (alpha=0 hors bâtiment)
+                    // Fond = tuiles Google Satellite (même source que Solar) → alignement parfait.
+                    // Heatmap RGBA seule : alpha=0 hors bâtiment → seule la zone irradiée colorée.
                     _flux2DOverlay = L.imageOverlay(
-                        imgSrc, [[b.south, b.west], [b.north, b.east]], { opacity: 0.82, interactive: false, zIndex: 201 }
+                        imgSrc, [[b.south, b.west], [b.north, b.east]],
+                        { opacity: 0.85, interactive: false, zIndex: 201 }
                     ).addTo(map);
-                    if (_flux2DRgbOverlay) _flux2DOverlay._rgbLayer = _flux2DRgbOverlay;
                     // Centrer et zoomer sur l'étendue de l'image Solar
                     _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
                     map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [20, 20], animate: true });
