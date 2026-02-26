@@ -2444,6 +2444,49 @@ def api_solar_flux_heatmap():
             return jsonify({'error': 'Téléchargement flux annuel impossible'}), 502
         flux_arr = _read_flux_tiff(_raw['flux'])
 
+        # ── Lire le géo-référencement natif du GeoTIFF (tags TIFF 33922/33550) ──
+        # La boundingBox JSON est approx ; le GeoTIFF a sa propre géométrie exacte.
+        # Tags GeoTIFF standard :
+        #   33550 = ModelPixelScaleTag  : (scale_x°/px, scale_y°/px, 0)
+        #   33922 = ModelTiepointTag    : (px_col, px_row, 0, lon, lat, 0) ...
+        def _bbox_from_tiff(raw_bytes):
+            try:
+                _img = PILImage.open(io.BytesIO(raw_bytes))
+                tags = getattr(_img, 'tag_v2', None) or getattr(_img, 'tag', {})
+                scale = tags.get(33550)  # ModelPixelScaleTag
+                tie   = tags.get(33922)  # ModelTiepointTag
+                if scale and tie and len(scale) >= 2 and len(tie) >= 6:
+                    sx, sy = float(scale[0]), float(scale[1])
+                    # tiepoint : (col_px, row_px, 0, model_lon, model_lat, 0)
+                    tie_lon = float(tie[3]); tie_lat = float(tie[4])
+                    W_t, H_t = _img.size
+                    west  = tie_lon
+                    north = tie_lat
+                    east  = tie_lon + W_t * sx
+                    south = tie_lat - H_t * sy
+                    # Sanity check : coordinats ~ lat/lon plausibles
+                    if -180 < west < 180 and -90 < south < 90 and east > west and north > south:
+                        print(f'  [flux-heatmap] bbox_tiff: N={north:.6f} S={south:.6f} '
+                              f'E={east:.6f} W={west:.6f}')
+                        return dict(north=north, south=south, east=east, west=west)
+            except Exception as _e:
+                print(f'  [flux-heatmap] bbox_tiff failed: {_e}')
+            return None
+
+        _tiff_bbox = _bbox_from_tiff(_raw['flux'])
+        if _tiff_bbox:
+            bbox_north = _tiff_bbox['north']
+            bbox_south = _tiff_bbox['south']
+            bbox_east  = _tiff_bbox['east']
+            bbox_west  = _tiff_bbox['west']
+            print(f'  [flux-heatmap] ✅ bbox depuis GeoTIFF natif (précis)')
+        else:
+            bbox_north = bbox_north_api
+            bbox_south = bbox_south_api
+            bbox_east  = bbox_east_api
+            bbox_west  = bbox_west_api
+            print(f'  [flux-heatmap] ⚠️ bbox JSON fallback (approx)')
+
         # ── Parser masque bâtiment (0.1 m/px) ───────────────────────────────────
         mask_arr = None
         if _raw.get('mask'):
@@ -2514,10 +2557,7 @@ def api_solar_flux_heatmap():
         print(f'  [flux-heatmap] bbox_api={api_w_m:.1f}x{api_h_m:.1f}m  '
               f'HxW={H}x{W}  px_real={px_w_m:.3f}x{px_h_m:.3f}m/px  pixel_size_native={pixel_size_m}m')
 
-        bbox_north = bbox_north_api
-        bbox_south = bbox_south_api
-        bbox_east  = bbox_east_api
-        bbox_west  = bbox_west_api
+        # bbox_north/south/east/west déjà définis plus haut (tiff natif ou fallback JSON)
 
         rows_idx = np.arange(H)
         cols_idx = np.arange(W)
