@@ -976,13 +976,29 @@ class Calpinage3DViewer {
      * Construit les bâtiments 3D depuis BD TOPO et OSM
      */
     async _buildBuildings(data) {
-        // Supprimer les anciens bâtiments
+        // Préserver les meshes Solar si la heatmap est déjà active.
+        // _buildBuildings est rappelé après chaque mise à jour LiDAR/RANSAC ;
+        // sans cette protection, les quads Solar sont supprimés et remplacés
+        // par de nouveaux meshes RANSAC visibles.
+        const _solarSet = new Set([
+            ...(this._solarRoofMeshes  || []),
+            ...(this._solarPanelMeshes || []),
+        ]);
+        const _solarActive = _solarSet.size > 0;
+
+        // Supprimer les anciens bâtiments (sauf meshes Solar à préserver)
         this.buildings.forEach(b => {
+            if (_solarActive && _solarSet.has(b)) return;  // garder
             this.scene.remove(b);
             if (b.geometry) b.geometry.dispose();
             if (b.material) { if (Array.isArray(b.material)) b.material.forEach(m => m.dispose()); else b.material.dispose(); }
         });
-        this.buildings = [];
+        this.buildings = _solarActive
+            ? this.buildings.filter(b => _solarSet.has(b))
+            : [];
+        if (_solarActive) {
+            console.log(`ℹ️ _buildBuildings: Solar actif (${_solarSet.size} meshes) — conservés, RANSAC créés masqués`);
+        }
         
         const allBuildings = [];
         
