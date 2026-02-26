@@ -5135,6 +5135,10 @@
         // Mettre à jour toutes les zones quand on change les paramètres globaux
         function updateAllZones() {
             zones.forEach(zone => {
+                // Les zones CAS A (positions GPS Solar exactes) ont leurs propres règles
+                // de calpinage (par pan, reculs azimutaux) — ne pas les écraser avec
+                // la grille rectangulaire générique de dessinerModulesDansZone
+                if (zone._fromSolarPanels) return;
                 recalculerZone(zone);
                 dessinerModulesDansZone(zone);
             });
