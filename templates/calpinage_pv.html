@@ -6085,14 +6085,14 @@
             });
         }
 
-        initMap();
-        updateModulePreview();
-        updatePoseParams();  // initialiser la visibilité des champs et distances shed
-        
         // ============================================
         // INITIALISATION VIEWER 3D
         // ============================================
         let viewer3D = null;
+
+        initMap();
+        updateModulePreview();
+        updatePoseParams();  // initialiser la visibilité des champs et distances shed
         
         // Initialiser le viewer 3D avec délai pour laisser Three.js se charger
         setTimeout(() => {
