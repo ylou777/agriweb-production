@@ -845,6 +845,9 @@
                             <button class="btn btn-sm btn-light me-1" id="btnFluxHeatmap2D" onclick="toggleFluxHeatmap()" title="Carte d'irradiation solaire pixel par pixel (kWh/m²/an) — zones d'ombrage acrotères/obstacles visibles">
                                 🌡️ Irradiation
                             </button>
+                            <button class="btn btn-sm btn-secondary me-1" id="btnLayersPanel" onclick="toggleLayersPanel()" title="Gérer la visibilité des calques et exclure des zones par couleur">
+                                🗂️ Calques
+                            </button>
                             <button class="btn btn-sm btn-info me-1" id="toggleFullscreen" title="Plein écran">
                                 🔲 Plein écran
                             </button>
@@ -963,6 +966,80 @@
                     
                     <div class="card-body p-0">
                         <div id="map"></div>
+
+                        <!-- ── Panneau calques / exclusion couleur (position:fixed, ancré par JS) ── -->
+                        <div id="layersPanel" style="display:none; position:fixed; z-index:2500;
+                             background:rgba(14,14,24,0.97); border:1px solid rgba(255,255,255,0.18);
+                             border-radius:11px; padding:14px 16px; width:276px;
+                             box-shadow:0 6px 24px rgba(0,0,0,0.6); color:#fff; font-size:0.82rem;
+                             backdrop-filter:blur(6px);">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong style="font-size:0.88rem;">🗂️ Visibilité des calques</strong>
+                                <button onclick="toggleLayersPanel()" style="background:none;border:none;color:rgba(255,255,255,0.5);font-size:1.1rem;cursor:pointer;line-height:1;">✕</button>
+                            </div>
+
+                            <!-- Satellite opacity -->
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between" style="color:rgba(255,255,255,0.75);">
+                                    <label style="margin:0;">🛰️ Fond satellite</label>
+                                    <span id="lblSatOpacity" style="color:rgba(255,255,255,0.5);">100%</span>
+                                </div>
+                                <input type="range" id="sliderSatOpacity" class="form-range" min="0" max="100" value="100"
+                                       oninput="setSatelliteOpacity(this.value)">
+                            </div>
+
+                            <!-- Aerial RGB -->
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center" style="color:rgba(255,255,255,0.75);">
+                                    <label class="d-flex align-items-center gap-1" style="cursor:pointer;margin:0;">
+                                        <input type="checkbox" id="chkAerialRgb" onchange="toggleAerialOverlay(this.checked)" disabled>
+                                        📷 Photo aérienne <span style="font-size:0.68rem;color:rgba(255,255,255,0.3);">(Solar)</span>
+                                    </label>
+                                    <span id="lblAerialOpacity" style="color:rgba(255,255,255,0.35);">80%</span>
+                                </div>
+                                <input type="range" id="sliderAerialOpacity" class="form-range" min="0" max="100" value="80"
+                                       oninput="setAerialOpacity(this.value)" disabled>
+                            </div>
+
+                            <!-- Heatmap opacity -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between" style="color:rgba(255,255,255,0.75);">
+                                    <label style="margin:0;">🌡️ Heatmap irradiation</label>
+                                    <span id="lblHeatOpacity" style="color:rgba(255,255,255,0.5);">85%</span>
+                                </div>
+                                <input type="range" id="sliderHeatOpacity" class="form-range" min="0" max="100" value="85"
+                                       oninput="setHeatmapOpacity(this.value)">
+                            </div>
+
+                            <hr style="border-color:rgba(255,255,255,0.15);margin:8px 0;">
+
+                            <!-- Exclusion couleur -->
+                            <div>
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong style="font-size:0.8rem;">🚫 Zones non installables</strong>
+                                    <button id="btnExclusionPicker" class="btn btn-sm btn-outline-warning py-0 px-2"
+                                            style="font-size:0.72rem;" onclick="_toggleExclusionPicker()"
+                                            title="Activez puis cliquez sur la photo aérienne pour exclure une zone par couleur">
+                                        🎨 Pipette
+                                    </button>
+                                </div>
+                                <div style="font-size:0.72rem;color:rgba(255,255,255,0.5);margin-bottom:5px;">
+                                    Tolérance
+                                    <input type="number" id="exclusionTolerance" value="40" min="5" max="150" step="5"
+                                           class="form-control form-control-sm d-inline-block p-0 text-center ms-1"
+                                           style="width:44px;height:22px;font-size:0.72rem;vertical-align:middle;"
+                                           title="Tolérance colorimétrique (distance Euclidienne RGB, 0-255)">
+                                    <span style="color:rgba(255,255,255,0.25);">/ 255</span>
+                                </div>
+                                <div id="exclusionPickerHint" style="display:none; color:#ffe600;
+                                     font-size:0.72rem; padding:5px 7px; border-radius:5px;
+                                     background:rgba(255,230,0,0.1); margin-bottom:6px;">
+                                    📍 Cliquez sur la <strong>photo aérienne</strong> pour prélever la couleur d'un obstacle (cheminée, acrotère, trappe…)
+                                </div>
+                                <div id="exclusionColorList" style="display:flex;flex-wrap:wrap;gap:5px;min-height:22px;"></div>
+                                <div id="exclusionSummary" style="color:rgba(255,255,255,0.4);font-size:0.7rem;margin-top:5px;"></div>
+                            </div>
+                        </div>
                     </div>
                     
                     <!-- Panneau des mesures -->
@@ -4681,7 +4758,9 @@
                         {x: modX + moduleHorizontal, y: modY + moduleVertical},
                         {x: modX, y: modY + moduleVertical}
                     ];
-                    
+                    // Centre du module (pour l'exclusion couleur)
+                    cornersMeters._cx = modX + moduleHorizontal / 2;
+                    cornersMeters._cy = modY + moduleVertical   / 2;
                     allModuleCorners.push(cornersMeters);
                 }
             }
@@ -4717,10 +4796,21 @@
                 );
             }
             
-            // Dessiner les modules
+            // Dessiner les modules (avec filtre exclusion couleur)
+            let _nbExcluded = 0;
             allModuleCorners.forEach(cornersMeters => {
+                // ── Exclusion par couleur (photo aérienne Solar) ─────────────────────────
+                if (_exclusionColors.length > 0 && cornersMeters._cx !== undefined) {
+                    const canvas = _rgbCanvas ?? _fluxCanvas;
+                    const bbox   = _rgbBbox   ?? _fluxBbox;
+                    if (canvas && bbox) {
+                        const cLL = metersToLatLng({x: cornersMeters._cx, y: cornersMeters._cy});
+                        const px  = _sampleCanvas(canvas, bbox, cLL.lat, cLL.lng);
+                        if (px && _colorMatchesExclusion(px[0], px[1], px[2])) { _nbExcluded++; return; }
+                    }
+                }
                 const corners = cornersMeters.map(pt => metersToLatLng(pt, true));
-                
+
                 const modulePolygon = L.polygon(corners, {
                     color: '#0066cc',
                     weight: 1,
@@ -4730,7 +4820,9 @@
                 });
                 moduleGroup.addLayer(modulePolygon);
             });
-            
+            if (_nbExcluded > 0)
+                console.log(`🚫 [Zone ${zone.numero}] ${_nbExcluded}/${allModuleCorners.length} modules exclus (coloris satellite)`);
+
             // Dessiner le contour du champ
             const fieldCorners = fieldCornersMeters.map(pt => metersToLatLng(pt, rotationAngle !== 0));
             const zoneOutline = L.polygon(fieldCorners, {
@@ -6871,6 +6963,178 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
             tooltip.style.top     = (e.originalEvent.clientY - 32) + 'px';
         }
 
+        // ═══════════════════════════════════════════════════════════════════════
+        // CALQUES (opacité) + EXCLUSION COULEUR (pipette satellite)
+        // ═══════════════════════════════════════════════════════════════════════
+        let _rgbCanvas        = null;   // canvas caché : photo aérienne RGB (Google Solar)
+        let _rgbOverlay       = null;   // L.imageOverlay photo aérienne
+        let _rgbBbox          = null;   // bbox identique à _fluxBbox
+        let _exclusionColors  = [];     // [{r,g,b,hex}] couleurs à exclure du calepinage
+        let _exclusionPickerOn = false; // mode pipette actif
+
+        /** Ouvre/Ferme le panneau calques, le positionne sous le bouton 🗂️ */
+        function toggleLayersPanel() {
+            const panel = document.getElementById('layersPanel');
+            const btn   = document.getElementById('btnLayersPanel');
+            if (!panel) return;
+            if (panel.style.display === 'none') {
+                if (btn) {
+                    const r = btn.getBoundingClientRect();
+                    panel.style.top  = (r.bottom + 6) + 'px';
+                    panel.style.left = Math.max(4, r.right - 276) + 'px';
+                } else {
+                    panel.style.top = '80px'; panel.style.left = 'auto'; panel.style.right = '12px';
+                }
+                panel.style.display = 'block';
+            } else {
+                panel.style.display = 'none';
+            }
+        }
+
+        /** Opacité du fond de carte satellite (tile layer actif) */
+        function setSatelliteOpacity(v) {
+            const val = v / 100;
+            if (tileLayerSatellite) tileLayerSatellite.setOpacity(val);
+            if (tileLayerGoogle)    tileLayerGoogle.setOpacity(val);
+            if (tileLayerOSM)       tileLayerOSM.setOpacity(val);
+            const lbl = document.getElementById('lblSatOpacity');
+            if (lbl) lbl.textContent = v + '%';
+        }
+
+        /** Toggle affichage de l'overlay photo aérienne Solar */
+        function toggleAerialOverlay(checked) {
+            if (!_rgbOverlay || typeof map === 'undefined' || !map) return;
+            if (checked) { _rgbOverlay.addTo(map); }
+            else         { map.removeLayer(_rgbOverlay); }
+        }
+
+        /** Opacité overlay photo aérienne Solar */
+        function setAerialOpacity(v) {
+            if (_rgbOverlay) _rgbOverlay.setOpacity(v / 100);
+            const lbl = document.getElementById('lblAerialOpacity');
+            if (lbl) lbl.textContent = v + '%';
+        }
+
+        /** Opacité heatmap irradiation 2D */
+        function setHeatmapOpacity(v) {
+            if (_flux2DOverlay) _flux2DOverlay.setOpacity(v / 100);
+            const lbl = document.getElementById('lblHeatOpacity');
+            if (lbl) lbl.textContent = v + '%';
+        }
+
+        /**
+         * Prélève un pixel RGBA depuis un canvas calé sur une bbox géographique.
+         * Retourne Uint8ClampedArray [r,g,b,a] ou null si hors frame.
+         */
+        function _sampleCanvas(canvas, bbox, lat, lng) {
+            if (!canvas || !bbox) return null;
+            const W = canvas.width, H = canvas.height;
+            const px = Math.round((lng - bbox.west)  / (bbox.east  - bbox.west)  * (W - 1));
+            const py = Math.round((bbox.north - lat) / (bbox.north - bbox.south) * (H - 1));
+            if (px < 0 || py < 0 || px >= W || py >= H) return null;
+            return canvas.getContext('2d').getImageData(px, py, 1, 1).data;
+        }
+
+        /**
+         * Retourne true si la couleur (r,g,b) est proche d'au moins une couleur exclue
+         * (distance Euclidienne RGB ≤ tolérance configurée).
+         */
+        function _colorMatchesExclusion(r, g, b) {
+            const tol = parseFloat(document.getElementById('exclusionTolerance')?.value ?? 40);
+            return _exclusionColors.some(c =>
+                Math.sqrt((r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2) <= tol
+            );
+        }
+
+        /** Ajoute une couleur à la liste d'exclusion (ignore les doublons proches) */
+        function _addExclusionColor(r, g, b) {
+            const tol = parseFloat(document.getElementById('exclusionTolerance')?.value ?? 40);
+            const already = _exclusionColors.some(c =>
+                Math.sqrt((r - c.r) ** 2 + (g - c.g) ** 2 + (b - c.b) ** 2) < tol * 0.5
+            );
+            if (already) { console.log('🎨 Couleur déjà en liste (doublon proche)'); return; }
+            const hex = '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('');
+            _exclusionColors.push({r, g, b, hex});
+            _renderExclusionList();
+            updateAllZones();
+        }
+
+        /** Retire une couleur d'exclusion par index */
+        function _removeExclusionColor(idx) {
+            _exclusionColors.splice(idx, 1);
+            _renderExclusionList();
+            updateAllZones();
+        }
+
+        /** Re-dessine la liste des swatches d'exclusion */
+        function _renderExclusionList() {
+            const el  = document.getElementById('exclusionColorList');
+            const sum = document.getElementById('exclusionSummary');
+            if (!el) return;
+            el.innerHTML = _exclusionColors.map((c, i) =>
+                `<span title="${c.hex}" style="display:inline-flex;align-items:center;gap:2px;
+                   background:rgba(255,255,255,0.08);border-radius:4px;padding:2px 5px;">
+                    <span style="display:inline-block;width:14px;height:14px;border-radius:2px;
+                           background:${c.hex};border:1px solid rgba(255,255,255,0.3);"></span>
+                    <small style="font-size:0.63rem;color:rgba(255,255,255,0.5);">${c.hex}</small>
+                    <button onclick="_removeExclusionColor(${i})" style="border:none;background:none;
+                            color:rgba(255,100,100,0.8);font-size:0.72rem;line-height:1;
+                            cursor:pointer;padding:0 2px;">✕</button>
+                </span>`
+            ).join('');
+            if (sum) sum.textContent = _exclusionColors.length > 0
+                ? `${_exclusionColors.length} couleur(s) exclue(s) — modules recalculés`
+                : '';
+        }
+
+        /**
+         * Active/Désactive le mode pipette d'exclusion.
+         * L'utilisateur doit avoir l'image aérienne ou la heatmap chargée.
+         */
+        function _toggleExclusionPicker() {
+            if (!_rgbCanvas && !_fluxCanvas) {
+                alert('⚠️ Activez d\'abord la carte d\'irradiation pour charger la photo aérienne.');
+                return;
+            }
+            _exclusionPickerOn = !_exclusionPickerOn;
+            const btn  = document.getElementById('btnExclusionPicker');
+            const hint = document.getElementById('exclusionPickerHint');
+            if (_exclusionPickerOn) {
+                if (btn)  { btn.classList.replace('btn-outline-warning', 'btn-warning'); btn.textContent = '🎨 Actif — cliquez'; }
+                if (hint) hint.style.display = 'block';
+                map.getContainer().style.cursor = 'crosshair';
+                map.once('click', _exclusionClickHandler);
+            } else {
+                if (btn)  { btn.classList.replace('btn-warning', 'btn-outline-warning'); btn.textContent = '🎨 Pipette'; }
+                if (hint) hint.style.display = 'none';
+                map.getContainer().style.cursor = '';
+                map.off('click', _exclusionClickHandler);
+            }
+        }
+
+        /**
+         * Gestionnaire click en mode pipette : prélève la couleur sous le curseur
+         * depuis la photo aérienne RGB (priorité) ou la heatmap (fallback).
+         */
+        function _exclusionClickHandler(e) {
+            _exclusionPickerOn = false;
+            const btn  = document.getElementById('btnExclusionPicker');
+            const hint = document.getElementById('exclusionPickerHint');
+            if (btn)  { btn.classList.replace('btn-warning', 'btn-outline-warning'); btn.textContent = '🎨 Pipette'; }
+            if (hint) hint.style.display = 'none';
+            map.getContainer().style.cursor = '';
+            const lat = e.latlng.lat, lng = e.latlng.lng;
+            // Priorité : photo aérienne RGB (couleurs vraies) > heatmap
+            const pixel = _sampleCanvas(_rgbCanvas, _rgbBbox, lat, lng)
+                       ?? _sampleCanvas(_fluxCanvas, _fluxBbox, lat, lng);
+            if (!pixel || pixel[3] < 10) {
+                alert('⚠️ Aucune couleur détectée à cet endroit.\nActivez et affichez la photo aérienne ou la heatmap, puis cliquez dessus.');
+                return;
+            }
+            console.log(`🎨 Couleur prélevée : rgb(${pixel[0]},${pixel[1]},${pixel[2]})`);
+            _addExclusionColor(pixel[0], pixel[1], pixel[2]);
+        }
+
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
                 const b = document.getElementById(id);
@@ -6936,6 +7200,24 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     map.off('mouseout',  _fluxPipetteHide);
                 }
                 _fluxPipetteHide();
+                // ── Photo aérienne + exclusion couleur : nettoyer ────────────────────────
+                if (_rgbOverlay && typeof map !== 'undefined' && map) {
+                    map.removeLayer(_rgbOverlay); _rgbOverlay = null;
+                }
+                _rgbCanvas = null; _rgbBbox = null;
+                if (_exclusionPickerOn) {
+                    _exclusionPickerOn = false;
+                    if (typeof map !== 'undefined' && map) map.off('click', _exclusionClickHandler);
+                    map.getContainer().style.cursor = '';
+                    const _pBtn  = document.getElementById('btnExclusionPicker');
+                    const _pHint = document.getElementById('exclusionPickerHint');
+                    if (_pBtn)  { _pBtn.classList.replace('btn-warning','btn-outline-warning'); _pBtn.textContent = '🎨 Pipette'; }
+                    if (_pHint) _pHint.style.display = 'none';
+                }
+                const _chkA = document.getElementById('chkAerialRgb');
+                const _sldA = document.getElementById('sliderAerialOpacity');
+                if (_chkA) { _chkA.checked = false; _chkA.disabled = true; }
+                if (_sldA) { _sldA.disabled = true; }
                 // Restaurer le zoom/centre précédent
                 if (_prevMapView && typeof map !== 'undefined' && map) {
                     map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
@@ -7227,6 +7509,34 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     _pipImg.src = imgSrc;
                     map.on('mousemove', _fluxPipetteMove);
                     map.on('mouseout',  _fluxPipetteHide);
+
+                    // ── Photo aérienne RGB (même bbox, servie depuis notre backend) ─────────
+                    _rgbBbox   = b;
+                    _rgbCanvas = null;
+                    if (_rgbOverlay) { map.removeLayer(_rgbOverlay); _rgbOverlay = null; }
+                    if (data.rgb_base64) {
+                        // Canvas caché pour la pipette d'exclusion
+                        const _rImg = new Image();
+                        _rImg.onload = () => {
+                            const cv = document.createElement('canvas');
+                            cv.width = _rImg.naturalWidth; cv.height = _rImg.naturalHeight;
+                            cv.getContext('2d').drawImage(_rImg, 0, 0);
+                            _rgbCanvas = cv;
+                            const chk = document.getElementById('chkAerialRgb');
+                            const sld = document.getElementById('sliderAerialOpacity');
+                            if (chk) chk.disabled = false;
+                            if (sld) sld.disabled = false;
+                            console.log(`📷 Aerial RGB canvas: ${cv.width}×${cv.height}px`);
+                        };
+                        _rImg.crossOrigin = 'anonymous';
+                        _rImg.src = data.rgb_base64;
+                        // Overlay calque aérien (sous heatmap zIndex 200)
+                        _rgbOverlay = L.imageOverlay(
+                            data.rgb_base64, [[b.south, b.west], [b.north, b.east]],
+                            { opacity: 0, interactive: false, zIndex: 200 }
+                        );
+                        // L'overlay n'est pas ajouté par défaut : l'utilisateur coche la case
+                    }
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
                 console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an (color: ${data.color_min}–${data.color_max}), quality=${data.quality}, n_valid=${data.n_valid}, tiff_range=${data.tiff_raw_range}`);
