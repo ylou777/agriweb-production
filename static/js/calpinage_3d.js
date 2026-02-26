@@ -1006,18 +1006,26 @@ class Calpinage3DViewer {
         if (data.buildings_bdtopo) {
             data.buildings_bdtopo.forEach((b, idx) => {
                 // === Hiérarchie de calcul de la hauteur des murs (méthode CityGML LOD2) ===
-                // Priorité 1 : champ hauteur BD TOPO direct (hauteur des murs extérieurs)
-                let computedH = (b.hauteur && b.hauteur > 1.0) ? b.hauteur : null;
-                // Priorité 2 : différence altitudes absolues NGF toit - sol
+                // Priorité 1 : altitude_toit_min - altitude_sol_min = hauteur corniche (murs seuls)
+                // bd topo "hauteur" = faîtage (ridge) = murs + toit → sur-estime les murs d'un étage
+                // altitude_minimale_toit = altitude acrotère/corniche = sommet réel des murs
+                let computedH = null;
+                if (b.altitude_toit_min != null && b.altitude_sol_min != null) {
+                    const eaveDerived = b.altitude_toit_min - b.altitude_sol_min;
+                    if (eaveDerived > 1.0 && eaveDerived < 80) computedH = eaveDerived;
+                }
+                // Priorité 2 : champ hauteur BD TOPO (= faîtage, légèrement surestimé pour toits en pente)
+                if (!computedH && b.hauteur && b.hauteur > 1.0) computedH = b.hauteur;
+                // Priorité 3 : différence altitudes absolues NGF toit_max - sol (fallback = hauteur totale)
                 if (!computedH && b.altitude_toit_max && b.altitude_sol_min) {
                     const derived = b.altitude_toit_max - b.altitude_sol_min;
                     if (derived > 1.0 && derived < 80) computedH = derived;
                 }
-                // Priorité 3 : nb_etages × 3.0m (standard CityGML floor height)
+                // Priorité 4 : nb_etages × 3.0m (standard CityGML floor height)
                 if (!computedH && b.nb_etages && b.nb_etages > 0) {
                     computedH = b.nb_etages * 3.0;
                 }
-                // Priorité 4 : défaut 6m
+                // Priorité 5 : défaut 6m
                 if (!computedH) computedH = 6;
 
                 allBuildings.push({
