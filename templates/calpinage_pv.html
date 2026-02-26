@@ -8372,20 +8372,29 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
 
                     if (solarPanels.length > 0 && panelsOk.length > 0) {
                         // ── CAS A : positions individuelles GPS disponibles ────────────────
-                        // Grouper par segmentIndex, créer une zone par segment
-                        const bySegment = new Map();
+                        // Grouper par PAN = même azimuth (±15°) ET même inclinaison (±5°)
+                        // → évite les dizaines de bandes créées par la sur-segmentation Google Solar
+                        const byPan = new Map();
                         panelsOk.forEach(p => {
-                            if (!bySegment.has(p.seg_idx)) bySegment.set(p.seg_idx, []);
-                            bySegment.get(p.seg_idx).push(p);
+                            const seg  = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === p.seg_idx);
+                            const az   = segAzimuth.get(p.seg_idx) ?? 180;
+                            const pit  = seg?.pitch_deg ?? 15;
+                            // Clé de fusion : azimuth arrondi à 15°, inclinaison arrondie à 5°
+                            const key  = `${Math.round(az / 15) * 15}_${Math.round(pit / 5) * 5}`;
+                            if (!byPan.has(key)) byPan.set(key, { panels: [], segIdxs: new Set(), az, pit });
+                            byPan.get(key).panels.push(p);
+                            byPan.get(key).segIdxs.add(p.seg_idx);
                         });
+                        console.log(`🗂️ [CAS A] ${panelsOk.length} panneaux → ${byPan.size} pan(s) fusionnés (était ${new Set(panelsOk.map(p=>p.seg_idx)).size} segs Google Solar)`);
 
                         let zoneNum = 0;
                         let totalKwAccum = 0;
                         const poseA = getPoseParams();  // reculs + spacingV pour le CAS A
 
-                        bySegment.forEach((panels, segIdx) => {
+                        byPan.forEach(({ panels, segIdxs, az, pit }, panKey) => {
                             if (targetKw > 0 && totalKwAccum >= targetKw) return;
-                            const az  = segAzimuth.get(segIdx) ?? 180;
+                            // segIdx représentatif (premier) pour lookup
+                            const segIdx = [...segIdxs][0];
                             const seg = fluxSegs.find(s => (s.orig_idx ?? (s.id-1)) === segIdx);
 
                             // ── Application des reculs par projection sur l'axe pente + perpendiculaire ────
@@ -8454,7 +8463,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 nbModules, nbCols: nbModules, nbRows: 1,
                                 puissanceKw: puissKw,
                                 orientation: az,
-                                inclinaison: seg?.pitch_deg ?? 15,
+                                inclinaison: pit,
                                 rotationAngle: az,
                                 productible: 0,
                                 moduleOrientation: dispF,
@@ -8462,7 +8471,7 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                                 longueurMetres: longueurM,
                                 typeInstallation: 'toiture',
                                 modulesPositions: [],
-                                panToiture: `Pan ${zoneNum} (${seg?.orientation ?? ''} ${seg?.pitch_deg != null ? seg.pitch_deg+'°' : ''} — ${nbModules} mod.)`,
+                                panToiture: `Pan ${zoneNum} (az ${az}° inc ${pit}° — ${nbModules} mod.)`,
                                 _fromSolarPanels: true,
                             };
                             zones.push(zone);
