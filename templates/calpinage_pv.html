@@ -7509,13 +7509,21 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 }
                 const imgSrc = `data:image/png;base64,${data.image_base64}`;
 
-                // ── Reconstruction 3D fidèle du toit depuis Google Solar ──
+                // ── Reconstruction 3D du toit + panneaux Google Solar (quads GPS propres) ──
                 if (viewer3D?.isActive && data.roof_segments?.length > 0 && data.building_center) {
                     viewer3D.applySolarRoofFromInsights(
                         data.roof_segments,
                         data.building_center,
                         data.dsm_stats
                     );
+                    // Afficher immédiatement tous les panneaux Solar en 3D (preview coloré)
+                    if (data.solar_panels?.length > 0) {
+                        viewer3D.applyBuildingInsightsPanels3D(
+                            data.solar_panels,
+                            data.roof_segments,
+                            data.building_center
+                        );
+                    }
                 }
                 const b = data.bbox;
                 if (typeof map !== 'undefined' && map && !(viewer3D?.isActive)) {
@@ -8356,6 +8364,11 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     if (panelsOk.length === 0 && solarPanels.length > 0) {
                         alert(`⚠️ Aucun panneau dans la plage d'irradiance ${irrMin}–${irrMax} kWh/m²/an.\nAjustez les seuils ou rechargez la carte d'irradiation.`);
                         return;
+                    }
+
+                    // ── Mettre à jour la vue 3D avec les panneaux filtrés ─────────────────
+                    if (viewer3D?.isActive && panelsOk.length > 0 && typeof viewer3D.applyBuildingInsightsPanels3D === 'function') {
+                        viewer3D.applyBuildingInsightsPanels3D(panelsOk, fluxSegs, viewer3D._solarBldgCenter);
                     }
 
                     // Supprimer les anciennes zones

@@ -4325,96 +4325,230 @@ class Calpinage3DViewer {
      * @param {Object} bldgCenter   - {lat, lon} centre du bâtiment (data.building_center)
      * @param {Object} dsmStats     - data.dsm_stats (height_faitage_m, height_egout_m) — optionnel
      */
+    /**
+     * Injecte les pans de toiture Google Solar (buildingInsights) dans la vue 3D.
+     *
+     * NOUVEAU — approche "quads GPS propres" directement issue du démo officiel
+     * js-solar-potential (BuildingInsightsSection.svelte) :
+     *   • Chaque segment = 1 quad (2 triangles) dont les 4 coins sont ses coins GPS
+     *   • La hauteur Y de chaque coin est calculée depuis l'équation du plan incliné
+     *     (azimuth + pitch) centré sur `height_m` — même formule que l'API Solar.
+     *   • Aucune triangulation earcut sur des polygones concaves → zéro chaos.
+     *   • Les pans adjacents se rejoignent proprement sur les arêtes/faîtages.
+     */
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
 
-        // ── Garde : si le toit a déjà été construit par RANSAC DSM (haute qualité),
-        //    ne pas écraser avec les rectangles bbox de buildingInsights (basse qualité).
-        //    Les plans RANSAC sont des polygones réels issus du point cloud ;
-        //    les plans buildingInsights sont de simples boîtes englobantes.
+        // Garde RANSAC : si le toit haute qualité est déjà construit, on n'écrase pas.
         const hasRansacRoof = !!(this.lidarData?.building_hd?.roof_planes?.length > 0);
         if (hasRansacRoof) {
-            console.log('ℹ️ Solar roof: plans RANSAC DSM déjà présents — injection buildingInsights ignorée');
+            console.log('ℹ️ Solar roof: plans RANSAC présents — buildingInsights ignoré');
+            // Mémoriser quand même le centre pour les panneaux 3D
+            this._solarBldgCenter = bldgCenter;
+            this._solarSegments   = segments;
             return;
         }
 
-        // Supprimer les toits Solar précédemment injectés
+        // ── Nettoyage des meshes précédentes ──────────────────────────────────────
         if (this._solarRoofMeshes) {
             this._solarRoofMeshes.forEach(m => {
                 this.scene.remove(m);
                 const idx = this.buildings.indexOf(m);
                 if (idx >= 0) this.buildings.splice(idx, 1);
+                m.geometry?.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+                else m.material?.dispose();
             });
         }
         this._solarRoofMeshes = [];
 
-        const LNG_TO_M = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+        // ── Constantes de projection ──────────────────────────────────────────────
+        const LNG_TO_M  = this.LAT_TO_M * Math.cos(bldgCenter.lat * Math.PI / 180);
+        const terrainH  = this._mainBldgTerrainH ?? 0;
+        const wallH     = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
+        const roofType  = this._mainBldgRoofType ?? 'tuile';
 
-        // Hauteur de mur (terrainH + bh) depuis le bâtiment principal déjà rendu
-        // Fallback : utiliser dsm_stats.height_egout_m ou 5m
-        const terrainH = this._mainBldgTerrainH ?? 0;
-        const bh = this._mainBldgBh ??
-                   (dsmStats?.height_egout_m ?? 5);
-        const roofType = this._mainBldgRoofType ?? 'tuile';
+        // GPS → Three.js local (X = East, Z = -North)
+        const toX = lon => (lon - bldgCenter.lon) * LNG_TO_M;
+        const toZ = lat => -(lat - bldgCenter.lat) * this.LAT_TO_M;
 
-        // Convertir chaque segment Solar en roof_plane (format _buildRoofFromPlanes)
-        const planes = [];
+        const roofMat = new THREE.MeshPhongMaterial({
+            map: this._getRoofTexture ? this._getRoofTexture(roofType) : null,
+            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
+            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
+        });
+
+        let nBuilt = 0;
+
         for (const seg of segments) {
             if (!seg.seg_sw || !seg.seg_ne) continue;
-            const pitch_rad   = (seg.pitch_deg   || 0) * Math.PI / 180;
-            const az_rad      = (seg.azimuth_deg || 0) * Math.PI / 180;
-            const slope_tan   = Math.tan(pitch_rad);
 
-            // Coordonnées locales (East, North) des coins bbox, relatives à bldgCenter
-            const sw_x = (seg.seg_sw.lon - bldgCenter.lon) * LNG_TO_M;
-            const sw_y = (seg.seg_sw.lat - bldgCenter.lat) * this.LAT_TO_M;
-            const ne_x = (seg.seg_ne.lon - bldgCenter.lon) * LNG_TO_M;
-            const ne_y = (seg.seg_ne.lat - bldgCenter.lat) * this.LAT_TO_M;
+            const pitchRad = (seg.pitch_deg  ?? 0)   * Math.PI / 180;
+            const azRad    = (seg.azimuth_deg ?? 180) * Math.PI / 180;
+            const tanPitch = Math.tan(pitchRad);
 
-            // Ajouter un léger buffer pour supprimer les lacunes entre pans adjacents
-            const buf = 0.3;
-            const polygon_2d = [
-                [sw_x - buf, sw_y - buf],
-                [ne_x + buf, sw_y - buf],
-                [ne_x + buf, ne_y + buf],
-                [sw_x - buf, ne_y + buf],
+            // Centre GPS du segment → coordonnées locales de référence
+            const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
+            const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
+            const cx   = toX(cLon), cz = toZ(cLat);
+            const hC   = seg.height_m ?? (wallH + 0.5);   // hauteur au centre (IGN MNH)
+
+            // Hauteur en un point local (x, z) Three.js :
+            //   projection dans la direction de la pente (azimuth = direction vers le bas)
+            //   h(x,z) = hC - [(x−cx)·sin(az) − (z−cz)·cos(az)] · tan(pitch)
+            const hAt = (x, z) => {
+                const proj = (x - cx) * Math.sin(azRad) - (z - cz) * Math.cos(azRad);
+                return terrainH + Math.max(wallH * 0.80, hC - proj * tanPitch);
+            };
+
+            // ── 4 coins GPS de la bbox + buffer 0.25 m (supprime les lacunes faîtage) ──
+            const BUF = 0.25 / this.LAT_TO_M; // ~0.25 m en degrés lat
+            const BUFL = BUF * (this.LAT_TO_M / LNG_TO_M);
+            const gpsCornersRaw = [
+                { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_sw.lon - BUFL },
+                { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_ne.lon + BUFL },
+                { lat: seg.seg_ne.lat + BUF,  lon: seg.seg_ne.lon + BUFL },
+                { lat: seg.seg_ne.lat + BUF,  lon: seg.seg_sw.lon - BUFL },
             ];
 
-            // Centre du pan en local
-            const cx = (sw_x + ne_x) / 2;
-            const cy = (sw_y + ne_y) / 2;
+            // Construire le quad 3D avec hauteur correcte à chaque coin
+            const pts = gpsCornersRaw.map(g => {
+                const x = toX(g.lon), z = toZ(g.lat);
+                return [x, hAt(x, z), z];
+            });
 
-            // Équation du plan h(x,y) = mnh_a*x + mnh_b*y + mnh_c
-            // Pente descend dans la direction (sin(az), cos(az)) en (East, North)
-            // h décroît dans cette direction → gradient négatif
-            const mnh_a = -slope_tan * Math.sin(az_rad);  // dh/d_east
-            const mnh_b = -slope_tan * Math.cos(az_rad);  // dh/d_north
-            // mnh_c = h à (0,0) = bldgCenter, déduit de h au centre du pan
-            const h_center = seg.height_m ?? (bh + 1);
-            const mnh_c = h_center - mnh_a * cx - mnh_b * cy;
+            // 2 triangles CCW (vus du dessus)
+            const verts = new Float32Array([
+                ...pts[0], ...pts[1], ...pts[2],
+                ...pts[0], ...pts[2], ...pts[3],
+            ]);
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+            geo.computeVertexNormals();
 
-            planes.push({
-                polygon_2d,
-                mnh_a, mnh_b, mnh_c,
-                slope_deg:   seg.pitch_deg,
-                azimuth_deg: seg.azimuth_deg,
-                plane_id:    seg.id,
+            const mesh = new THREE.Mesh(geo, roofMat.clone());
+            mesh.castShadow    = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { segId: seg.id, pitch: seg.pitch_deg, azimuth: seg.azimuth_deg, source: 'solar' };
+            this.scene.add(mesh);
+            this.buildings.push(mesh);
+            this._solarRoofMeshes.push(mesh);
+            nBuilt++;
+        }
+
+        // Mémoriser centre + segments pour applyBuildingInsightsPanels3D
+        this._solarBldgCenter = bldgCenter;
+        this._solarSegments   = segments;
+
+        console.log(`🏠 Solar roof 3D (quads GPS propres): ${nBuilt} pans depuis buildingInsights`);
+    }
+
+    /**
+     * Place les panneaux solaires individuels Google Solar en 3D.
+     * Référence: BuildingInsightsSection.svelte (js-solar-potential officiel Google).
+     *
+     * • Chaque panneau = GPS center + orientation (PORTRAIT/LANDSCAPE) + segmentIndex.
+     * • On calcule la hauteur 3D exacte depuis l'équation plane du segment.
+     * • Couleur dégradée bleu→rouge selon irradiance.
+     *
+     * @param {Array}  solarPanels   – tableau {lat, lon, orientation, seg_idx, irr_kwh}
+     * @param {Array}  roofSegments  – _fluxRoofSegments (pitch_deg, azimuth_deg, height_m…)
+     * @param {Object} bldgCenter    – {lat, lon} (this._solarBldgCenter si absent)
+     */
+    applyBuildingInsightsPanels3D(solarPanels, roofSegments, bldgCenter) {
+        // Nettoyage
+        if (this._solarPanelMeshes) {
+            this._solarPanelMeshes.forEach(m => {
+                this.scene.remove(m);
+                m.geometry?.dispose();
+                if (Array.isArray(m.material)) m.material.forEach(mt => mt.dispose());
+                else m.material?.dispose();
+            });
+        }
+        this._solarPanelMeshes = [];
+
+        const center = bldgCenter ?? this._solarBldgCenter;
+        const segs   = roofSegments ?? this._solarSegments ?? [];
+        if (!solarPanels?.length || !center) return;
+
+        const LNG_TO_M = this.LAT_TO_M * Math.cos(center.lat * Math.PI / 180);
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const wallH    = this._mainBldgBh ?? 5;
+
+        const toX = lon => (lon - center.lon) * LNG_TO_M;
+        const toZ = lat => -(lat - center.lat) * this.LAT_TO_M;
+
+        // ── Index segments : seg_idx → hauteur-au-point ──────────────────────────
+        const segMap = new Map();
+        for (const seg of segs) {
+            const idx    = seg.orig_idx ?? (seg.id - 1);
+            if (!seg.seg_sw || !seg.seg_ne) continue;
+            const cLat   = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
+            const cLon   = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
+            const azRad  = (seg.azimuth_deg ?? 180) * Math.PI / 180;
+            const pitRad = (seg.pitch_deg   ?? 0)   * Math.PI / 180;
+            const hC     = seg.height_m ?? (wallH + 0.5);
+            const cx     = toX(cLon), cz = toZ(cLat);
+            segMap.set(idx, {
+                azRad, pitRad,
+                tanPit: Math.tan(pitRad),
+                hC, cx, cz,
             });
         }
 
-        if (planes.length === 0) {
-            console.warn('applySolarRoofFromInsights: aucun plan convertible (seg_sw/seg_ne manquants?)');
-            return;
+        // ── Plage d'énergie pour la colormap ────────────────────────────────────
+        const energies = solarPanels.map(p => p.irr_kwh || 0).filter(e => e > 0);
+        const minE = energies.length ? Math.min(...energies) : 0;
+        const maxE = energies.length ? Math.max(...energies) : 1;
+
+        // Dimensions des panneaux API Google Solar
+        const pW = (typeof window !== 'undefined' ? window._fluxApiPanelW : null) ?? 1.045;
+        const pH = (typeof window !== 'undefined' ? window._fluxApiPanelH : null) ?? 1.879;
+
+        for (const p of solarPanels) {
+            const info = segMap.get(p.seg_idx);
+            const px   = toX(p.lon);
+            const pz   = toZ(p.lat);
+
+            // Hauteur 3D : même formule que hAt() dans applySolarRoofFromInsights
+            let py = terrainH + wallH + 0.1; // fallback si segment inconnu
+            if (info) {
+                const proj = (px - info.cx) * Math.sin(info.azRad) - (pz - info.cz) * Math.cos(info.azRad);
+                py = terrainH + Math.max(wallH * 0.80, info.hC - proj * info.tanPit) + 0.06;
+            }
+
+            // ── Couleur dégradée bleu (faible irr) → rouge (forte irr) ────────
+            const t  = maxE > minE ? Math.max(0, Math.min(1, (p.irr_kwh - minE) / (maxE - minE))) : 0.5;
+            const r  = t * 0.9;
+            const g  = 0.1 + t * 0.1;
+            const b  = 0.9 - t * 0.8;
+            const mat = new THREE.MeshPhongMaterial({
+                color: new THREE.Color(r, g, b),
+                specular: 0x4488ff, shininess: 80,
+                transparent: true, opacity: 0.90,
+                polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
+            });
+
+            // ── Géométrie : PlaneGeometry aux dimensions de l'API ─────────────
+            const geo  = new THREE.PlaneGeometry(pW, pH);
+            const mesh = new THREE.Mesh(geo, mat);
+
+            // ── Orientation : même formule que BuildingInsightsSection.svelte ──
+            //   orientation_offset = 'PORTRAIT' ? 90° : 0°
+            //   rotation Y = azimuth + orientation_offset
+            //   rotation X = -pitch (plan incliné)
+            const orientOffset = (p.orientation === 'PORTRAIT') ? Math.PI / 2 : 0;
+            mesh.rotation.order = 'YXZ';
+            mesh.rotation.y = -(info?.azRad ?? 0) + orientOffset + Math.PI;
+            mesh.rotation.x = -(info?.pitRad ?? 0);
+            mesh.position.set(px, py, pz);
+
+            mesh.castShadow = true;
+            this.scene.add(mesh);
+            this._solarPanelMeshes.push(mesh);
         }
 
-        // Mémoriser la taille du buildings array avant l'ajout
-        const nBefore = this.buildings.length;
-        const ok = this._buildRoofFromPlanes(planes, bldgCenter, bh, terrainH, roofType);
-        if (ok) {
-            // Mémoriser les nouveaux meshes pour pouvoir les supprimer plus tard
-            this._solarRoofMeshes = this.buildings.slice(nBefore);
-            console.log(`🏠 Solar roof 3D: ${planes.length} pans injectés depuis buildingInsights`);
-        }
+        console.log(`⚡ ${this._solarPanelMeshes.length} panneaux Google Solar placés en 3D (réf. js-solar-potential)`);
     }
 
     /**
