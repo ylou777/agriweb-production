@@ -2070,7 +2070,8 @@ class Calpinage3DViewer {
         const coords = buildingData.coords;
         if (!coords || coords.length < 3) return;
         
-        const height = buildingData.height || 6;
+        // Utiliser la hauteur de mur/corniche pour extrusion
+        const height = buildingData.height_eave || buildingData.height || 6;
         
         // Convertir toutes les coordonnées en espace local 3D
         let localCoords = coords.map(c => this._geoToLocal(c[1], c[0]));
