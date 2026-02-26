@@ -1100,6 +1100,19 @@
                         </div>
                     </div>
             </div><!-- /fluxLegendPanel -->
+
+            <!-- ── Pipette irradiation : tooltip fixe au survol de la heatmap ── -->
+            <div id="fluxPipetteTooltip" style="display:none; position:fixed; z-index:9999;
+                 background:rgba(10,10,20,0.88); color:#ffe600; padding:5px 10px;
+                 border-radius:6px; pointer-events:none; font-size:0.82rem;
+                 border:1px solid rgba(255,230,0,0.35); backdrop-filter:blur(4px);
+                 white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,0.5);">
+                <span id="fluxPipetteSwatch" style="display:inline-block;width:11px;height:11px;
+                    border-radius:2px;margin-right:6px;vertical-align:middle;
+                    border:1px solid rgba(255,255,255,0.25);background:#888;"></span>
+                ☀️&nbsp;<span id="fluxPipetteValue">--</span>&nbsp;<span style="color:rgba(255,230,0,0.65);font-size:0.73rem;">kWh/m²/an</span>
+            </div>
+
         </div><!-- /calp-left -->
 
         <!-- Colonne droite : Zones et calculs -->
@@ -6611,6 +6624,81 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
         let _flux2DOverlay   = null;
         let _prevMapView     = null;  // zoom/centre avant activation heatmap
 
+        // ── Pipette irradiation ─────────────────────────────────────────────────
+        let _fluxCanvas     = null;  // canvas caché avec l'image heatmap dessinée
+        let _fluxBbox       = null;  // {north,south,east,west} bbox de l'image croppée
+        let _fluxColorMin   = 0;     // seuil bas de la colormap (kWh/m²/an)
+        let _fluxColorMax   = 1500;  // seuil haut de la colormap (kWh/m²/an)
+
+        /**
+         * Inverse la colorisation custom du backend :
+         *   (r,g,b) → valeur irradiation (kWh/m²/an)
+         * Colormap piecewise-linear (identique à COLORMAP[] dans agriweb_hebergement_gratuit.py) :
+         *   t=0.00 → (20,  0,100)   violet
+         *   t=0.15 → ( 0, 60,220)   bleu
+         *   t=0.35 → ( 0,200,255)   cyan
+         *   t=0.55 → (50, 210, 50)  vert
+         *   t=0.70 → (255,230,  0)  jaune
+         *   t=0.85 → (255,120,  0)  orange
+         *   t=1.00 → (220,  0,  0)  rouge
+         * Pour chaque segment, projette le point RGB sur la droite du segment
+         * et conserve la projection la plus proche (moindres carrés).
+         */
+        function _colorToIrr(r, g, b) {
+            const CM = [
+                [0.00,  20,   0, 100],
+                [0.15,   0,  60, 220],
+                [0.35,   0, 200, 255],
+                [0.55,  50, 210,  50],
+                [0.70, 255, 230,   0],
+                [0.85, 255, 120,   0],
+                [1.00, 220,   0,   0],
+            ];
+            let bestNorm = 0, bestDist = Infinity;
+            for (let i = 0; i < CM.length - 1; i++) {
+                const [v0, r0, g0, b0] = CM[i];
+                const [v1, r1, g1, b1] = CM[i + 1];
+                const dr = r1 - r0, dg = g1 - g0, db = b1 - b0;
+                const len2 = dr*dr + dg*dg + db*db;
+                let t = len2 > 0 ? ((r-r0)*dr + (g-g0)*dg + (b-b0)*db) / len2 : 0;
+                t = Math.max(0, Math.min(1, t));
+                const dist = (r - (r0+t*dr))**2 + (g - (g0+t*dg))**2 + (b - (b0+t*db))**2;
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestNorm = v0 + t * (v1 - v0);
+                }
+            }
+            return bestNorm * (_fluxColorMax - _fluxColorMin) + _fluxColorMin;
+        }
+
+        /** Masquer le tooltip pipette (handler nommé pour pouvoir faire map.off) */
+        function _fluxPipetteHide() {
+            const t = document.getElementById('fluxPipetteTooltip');
+            if (t) t.style.display = 'none';
+        }
+
+        /** Gestionnaire mousemove sur la carte — lit le pixel de l'image et affiche la valeur */
+        function _fluxPipetteMove(e) {
+            if (!_fluxActive || !_fluxCanvas || !_fluxBbox) return;
+            const b = _fluxBbox;
+            const lat = e.latlng.lat, lng = e.latlng.lng;
+            const W = _fluxCanvas.width, H = _fluxCanvas.height;
+            const px = Math.round((lng - b.west)  / (b.east  - b.west)  * (W - 1));
+            const py = Math.round((b.north - lat) / (b.north - b.south) * (H - 1));
+            const tooltip = document.getElementById('fluxPipetteTooltip');
+            if (!tooltip) return;
+            if (px < 0 || py < 0 || px >= W || py >= H) { tooltip.style.display = 'none'; return; }
+            const pixel = _fluxCanvas.getContext('2d').getImageData(px, py, 1, 1).data;
+            if (pixel[3] < 10) { tooltip.style.display = 'none'; return; }  // hors toiture
+            const val = _colorToIrr(pixel[0], pixel[1], pixel[2]);
+            document.getElementById('fluxPipetteValue').textContent = Math.round(val);
+            const swatch = document.getElementById('fluxPipetteSwatch');
+            if (swatch) swatch.style.background = `rgb(${pixel[0]},${pixel[1]},${pixel[2]})`;
+            tooltip.style.display = 'block';
+            tooltip.style.left    = (e.originalEvent.clientX + 14) + 'px';
+            tooltip.style.top     = (e.originalEvent.clientY - 32) + 'px';
+        }
+
         function _syncFluxBtns(active, loading) {
             ['btnFluxHeatmap', 'btnFluxHeatmap2D'].forEach(id => {
                 const b = document.getElementById(id);
@@ -6669,6 +6757,13 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                 if (_flux2DOverlay && typeof map !== 'undefined' && map) {
                     map.removeLayer(_flux2DOverlay); _flux2DOverlay = null;
                 }
+                // ── Pipette : nettoyer canvas + listeners ─────────────────────────────────
+                _fluxCanvas = null; _fluxBbox = null;
+                if (typeof map !== 'undefined' && map) {
+                    map.off('mousemove', _fluxPipetteMove);
+                    map.off('mouseout',  _fluxPipetteHide);
+                }
+                _fluxPipetteHide();
                 // Restaurer le zoom/centre précédent
                 if (_prevMapView && typeof map !== 'undefined' && map) {
                     map.setView(_prevMapView.center, _prevMapView.zoom, { animate: true });
@@ -6941,6 +7036,25 @@ status.innerHTML = '<span class="text-info">Reconstruction 3D de la toiture…</
                     // Centrer et zoomer sur l'étendue de l'image Solar
                     _prevMapView = { center: map.getCenter(), zoom: map.getZoom() };
                     map.fitBounds([[b.south, b.west], [b.north, b.east]], { padding: [20, 20], animate: true });
+
+                    // ── Pipette : charger l'image dans un canvas caché ────────────────────────
+                    _fluxBbox     = b;
+                    _fluxColorMin = data.color_min ?? 0;
+                    _fluxColorMax = data.color_max ?? 1500;
+                    _fluxCanvas   = null;  // réinitialiser pendant le chargement
+                    const _pipImg = new Image();
+                    _pipImg.onload = () => {
+                        const cv = document.createElement('canvas');
+                        cv.width  = _pipImg.naturalWidth;
+                        cv.height = _pipImg.naturalHeight;
+                        cv.getContext('2d').drawImage(_pipImg, 0, 0);
+                        _fluxCanvas = cv;
+                        console.log(`🔍 Pipette canvas ready: ${cv.width}×${cv.height}px`);
+                    };
+                    _pipImg.crossOrigin = 'anonymous';
+                    _pipImg.src = imgSrc;
+                    map.on('mousemove', _fluxPipetteMove);
+                    map.on('mouseout',  _fluxPipetteHide);
                 }
                 if (viewer3D?.isActive) viewer3D.showFluxHeatmap(data);
                 console.log(`🌡️ Flux heatmap: ${data.flux_min}–${data.flux_max} kWh/m²/an (color: ${data.color_min}–${data.color_max}), quality=${data.quality}, n_valid=${data.n_valid}, tiff_range=${data.tiff_raw_range}`);
