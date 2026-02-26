@@ -588,23 +588,26 @@ class Calpinage3DViewer {
         
         const panels = info.panels;
         const opts = options || {};
-        const sunshineThresholdH = opts.sunshineThresholdH || 0;
-        const maxPowerKw         = (opts.maxPowerKw > 0 && isFinite(opts.maxPowerKw)) ? opts.maxPowerKw : Infinity;
-        const modulePowerW       = opts.modulePowerW || 400;
+        const sunshineThresholdH   = opts.sunshineThresholdH   || 0;
+        const sunshineThresholdMax  = (opts.sunshineThresholdMax > 0 && isFinite(opts.sunshineThresholdMax))
+                                      ? opts.sunshineThresholdMax : Infinity;
+        const maxPowerKw            = (opts.maxPowerKw > 0 && isFinite(opts.maxPowerKw)) ? opts.maxPowerKw : Infinity;
+        const modulePowerW          = opts.modulePowerW || 400;
 
         // Trier par ensoleillement décroissant — placer en priorité les meilleurs pans
         let indicesToProcess = panelIndices || panels.map((_, i) => i);
         indicesToProcess = [...indicesToProcess].sort((a, b) =>
             ((panels[b]?.sunshineAnnual || 0) - (panels[a]?.sunshineAnnual || 0))
         );
-        // Exclure pans sous le seuil (pans sans donnée sunshine conservés)
-        if (sunshineThresholdH > 0) {
-            indicesToProcess = indicesToProcess.filter(i =>
-                panels[i]?.sunshineAnnual === undefined ||
-                panels[i].sunshineAnnual >= sunshineThresholdH
-            );
+        // Filtrer par plage d'irradiance min–max (pans sans donnée sunshine conservés)
+        if (sunshineThresholdH > 0 || isFinite(sunshineThresholdMax)) {
+            indicesToProcess = indicesToProcess.filter(i => {
+                const v = panels[i]?.sunshineAnnual;
+                if (v === undefined || v === null) return true; // pas de données → conserver
+                return v >= sunshineThresholdH && v <= sunshineThresholdMax;
+            });
             if (indicesToProcess.length === 0)
-                console.warn(`⚠️ Aucun pan au-dessus du seuil ${sunshineThresholdH} h/an`);
+                console.warn(`⚠️ Aucun pan dans la plage [${sunshineThresholdH}–${isFinite(sunshineThresholdMax) ? sunshineThresholdMax : '∞'}] kWh/m²/an`);
         }
 
         let totalModules = 0;
