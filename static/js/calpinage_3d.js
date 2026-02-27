@@ -4085,6 +4085,27 @@ class Calpinage3DViewer {
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
 
+        // ── DIAGNOSTIC : vérifier les valeurs height_m reçues du backend ──────────
+        const rawHeights = segments.map(s => s.height_m).filter(h => h != null);
+        const maxH = rawHeights.length ? Math.max(...rawHeights) : 0;
+        const minH = rawHeights.length ? Math.min(...rawHeights) : 0;
+        const groundAlt = dsmStats?.ground_alt_m ?? dsmStats?.altitude_min_m ?? 0;
+        console.log(`🔍 [DIAG] applySolarRoofFromInsights: ${segments.length} segs, height_m=[${minH.toFixed(1)}..${maxH.toFixed(1)}], groundAlt=${groundAlt}, dsmStats=`, dsmStats);
+
+        // ── GARDE-FOU : si height_m semble être une altitude absolue (>50m et
+        //    cohérent avec ground_alt), convertir côté client ──────────────────────
+        if (maxH > 50 && groundAlt > 30 && maxH > groundAlt * 0.8) {
+            console.warn(`⚠️ [GUARD] height_m semble absolu (${maxH.toFixed(1)}m), groundAlt=${groundAlt.toFixed(1)}m → conversion client-side`);
+            for (const seg of segments) {
+                if (seg.height_m != null) {
+                    seg.height_m = seg.height_m - groundAlt;
+                    if (seg.height_m < 0) seg.height_m = 0.5;
+                }
+            }
+            const fixedHeights = segments.map(s => s.height_m).filter(h => h != null);
+            console.log(`✅ [GUARD] height_m corrigé: [${Math.min(...fixedHeights).toFixed(1)}..${Math.max(...fixedHeights).toFixed(1)}]`);
+        }
+
         // ── Masquer les pans RANSAC existants (éviter superposition) ─────────────
         this.buildings.forEach(m => {
             if (m.userData?.source === 'ransac') m.visible = false;
