@@ -6361,13 +6361,15 @@
             if (segs?.length > 0 && center) {
                 console.log(`☀️ [3D] Application toit Solar depuis cache heatmap: ${segs.length} segments`);
                 viewer3D.applySolarRoofFromInsights(segs, center, dsm, dims);
-                // Panneaux Google Solar : UNIQUEMENT si aucune zone utilisateur
-                // (sinon ils se superposent avec les modules des zones)
-                if (panels?.length > 0 && (!zones || zones.length === 0)) {
+                // Panneaux Google Solar (bleus) : toujours affichés si disponibles
+                if (panels?.length > 0) {
                     viewer3D.applyBuildingInsightsPanels3D(panels, segs, center);
                 }
-                // Re-ajouter les modules PV avec les pentes corrigées depuis Solar
-                update3DFromZones();
+                // Modules zones utilisateur (rouges) : UNIQUEMENT si pas de panneaux Google Solar
+                // (sinon ils se superposent avec les panneaux bleus)
+                if (!panels || panels.length === 0) {
+                    update3DFromZones();
+                }
                 ajusterZonesDepuisToiture3D();
                 updateRoofPanelsInfoPanel();
             } else {
