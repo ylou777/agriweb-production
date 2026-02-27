@@ -2903,6 +2903,7 @@ def api_solar_flux_heatmap():
 
         # ── Stats DSM (hauteurs de toiture) ──────────────────────────────────────
         dsm_stats = None
+        _dsm_ground_alt = None                 # altitude absolue du sol (p5 du DSM)
         if dsm_arr_raw is not None:
             try:
                 dH, dW = dsm_arr_raw.shape
@@ -2917,6 +2918,7 @@ def api_solar_flux_heatmap():
                 if len(_dsm_bld) > 10:
                     # Estimation sol = p5 du DSM sur l'empreinte (pixels de rive bas)
                     _ground = float(np.percentile(_dsm_bld, 5))
+                    _dsm_ground_alt = _ground           # expose au code roof_segments ci-dessous
                     _heights = np.clip(_dsm_bld - _ground, 0, None)
                     def _sf(v):  # safe float : None si inf/nan
                         f = float(v)
@@ -2925,6 +2927,7 @@ def api_solar_flux_heatmap():
                         'altitude_min_m':   _sf(_dsm_bld.min()),
                         'altitude_max_m':   _sf(_dsm_bld.max()),
                         'altitude_mean_m':  _sf(np.mean(_dsm_bld)),
+                        'ground_alt_m':     _sf(_ground),               # p5 = estimation sol
                         'height_egout_m':   _sf(np.percentile(_heights, 10)),
                         'height_faitage_m': _sf(np.percentile(_heights, 90)),
                         'height_mean_m':    _sf(np.mean(_heights)),
@@ -2993,10 +2996,30 @@ def api_solar_flux_heatmap():
                         if az < limit: return label
                     return 'N'
 
+                # ── Conversion absolute → relative de planeHeightAtCenterMeters ─────
+                # planeHeightAtCenterMeters est une ALTITUDE ABSOLUE (au-dessus du
+                # niveau de la mer).  Le frontend attend une hauteur RELATIVE au sol.
+                # On soustrait l'altitude du sol (DSM p5 si disponible, sinon on l'estime
+                # depuis le minimum des altitudes de centre - hauteur de mur DSM).
+                _all_center_h = [s.get('planeHeightAtCenterMeters') for s in sp.get('roofSegmentStats', [])
+                                 if s.get('planeHeightAtCenterMeters')]
+                if _dsm_ground_alt is not None:
+                    _h_ground_abs = _dsm_ground_alt        # sol DSM (p5) — le plus fiable
+                elif _all_center_h:
+                    _eave_est = (dsm_stats or {}).get('height_egout_m') or 3.0
+                    _h_ground_abs = min(_all_center_h) - _eave_est  # fallback
+                else:
+                    _h_ground_abs = 0.0
+                print(f'  [flux-heatmap] h_ground_abs={_h_ground_abs:.1f}m  '
+                      f'dsm_ground={_dsm_ground_alt}  '
+                      f'min_center_h={min(_all_center_h) if _all_center_h else "N/A"}')
+
                 for i, seg in enumerate(sp.get('roofSegmentStats', [])):
                     pitch   = seg.get('pitchDegrees')
                     azimuth = seg.get('azimuthDegrees')
-                    height  = seg.get('planeHeightAtCenterMeters')
+                    height_abs = seg.get('planeHeightAtCenterMeters')
+                    # Convertir altitude absolue → hauteur relative au sol
+                    height_rel = (height_abs - _h_ground_abs) if height_abs is not None else None
                     stats   = seg.get('stats', {})
                     area    = stats.get('areaMeters2')
                     sunshine_q = stats.get('sunshineQuantiles', [])
@@ -3019,7 +3042,7 @@ def api_solar_flux_heatmap():
                         'pitch_deg':   round(pitch,   1) if pitch   is not None else None,
                         'azimuth_deg': round(azimuth, 1) if azimuth is not None else None,
                         'orientation': _az_to_dir(azimuth) if azimuth is not None else None,
-                        'height_m':    round(height,  1) if height  is not None else None,
+                        'height_m':    round(height_rel, 1) if height_rel is not None else None,
                         'area_m2':     round(area,    1) if area    is not None else None,
                         'seg_l_m':     _seg_l,
                         'seg_w_m':     _seg_w,
