@@ -2156,9 +2156,6 @@ class Calpinage3DViewer {
                 color: roofCapColorMap[roofType] || 0xB0A898,
                 specular: 0x111111,
                 shininess: roofType === 'zinc' || roofType === 'metal' ? 20 : 3,
-                transparent: true,
-                opacity: 0.0, // Rendre le cap invisible pour ne pas interférer avec le toit Google Solar
-                depthWrite: false // Éviter les artefacts de profondeur
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
@@ -2183,7 +2180,7 @@ class Calpinage3DViewer {
             const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
             const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
             const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
-            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: 0.0, depthWrite: false });
+            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
             const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
             
             mesh = new THREE.Mesh(geo, [facadeMatSide, facadeMatSide, topMat, bottomMat, facadeMat, facadeMat]);
@@ -4109,21 +4106,40 @@ class Calpinage3DViewer {
         const wallH     = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
         const roofType  = this._mainBldgRoofType ?? 'tuile';
 
+        // Si le terrain 3D n'a pas pu être chargé (terrainH = 0), mais que Google Solar
+        // nous donne une altitude absolue (altitude_min_m = 85m), il faut compenser
+        // pour que le toit ne vole pas à 85m au-dessus du sol (qui est à 0).
+        const solarAltOffset = (dsmStats?.altitude_min_m != null && terrainH === 0) 
+            ? dsmStats.altitude_min_m 
+            : 0;
+
         // ── Ajustement de la hauteur des murs du bâtiment principal ───────────────
         // Si les murs (BD TOPO) sont plus hauts que le toit Google Solar, on les réduit
-        let minSolarHeight = Infinity;
+        let minSolarHeightAbs = Infinity;
         for (const seg of segments) {
             if (seg.height_m != null) {
-                // height_m est la hauteur au centre du pan. On prend une marge pour le bas du pan.
-                minSolarHeight = Math.min(minSolarHeight, seg.height_m - 1.0);
+                // height_m est la hauteur au centre du pan (altitude absolue).
+                // On estime le point le plus bas du pan (l'égout/corniche).
+                const pitchRad = (seg.pitch_deg ?? 0) * Math.PI / 180;
+                const tanPitch = Math.tan(pitchRad);
+                const w = seg.seg_w_m ?? 10;
+                const l = seg.seg_l_m ?? 10;
+                const maxDist = Math.sqrt(w*w + l*l) / 2;
+                const lowestPoint = (seg.height_m - solarAltOffset) - maxDist * tanPitch;
+                minSolarHeightAbs = Math.min(minSolarHeightAbs, lowestPoint);
             }
         }
-        if (minSolarHeight !== Infinity && minSolarHeight > 0) {
+        
+        if (minSolarHeightAbs !== Infinity) {
+            // Convertir l'altitude absolue en hauteur relative au terrain
+            let minSolarHeightRel = minSolarHeightAbs - (terrainH > 0 ? terrainH : solarAltOffset);
+            minSolarHeightRel = Math.max(minSolarHeightRel, 2.0); // Au moins 2m de murs
+            
             const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
-            if (mainMesh && mainMesh.userData.originalHeight > minSolarHeight) {
-                const scaleY = minSolarHeight / mainMesh.userData.originalHeight;
+            if (mainMesh) {
+                const scaleY = minSolarHeightRel / mainMesh.userData.originalHeight;
                 mainMesh.scale.y = scaleY;
-                console.log(`📉 Ajustement hauteur murs: ${mainMesh.userData.originalHeight.toFixed(1)}m -> ${minSolarHeight.toFixed(1)}m (scale: ${scaleY.toFixed(2)})`);
+                console.log(`📏 Ajustement hauteur murs: ${mainMesh.userData.originalHeight.toFixed(1)}m -> ${minSolarHeightRel.toFixed(1)}m (scale: ${scaleY.toFixed(2)})`);
             }
         }
 
@@ -4151,14 +4167,20 @@ class Calpinage3DViewer {
             const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
             const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
             const cx   = toX(cLon), cz = toZ(cLat);
-            const hC   = seg.height_m ?? (wallH + 0.5);   // hauteur au centre (IGN MNH)
+            
+            let baseH = 0;
+            if (seg.height_m != null) {
+                baseH = seg.height_m - solarAltOffset; // altitude absolue compensée
+            } else {
+                baseH = terrainH + wallH + 0.5; // fallback relatif au terrain
+            }
 
             // Hauteur en un point local (x, z) Three.js :
-            //   h(x,z) = terrainH + hC − proj·tan(pitch)
+            //   h(x,z) = baseH − proj·tan(pitch)
             //   proj = (x−cx)·sin(az) − (z−cz)·cos(az)  [dist horizontale vers le bas]
             const hAt = (x, z) => {
                 const proj = (x - cx) * Math.sin(azRad) - (z - cz) * Math.cos(azRad);
-                return terrainH + hC - proj * tanPitch;
+                return baseH - proj * tanPitch;
             };
 
             // ── 4 coins GPS de la bbox + buffer 0.25 m (supprime les lacunes faîtage) ──
@@ -4199,6 +4221,7 @@ class Calpinage3DViewer {
         // Mémoriser centre + segments pour applyBuildingInsightsPanels3D
         this._solarBldgCenter = bldgCenter;
         this._solarSegments   = segments;
+        this._solarDsmStats   = dsmStats;
 
         console.log(`🏠 Solar roof 3D (quads GPS propres): ${nBuilt} pans depuis buildingInsights`);
     }
@@ -4233,6 +4256,14 @@ class Calpinage3DViewer {
 
         const terrainH = this._mainBldgTerrainH ?? 0;
         const wallH    = this._mainBldgBh ?? 5;
+        const dsmStats = this._solarDsmStats;
+        
+        // Si le terrain 3D n'a pas pu être chargé (terrainH = 0), mais que Google Solar
+        // nous donne une altitude absolue (altitude_min_m = 85m), il faut compenser
+        // pour que les panneaux ne volent pas à 85m au-dessus du sol (qui est à 0).
+        const solarAltOffset = (dsmStats?.altitude_min_m != null && terrainH === 0) 
+            ? dsmStats.altitude_min_m 
+            : 0;
 
         // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
         const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
@@ -4247,12 +4278,19 @@ class Calpinage3DViewer {
             const cLon   = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
             const azRad  = (seg.azimuth_deg ?? 180) * Math.PI / 180;
             const pitRad = (seg.pitch_deg   ?? 0)   * Math.PI / 180;
-            const hC     = seg.height_m ?? (wallH + 0.5);
+            
+            let baseH = 0;
+            if (seg.height_m != null) {
+                baseH = seg.height_m - solarAltOffset; // altitude absolue compensée
+            } else {
+                baseH = terrainH + wallH + 0.5; // fallback relatif
+            }
+            
             const cx     = toX(cLon), cz = toZ(cLat);
             segMap.set(idx, {
                 azRad, pitRad,
                 tanPit: Math.tan(pitRad),
-                hC, cx, cz,
+                baseH, cx, cz,
             });
         }
 
@@ -4274,7 +4312,7 @@ class Calpinage3DViewer {
             let py = terrainH + wallH + 0.1; // fallback si segment inconnu
             if (info) {
                 const proj = (px - info.cx) * Math.sin(info.azRad) - (pz - info.cz) * Math.cos(info.azRad);
-                py = terrainH + info.hC - proj * info.tanPit + 0.06;
+                py = info.baseH - proj * info.tanPit + 0.06;
             }
 
             // ── Couleur dégradée bleu (faible irr) → rouge (forte irr) ────────
