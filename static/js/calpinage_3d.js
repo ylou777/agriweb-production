@@ -4065,12 +4065,13 @@ class Calpinage3DViewer {
     /**
      * Injecte le toit Google Solar dans la vue 3D.
      *
-     * APPROCHE SIMPLE — comme les modules PV :
-     *   • Chaque segment Solar = 1 PlaneGeometry(largeur, longueur)
-     *   • Positionné au centre GPS du segment → XYZ local
-     *   • Rotation Y = azimuth, Tilt = pitch (même logique que addModules3D)
-     *   • Hauteur Y = terrainH + height_m du segment
-     *   • Pas de triangulation, pas de polygone, pas de quads clippés.
+     * Le toit = cap BD TOPO (ExtrudeGeometry) rendu visible à la bonne hauteur.
+     * Les panneaux individuels Google Solar (applyBuildingInsightsPanels3D)
+     * sont posés par-dessus avec position/tilt/azimuth corrects et montrent
+     * la géométrie inclinée réelle du toit.
+     *
+     * On ne crée AUCUNE géométrie de toit ici — le cap ExtrudeGeometry suffit.
+     * Les bboxes de segments se chevauchent → impossible d'en faire des plans corrects.
      */
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats, buildingDims) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
@@ -4112,13 +4113,12 @@ class Calpinage3DViewer {
         // ── Constantes ────────────────────────────────────────────────────────────
         const terrainH = this._mainBldgTerrainH ?? 0;
         const wallH    = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
-        const roofType = this._mainBldgRoofType ?? 'tuile';
 
         // ── Hauteur d'égout = min(height_m) ───────────────────────────────────────
         const allH = segments.map(s => s.height_m).filter(h => h != null);
         const eaveH = allH.length ? Math.max(Math.min(...allH), 2.0) : wallH;
 
-        // ── Ajuster murs BD TOPO ──────────────────────────────────────────────────
+        // ── Ajuster murs BD TOPO + rendre le cap visible ──────────────────────────
         const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
         if (mainMesh) {
             const scaleY = eaveH / mainMesh.userData.originalHeight;
@@ -4126,11 +4126,16 @@ class Calpinage3DViewer {
                 mainMesh.scale.y = scaleY;
                 console.log(`📏 Murs: ${mainMesh.userData.originalHeight.toFixed(1)}m → ${eaveH.toFixed(1)}m (×${scaleY.toFixed(2)})`);
             }
+            // Rendre le cap (face supérieure) VISIBLE — base du toit
+            if (Array.isArray(mainMesh.material) && mainMesh.material[0]) {
+                const capMat = mainMesh.material[0];
+                capMat.color.setHex(0x8A8078);
+                capMat.opacity = 1.0;
+                capMat.transparent = false;
+                capMat.depthWrite = true;
+                capMat.needsUpdate = true;
+            }
         }
-
-        // GPS → Three.js local
-        const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
-        const toZ = lat => -(lat - this.centerLat) * this.LAT_TO_M;
 
         // ── Offset BD TOPO ↔ Google Solar ─────────────────────────────────────────
         let offsetX = 0, offsetZ = 0;
@@ -4148,85 +4153,6 @@ class Calpinage3DViewer {
             }
         }
 
-        // Matériau toit
-        const roofMat = new THREE.MeshPhongMaterial({
-            map: this._getRoofTexture ? this._getRoofTexture(roofType) : null,
-            color: 0xB0A898,
-            side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
-            polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
-        });
-
-        let nBuilt = 0;
-
-        // ══════════════════════════════════════════════════════════════════════════
-        // CHAQUE SEGMENT = 1 PlaneGeometry positionné + orienté + incliné
-        // Exactement comme les modules PV dans addModules3D.
-        // ══════════════════════════════════════════════════════════════════════════
-        for (const seg of segments) {
-            if (!seg.seg_sw || !seg.seg_ne) continue;
-
-            // Dimensions du pan (déjà calculées côté backend)
-            const segW = seg.seg_w_m || 5; // largeur (Est-Ouest)
-            const segL = seg.seg_l_m || 5; // longueur (Nord-Sud)
-            if (segW < 0.5 || segL < 0.5) continue;
-
-            // Centre GPS du segment
-            const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
-            const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
-
-            // Position 3D : centre GPS → local + offset BD TOPO
-            const px = toX(cLon) + offsetX;
-            const pz = toZ(cLat) + offsetZ;
-            const py = terrainH + (seg.height_m ?? eaveH);
-
-            // Pitch et Azimuth
-            const pitchDeg   = seg.pitch_deg   ?? 0;
-            const azimuthDeg = seg.azimuth_deg ?? 180;
-            const pitchRad   = pitchDeg * Math.PI / 180;
-            const azimuthRad = azimuthDeg * Math.PI / 180;
-
-            // PlaneGeometry : largeur × longueur
-            const geo = new THREE.PlaneGeometry(segW, segL);
-            const mesh = new THREE.Mesh(geo, roofMat.clone());
-
-            // Position au centre du segment
-            mesh.position.set(px, py, pz);
-
-            // Orientation : même méthode que les modules dans addModules3D
-            // 1. Plane est horizontal face vers Y+ par défaut
-            // 2. On le tourne face vers haut : rotation X = -π/2
-            // 3. Rotation Y = azimuth (Nord=0, Est=90, Sud=180, Ouest=270)
-            // 4. Tilt = rotation autour de l'axe perpendiculaire à l'azimuth
-            mesh.rotation.set(0, 0, 0);
-            mesh.rotation.x = -Math.PI / 2; // coucher horizontal
-
-            // Appliquer azimuth + tilt via rotateOnWorldAxis (comme panGroup)
-            mesh.rotation.y = 0; // reset
-            // Tourner le plan pour l'orienter selon l'azimuth
-            // Axe de la pente = direction azimuth : le côté face au soleil descend
-            // Direction azimuth en Three.js : (sin(az), 0, -cos(az))
-            // Axe de bascule perpendiculaire : (-cos(az), 0, -sin(az))
-            if (pitchRad > 0.001) {
-                const tiltAxis = new THREE.Vector3(
-                    -Math.cos(azimuthRad), 0, -Math.sin(azimuthRad)
-                ).normalize();
-                mesh.rotateOnWorldAxis(tiltAxis, pitchRad);
-            }
-
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            mesh.userData = {
-                segId: seg.id, pitch: pitchDeg, azimuth: azimuthDeg, source: 'solar',
-                width: segW, length: segL, height: seg.height_m,
-            };
-            this.scene.add(mesh);
-            this.buildings.push(mesh);
-            this._solarRoofMeshes.push(mesh);
-            nBuilt++;
-
-            console.log(`  🔺 Seg ${seg.id}: ${segW.toFixed(1)}×${segL.toFixed(1)}m, ${pitchDeg}°/${azimuthDeg}°, h=${(seg.height_m ?? 0).toFixed(1)}m`);
-        }
-
         // ── Mémoriser données ─────────────────────────────────────────────────────
         this._solarBldgCenter = bldgCenter;
         this._solarSegments   = segments;
@@ -4237,7 +4163,7 @@ class Calpinage3DViewer {
         // ── Mettre à jour roofPanelsInfo ──────────────────────────────────────────
         this._updateRoofPanelsInfoFromSolar(segments, dsmStats);
 
-        console.log(`🏠 Solar roof 3D: ${nBuilt} plans inclinés (PlaneGeometry) positionnés comme modules`);
+        console.log(`🏠 Solar roof: cap BD TOPO visible à ${eaveH.toFixed(1)}m + panneaux Google Solar par-dessus`);
     }
 
     /**
