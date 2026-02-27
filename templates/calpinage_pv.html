@@ -1369,7 +1369,7 @@
     <!-- Module de visualisation 3D (admin uniquement) -->
     {% if is_admin %}
     <script src="/static/js/calpinage_3d_bundled.js?v=10"></script>
-    <script src="/static/js/calpinage_3d.js?v=57"></script>
+    <script src="/static/js/calpinage_3d.js?v=58"></script>
     {% endif %}
     <script>
         // Personnalisation des textes Leaflet.Draw
@@ -6365,11 +6365,9 @@
                 if (panels?.length > 0) {
                     viewer3D.applyBuildingInsightsPanels3D(panels, segs, center);
                 }
-                // Modules zones utilisateur (rouges) : UNIQUEMENT si pas de panneaux Google Solar
-                // (sinon ils se superposent avec les panneaux bleus)
-                if (!panels || panels.length === 0) {
-                    update3DFromZones();
-                }
+                // Toujours appeler update3DFromZones pour recalculer les données zones
+                // (addModules3D gère la suppression des modules rouges quand Solar actif)
+                update3DFromZones();
                 ajusterZonesDepuisToiture3D();
                 updateRoofPanelsInfoPanel();
             } else {
