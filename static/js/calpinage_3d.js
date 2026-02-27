@@ -4065,12 +4065,12 @@ class Calpinage3DViewer {
     /**
      * Injecte le toit Google Solar dans la vue 3D.
      *
-     * APPROCHE : Polygone BD TOPO triangulé + hauteurs INCLINÉES par segment Solar.
-     *   • Le contour = polygone BD TOPO (pas de débordement).
-     *   • Chaque sommet reçoit sa hauteur Y calculée depuis le PLAN INCLINÉ
-     *     du segment Solar qui le couvre (pitch + azimuth + height_m).
-     *   • Résultat : un toit qui suit exactement l'emprise ET les pentes réelles.
-     *   • Le cap ExtrudeGeometry est gardé invisible (les triangles Solar le remplacent).
+     * APPROCHE SIMPLE — comme les modules PV :
+     *   • Chaque segment Solar = 1 PlaneGeometry(largeur, longueur)
+     *   • Positionné au centre GPS du segment → XYZ local
+     *   • Rotation Y = azimuth, Tilt = pitch (même logique que addModules3D)
+     *   • Hauteur Y = terrainH + height_m du segment
+     *   • Pas de triangulation, pas de polygone, pas de quads clippés.
      */
     applySolarRoofFromInsights(segments, bldgCenter, dsmStats, buildingDims) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
@@ -4114,11 +4114,11 @@ class Calpinage3DViewer {
         const wallH    = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
         const roofType = this._mainBldgRoofType ?? 'tuile';
 
-        // ── Hauteur d'égout = min(height_m) des segments ──────────────────────────
+        // ── Hauteur d'égout = min(height_m) ───────────────────────────────────────
         const allH = segments.map(s => s.height_m).filter(h => h != null);
         const eaveH = allH.length ? Math.max(Math.min(...allH), 2.0) : wallH;
 
-        // ── Ajuster les murs BD TOPO à la hauteur d'égout ────────────────────────
+        // ── Ajuster murs BD TOPO ──────────────────────────────────────────────────
         const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
         if (mainMesh) {
             const scaleY = eaveH / mainMesh.userData.originalHeight;
@@ -4131,9 +4131,6 @@ class Calpinage3DViewer {
         // GPS → Three.js local
         const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
         const toZ = lat => -(lat - this.centerLat) * this.LAT_TO_M;
-        // Three.js local → GPS
-        const toLon = x => this.centerLon + x / this.LNG_TO_M;
-        const toLat = z => this.centerLat - z / this.LAT_TO_M;
 
         // ── Offset BD TOPO ↔ Google Solar ─────────────────────────────────────────
         let offsetX = 0, offsetZ = 0;
@@ -4151,53 +4148,10 @@ class Calpinage3DViewer {
             }
         }
 
-        // ── Préparer les segments Solar pour lookup rapide ────────────────────────
-        // Segment dominant = le plus grand (fallback si aucun segment ne couvre un point)
-        const dominant = segments.reduce((a, b) =>
-            ((a.area_m2 || 0) >= (b.area_m2 || 0) ? a : b), segments[0]);
-
-        // Pré-calculer pour chaque segment : centre local, azRad, pitchRad, baseH
-        const segInfos = segments.filter(s => s.seg_sw && s.seg_ne).map(seg => {
-            const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
-            const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
-            const azRad    = (seg.azimuth_deg ?? 180) * Math.PI / 180;
-            const pitchRad = (seg.pitch_deg   ?? 0)   * Math.PI / 180;
-            return {
-                seg, azRad, pitchRad,
-                tanPitch: Math.tan(pitchRad),
-                cx: toX(cLon), cz: toZ(cLat),
-                baseH: terrainH + (seg.height_m ?? wallH),
-                swLat: seg.seg_sw.lat, swLon: seg.seg_sw.lon,
-                neLat: seg.seg_ne.lat, neLon: seg.seg_ne.lon,
-                area: seg.area_m2 || 0,
-            };
-        });
-
-        // Trouver le segment Solar qui contient un point GPS
-        const findSegInfo = (gpsLat, gpsLon) => {
-            let best = null, bestArea = -1;
-            for (const si of segInfos) {
-                if (gpsLat >= si.swLat && gpsLat <= si.neLat &&
-                    gpsLon >= si.swLon && gpsLon <= si.neLon) {
-                    if (si.area > bestArea) { bestArea = si.area; best = si; }
-                }
-            }
-            // Fallback : segment dominant
-            if (!best && segInfos.length > 0) {
-                const domSI = segInfos.find(si => si.seg === dominant);
-                best = domSI || segInfos[0];
-            }
-            return best;
-        };
-
-        // Hauteur Y à un point Three.js local (dans l'espace Solar, avant offset)
-        const heightAt = (si, sx, sz) => {
-            const proj = (sx - si.cx) * Math.sin(si.azRad) - (sz - si.cz) * Math.cos(si.azRad);
-            return si.baseH - proj * si.tanPitch;
-        };
-
+        // Matériau toit
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture ? this._getRoofTexture(roofType) : null,
+            color: 0xB0A898,
             side: THREE.DoubleSide, specular: 0x222222, shininess: 5,
             polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1,
         });
@@ -4205,195 +4159,72 @@ class Calpinage3DViewer {
         let nBuilt = 0;
 
         // ══════════════════════════════════════════════════════════════════════════
-        // POLYGONE BD TOPO triangulé + hauteurs par plan incliné Solar
-        // Chaque vertex suit l'emprise exacte du bâtiment ET la pente du segment.
+        // CHAQUE SEGMENT = 1 PlaneGeometry positionné + orienté + incliné
+        // Exactement comme les modules PV dans addModules3D.
         // ══════════════════════════════════════════════════════════════════════════
-        const polyCoords = this.roofPanelsInfo?.buildingLocalCoords;
+        for (const seg of segments) {
+            if (!seg.seg_sw || !seg.seg_ne) continue;
 
-        if (polyCoords && polyCoords.length >= 3) {
-            // On va subdiviser le polygone en grille dense pour mieux capter les
-            // variations de pente à travers le bâtiment.
-            // Étape 1 : triangulation du polygone 2D
-            const verts2D = polyCoords.map(c => new THREE.Vector2(c.x, -c.z));
+            // Dimensions du pan (déjà calculées côté backend)
+            const segW = seg.seg_w_m || 5; // largeur (Est-Ouest)
+            const segL = seg.seg_l_m || 5; // longueur (Nord-Sud)
+            if (segW < 0.5 || segL < 0.5) continue;
 
-            // Assurer enroulement CCW (requis par ShapeUtils)
-            if (this._signedArea2D(verts2D.map(v => ({x: v.x, y: v.y}))) < 0) {
-                verts2D.reverse();
+            // Centre GPS du segment
+            const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
+            const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
+
+            // Position 3D : centre GPS → local + offset BD TOPO
+            const px = toX(cLon) + offsetX;
+            const pz = toZ(cLat) + offsetZ;
+            const py = terrainH + (seg.height_m ?? eaveH);
+
+            // Pitch et Azimuth
+            const pitchDeg   = seg.pitch_deg   ?? 0;
+            const azimuthDeg = seg.azimuth_deg ?? 180;
+            const pitchRad   = pitchDeg * Math.PI / 180;
+            const azimuthRad = azimuthDeg * Math.PI / 180;
+
+            // PlaneGeometry : largeur × longueur
+            const geo = new THREE.PlaneGeometry(segW, segL);
+            const mesh = new THREE.Mesh(geo, roofMat.clone());
+
+            // Position au centre du segment
+            mesh.position.set(px, py, pz);
+
+            // Orientation : même méthode que les modules dans addModules3D
+            // 1. Plane est horizontal face vers Y+ par défaut
+            // 2. On le tourne face vers haut : rotation X = -π/2
+            // 3. Rotation Y = azimuth (Nord=0, Est=90, Sud=180, Ouest=270)
+            // 4. Tilt = rotation autour de l'axe perpendiculaire à l'azimuth
+            mesh.rotation.set(0, 0, 0);
+            mesh.rotation.x = -Math.PI / 2; // coucher horizontal
+
+            // Appliquer azimuth + tilt via rotateOnWorldAxis (comme panGroup)
+            mesh.rotation.y = 0; // reset
+            // Tourner le plan pour l'orienter selon l'azimuth
+            // Axe de la pente = direction azimuth : le côté face au soleil descend
+            // Direction azimuth en Three.js : (sin(az), 0, -cos(az))
+            // Axe de bascule perpendiculaire : (-cos(az), 0, -sin(az))
+            if (pitchRad > 0.001) {
+                const tiltAxis = new THREE.Vector3(
+                    -Math.cos(azimuthRad), 0, -Math.sin(azimuthRad)
+                ).normalize();
+                mesh.rotateOnWorldAxis(tiltAxis, pitchRad);
             }
 
-            // Ajouter des points intérieurs sur une grille pour capter les pentes
-            // à travers le bâtiment (sinon avec seulement les sommets du contour,
-            // un grand bâtiment aurait des triangles immenses et les pentes seraient
-            // interpolées de manière incorrecte).
-            const GRID_STEP = 3.0; // mètres entre points de grille
-
-            // Bbox du polygone
-            let pMinX = Infinity, pMaxX = -Infinity, pMinZ = Infinity, pMaxZ = -Infinity;
-            for (const c of polyCoords) {
-                if (c.x < pMinX) pMinX = c.x;
-                if (c.x > pMaxX) pMaxX = c.x;
-                if (c.z < pMinZ) pMinZ = c.z;
-                if (c.z > pMaxZ) pMaxZ = c.z;
-            }
-
-            // Point-in-polygon test rapide (ray casting, coords {x, z})
-            const pip = (px, pz) => {
-                let inside = false;
-                for (let i = 0, j = polyCoords.length - 1; i < polyCoords.length; j = i++) {
-                    const xi = polyCoords[i].x, zi = polyCoords[i].z;
-                    const xj = polyCoords[j].x, zj = polyCoords[j].z;
-                    if (((zi > pz) !== (zj > pz)) && (px < (xj - xi) * (pz - zi) / (zj - zi) + xi)) {
-                        inside = !inside;
-                    }
-                }
-                return inside;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = {
+                segId: seg.id, pitch: pitchDeg, azimuth: azimuthDeg, source: 'solar',
+                width: segW, length: segL, height: seg.height_m,
             };
+            this.scene.add(mesh);
+            this.buildings.push(mesh);
+            this._solarRoofMeshes.push(mesh);
+            nBuilt++;
 
-            // Collecter tous les points : contour + grille intérieure
-            const allPts = []; // [{x, z}]
-            for (const c of polyCoords) allPts.push({x: c.x, z: c.z});
-
-            for (let gx = pMinX + GRID_STEP; gx < pMaxX; gx += GRID_STEP) {
-                for (let gz = pMinZ + GRID_STEP; gz < pMaxZ; gz += GRID_STEP) {
-                    if (pip(gx, gz)) allPts.push({x: gx, z: gz});
-                }
-            }
-
-            console.log(`🔺 Triangulation: ${polyCoords.length} sommets contour + ${allPts.length - polyCoords.length} points grille = ${allPts.length} total`);
-
-            // Triangulation Delaunay-like via earcut
-            // Earcut veut un flat array [x0, y0, x1, y1, ...] et retourne des indices
-            // On utilise (x, -z) comme coordonnées 2D
-            const flatCoords = [];
-            for (const p of allPts) flatCoords.push(p.x, -p.z);
-
-            // Earcut n'est pas dispo nativement, utilisons THREE.ShapeUtils avec
-            // une approche Constrained Delaunay simplifiée :
-            // On fait une triangulation fan/grid simple mais robuste.
-
-            // Alternative simple et robuste : triangulation par Delaunay manuelle
-            // via le "super-triangle" + insertion incrémentale. Mais c'est complexe.
-            // Approche pragmatique : utiliser THREE.ShapeUtils pour le contour seul,
-            // puis pour chaque triangle résultant, le subdiviser si trop grand.
-
-            try {
-                // Triangulation du contour seul
-                const tris = THREE.ShapeUtils.triangulateShape(verts2D, []);
-
-                if (tris.length === 0) throw new Error('0 triangles');
-
-                // Pour chaque triangle, subdiviser si une arête > GRID_STEP
-                // et calculer la hauteur Y depuis le segment Solar
-                const positions = [];
-                const nContour = polyCoords.length;
-
-                // Mapping verts2D index → polyCoords (attention au reverse)
-                // Si on a reversé verts2D, il faut mapper correctement
-                const wasReversed = this._signedArea2D(
-                    polyCoords.map(c => ({x: c.x, y: -c.z}))
-                ) < 0;
-
-                const getCoord = (idx) => {
-                    if (wasReversed) {
-                        const ri = nContour - 1 - idx;
-                        return polyCoords[ri];
-                    }
-                    return polyCoords[idx];
-                };
-
-                // Fonction : calculer Y pour un point local {x, z}
-                const yAt = (lx, lz) => {
-                    // Convertir local → GPS pour trouver le segment
-                    const solarX = lx - offsetX;
-                    const solarZ = lz - offsetZ;
-                    const gLat = toLat(solarX); // Note: toX/toZ sont relatives à centerLon/Lat
-                    const gLon = toLon(solarZ); // Incorrect — corrigeons
-
-                    // Correct : local Three.js → GPS
-                    // toX(lon) = (lon - centerLon) * LNG_TO_M  →  lon = centerLon + x / LNG_TO_M
-                    // toZ(lat) = -(lat - centerLat) * LAT_TO_M →  lat = centerLat - z / LAT_TO_M
-                    const gpLon = this.centerLon + solarX / this.LNG_TO_M;
-                    const gpLat = this.centerLat - solarZ / this.LAT_TO_M;
-
-                    const si = findSegInfo(gpLat, gpLon);
-                    if (!si) return terrainH + eaveH;
-                    return heightAt(si, solarX, solarZ);
-                };
-
-                // Subdiviser et émettre les triangles
-                const MAX_EDGE = GRID_STEP * 1.5;
-                const emitTri = (ax, az, bx, bz, cx, cz, depth) => {
-                    // Vérifier si subdivision nécessaire
-                    const ab = Math.hypot(bx - ax, bz - az);
-                    const bc = Math.hypot(cx - bx, cz - bz);
-                    const ca = Math.hypot(ax - cx, az - cz);
-                    const maxEdge = Math.max(ab, bc, ca);
-
-                    if (maxEdge > MAX_EDGE && depth < 4) {
-                        // Subdiviser au milieu de la plus longue arête
-                        if (ab >= bc && ab >= ca) {
-                            const mx = (ax + bx) / 2, mz = (az + bz) / 2;
-                            emitTri(ax, az, mx, mz, cx, cz, depth + 1);
-                            emitTri(mx, mz, bx, bz, cx, cz, depth + 1);
-                        } else if (bc >= ab && bc >= ca) {
-                            const mx = (bx + cx) / 2, mz = (bz + cz) / 2;
-                            emitTri(ax, az, bx, bz, mx, mz, depth + 1);
-                            emitTri(ax, az, mx, mz, cx, cz, depth + 1);
-                        } else {
-                            const mx = (cx + ax) / 2, mz = (cz + az) / 2;
-                            emitTri(ax, az, bx, bz, mx, mz, depth + 1);
-                            emitTri(bx, bz, cx, cz, mx, mz, depth + 1);
-                        }
-                        return;
-                    }
-
-                    // Émettre le triangle avec hauteurs Y calculées
-                    positions.push(
-                        ax, yAt(ax, az), az,
-                        bx, yAt(bx, bz), bz,
-                        cx, yAt(cx, cz), cz
-                    );
-                };
-
-                for (const [a, b, c] of tris) {
-                    const pa = getCoord(a), pb = getCoord(b), pc = getCoord(c);
-                    emitTri(pa.x, pa.z, pb.x, pb.z, pc.x, pc.z, 0);
-                }
-
-                console.log(`🔺 ${tris.length} triangles base → ${positions.length / 9} triangles subdivisés`);
-
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(positions), 3));
-                geo.computeVertexNormals();
-
-                const mesh = new THREE.Mesh(geo, roofMat);
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                mesh.userData = { source: 'solar', type: 'roof_polygon' };
-                this.scene.add(mesh);
-                this.buildings.push(mesh);
-                this._solarRoofMeshes.push(mesh);
-                nBuilt = 1;
-
-                console.log(`🏠 Toit polygone BD TOPO incliné: ${polyCoords.length} sommets, ${positions.length / 9} triangles, pentes Solar`);
-
-            } catch(e) {
-                console.warn('⚠️ Triangulation polygone échouée:', e.message);
-                nBuilt = 0;
-            }
-        }
-
-        if (nBuilt === 0) {
-            console.warn('⚠️ Pas de polygone BD TOPO — rendu cap plat visible en fallback');
-            if (mainMesh) {
-                if (Array.isArray(mainMesh.material) && mainMesh.material[0]) {
-                    const capMat = mainMesh.material[0];
-                    capMat.opacity = 1.0;
-                    capMat.transparent = false;
-                    capMat.depthWrite = true;
-                    capMat.needsUpdate = true;
-                }
-            }
+            console.log(`  🔺 Seg ${seg.id}: ${segW.toFixed(1)}×${segL.toFixed(1)}m, ${pitchDeg}°/${azimuthDeg}°, h=${(seg.height_m ?? 0).toFixed(1)}m`);
         }
 
         // ── Mémoriser données ─────────────────────────────────────────────────────
@@ -4406,7 +4237,7 @@ class Calpinage3DViewer {
         // ── Mettre à jour roofPanelsInfo ──────────────────────────────────────────
         this._updateRoofPanelsInfoFromSolar(segments, dsmStats);
 
-        console.log(`🏠 Solar roof 3D: ${nBuilt > 0 ? 'polygone incliné' : 'cap plat fallback'} — ${segments.length} segments Solar`);
+        console.log(`🏠 Solar roof 3D: ${nBuilt} plans inclinés (PlaneGeometry) positionnés comme modules`);
     }
 
     /**
