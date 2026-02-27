@@ -2156,6 +2156,9 @@ class Calpinage3DViewer {
                 color: roofCapColorMap[roofType] || 0xB0A898,
                 specular: 0x111111,
                 shininess: roofType === 'zinc' || roofType === 'metal' ? 20 : 3,
+                transparent: true,
+                opacity: 0.0, // Rendre le cap invisible pour ne pas interférer avec le toit Google Solar
+                depthWrite: false // Éviter les artefacts de profondeur
             });
             const wallMat = new THREE.MeshPhongMaterial({
                 color: wallColorMap[wallType] || 0xE8DCC8,
@@ -2180,7 +2183,7 @@ class Calpinage3DViewer {
             const facadeTexSide = this._getFacadeTexture(wallType, bz, bh, bx);
             const facadeMat = new THREE.MeshPhongMaterial({ map: facadeTex, specular: 0x111111, shininess: 5 });
             const facadeMatSide = new THREE.MeshPhongMaterial({ map: facadeTexSide, specular: 0x111111, shininess: 5 });
-            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+            const topMat = new THREE.MeshLambertMaterial({ color: 0x888888, transparent: true, opacity: 0.0, depthWrite: false });
             const bottomMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
             
             mesh = new THREE.Mesh(geo, [facadeMatSide, facadeMatSide, topMat, bottomMat, facadeMat, facadeMat]);
