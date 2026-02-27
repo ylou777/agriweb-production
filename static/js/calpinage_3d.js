@@ -4086,7 +4086,6 @@ class Calpinage3DViewer {
         if (!segments || segments.length === 0 || !bldgCenter) return;
 
         // ── Masquer les pans RANSAC existants (éviter superposition) ─────────────
-        // Ils restent dans la scène mais invisibles ; Solar data prend le dessus.
         this.buildings.forEach(m => {
             if (m.userData?.source === 'ransac') m.visible = false;
         });
@@ -4109,35 +4108,23 @@ class Calpinage3DViewer {
         const wallH     = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
         const roofType  = this._mainBldgRoofType ?? 'tuile';
 
-        // Si le terrain 3D n'a pas pu être chargé (terrainH = 0), mais que Google Solar
-        // nous donne une altitude absolue (altitude_min_m = 85m), il faut compenser
-        // pour que le toit ne vole pas à 85m au-dessus du sol (qui est à 0).
-        const solarAltOffset = (dsmStats?.altitude_min_m != null && terrainH === 0) 
-            ? dsmStats.altitude_min_m 
-            : 0;
-
         // ── Ajustement de la hauteur des murs du bâtiment principal ───────────────
-        // Si les murs (BD TOPO) sont plus hauts que le toit Google Solar, on les réduit
-        let minSolarHeightAbs = Infinity;
+        // seg.height_m est RELATIF au sol (above ground).
+        let minSolarHeightRel = Infinity;
         for (const seg of segments) {
             if (seg.height_m != null) {
-                // height_m est la hauteur au centre du pan (altitude absolue).
-                // On estime le point le plus bas du pan (l'égout/corniche).
                 const pitchRad = (seg.pitch_deg ?? 0) * Math.PI / 180;
                 const tanPitch = Math.tan(pitchRad);
                 const w = seg.seg_w_m ?? 10;
                 const l = seg.seg_l_m ?? 10;
                 const maxDist = Math.sqrt(w*w + l*l) / 2;
-                const lowestPoint = (seg.height_m - solarAltOffset) - maxDist * tanPitch;
-                minSolarHeightAbs = Math.min(minSolarHeightAbs, lowestPoint);
+                const lowestPointRel = seg.height_m - maxDist * tanPitch;
+                minSolarHeightRel = Math.min(minSolarHeightRel, lowestPointRel);
             }
         }
         
-        if (minSolarHeightAbs !== Infinity) {
-            // Convertir l'altitude absolue en hauteur relative au terrain
-            let minSolarHeightRel = minSolarHeightAbs - (terrainH > 0 ? terrainH : solarAltOffset);
+        if (minSolarHeightRel !== Infinity) {
             minSolarHeightRel = Math.max(minSolarHeightRel, 2.0); // Au moins 2m de murs
-            
             const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
             if (mainMesh) {
                 const scaleY = minSolarHeightRel / mainMesh.userData.originalHeight;
@@ -4147,9 +4134,29 @@ class Calpinage3DViewer {
         }
 
         // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
-        // IMPORTANT : NE PAS utiliser bldgCenter comme origine, c'est this.centerLon/Lat
         const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
         const toZ = lat => -(lat - this.centerLat) * this.LAT_TO_M;
+
+        // ── ALIGNEMENT BD TOPO <-> GOOGLE SOLAR ───────────────────────────────────
+        // Il y a souvent un décalage entre les coordonnées BD TOPO et Google Satellite.
+        // On calcule l'offset pour recaler le toit Google exactement sur les murs BD TOPO.
+        let offsetX = 0;
+        let offsetZ = 0;
+        if (this.roofPanelsInfo && this.roofPanelsInfo.buildingCenterGeo && bldgCenter) {
+            const bdLat = this.roofPanelsInfo.buildingCenterGeo.lat;
+            const bdLon = this.roofPanelsInfo.buildingCenterGeo.lng;
+            // Le backend envoie {lat, lon} (pas {latitude, longitude})
+            const gsLat = bldgCenter.lat ?? bldgCenter.latitude;
+            const gsLon = bldgCenter.lon ?? bldgCenter.longitude;
+            
+            if (gsLat != null && gsLon != null && bdLat != null && bdLon != null) {
+                offsetX = (bdLon - gsLon) * this.LNG_TO_M;
+                offsetZ = -(bdLat - gsLat) * this.LAT_TO_M;
+                console.log(`🔧 Alignement Solar -> BD TOPO: offset X=${offsetX.toFixed(2)}m, Z=${offsetZ.toFixed(2)}m`);
+            } else {
+                console.warn('⚠️ Impossible de calculer l\'offset BD TOPO/Solar — coordonnées manquantes');
+            }
+        }
 
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture ? this._getRoofTexture(roofType) : null,
@@ -4166,28 +4173,26 @@ class Calpinage3DViewer {
             const azRad    = (seg.azimuth_deg ?? 180) * Math.PI / 180;
             const tanPitch = Math.tan(pitchRad);
 
-            // Centre GPS du segment → coordonnées locales de référence
+            // Centre GPS du segment → coordonnées locales de référence (SANS offset pour le calcul de hauteur)
             const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
             const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
             const cx   = toX(cLon), cz = toZ(cLat);
             
             let baseH = 0;
             if (seg.height_m != null) {
-                baseH = seg.height_m - solarAltOffset; // altitude absolue compensée
+                baseH = terrainH + seg.height_m; // Relatif au terrain
             } else {
-                baseH = terrainH + wallH + 0.5; // fallback relatif au terrain
+                baseH = terrainH + wallH + 0.5;
             }
 
-            // Hauteur en un point local (x, z) Three.js :
-            //   h(x,z) = baseH − proj·tan(pitch)
-            //   proj = (x−cx)·sin(az) − (z−cz)·cos(az)  [dist horizontale vers le bas]
+            // Hauteur en un point local (x, z) Three.js (avant offset)
             const hAt = (x, z) => {
                 const proj = (x - cx) * Math.sin(azRad) - (z - cz) * Math.cos(azRad);
                 return baseH - proj * tanPitch;
             };
 
-            // ── 4 coins GPS de la bbox + buffer 0.25 m (supprime les lacunes faîtage) ──
-            const BUF = 0.25 / this.LAT_TO_M; // ~0.25 m en degrés lat
+            // ── 4 coins GPS de la bbox + buffer 0.25 m ──
+            const BUF = 0.25 / this.LAT_TO_M;
             const BUFL = BUF * (this.LAT_TO_M / this.LNG_TO_M);
             const gpsCornersRaw = [
                 { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_sw.lon - BUFL },
@@ -4196,13 +4201,15 @@ class Calpinage3DViewer {
                 { lat: seg.seg_ne.lat + BUF,  lon: seg.seg_sw.lon - BUFL },
             ];
 
-            // Construire le quad 3D avec hauteur correcte à chaque coin
+            // Construire le quad 3D avec hauteur correcte et appliquer l'offset d'alignement
             const pts = gpsCornersRaw.map(g => {
-                const x = toX(g.lon), z = toZ(g.lat);
-                return [x, hAt(x, z), z];
+                const origX = toX(g.lon);
+                const origZ = toZ(g.lat);
+                // On applique l'offset pour l'affichage, mais la hauteur est calculée sur la position d'origine
+                return [origX + offsetX, hAt(origX, origZ), origZ + offsetZ];
             });
 
-            // 2 triangles CCW (vus du dessus)
+            // 2 triangles CCW
             const verts = new Float32Array([
                 ...pts[0], ...pts[1], ...pts[2],
                 ...pts[0], ...pts[2], ...pts[3],
@@ -4225,8 +4232,9 @@ class Calpinage3DViewer {
         this._solarBldgCenter = bldgCenter;
         this._solarSegments   = segments;
         this._solarDsmStats   = dsmStats;
+        this._solarOffset     = { x: offsetX, z: offsetZ }; // Sauvegarder l'offset pour les panneaux
 
-        console.log(`🏠 Solar roof 3D (quads GPS propres): ${nBuilt} pans depuis buildingInsights`);
+        console.log(`🏠 Solar roof 3D (quads GPS alignés): ${nBuilt} pans depuis buildingInsights`);
     }
 
     /**
@@ -4259,14 +4267,10 @@ class Calpinage3DViewer {
 
         const terrainH = this._mainBldgTerrainH ?? 0;
         const wallH    = this._mainBldgBh ?? 5;
-        const dsmStats = this._solarDsmStats;
         
-        // Si le terrain 3D n'a pas pu être chargé (terrainH = 0), mais que Google Solar
-        // nous donne une altitude absolue (altitude_min_m = 85m), il faut compenser
-        // pour que les panneaux ne volent pas à 85m au-dessus du sol (qui est à 0).
-        const solarAltOffset = (dsmStats?.altitude_min_m != null && terrainH === 0) 
-            ? dsmStats.altitude_min_m 
-            : 0;
+        // Récupérer l'offset calculé lors de la création du toit
+        const offsetX = this._solarOffset?.x ?? 0;
+        const offsetZ = this._solarOffset?.z ?? 0;
 
         // GPS → Three.js local — ORIGINE = scène Three.js (this.centerLon/Lat)
         const toX = lon => (lon - this.centerLon) * this.LNG_TO_M;
@@ -4284,7 +4288,7 @@ class Calpinage3DViewer {
             
             let baseH = 0;
             if (seg.height_m != null) {
-                baseH = seg.height_m - solarAltOffset; // altitude absolue compensée
+                baseH = terrainH + seg.height_m; // Relatif au terrain
             } else {
                 baseH = terrainH + wallH + 0.5; // fallback relatif
             }
@@ -4308,13 +4312,13 @@ class Calpinage3DViewer {
 
         for (const p of solarPanels) {
             const info = segMap.get(p.seg_idx);
-            const px   = toX(p.lon);
-            const pz   = toZ(p.lat);
+            const origX = toX(p.lon);
+            const origZ = toZ(p.lat);
 
-            // Hauteur 3D : même formule que hAt() dans applySolarRoofFromInsights
+            // Hauteur 3D : calculée sur la position d'origine
             let py = terrainH + wallH + 0.1; // fallback si segment inconnu
             if (info) {
-                const proj = (px - info.cx) * Math.sin(info.azRad) - (pz - info.cz) * Math.cos(info.azRad);
+                const proj = (origX - info.cx) * Math.sin(info.azRad) - (origZ - info.cz) * Math.cos(info.azRad);
                 py = info.baseH - proj * info.tanPit + 0.06;
             }
 
@@ -4342,7 +4346,9 @@ class Calpinage3DViewer {
             mesh.rotation.order = 'YXZ';
             mesh.rotation.y = -(info?.azRad ?? 0) + orientOffset + Math.PI;
             mesh.rotation.x = -(info?.pitRad ?? 0);
-            mesh.position.set(px, py, pz);
+            
+            // Appliquer l'offset pour l'affichage
+            mesh.position.set(origX + offsetX, py, origZ + offsetZ);
 
             mesh.castShadow = true;
             this.scene.add(mesh);
