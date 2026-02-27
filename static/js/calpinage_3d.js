@@ -4090,20 +4090,25 @@ class Calpinage3DViewer {
         const maxH = rawHeights.length ? Math.max(...rawHeights) : 0;
         const minH = rawHeights.length ? Math.min(...rawHeights) : 0;
         const groundAlt = dsmStats?.ground_alt_m ?? dsmStats?.altitude_min_m ?? 0;
-        console.log(`🔍 [DIAG] applySolarRoofFromInsights: ${segments.length} segs, height_m=[${minH.toFixed(1)}..${maxH.toFixed(1)}], groundAlt=${groundAlt}, dsmStats=`, dsmStats);
+        console.log(`🔍 [DIAG] applySolarRoofFromInsights: ${segments.length} segs, height_m=[${minH.toFixed(1)}..${maxH.toFixed(1)}], groundAlt=${groundAlt}, wallH=${this._mainBldgBh}, dsmStats=`, dsmStats);
 
-        // ── GARDE-FOU : si height_m semble être une altitude absolue (>50m et
-        //    cohérent avec ground_alt), convertir côté client ──────────────────────
-        if (maxH > 50 && groundAlt > 30 && maxH > groundAlt * 0.8) {
-            console.warn(`⚠️ [GUARD] height_m semble absolu (${maxH.toFixed(1)}m), groundAlt=${groundAlt.toFixed(1)}m → conversion client-side`);
+        // ── GARDE-FOU : si height_m > 50m → altitude absolue, pas hauteur relative.
+        //    Aucun bâtiment résidentiel/commercial n'a un toit à 50m au-dessus du sol.
+        //    Conversion : même formule que /api/solar/roof-planes :
+        //      ground_est = min(all_heights) - wall_h
+        //      height_rel = height_abs - ground_est
+        if (minH > 50) {
+            const wallH_est = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
+            const groundEst = minH - wallH_est;
+            console.warn(`⚠️ [GUARD] height_m ABSOLU détecté: [${minH.toFixed(1)}..${maxH.toFixed(1)}]m → sol≈${groundEst.toFixed(1)}m, murs≈${wallH_est.toFixed(1)}m → conversion`);
             for (const seg of segments) {
                 if (seg.height_m != null) {
-                    seg.height_m = seg.height_m - groundAlt;
-                    if (seg.height_m < 0) seg.height_m = 0.5;
+                    seg.height_m = seg.height_m - groundEst;
+                    if (seg.height_m < 1) seg.height_m = 1;
                 }
             }
             const fixedHeights = segments.map(s => s.height_m).filter(h => h != null);
-            console.log(`✅ [GUARD] height_m corrigé: [${Math.min(...fixedHeights).toFixed(1)}..${Math.max(...fixedHeights).toFixed(1)}]`);
+            console.log(`✅ [GUARD] height_m corrigé: [${Math.min(...fixedHeights).toFixed(1)}..${Math.max(...fixedHeights).toFixed(1)}]m`);
         }
 
         // ── Masquer les pans RANSAC existants (éviter superposition) ─────────────
