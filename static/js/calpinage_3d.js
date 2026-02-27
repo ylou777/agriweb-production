@@ -4065,40 +4065,39 @@ class Calpinage3DViewer {
     /**
      * Injecte le toit Google Solar dans la vue 3D.
      *
-     * APPROCHE: polygone BD TOPO + hauteurs par segment Solar.
-     *   • Le contour du toit suit exactement le polygone BD TOPO (pas de débordement).
-     *   • Chaque sommet du polygone reçoit sa hauteur Y calculée depuis l'équation
-     *     du plan incliné du segment Solar qui le contient (pitch + azimuth + height_m).
-     *   • Triangulation earcut (THREE.ShapeUtils) pour maillage correct.
+     * APPROCHE 100% GOOGLE SOLAR — Aucune dépendance BD TOPO / LiDAR.
+     *   • Le bâtiment bbox vient de buildingInsights.boundingBox (building_dims.bbox_gps).
+     *   • Chaque segment = 1 quad issu de sa propre bbox, CLIPPÉ à la bbox du bâtiment.
+     *   • Hauteur Y = équation du plan incliné (pitch + azimuth + height_m relatif).
+     *   • Murs BD TOPO conservés tels quels (pas de scaling destructeur).
      */
-    applySolarRoofFromInsights(segments, bldgCenter, dsmStats) {
+    applySolarRoofFromInsights(segments, bldgCenter, dsmStats, buildingDims) {
         if (!segments || segments.length === 0 || !bldgCenter) return;
 
         // ── DIAGNOSTIC ────────────────────────────────────────────────────────────
         const rawHeights = segments.map(s => s.height_m).filter(h => h != null);
         const maxH = rawHeights.length ? Math.max(...rawHeights) : 0;
         const minH = rawHeights.length ? Math.min(...rawHeights) : 0;
-        console.log(`🔍 [DIAG] applySolarRoofFromInsights: ${segments.length} segs, height_m=[${minH.toFixed(1)}..${maxH.toFixed(1)}], wallH=${this._mainBldgBh}`);
+        console.log(`🔍 [SOLAR ROOF] ${segments.length} segs, height_m=[${minH.toFixed(1)}..${maxH.toFixed(1)}]m, wallH=${this._mainBldgBh}`);
 
         // ── GARDE-FOU : altitude absolue → relative ──────────────────────────────
         if (minH > 50) {
             const wallH_est = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
             const groundEst = minH - wallH_est;
-            console.warn(`⚠️ [GUARD] height_m ABSOLU [${minH.toFixed(1)}..${maxH.toFixed(1)}]m → sol≈${groundEst.toFixed(1)}m → conversion`);
+            console.warn(`⚠️ [GUARD] height_m ABSOLU [${minH.toFixed(1)}..${maxH.toFixed(1)}] → sol≈${groundEst.toFixed(1)}m → conversion`);
             for (const seg of segments) {
                 if (seg.height_m != null) {
-                    seg.height_m = seg.height_m - groundEst;
-                    if (seg.height_m < 1) seg.height_m = 1;
+                    seg.height_m = Math.max(seg.height_m - groundEst, 1);
                 }
             }
         }
 
-        // ── Masquer les pans RANSAC existants ─────────────────────────────────────
+        // ── Masquer RANSAC ────────────────────────────────────────────────────────
         this.buildings.forEach(m => {
             if (m.userData?.source === 'ransac') m.visible = false;
         });
 
-        // ── Nettoyage des meshes Solar précédentes ────────────────────────────────
+        // ── Nettoyage meshes Solar précédentes ────────────────────────────────────
         if (this._solarRoofMeshes) {
             this._solarRoofMeshes.forEach(m => {
                 this.scene.remove(m);
@@ -4112,18 +4111,41 @@ class Calpinage3DViewer {
         this._solarRoofMeshes = [];
 
         // ── Constantes ────────────────────────────────────────────────────────────
-        const terrainH  = this._mainBldgTerrainH ?? 0;
-        const wallH     = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
-        const roofType  = this._mainBldgRoofType ?? 'tuile';
+        const terrainH = this._mainBldgTerrainH ?? 0;
+        const wallH    = this._mainBldgBh ?? (dsmStats?.height_egout_m ?? 5);
+        const roofType = this._mainBldgRoofType ?? 'tuile';
 
-        // ── Ajustement hauteur murs : min(height_m) = hauteur d'égout ─────────
+        // ── Bounding box du BÂTIMENT (Google Solar buildingInsights.boundingBox) ──
+        // Utilisé pour clipper les quads segments et éviter tout débordement.
+        let bboxS, bboxN, bboxW, bboxE;
+        const gps = buildingDims?.bbox_gps;
+        if (gps && gps.s && gps.n && gps.w && gps.e) {
+            bboxS = gps.s; bboxN = gps.n; bboxW = gps.w; bboxE = gps.e;
+            console.log(`📦 Building bbox GPS: [${bboxS.toFixed(6)},${bboxW.toFixed(6)}]→[${bboxN.toFixed(6)},${bboxE.toFixed(6)}]`);
+        } else {
+            // Fallback : union des segment bbox (un peu plus large que le bâtiment)
+            bboxS = Infinity; bboxN = -Infinity; bboxW = Infinity; bboxE = -Infinity;
+            for (const seg of segments) {
+                if (seg.seg_sw && seg.seg_ne) {
+                    bboxS = Math.min(bboxS, seg.seg_sw.lat);
+                    bboxN = Math.max(bboxN, seg.seg_ne.lat);
+                    bboxW = Math.min(bboxW, seg.seg_sw.lon);
+                    bboxE = Math.max(bboxE, seg.seg_ne.lon);
+                }
+            }
+            console.log(`📦 Building bbox (fallback union): [${bboxS.toFixed(6)},${bboxW.toFixed(6)}]→[${bboxN.toFixed(6)},${bboxE.toFixed(6)}]`);
+        }
+
+        // ── Ajustement murs : utiliser hauteur d'égout = min(height_m) ───────────
         const allH = segments.map(s => s.height_m).filter(h => h != null);
         const eaveH = allH.length ? Math.max(Math.min(...allH), 2.0) : wallH;
         const mainMesh = this.buildings.find(m => m.userData?.isMainBuilding);
-        if (mainMesh && eaveH !== mainMesh.userData.originalHeight) {
+        if (mainMesh) {
             const scaleY = eaveH / mainMesh.userData.originalHeight;
-            mainMesh.scale.y = scaleY;
-            console.log(`📏 Murs: ${mainMesh.userData.originalHeight.toFixed(1)}m → ${eaveH.toFixed(1)}m (scale ${scaleY.toFixed(2)})`);
+            if (Math.abs(scaleY - 1.0) > 0.05) {
+                mainMesh.scale.y = scaleY;
+                console.log(`📏 Murs: ${mainMesh.userData.originalHeight.toFixed(1)}m → ${eaveH.toFixed(1)}m (×${scaleY.toFixed(2)})`);
+            }
         }
 
         // GPS → Three.js local
@@ -4140,45 +4162,11 @@ class Calpinage3DViewer {
             if (gsLat != null && gsLon != null && bdLat != null && bdLon != null) {
                 offsetX = (bdLon - gsLon) * this.LNG_TO_M;
                 offsetZ = -(bdLat - gsLat) * this.LAT_TO_M;
-                console.log(`🔧 Offset Solar→BD TOPO: X=${offsetX.toFixed(2)}m, Z=${offsetZ.toFixed(2)}m`);
-            }
-        }
-
-        // ── Segment dominant (fallback) : le plus grand par surface ───────────────
-        const dominant = segments.reduce((a, b) =>
-            ((a.area_m2 || 0) >= (b.area_m2 || 0) ? a : b), segments[0]);
-
-        // ── Fonction : quel segment contient un point (en espace Solar) ? ─────────
-        const findSeg = (sx, sz) => {
-            const gLon = this.centerLon + sx / this.LNG_TO_M;
-            const gLat = this.centerLat - sz / this.LAT_TO_M;
-            let best = null, bestA = -1;
-            for (const seg of segments) {
-                if (!seg.seg_sw || !seg.seg_ne) continue;
-                if (gLat >= seg.seg_sw.lat && gLat <= seg.seg_ne.lat &&
-                    gLon >= seg.seg_sw.lon && gLon <= seg.seg_ne.lon) {
-                    if ((seg.area_m2 || 0) > bestA) { bestA = seg.area_m2 || 0; best = seg; }
+                if (Math.abs(offsetX) > 0.5 || Math.abs(offsetZ) > 0.5) {
+                    console.log(`🔧 Offset Solar→BD TOPO: X=${offsetX.toFixed(2)}m, Z=${offsetZ.toFixed(2)}m`);
                 }
             }
-            return best || dominant;
-        };
-
-        // ── Fonction : hauteur Y à un point (espace Solar local) pour un segment ─
-        const heightAt = (seg, sx, sz) => {
-            const pitchRad = (seg.pitch_deg ?? 0) * Math.PI / 180;
-            const azRad    = (seg.azimuth_deg ?? 180) * Math.PI / 180;
-            const tanPitch = Math.tan(pitchRad);
-            const cLat = (seg.seg_sw && seg.seg_ne)
-                ? (seg.seg_sw.lat + seg.seg_ne.lat) / 2
-                : (bldgCenter.lat ?? 0);
-            const cLon = (seg.seg_sw && seg.seg_ne)
-                ? (seg.seg_sw.lon + seg.seg_ne.lon) / 2
-                : (bldgCenter.lon ?? 0);
-            const cx = toX(cLon), cz = toZ(cLat);
-            const baseH = terrainH + (seg.height_m ?? wallH);
-            const proj = (sx - cx) * Math.sin(azRad) - (sz - cz) * Math.cos(azRad);
-            return baseH - proj * tanPitch;
-        };
+        }
 
         const roofMat = new THREE.MeshPhongMaterial({
             map: this._getRoofTexture ? this._getRoofTexture(roofType) : null,
@@ -4189,85 +4177,66 @@ class Calpinage3DViewer {
         let nBuilt = 0;
 
         // ══════════════════════════════════════════════════════════════════════════
-        // MÉTHODE 1 — Polygone BD TOPO triangulé + hauteurs par segment Solar
-        // Le toit épouse exactement l'emprise du bâtiment, zéro débordement.
+        // QUADS PAR SEGMENT — clippés au bbox du bâtiment Google Solar.
+        // Chaque segment = 1 quad incliné. Pas de BD TOPO, pas de triangulation.
         // ══════════════════════════════════════════════════════════════════════════
-        const polyCoords = this.roofPanelsInfo?.buildingLocalCoords;
-        if (polyCoords && polyCoords.length >= 3) {
-            // Préparer les vertices 2D pour triangulation (plan XY, Y = -Z local)
-            const verts2D = polyCoords.map(c => new THREE.Vector2(c.x, -c.z));
-            // Assurer enroulement CCW (requis par ShapeUtils)
-            if (this._signedArea2D(verts2D.map(v => ({x: v.x, y: v.y}))) < 0) {
-                verts2D.reverse();
-            }
-            try {
-                const tris = THREE.ShapeUtils.triangulateShape(verts2D, []);
-                // Construire les positions 3D : x, Y(hauteur Solar), z
-                const positions = [];
-                for (const [a, b, c] of tris) {
-                    for (const idx of [a, b, c]) {
-                        const lx = verts2D[idx].x;
-                        const lz = -verts2D[idx].y;
-                        // Convertir vers espace Solar (soustraire offset)
-                        const sx = lx - offsetX;
-                        const sz = lz - offsetZ;
-                        const seg = findSeg(sx, sz);
-                        const y = heightAt(seg, sx, sz);
-                        positions.push(lx, y, lz);
-                    }
-                }
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-                geo.computeVertexNormals();
-                const mesh = new THREE.Mesh(geo, roofMat.clone());
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                mesh.userData = { source: 'solar', type: 'roof_polygon' };
-                this.scene.add(mesh);
-                this.buildings.push(mesh);
-                this._solarRoofMeshes.push(mesh);
-                nBuilt = 1;
-                console.log(`🏠 Toit polygone BD TOPO: ${polyCoords.length} sommets, ${tris.length} triangles`);
-            } catch(e) {
-                console.warn('⚠️ Triangulation polygone échouée, fallback quads:', e.message);
-                nBuilt = 0; // → fallback quads ci-dessous
-            }
+        for (const seg of segments) {
+            if (!seg.seg_sw || !seg.seg_ne) continue;
+
+            // === CLIPPER le segment à la bbox du bâtiment ===
+            const cS = Math.max(seg.seg_sw.lat, bboxS);
+            const cN = Math.min(seg.seg_ne.lat, bboxN);
+            const cW = Math.max(seg.seg_sw.lon, bboxW);
+            const cE = Math.min(seg.seg_ne.lon, bboxE);
+            if (cS >= cN || cW >= cE) continue; // segment entièrement hors bbox
+
+            // Centre du segment pour le calcul du plan incliné
+            const cLat = (seg.seg_sw.lat + seg.seg_ne.lat) / 2;
+            const cLon = (seg.seg_sw.lon + seg.seg_ne.lon) / 2;
+            const cx = toX(cLon), cz = toZ(cLat);
+
+            const pitchRad = (seg.pitch_deg ?? 0) * Math.PI / 180;
+            const azRad    = (seg.azimuth_deg ?? 180) * Math.PI / 180;
+            const tanPitch = Math.tan(pitchRad);
+            const baseH    = terrainH + (seg.height_m ?? wallH);
+
+            // Hauteur au point (x,z) Three.js local (espace Solar, avant offset)
+            const hAt = (x, z) => {
+                const proj = (x - cx) * Math.sin(azRad) - (z - cz) * Math.cos(azRad);
+                return baseH - proj * tanPitch;
+            };
+
+            // 4 coins du quad clippé (coordonnées GPS → Three.js local + offset)
+            const corners = [
+                { lat: cS, lon: cW },
+                { lat: cS, lon: cE },
+                { lat: cN, lon: cE },
+                { lat: cN, lon: cW },
+            ];
+            const pts = corners.map(g => {
+                const ox = toX(g.lon), oz = toZ(g.lat);
+                return [ox + offsetX, hAt(ox, oz), oz + offsetZ];
+            });
+
+            // 2 triangles
+            const v = new Float32Array([
+                ...pts[0], ...pts[1], ...pts[2],
+                ...pts[0], ...pts[2], ...pts[3],
+            ]);
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+            geo.computeVertexNormals();
+            const mesh = new THREE.Mesh(geo, roofMat.clone());
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData = { segId: seg.id, pitch: seg.pitch_deg, azimuth: seg.azimuth_deg, source: 'solar' };
+            this.scene.add(mesh);
+            this.buildings.push(mesh);
+            this._solarRoofMeshes.push(mesh);
+            nBuilt++;
         }
 
-        // ══════════════════════════════════════════════════════════════════════════
-        // FALLBACK — Si pas de polygone BD TOPO, quads par segment (ancien code)
-        // ══════════════════════════════════════════════════════════════════════════
-        if (nBuilt === 0) {
-            for (const seg of segments) {
-                if (!seg.seg_sw || !seg.seg_ne) continue;
-                const sx = toX((seg.seg_sw.lon + seg.seg_ne.lon) / 2);
-                const sz = toZ((seg.seg_sw.lat + seg.seg_ne.lat) / 2);
-                const hAt = (x, z) => heightAt(seg, x, z);
-                const BUF = 0.25 / this.LAT_TO_M;
-                const BUFL = BUF * (this.LAT_TO_M / this.LNG_TO_M);
-                const corners = [
-                    { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_sw.lon - BUFL },
-                    { lat: seg.seg_sw.lat - BUF,  lon: seg.seg_ne.lon + BUFL },
-                    { lat: seg.seg_ne.lat + BUF,  lon: seg.seg_ne.lon + BUFL },
-                    { lat: seg.seg_ne.lat + BUF,  lon: seg.seg_sw.lon - BUFL },
-                ];
-                const pts = corners.map(g => {
-                    const ox = toX(g.lon), oz = toZ(g.lat);
-                    return [ox + offsetX, hAt(ox, oz), oz + offsetZ];
-                });
-                const v = new Float32Array([...pts[0],...pts[1],...pts[2],...pts[0],...pts[2],...pts[3]]);
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-                geo.computeVertexNormals();
-                const m = new THREE.Mesh(geo, roofMat.clone());
-                m.castShadow = true; m.receiveShadow = true;
-                m.userData = { segId: seg.id, source: 'solar' };
-                this.scene.add(m); this.buildings.push(m); this._solarRoofMeshes.push(m);
-                nBuilt++;
-            }
-        }
-
-        // ── Mémoriser données pour panneaux 3D ────────────────────────────────────
+        // ── Mémoriser données ─────────────────────────────────────────────────────
         this._solarBldgCenter = bldgCenter;
         this._solarSegments   = segments;
         this._solarDsmStats   = dsmStats;
@@ -4276,7 +4245,7 @@ class Calpinage3DViewer {
         // ── Mettre à jour roofPanelsInfo ──────────────────────────────────────────
         this._updateRoofPanelsInfoFromSolar(segments, dsmStats);
 
-        console.log(`🏠 Solar roof 3D: ${nBuilt} élément(s) depuis buildingInsights`);
+        console.log(`🏠 Solar roof 3D: ${nBuilt} quads (clippés bbox bâtiment) depuis Google Solar API`);
     }
 
     /**

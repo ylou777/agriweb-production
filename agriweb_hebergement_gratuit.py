@@ -2971,6 +2971,7 @@ def api_solar_flux_heatmap():
                     'length_m':          _bld_l,
                     'width_m':           _bld_w,
                     'footprint_bbox_m2': _bld_fp,
+                    'bbox_gps':          {'s': _bb_s, 'n': _bb_n, 'w': _bb_w, 'e': _bb_e},
                     'roof_total_m2':     round(_roof_area, 1) if _roof_area else None,
                     'roof_usable_m2':    round(sp.get('maxArrayAreaMeters2') or 0, 1) or None,
                     'max_panels':        _mpc,
